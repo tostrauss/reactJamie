@@ -163,7 +163,6 @@ export const getUserFavorites = async (req, res) => {
 
 export const getUserGroups = async (req, res) => {
   try {
-    const result = await pool.query(
     const result = await db.query(
       `SELECT g.*, u.name as owner_name, COUNT(gm.id) as member_count
        FROM groups g

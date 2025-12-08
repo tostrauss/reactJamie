@@ -2,6 +2,29 @@ import db from '../config/database.js';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../middleware/auth.js';
 
+export const completeOnboarding = async (req, res) => {
+  try {
+    const { gender, location, interests, bio, photos } = req.body;
+    
+    // Store arrays as JSON strings for SQLite
+    const interestsStr = JSON.stringify(interests || []);
+    const photosStr = JSON.stringify(photos || []);
+
+    const result = await db.query(
+      `UPDATE users 
+       SET gender = ?, location = ?, interests = ?, bio = ?, photos = ?, onboarding_completed = 1, updated_at = CURRENT_TIMESTAMP 
+       WHERE id = ?`,
+      [gender, location, interestsStr, bio, photosStr, req.userId]
+    );
+
+    // Fetch updated user
+    const updatedUser = await db.query('SELECT * FROM users WHERE id = ?', [req.userId]);
+    res.json(updatedUser.rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const register = async (req, res) => {
   try {
     const { email, password, name } = req.body;
@@ -56,7 +79,7 @@ export const login = async (req, res) => {
 export const getProfile = async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT id, email, name, bio, avatar_url, location FROM users WHERE id = ?',
+      'SELECT id, email, name, bio, avatar_url, location, gender, interests, photos FROM users WHERE id = ?',
       [req.userId]
     );
 
@@ -65,6 +88,13 @@ export const getProfile = async (req, res) => {
     }
 
     res.json(result.rows[0]);
+    try {
+        if (typeof interests === 'string') user.interests = JSON.parse(interests);
+        if (typeof photos === 'string') user.photos = JSON.parse(photos);
+      } catch (e) {
+        // Ignore JSON parse errors
+        }
+        res.json(user);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
