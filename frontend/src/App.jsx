@@ -10,6 +10,7 @@ import { Profile } from './pages/Profile';
 import { ChatList } from './pages/ChatList';
 import { SocketProvider } from './context/SocketContext';
 import { GroupDetail } from './pages/GroupDetail';
+import { Settings } from './pages/Settings';
 import './styles/global.css';
 
 const Navigation = () => {
@@ -59,6 +60,7 @@ function AppRoutes() {
         <Route path="/profile" element={user ? <Profile /> : <Navigate to="/login" />} />
         <Route path="/chat/:groupId" element={user ? <ChatPage /> : <Navigate to="/login" />} />
         <Route path="/group/:id" element={user ? <GroupDetail /> : <Navigate to="/login" />} />
+        <Route path="/settings" element={user ? <Settings /> : <Navigate to="/login" />} />
         {/* Default Redirect */}
         <Route path="/" element={<Navigate to={user ? "/home" : "/login"} />} />
       </Routes>

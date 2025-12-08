@@ -2,15 +2,16 @@ import db from '../config/database.js';
 
 export const createGroup = async (req, res) => {
   try {
-    const { title, description, type } = req.body;
+    // ADDED: image_url and category
+    const { title, description, type, category, image_url } = req.body;
     
     if (!['group', 'club'].includes(type)) {
       return res.status(400).json({ error: 'Invalid group type' });
     }
 
     const result = await db.query(
-      'INSERT INTO groups (title, description, type, owner_id) VALUES (?, ?, ?, ?)',
-      [title, description, type, req.userId]
+      'INSERT INTO groups (title, description, type, category, image_url, owner_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [title, description, type, category, image_url, req.userId]
     );
 
     // Add creator as member
@@ -27,30 +28,44 @@ export const createGroup = async (req, res) => {
 
 export const getGroups = async (req, res) => {
   try {
-    const { type } = req.query;
+    const { type, search, category } = req.query;
     let query = `
       SELECT g.*, u.name as owner_name, COUNT(gm.id) as member_count
       FROM groups g
       LEFT JOIN users u ON g.owner_id = u.id
       LEFT JOIN group_members gm ON g.id = gm.group_id
+      WHERE 1=1
     `;
-    
+    const params = [];
+
+    // Filter by Type (Group/Club)
     if (type && ['group', 'club'].includes(type)) {
-      query += ` WHERE g.type = ?`;
+      query += ` AND g.type = ?`;
+      params.push(type);
+    }
+
+    // ADDED: Filter by Category
+    if (category && category !== 'all') {
+      query += ` AND g.category = ?`;
+      params.push(category);
+    }
+
+    // ADDED: Search by Title or Description
+    if (search) {
+      query += ` AND (g.title LIKE ? OR g.description LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`);
     }
     
     query += ` GROUP BY g.id, u.name ORDER BY g.created_at DESC`;
 
-    const result = type 
-      ? await db.query(query, [type])
-      : await db.query(query);
-
+    const result = await db.query(query, params);
     res.json(result.rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
+// ... keep existing getGroupById, joinGroup, leaveGroup, toggleFavorite, etc. ...
 export const getGroupById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -172,6 +187,23 @@ export const getUserGroups = async (req, res) => {
        WHERE ugm.user_id = ?
        GROUP BY g.id`,
       [req.userId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getGroupMembers = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(
+      `SELECT u.id, u.name, u.avatar_url, u.location 
+       FROM group_members gm 
+       JOIN users u ON gm.user_id = u.id 
+       WHERE gm.group_id = ?
+       ORDER BY gm.joined_at DESC`,
+      [id]
     );
     res.json(result.rows);
   } catch (error) {

@@ -26,17 +26,22 @@ export const auth = {
   updateProfile: (data) => api.put('/auth/profile', data)
 };
 
+export const users = {
+  getById: (id) => api.get(`/users/${id}`),
+};
+
 export const groups = {
-  getAll: (type = null) => 
-    api.get('/groups', { params: { type } }),
+  getAll: (type = null, search = '', category = '') => 
+    api.get('/groups', { params: { type, search, category } }),
   getById: (id) => api.get(`/groups/${id}`),
-  create: (title, description, type) => 
-    api.post('/groups', { title, description, type }),
+  create: (data) => 
+    api.post('/groups', { data }),
   join: (id) => api.post(`/groups/${id}/join`),
   leave: (id) => api.post(`/groups/${id}/leave`),
   toggleFavorite: (id) => api.post(`/groups/${id}/favorite`),
   getFavorites: () => api.get('/groups/user/favorites'),
-  getJoined: () => api.get('/groups/user/joined')
+  getJoined: () => api.get('/groups/user/joined'),
+  getMembers: (id) => api.get(`/groups/${id}/members`)
 };
 
 export const messages = {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { auth } from '../utils/api';
+import { ImageUpload } from '../components/ImageUpload';
 import '../styles/home.css'; // Reusing tab/grid styles
 import '../styles/auth.css'; // Reusing form styles
 
@@ -10,7 +11,9 @@ export const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState('about');
-  
+  const handleAvatarUpload = (url) => {
+  setFormData(prev => ({ ...prev, avatar_url: url }));
+};
   // Form State
   const [formData, setFormData] = useState({
     name: '',
@@ -147,6 +150,20 @@ export const Profile = () => {
         <div className="auth-box" style={{ maxWidth: '100%', marginBottom: '20px' }}>
           <h3>Edit Profile</h3>
           <form onSubmit={handleUpdate}>
+            {/* Avatar Upload */}
+      <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+        <div className="profile-avatar-large" style={{
+          width: '80px', height: '80px', borderRadius: '50%', 
+          margin: '0 auto 10px', overflow: 'hidden', background: '#ccc'
+        }}>
+          {formData.avatar_url ? (
+            <img src={formData.avatar_url} alt="Avatar" style={{width: '100%', height: '100%', objectFit: 'cover'}} />
+          ) : (
+            <div style={{width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center'}}>👤</div>
+          )}
+        </div>
+        <ImageUpload onUpload={handleAvatarUpload} label="Change Photo" />
+      </div>
             <div className="form-group">
               <label>Name</label>
               <input 

@@ -7,6 +7,7 @@ import {
   leaveGroup, 
   toggleFavorite,
   getUserFavorites,
+  getGroupMembers,
   getUserGroups
 } from '../controllers/groupController.js';
 import { authenticate } from '../middleware/auth.js';
@@ -21,5 +22,6 @@ router.get('/:id', getGroupById);
 router.post('/:id/join', authenticate, joinGroup);
 router.post('/:id/leave', authenticate, leaveGroup);
 router.post('/:id/favorite', authenticate, toggleFavorite);
+router.get('/:id/members', authenticate, getGroupMembers);
 
 export default router;

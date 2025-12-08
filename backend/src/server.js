@@ -4,6 +4,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import authRoutes from './routes/authRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import groupRoutes from './routes/groupRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
@@ -33,6 +34,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/api/upload', uploadRoutes);
+app.use('/api/users', userRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
