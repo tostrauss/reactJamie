@@ -47,6 +47,9 @@ const auth = {
   updateProfile: (data) => axiosInstance.put('/auth/profile', data),
   completeOnboarding: (data) => axiosInstance.put('/auth/onboarding', data)
 };
+const spotify = {
+  search: (query) => axiosInstance.get('/spotify/search', { params: { query } })
+};
 
 const users = {
   getById: (id) => axiosInstance.get(`/users/${id}`),
@@ -87,9 +90,10 @@ axiosInstance.users = users;
 axiosInstance.groups = groups;
 axiosInstance.messages = messages;
 axiosInstance.notifications = notifications;
+axiosInstance.spotify = spotify;
 
 // Export der Hauptinstanz als 'api'
 export const api = axiosInstance;
 
 // Einzel-Exporte für Komponenten, die Destructuring nutzen { auth } from ...
-export { auth, users, groups, messages, notifications };
+export { auth, users, groups, messages, notifications, spotify };

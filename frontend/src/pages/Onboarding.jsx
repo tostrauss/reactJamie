@@ -20,6 +20,9 @@ export const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Custom interest state
+  const [customInterest, setCustomInterest] = useState('');
 
   // Form Data
   const [formData, setFormData] = useState({
@@ -27,7 +30,8 @@ export const Onboarding = () => {
     location: '',
     bio: '',
     interests: [],
-    photos: []
+    photos: [],
+    avatar_url: null // Added avatar_url
   });
 
   const handleNext = () => {
@@ -51,20 +55,50 @@ export const Onboarding = () => {
     }));
   };
 
-  const handlePhotoUpload = (url) => {
-    if (formData.photos.length < 6) {
-      setFormData(prev => ({
-        ...prev,
-        photos: [...prev.photos, url]
-      }));
+  const addCustomInterest = (e) => {
+    e?.preventDefault();
+    if (customInterest.trim() && !formData.interests.includes(customInterest.trim())) {
+      toggleInterest(customInterest.trim());
+      setCustomInterest('');
     }
   };
 
+  const handlePhotoUpload = (url) => {
+    if (formData.photos.length < 6) {
+      setFormData(prev => {
+        const newPhotos = [...prev.photos, url];
+        // Automatically set first photo as avatar if none exists
+        const newAvatar = prev.avatar_url || url;
+        return {
+          ...prev,
+          photos: newPhotos,
+          avatar_url: newAvatar
+        };
+      });
+    }
+  };
+
+  const setMainPhoto = (url) => {
+    setFormData(prev => ({ ...prev, avatar_url: url }));
+  };
+
   const removePhoto = (index) => {
-    setFormData(prev => ({
-      ...prev,
-      photos: prev.photos.filter((_, i) => i !== index)
-    }));
+    setFormData(prev => {
+      const photoToRemove = prev.photos[index];
+      const newPhotos = prev.photos.filter((_, i) => i !== index);
+      
+      // If we removed the avatar, set a new one
+      let newAvatar = prev.avatar_url;
+      if (photoToRemove === prev.avatar_url) {
+        newAvatar = newPhotos.length > 0 ? newPhotos[0] : null;
+      }
+
+      return {
+        ...prev,
+        photos: newPhotos,
+        avatar_url: newAvatar
+      };
+    });
   };
 
   const handleComplete = async () => {
@@ -228,13 +262,35 @@ export const Onboarding = () => {
               Select at least 3 interests to help us match you with groups
             </p>
 
+            {/* Custom Interest Input */}
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+              <input 
+                type="text" 
+                placeholder="Add custom interest..." 
+                value={customInterest}
+                onChange={(e) => setCustomInterest(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && addCustomInterest(e)}
+                style={{ marginBottom: 0 }}
+              />
+              <button 
+                onClick={addCustomInterest}
+                className="btn-secondary"
+                style={{ width: 'auto', padding: '0 20px' }}
+              >
+                +
+              </button>
+            </div>
+
             <div style={{ 
               display: 'flex', 
               flexWrap: 'wrap', 
               gap: '10px',
-              marginBottom: '30px'
+              marginBottom: '30px',
+              maxHeight: '300px',
+              overflowY: 'auto'
             }}>
-              {INTEREST_OPTIONS.map(interest => (
+              {/* Combine default options with any custom ones the user added */}
+              {[...new Set([...INTEREST_OPTIONS, ...formData.interests])].map(interest => (
                 <button
                   key={interest}
                   type="button"
@@ -289,7 +345,7 @@ export const Onboarding = () => {
           <div>
             <h2 style={{ marginBottom: '10px', textAlign: 'center' }}>Add some photos</h2>
             <p className="subtitle" style={{ textAlign: 'center', marginBottom: '25px' }}>
-              Show off your personality! Add up to 6 photos.
+              Show off your personality! Tap a photo to set as Profile Picture.
             </p>
 
             <div style={{ 
@@ -304,14 +360,18 @@ export const Onboarding = () => {
                   style={{
                     aspectRatio: '1',
                     borderRadius: '12px',
-                    border: '2px dashed rgba(255,255,255,0.2)',
+                    border: formData.photos[index] === formData.avatar_url 
+                      ? '2px solid #ff6b6b' 
+                      : '2px dashed rgba(255,255,255,0.2)',
                     background: 'rgba(255,255,255,0.05)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     overflow: 'hidden',
-                    position: 'relative'
+                    position: 'relative',
+                    cursor: formData.photos[index] ? 'pointer' : 'default'
                   }}
+                  onClick={() => formData.photos[index] && setMainPhoto(formData.photos[index])}
                 >
                   {formData.photos[index] ? (
                     <>
@@ -320,9 +380,30 @@ export const Onboarding = () => {
                         alt={`Photo ${index + 1}`}
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />
+                      
+                      {/* Avatar Indicator */}
+                      {formData.photos[index] === formData.avatar_url && (
+                        <div style={{
+                          position: 'absolute',
+                          bottom: '0',
+                          left: '0',
+                          right: '0',
+                          background: 'rgba(255, 107, 107, 0.9)',
+                          color: 'white',
+                          fontSize: '10px',
+                          textAlign: 'center',
+                          padding: '2px 0'
+                        }}>
+                          Main Profile
+                        </div>
+                      )}
+
                       <button
                         type="button"
-                        onClick={() => removePhoto(index)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removePhoto(index);
+                        }}
                         style={{
                           position: 'absolute',
                           top: '5px',
@@ -383,41 +464,62 @@ export const Onboarding = () => {
               borderRadius: '15px', 
               padding: '20px',
               marginBottom: '30px',
-              textAlign: 'left'
+              textAlign: 'left',
+              display: 'flex',
+              gap: '15px',
+              alignItems: 'flex-start'
             }}>
-              <h4 style={{ marginBottom: '15px', color: '#ff6b6b' }}>Profile Preview</h4>
-              
-              {formData.location && (
-                <p style={{ fontSize: '13px', marginBottom: '8px' }}>
-                  📍 {formData.location}
-                </p>
-              )}
-              
-              {formData.bio && (
-                <p style={{ fontSize: '13px', marginBottom: '8px', color: '#ccc' }}>
-                  "{formData.bio}"
-                </p>
-              )}
-              
-              {formData.interests.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '10px' }}>
-                  {formData.interests.slice(0, 5).map(i => (
-                    <span key={i} style={{ 
-                      background: 'rgba(255,107,107,0.2)', 
-                      padding: '4px 10px', 
-                      borderRadius: '15px',
-                      fontSize: '11px'
-                    }}>
-                      {i}
-                    </span>
-                  ))}
-                  {formData.interests.length > 5 && (
-                    <span style={{ fontSize: '11px', color: '#999' }}>
-                      +{formData.interests.length - 5} more
-                    </span>
-                  )}
-                </div>
-              )}
+              {/* Preview Avatar */}
+              <div style={{
+                width: '60px',
+                height: '60px',
+                borderRadius: '50%',
+                overflow: 'hidden',
+                background: '#333',
+                flexShrink: 0
+              }}>
+                {formData.avatar_url ? (
+                  <img src={formData.avatar_url} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>👤</div>
+                )}
+              </div>
+
+              <div>
+                <h4 style={{ marginBottom: '5px', color: '#ff6b6b' }}>Profile Preview</h4>
+                
+                {formData.location && (
+                  <p style={{ fontSize: '13px', marginBottom: '8px' }}>
+                    📍 {formData.location}
+                  </p>
+                )}
+                
+                {formData.bio && (
+                  <p style={{ fontSize: '13px', marginBottom: '8px', color: '#ccc' }}>
+                    "{formData.bio}"
+                  </p>
+                )}
+                
+                {formData.interests.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '10px' }}>
+                    {formData.interests.slice(0, 5).map(i => (
+                      <span key={i} style={{ 
+                        background: 'rgba(255,107,107,0.2)', 
+                        padding: '4px 10px', 
+                        borderRadius: '15px',
+                        fontSize: '11px'
+                      }}>
+                        {i}
+                      </span>
+                    ))}
+                    {formData.interests.length > 5 && (
+                      <span style={{ fontSize: '11px', color: '#999' }}>
+                        +{formData.interests.length - 5} more
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {error && <p className="error" style={{ marginBottom: '15px' }}>{error}</p>}
