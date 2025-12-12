@@ -38,6 +38,19 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  const loginAsGuest = useCallback(async () => {
+    const guestUser = {
+      id: 0,
+      name: 'Guest',
+      email: 'guest@example.com',
+      isGuest: true
+    };
+    setUser(guestUser);
+    setToken('guest_token');
+    localStorage.setItem('token', 'guest_token');
+    return guestUser;
+  }, []);
+
   const logout = useCallback(() => {
     setUser(null);
     setToken(null);
@@ -45,7 +58,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, loginAsGuest, logout }}>
       {children}
     </AuthContext.Provider>
   );

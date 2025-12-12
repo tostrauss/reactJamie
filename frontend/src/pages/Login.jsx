@@ -20,11 +20,16 @@ export const Login = () => {
     }
   };
 
+  const handleGuestLogin = () => {
+    loginAsGuest();
+    navigate('/home');
+  }
+
   return (
     <div className="auth-container">
       <div className="auth-box">
         <h1 className="logo">JAMIE</h1>
-        <p className="subtitle">Meet people. Share activities.</p>
+        <p className="subtitle">Meet people. Share activities. Moin</p>
         
         <form onSubmit={handleSubmit}>
           <input
@@ -46,6 +51,19 @@ export const Login = () => {
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
+        <button 
+          type="button" 
+          onClick={handleGuestLogin}
+          className="btn-secondary"
+          style={{ 
+            marginTop: '15px', 
+            width: '100%', 
+            fontSize: '13px',
+            opacity: 0.8
+          }}
+        >
+          Continue without login (Dev)
+        </button>
 
         <p className="toggle-auth">
           No account? <a href="/register">Register here</a>
