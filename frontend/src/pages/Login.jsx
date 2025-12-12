@@ -7,7 +7,8 @@ export const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { login, loading } = useContext(AuthContext);
+  const { login, loading, loginAsGuest} = useContext(AuthContext);
+  
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
