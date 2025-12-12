@@ -15,7 +15,7 @@ export const Home = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Re-fetch data when tab, filter (category), or search changes
+ 
   useEffect(() => {
     // Debounce search slightly to avoid too many requests
     const timer = setTimeout(() => {
