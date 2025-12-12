@@ -167,6 +167,7 @@ export const Home = () => {
                   onFavorite={handleFavorite}
                   onJoin={handleJoin}
                   onChat={() => navigate(`/chat/${group.id}`)}
+                  onClick={() => navigate(`/groups/${group.id}`)}
                 />
               ))
             )}
@@ -182,6 +183,7 @@ export const Home = () => {
                     group={club}
                     onFavorite={handleFavorite}
                     onJoin={handleJoin}
+                    onClick={() => navigate(`/groups/${club.id}`)}
                   />
                 ))}
               </div>

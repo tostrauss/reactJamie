@@ -1,7 +1,7 @@
 import React from 'react';
 import '../styles/home.css';
 
-export const GroupCard = ({ group, isFavorite, isJoined, onFavorite, onJoin, onChat, customImage }) => {
+export const GroupCard = ({ group, isFavorite, isJoined, onFavorite, onJoin, onChat, customImage, onClick }) => {
   // Use uploaded image OR fallback to gradient
   const imageUrl = customImage || group.image_url;
   const bgStyle = imageUrl
@@ -16,7 +16,7 @@ export const GroupCard = ({ group, isFavorite, isJoined, onFavorite, onJoin, onC
   const displayDate = group.date || "Demnächst";
 
   return (
-    <div className="group-card">
+    <div className="group-card" onClick={onClick}>
       <div className="card-image-wrapper">
         <div className="card-image" style={bgStyle}>
           {/* Overlay Content on Image */}
