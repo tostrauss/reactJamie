@@ -4,7 +4,7 @@ export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
     const result = await db.query(
-      'SELECT id, name, bio, location, avatar_url, interests, photos, gender FROM users WHERE id = ?',
+      'SELECT id, name, bio, location, avatar_url, interests, photos, gender, favorite_song FROM users WHERE id = ?',
       [id]
     );
 
@@ -18,6 +18,7 @@ export const getUserById = async (req, res) => {
     try {
       if (typeof user.interests === 'string') user.interests = JSON.parse(user.interests);
       if (typeof user.photos === 'string') user.photos = JSON.parse(user.photos);
+      if (typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song)
     } catch (e) {
       console.error('JSON Parse Error', e);
     }

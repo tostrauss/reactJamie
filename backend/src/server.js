@@ -9,6 +9,7 @@ import uploadRoutes from './routes/uploadRoutes.js';
 import groupRoutes from './routes/groupRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import messageRoutes from './routes/messageRoutes.js';
+import spotifyRoutes from './routes/spotifyRoutes.js';
 import { initializeSocket } from './socket.js'; // Import socket init
 
 dotenv.config();
@@ -35,6 +36,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/api/upload', uploadRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/spotify', spotifyRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

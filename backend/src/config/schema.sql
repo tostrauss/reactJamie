@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
   bio TEXT,
   avatar_url VARCHAR(500), -- Foto
   location VARCHAR(255),
+  favorite_song TEXT, -- ADDED: Stored as JSON string {title, artist, coverUrl, previewUrl}
   onboarding_completed BOOLEAN DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

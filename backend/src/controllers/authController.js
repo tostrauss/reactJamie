@@ -4,18 +4,21 @@ import { generateToken } from '../middleware/auth.js';
 
 export const completeOnboarding = async (req, res) => {
   try {
-    const { gender, location, interests, bio, photos } = req.body;
+    // ADDED: avatar_url to destructuring
+    const { gender, location, interests, bio, photos, avatar_url, favorite_song } = req.body;
     
     const interestsStr = JSON.stringify(interests || []);
     const photosStr = JSON.stringify(photos || []);
+    const songStr = favorite_song ? JSON.stringify(favorite_song) : null;
 
+    // ADDED: Update avatar_url in the database query
     await db.query(
       `UPDATE users 
-       SET gender = ?, location = ?, interests = ?, bio = ?, photos = ?, onboarding_completed = 1, updated_at = CURRENT_TIMESTAMP 
+       SET gender = ?, location = ?, interests = ?, bio = ?, photos = ?, avatar_url = ?, favorite_song = ?, onboarding_completed = 1, updated_at = CURRENT_TIMESTAMP 
        WHERE id = ?`,
-      [gender, location, interestsStr, bio, photosStr, req.userId]
+      [gender, location, interestsStr, bio, photosStr, avatar_url, songStr, req.userId]
     );
-
+    
     const result = await db.query('SELECT * FROM users WHERE id = ?', [req.userId]);
     const user = result.rows[0];
 
@@ -23,6 +26,7 @@ export const completeOnboarding = async (req, res) => {
     try {
       if (user.interests) user.interests = JSON.parse(user.interests);
       if (user.photos) user.photos = JSON.parse(user.photos);
+      if (user.favorite_song) user.favorite_song = JSON.parse(user.favorite_song);
     } catch (e) { console.error(e); }
 
     res.json(user);
@@ -87,6 +91,7 @@ export const login = async (req, res) => {
     try {
       if (user.interests && typeof user.interests === 'string') user.interests = JSON.parse(user.interests);
       if (user.photos && typeof user.photos === 'string') user.photos = JSON.parse(user.photos);
+      if (user.favorite_song && typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song);
     } catch (e) {}
 
     delete user.password; // Passwort entfernen
@@ -117,11 +122,40 @@ export const getProfile = async (req, res) => {
 };
 
 export const updateProfile = async (req, res) => {
-  // Gleiche Logik wie oben für Update...
-  // Implementierung hier kurzgehalten, da Login/Register Priorität hat
   try {
-    // ... Update Logik
-    res.json({ message: "Profile updated" }); 
+    // Basic implementation for profile updates
+    const { name, location, bio, gender, interests, photos, avatar_url, favorite_song } = req.body;
+    
+    const interestsStr = JSON.stringify(interests || []);
+    const photosStr = JSON.stringify(photos || []);
+    const songStr = favorite_song ? JSON.stringify(favorite_song) : null;
+
+    await db.query(
+      `UPDATE users 
+       SET name = COALESCE(?, name),
+           location = COALESCE(?, location),
+           bio = COALESCE(?, bio),
+           gender = COALESCE(?, gender),
+           interests = COALESCE(?, interests),
+           photos = COALESCE(?, photos),
+           avatar_url = COALESCE(?, avatar_url),
+           favorite_song = COALESCE(?, favorite_song),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [name, location, bio, gender, interestsStr, photosStr, avatar_url, songStr, req.userId]
+    );
+
+    // Return updated profile
+    const result = await db.query('SELECT * FROM users WHERE id = ?', [req.userId]);
+    const user = result.rows[0];
+    
+    try {
+      if (user.interests) user.interests = JSON.parse(user.interests);
+      if (user.photos) user.photos = JSON.parse(user.photos);
+      if (user.favorite_song && typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song);
+    } catch (e) {}
+
+    res.json(user); 
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
