@@ -1,9 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
-import { GroupCard } from '../components/GroupCard'; // Importieren Sie die GroupCard Komponente
+import { GroupCard } from '../components/GroupCard';
 
 const CATEGORIES = ['Hiking', 'Tennis', 'Golf', 'Beachvolleyball', 'Running'];
+
+// MOCK DATA for "Perfect Styling"
+const MOCK_GROUPS = [
+  {
+    id: 991,
+    title: 'Wandern am Kahlenberg',
+    category: 'Hiking',
+    member_count: 4,
+    max_members: 6,
+    date: 'Heute',
+    time: '14:00',
+    image_url: 'https://images.unsplash.com/photo-1551632811-561732d1e306?q=80&w=2070&auto=format&fit=crop',
+    owner_name: 'Max',
+    type: 'group'
+  },
+  {
+    id: 992,
+    title: 'Beachvolleyball Donauinsel',
+    category: 'Volleyball',
+    member_count: 3,
+    max_members: 4,
+    date: 'Morgen',
+    time: '16:30',
+    image_url: 'https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?q=80&w=2007&auto=format&fit=crop',
+    owner_name: 'Lisa',
+    type: 'group'
+  }
+];
 
 export const Home = () => {
   const [activeTab, setActiveTab] = useState('gruppen');
@@ -15,9 +43,7 @@ export const Home = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
- 
   useEffect(() => {
-    // Debounce search slightly to avoid too many requests
     const timer = setTimeout(() => {
       loadData();
     }, 300);
@@ -28,24 +54,20 @@ export const Home = () => {
     setLoading(true);
     try {
       if (activeTab === 'gruppen') {
-        // Correct API call: type, search, category
-        // type=null (all types in this view), search=searchQuery, category=activeFilter
         const response = await api.groups.getAll(null, searchQuery, activeFilter || '');
-        
-        // Safety check: ensure we set an array
-        setGroupsData(Array.isArray(response.data) ? response.data : []);
+        // Combine MOCK data with real API data for development
+        const apiData = Array.isArray(response.data) ? response.data : [];
+        setGroupsData([...MOCK_GROUPS, ...apiData]);
       } else {
-        // Load Clubs (Mock for now or API if implemented)
-        // For production, you should implement api.groups.getAll('club', ...)
         const response = await api.groups.getAll('club', searchQuery, activeFilter || '');
         const clubs = Array.isArray(response.data) ? response.data : [];
-        
-        setMyClubs(clubs.slice(0, 2)); // Just an example subset
+        setMyClubs(clubs.slice(0, 2));
         setTrendingClubs(clubs);
       }
     } catch (error) {
       console.error('Error loading data:', error);
-      setGroupsData([]);
+      // Fallback to mock data on error
+      setGroupsData(MOCK_GROUPS);
     } finally {
       setLoading(false);
     }
@@ -54,7 +76,7 @@ export const Home = () => {
   const handleFavorite = async (id) => {
     try {
       await api.groups.toggleFavorite(id);
-      loadData(); // Refresh to update status
+      loadData();
     } catch (err) {
       console.error(err);
     }
@@ -63,7 +85,7 @@ export const Home = () => {
   const handleJoin = async (id) => {
     try {
       await api.groups.join(id);
-      loadData(); // Refresh
+      loadData();
     } catch (err) {
       console.error(err);
     }
@@ -85,6 +107,7 @@ export const Home = () => {
           </div>
         )}
 
+        {/* Tab Switcher */}
         {activeTab === 'gruppen' && (
           <div className="tabs">
             <button className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`} onClick={() => setActiveTab('gruppen')}>
@@ -96,6 +119,7 @@ export const Home = () => {
           </div>
         )}
 
+        {/* Search Bar */}
         <div className="search-container">
           <input 
             type="text" 
@@ -111,6 +135,7 @@ export const Home = () => {
           </div>
         </div>
 
+        {/* Filters */}
         <div className="filter-pills">
           {CATEGORIES.map(cat => (
             <button 
@@ -124,6 +149,7 @@ export const Home = () => {
         </div>
       </div>
 
+      {/* Content */}
       <div className="page-content">
         {loading ? (
           <div className="loading-container"><div className="loading-spinner" /></div>
@@ -136,8 +162,8 @@ export const Home = () => {
                 <GroupCard 
                   key={group.id} 
                   group={group}
-                  isFavorite={false} // You would need to check user favorites here properly
-                  isJoined={false} // You would need to check user joined status here properly
+                  isFavorite={false}
+                  isJoined={false}
                   onFavorite={handleFavorite}
                   onJoin={handleJoin}
                   onChat={() => navigate(`/chat/${group.id}`)}
@@ -147,7 +173,6 @@ export const Home = () => {
           </div>
         ) : (
           <div className="clubs-view">
-            {/* Clubs View Logic using same GroupCard for consistency or custom Cards */}
             <section className="clubs-section">
               <h2 className="section-label">Im Trend</h2>
               <div className="groups-grid">

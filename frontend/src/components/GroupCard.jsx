@@ -3,60 +3,78 @@ import '../styles/home.css';
 
 export const GroupCard = ({ group, isFavorite, isJoined, onFavorite, onJoin, onChat, customImage }) => {
   // Use uploaded image OR fallback to gradient
-  const bgStyle = (customImage || group.image_url) 
-    ? { backgroundImage: `url(${customImage || group.image_url})` }
+  const imageUrl = customImage || group.image_url;
+  const bgStyle = imageUrl
+    ? { backgroundImage: `url(${imageUrl})` }
     : { background: `linear-gradient(135deg, #ff6b6b, #ff8585)` };
+
+  // Calculate Member Ratio (Mocking max if missing)
+  const maxMembers = group.max_members || 6; 
+  const memberRatio = `${group.member_count}/${maxMembers} Members`;
+
+  // Date Display (Mocking 'Heute' logic if real date is close)
+  const displayDate = group.date || "Demnächst";
 
   return (
     <div className="group-card">
-      <div className="card-image" style={bgStyle}></div>
+      <div className="card-image-wrapper">
+        <div className="card-image" style={bgStyle}>
+          {/* Overlay Content on Image */}
+          <div className="card-image-overlay">
+            <div className="card-top-badges">
+              {group.category && (
+                <span className="category-pill">{group.category}</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
       
       <div className="card-content">
-        <div className="card-header">
+        <div className="card-main-info">
           <h3>{group.title}</h3>
-          <span className={`badge ${group.type}`}>{group.type}</span>
+          
+          <div className="card-status-row">
+            <span className="status-members">
+              <span className="icon">👥</span> {memberRatio}
+            </span>
+            <span className="status-date">
+              {displayDate}
+            </span>
+          </div>
         </div>
         
-        {/* ADDED Category Badge if exists */}
-        {group.category && (
-          <span style={{ fontSize: '10px', color: '#ccc', background: 'rgba(255,255,255,0.1)', padding: '2px 6px', borderRadius: '4px', marginBottom: '5px', display: 'inline-block' }}>
-            {group.category}
-          </span>
-        )}
-
-        <p className="card-meta">👥 {group.member_count} members • by {group.owner_name}</p>
-        <p className="card-desc">{group.description}</p>
-        
-        <div className="card-footer">
-          <button
-            className={`fav-btn ${isFavorite ? 'active' : ''}`}
+        {/* Action Button (Join/Chat/Fav) */}
+        <div className="card-actions">
+           <button
+            className={`fav-btn-small ${isFavorite ? 'active' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
-              onFavorite(group.id);
+              onFavorite && onFavorite(group.id);
             }}
           >
-            ❤️
+            {isFavorite ? '❤️' : '🤍'}
           </button>
-          
+
           {isJoined ? (
             <button 
-              className="join-btn joined"
+              className="action-btn chat"
               onClick={(e) => {
                 e.stopPropagation();
                 if(onChat) onChat(group.id);
               }}
             >
-              💬 Chat
+              Chat 💬
             </button>
           ) : (
             <button
-              className="join-btn"
+              className="action-btn join"
               onClick={(e) => {
                 e.stopPropagation();
-                onJoin(group.id);
+                onJoin && onJoin(group.id);
               }}
             >
-              Join
+              +
             </button>
           )}
         </div>
