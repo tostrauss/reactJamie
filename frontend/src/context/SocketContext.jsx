@@ -6,23 +6,29 @@ export const SocketContext = createContext();
 
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
-  // FIX 1: Destructure 'token' from context as well
   const { user, token } = useContext(AuthContext);
 
   useEffect(() => {
     if (user && token) {
-      const newSocket = io('http://localhost:5000', {
-        // Optional: Pass token in auth object for middleware verification if you add it later
+      // Verbindung relativ aufbauen, damit der Vite-Proxy (oder Nginx in Prod) greift
+      const newSocket = io({
+        path: '/socket.io',
         auth: {
           token: token
-        }
+        },
+        transports: ['websocket', 'polling']
       });
 
       setSocket(newSocket);
 
-      // FIX 2: Send just the ID, not an object, to match backend expectation
-      // Backend: socket.on('login', (userId) => socket.join(`user_${userId}`))
-      newSocket.emit('login', user.id);
+      newSocket.on('connect', () => {
+        console.log('Socket connected:', newSocket.id);
+        newSocket.emit('login', user.id);
+      });
+
+      newSocket.on('connect_error', (err) => {
+        console.error('Socket connection error:', err);
+      });
 
       return () => newSocket.close();
     } else {
@@ -31,7 +37,7 @@ export const SocketProvider = ({ children }) => {
         setSocket(null);
       }
     }
-  }, [user, token]); // Add token to dependency array
+  }, [user, token]);
 
   return (
     <SocketContext.Provider value={socket}>

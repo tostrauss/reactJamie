@@ -6,9 +6,16 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
+      // API Requests
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
+      },
+      // WebSocket Requests
+      '/socket.io': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        ws: true // Wichtig für WebSockets!
       }
     }
   }

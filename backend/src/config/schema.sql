@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
   interests TEXT, -- Stored as JSON string
   photos TEXT,    -- Stored as JSON string (array of URLs)
   bio TEXT,
-  avatar_url VARCHAR(500),
+  avatar_url VARCHAR(500), -- Foto
   location VARCHAR(255),
   onboarding_completed BOOLEAN DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
