@@ -83,7 +83,7 @@ const CreateModal = ({ isOpen, onClose }) => {
             <div className="modal-option-icon">👥</div>
             <div className="modal-option-text">
               <h3>Gruppe erstellen</h3>
-              <p>Plane eine einmalige Aktivität mit anderen</p>
+              <p>Plane eine "einmalige" Aktivität mit anderen</p>
             </div>
           </button>
           
@@ -169,6 +169,12 @@ const ProtectedRoute = ({ children }) => {
 const AuthRoute = ({ children }) => {
   const { user } = useContext(AuthContext);
   return user ? <Navigate to="/home" replace /> : children;
+};
+
+// Redirect Plural to Singular Component
+const RedirectToGroup = () => {
+  const { id } = useParams();
+  return <Navigate to={`/group/${id}`} replace />;
 };
 
 function AppRoutes() {
@@ -266,6 +272,11 @@ function AppRoutes() {
             </ProtectedRoute>
           } 
         />
+        {/* ADDED: Fix for plural URL issue */}
+        <Route 
+          path="/groups/:id" 
+          element={<RedirectToGroup />} 
+        />
         <Route 
           path="/group/:id/requests" 
           element={
@@ -361,5 +372,8 @@ function App() {
     </BrowserRouter>
   );
 }
+
+// Helper needed for the redirect logic inside the component tree
+import { useParams } from 'react-router-dom';
 
 export default App;

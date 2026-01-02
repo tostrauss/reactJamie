@@ -5,7 +5,7 @@ import { GroupCard } from '../components/GroupCard';
 
 const CATEGORIES = ['Hiking', 'Tennis', 'Golf', 'Beachvolleyball', 'Running'];
 
-// MOCK DATA for "Perfect Styling"
+// --- MOCK DATA FOR PREVIEW ---
 const MOCK_GROUPS = [
   {
     id: 991,
@@ -21,7 +21,7 @@ const MOCK_GROUPS = [
   },
   {
     id: 992,
-    title: 'Beachvolleyball Donauinsel',
+    title: 'Beachvolleyball Donau',
     category: 'Volleyball',
     member_count: 3,
     max_members: 4,
@@ -55,19 +55,17 @@ export const Home = () => {
     try {
       if (activeTab === 'gruppen') {
         const response = await api.groups.getAll(null, searchQuery, activeFilter || '');
-        // Combine MOCK data with real API data for development
         const apiData = Array.isArray(response.data) ? response.data : [];
+        // Combine Mock + Real Data
         setGroupsData([...MOCK_GROUPS, ...apiData]);
       } else {
         const response = await api.groups.getAll('club', searchQuery, activeFilter || '');
         const clubs = Array.isArray(response.data) ? response.data : [];
-        setMyClubs(clubs.slice(0, 2));
         setTrendingClubs(clubs);
       }
     } catch (error) {
       console.error('Error loading data:', error);
-      // Fallback to mock data on error
-      setGroupsData(MOCK_GROUPS);
+      setGroupsData(MOCK_GROUPS); // Fallback to mock
     } finally {
       setLoading(false);
     }
@@ -77,65 +75,43 @@ export const Home = () => {
     try {
       await api.groups.toggleFavorite(id);
       loadData();
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const handleJoin = async (id) => {
     try {
       await api.groups.join(id);
       loadData();
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   return (
     <div className="page home-page">
       <div className="home-header">
-        {activeTab === 'gruppen' ? (
-          <h1 className="page-title">Alle Gruppen</h1>
-        ) : (
-          <div className="tabs">
-            <button className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`} onClick={() => setActiveTab('gruppen')}>
-              Gruppen
-            </button>
-            <button className={`tab ${activeTab === 'clubs' ? 'active' : ''}`} onClick={() => setActiveTab('clubs')}>
-              Clubs
-            </button>
+        {/* Title / Tab Switcher Logic */}
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 20}}>
+          <h1 className="page-title" style={{marginBottom:0}}>
+            {activeTab === 'gruppen' ? 'Alle Gruppen' : 'Clubs'}
+          </h1>
+          <div className="tabs" style={{margin:0, border:0}}>
+             <button className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`} onClick={() => setActiveTab('gruppen')}>Gruppen</button>
+             <button className={`tab ${activeTab === 'clubs' ? 'active' : ''}`} onClick={() => setActiveTab('clubs')}>Clubs</button>
           </div>
-        )}
+        </div>
 
-        {/* Tab Switcher */}
-        {activeTab === 'gruppen' && (
-          <div className="tabs">
-            <button className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`} onClick={() => setActiveTab('gruppen')}>
-              Gruppen
-            </button>
-            <button className={`tab ${activeTab === 'clubs' ? 'active' : ''}`} onClick={() => setActiveTab('clubs')}>
-              Clubs
-            </button>
-          </div>
-        )}
-
-        {/* Search Bar */}
         <div className="search-container">
           <input 
             type="text" 
             className="search-input" 
-            placeholder="Suchen" 
+            placeholder="Suchen..." 
             value={searchQuery} 
             onChange={(e) => setSearchQuery(e.target.value)} 
           />
           <div className="search-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-            </svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
           </div>
         </div>
 
-        {/* Filters */}
         <div className="filter-pills">
           {CATEGORIES.map(cat => (
             <button 
@@ -149,14 +125,13 @@ export const Home = () => {
         </div>
       </div>
 
-      {/* Content */}
       <div className="page-content">
         {loading ? (
           <div className="loading-container"><div className="loading-spinner" /></div>
         ) : activeTab === 'gruppen' ? (
           <div className="groups-grid">
             {groupsData.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#666', marginTop: 40 }}>Keine Gruppen gefunden.</p>
+              <p style={{ textAlign: 'center', color: '#666', marginTop: 40, width: '100%' }}>Keine Gruppen gefunden.</p>
             ) : (
               groupsData.map(group => (
                 <GroupCard 
@@ -167,27 +142,22 @@ export const Home = () => {
                   onFavorite={handleFavorite}
                   onJoin={handleJoin}
                   onChat={() => navigate(`/chat/${group.id}`)}
-                  onClick={() => navigate(`/groups/${group.id}`)}
+                  onClick={() => navigate(`/group/${group.id}`)}
                 />
               ))
             )}
           </div>
         ) : (
-          <div className="clubs-view">
-            <section className="clubs-section">
-              <h2 className="section-label">Im Trend</h2>
-              <div className="groups-grid">
-                {trendingClubs.map(club => (
-                  <GroupCard 
-                    key={club.id} 
-                    group={club}
-                    onFavorite={handleFavorite}
-                    onJoin={handleJoin}
-                    onClick={() => navigate(`/groups/${club.id}`)}
-                  />
-                ))}
-              </div>
-            </section>
+          <div className="groups-grid">
+             {trendingClubs.map(club => (
+                <GroupCard 
+                  key={club.id} 
+                  group={club}
+                  onFavorite={handleFavorite}
+                  onJoin={handleJoin}
+                  onClick={() => navigate(`/group/${club.id}`)}
+                />
+              ))}
           </div>
         )}
       </div>

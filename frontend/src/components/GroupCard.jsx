@@ -8,18 +8,18 @@ export const GroupCard = ({ group, isFavorite, isJoined, onFavorite, onJoin, onC
     ? { backgroundImage: `url(${imageUrl})` }
     : { background: `linear-gradient(135deg, #ff6b6b, #ff8585)` };
 
-  // Calculate Member Ratio (Mocking max if missing)
-  const maxMembers = group.max_members || 6; 
-  const memberRatio = `${group.member_count}/${maxMembers} Members`;
+  // Format members text "4/6 Members" (Mocking max if missing)
+  const maxMembers = group.max_members || group.maxMembers || 6; 
+  const memberRatio = `${group.member_count || 0}/${maxMembers} Members`;
 
-  // Date Display (Mocking 'Heute' logic if real date is close)
+  // Format Date (e.g. "Heute" or specific date)
   const displayDate = group.date || "Demnächst";
 
   return (
     <div className="group-card" onClick={onClick}>
       <div className="card-image-wrapper">
         <div className="card-image" style={bgStyle}>
-          {/* Overlay Content on Image */}
+          {/* Category Pill Overlay */}
           <div className="card-image-overlay">
             <div className="card-top-badges">
               {group.category && (
@@ -50,7 +50,7 @@ export const GroupCard = ({ group, isFavorite, isJoined, onFavorite, onJoin, onC
             className={`fav-btn-small ${isFavorite ? 'active' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
-              onFavorite && onFavorite(group.id);
+              if (onFavorite) onFavorite(group.id);
             }}
           >
             {isFavorite ? '❤️' : '🤍'}
@@ -64,14 +64,14 @@ export const GroupCard = ({ group, isFavorite, isJoined, onFavorite, onJoin, onC
                 if(onChat) onChat(group.id);
               }}
             >
-              Chat 💬
+              💬
             </button>
           ) : (
             <button
               className="action-btn join"
               onClick={(e) => {
                 e.stopPropagation();
-                onJoin && onJoin(group.id);
+                if (onJoin) onJoin(group.id);
               }}
             >
               +
