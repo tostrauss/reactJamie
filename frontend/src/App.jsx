@@ -30,8 +30,10 @@ import { Notifications } from './pages/Notifications';
 
 // Styles
 import './styles/global.css';
+import './styles/home.css';
+import './styles/auth.css';
 
-// SVG Icons as components
+// SVG Icons
 const HomeIcon = ({ active }) => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#fff" : "#9BA2B0"} strokeWidth="2">
     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -45,13 +47,10 @@ const StarIcon = ({ active }) => (
   </svg>
 );
 
-const ChatIcon = ({ active, badge }) => (
-  <div style={{ position: 'relative' }}>
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#fff" : "#9BA2B0"} strokeWidth="2">
-      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
-    </svg>
-    {badge > 0 && <span className="nav-badge">{badge > 99 ? '99+' : badge}</span>}
-  </div>
+const ChatIcon = ({ active }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#fff" : "#9BA2B0"} strokeWidth="2">
+    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+  </svg>
 );
 
 const ProfileIcon = ({ active }) => (
@@ -61,13 +60,13 @@ const ProfileIcon = ({ active }) => (
   </svg>
 );
 
-// Create Modal Component
+// Create Modal
 const CreateModal = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   
   if (!isOpen) return null;
 
-  const handleOptionClick = (path) => {
+  const handleOption = (path) => {
     onClose();
     navigate(path);
   };
@@ -79,19 +78,19 @@ const CreateModal = ({ isOpen, onClose }) => {
         <h2 className="modal-title">Was möchtest du erstellen?</h2>
         
         <div className="modal-options">
-          <button className="modal-option" onClick={() => handleOptionClick('/create-group')}>
+          <button className="modal-option" onClick={() => handleOption('/create-group')}>
             <div className="modal-option-icon">👥</div>
             <div className="modal-option-text">
               <h3>Gruppe erstellen</h3>
-              <p>Plane eine "einmalige" Aktivität mit anderen</p>
+              <p>Plane eine einmalige Aktivität</p>
             </div>
           </button>
           
-          <button className="modal-option" onClick={() => handleOptionClick('/create-club')}>
+          <button className="modal-option" onClick={() => handleOption('/create-club')}>
             <div className="modal-option-icon">🏆</div>
             <div className="modal-option-text">
-              <h3>Club erstellen</h3>
-              <p>Gründe eine dauerhafte Community</p>
+              <h3>Club gründen</h3>
+              <p>Starte eine dauerhafte Community</p>
             </div>
           </button>
         </div>
@@ -100,21 +99,20 @@ const CreateModal = ({ isOpen, onClose }) => {
   );
 };
 
+// Navigation
 const Navigation = () => {
   const { user } = useContext(AuthContext);
   const location = useLocation();
   const [showCreateModal, setShowCreateModal] = useState(false);
   
-  // Don't show nav on auth pages, onboarding, or chat detail
+  // Hide nav on certain pages
   const hideNavPaths = ['/login', '/register', '/onboarding'];
-  const hideOnChatDetail = location.pathname.startsWith('/chat/');
+  const hideOnChat = location.pathname.startsWith('/chat/');
   
-  if (!user || hideNavPaths.includes(location.pathname) || hideOnChatDetail) return null;
+  if (!user || hideNavPaths.includes(location.pathname) || hideOnChat) return null;
 
   const isActive = (path) => {
-    if (path === '/home') {
-      return location.pathname === '/home' || location.pathname.startsWith('/group/');
-    }
+    if (path === '/home') return location.pathname === '/home' || location.pathname.startsWith('/group/');
     return location.pathname === path || location.pathname.startsWith(path);
   };
 
@@ -122,35 +120,21 @@ const Navigation = () => {
     <>
       <nav>
         <Link to="/home" className={`nav-item ${isActive('/home') ? 'active' : ''}`}>
-          <div className="nav-icon">
-            <HomeIcon active={isActive('/home')} />
-          </div>
+          <div className="nav-icon"><HomeIcon active={isActive('/home')} /></div>
         </Link>
         
         <Link to="/favorites" className={`nav-item ${isActive('/favorites') ? 'active' : ''}`}>
-          <div className="nav-icon">
-            <StarIcon active={isActive('/favorites')} />
-          </div>
+          <div className="nav-icon"><StarIcon active={isActive('/favorites')} /></div>
         </Link>
         
-        <button 
-          className="nav-add-button" 
-          onClick={() => setShowCreateModal(true)}
-          aria-label="Create new group or club"
-        >
-          +
-        </button>
+        <button className="nav-add-button" onClick={() => setShowCreateModal(true)}>+</button>
         
         <Link to="/chats" className={`nav-item ${isActive('/chats') ? 'active' : ''}`}>
-          <div className="nav-icon">
-            <ChatIcon active={isActive('/chats')} badge={0} />
-          </div>
+          <div className="nav-icon"><ChatIcon active={isActive('/chats')} /></div>
         </Link>
         
         <Link to="/profile" className={`nav-item ${isActive('/profile') ? 'active' : ''}`}>
-          <div className="nav-icon">
-            <ProfileIcon active={isActive('/profile')} />
-          </div>
+          <div className="nav-icon"><ProfileIcon active={isActive('/profile')} /></div>
         </Link>
       </nav>
       
@@ -159,202 +143,64 @@ const Navigation = () => {
   );
 };
 
-// Protected Route Wrapper
+// Protected Route
 const ProtectedRoute = ({ children }) => {
   const { user } = useContext(AuthContext);
   return user ? children : <Navigate to="/login" replace />;
 };
 
-// Auth Route Wrapper (redirects to home if already logged in)
+// Auth Route (redirect if logged in)
 const AuthRoute = ({ children }) => {
   const { user } = useContext(AuthContext);
   return user ? <Navigate to="/home" replace /> : children;
 };
 
-// Redirect Plural to Singular Component
-const RedirectToGroup = () => {
-  const { id } = useParams();
-  return <Navigate to={`/group/${id}`} replace />;
-};
-
+// Main App Routes
 function AppRoutes() {
   const { user } = useContext(AuthContext);
 
   return (
     <>
       <Routes>
-        {/* ============ AUTH ROUTES ============ */}
-        <Route 
-          path="/login" 
-          element={
-            <AuthRoute>
-              <Login />
-            </AuthRoute>
-          } 
-        />
-        <Route 
-          path="/register" 
-          element={
-            <AuthRoute>
-              <Register />
-            </AuthRoute>
-          } 
-        />
+        {/* Auth */}
+        <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
+        <Route path="/register" element={<AuthRoute><Register /></AuthRoute>} />
+        <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
         
-        {/* ============ ONBOARDING ============ */}
-        <Route 
-          path="/onboarding" 
-          element={
-            <ProtectedRoute>
-              <Onboarding />
-            </ProtectedRoute>
-          } 
-        />
+        {/* Main */}
+        <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+        <Route path="/favorites" element={<ProtectedRoute><Favorites /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         
-        {/* ============ MAIN PAGES ============ */}
-        <Route 
-          path="/home" 
-          element={
-            <ProtectedRoute>
-              <Home />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/favorites" 
-          element={
-            <ProtectedRoute>
-              <Favorites />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/profile" 
-          element={
-            <ProtectedRoute>
-              <Profile />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/settings" 
-          element={
-            <ProtectedRoute>
-              <Settings />
-            </ProtectedRoute>
-          } 
-        />
+        {/* Chats */}
+        <Route path="/chats" element={<ProtectedRoute><ChatList /></ProtectedRoute>} />
+        <Route path="/chat/:groupId" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
         
-        {/* ============ CHAT ROUTES ============ */}
-        <Route 
-          path="/chats" 
-          element={
-            <ProtectedRoute>
-              <ChatList />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/chat/:groupId" 
-          element={
-            <ProtectedRoute>
-              <ChatPage />
-            </ProtectedRoute>
-          } 
-        />
+        {/* Groups */}
+        <Route path="/group/:id" element={<ProtectedRoute><GroupDetail /></ProtectedRoute>} />
+        <Route path="/group/:id/requests" element={<ProtectedRoute><GroupRequests /></ProtectedRoute>} />
+        <Route path="/create-group" element={<ProtectedRoute><CreateGroup /></ProtectedRoute>} />
+        <Route path="/create-club" element={<ProtectedRoute><CreateClub /></ProtectedRoute>} />
         
-        {/* ============ GROUP ROUTES ============ */}
-        <Route 
-          path="/group/:id" 
-          element={
-            <ProtectedRoute>
-              <GroupDetail />
-            </ProtectedRoute>
-          } 
-        />
-        {/* ADDED: Fix for plural URL issue */}
-        <Route 
-          path="/groups/:id" 
-          element={<RedirectToGroup />} 
-        />
-        <Route 
-          path="/group/:id/requests" 
-          element={
-            <ProtectedRoute>
-              <GroupRequests />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/create-group" 
-          element={
-            <ProtectedRoute>
-              <CreateGroup />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/create-club" 
-          element={
-            <ProtectedRoute>
-              <CreateClub />
-            </ProtectedRoute>
-          } 
-        />
+        {/* User */}
+        <Route path="/user/:id" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
         
-        {/* ============ USER PROFILE ROUTE ============ */}
-        <Route 
-          path="/user/:id" 
-          element={
-            <ProtectedRoute>
-              <UserProfile />
-            </ProtectedRoute>
-          } 
-        />
+        {/* Notifications */}
+        <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
         
-        {/* ============ NOTIFICATIONS ============ */}
-        <Route 
-          path="/notifications" 
-          element={
-            <ProtectedRoute>
-              <Notifications />
-            </ProtectedRoute>
-          } 
-        />
+        {/* Redirects */}
+        <Route path="/" element={<Navigate to={user ? "/home" : "/login"} replace />} />
         
-        {/* ============ DEFAULT REDIRECTS ============ */}
-        <Route 
-          path="/" 
-          element={<Navigate to={user ? "/home" : "/login"} replace />} 
-        />
-        
-        {/* ============ 404 FALLBACK ============ */}
-        <Route 
-          path="*" 
-          element={
-            <div className="page" style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              height: '100vh',
-              padding: '20px',
-              textAlign: 'center'
-            }}>
-              <div style={{ fontSize: '60px', marginBottom: '20px' }}>🤔</div>
-              <h1 style={{ marginBottom: '10px' }}>Seite nicht gefunden</h1>
-              <p style={{ color: '#9BA2B0', marginBottom: '30px' }}>
-                Die Seite existiert leider nicht.
-              </p>
-              <Link 
-                to="/" 
-                className="btn btn-primary"
-              >
-                Zur Startseite
-              </Link>
-            </div>
-          } 
-        />
+        {/* 404 */}
+        <Route path="*" element={
+          <div className="page" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', textAlign: 'center' }}>
+            <div style={{ fontSize: '60px', marginBottom: '20px' }}>🤔</div>
+            <h1 style={{ marginBottom: '10px' }}>Seite nicht gefunden</h1>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '30px' }}>Die Seite existiert nicht.</p>
+            <Link to="/" className="btn btn-primary">Zur Startseite</Link>
+          </div>
+        } />
       </Routes>
       <Navigation />
     </>
@@ -372,8 +218,5 @@ function App() {
     </BrowserRouter>
   );
 }
-
-// Helper needed for the redirect logic inside the component tree
-import { useParams } from 'react-router-dom';
 
 export default App;

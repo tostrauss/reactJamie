@@ -1,71 +1,69 @@
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext';
-import { api } from '../utils/api';
+import { groups, upload } from '../utils/api';
+import '../styles/create.css';
 
 const CLUB_CATEGORIES = [
-  'Sport', 'Fitness', 'Outdoor', 'Musik', 'Kunst',
-  'Gaming', 'Kochen', 'Bücher', 'Film', 'Reisen',
-  'Tech', 'Fotografie', 'Sprachen', 'Tanzen', 'Wellness'
+  { name: 'Sport', icon: '⚽' },
+  { name: 'Fitness', icon: '💪' },
+  { name: 'Outdoor', icon: '🏕️' },
+  { name: 'Musik', icon: '🎵' },
+  { name: 'Kunst', icon: '🎨' },
+  { name: 'Gaming', icon: '🎮' },
+  { name: 'Kochen', icon: '👨‍🍳' },
+  { name: 'Bücher', icon: '📚' },
+  { name: 'Film', icon: '🎬' },
+  { name: 'Reisen', icon: '✈️' },
+  { name: 'Tech', icon: '💻' },
+  { name: 'Fotografie', icon: '📷' },
+  { name: 'Sprachen', icon: '🗣️' },
+  { name: 'Tanzen', icon: '💃' },
+  { name: 'Wellness', icon: '🧘' }
 ];
 
 export const CreateClub = () => {
   const navigate = useNavigate();
-  const { user } = useContext(AuthContext);
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   
-  // Form state
   const [formData, setFormData] = useState({
-    name: '',
-    category: '',
+    title: '',
     description: '',
+    category: '',
     location: '',
-    maxMembers: 50,
-    isPublic: true,
-    image: null,
-    imagePreview: null,
+    max_members: 50,
+    is_public: true,
+    requires_approval: false,
+    meeting_frequency: 'weekly',
     rules: '',
-    meetingFrequency: 'Wöchentlich'
+    image_url: null
   });
 
-  // Selected friends for invite
-  const [selectedFriends, setSelectedFriends] = useState([]);
-  
-  // Mock friends data (replace with API call)
-  const friends = [
-    { id: 1, name: 'Tom', avatar: 'https://i.pravatar.cc/100?img=1' },
-    { id: 2, name: 'Helena', avatar: 'https://i.pravatar.cc/100?img=2' },
-    { id: 3, name: 'Sarah', avatar: 'https://i.pravatar.cc/100?img=3' },
-    { id: 4, name: 'Emma', avatar: 'https://i.pravatar.cc/100?img=4' },
-    { id: 5, name: 'Max', avatar: 'https://i.pravatar.cc/100?img=5' },
-    { id: 6, name: 'Lisa', avatar: 'https://i.pravatar.cc/100?img=6' },
-  ];
+  const [imagePreview, setImagePreview] = useState(null);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setFormData(prev => ({
-        ...prev,
-        image: file,
-        imagePreview: URL.createObjectURL(file)
-      }));
-    }
-  };
+    if (!file) return;
 
-  const toggleFriend = (friendId) => {
-    setSelectedFriends(prev => 
-      prev.includes(friendId)
-        ? prev.filter(id => id !== friendId)
-        : [...prev, friendId]
-    );
+    setImagePreview(URL.createObjectURL(file));
+    setUploading(true);
+    
+    try {
+      const res = await upload.image(file);
+      setFormData(prev => ({ ...prev, image_url: res.data.url }));
+    } catch (err) {
+      setError('Bild konnte nicht hochgeladen werden');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -73,27 +71,14 @@ export const CreateClub = () => {
     setError('');
 
     try {
-      const data = new FormData();
-      data.append('name', formData.name);
-      data.append('category', formData.category);
-      data.append('description', formData.description);
-      data.append('location', formData.location);
-      data.append('maxMembers', formData.maxMembers);
-      data.append('isPublic', formData.isPublic);
-      data.append('type', 'club');
-      data.append('rules', formData.rules);
-      data.append('meetingFrequency', formData.meetingFrequency);
-      if (formData.image) {
-        data.append('image', formData.image);
-      }
-      if (selectedFriends.length > 0) {
-        data.append('invitedFriends', JSON.stringify(selectedFriends));
-      }
-
-      const response = await api.groups.create(data);
-      navigate(`/group/${response.id}`);
+      const response = await groups.create({
+        ...formData,
+        type: 'club'
+      });
+      
+      navigate(`/group/${response.data.id}`);
     } catch (err) {
-      setError(err.message || 'Fehler beim Erstellen des Clubs');
+      setError(err.response?.data?.error || 'Fehler beim Erstellen');
     } finally {
       setLoading(false);
     }
@@ -101,14 +86,10 @@ export const CreateClub = () => {
 
   const canProceed = () => {
     switch(step) {
-      case 1:
-        return formData.name && formData.category;
-      case 2:
-        return formData.location;
-      case 3:
-        return true;
-      default:
-        return false;
+      case 1: return formData.title.trim() && formData.category;
+      case 2: return formData.location.trim();
+      case 3: return true;
+      default: return false;
     }
   };
 
@@ -121,42 +102,44 @@ export const CreateClub = () => {
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
         </button>
-        <h1 className="create-title">Club erstellen</h1>
+        <h1 className="create-title">Club gründen</h1>
         <div className="step-indicator">{step}/3</div>
       </div>
 
-      {/* Progress Bar */}
       <div className="progress-bar">
         <div className="progress-fill" style={{ width: `${(step / 3) * 100}%` }} />
       </div>
 
-      {error && <div className="error-message">{error}</div>}
+      {error && <div className="error-message">⚠️ {error}</div>}
 
       {/* Step 1: Basic Info */}
       {step === 1 && (
         <div className="create-content">
           <div className="form-section">
-            <label className="form-label">Club Name</label>
+            <label className="form-label">Club Name *</label>
             <input
               type="text"
-              name="name"
-              value={formData.name}
+              name="title"
+              value={formData.title}
               onChange={handleInputChange}
-              placeholder="z.B. Der Super Club"
+              placeholder="z.B. Wiener Wanderfreunde"
               className="input"
+              maxLength={100}
             />
           </div>
 
           <div className="form-section">
-            <label className="form-label">Kategorie</label>
-            <div className="activity-grid">
-              {CLUB_CATEGORIES.map(category => (
+            <label className="form-label">Kategorie *</label>
+            <div className="category-grid">
+              {CLUB_CATEGORIES.map(({ name, icon }) => (
                 <button
-                  key={category}
-                  className={`activity-chip ${formData.category === category ? 'active' : ''}`}
-                  onClick={() => setFormData(prev => ({ ...prev, category }))}
+                  key={name}
+                  type="button"
+                  className={`category-chip ${formData.category === name ? 'active' : ''}`}
+                  onClick={() => setFormData(prev => ({ ...prev, category: name }))}
                 >
-                  {category}
+                  <span className="chip-icon">{icon}</span>
+                  <span>{name}</span>
                 </button>
               ))}
             </div>
@@ -177,26 +160,16 @@ export const CreateClub = () => {
           <div className="form-section">
             <label className="form-label">Club Bild</label>
             <div className="image-upload-area">
-              {formData.imagePreview ? (
+              {imagePreview ? (
                 <div className="image-preview">
-                  <img src={formData.imagePreview} alt="Preview" />
-                  <button 
-                    className="remove-image"
-                    onClick={() => setFormData(prev => ({ ...prev, image: null, imagePreview: null }))}
-                  >
-                    ×
-                  </button>
+                  <img src={imagePreview} alt="Preview" />
+                  <button className="remove-image" onClick={() => { setImagePreview(null); setFormData(prev => ({ ...prev, image_url: null })); }}>×</button>
                 </div>
               ) : (
                 <label className="upload-placeholder">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    hidden
-                  />
+                  <input type="file" accept="image/*" onChange={handleImageUpload} hidden disabled={uploading} />
                   <span className="upload-icon">🏆</span>
-                  <span>Club Bild hinzufügen</span>
+                  <span>{uploading ? 'Lädt...' : 'Bild hinzufügen'}</span>
                 </label>
               )}
             </div>
@@ -208,7 +181,7 @@ export const CreateClub = () => {
       {step === 2 && (
         <div className="create-content">
           <div className="form-section">
-            <label className="form-label">Standort</label>
+            <label className="form-label">Standort *</label>
             <input
               type="text"
               name="location"
@@ -222,32 +195,28 @@ export const CreateClub = () => {
           <div className="form-section">
             <label className="form-label">Maximale Mitglieder</label>
             <div className="counter-input">
-              <button 
-                className="counter-btn"
-                onClick={() => setFormData(prev => ({ ...prev, maxMembers: Math.max(5, prev.maxMembers - 5) }))}
-              >
-                −
-              </button>
-              <span className="counter-value">{formData.maxMembers}</span>
-              <button 
-                className="counter-btn"
-                onClick={() => setFormData(prev => ({ ...prev, maxMembers: Math.min(500, prev.maxMembers + 5) }))}
-              >
-                +
-              </button>
+              <button type="button" className="counter-btn" onClick={() => setFormData(prev => ({ ...prev, max_members: Math.max(5, prev.max_members - 5) }))}>−</button>
+              <span className="counter-value">{formData.max_members}</span>
+              <button type="button" className="counter-btn" onClick={() => setFormData(prev => ({ ...prev, max_members: Math.min(500, prev.max_members + 5) }))}>+</button>
             </div>
           </div>
 
           <div className="form-section">
             <label className="form-label">Treffhäufigkeit</label>
-            <div className="frequency-options">
-              {['Täglich', 'Wöchentlich', 'Monatlich', 'Flexibel'].map(freq => (
+            <div className="level-options">
+              {[
+                { value: 'daily', label: 'Täglich' },
+                { value: 'weekly', label: 'Wöchentlich' },
+                { value: 'monthly', label: 'Monatlich' },
+                { value: 'flexible', label: 'Flexibel' }
+              ].map(({ value, label }) => (
                 <button
-                  key={freq}
-                  className={`level-chip ${formData.meetingFrequency === freq ? 'active' : ''}`}
-                  onClick={() => setFormData(prev => ({ ...prev, meetingFrequency: freq }))}
+                  key={value}
+                  type="button"
+                  className={`level-chip ${formData.meeting_frequency === value ? 'active' : ''}`}
+                  onClick={() => setFormData(prev => ({ ...prev, meeting_frequency: value }))}
                 >
-                  {freq}
+                  <span className="level-label">{label}</span>
                 </button>
               ))}
             </div>
@@ -257,21 +226,23 @@ export const CreateClub = () => {
             <label className="form-label">Sichtbarkeit</label>
             <div className="visibility-toggle">
               <button
-                className={`visibility-option ${formData.isPublic ? 'active' : ''}`}
-                onClick={() => setFormData(prev => ({ ...prev, isPublic: true }))}
+                type="button"
+                className={`visibility-option ${formData.is_public ? 'active' : ''}`}
+                onClick={() => setFormData(prev => ({ ...prev, is_public: true, requires_approval: false }))}
               >
                 <span className="visibility-icon">🌍</span>
-                <div>
+                <div className="visibility-text">
                   <span className="visibility-title">Öffentlich</span>
                   <span className="visibility-desc">Jeder kann beitreten</span>
                 </div>
               </button>
               <button
-                className={`visibility-option ${!formData.isPublic ? 'active' : ''}`}
-                onClick={() => setFormData(prev => ({ ...prev, isPublic: false }))}
+                type="button"
+                className={`visibility-option ${!formData.is_public ? 'active' : ''}`}
+                onClick={() => setFormData(prev => ({ ...prev, is_public: false, requires_approval: true }))}
               >
                 <span className="visibility-icon">🔒</span>
-                <div>
+                <div className="visibility-text">
                   <span className="visibility-title">Privat</span>
                   <span className="visibility-desc">Nur mit Einladung</span>
                 </div>
@@ -293,467 +264,54 @@ export const CreateClub = () => {
         </div>
       )}
 
-      {/* Step 3: Invite Members */}
+      {/* Step 3: Preview */}
       {step === 3 && (
         <div className="create-content">
-          <div className="club-preview">
-            <div className="club-preview-header">
-              {formData.imagePreview ? (
-                <img src={formData.imagePreview} alt="Club" className="club-preview-image" />
-              ) : (
-                <div className="club-preview-placeholder">🏆</div>
-              )}
-              <div className="club-preview-info">
-                <h2>{formData.name || 'Club Name'}</h2>
-                <p>{formData.category}</p>
-                <div className="club-preview-stats">
-                  <span>📍 {formData.location || 'Ort'}</span>
-                  <span>👥 {formData.maxMembers} Max</span>
+          <h2 className="preview-title">Vorschau</h2>
+          
+          <div className="preview-card">
+            {imagePreview ? (
+              <img src={imagePreview} alt="Preview" className="preview-image" />
+            ) : (
+              <div className="preview-image-placeholder"><span>🏆</span></div>
+            )}
+            
+            <div className="preview-content">
+              <div className="preview-badges">
+                <span className="preview-badge type">Club</span>
+                {formData.category && <span className="preview-badge category">{formData.category}</span>}
+                {!formData.is_public && <span className="preview-badge private">🔒 Privat</span>}
+              </div>
+              
+              <h3 className="preview-name">{formData.title || 'Club Name'}</h3>
+              
+              <div className="preview-details">
+                <div className="preview-detail">
+                  <span className="detail-icon">📍</span>
+                  <span>{formData.location || 'Ort'}</span>
+                </div>
+                <div className="preview-detail">
+                  <span className="detail-icon">👥</span>
+                  <span>Max. {formData.max_members} Mitglieder</span>
                 </div>
               </div>
             </div>
           </div>
-
-          <div className="form-section">
-            <label className="form-label">Mitglieder einladen</label>
-            <p className="form-hint">Lade Freunde ein, deinem Club beizutreten</p>
-            
-            <div className="search-container" style={{ marginTop: '12px' }}>
-              <input
-                type="text"
-                placeholder="Suchen"
-                className="search-input"
-              />
-              <span className="search-icon">🔍</span>
-            </div>
-          </div>
-
-          <div className="friends-grid">
-            {friends.map(friend => (
-              <button
-                key={friend.id}
-                className={`friend-card ${selectedFriends.includes(friend.id) ? 'selected' : ''}`}
-                onClick={() => toggleFriend(friend.id)}
-              >
-                <div className="friend-avatar">
-                  <img src={friend.avatar} alt={friend.name} />
-                  {selectedFriends.includes(friend.id) && (
-                    <div className="friend-check">✓</div>
-                  )}
-                </div>
-                <span className="friend-name">{friend.name}</span>
-              </button>
-            ))}
-          </div>
-
-          {selectedFriends.length > 0 && (
-            <div className="selected-count">
-              {selectedFriends.length} Freund{selectedFriends.length > 1 ? 'e' : ''} ausgewählt
-            </div>
-          )}
         </div>
       )}
 
-      {/* Footer Actions */}
+      {/* Footer */}
       <div className="create-footer">
         {step < 3 ? (
-          <button 
-            className="btn btn-primary btn-block"
-            onClick={() => setStep(step + 1)}
-            disabled={!canProceed()}
-          >
+          <button className="btn btn-primary btn-block" onClick={() => setStep(step + 1)} disabled={!canProceed()}>
             Weiter
           </button>
         ) : (
-          <button 
-            className="btn btn-primary btn-block"
-            onClick={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? 'Erstelle...' : 'Club erstellen'}
+          <button className="btn btn-primary btn-block" onClick={handleSubmit} disabled={loading}>
+            {loading ? 'Erstelle...' : 'Club gründen 🏆'}
           </button>
         )}
       </div>
-
-      <style>{`
-        .create-page {
-          padding-bottom: 100px;
-        }
-        
-        .create-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 16px;
-          padding-top: calc(env(safe-area-inset-top, 20px) + 16px);
-        }
-        
-        .back-btn {
-          background: none;
-          border: none;
-          color: var(--text-white);
-          cursor: pointer;
-          padding: 8px;
-        }
-        
-        .create-title {
-          font-size: 18px;
-          font-weight: 600;
-          color: var(--text-white);
-        }
-        
-        .step-indicator {
-          font-size: 14px;
-          color: var(--text-muted);
-        }
-        
-        .progress-bar {
-          height: 3px;
-          background: var(--bg-input);
-          margin: 0 16px 24px;
-          border-radius: 2px;
-          overflow: hidden;
-        }
-        
-        .progress-fill {
-          height: 100%;
-          background: var(--accent-coral);
-          transition: width 0.3s ease;
-        }
-        
-        .error-message {
-          background: rgba(255, 59, 48, 0.1);
-          border: 1px solid var(--status-busy);
-          color: var(--status-busy);
-          padding: 12px 16px;
-          margin: 0 16px 16px;
-          border-radius: 8px;
-          font-size: 14px;
-        }
-        
-        .create-content {
-          padding: 0 16px;
-        }
-        
-        .form-section {
-          margin-bottom: 24px;
-        }
-        
-        .form-label {
-          display: block;
-          font-size: 14px;
-          font-weight: 500;
-          color: var(--text-muted);
-          margin-bottom: 8px;
-        }
-        
-        .form-hint {
-          font-size: 13px;
-          color: var(--text-muted);
-          opacity: 0.7;
-        }
-        
-        .textarea {
-          min-height: 100px;
-          resize: vertical;
-        }
-        
-        .activity-grid {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-        
-        .activity-chip {
-          padding: 8px 16px;
-          background: var(--bg-input);
-          border: 1px solid transparent;
-          border-radius: 20px;
-          color: var(--text-light);
-          font-size: 14px;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        
-        .activity-chip:hover {
-          background: var(--bg-card-hover);
-        }
-        
-        .activity-chip.active {
-          background: var(--accent-coral);
-          color: white;
-        }
-        
-        .image-upload-area {
-          border: 2px dashed var(--bg-input);
-          border-radius: 12px;
-          overflow: hidden;
-        }
-        
-        .upload-placeholder {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 40px;
-          cursor: pointer;
-          color: var(--text-muted);
-          gap: 8px;
-        }
-        
-        .upload-icon {
-          font-size: 32px;
-        }
-        
-        .image-preview {
-          position: relative;
-          width: 100%;
-          aspect-ratio: 16/9;
-        }
-        
-        .image-preview img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-        
-        .remove-image {
-          position: absolute;
-          top: 8px;
-          right: 8px;
-          width: 32px;
-          height: 32px;
-          background: rgba(0,0,0,0.6);
-          border: none;
-          border-radius: 50%;
-          color: white;
-          font-size: 20px;
-          cursor: pointer;
-        }
-        
-        .counter-input {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          background: var(--bg-input);
-          border-radius: 12px;
-          padding: 8px 16px;
-          width: fit-content;
-        }
-        
-        .counter-btn {
-          width: 36px;
-          height: 36px;
-          background: var(--bg-dark);
-          border: none;
-          border-radius: 50%;
-          color: var(--text-white);
-          font-size: 20px;
-          cursor: pointer;
-          transition: background 0.2s;
-        }
-        
-        .counter-btn:hover {
-          background: var(--accent-coral);
-        }
-        
-        .counter-value {
-          font-size: 18px;
-          font-weight: 600;
-          min-width: 50px;
-          text-align: center;
-        }
-        
-        .frequency-options,
-        .level-options {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-        
-        .level-chip {
-          padding: 10px 16px;
-          background: var(--bg-input);
-          border: 1px solid transparent;
-          border-radius: 8px;
-          color: var(--text-light);
-          font-size: 14px;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        
-        .level-chip.active {
-          background: var(--accent-coral);
-          color: white;
-        }
-        
-        .visibility-toggle {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        
-        .visibility-option {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 16px;
-          background: var(--bg-input);
-          border: 2px solid transparent;
-          border-radius: 12px;
-          color: var(--text-light);
-          cursor: pointer;
-          transition: all 0.2s;
-          text-align: left;
-        }
-        
-        .visibility-option.active {
-          border-color: var(--accent-coral);
-          background: rgba(253, 118, 102, 0.1);
-        }
-        
-        .visibility-icon {
-          font-size: 24px;
-        }
-        
-        .visibility-title {
-          display: block;
-          font-weight: 600;
-          color: var(--text-white);
-        }
-        
-        .visibility-desc {
-          display: block;
-          font-size: 12px;
-          color: var(--text-muted);
-        }
-        
-        .club-preview {
-          background: var(--bg-card);
-          border-radius: 16px;
-          padding: 20px;
-          margin-bottom: 24px;
-        }
-        
-        .club-preview-header {
-          display: flex;
-          gap: 16px;
-        }
-        
-        .club-preview-image {
-          width: 80px;
-          height: 80px;
-          border-radius: 12px;
-          object-fit: cover;
-        }
-        
-        .club-preview-placeholder {
-          width: 80px;
-          height: 80px;
-          border-radius: 12px;
-          background: var(--bg-input);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 32px;
-        }
-        
-        .club-preview-info h2 {
-          font-size: 18px;
-          font-weight: 600;
-          color: var(--accent-coral);
-          margin-bottom: 4px;
-        }
-        
-        .club-preview-info p {
-          font-size: 14px;
-          color: var(--text-muted);
-          margin-bottom: 8px;
-        }
-        
-        .club-preview-stats {
-          display: flex;
-          gap: 16px;
-          font-size: 12px;
-          color: var(--text-muted);
-        }
-        
-        .friends-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 12px;
-          margin-bottom: 16px;
-        }
-        
-        .friend-card {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px;
-          background: var(--bg-input);
-          border: 2px solid transparent;
-          border-radius: 12px;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        
-        .friend-card.selected {
-          border-color: var(--accent-green);
-          background: rgba(76, 217, 100, 0.1);
-        }
-        
-        .friend-avatar {
-          position: relative;
-          width: 44px;
-          height: 44px;
-        }
-        
-        .friend-avatar img {
-          width: 100%;
-          height: 100%;
-          border-radius: 50%;
-          object-fit: cover;
-        }
-        
-        .friend-check {
-          position: absolute;
-          bottom: -2px;
-          right: -2px;
-          width: 20px;
-          height: 20px;
-          background: var(--accent-green);
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 12px;
-          color: white;
-        }
-        
-        .friend-name {
-          font-size: 14px;
-          font-weight: 500;
-          color: var(--text-white);
-        }
-        
-        .selected-count {
-          text-align: center;
-          font-size: 14px;
-          color: var(--accent-green);
-          font-weight: 500;
-        }
-        
-        .create-footer {
-          position: fixed;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          padding: 16px;
-          padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 16px);
-          background: var(--bg-dark);
-          border-top: 1px solid var(--bg-input);
-        }
-      `}</style>
     </div>
   );
 };

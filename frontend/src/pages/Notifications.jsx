@@ -1,28 +1,19 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { api } from '../utils/api';
-import { SocketContext } from '../context/SocketContext';
-import '../styles/home.css';
+import React, { useState, useEffect } from 'react';
+import { notifications } from '../utils/api';
 
 export const Notifications = () => {
   const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const socket = useContext(SocketContext);
 
   useEffect(() => {
     loadNotifications();
-    if (socket) {
-      socket.on('new_notification', (newNotif) => {
-        setNotifs(prev => [newNotif, ...prev]);
-      });
-    }
-    return () => socket?.off('new_notification');
-  }, [socket]);
+  }, []);
 
   const loadNotifications = async () => {
     try {
-      const res = await api.get('/notifications');
-      setNotifs(res.data);
-      await api.post('/notifications/mark-read');
+      const res = await notifications.getAll();
+      setNotifs(res.data || []);
+      await notifications.markRead();
     } catch (err) {
       console.error(err);
     } finally {
@@ -30,52 +21,57 @@ export const Notifications = () => {
     }
   };
 
-  if (loading) return <div className="loading">Loading...</div>;
+  if (loading) {
+    return (
+      <div className="page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="loading-spinner" />
+      </div>
+    );
+  }
 
   return (
-    <div className="home" style={{ paddingBottom: '100px' }}>
-      <div className="home-header">
-        <h1>Notifications 🔔</h1>
-      </div>
+    <div className="page" style={{ paddingBottom: '100px' }}>
+      <h1 style={{ fontSize: '28px', fontWeight: '800', marginBottom: '24px' }}>
+        Benachrichtigungen 🔔
+      </h1>
 
-      <div className="notifications-list">
-        {notifs.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#666', marginTop: '50px' }}>No new notifications</p>
-        ) : (
-          notifs.map(n => (
+      {notifs.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div style={{ fontSize: '64px', marginBottom: '16px' }}>🔕</div>
+          <h2>Keine Benachrichtigungen</h2>
+          <p style={{ color: 'var(--text-muted)' }}>Du bist auf dem neuesten Stand!</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {notifs.map(n => (
             <div key={n.id} style={{
-              background: n.is_read ? 'rgba(255,255,255,0.02)' : 'rgba(255,107,107,0.1)',
-              padding: '15px',
+              background: n.is_read ? 'var(--bg-card)' : 'rgba(255,107,107,0.1)',
+              padding: '16px',
               borderRadius: '12px',
-              marginBottom: '10px',
               display: 'flex',
-              gap: '15px',
+              gap: '12px',
               alignItems: 'center',
-              borderLeft: n.is_read ? 'none' : '3px solid #ff6b6b'
+              borderLeft: n.is_read ? 'none' : '3px solid var(--accent-coral)'
             }}>
               <div style={{
-                width: '40px', height: '40px', borderRadius: '50%',
-                background: '#444', overflow: 'hidden'
+                width: '44px', height: '44px', borderRadius: '50%',
+                background: 'var(--bg-input)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '20px'
               }}>
-                {n.sender_avatar ? (
-                  <img src={n.sender_avatar} alt="" style={{ width: '100%', height: '100%' }} />
-                ) : (
-                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    📢
-                  </div>
-                )}
+                {n.type === 'join_request' ? '👋' : n.type === 'request_accepted' ? '✅' : '📢'}
               </div>
-              <div>
+              <div style={{ flex: 1 }}>
                 <h4 style={{ margin: '0 0 4px 0', fontSize: '14px' }}>{n.title}</h4>
-                <p style={{ margin: 0, fontSize: '12px', color: '#bbb' }}>{n.message}</p>
-                <span style={{ fontSize: '10px', color: '#666' }}>
-                  {new Date(n.created_at).toLocaleTimeString()}
+                <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>{n.message}</p>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  {new Date(n.created_at).toLocaleString('de-AT')}
                 </span>
               </div>
             </div>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
+export default Notifications;

@@ -195,3 +195,60 @@ nav {
 .nav-label {
   font-size: 9px;
 }
+
+/* Der schwebende Container für den Button */
+.fab-container {
+  position: fixed;
+  bottom: 30px; /* Abstand von unten */
+  left: 50%;
+  transform: translateX(-50%); /* Zentriert ihn exakt */
+  z-index: 1000; /* Immer im Vordergrund */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Der Button selbst */
+.fab-button {
+  width: 65px;
+  height: 65px;
+  background: linear-gradient(135deg, #ff7e5f, #feb47b); /* Jamie-Farben (Beispiel: Orange-Pfirsich) */
+  border-radius: 50%;
+  border: none;
+  box-shadow: 0 4px 15px rgba(255, 126, 95, 0.4); /* Weicher Schatten */
+  color: white;
+  font-size: 32px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none; /* Falls es ein Link ist */
+}
+
+/* Hover Effekt (Maus drüber) */
+.fab-button:hover {
+  transform: scale(1.1) rotate(90deg); /* Wird größer und dreht sich leicht */
+  box-shadow: 0 6px 20px rgba(255, 126, 95, 0.6);
+}
+
+/* Klick Effekt */
+.fab-button:active {
+  transform: scale(0.95);
+}
+  box-shadow: 0 3px 10px rgba(255, 126, 95, 0.2);
+
+/* Kleine Aktions-Buttons (z.B. in Home-Page) */
+.action-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 20px;
+  font-weight: bold;
+}

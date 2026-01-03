@@ -1,25 +1,31 @@
 import React from 'react';
-import '../styles/home.css';
 
-export const GroupCard = ({ group, isFavorite, isJoined, onFavorite, onJoin, onChat, customImage, onClick }) => {
+export const GroupCard = ({ 
+  group, 
+  isFavorite, 
+  isJoined, 
+  onFavorite, 
+  onJoin, 
+  onChat, 
+  onClick 
+}) => {
   // Use uploaded image OR fallback to gradient
-  const imageUrl = customImage || group.image_url;
+  const imageUrl = group.image_url;
   const bgStyle = imageUrl
     ? { backgroundImage: `url(${imageUrl})` }
     : { background: `linear-gradient(135deg, #ff6b6b, #ff8585)` };
 
-  // Format members text "4/6 Members" (Mocking max if missing)
+  // Format members text
   const maxMembers = group.max_members || group.maxMembers || 6; 
-  const memberRatio = `${group.member_count || 0}/${maxMembers} Members`;
+  const memberRatio = `${group.member_count || 0}/${maxMembers}`;
 
-  // Format Date (e.g. "Heute" or specific date)
+  // Format Date
   const displayDate = group.date || "Demnächst";
 
   return (
     <div className="group-card" onClick={onClick}>
       <div className="card-image-wrapper">
         <div className="card-image" style={bgStyle}>
-          {/* Category Pill Overlay */}
           <div className="card-image-overlay">
             <div className="card-top-badges">
               {group.category && (
@@ -44,9 +50,8 @@ export const GroupCard = ({ group, isFavorite, isJoined, onFavorite, onJoin, onC
           </div>
         </div>
         
-        {/* Action Button (Join/Chat/Fav) */}
         <div className="card-actions">
-           <button
+          <button
             className={`fav-btn-small ${isFavorite ? 'active' : ''}`}
             onClick={(e) => {
               e.stopPropagation();

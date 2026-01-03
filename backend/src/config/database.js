@@ -5,15 +5,23 @@ import path from 'path';
 
 dotenv.config();
 
-const dbPath = process.env.DB_PATH || './database.db';
+const dbPath = path.resolve(__dirname, '../../database.db');
+
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
-    console.error('Database connection error:', err);
+    console.error('Verbindung zur Datenbank fehlgeschlagen:', err.message);
   } else {
-    console.log('✓ Connected to SQLite database');
-    initializeDatabase();
+    console.log('Verbunden mit der SQLite Datenbank.');
+    
+    // WICHTIG: Performance Tuning für Production
+    // Aktiviert Write-Ahead Logging (bessere Performance bei gleichzeitigen Zugriffen)
+    db.run('PRAGMA journal_mode = WAL;'); 
+    // Erzwingt Fremdschlüssel-Constraints (wichtig für Datenintegrität)
+    db.run('PRAGMA foreign_keys = ON;');
   }
 });
+
+module.exports = db;
 
 db.configure('busyTimeout', 5000);
 
