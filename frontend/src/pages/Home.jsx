@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
 import { GroupCard } from '../components/GroupCard';
-
+import { Link } from 'react-router-dom';
 const CATEGORIES = ['Hiking', 'Tennis', 'Golf', 'Beachvolleyball', 'Running'];
 
 // --- MOCK DATA FOR PREVIEW ---
@@ -98,6 +98,11 @@ export const Home = () => {
              <button className={`tab ${activeTab === 'clubs' ? 'active' : ''}`} onClick={() => setActiveTab('clubs')}>Clubs</button>
           </div>
         </div>
+        <div className="fab-container">
+        <Link to="/create-group" className="fab-button" aria-label="Neue Gruppe erstellen">
+          +
+        </Link>
+      </div>
 
         <div className="search-container">
           <input 

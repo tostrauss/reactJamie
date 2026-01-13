@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "compression": "^1.8.1",
+    "express-rate-limit": "^8.2.1",
+    "helmet": "^8.1.0",
+    "pg": "^8.16.3"
+  }
+}

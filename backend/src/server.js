@@ -1,21 +1,12 @@
-import express from 'express';
-import http from 'http'; // Import http
-import cors from 'cors';
-import dotenv from 'dotenv';
-import path from 'path';
-import authRoutes from './routes/authRoutes.js';
-import userRoutes from './routes/userRoutes.js';
-import uploadRoutes from './routes/uploadRoutes.js';
-import groupRoutes from './routes/groupRoutes.js';
-import notificationRoutes from './routes/notificationRoutes.js';
-import messageRoutes from './routes/messageRoutes.js';
-import spotifyRoutes from './routes/spotifyRoutes.js';
-import { initializeSocket } from './socket.js'; // Import socket init
-
-dotenv.config();
+// backend/server.js
+const express = require('express');
+const cors = require('cors');
+const http = require('http');
+const { Server } = require('socket.io');
+require('dotenv').config();
 
 const app = express();
-const server = http.createServer(app); // Create HTTP server
+const server = http.createServer(app);
 
 // Sicherheits-Middleware
 app.use(cors({
@@ -25,37 +16,24 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Routes importieren
+const authRoutes = require('./src/routes/authRoutes');
+const groupRoutes = require('./src/routes/groupRoutes');
+const db = require('./config/database'); // Datenbankverbindung initialisieren
+const session = require('express-session');
+const SQLiteStore = require('connect-sqlite3')(session);
+// Session Management
+app.use(session({
+  store: new SQLiteStore({ db: 'sessions.db', dir: './database' }),
+  secret: process.env.SESSION_SECRET || 'dein_geheimes_sitzungsgeheimnis',
+  resave: false,
+  saveUninitialized: false,
+}));
 
-// Make io available in routes if needed (optional)
-app.set('io', io);
+// ... andere Routes
 
-// Middleware
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/groups', groupRoutes);
-app.use('/api/messages', messageRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
-app.use('/api/upload', uploadRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/spotify', spotifyRoutes);
-
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'API is running' });
-});
-
-// Error handling
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Internal server error' });
-});
-
-const PORT = process.env.PORT || 5000;
 
 // Socket.io Setup für Realtime Chat
 const io = new Server(server, {
@@ -73,10 +51,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Etwas ist schiefgelaufen!' });
 });
 
-// Listen on server, not app
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`Server läuft auf Port ${PORT}`);
 });
-
-
-export default app;

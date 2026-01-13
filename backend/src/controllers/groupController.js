@@ -2,25 +2,27 @@ import db from '../config/database.js';
 
 export const createGroup = async (req, res) => {
   try {
-    // ADDED: image_url and category
     const { title, description, type, category, image_url } = req.body;
     
-    if (!['group', 'club'].includes(type)) {
-      return res.status(400).json({ error: 'Invalid group type' });
-    }
+    if (!['group', 'club'].includes(type)) return res.status(400).json({ error: 'Invalid group type' });
 
+    // CHANGED: Added "RETURNING id"
     const result = await db.query(
-      'INSERT INTO groups (title, description, type, category, image_url, owner_id) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO groups (title, description, type, category, image_url, owner_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING id',
       [title, description, type, category, image_url, req.userId]
     );
+
+    const groupId = result.rows[0].id;
 
     // Add creator as member
     await db.query(
       'INSERT INTO group_members (group_id, user_id) VALUES (?, ?)',
-      [result.rows[0].id, req.userId]
+      [groupId, req.userId]
     );
 
-    res.status(201).json(result.rows[0]);
+    // Fetch full object to return
+    const group = await db.query('SELECT * FROM groups WHERE id = ?', [groupId]);
+    res.status(201).json(group.rows[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

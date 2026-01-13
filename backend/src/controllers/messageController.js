@@ -4,27 +4,26 @@ export const sendMessage = async (req, res) => {
   try {
     const { groupId, content } = req.body;
 
-    // Check if user is member of group
+    // Check membership
     const member = await db.query(
       'SELECT * FROM group_members WHERE group_id = ? AND user_id = ?',
       [groupId, req.userId]
     );
 
-    if (member.rows.length === 0) {
-      return res.status(403).json({ error: 'Not a member of this group' });
-    }
+    if (member.rows.length === 0) return res.status(403).json({ error: 'Not a member' });
 
+    // CHANGED: Added "RETURNING *" to get ID and Timestamp immediately
     const result = await db.query(
-      'INSERT INTO messages (group_id, user_id, content) VALUES (?, ?, ?)',
+      'INSERT INTO messages (group_id, user_id, content) VALUES (?, ?, ?) RETURNING *',
       [groupId, req.userId, content]
     );
 
+    const newMessage = result.rows[0];
+
     res.status(201).json({
-      id: result.lastID,
-      group_id: groupId,
+      ...newMessage,
       user_id: req.userId,
-      content,
-      created_at: new Date()
+      group_id: groupId
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

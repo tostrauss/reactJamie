@@ -39,33 +39,26 @@ export const register = async (req, res) => {
   try {
     const { email, password, name } = req.body;
 
-    // Check duplicate
     const userExists = await db.query('SELECT * FROM users WHERE email = ?', [email]);
-    if (userExists.rows.length > 0) {
-      return res.status(400).json({ error: 'User already exists' });
-    }
+    if (userExists.rows.length > 0) return res.status(400).json({ error: 'User already exists' });
 
     const hashedPassword = await bcrypt.hash(password, 10);
     
-    // Insert
+    // CHANGED: Added "RETURNING id"
     const insertResult = await db.query(
-      'INSERT INTO users (email, password, name) VALUES (?, ?, ?)',
+      'INSERT INTO users (email, password, name) VALUES (?, ?, ?) RETURNING id',
       [email, hashedPassword, name]
     );
 
-    // CRITICAL: Sofort den neuen User abrufen
-    const newUserId = insertResult.rows[0].id;
+    const newUserId = insertResult.rows[0].id; // Now works with Postgres
     const userResult = await db.query('SELECT * FROM users WHERE id = ?', [newUserId]);
     const user = userResult.rows[0];
 
     const token = generateToken(user.id);
-    
-    // Passwort nicht zurücksenden
     delete user.password;
 
     res.status(201).json({ user, token });
   } catch (error) {
-    console.error("Register Error:", error);
     res.status(500).json({ error: error.message });
   }
 };
