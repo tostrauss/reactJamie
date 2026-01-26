@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../utils/api";
-import GroupCard from "../components/GroupCard";
+import {GroupCard} from "../components/GroupCard"
 import CreateActionModal from "../components/CreateActionModal"; // Import the new modal
 import "../styles/home.css";
 
