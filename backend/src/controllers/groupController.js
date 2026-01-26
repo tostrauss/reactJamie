@@ -1,214 +1,61 @@
 import db from '../config/database.js';
 
 export const createGroup = async (req, res) => {
+  // 1. Get data from Frontend
+  const { name, description, type, category, date, location, image_url } = req.body;
+  const userId = req.session.userId; // Secure session ID
+
+  // 2. Validations
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!name) return res.status(400).json({ error: 'Name is required' });
+
   try {
-    const { title, description, type, category, image_url } = req.body;
-    
-    if (!['group', 'club'].includes(type)) return res.status(400).json({ error: 'Invalid group type' });
-
-    // CHANGED: Added "RETURNING id"
+    // 3. Insert into Database
+    // We use the same table for both, but 'type' distinguishes them
     const result = await db.query(
-      'INSERT INTO groups (title, description, type, category, image_url, owner_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING id',
-      [title, description, type, category, image_url, req.userId]
+      `INSERT INTO groups (name, description, type, category, date, location, image_url, owner_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
+      [name, description, type || 'group', category, date, location, image_url, userId]
     );
 
-    const groupId = result.rows[0].id;
-
-    // Add creator as member
+    // 4. Auto-add creator as a member
+    const newGroup = result.rows[0];
     await db.query(
-      'INSERT INTO group_members (group_id, user_id) VALUES (?, ?)',
-      [groupId, req.userId]
+      `INSERT INTO group_members (group_id, user_id) VALUES ($1, $2)`,
+      [newGroup.id, userId]
     );
 
-    // Fetch full object to return
-    const group = await db.query('SELECT * FROM groups WHERE id = ?', [groupId]);
-    res.status(201).json(group.rows[0]);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(201).json(newGroup);
+  } catch (err) {
+    console.error('Error creating activity:', err);
+    res.status(500).json({ error: 'Database creation failed' });
   }
 };
 
 export const getGroups = async (req, res) => {
   try {
-    const { type, search, category } = req.query;
-    let query = `
-      SELECT g.*, u.name as owner_name, COUNT(gm.id) as member_count
+    // Fetch groups and include the creator's username (optional but nice)
+    const result = await db.query(`
+      SELECT g.*, u.username as owner_name 
       FROM groups g
       LEFT JOIN users u ON g.owner_id = u.id
-      LEFT JOIN group_members gm ON g.id = gm.group_id
-      WHERE 1=1
-    `;
-    const params = [];
-
-    // Filter by Type (Group/Club)
-    if (type && ['group', 'club'].includes(type)) {
-      query += ` AND g.type = ?`;
-      params.push(type);
-    }
-
-    // ADDED: Filter by Category
-    if (category && category !== 'all') {
-      query += ` AND g.category = ?`;
-      params.push(category);
-    }
-
-    // ADDED: Search by Title or Description
-    if (search) {
-      query += ` AND (g.title LIKE ? OR g.description LIKE ?)`;
-      params.push(`%${search}%`, `%${search}%`);
-    }
-    
-    query += ` GROUP BY g.id, u.name ORDER BY g.created_at DESC`;
-
-    const result = await db.query(query, params);
+      ORDER BY g.created_at DESC
+    `);
     res.json(result.rows);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch groups' });
   }
 };
 
-// ... keep existing getGroupById, joinGroup, leaveGroup, toggleFavorite, etc. ...
 export const getGroupById = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const result = await db.query(
-      `SELECT g.*, u.name as owner_name, COUNT(gm.id) as member_count
-       FROM groups g
-       LEFT JOIN users u ON g.owner_id = u.id
-       LEFT JOIN group_members gm ON g.id = gm.group_id
-       WHERE g.id = ?
-       GROUP BY g.id`,
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Group not found' });
+    try {
+        const { id } = req.params;
+        const result = await db.query(`SELECT * FROM groups WHERE id = $1`, [id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: "Group not found" });
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: "Server error" });
     }
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-export const joinGroup = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Check if already member
-    const existing = await db.query(
-      'SELECT * FROM group_members WHERE group_id = ? AND user_id = ?',
-      [id, req.userId]
-    );
-
-    if (existing.rows.length > 0) {
-      return res.status(400).json({ error: 'Already a member' });
-    }
-
-    await db.query(
-      'INSERT INTO group_members (group_id, user_id) VALUES (?, ?)',
-      [id, req.userId]
-    );
-
-    res.json({ message: 'Joined successfully' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-export const leaveGroup = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    await db.query(
-      'DELETE FROM group_members WHERE group_id = ? AND user_id = ?',
-      [id, req.userId]
-    );
-
-    res.json({ message: 'Left group' });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-export const toggleFavorite = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const existing = await db.query(
-      'SELECT * FROM favorites WHERE group_id = ? AND user_id = ?',
-      [id, req.userId]
-    );
-
-    if (existing.rows.length > 0) {
-      await db.query(
-        'DELETE FROM favorites WHERE group_id = ? AND user_id = ?',
-        [id, req.userId]
-      );
-      res.json({ favorited: false });
-    } else {
-      await db.query(
-        'INSERT INTO favorites (group_id, user_id) VALUES (?, ?)',
-        [id, req.userId]
-      );
-      res.json({ favorited: true });
-    }
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-export const getUserFavorites = async (req, res) => {
-  try {
-    const result = await db.query(
-      `SELECT g.*, u.name as owner_name, COUNT(gm.id) as member_count
-       FROM groups g
-       LEFT JOIN users u ON g.owner_id = u.id
-       LEFT JOIN group_members gm ON g.id = gm.group_id
-       INNER JOIN favorites f ON g.id = f.group_id
-       WHERE f.user_id = ?
-       GROUP BY g.id`,
-      [req.userId]
-    );
-
-    res.json(result.rows);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-export const getUserGroups = async (req, res) => {
-  try {
-    const result = await db.query(
-      `SELECT g.*, u.name as owner_name, COUNT(gm.id) as member_count
-       FROM groups g
-       LEFT JOIN users u ON g.owner_id = u.id
-       LEFT JOIN group_members gm ON g.id = gm.group_id
-       INNER JOIN group_members ugm ON g.id = ugm.group_id
-       WHERE ugm.user_id = ?
-       GROUP BY g.id`,
-      [req.userId]
-    );
-    res.json(result.rows);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-export const getGroupMembers = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await db.query(
-      `SELECT u.id, u.name, u.avatar_url, u.location 
-       FROM group_members gm 
-       JOIN users u ON gm.user_id = u.id 
-       WHERE gm.group_id = ?
-       ORDER BY gm.joined_at DESC`,
-      [id]
-    );
-    res.json(result.rows);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
 };

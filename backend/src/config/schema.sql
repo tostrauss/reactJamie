@@ -1,68 +1,50 @@
--- Users
+-- Enable UUID extension if you want safer IDs, otherwise SERIAL is fine for now
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  password VARCHAR(255) NOT NULL,
-  name VARCHAR(255) NOT NULL,
-  gender VARCHAR(50),
-  birth_date DATE,
-  interests JSONB, 
-  photos JSONB,    
-  bio TEXT,
-  avatar_url VARCHAR(500),
-  location VARCHAR(255),
-  favorite_song JSONB, 
-  onboarding_completed BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  username TEXT UNIQUE NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL,
+  avatar TEXT,
+  interests JSONB DEFAULT '[]',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Groups
 CREATE TABLE IF NOT EXISTS groups (
   id SERIAL PRIMARY KEY,
-  title VARCHAR(255) NOT NULL,
-  description TEXT NOT NULL,
-  type VARCHAR(50) NOT NULL CHECK (type IN ('group', 'club')),
-  category VARCHAR(50),
-  owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  image_url VARCHAR(500),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  name TEXT NOT NULL,             -- Changed from 'title' to match Frontend
+  description TEXT,
+  type TEXT DEFAULT 'group',      -- 'group' (event) or 'club' (community)
+  category TEXT DEFAULT 'general',
+  date TIMESTAMP,                 -- Essential for Groups/Events
+  location TEXT,                  -- Essential for Groups/Events
+  image_url TEXT,
+  owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  members_count INTEGER DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Members & Relations
 CREATE TABLE IF NOT EXISTS group_members (
-  id SERIAL PRIMARY KEY,
-  group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
   joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(group_id, user_id)
-);
-
-CREATE TABLE IF NOT EXISTS favorites (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(user_id, group_id)
+  PRIMARY KEY (group_id, user_id)
 );
 
 CREATE TABLE IF NOT EXISTS messages (
   id SERIAL PRIMARY KEY,
-  group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   content TEXT NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS notifications (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  sender_id INTEGER REFERENCES users(id),
-  type VARCHAR(50) NOT NULL,
-  title VARCHAR(255) NOT NULL,
-  message TEXT,
-  reference_id INTEGER,
-  is_read BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+-- Session table for connect-pg-simple
+CREATE TABLE IF NOT EXISTS "session" (
+  "sid" varchar NOT NULL COLLATE "default",
+  "sess" json NOT NULL,
+  "expire" timestamp(6) NOT NULL
+)
+WITH (OIDS=FALSE);
+
+ALTER TABLE "session" ADD CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE;
+CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
