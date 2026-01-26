@@ -1,50 +1,31 @@
 // backend/src/config/database.js
-import sqlite3 from 'sqlite3';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import pg from 'pg';
+import dotenv from 'dotenv';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config();
 
-// Ensure db file is in backend root, not inside src/config
-const dbPath = path.resolve(__dirname, '../../database.db');
+const { Pool } = pg;
 
-const sqlite = sqlite3.verbose();
-const dbConnection = new sqlite.Database(dbPath, (err) => {
-  if (err) {
-    console.error('❌ DB Connection Error:', err.message);
-  } else {
-    console.log('✅ Connected to SQLite database.');
-    dbConnection.run('PRAGMA journal_mode = WAL;');
-    dbConnection.run('PRAGMA foreign_keys = ON;');
-  }
+// Production-ready configuration
+const pool = new Pool({
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  database: process.env.DB_NAME,
+  max: 20, // Connection pool limit
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 });
 
-// Wrapper to mimic PostgreSQL 'db.query' style
-const db = {
-  query: (text, params = []) => {
-    return new Promise((resolve, reject) => {
-      // Check if it's a SELECT query
-      if (text.trim().toUpperCase().startsWith('SELECT')) {
-        dbConnection.all(text, params, (err, rows) => {
-          if (err) return reject(err);
-          resolve({ rows }); // Return object resembling Postgres result
-        });
-      } else {
-        // INSERT, UPDATE, DELETE
-        // Note: SQLite doesn't support "RETURNING" fully in older versions, 
-        // but this handles the basic run.
-        dbConnection.run(text, params, function (err) {
-          if (err) return reject(err);
-          // Return "rows" with one item containing the new ID for inserts
-          resolve({ 
-            rows: [{ id: this.lastID }], 
-            rowCount: this.changes 
-          });
-        });
-      }
-    });
-  }
-};
+pool.on('error', (err) => {
+  console.error('❌ Unexpected error on idle client', err);
+  process.exit(-1);
+});
 
-export default db;
+// "Magic" wrapper not needed anymore! 
+// We export the native pool directly.
+export default {
+  query: (text, params) => pool.query(text, params),
+  pool, // Export pool for sessions if needed
+};

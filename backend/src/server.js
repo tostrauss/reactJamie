@@ -5,7 +5,8 @@ import http from 'http';
 import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import session from 'express-session';
-import SQLiteStoreFactory from 'connect-sqlite3';
+import pgSession from 'connect-pg-simple';
+import db from './config/database.js'
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -17,7 +18,7 @@ dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
-const SQLiteStore = SQLiteStoreFactory(session);
+const PGStore = pgSession(session)
 
 // Routes
 import authRoutes from './routes/authRoutes.js';
@@ -34,12 +35,16 @@ app.use(express.json());
 
 // Session Management
 app.use(session({
-  store: new SQLiteStore({ db: 'sessions.db', dir: './' }), // Saved in root
-  secret: process.env.SESSION_SECRET || 'dev_secret_key',
+  store: new PGStore({
+    pool: db.pool, // Use the pool from database.js
+    tableName: 'session' // We will create this table in Step 5
+  }),
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  cookie: { 
+  cookie: {
     secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
     maxAge: 1000 * 60 * 60 * 24 // 1 day
   }
 }));

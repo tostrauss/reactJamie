@@ -303,6 +303,63 @@
     letter-spacing: 0.5px;
 }
 
+/* Add to frontend/src/styles/home.css */
+
+.hero-action {
+  text-align: center;
+  padding: 30px 20px;
+  background: linear-gradient(180deg, rgba(253, 118, 102, 0.15) 0%, transparent 100%);
+  border-bottom-left-radius: 30px;
+  border-bottom-right-radius: 30px;
+  margin-bottom: 20px;
+}
+
+.hero-title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: white;
+  margin-bottom: 8px;
+}
+
+.hero-subtitle {
+  color: #a0a0b0;
+  margin-bottom: 24px;
+}
+
+/* The Big Main Button */
+.create-activity-btn {
+  background: #FD7666;
+  color: white;
+  border: none;
+  padding: 16px 32px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  border-radius: 50px;
+  box-shadow: 0 8px 20px rgba(253, 118, 102, 0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.create-activity-btn:active {
+  transform: scale(0.96);
+  box-shadow: 0 4px 10px rgba(253, 118, 102, 0.3);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: #666;
+}
+
+.link-text {
+  color: #FD7666;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 /* Mobile specific fixes */
 @media (max-width: 600px) {
   .groups-grid {

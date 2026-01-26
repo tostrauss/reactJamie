@@ -1,171 +1,90 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { api } from '../utils/api';
-import { GroupCard } from '../components/GroupCard';
-import { Link } from 'react-router-dom';
-const CATEGORIES = ['Hiking', 'Tennis', 'Golf', 'Beachvolleyball', 'Running'];
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import api from "../utils/api";
+import GroupCard from "../components/GroupCard";
+import CreateActionModal from "../components/CreateActionModal"; // Import the new modal
+import "../styles/home.css";
 
-// --- MOCK DATA FOR PREVIEW ---
-const MOCK_GROUPS = [
-  {
-    id: 991,
-    title: 'Wandern am Kahlenberg',
-    category: 'Hiking',
-    member_count: 4,
-    max_members: 6,
-    date: 'Heute',
-    time: '14:00',
-    image_url: 'https://images.unsplash.com/photo-1551632811-561732d1e306?q=80&w=2070&auto=format&fit=crop',
-    owner_name: 'Max',
-    type: 'group'
-  },
-  {
-    id: 992,
-    title: 'Beachvolleyball Donau',
-    category: 'Volleyball',
-    member_count: 3,
-    max_members: 4,
-    date: 'Morgen',
-    time: '16:30',
-    image_url: 'https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?q=80&w=2007&auto=format&fit=crop',
-    owner_name: 'Lisa',
-    type: 'group'
-  }
-];
-
-export const Home = () => {
-  const [activeTab, setActiveTab] = useState('gruppen');
-  const [activeFilter, setActiveFilter] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [groupsData, setGroupsData] = useState([]);
-  const [myClubs, setMyClubs] = useState([]);
-  const [trendingClubs, setTrendingClubs] = useState([]);
-  const [loading, setLoading] = useState(true);
+const Home = () => {
+  const [groups, setGroups] = useState([]);
+  const [activeTab, setActiveTab] = useState("discover"); // 'discover' or 'for-you'
+  const [isModalOpen, setIsModalOpen] = useState(false); // Modal state
   const navigate = useNavigate();
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      loadData();
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [activeTab, activeFilter, searchQuery]);
+    fetchGroups();
+  }, []);
 
-  const loadData = async () => {
-    setLoading(true);
+  const fetchGroups = async () => {
     try {
-      if (activeTab === 'gruppen') {
-        const response = await api.groups.getAll(null, searchQuery, activeFilter || '');
-        const apiData = Array.isArray(response.data) ? response.data : [];
-        // Combine Mock + Real Data
-        setGroupsData([...MOCK_GROUPS, ...apiData]);
-      } else {
-        const response = await api.groups.getAll('club', searchQuery, activeFilter || '');
-        const clubs = Array.isArray(response.data) ? response.data : [];
-        setTrendingClubs(clubs);
-      }
+      const res = await api.get("/groups");
+      setGroups(res.data);
     } catch (error) {
-      console.error('Error loading data:', error);
-      setGroupsData(MOCK_GROUPS); // Fallback to mock
-    } finally {
-      setLoading(false);
+      console.error("Fehler beim Laden der Gruppen:", error);
     }
   };
 
-  const handleFavorite = async (id) => {
-    try {
-      await api.groups.toggleFavorite(id);
-      loadData();
-    } catch (err) { console.error(err); }
-  };
-
-  const handleJoin = async (id) => {
-    try {
-      await api.groups.join(id);
-      loadData();
-    } catch (err) { console.error(err); }
-  };
-
   return (
-    <div className="page home-page">
-      <div className="home-header">
-        {/* Title / Tab Switcher Logic */}
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 20}}>
-          <h1 className="page-title" style={{marginBottom:0}}>
-            {activeTab === 'gruppen' ? 'Alle Gruppen' : 'Clubs'}
-          </h1>
-          <div className="tabs" style={{margin:0, border:0}}>
-             <button className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`} onClick={() => setActiveTab('gruppen')}>Gruppen</button>
-             <button className={`tab ${activeTab === 'clubs' ? 'active' : ''}`} onClick={() => setActiveTab('clubs')}>Clubs</button>
-          </div>
+    <div className="home-container">
+      {/* Header */}
+      <header className="home-header">
+        <h1 className="logo-text">Jamie</h1>
+        <div className="header-actions">
+          {/* Notification icon could go here */}
         </div>
-        <div className="fab-container">
-        <Link to="/create-group" className="fab-button" aria-label="Neue Gruppe erstellen">
-          +
-        </Link>
+      </header>
+
+      {/* Hero / Action Section */}
+      <section className="hero-action">
+        <h2 className="hero-title">No plans tonight?</h2>
+        <p className="hero-subtitle">Start something new or join the crew.</p>
+        
+        {/* THE SINGLE BUTTON */}
+        <button 
+          className="create-activity-btn" 
+          onClick={() => setIsModalOpen(true)}
+        >
+          + Create Activity
+        </button>
+      </section>
+
+      {/* Tabs */}
+      <div className="tabs-container">
+        <button 
+          className={`tab ${activeTab === 'discover' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('discover')}
+        >
+          Discover
+        </button>
+        <button 
+          className={`tab ${activeTab === 'for-you' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('for-you')}
+        >
+          For You
+        </button>
       </div>
 
-        <div className="search-container">
-          <input 
-            type="text" 
-            className="search-input" 
-            placeholder="Suchen..." 
-            value={searchQuery} 
-            onChange={(e) => setSearchQuery(e.target.value)} 
-          />
-          <div className="search-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          </div>
-        </div>
-
-        <div className="filter-pills">
-          {CATEGORIES.map(cat => (
-            <button 
-              key={cat} 
-              className={`filter-pill ${activeFilter === cat ? 'active' : ''}`} 
-              onClick={() => setActiveFilter(activeFilter === cat ? null : cat)}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="page-content">
-        {loading ? (
-          <div className="loading-container"><div className="loading-spinner" /></div>
-        ) : activeTab === 'gruppen' ? (
-          <div className="groups-grid">
-            {groupsData.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#666', marginTop: 40, width: '100%' }}>Keine Gruppen gefunden.</p>
-            ) : (
-              groupsData.map(group => (
-                <GroupCard 
-                  key={group.id} 
-                  group={group}
-                  isFavorite={false}
-                  isJoined={false}
-                  onFavorite={handleFavorite}
-                  onJoin={handleJoin}
-                  onChat={() => navigate(`/chat/${group.id}`)}
-                  onClick={() => navigate(`/group/${group.id}`)}
-                />
-              ))
-            )}
-          </div>
+      {/* Feed */}
+      <div className="groups-feed">
+        {groups.length > 0 ? (
+          groups.map((group) => (
+            <GroupCard key={group.id} group={group} />
+          ))
         ) : (
-          <div className="groups-grid">
-             {trendingClubs.map(club => (
-                <GroupCard 
-                  key={club.id} 
-                  group={club}
-                  onFavorite={handleFavorite}
-                  onJoin={handleJoin}
-                  onClick={() => navigate(`/group/${club.id}`)}
-                />
-              ))}
+          <div className="empty-state">
+            <p>No active groups nearby.</p>
+            <span onClick={() => setIsModalOpen(true)} className="link-text">Be the first to create one!</span>
           </div>
         )}
       </div>
+
+      {/* The Modal Component */}
+      <CreateActionModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+      />
     </div>
   );
 };
+
+export default Home;
