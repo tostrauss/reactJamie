@@ -4,9 +4,60 @@ import { groups } from '../utils/api';
 import { GroupCard } from '../components/GroupCard';
 import '../styles/home.css';
 
+// Demo-Daten für Favoriten
+const DEMO_FAV_GROUPS = [
+  {
+    id: 1,
+    title: "Wandern am Kahlenberg",
+    type: "group",
+    category: "Hiking",
+    date: "Sa, 25. Jan",
+    location: "Wien",
+    member_count: 4,
+    max_members: 6,
+    image_url: "https://images.unsplash.com/photo-1551632811-561732d1e306?w=400"
+  },
+  {
+    id: 3,
+    title: "Fotografie Walk",
+    type: "group",
+    category: "Kreativ",
+    date: "Mo, 27. Jan",
+    location: "Wien",
+    member_count: 3,
+    max_members: 5,
+    image_url: "https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=400"
+  }
+];
+
+const DEMO_FAV_CLUBS = [
+  {
+    id: 101,
+    title: "Tennis Club Wien",
+    type: "club",
+    category: "Tennis",
+    location: "Wien",
+    member_count: 45,
+    max_members: 100,
+    image_url: "https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=400"
+  },
+  {
+    id: 103,
+    title: "Wiener Buchclub",
+    type: "club",
+    category: "Kultur",
+    location: "Wien",
+    member_count: 32,
+    max_members: 50,
+    image_url: "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400"
+  }
+];
+
 export const Favorites = () => {
+  const [activeTab, setActiveTab] = useState('gruppen');
   const [favoriteGroups, setFavoriteGroups] = useState([]);
-  const [joined, setJoined] = useState(new Set());
+  const [favoriteClubs, setFavoriteClubs] = useState([]);
+  const [joined, setJoined] = useState(new Set([1, 101]));
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -15,69 +66,130 @@ export const Favorites = () => {
   }, []);
 
   const loadData = async () => {
+    setLoading(true);
+    
+    // Demo-Daten verwenden
+    setFavoriteGroups(DEMO_FAV_GROUPS);
+    setFavoriteClubs(DEMO_FAV_CLUBS);
+    
+    // Versuche echte Daten zu laden
     try {
-      setLoading(true);
       const [favResponse, joinedResponse] = await Promise.all([
         groups.getFavorites(),
         groups.getJoined()
       ]);
       
-      setFavoriteGroups(favResponse.data);
-      setJoined(new Set(joinedResponse.data.map(g => g.id)));
+      if (favResponse.data && favResponse.data.length > 0) {
+        setFavoriteGroups(favResponse.data.filter(g => g.type === 'group'));
+        setFavoriteClubs(favResponse.data.filter(g => g.type === 'club'));
+      }
+      if (joinedResponse.data) {
+        setJoined(new Set(joinedResponse.data.map(g => g.id)));
+      }
     } catch (error) {
-      console.error('Error loading favorites:', error);
+      console.log('Backend nicht verfügbar, verwende Demo-Daten');
     } finally {
       setLoading(false);
     }
   };
 
   const handleFavorite = async (groupId) => {
+    // Aus Favoriten entfernen
+    setFavoriteGroups(prev => prev.filter(g => g.id !== groupId));
+    setFavoriteClubs(prev => prev.filter(g => g.id !== groupId));
+    
     try {
       await groups.toggleFavorite(groupId);
-      // Remove from list immediately
-      setFavoriteGroups(prev => prev.filter(g => g.id !== groupId));
     } catch (error) {
-      console.error('Error removing favorite:', error);
+      console.log('Backend nicht verfügbar');
     }
   };
 
   const handleJoin = async (groupId) => {
+    setJoined(prev => new Set(prev).add(groupId));
     try {
       await groups.join(groupId);
-      setJoined(prev => new Set(prev).add(groupId));
     } catch (error) {
-      console.error('Error joining group:', error);
+      console.log('Backend nicht verfügbar');
     }
   };
 
-  if (loading) return <div className="loading">Loading...</div>;
+  const handleChat = (groupId) => {
+    navigate(`/chat/${groupId}`);
+  };
+
+  const handleCardClick = (groupId) => {
+    navigate(`/group/${groupId}`);
+  };
+
+  const currentFavorites = activeTab === 'gruppen' ? favoriteGroups : favoriteClubs;
+
+  if (loading) {
+    return (
+      <div className="home-container">
+        <div className="loading">Laden...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="home">
-      <div className="home-header">
-        <h1>Your Favorites ❤️</h1>
-        <p>Groups and clubs you saved</p>
+    <div className="home-container">
+      {/* Header */}
+      <header className="home-header">
+        <h1 className="page-title">Deine Favoriten</h1>
+      </header>
+
+      {/* Tabs */}
+      <div className="tabs-container">
+        <button 
+          className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('gruppen')}
+        >
+          Gruppen
+          {favoriteGroups.length > 0 && (
+            <span className="tab-count">{favoriteGroups.length}</span>
+          )}
+        </button>
+        <button 
+          className={`tab ${activeTab === 'clubs' ? 'active' : ''}`} 
+          onClick={() => setActiveTab('clubs')}
+        >
+          Clubs
+          {favoriteClubs.length > 0 && (
+            <span className="tab-count">{favoriteClubs.length}</span>
+          )}
+        </button>
       </div>
 
-      {favoriteGroups.length === 0 ? (
-        <div className="empty-state">
-          <p>No favorites yet. Go explore!</p>
-        </div>
-      ) : (
-        <div className="groups-grid">
-          {favoriteGroups.map(group => (
-            <GroupCard
-              key={group.id}
-              group={group}
-              isFavorite={true}
-              isJoined={joined.has(group.id)}
-              onFavorite={handleFavorite}
-              onJoin={handleJoin}
-              onChat={(id) => navigate(`/chat/${id}`)}
-            />
-          ))}
-        </div>
-      )}
+      {/* Content */}
+      <div className="groups-feed">
+        {currentFavorites.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-icon">⭐</div>
+            <p>Noch keine {activeTab === 'gruppen' ? 'Gruppen' : 'Clubs'} gespeichert</p>
+            <span className="empty-hint" onClick={() => navigate('/home')}>
+              Entdecke neue {activeTab === 'gruppen' ? 'Gruppen' : 'Clubs'}!
+            </span>
+          </div>
+        ) : (
+          <div className="groups-grid">
+            {currentFavorites.map(item => (
+              <GroupCard
+                key={item.id}
+                group={item}
+                isFavorite={true}
+                isJoined={joined.has(item.id)}
+                onFavorite={handleFavorite}
+                onJoin={handleJoin}
+                onChat={handleChat}
+                onClick={() => handleCardClick(item.id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
+
+export default Favorites;

@@ -1,67 +1,122 @@
 import React, { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
+import '../styles/home.css';
 
 export const Settings = () => {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
 
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
   return (
-    <div className="page" style={{ paddingBottom: '100px' }}>
-      <button 
-        onClick={() => navigate(-1)} 
-        style={{ background: 'none', border: 'none', color: '#fff', fontSize: '20px', marginBottom: '16px', cursor: 'pointer' }}
-      >
-        ← Zurück
-      </button>
-      
-      <h1 style={{ fontSize: '28px', fontWeight: '800', marginBottom: '24px' }}>
-        Einstellungen ⚙️
-      </h1>
+    <div className="settings-page page">
+      {/* Header */}
+      <div className="settings-header">
+        <button className="settings-back" onClick={() => navigate(-1)}>
+          ←
+        </button>
+        <h1 className="settings-title">Einstellungen ⚙️</h1>
+      </div>
 
       {/* Account Section */}
-      <div style={{ background: 'var(--bg-card)', borderRadius: '16px', padding: '20px', marginBottom: '16px' }}>
-        <h3 style={{ marginBottom: '16px', fontSize: '16px' }}>Account</h3>
-        <div style={{ marginBottom: '12px' }}>
-          <label style={{ color: 'var(--text-muted)', fontSize: '12px' }}>E-Mail</label>
-          <p style={{ fontSize: '15px' }}>{user?.email || 'guest@example.com'}</p>
+      <div className="settings-section">
+        <h3>Konto</h3>
+        <div className="settings-item">
+          <label>E-Mail</label>
+          <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>
+            {user?.email || 'demo@jamie.app'}
+          </span>
         </div>
-        <button className="btn btn-secondary" style={{ width: '100%' }}>
+        <button className="btn btn-secondary" style={{ width: '100%', marginTop: '12px' }}>
           Passwort ändern
         </button>
       </div>
 
-      {/* App Settings */}
-      <div style={{ background: 'var(--bg-card)', borderRadius: '16px', padding: '20px', marginBottom: '16px' }}>
-        <h3 style={{ marginBottom: '16px', fontSize: '16px' }}>App</h3>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <span>Push Benachrichtigungen</span>
-          <input type="checkbox" defaultChecked style={{ accentColor: 'var(--accent-coral)' }} />
+      {/* Notifications Section */}
+      <div className="settings-section">
+        <h3>Benachrichtigungen</h3>
+        <div className="settings-item">
+          <label>Push Benachrichtigungen</label>
+          <input type="checkbox" defaultChecked />
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>Dark Mode</span>
-          <input type="checkbox" defaultChecked disabled style={{ accentColor: 'var(--accent-coral)' }} />
+        <div className="settings-item">
+          <label>Chat Nachrichten</label>
+          <input type="checkbox" defaultChecked />
+        </div>
+        <div className="settings-item">
+          <label>Gruppen Aktivitäten</label>
+          <input type="checkbox" defaultChecked />
+        </div>
+        <div className="settings-item">
+          <label>Neue Mitglieder Anfragen</label>
+          <input type="checkbox" defaultChecked />
         </div>
       </div>
 
+      {/* Privacy Section */}
+      <div className="settings-section">
+        <h3>Privatsphäre</h3>
+        <div className="settings-item">
+          <label>Profil öffentlich</label>
+          <input type="checkbox" defaultChecked />
+        </div>
+        <div className="settings-item">
+          <label>Online Status anzeigen</label>
+          <input type="checkbox" defaultChecked />
+        </div>
+        <div className="settings-item">
+          <label>Standort teilen</label>
+          <input type="checkbox" />
+        </div>
+      </div>
+
+      {/* App Section */}
+      <div className="settings-section">
+        <h3>App</h3>
+        <div className="settings-item">
+          <label>Dark Mode</label>
+          <input type="checkbox" defaultChecked disabled />
+        </div>
+        <div className="settings-item">
+          <label>Sprache</label>
+          <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Deutsch</span>
+        </div>
+        <div className="settings-item">
+          <label>App Version</label>
+          <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>1.0.0</span>
+        </div>
+      </div>
+
+      {/* Support Section */}
+      <div className="settings-section">
+        <h3>Support</h3>
+        <button className="btn btn-secondary" style={{ width: '100%', marginBottom: '8px' }}>
+          Hilfe & FAQ
+        </button>
+        <button className="btn btn-secondary" style={{ width: '100%', marginBottom: '8px' }}>
+          Feedback senden
+        </button>
+        <button className="btn btn-secondary" style={{ width: '100%' }}>
+          Datenschutzrichtlinie
+        </button>
+      </div>
+
       {/* Danger Zone */}
-      <div style={{ background: 'var(--bg-card)', borderRadius: '16px', padding: '20px' }}>
-        <h3 style={{ marginBottom: '16px', fontSize: '16px', color: 'var(--status-busy)' }}>Gefahrenzone</h3>
-        <button 
-          onClick={logout} 
-          className="btn btn-secondary" 
-          style={{ width: '100%', marginBottom: '12px', borderColor: 'var(--accent-coral)', color: 'var(--accent-coral)' }}
-        >
+      <div className="settings-section danger-section">
+        <h3>Gefahrenzone</h3>
+        <button className="danger-btn" onClick={handleLogout}>
           Ausloggen
         </button>
-        <button 
-          className="btn btn-secondary" 
-          style={{ width: '100%', borderColor: 'var(--status-busy)', color: 'var(--status-busy)' }}
-        >
+        <button className="danger-btn" style={{ marginTop: '8px' }}>
           Account löschen
         </button>
       </div>
     </div>
   );
 };
+
 export default Settings;

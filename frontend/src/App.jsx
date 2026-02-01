@@ -32,35 +32,36 @@ import { Notifications } from './pages/Notifications';
 import './styles/global.css';
 import './styles/home.css';
 import './styles/auth.css';
+import './styles/chat.css';
+import './styles/profile.css';
 
 // SVG Icons
 const HomeIcon = ({ active }) => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#fff" : "#9BA2B0"} strokeWidth="2">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? "#FD7666" : "none"} stroke={active ? "#FD7666" : "#9BA2B0"} strokeWidth="2">
     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
     <polyline points="9,22 9,12 15,12 15,22"/>
   </svg>
 );
 
 const StarIcon = ({ active }) => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? "#fff" : "none"} stroke={active ? "#fff" : "#9BA2B0"} strokeWidth="2">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? "#FD7666" : "none"} stroke={active ? "#FD7666" : "#9BA2B0"} strokeWidth="2">
     <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
   </svg>
 );
 
 const ChatIcon = ({ active }) => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#fff" : "#9BA2B0"} strokeWidth="2">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#FD7666" : "#9BA2B0"} strokeWidth="2">
     <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
   </svg>
 );
 
 const ProfileIcon = ({ active }) => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#fff" : "#9BA2B0"} strokeWidth="2">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#FD7666" : "#9BA2B0"} strokeWidth="2">
     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
     <circle cx="12" cy="7" r="4"/>
   </svg>
 );
 
-// Create Modal
 const CreateModal = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   
@@ -82,8 +83,9 @@ const CreateModal = ({ isOpen, onClose }) => {
             <div className="modal-option-icon">👥</div>
             <div className="modal-option-text">
               <h3>Gruppe erstellen</h3>
-              <p>Plane eine einmalige Aktivität</p>
+              <p>Plane eine Aktivität mit 3-10 Leuten</p>
             </div>
+            <div className="modal-option-arrow">→</div>
           </button>
           
           <button className="modal-option" onClick={() => handleOption('/create-club')}>
@@ -92,20 +94,23 @@ const CreateModal = ({ isOpen, onClose }) => {
               <h3>Club gründen</h3>
               <p>Starte eine dauerhafte Community</p>
             </div>
+            <div className="modal-option-arrow">→</div>
           </button>
         </div>
+
+        <button className="modal-close-btn" onClick={onClose}>
+          Abbrechen
+        </button>
       </div>
     </div>
   );
 };
 
-// Navigation
 const Navigation = () => {
   const { user } = useContext(AuthContext);
   const location = useLocation();
   const [showCreateModal, setShowCreateModal] = useState(false);
   
-  // Hide nav on certain pages
   const hideNavPaths = ['/login', '/register', '/onboarding'];
   const hideOnChat = location.pathname.startsWith('/chat/');
   
@@ -118,23 +123,29 @@ const Navigation = () => {
 
   return (
     <>
-      <nav>
+      <nav className="bottom-nav">
         <Link to="/home" className={`nav-item ${isActive('/home') ? 'active' : ''}`}>
           <div className="nav-icon"><HomeIcon active={isActive('/home')} /></div>
+          <span className="nav-label">Home</span>
         </Link>
         
         <Link to="/favorites" className={`nav-item ${isActive('/favorites') ? 'active' : ''}`}>
           <div className="nav-icon"><StarIcon active={isActive('/favorites')} /></div>
+          <span className="nav-label">Favoriten</span>
         </Link>
         
-        <button className="nav-add-button" onClick={() => setShowCreateModal(true)}>+</button>
+        <button className="nav-add-button" onClick={() => setShowCreateModal(true)}>
+          <span className="plus-icon">+</span>
+        </button>
         
         <Link to="/chats" className={`nav-item ${isActive('/chats') ? 'active' : ''}`}>
           <div className="nav-icon"><ChatIcon active={isActive('/chats')} /></div>
+          <span className="nav-label">Chats</span>
         </Link>
         
         <Link to="/profile" className={`nav-item ${isActive('/profile') ? 'active' : ''}`}>
           <div className="nav-icon"><ProfileIcon active={isActive('/profile')} /></div>
+          <span className="nav-label">Profil</span>
         </Link>
       </nav>
       
@@ -149,7 +160,6 @@ const ProtectedRoute = ({ children }) => {
   return user ? children : <Navigate to="/login" replace />;
 };
 
-// Auth Route (redirect if logged in)
 const AuthRoute = ({ children }) => {
   const { user } = useContext(AuthContext);
   return user ? <Navigate to="/home" replace /> : children;
@@ -194,10 +204,10 @@ function AppRoutes() {
         
         {/* 404 */}
         <Route path="*" element={
-          <div className="page" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', textAlign: 'center' }}>
-            <div style={{ fontSize: '60px', marginBottom: '20px' }}>🤔</div>
-            <h1 style={{ marginBottom: '10px' }}>Seite nicht gefunden</h1>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '30px' }}>Die Seite existiert nicht.</p>
+          <div className="page not-found-page">
+            <div className="not-found-icon">🤔</div>
+            <h1>Seite nicht gefunden</h1>
+            <p>Die Seite existiert nicht.</p>
             <Link to="/" className="btn btn-primary">Zur Startseite</Link>
           </div>
         } />
