@@ -2,72 +2,69 @@ import db from '../config/database.js';
 import bcrypt from 'bcryptjs';
 import { generateToken } from '../middleware/auth.js';
 
-export const completeOnboarding = async (req, res) => {
-  try {
-    // ADDED: avatar_url to destructuring
-    const { gender, location, interests, bio, photos, avatar_url, favorite_song } = req.body;
-    
-    const interestsStr = JSON.stringify(interests || []);
-    const photosStr = JSON.stringify(photos || []);
-    const songStr = favorite_song ? JSON.stringify(favorite_song) : null;
-
-    // ADDED: Update avatar_url in the database query
-    await db.query(
-      `UPDATE users 
-       SET gender = ?, location = ?, interests = ?, bio = ?, photos = ?, avatar_url = ?, favorite_song = ?, onboarding_completed = 1, updated_at = CURRENT_TIMESTAMP 
-       WHERE id = ?`,
-      [gender, location, interestsStr, bio, photosStr, avatar_url, songStr, req.userId]
-    );
-    
-    const result = await db.query('SELECT * FROM users WHERE id = ?', [req.userId]);
-    const user = result.rows[0];
-
-    // JSON Strings zurück in Arrays parsen für das Frontend
-    try {
-      if (user.interests) user.interests = JSON.parse(user.interests);
-      if (user.photos) user.photos = JSON.parse(user.photos);
-      if (user.favorite_song) user.favorite_song = JSON.parse(user.favorite_song);
-    } catch (e) { console.error(e); }
-
-    res.json(user);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
+// ==========================================
+// REGISTER
+// ==========================================
 export const register = async (req, res) => {
   try {
     const { email, password, name } = req.body;
 
-    const userExists = await db.query('SELECT * FROM users WHERE email = ?', [email]);
-    if (userExists.rows.length > 0) return res.status(400).json({ error: 'User already exists' });
+    // Check if user exists
+    const userExists = await db.query(
+      'SELECT id FROM users WHERE email = $1',
+      [email]
+    );
+    if (userExists.rows.length > 0) {
+      return res.status(400).json({ error: 'User already exists' });
+    }
 
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // CHANGED: Added "RETURNING id"
+
+    // Insert new user with RETURNING
     const insertResult = await db.query(
-      'INSERT INTO users (email, password, name) VALUES (?, ?, ?) RETURNING id',
+      'INSERT INTO users (email, password, name) VALUES ($1, $2, $3) RETURNING id',
       [email, hashedPassword, name]
     );
 
-    const newUserId = insertResult.rows[0].id; // Now works with Postgres
-    const userResult = await db.query('SELECT * FROM users WHERE id = ?', [newUserId]);
+    const newUserId = insertResult.rows[0].id;
+
+    // Fetch full user object
+    const userResult = await db.query(
+      'SELECT * FROM users WHERE id = $1',
+      [newUserId]
+    );
     const user = userResult.rows[0];
 
+    // Generate token & clean response
     const token = generateToken(user.id);
     delete user.password;
 
+    // Parse JSON fields for frontend
+    try {
+      if (user.interests && typeof user.interests === 'string') user.interests = JSON.parse(user.interests);
+      if (user.photos && typeof user.photos === 'string') user.photos = JSON.parse(user.photos);
+      if (user.favorite_song && typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song);
+    } catch (e) {}
+
     res.status(201).json({ user, token });
   } catch (error) {
+    console.error('Register error:', error);
     res.status(500).json({ error: error.message });
   }
 };
 
+// ==========================================
+// LOGIN
+// ==========================================
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const result = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+    const result = await db.query(
+      'SELECT * FROM users WHERE email = $1',
+      [email]
+    );
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -79,77 +76,145 @@ export const login = async (req, res) => {
     }
 
     const token = generateToken(user.id);
-    
-    // JSON Parsen falls nötig
+
+    // Parse JSON fields
     try {
       if (user.interests && typeof user.interests === 'string') user.interests = JSON.parse(user.interests);
       if (user.photos && typeof user.photos === 'string') user.photos = JSON.parse(user.photos);
       if (user.favorite_song && typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song);
     } catch (e) {}
 
-    delete user.password; // Passwort entfernen
+    delete user.password;
 
     res.json({ user, token });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ error: error.message });
   }
 };
 
+// ==========================================
+// GET PROFILE
+// ==========================================
 export const getProfile = async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM users WHERE id = ?', [req.userId]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    const result = await db.query(
+      'SELECT * FROM users WHERE id = $1',
+      [req.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
 
     const user = result.rows[0];
     delete user.password;
 
+    // Parse JSON fields
     try {
-      if (user.interests) user.interests = JSON.parse(user.interests);
-      if (user.photos) user.photos = JSON.parse(user.photos);
+      if (user.interests && typeof user.interests === 'string') user.interests = JSON.parse(user.interests);
+      if (user.photos && typeof user.photos === 'string') user.photos = JSON.parse(user.photos);
+      if (user.favorite_song && typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song);
     } catch (e) {}
 
     res.json(user);
   } catch (error) {
+    console.error('GetProfile error:', error);
     res.status(500).json({ error: error.message });
   }
 };
 
+// ==========================================
+// UPDATE PROFILE
+// ==========================================
 export const updateProfile = async (req, res) => {
   try {
-    // Basic implementation for profile updates
     const { name, location, bio, gender, interests, photos, avatar_url, favorite_song } = req.body;
-    
+
+    const interestsStr = interests ? JSON.stringify(interests) : null;
+    const photosStr = photos ? JSON.stringify(photos) : null;
+    const songStr = favorite_song ? JSON.stringify(favorite_song) : null;
+
+    await db.query(
+      `UPDATE users 
+       SET name = COALESCE($1, name),
+           location = COALESCE($2, location),
+           bio = COALESCE($3, bio),
+           gender = COALESCE($4, gender),
+           interests = COALESCE($5, interests),
+           photos = COALESCE($6, photos),
+           avatar_url = COALESCE($7, avatar_url),
+           favorite_song = COALESCE($8, favorite_song),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $9`,
+      [name, location, bio, gender, interestsStr, photosStr, avatar_url, songStr, req.userId]
+    );
+
+    // Return updated profile
+    const result = await db.query(
+      'SELECT * FROM users WHERE id = $1',
+      [req.userId]
+    );
+    const user = result.rows[0];
+    delete user.password;
+
+    // Parse JSON fields
+    try {
+      if (user.interests && typeof user.interests === 'string') user.interests = JSON.parse(user.interests);
+      if (user.photos && typeof user.photos === 'string') user.photos = JSON.parse(user.photos);
+      if (user.favorite_song && typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song);
+    } catch (e) {}
+
+    res.json(user);
+  } catch (error) {
+    console.error('UpdateProfile error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ==========================================
+// COMPLETE ONBOARDING
+// ==========================================
+export const completeOnboarding = async (req, res) => {
+  try {
+    const { gender, location, interests, bio, photos, avatar_url, favorite_song } = req.body;
+
     const interestsStr = JSON.stringify(interests || []);
     const photosStr = JSON.stringify(photos || []);
     const songStr = favorite_song ? JSON.stringify(favorite_song) : null;
 
     await db.query(
       `UPDATE users 
-       SET name = COALESCE(?, name),
-           location = COALESCE(?, location),
-           bio = COALESCE(?, bio),
-           gender = COALESCE(?, gender),
-           interests = COALESCE(?, interests),
-           photos = COALESCE(?, photos),
-           avatar_url = COALESCE(?, avatar_url),
-           favorite_song = COALESCE(?, favorite_song),
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      [name, location, bio, gender, interestsStr, photosStr, avatar_url, songStr, req.userId]
+       SET gender = $1, 
+           location = $2, 
+           interests = $3, 
+           bio = $4, 
+           photos = $5, 
+           avatar_url = $6, 
+           favorite_song = $7, 
+           onboarding_completed = TRUE, 
+           updated_at = CURRENT_TIMESTAMP 
+       WHERE id = $8`,
+      [gender, location, interestsStr, bio, photosStr, avatar_url, songStr, req.userId]
     );
 
-    // Return updated profile
-    const result = await db.query('SELECT * FROM users WHERE id = ?', [req.userId]);
+    // Return updated user
+    const result = await db.query(
+      'SELECT * FROM users WHERE id = $1',
+      [req.userId]
+    );
     const user = result.rows[0];
-    
-    try {
-      if (user.interests) user.interests = JSON.parse(user.interests);
-      if (user.photos) user.photos = JSON.parse(user.photos);
-      if (user.favorite_song && typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song);
-    } catch (e) {}
+    delete user.password;
 
-    res.json(user); 
+    // Parse JSON fields
+    try {
+      if (user.interests && typeof user.interests === 'string') user.interests = JSON.parse(user.interests);
+      if (user.photos && typeof user.photos === 'string') user.photos = JSON.parse(user.photos);
+      if (user.favorite_song && typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song);
+    } catch (e) { console.error('JSON parse error:', e); }
+
+    res.json(user);
   } catch (error) {
+    console.error('CompleteOnboarding error:', error);
     res.status(500).json({ error: error.message });
   }
 };

@@ -1,10 +1,14 @@
 import db from '../config/database.js';
 
+// ==========================================
+// GET USER BY ID (public profile)
+// ==========================================
 export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
     const result = await db.query(
-      'SELECT id, name, bio, location, avatar_url, interests, photos, gender, favorite_song FROM users WHERE id = ?',
+      `SELECT id, name, bio, location, avatar_url, interests, photos, gender, favorite_song, created_at
+       FROM users WHERE id = $1`,
       [id]
     );
 
@@ -13,18 +17,44 @@ export const getUserById = async (req, res) => {
     }
 
     const user = result.rows[0];
-    
+
     // Parse JSON fields
     try {
       if (typeof user.interests === 'string') user.interests = JSON.parse(user.interests);
       if (typeof user.photos === 'string') user.photos = JSON.parse(user.photos);
-      if (typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song)
+      if (typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song);
     } catch (e) {
-      console.error('JSON Parse Error', e);
+      console.error('JSON Parse Error:', e);
     }
 
     res.json(user);
   } catch (error) {
+    console.error('Error fetching user:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ==========================================
+// SEARCH USERS
+// ==========================================
+export const searchUsers = async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.length < 2) {
+      return res.json([]);
+    }
+
+    const result = await db.query(
+      `SELECT id, name, avatar_url, location, bio
+       FROM users 
+       WHERE name ILIKE $1 OR email ILIKE $1
+       LIMIT 20`,
+      [`%${q}%`]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error searching users:', error);
     res.status(500).json({ error: error.message });
   }
 };

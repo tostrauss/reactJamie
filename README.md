@@ -1,9 +1,9 @@
 # JAMIE - Social Activity App
 
 A modern full-stack application for discovering and creating groups/clubs for social activities.
-help people meet others and participate in group activities. The app particularly targets people who have recently moved to new cities or want to expand their social circles. Jamie features two main social structures: groups (3-10 people with specific dates/times) and clubs (larger, permanent communities). This follows tobi's previous experience building CollegeRecruit, a sports recruiting app based on Tinder's concept. The goal is to create a professional, production-ready mobile application that facilitates real-world social connections through organized activities.
-React, newest frameworks and best, easy smooth code and styling. Use all capaciteies but go after a plan but do not exceed limits!!
-The development approach emphasizes creating a complete, professional application rather than prototyping. Tobi values systematic, thorough implementation - requesting that every file be reviewed and delivered as 100% correct, production-ready code. The focus is on modern development practices including Angular signals, standalone components, and mobile-first responsive design. The app's design system is carefully planned with specific brand colors (primary coral/orange #FD7666, dark purple backgrounds #1c1c2e/#242340) and user experience requirements that match provided Adobe XD designs.
+Help people meet others and participate in group activities. The app particularly targets people who have recently moved to new cities or want to expand their social circles. Jamie features two main social structures: groups (3-10 people with specific dates/times) and clubs (larger, permanent communities). This follows my previous experience building CollegeRecruit, a sports recruiting app based on Tinder's concept.
+React, newest frameworks and best, easy smooth code and styling.
+The focus is on modern development practices including latest React features, standalone components, and mobile-first responsive design. The app's design system is carefully planned with specific brand colors (primary coral/orange #FD7666, dark purple backgrounds #1c1c2e/#242340) and user experience requirements that match provided Adobe XD designs.
 
 
 

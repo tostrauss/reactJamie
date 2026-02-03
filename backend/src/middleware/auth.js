@@ -38,7 +38,6 @@ export const authenticate = (req, res, next) => {
 /**
  * Optional authentication middleware
  * Sets userId if valid token, but doesn't require it
- * Useful for endpoints that personalize for logged-in users
  */
 export const optionalAuth = (req, res, next) => {
   try {
@@ -56,7 +55,6 @@ export const optionalAuth = (req, res, next) => {
       return next();
     }
 
-    // Handle guest token
     if (token === 'guest_token') {
       req.userId = 0;
       req.isGuest = true;
@@ -68,7 +66,6 @@ export const optionalAuth = (req, res, next) => {
     req.isGuest = false;
     next();
   } catch (error) {
-    // Token invalid/expired, but that's okay for optional auth
     req.userId = null;
     next();
   }
@@ -81,7 +78,7 @@ export const generateToken = (userId) => {
   return jwt.sign(
     { id: userId }, 
     process.env.JWT_SECRET, 
-    { expiresIn: '30d' } // Extended to 30 days for better UX
+    { expiresIn: '30d' }
   );
 };
 
@@ -89,10 +86,43 @@ export const generateToken = (userId) => {
  * Admin check middleware (for future use)
  */
 export const requireAdmin = (req, res, next) => {
-  // TODO: Implement admin role check
   if (!req.userId) {
     return res.status(401).json({ error: 'Authentication required' });
   }
-  // For now, just pass through
   next();
+};
+
+/**
+ * Require completed profile middleware
+ * User Story 1: "won't be able to request to join events until profile is fully set up"
+ */
+export const requireCompleteProfile = async (req, res, next) => {
+  try {
+    // Skip for guests
+    if (req.isGuest) {
+      return res.status(403).json({ error: 'Guests cannot join groups. Please register.' });
+    }
+
+    const { default: db } = await import('../config/database.js');
+    const result = await db.query(
+      'SELECT onboarding_completed FROM users WHERE id = $1',
+      [req.userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (!result.rows[0].onboarding_completed) {
+      return res.status(403).json({ 
+        error: 'Bitte vervollständige dein Profil, bevor du Gruppen beitrittst.',
+        code: 'PROFILE_INCOMPLETE'
+      });
+    }
+
+    next();
+  } catch (error) {
+    console.error('Profile check error:', error);
+    next(); // Don't block on error
+  }
 };
