@@ -1,5 +1,8 @@
 import jwt from 'jsonwebtoken';
 
+const allowGuestToken =
+  process.env.ALLOW_GUEST_TOKEN === 'true' || process.env.NODE_ENV !== 'production';
+
 /**
  * Required authentication middleware
  * Returns 401 if no valid token
@@ -7,19 +10,22 @@ import jwt from 'jsonwebtoken';
 export const authenticate = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader) {
       return res.status(401).json({ error: 'No authorization header' });
     }
 
     const token = authHeader.split(' ')[1];
-    
+
     if (!token) {
       return res.status(401).json({ error: 'No token provided' });
     }
 
-    // Skip verification for guest token (dev mode)
+    // Skip verification for guest token (dev / demo mode only)
     if (token === 'guest_token') {
+      if (!allowGuestToken) {
+        return res.status(401).json({ error: 'Guest access is disabled in production' });
+      }
       req.userId = 0;
       req.isGuest = true;
       return next();
@@ -42,20 +48,25 @@ export const authenticate = (req, res, next) => {
 export const optionalAuth = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader) {
       req.userId = null;
       return next();
     }
 
     const token = authHeader.split(' ')[1];
-    
+
     if (!token) {
       req.userId = null;
       return next();
     }
 
     if (token === 'guest_token') {
+      if (!allowGuestToken) {
+        req.userId = null;
+        req.isGuest = false;
+        return next();
+      }
       req.userId = 0;
       req.isGuest = true;
       return next();
@@ -75,11 +86,7 @@ export const optionalAuth = (req, res, next) => {
  * Generate JWT token
  */
 export const generateToken = (userId) => {
-  return jwt.sign(
-    { id: userId }, 
-    process.env.JWT_SECRET, 
-    { expiresIn: '30d' }
-  );
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '30d' });
 };
 
 /**
@@ -100,7 +107,9 @@ export const requireCompleteProfile = async (req, res, next) => {
   try {
     // Skip for guests
     if (req.isGuest) {
-      return res.status(403).json({ error: 'Guests cannot join groups. Please register.' });
+      return res
+        .status(403)
+        .json({ error: 'Guests cannot join groups. Please register.' });
     }
 
     const { default: db } = await import('../config/database.js');
@@ -114,7 +123,7 @@ export const requireCompleteProfile = async (req, res, next) => {
     }
 
     if (!result.rows[0].onboarding_completed) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Bitte vervollständige dein Profil, bevor du Gruppen beitrittst.',
         code: 'PROFILE_INCOMPLETE'
       });

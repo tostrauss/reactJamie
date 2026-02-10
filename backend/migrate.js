@@ -8,6 +8,12 @@ const __dirname = path.dirname(__filename);
 
 const migrate = async () => {
   try {
+    // Safety guard: never run this destructive migration in production
+    if (process.env.NODE_ENV === 'production') {
+      console.error('❌ Refusing to run migrate.js in production. Use proper migrations instead.');
+      process.exit(1);
+    }
+
     // 1. Read the schema file
     const schemaPath = path.join(__dirname, 'src', 'config', 'schema.sql');
     const schemaSql = fs.readFileSync(schemaPath, 'utf8');

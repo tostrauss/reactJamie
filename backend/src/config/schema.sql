@@ -147,9 +147,9 @@ CREATE TABLE messages (
     group_id        INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
     user_id         INTEGER REFERENCES users(id) ON DELETE SET NULL,
     content         TEXT NOT NULL,
-    message_type    VARCHAR(20) DEFAULT 'text',            -- 'text', 'image', 'system'
+    message_type    VARCHAR(20) DEFAULT 'text',           
     is_edited       BOOLEAN DEFAULT FALSE,
-    is_deleted      BOOLEAN DEFAULT FALSE,                 -- Soft delete
+    is_deleted      BOOLEAN DEFAULT FALSE,               
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

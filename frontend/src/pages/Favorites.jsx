@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { groups } from '../utils/api';
+import { groups, clubs } from '../utils/api';
 import { GroupCard } from '../components/GroupCard';
 import '../styles/home.css';
 
@@ -74,17 +74,26 @@ export const Favorites = () => {
     
     // Versuche echte Daten zu laden
     try {
-      const [favResponse, joinedResponse] = await Promise.all([
-        groups.getFavorites(),
-        groups.getJoined()
-      ]);
-      
-      if (favResponse.data && favResponse.data.length > 0) {
-        setFavoriteGroups(favResponse.data.filter(g => g.type === 'group'));
-        setFavoriteClubs(favResponse.data.filter(g => g.type === 'club'));
+      const [favGroupsRes, favClubsRes, joinedGroupsRes, joinedClubsRes] =
+        await Promise.all([
+          groups.getFavorites(),
+          clubs.getFavorites(),
+          groups.getJoined(),
+          clubs.getJoined()
+        ]);
+
+      if (favGroupsRes.data && favGroupsRes.data.length > 0) {
+        setFavoriteGroups(favGroupsRes.data);
       }
-      if (joinedResponse.data) {
-        setJoined(new Set(joinedResponse.data.map(g => g.id)));
+      if (favClubsRes.data && favClubsRes.data.length > 0) {
+        setFavoriteClubs(favClubsRes.data);
+      }
+      const joinedIds = [
+        ...(joinedGroupsRes.data || []).map((g) => g.id),
+        ...(joinedClubsRes.data || []).map((c) => c.id)
+      ];
+      if (joinedIds.length) {
+        setJoined(new Set(joinedIds));
       }
     } catch (error) {
       console.log('Backend nicht verfügbar, verwende Demo-Daten');

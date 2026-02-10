@@ -16,7 +16,7 @@ const STEPS = ['Welcome', 'Profile', 'Interests', 'Photos', 'Complete'];
 
 export const Onboarding = () => {
   const navigate = useNavigate();
-  const { user } = useContext(AuthContext);
+  const { user, refreshProfile } = useContext(AuthContext);
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -104,12 +104,16 @@ export const Onboarding = () => {
   const handleComplete = async () => {
     setLoading(true);
     setError('');
-    
+
     try {
       await api.put('/auth/onboarding', formData);
+      // Profil im Frontend aktualisieren, damit Gating & Badges direkt stimmen
+      if (typeof refreshProfile === 'function') {
+        await refreshProfile();
+      }
       navigate('/home');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to save profile');
+      setError(err.response?.data?.error || 'Profil konnte nicht gespeichert werden');
     } finally {
       setLoading(false);
     }
@@ -156,9 +160,9 @@ export const Onboarding = () => {
         {/* Step 0: Welcome */}
         {currentStep === 0 && (
           <div style={{ textAlign: 'center' }}>
-            <h1 className="logo" style={{ fontSize: '36px' }}>Welcome to JAMIE! 🎉</h1>
+            <h1 className="logo" style={{ fontSize: '36px' }}>Willkommen bei JAMIE! 🎉</h1>
             <p className="subtitle" style={{ marginBottom: '30px', lineHeight: '1.6' }}>
-              Let's set up your profile so others can find you and you can discover amazing groups and clubs nearby.
+              Lass uns kurz dein Profil einrichten, damit dich andere finden und du passende Gruppen & Clubs in deiner Nähe entdecken kannst.
             </p>
             <div style={{ 
               background: 'rgba(255,107,107,0.1)', 
@@ -167,14 +171,14 @@ export const Onboarding = () => {
               marginBottom: '30px'
             }}>
               <p style={{ fontSize: '14px', color: '#ddd' }}>
-                ✨ This will only take a minute!
+                ✨ Dauert nur eine Minute – ohne vollständiges Profil kannst du später keine Gruppenanfragen stellen.
               </p>
             </div>
             <button onClick={handleNext} className="btn-primary" style={{ width: '100%', padding: '14px' }}>
-              Let's Go!
+              Los geht&apos;s
             </button>
             <button onClick={handleSkip} className="btn-secondary" style={{ width: '100%', marginTop: '10px', padding: '12px' }}>
-              Skip for now
+              Später abschließen (nur Demo)
             </button>
           </div>
         )}
@@ -182,17 +186,17 @@ export const Onboarding = () => {
         {/* Step 1: Basic Profile */}
         {currentStep === 1 && (
           <div>
-            <h2 style={{ marginBottom: '10px', textAlign: 'center' }}>Tell us about yourself</h2>
+            <h2 style={{ marginBottom: '10px', textAlign: 'center' }}>Erzähl uns etwas über dich</h2>
             <p className="subtitle" style={{ textAlign: 'center', marginBottom: '25px' }}>
-              This helps us personalize your experience
+              Damit schlagen wir dir später passendere Gruppen vor
             </p>
 
             <div className="form-group" style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: '#ccc', fontSize: '13px' }}>
-                Gender
+                Geschlecht
               </label>
               <div style={{ display: 'flex', gap: '10px' }}>
-                {['Male', 'Female', 'Other'].map(g => (
+                {['Männlich', 'Weiblich', 'Divers'].map(g => (
                   <button
                     key={g}
                     type="button"
@@ -220,11 +224,11 @@ export const Onboarding = () => {
 
             <div className="form-group" style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: '#ccc', fontSize: '13px' }}>
-                📍 Location
+                📍 Wohnort
               </label>
               <input
                 type="text"
-                placeholder="e.g., Vienna, Austria"
+                placeholder="z.B. Wien, Österreich"
                 value={formData.location}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                 style={{ marginBottom: 0 }}
@@ -233,10 +237,10 @@ export const Onboarding = () => {
 
             <div className="form-group" style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', marginBottom: '8px', color: '#ccc', fontSize: '13px' }}>
-                ✍️ Bio (optional)
+                ✍️ Kurzbeschreibung (optional)
               </label>
               <textarea
-                placeholder="Tell others a bit about yourself..."
+                placeholder="Erzähl kurz, wer du bist und worauf du Lust hast..."
                 value={formData.bio}
                 onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
                 style={{ minHeight: '100px', marginBottom: 0 }}
@@ -257,16 +261,16 @@ export const Onboarding = () => {
         {/* Step 2: Interests */}
         {currentStep === 2 && (
           <div>
-            <h2 style={{ marginBottom: '10px', textAlign: 'center' }}>What are you into?</h2>
+            <h2 style={{ marginBottom: '10px', textAlign: 'center' }}>Worauf hast du Lust?</h2>
             <p className="subtitle" style={{ textAlign: 'center', marginBottom: '25px' }}>
-              Select at least 3 interests to help us match you with groups
+              Wähle mindestens 3 Interessen, damit wir dir passende Gruppen zeigen können
             </p>
 
             {/* Custom Interest Input */}
             <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
               <input 
-                type="text" 
-                placeholder="Add custom interest..." 
+                type="text"
+                placeholder="Eigenes Interesse hinzufügen..."
                 value={customInterest}
                 onChange={(e) => setCustomInterest(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && addCustomInterest(e)}
@@ -343,9 +347,9 @@ export const Onboarding = () => {
         {/* Step 3: Photos */}
         {currentStep === 3 && (
           <div>
-            <h2 style={{ marginBottom: '10px', textAlign: 'center' }}>Add some photos</h2>
+            <h2 style={{ marginBottom: '10px', textAlign: 'center' }}>Füge ein paar Fotos hinzu</h2>
             <p className="subtitle" style={{ textAlign: 'center', marginBottom: '25px' }}>
-              Show off your personality! Tap a photo to set as Profile Picture.
+              Zeig ein bisschen von dir! Tippe auf ein Foto, um es als Profilbild zu setzen.
             </p>
 
             <div style={{ 
@@ -432,8 +436,8 @@ export const Onboarding = () => {
             </div>
 
             <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-              <ImageUpload 
-                onUpload={handlePhotoUpload} 
+              <ImageUpload
+                onUpload={handlePhotoUpload}
                 label={`Add Photo (${formData.photos.length}/6)`}
               />
             </div>
@@ -453,9 +457,9 @@ export const Onboarding = () => {
         {currentStep === 4 && (
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '60px', marginBottom: '20px' }}>🎊</div>
-            <h2 style={{ marginBottom: '10px' }}>You're all set!</h2>
+            <h2 style={{ marginBottom: '10px' }}>Du bist bereit! 🎊</h2>
             <p className="subtitle" style={{ marginBottom: '30px', lineHeight: '1.6' }}>
-              Your profile is ready. Start exploring groups and clubs, or create your own!
+              Dein Profil ist fertig. Du kannst jetzt Gruppen beitreten, Clubs gründen und mit anderen schreiben.
             </p>
 
             {/* Profile Preview */}
@@ -530,7 +534,7 @@ export const Onboarding = () => {
               style={{ width: '100%', padding: '14px' }}
               disabled={loading}
             >
-              {loading ? 'Saving...' : 'Start Exploring! 🚀'}
+              {loading ? 'Speichere...' : 'Los geht&apos;s! 🚀'}
             </button>
             
             <button 
@@ -538,7 +542,7 @@ export const Onboarding = () => {
               className="btn-secondary" 
               style={{ width: '100%', marginTop: '10px', padding: '12px' }}
             >
-              Go Back & Edit
+              Zurück & Bearbeiten
             </button>
           </div>
         )}

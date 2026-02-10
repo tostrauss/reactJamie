@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { groups } from '../utils/api';
+import { groups, clubs } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import '../styles/home.css';
 
@@ -60,14 +60,34 @@ export const GroupDetail = () => {
       }
 
       try {
-        const [groupRes, joinedRes, membersRes] = await Promise.all([
-          groups.getById(id),
-          groups.getJoined(),
-          groups.getMembers(id)
-        ]);
-        
-        setGroup(groupRes.data);
-        setIsJoined(joinedRes.data.some(g => g.id === parseInt(id)));
+        // Try loading as group first, then as club
+        let groupRes;
+        let membersRes;
+        let joinedGroupsRes;
+        let joinedClubsRes;
+
+        try {
+          [groupRes, joinedGroupsRes, membersRes] = await Promise.all([
+            groups.getById(id),
+            groups.getJoined(),
+            groups.getMembers(id)
+          ]);
+        } catch {
+          [groupRes, joinedClubsRes, membersRes] = await Promise.all([
+            clubs.getById(id),
+            clubs.getJoined(),
+            clubs.getMembers(id)
+          ]);
+        }
+
+        const entity = groupRes.data;
+        const joinedList = [
+          ...(joinedGroupsRes?.data || []),
+          ...(joinedClubsRes?.data || [])
+        ];
+
+        setGroup(entity);
+        setIsJoined(joinedList.some((g) => g.id === parseInt(id, 10)));
         setMembers(membersRes.data);
       } catch (error) {
         console.error("Error fetching group details:", error);
@@ -86,12 +106,22 @@ export const GroupDetail = () => {
     }
 
     try {
+      const isClub = group?.type === 'club';
+
       if (isJoined) {
-        await groups.leave(id);
+        if (isClub) {
+          await clubs.leave(id);
+        } else {
+          await groups.leave(id);
+        }
         setIsJoined(false);
         setMembers(prev => prev.filter(m => m.id !== user.id));
       } else {
-        await groups.join(id);
+        if (isClub) {
+          await clubs.join(id);
+        } else {
+          await groups.join(id);
+        }
         setIsJoined(true);
         // Optimistic update
         const newMember = {
@@ -103,7 +133,9 @@ export const GroupDetail = () => {
         setMembers(prev => [newMember, ...prev]);
       }
       
-      const response = await groups.getById(id);
+      const response = group?.type === 'club'
+        ? await clubs.getById(id)
+        : await groups.getById(id);
       setGroup(response.data);
     } catch (error) {
       console.error("Error toggling join:", error);
@@ -210,13 +242,19 @@ export const GroupDetail = () => {
           ) : (
             <div className="members-list" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {members.map(member => (
-                <div 
+                <div
                   key={member.id}
-                  style={{ 
-                    display: 'flex', alignItems: 'center', gap: '15px', 
-                    padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px',
-                    border: '1px solid rgba(255,255,255,0.05)'
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '15px',
+                    padding: '12px',
+                    background: 'rgba(255,255,255,0.03)',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(255,255,255,0.05)',
+                    cursor: 'pointer'
                   }}
+                  onClick={() => navigate(`/user/${member.id}`)}
                 >
                   <div style={{ 
                     width: '40px', height: '40px', borderRadius: '50%', 

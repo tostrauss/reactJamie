@@ -1,0 +1,134 @@
+/* Extra styles for the centered CreateActionModal popup */
+
+.modal-overlay.modal-overlay-center {
+  align-items: center;
+}
+
+.modal-container.create-action-modal {
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-xl);
+  padding: 20px 20px 24px;
+  box-shadow: var(--shadow-lg);
+  animation: scaleIn var(--transition-normal);
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.modal-close:hover {
+  color: var(--text-white);
+}
+
+.modal-back {
+  background: transparent;
+  border: none;
+  color: var(--accent-coral);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.modal-body {
+  margin-top: 4px;
+}
+
+.modal-step-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.modal-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.selection-card {
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  border: 1px solid transparent;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 6px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.selection-card h3 {
+  font-size: 16px;
+}
+
+.selection-card p {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.selection-card:hover {
+  border-color: var(--accent-coral);
+  background: var(--bg-hover);
+  transform: translateY(-2px);
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-form .form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: var(--text-light);
+}
+
+.modal-form .form-row {
+  display: flex;
+  gap: 10px;
+}
+
+.modal-form .form-row .form-group {
+  flex: 1;
+}
+
+.modal-error {
+  color: var(--status-busy);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.modal-submit-btn {
+  margin-top: 4px;
+  width: 100%;
+}
+

@@ -28,8 +28,18 @@ export const GroupCard = ({
         <div className="card-image" style={bgStyle}>
           <div className="card-image-overlay">
             <div className="card-top-badges">
+              {group.type && (
+                <span className={`badge ${group.type}`}>
+                  {group.type === 'club' ? 'Club' : 'Gruppe'}
+                </span>
+              )}
               {group.category && (
                 <span className="category-pill">{group.category}</span>
+              )}
+              {group.is_private && (
+                <span className="category-pill" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                  🔒 Privat
+                </span>
               )}
             </div>
           </div>

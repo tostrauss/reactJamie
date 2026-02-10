@@ -1,4 +1,4 @@
-import React, { createContext, useState, useCallback } from 'react';
+import React, { createContext, useState, useCallback, useEffect } from 'react';
 import { auth } from '../utils/api';
 
 export const AuthContext = createContext();
@@ -57,8 +57,40 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    if (!token || token === 'guest_token') return null;
+    setLoading(true);
+    try {
+      const response = await auth.getProfile();
+      setUser(response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Profil konnte nicht aktualisiert werden:', error);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  // Load profile on initial mount if we already have a token
+  useEffect(() => {
+    if (!token || user || token === 'guest_token') return;
+    refreshProfile();
+  }, [token, user, refreshProfile]);
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, loginAsGuest, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        loading,
+        login,
+        register,
+        loginAsGuest,
+        logout,
+        refreshProfile
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

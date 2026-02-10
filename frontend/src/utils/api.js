@@ -84,11 +84,11 @@ export const users = {
 // ==========================================
 
 export const groups = {
-  // Get all groups with filters
+  // Get all groups (type = 'group')
   getAll: (params = {}) => {
-    const { type, search, category, location, upcoming, limit, offset } = params;
+    const { search, category, location, upcoming, limit, offset } = params;
     return axiosInstance.get('/groups', { 
-      params: { type, search, category, location, upcoming, limit, offset } 
+      params: { type: 'group', search, category, location, upcoming, limit, offset } 
     });
   },
   
@@ -149,6 +149,77 @@ export const groups = {
   
   handleRequest: (groupId, requestId, action) => 
     axiosInstance.post(`/groups/${groupId}/requests/${requestId}`, { action })
+};
+
+// ==========================================
+// CLUBS API
+// ==========================================
+
+export const clubs = {
+  // Get all clubs
+  getAll: (params = {}) => {
+    const { search, category, location, featured, limit, offset } = params;
+    return axiosInstance.get('/clubs', {
+      params: { search, category, location, featured, limit, offset }
+    });
+  },
+
+  // Get single club
+  getById: (id) =>
+    axiosInstance.get(`/clubs/${id}`),
+
+  // Create new club
+  create: (data) => {
+    if (data instanceof FormData) {
+      return axiosInstance.post('/clubs', data, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+    }
+    return axiosInstance.post('/clubs', data);
+  },
+
+  // Update club
+  update: (id, data) =>
+    axiosInstance.put(`/clubs/${id}`, data),
+
+  // Delete club
+  delete: (id) =>
+    axiosInstance.delete(`/clubs/${id}`),
+
+  // Join club
+  join: (id, message) =>
+    axiosInstance.post(`/clubs/${id}/join`, { message }),
+
+  // Leave club
+  leave: (id) =>
+    axiosInstance.post(`/clubs/${id}/leave`),
+
+  // Toggle favorite
+  toggleFavorite: (id) =>
+    axiosInstance.post(`/clubs/${id}/favorite`),
+
+  // Get user's favorite clubs
+  getFavorites: () =>
+    axiosInstance.get('/clubs/user/favorites'),
+
+  // Get user's joined clubs
+  getJoined: () =>
+    axiosInstance.get('/clubs/user/joined'),
+
+  // Get club members
+  getMembers: (id) =>
+    axiosInstance.get(`/clubs/${id}/members`),
+
+  // Get categories
+  getCategories: () =>
+    axiosInstance.get('/clubs/categories'),
+
+  // Join Requests (for club owners)
+  getRequests: (clubId) =>
+    axiosInstance.get(`/clubs/${clubId}/requests`),
+
+  handleRequest: (clubId, requestId, action) =>
+    axiosInstance.post(`/clubs/${clubId}/requests/${requestId}`, { action })
 };
 
 // ==========================================
@@ -237,6 +308,7 @@ export const upload = {
 axiosInstance.auth = auth;
 axiosInstance.users = users;
 axiosInstance.groups = groups;
+axiosInstance.clubs = clubs;
 axiosInstance.messages = messages;
 axiosInstance.directMessages = directMessages;
 axiosInstance.notifications = notifications;

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../utils/api";
 import { GroupCard } from "../components/GroupCard";
+import { AuthContext } from "../context/AuthContext";
 import "../styles/home.css";
 
 // Demo-Daten
@@ -121,6 +122,8 @@ export const Home = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [favorites, setFavorites] = useState(new Set());
   const [joined, setJoined] = useState(new Set([1, 101])); 
+  const [dateFilter, setDateFilter] = useState("all"); // 'all' | 'today' | 'week'
+  const { user } = useContext(AuthContext);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -128,16 +131,17 @@ export const Home = () => {
   }, [activeTab]);
 
   const loadData = async () => {
-    // Demo: Mock-Data!
+    // Demo: Mock-Data as fallback
     if (activeTab === "gruppen") {
       setGroups(DEMO_GROUPS);
     } else {
       setGroups(DEMO_CLUBS);
     }
     try {
-      const res = await api.get("/groups", {
-        params: { type: activeTab === "gruppen" ? "group" : "club" }
-      });
+      const res =
+        activeTab === "gruppen"
+          ? await api.get("/groups", { params: { type: "group" } })
+          : await api.get("/clubs");
       if (res.data && res.data.length > 0) {
         setGroups(res.data);
       }
@@ -174,7 +178,27 @@ export const Home = () => {
     const matchesSearch = group.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = activeCategory === "all" || 
       group.category?.toLowerCase() === activeCategory.toLowerCase();
-    return matchesSearch && matchesCategory;
+    let matchesDate = true;
+
+    if (dateFilter !== "all" && group.date) {
+      const date = new Date(group.date);
+      if (!isNaN(date.getTime())) {
+        const now = new Date();
+        if (dateFilter === "today") {
+          const isSameDay =
+            date.getFullYear() === now.getFullYear() &&
+            date.getMonth() === now.getMonth() &&
+            date.getDate() === now.getDate();
+          matchesDate = isSameDay;
+        } else if (dateFilter === "week") {
+          const oneWeekFromNow = new Date();
+          oneWeekFromNow.setDate(now.getDate() + 7);
+          matchesDate = date >= now && date <= oneWeekFromNow;
+        }
+      }
+    }
+
+    return matchesSearch && matchesCategory && matchesDate;
   });
 
   return (
@@ -182,6 +206,21 @@ export const Home = () => {
       <header className="home-header">
         <h1 className="logo-text">Jamie</h1>
       </header>
+      {/* Hinweis, falls Profil nicht fertig ist */}
+      {user && user.onboarding_completed === false && (
+        <div className="profile-warning-banner">
+          <div className="profile-warning-title">Profil noch nicht vollständig</div>
+          <p className="profile-warning-text">
+            Vervollständige dein Profil, um Gruppen beizutreten und Anfragen zu stellen.
+          </p>
+          <button
+            className="profile-warning-button"
+            onClick={() => navigate("/onboarding")}
+          >
+            Profil jetzt abschließen
+          </button>
+        </div>
+      )}
       <div className="tabs-container">
         <button 
           className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`} 
@@ -224,6 +263,27 @@ export const Home = () => {
             </button>
           ))}
         </div>
+      </div>
+      {/* Datumsfilter */}
+      <div className="date-filters">
+        <button
+          className={`date-filter-pill ${dateFilter === "all" ? "active" : ""}`}
+          onClick={() => setDateFilter("all")}
+        >
+          Alle Termine
+        </button>
+        <button
+          className={`date-filter-pill ${dateFilter === "today" ? "active" : ""}`}
+          onClick={() => setDateFilter("today")}
+        >
+          Heute
+        </button>
+        <button
+          className={`date-filter-pill ${dateFilter === "week" ? "active" : ""}`}
+          onClick={() => setDateFilter("week")}
+        >
+          Nächste 7 Tage
+        </button>
       </div>
       <div className="groups-feed">
         {filteredGroups.length > 0 ? (

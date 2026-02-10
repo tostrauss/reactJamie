@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { groups, upload } from '../utils/api';
+import { clubs, upload } from '../utils/api';
 import '../styles/create.css';
 
 const CLUB_CATEGORIES = [
@@ -71,7 +71,7 @@ export const CreateClub = () => {
     setError('');
 
     try {
-      const response = await groups.create({
+      const response = await clubs.create({
         ...formData,
         type: 'club'
       });

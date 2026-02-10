@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
-import '../styles/modal.css'; // We will create this styling next
+import '../styles/modal.css';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 
@@ -12,6 +12,7 @@ const CreateActionModal = ({ isOpen, onClose }) => {
   const [step, setStep] = useState('selection'); // 'selection', 'group', 'club'
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
+   const [error, setError] = useState('');
   const navigate = useNavigate();
 
   // Reset state when opening/closing
@@ -19,29 +20,77 @@ const CreateActionModal = ({ isOpen, onClose }) => {
     if (isOpen) {
       setStep('selection');
       setFormData({});
+      setError('');
     }
   }, [isOpen]);
 
+  // Close on ESC
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
+
+  const isGroupValid = useMemo(() => {
+    return (
+      formData.name &&
+      formData.date &&
+      formData.time &&
+      formData.location
+    );
+  }, [formData.name, formData.date, formData.time, formData.location]);
+
+  const isClubValid = useMemo(() => {
+    return formData.name && formData.category;
+  }, [formData.name, formData.category]);
 
   // Handle Form Submission
   const handleSubmit = async (e, type) => {
     e.preventDefault();
+    setError('');
+
+    if (type === 'group' && !isGroupValid) {
+      setError('Bitte fülle alle Pflichtfelder aus.');
+      return;
+    }
+
+    if (type === 'club' && !isClubValid) {
+      setError('Bitte gib zumindest einen Namen und eine Kategorie an.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const endpoint = type === 'group' ? '/groups' : '/clubs'; // Adjust based on your API
-      // Add logic here to match your specific API fields
-      const payload = { ...formData }; 
-      
+      const endpoint = type === 'group' ? '/groups' : '/clubs';
+      const payload = {
+        ...formData,
+        // Ensure backend type is set correctly
+        ...(type === 'group' ? { type: 'group' } : { type: 'club' })
+      };
+
       const { data } = await api.post(endpoint, payload);
-      
-      // Success feedback
+
+      // Nach dem Erstellen direkt auf die Detailseite navigieren
       onClose();
-      // Optionally refresh the list or navigate to the new item
-      window.location.reload(); 
+      if (data?.id) {
+        navigate(`/group/${data.id}`);
+      } else {
+        // Fallback: Seite neu laden, falls keine ID zurückkommt
+        window.location.reload();
+      }
     } catch (err) {
       console.error(err);
-      alert('Failed to create. Please try again.');
+      setError(
+        err.response?.data?.error ||
+          'Erstellen fehlgeschlagen. Bitte versuche es erneut.'
+      );
     } finally {
       setLoading(false);
     }
@@ -59,13 +108,13 @@ const CreateActionModal = ({ isOpen, onClose }) => {
           <div className="modal-selection-grid">
             <button className="selection-card" onClick={() => setStep('group')}>
               <IconGroup />
-              <h3>Create Group</h3>
-              <p>One-time activity with specific date & time.</p>
+              <h3>Gruppe erstellen</h3>
+              <p>Einmalige Aktivität mit Datum & Uhrzeit.</p>
             </button>
             <button className="selection-card" onClick={() => setStep('club')}>
               <IconClub />
-              <h3>Create Club</h3>
-              <p>A permanent community for ongoing interests.</p>
+              <h3>Club gründen</h3>
+              <p>Dauerhafte Community für gemeinsame Interessen.</p>
             </button>
           </div>
         );
@@ -73,31 +122,66 @@ const CreateActionModal = ({ isOpen, onClose }) => {
       case 'group':
         return (
           <form onSubmit={(e) => handleSubmit(e, 'group')} className="modal-form">
-            <h2 className="modal-title">Plan a Group Activity</h2>
+            <div className="modal-header-row">
+              <span className="modal-step-label">Schritt 2 von 2 • Gruppe</span>
+            </div>
+            <h2 className="modal-title">Aktivität planen</h2>
             <div className="form-group">
-              <label>What are we doing?</label>
-              <input type="text" name="name" placeholder="e.g. Sunday Brunch" required onChange={handleInputChange} />
+              <label>Was macht ihr? *</label>
+              <input
+                type="text"
+                name="name"
+                placeholder="z.B. Volleyball im Prater"
+                required
+                onChange={handleInputChange}
+              />
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label>Date</label>
-                <input type="date" name="date" required onChange={handleInputChange} />
+                <label>Datum *</label>
+                <input
+                  type="date"
+                  name="date"
+                  required
+                  onChange={handleInputChange}
+                />
               </div>
               <div className="form-group">
-                <label>Time</label>
-                <input type="time" name="time" required onChange={handleInputChange} />
+                <label>Uhrzeit *</label>
+                <input
+                  type="time"
+                  name="time"
+                  required
+                  onChange={handleInputChange}
+                />
               </div>
             </div>
             <div className="form-group">
-              <label>Location</label>
-              <input type="text" name="location" placeholder="e.g. Central Park" required onChange={handleInputChange} />
+              <label>Ort *</label>
+              <input
+                type="text"
+                name="location"
+                placeholder="z.B. Donauinsel, Wien"
+                required
+                onChange={handleInputChange}
+              />
             </div>
             <div className="form-group">
-              <label>Description</label>
-              <textarea name="description" placeholder="Details about the event..." rows="3" onChange={handleInputChange}></textarea>
+              <label>Beschreibung</label>
+              <textarea
+                name="description"
+                placeholder="Kurze Beschreibung, z.B. Niveau, Mitbringen, Treffpunkt …"
+                rows="3"
+                onChange={handleInputChange}
+              ></textarea>
             </div>
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? 'Creating...' : 'Launch Group'}
+            {error && <p className="modal-error">{error}</p>}
+            <button
+              type="submit"
+              className="btn btn-primary modal-submit-btn"
+              disabled={loading || !isGroupValid}
+            >
+              {loading ? 'Wird erstellt…' : 'Gruppe erstellen'}
             </button>
           </form>
         );
@@ -105,26 +189,53 @@ const CreateActionModal = ({ isOpen, onClose }) => {
       case 'club':
         return (
           <form onSubmit={(e) => handleSubmit(e, 'club')} className="modal-form">
-            <h2 className="modal-title">Start a Club</h2>
+            <div className="modal-header-row">
+              <span className="modal-step-label">Schritt 2 von 2 • Club</span>
+            </div>
+            <h2 className="modal-title">Club gründen</h2>
             <div className="form-group">
-              <label>Club Name</label>
-              <input type="text" name="name" placeholder="e.g. Vienna Hikers" required onChange={handleInputChange} />
+              <label>Club Name *</label>
+              <input
+                type="text"
+                name="name"
+                placeholder="z.B. Wiener Wanderfreunde"
+                required
+                onChange={handleInputChange}
+              />
             </div>
             <div className="form-group">
-              <label>Category</label>
-              <select name="category" onChange={handleInputChange}>
-                <option value="general">General</option>
-                <option value="sports">Sports</option>
-                <option value="social">Social</option>
-                <option value="music">Music</option>
+              <label>Kategorie *</label>
+              <select
+                name="category"
+                defaultValue=""
+                onChange={handleInputChange}
+              >
+                <option value="" disabled>
+                  Bitte wählen …
+                </option>
+                <option value="Sport">Sport</option>
+                <option value="Night Out">Night Out</option>
+                <option value="Outdoor">Outdoor</option>
+                <option value="Kultur">Kultur</option>
+                <option value="Food">Food</option>
               </select>
             </div>
             <div className="form-group">
-              <label>Description</label>
-              <textarea name="description" placeholder="What is this club about?" rows="3" onChange={handleInputChange}></textarea>
+              <label>Beschreibung</label>
+              <textarea
+                name="description"
+                placeholder="Worum geht es in diesem Club?"
+                rows="3"
+                onChange={handleInputChange}
+              ></textarea>
             </div>
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? 'Creating...' : 'Found Club'}
+            {error && <p className="modal-error">{error}</p>}
+            <button
+              type="submit"
+              className="btn btn-primary modal-submit-btn"
+              disabled={loading || !isClubValid}
+            >
+              {loading ? 'Wird erstellt…' : 'Club gründen'}
             </button>
           </form>
         );
@@ -136,12 +247,37 @@ const CreateActionModal = ({ isOpen, onClose }) => {
 
   // React Portal to render outside the root div (prevents z-index issues)
   return ReactDOM.createPortal(
-    <div className="modal-overlay">
-      <div className="modal-container">
-        <button className="modal-close" onClick={onClose}>&times;</button>
-        {step !== 'selection' && (
-          <button className="modal-back" onClick={() => setStep('selection')}>← Back</button>
-        )}
+    <div
+      className="modal-overlay modal-overlay-center"
+      onClick={onClose}
+    >
+      <div
+        className="modal-container create-action-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-top-bar">
+          {step !== 'selection' ? (
+            <button
+              className="modal-back"
+              type="button"
+              onClick={() => {
+                setError('');
+                setStep('selection');
+              }}
+            >
+              ← Zurück
+            </button>
+          ) : (
+            <span className="modal-step-label">Schritt 1 von 2</span>
+          )}
+          <button
+            className="modal-close"
+            type="button"
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </div>
         <div className="modal-body">
           {renderContent()}
         </div>
