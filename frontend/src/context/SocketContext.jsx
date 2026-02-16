@@ -23,7 +23,8 @@ export const SocketProvider = ({ children }) => {
 
       newSocket.on('connect', () => {
         console.log('Socket connected:', newSocket.id);
-        newSocket.emit('login', user.id);
+        // Join user's personal room for notifications
+        newSocket.emit('join_user', user.id);
       });
 
       newSocket.on('connect_error', (err) => {

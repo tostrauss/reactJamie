@@ -436,3 +436,46 @@
   background: var(--bg-input);
   cursor: not-allowed;
 }
+/* Permission Banner for Club Restrictions */
+.permission-banner {
+  background: rgba(255, 165, 0, 0.2);
+  border: 1px solid rgba(255, 165, 0, 0.4);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 10px;
+  text-align: center;
+  color: #ffa500;
+  font-size: 14px;
+}
+
+/* Error State for DM Friendship Requirements */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.error-state p {
+  margin-bottom: 20px;
+  color: #ff6b6b;
+}
+
+/* Typing Indicator */
+.typing-indicator {
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #9BA2B0;
+  font-style: italic;
+}
+
+/* Chat Avatar in Header */
+.chat-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  margin-right: 12px;
+  object-fit: cover;
+}

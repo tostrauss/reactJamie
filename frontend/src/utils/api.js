@@ -144,11 +144,28 @@ export const groups = {
     axiosInstance.get('/groups/categories'),
   
   // Join Requests (for group owners)
-  getRequests: (groupId) => 
+  getRequests: (groupId) =>
     axiosInstance.get(`/groups/${groupId}/requests`),
-  
-  handleRequest: (groupId, requestId, action) => 
-    axiosInstance.post(`/groups/${groupId}/requests/${requestId}`, { action })
+
+  handleRequest: (groupId, requestId, action) =>
+    axiosInstance.post(`/groups/${groupId}/requests/${requestId}`, { action }),
+
+  // Waitlist operations
+  joinWaitlist: (id) =>
+    axiosInstance.post(`/groups/${id}/waitlist/join`),
+
+  leaveWaitlist: (id) =>
+    axiosInstance.post(`/groups/${id}/waitlist/leave`),
+
+  getWaitlist: (id) =>
+    axiosInstance.get(`/groups/${id}/waitlist`),
+
+  getWaitlistStatus: (id) =>
+    axiosInstance.get(`/groups/${id}/waitlist/status`),
+
+  // Get member avatars for card display
+  getMemberAvatars: (id, limit = 4) =>
+    axiosInstance.get(`/groups/${id}/members/avatars`, { params: { limit } })
 };
 
 // ==========================================
@@ -219,7 +236,24 @@ export const clubs = {
     axiosInstance.get(`/clubs/${clubId}/requests`),
 
   handleRequest: (clubId, requestId, action) =>
-    axiosInstance.post(`/clubs/${clubId}/requests/${requestId}`, { action })
+    axiosInstance.post(`/clubs/${clubId}/requests/${requestId}`, { action }),
+
+  // Waitlist operations
+  joinWaitlist: (id) =>
+    axiosInstance.post(`/clubs/${id}/waitlist/join`),
+
+  leaveWaitlist: (id) =>
+    axiosInstance.post(`/clubs/${id}/waitlist/leave`),
+
+  getWaitlist: (id) =>
+    axiosInstance.get(`/clubs/${id}/waitlist`),
+
+  getWaitlistStatus: (id) =>
+    axiosInstance.get(`/clubs/${id}/waitlist/status`),
+
+  // Get member avatars for card display
+  getMemberAvatars: (id, limit = 4) =>
+    axiosInstance.get(`/clubs/${id}/members/avatars`, { params: { limit } })
 };
 
 // ==========================================

@@ -546,3 +546,384 @@
   color: var(--accent-coral-light);
   text-decoration: underline;
 }
+
+/* ========================================
+   MEMBER AVATARS ON CARDS
+   ======================================== */
+.card-member-avatars {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  background: linear-gradient(135deg, #1a1a3e, #2d2d5f);
+  border-radius: 15px 15px 0 0;
+}
+
+.avatars-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
+  padding: 12px;
+  height: 100%;
+}
+
+.avatar-slot {
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.avatar-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-slot.empty {
+  background: rgba(255, 255, 255, 0.02);
+  border-style: dashed;
+}
+
+.avatar-gamble {
+  font-size: 32px;
+  color: rgba(255, 255, 255, 0.3);
+  font-weight: bold;
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #ff6b6b, #ff8585);
+  color: white;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.full-badge {
+  background-color: rgba(255, 107, 107, 0.8) !important;
+}
+
+/* ========================================
+   WAITLIST BUTTONS
+   ======================================== */
+.action-btn.waitlist {
+  background: rgba(255, 165, 0, 0.2);
+  color: #ffa500;
+  border: 1px solid rgba(255, 165, 0, 0.3);
+}
+
+.action-btn.waitlist.active {
+  background: rgba(255, 165, 0, 0.3);
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.action-btn.waitlist:hover {
+  background: rgba(255, 165, 0, 0.3);
+}
+
+/* ========================================
+   FULL GROUP STYLING
+   ======================================== */
+.group-card.full {
+  opacity: 0.85;
+}
+
+.group-card.full .card-content {
+  border-left: 3px solid rgba(255, 107, 107, 0.5);
+}
+
+/* ========================================
+   PROFILE EDIT ACTIONS (TWO BUTTONS)
+   ======================================== */
+.profile-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.profile-action-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.profile-action-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+  transform: scale(1.05);
+}
+
+/* ========================================
+   PROFILE EDIT PAGE
+   ======================================== */
+.profile-edit-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #1c1c2e 0%, #242340 100%);
+  color: white;
+  padding-bottom: 80px;
+}
+
+.edit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.2);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.edit-header h1 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.back-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.save-btn {
+  background: #fd7666;
+  border: none;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.edit-form {
+  padding: 16px;
+}
+
+.form-section {
+  margin-bottom: 20px;
+}
+
+.form-section label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.form-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 12px;
+  color: white;
+  font-size: 14px;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #fd7666;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.interests-select {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.interest-chip {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.interest-chip.active {
+  background: #fd7666;
+  border-color: #fd7666;
+  color: white;
+}
+
+.interest-chip:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ========================================
+   SETTINGS PAGE
+   ======================================== */
+.settings-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #1c1c2e 0%, #242340 100%);
+  color: white;
+  padding-bottom: 80px;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.2);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.settings-header h1 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.settings-content {
+  padding: 16px;
+}
+
+.settings-section {
+  margin-bottom: 32px;
+}
+
+.settings-section h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.settings-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  margin-bottom: 8px;
+}
+
+.settings-item.clickable {
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.settings-item.clickable:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.settings-value {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 26px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.2);
+  transition: 0.3s;
+  border-radius: 999px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: #fd7666;
+}
+
+input:checked + .slider:before {
+  transform: translateX(22px);
+}
+
+.settings-section.danger {
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.btn-danger {
+  background: #ff4444;
+  border: none;
+  color: white;
+  padding: 12px;
+  border-radius: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn-danger:hover {
+  background: #ff3333;
+}
+
+.btn-danger-outline {
+  background: transparent;
+  border: 1px solid rgba(255, 68, 68, 0.5);
+  color: #ff4444;
+  padding: 12px;
+  border-radius: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn-danger-outline:hover {
+  background: rgba(255, 68, 68, 0.1);
+}

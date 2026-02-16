@@ -13,10 +13,13 @@ import { Home } from './pages/Home';
 import { Favorites } from './pages/Favorites';
 import { Profile } from './pages/Profile';
 import { Settings } from './pages/Settings';
+import ProfileEdit from './pages/ProfileEdit';
+import SettingsPage from './pages/SettingsPage';
 
 // Chat Pages
 import { ChatList } from './pages/ChatList';
 import { ChatPage } from './pages/ChatPage';
+import DirectMessagePage from './pages/DirectMessagePage';
 
 // Group & User Pages
 import { GroupDetail } from './pages/GroupDetail';
@@ -181,12 +184,14 @@ function AppRoutes() {
         <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
         <Route path="/favorites" element={<ProtectedRoute><Favorites /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path="/profile/edit" element={<ProtectedRoute><ProfileEdit /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
         
         {/* Chats */}
         <Route path="/chats" element={<ProtectedRoute><ChatList /></ProtectedRoute>} />
         <Route path="/chat/:groupId" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
-        
+        <Route path="/dm/:userId" element={<ProtectedRoute><DirectMessagePage /></ProtectedRoute>} />
+
         {/* Groups */}
         <Route path="/group/:id" element={<ProtectedRoute><GroupDetail /></ProtectedRoute>} />
         <Route path="/group/:id/requests" element={<ProtectedRoute><GroupRequests /></ProtectedRoute>} />

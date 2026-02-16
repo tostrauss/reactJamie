@@ -41,6 +41,44 @@ const socketHandler = (io) => {
       });
     });
 
+    // Direct Message Handlers
+    socket.on('join_dm_room', ({ userId, otherUserId }) => {
+      // Create consistent room name (sorted user IDs)
+      const roomName = `dm_${Math.min(userId, otherUserId)}_${Math.max(userId, otherUserId)}`;
+      socket.join(roomName);
+      console.log(`User ${socket.id} joined DM room ${roomName}`);
+    });
+
+    socket.on('leave_dm_room', ({ userId, otherUserId }) => {
+      const roomName = `dm_${Math.min(userId, otherUserId)}_${Math.max(userId, otherUserId)}`;
+      socket.leave(roomName);
+    });
+
+    socket.on('send_dm', (data) => {
+      const { senderId, receiverId, message } = data;
+      const roomName = `dm_${Math.min(senderId, receiverId)}_${Math.max(senderId, receiverId)}`;
+
+      // Broadcast to DM room (both users)
+      io.to(roomName).emit('receive_dm', data);
+
+      // Also emit to receiver's personal room for notifications
+      io.to(`user_${receiverId}`).emit('new_dm_notification', {
+        senderId,
+        message,
+        timestamp: new Date()
+      });
+    });
+
+    socket.on('dm_typing', ({ senderId, receiverId }) => {
+      const roomName = `dm_${Math.min(senderId, receiverId)}_${Math.max(senderId, receiverId)}`;
+      socket.to(roomName).emit('dm_user_typing', { userId: senderId });
+    });
+
+    socket.on('dm_stop_typing', ({ senderId, receiverId }) => {
+      const roomName = `dm_${Math.min(senderId, receiverId)}_${Math.max(senderId, receiverId)}`;
+      socket.to(roomName).emit('dm_user_stop_typing', { userId: senderId });
+    });
+
     socket.on('disconnect', () => {
       console.log('User disconnected:', socket.id);
     });

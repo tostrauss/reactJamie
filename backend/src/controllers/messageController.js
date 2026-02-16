@@ -16,6 +16,23 @@ export const sendMessage = async (req, res) => {
       return res.status(403).json({ error: 'Not a member of this group' });
     }
 
+    // Check if group is a club and enforce owner-only rule
+    const groupInfo = await db.query(
+      'SELECT type, owner_id FROM groups WHERE id = $1',
+      [groupId]
+    );
+    if (groupInfo.rows.length === 0) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    const { type, owner_id } = groupInfo.rows[0];
+    if (type === 'club' && owner_id !== req.userId) {
+      return res.status(403).json({
+        error: 'Only the club owner can send messages',
+        isOwnerOnly: true
+      });
+    }
+
     // Insert message with RETURNING
     const result = await db.query(
       'INSERT INTO messages (group_id, user_id, content) VALUES ($1, $2, $3) RETURNING *',

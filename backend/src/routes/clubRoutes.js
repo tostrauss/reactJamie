@@ -17,6 +17,13 @@ import {
   cancelClub,
   getCategories
 } from '../controllers/clubController.js';
+import {
+  joinWaitlist,
+  leaveWaitlist,
+  getWaitlist,
+  getUserWaitlistStatus,
+  getGroupMemberAvatars
+} from '../controllers/groupController.js';
 import { authenticate, optionalAuth, requireCompleteProfile } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -54,6 +61,19 @@ router.post('/:id/favorite', authenticate, toggleClubFavorite);
 // ==========================================
 router.get('/:id/requests', authenticate, getClubJoinRequests);
 router.post('/:id/requests/:requestId', authenticate, handleClubJoinRequest);
+
+// ==========================================
+// WAITLIST ROUTES (for full clubs)
+// ==========================================
+router.post('/:id/waitlist/join', authenticate, requireCompleteProfile, joinWaitlist);
+router.post('/:id/waitlist/leave', authenticate, leaveWaitlist);
+router.get('/:id/waitlist', authenticate, getWaitlist);
+router.get('/:id/waitlist/status', authenticate, getUserWaitlistStatus);
+
+// ==========================================
+// MEMBER AVATARS (for card display)
+// ==========================================
+router.get('/:id/members/avatars', optionalAuth, getGroupMemberAvatars);
 
 // ==========================================
 // ADMIN ACTIONS (owner only)

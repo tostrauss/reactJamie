@@ -1,10 +1,10 @@
 import express from 'express';
-import { 
-  createGroup, 
-  getGroups, 
-  getGroupById, 
-  joinGroup, 
-  leaveGroup, 
+import {
+  createGroup,
+  getGroups,
+  getGroupById,
+  joinGroup,
+  leaveGroup,
   toggleFavorite,
   getUserFavorites,
   getGroupMembers,
@@ -15,7 +15,12 @@ import {
   deleteGroup,
   getCategories,
   kickMember,
-  cancelGroup
+  cancelGroup,
+  joinWaitlist,
+  leaveWaitlist,
+  getWaitlist,
+  getUserWaitlistStatus,
+  getGroupMemberAvatars
 } from '../controllers/groupController.js';
 import { authenticate, optionalAuth, requireCompleteProfile } from '../middleware/auth.js';
 
@@ -54,6 +59,19 @@ router.post('/:id/favorite', authenticate, toggleFavorite);
 // ==========================================
 router.get('/:id/requests', authenticate, getJoinRequests);
 router.post('/:id/requests/:requestId', authenticate, handleJoinRequest);
+
+// ==========================================
+// WAITLIST ROUTES (for full groups)
+// ==========================================
+router.post('/:id/waitlist/join', authenticate, requireCompleteProfile, joinWaitlist);
+router.post('/:id/waitlist/leave', authenticate, leaveWaitlist);
+router.get('/:id/waitlist', authenticate, getWaitlist);
+router.get('/:id/waitlist/status', authenticate, getUserWaitlistStatus);
+
+// ==========================================
+// MEMBER AVATARS (for card display)
+// ==========================================
+router.get('/:id/members/avatars', optionalAuth, getGroupMemberAvatars);
 
 // ==========================================
 // ADMIN ACTIONS (owner only)

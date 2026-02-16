@@ -1,7 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { api } from '../utils/api';
+import { groups } from '../utils/api';
 
 const ACTIVITY_CATEGORIES = [
   'Hiking', 'Tennis', 'Golf', 'Beachvolleyball', 'Running',
@@ -64,17 +64,16 @@ export const CreateGroup = () => {
     try {
       const data = new FormData();
       data.append('name', formData.name);
-      // FIX: Map 'activity' to 'category' for backend
-      data.append('category', formData.activity); 
+      data.append('category', formData.activity);
       data.append('description', formData.description);
       data.append('date', formData.date);
       data.append('time', formData.time);
       data.append('location', formData.location);
-      data.append('maxMembers', formData.maxMembers);
-      data.append('level', formData.level);
-      data.append('isPublic', formData.isPublic);
+      data.append('max_members', formData.maxMembers);
+      data.append('skill_level', formData.level);
+      data.append('is_private', !formData.isPublic); // Backend expects is_private
       data.append('type', 'group');
-      
+
       if (formData.image) {
         data.append('image', formData.image);
       }
@@ -82,8 +81,8 @@ export const CreateGroup = () => {
         data.append('invitedFriends', JSON.stringify(selectedFriends));
       }
 
-      // Use api.groups.create which handles FormData correctly now
-      const response = await api.groups.create(data);
+      // Use groups.create which handles FormData correctly
+      const response = await groups.create(data);
       navigate(`/group/${response.data.id}`);
     } catch (err) {
       console.error(err);

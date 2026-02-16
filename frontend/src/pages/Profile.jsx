@@ -49,9 +49,14 @@ export const Profile = () => {
           <button className="profile-action-btn" onClick={() => navigate(-1)}>
             ←
           </button>
-          <button className="profile-action-btn" onClick={() => navigate('/settings')}>
-            ✏️
-          </button>
+          <div className="profile-edit-actions">
+            <button className="profile-action-btn" onClick={() => navigate('/settings')} title="Einstellungen">
+              ⚙️
+            </button>
+            <button className="profile-action-btn" onClick={() => navigate('/profile/edit')} title="Profil bearbeiten">
+              🖌️
+            </button>
+          </div>
         </div>
 
         {/* Verified Badge */}

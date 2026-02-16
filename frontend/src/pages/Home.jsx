@@ -170,13 +170,29 @@ export const Home = () => {
     navigate(`/chat/${groupId}`);
   };
 
+  const handleWaitlist = async (groupId, action) => {
+    try {
+      if (action === 'join') {
+        const res = await api.groups.joinWaitlist(groupId);
+        alert(`Auf Warteliste! Position: ${res.data.position}`);
+      } else {
+        await api.groups.leaveWaitlist(groupId);
+        alert('Von Warteliste entfernt');
+      }
+      loadData(); // Refresh
+    } catch (error) {
+      console.error('Waitlist error:', error);
+      alert(error.response?.data?.error || 'Fehler bei Warteliste');
+    }
+  };
+
   const handleCardClick = (groupId) => {
     navigate(`/group/${groupId}`);
   };
 
   const filteredGroups = groups.filter(group => {
-    const matchesSearch = group.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = activeCategory === "all" || 
+    const matchesSearch = group.title?.toLowerCase().includes(searchQuery.toLowerCase()) ?? true;
+    const matchesCategory = activeCategory === "all" ||
       group.category?.toLowerCase() === activeCategory.toLowerCase();
     let matchesDate = true;
 
@@ -289,14 +305,15 @@ export const Home = () => {
         {filteredGroups.length > 0 ? (
           <div className="groups-grid">
             {filteredGroups.map((group) => (
-              <GroupCard 
-                key={group.id} 
+              <GroupCard
+                key={group.id}
                 group={group}
                 isFavorite={favorites.has(group.id)}
                 isJoined={joined.has(group.id)}
                 onFavorite={handleFavorite}
                 onJoin={handleJoin}
                 onChat={handleChat}
+                onWaitlist={handleWaitlist}
                 onClick={() => handleCardClick(group.id)}
               />
             ))}

@@ -10,6 +10,7 @@ DROP TABLE IF EXISTS dm_conversations CASCADE;
 DROP TABLE IF EXISTS direct_messages CASCADE;
 DROP TABLE IF EXISTS messages CASCADE;
 DROP TABLE IF EXISTS group_favorites CASCADE;
+DROP TABLE IF EXISTS group_waitlist CASCADE;
 DROP TABLE IF EXISTS group_join_requests CASCADE;
 DROP TABLE IF EXISTS group_members CASCADE;
 DROP TABLE IF EXISTS friendships CASCADE;
@@ -38,7 +39,7 @@ CREATE TABLE users (
   pinterest_url TEXT,
   onboarding_completed BOOLEAN DEFAULT FALSE,
   onboarding_step INTEGER DEFAULT 0,
-  profile_completion BOOLEAN DEFAULT 0,
+  profile_completion INTEGER DEFAULT 0,
   is_verified BOOLEAN DEFAULT FALSE,
   is_active BOOLEAN DEFAULT TRUE,
   last_seen TIMESTAMP,
@@ -129,6 +130,23 @@ CREATE TABLE group_join_requests (
 CREATE INDEX idx_gjr_group_status ON group_join_requests(group_id, status);
 CREATE INDEX idx_gjr_user ON group_join_requests(user_id);
 CREATE INDEX idx_gjr_pending ON group_join_requests(group_id, status) WHERE status = 'pending';
+
+-- 5B. Group Waitlist
+CREATE TABLE group_waitlist (
+    id              SERIAL PRIMARY KEY,
+    group_id        INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    position        INTEGER NOT NULL,
+    status          VARCHAR(20) DEFAULT 'waiting',         -- 'waiting', 'notified', 'expired'
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    notified_at     TIMESTAMP,
+    UNIQUE(group_id, user_id)
+);
+
+CREATE INDEX idx_waitlist_group ON group_waitlist(group_id);
+CREATE INDEX idx_waitlist_user ON group_waitlist(user_id);
+CREATE INDEX idx_waitlist_position ON group_waitlist(group_id, position);
+CREATE INDEX idx_waitlist_status ON group_waitlist(group_id, status) WHERE status = 'waiting';
 
 -- 6. Group Favorites
 CREATE TABLE group_favorites (
@@ -405,6 +423,37 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_profile_completion
     BEFORE INSERT OR UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION calculate_profile_completion();
+
+
+-- Auto-manage waitlist positions
+CREATE OR REPLACE FUNCTION update_waitlist_position()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        -- Set position to next available
+        NEW.position := COALESCE(
+            (SELECT MAX(position) + 1 FROM group_waitlist WHERE group_id = NEW.group_id),
+            1
+        );
+        RETURN NEW;
+    ELSIF TG_OP = 'DELETE' THEN
+        -- Reorder remaining positions
+        UPDATE group_waitlist
+        SET position = position - 1
+        WHERE group_id = OLD.group_id AND position > OLD.position;
+        RETURN OLD;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_waitlist_position
+    BEFORE INSERT ON group_waitlist
+    FOR EACH ROW EXECUTE FUNCTION update_waitlist_position();
+
+CREATE TRIGGER trg_waitlist_reorder
+    AFTER DELETE ON group_waitlist
+    FOR EACH ROW EXECUTE FUNCTION update_waitlist_position();
 
 
 -- ============================================================

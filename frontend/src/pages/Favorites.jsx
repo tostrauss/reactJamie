@@ -127,6 +127,22 @@ export const Favorites = () => {
     navigate(`/chat/${groupId}`);
   };
 
+  const handleWaitlist = async (groupId, action) => {
+    try {
+      if (action === 'join') {
+        const res = await groups.joinWaitlist(groupId);
+        alert(`Auf Warteliste! Position: ${res.data.position}`);
+      } else {
+        await groups.leaveWaitlist(groupId);
+        alert('Von Warteliste entfernt');
+      }
+      loadData(); // Refresh
+    } catch (error) {
+      console.error('Waitlist error:', error);
+      alert(error.response?.data?.error || 'Fehler bei Warteliste');
+    }
+  };
+
   const handleCardClick = (groupId) => {
     navigate(`/group/${groupId}`);
   };
@@ -191,6 +207,7 @@ export const Favorites = () => {
                 onFavorite={handleFavorite}
                 onJoin={handleJoin}
                 onChat={handleChat}
+                onWaitlist={handleWaitlist}
                 onClick={() => handleCardClick(item.id)}
               />
             ))}

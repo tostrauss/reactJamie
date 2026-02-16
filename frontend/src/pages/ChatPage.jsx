@@ -72,23 +72,25 @@ export const ChatPage = () => {
     e.preventDefault();
     if (!content.trim()) return;
 
-    // 1. Optimistic UI Update (optional, but good for speed)
-    // 2. Send to Backend to save in DB
     try {
       const response = await messages.send(groupId, content);
-      
-      // 3. Emit to Socket Room
+
+      // Emit to Socket Room with groupId included
       if (socket) {
         socket.emit('send_message', {
-          ...response.data, // Contains id, content, created_at
-          user_name: user.name, // Add sender info for display
+          ...response.data,
+          group_id: groupId, // Add groupId so backend knows which room to broadcast to
+          groupId: groupId,  // Alternative field name for compatibility
+          user_name: user.name,
+          avatar_url: user.avatar_url,
           user_id: user.id
         });
       }
-      
+
       setContent('');
     } catch (error) {
       console.error('Error sending message:', error);
+      alert('Failed to send message');
     }
   };
 

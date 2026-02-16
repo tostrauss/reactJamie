@@ -11,6 +11,22 @@ export const sendDM = async (req, res) => {
       return res.status(400).json({ error: 'receiverId and content required' });
     }
 
+    // Verify friendship exists and is accepted
+    const friendship = await db.query(
+      `SELECT * FROM friendships
+       WHERE status = 'accepted'
+       AND ((requester_id = $1 AND addressee_id = $2)
+            OR (requester_id = $2 AND addressee_id = $1))`,
+      [req.userId, receiverId]
+    );
+
+    if (friendship.rows.length === 0) {
+      return res.status(403).json({
+        error: 'You must be friends to send direct messages',
+        requiresFriendship: true
+      });
+    }
+
     // Insert message
     const result = await db.query(
       'INSERT INTO direct_messages (sender_id, receiver_id, content) VALUES ($1, $2, $3) RETURNING *',

@@ -45,9 +45,10 @@ export const createGroup = async (req, res) => {
 export const getGroups = async (req, res) => {
   try {
     const { type, search, category, location, upcoming, limit, offset } = req.query;
-    
+
     let query = `
-      SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar
+      SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar,
+             CASE WHEN g.members_count >= g.max_members THEN 1 ELSE 0 END as is_full
       FROM groups g
       LEFT JOIN users u ON g.owner_id = u.id
       WHERE g.is_active = TRUE
@@ -76,7 +77,7 @@ export const getGroups = async (req, res) => {
       query += ` AND g.date >= CURRENT_TIMESTAMP`;
     }
 
-    query += ` ORDER BY g.created_at DESC`;
+    query += ` ORDER BY is_full ASC, g.created_at DESC`;
 
     if (limit) {
       query += ` LIMIT $${paramIndex++}`;
@@ -257,7 +258,7 @@ export const leaveGroup = async (req, res) => {
     const { id } = req.params;
 
     // Prevent owner from leaving (they must delete the group)
-    const group = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
+    const group = await db.query('SELECT owner_id, members_count, max_members FROM groups WHERE id = $1', [id]);
     if (group.rows.length > 0 && group.rows[0].owner_id === req.userId) {
       return res.status(400).json({ error: 'Owner cannot leave. Transfer ownership or delete the group.' });
     }
@@ -269,6 +270,33 @@ export const leaveGroup = async (req, res) => {
 
     if (result.rowCount === 0) {
       return res.status(400).json({ error: 'Not a member of this group' });
+    }
+
+    // Check if there's a waitlist and notify first person
+    const g = group.rows[0];
+    if (g.members_count === g.max_members) {
+      const waitlistUser = await db.query(
+        `SELECT user_id FROM group_waitlist
+         WHERE group_id = $1 AND status = 'waiting'
+         ORDER BY position ASC LIMIT 1`,
+        [id]
+      );
+
+      if (waitlistUser.rows.length > 0) {
+        // Notify first person on waitlist
+        await db.query(
+          `INSERT INTO notifications (user_id, type, title, message, reference_type, reference_id)
+           VALUES ($1, 'waitlist_opening', 'Platz frei!', 'Ein Platz ist in deiner Warteliste-Gruppe frei geworden.', 'group', $2)`,
+          [waitlistUser.rows[0].user_id, id]
+        );
+
+        // Mark as notified
+        await db.query(
+          `UPDATE group_waitlist SET status = 'notified', notified_at = CURRENT_TIMESTAMP
+           WHERE group_id = $1 AND user_id = $2`,
+          [id, waitlistUser.rows[0].user_id]
+        );
+      }
     }
 
     res.json({ message: 'Left group successfully' });
@@ -526,6 +554,137 @@ export const cancelGroup = async (req, res) => {
   } catch (err) {
     console.error('Error cancelling group:', err);
     res.status(500).json({ error: 'Failed to cancel group' });
+  }
+};
+
+// ==========================================
+// JOIN WAITLIST
+// ==========================================
+export const joinWaitlist = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const group = await db.query('SELECT * FROM groups WHERE id = $1', [id]);
+    if (group.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
+
+    const g = group.rows[0];
+    if (g.members_count < g.max_members) {
+      return res.status(400).json({ error: 'Group not full. Join directly.' });
+    }
+
+    const existing = await db.query(
+      'SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [id, req.userId]
+    );
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ error: 'Already a member' });
+    }
+
+    const waitlistCheck = await db.query(
+      'SELECT * FROM group_waitlist WHERE group_id = $1 AND user_id = $2',
+      [id, req.userId]
+    );
+    if (waitlistCheck.rows.length > 0) {
+      return res.json({ message: 'Already on waitlist', position: waitlistCheck.rows[0].position });
+    }
+
+    const result = await db.query(
+      'INSERT INTO group_waitlist (group_id, user_id) VALUES ($1, $2) RETURNING *',
+      [id, req.userId]
+    );
+
+    res.json({ message: 'Added to waitlist', position: result.rows[0].position });
+  } catch (err) {
+    console.error('Error joining waitlist:', err);
+    res.status(500).json({ error: 'Failed to join waitlist' });
+  }
+};
+
+// ==========================================
+// LEAVE WAITLIST
+// ==========================================
+export const leaveWaitlist = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(
+      'DELETE FROM group_waitlist WHERE group_id = $1 AND user_id = $2 RETURNING position',
+      [id, req.userId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(400).json({ error: 'Not on waitlist' });
+    }
+    res.json({ message: 'Removed from waitlist' });
+  } catch (err) {
+    console.error('Error leaving waitlist:', err);
+    res.status(500).json({ error: 'Failed to leave waitlist' });
+  }
+};
+
+// ==========================================
+// GET WAITLIST FOR A GROUP
+// ==========================================
+export const getWaitlist = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(
+      `SELECT w.*, u.name, u.avatar_url, u.bio
+       FROM group_waitlist w
+       JOIN users u ON w.user_id = u.id
+       WHERE w.group_id = $1 AND w.status = 'waiting'
+       ORDER BY w.position ASC`,
+      [id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching waitlist:', err);
+    res.status(500).json({ error: 'Failed to fetch waitlist' });
+  }
+};
+
+// ==========================================
+// GET USER'S WAITLIST STATUS FOR A GROUP
+// ==========================================
+export const getUserWaitlistStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(
+      'SELECT * FROM group_waitlist WHERE group_id = $1 AND user_id = $2',
+      [id, req.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.json({ on_waitlist: false });
+    }
+    res.json({
+      on_waitlist: true,
+      position: result.rows[0].position,
+      status: result.rows[0].status
+    });
+  } catch (err) {
+    console.error('Error checking waitlist:', err);
+    res.status(500).json({ error: 'Failed to check waitlist' });
+  }
+};
+
+// ==========================================
+// GET MEMBER AVATARS FOR CARD DISPLAY
+// ==========================================
+export const getGroupMemberAvatars = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const limit = parseInt(req.query.limit) || 4;
+    const result = await db.query(
+      `SELECT u.id, u.avatar_url, u.name
+       FROM group_members gm
+       JOIN users u ON gm.user_id = u.id
+       WHERE gm.group_id = $1
+       ORDER BY gm.joined_at ASC
+       LIMIT $2`,
+      [id, limit]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching avatars:', err);
+    res.status(500).json({ error: 'Failed to fetch avatars' });
   }
 };
 

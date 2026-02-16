@@ -71,13 +71,21 @@ export const CreateClub = () => {
     setError('');
 
     try {
+      // Map frontend field names to backend field names
       const response = await clubs.create({
-        ...formData,
+        name: formData.title,
+        description: formData.description,
+        category: formData.category,
+        location: formData.location,
+        max_members: formData.max_members,
+        is_private: !formData.is_public, // Backend uses is_private, not is_public
+        image_url: formData.image_url,
         type: 'club'
       });
-      
+
       navigate(`/group/${response.data.id}`);
     } catch (err) {
+      console.error('Error creating club:', err);
       setError(err.response?.data?.error || 'Fehler beim Erstellen');
     } finally {
       setLoading(false);
