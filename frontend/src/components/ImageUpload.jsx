@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { upload } from '../utils/api';
+import { useToast } from '../context/ToastContext';
 
-export const ImageUpload = ({ onUpload, label = "Upload Image" }) => {
+export const ImageUpload = ({ onUpload, label = "Bild hochladen" }) => {
   const [uploading, setUploading] = useState(false);
+  const toast = useToast();
 
   const handleFile = async (e) => {
     const file = e.target.files[0];
@@ -14,7 +16,7 @@ export const ImageUpload = ({ onUpload, label = "Upload Image" }) => {
       onUpload(res.data.url);
     } catch (err) {
       console.error('Upload failed:', err);
-      alert('Upload fehlgeschlagen');
+      toast.error('Upload fehlgeschlagen');
     } finally {
       setUploading(false);
     }

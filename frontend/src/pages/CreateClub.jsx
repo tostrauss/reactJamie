@@ -1,29 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clubs, upload } from '../utils/api';
+import { useToast } from '../context/ToastContext';
+import { CATEGORY_HIERARCHY } from '../utils/categories';
 import '../styles/create.css';
-
-const CLUB_CATEGORIES = [
-  { name: 'Sport', icon: '⚽' },
-  { name: 'Fitness', icon: '💪' },
-  { name: 'Outdoor', icon: '🏕️' },
-  { name: 'Musik', icon: '🎵' },
-  { name: 'Kunst', icon: '🎨' },
-  { name: 'Gaming', icon: '🎮' },
-  { name: 'Kochen', icon: '👨‍🍳' },
-  { name: 'Bücher', icon: '📚' },
-  { name: 'Film', icon: '🎬' },
-  { name: 'Reisen', icon: '✈️' },
-  { name: 'Tech', icon: '💻' },
-  { name: 'Fotografie', icon: '📷' },
-  { name: 'Sprachen', icon: '🗣️' },
-  { name: 'Tanzen', icon: '💃' },
-  { name: 'Wellness', icon: '🧘' }
-];
 
 export const CreateClub = () => {
   const navigate = useNavigate();
-  
+  const toast = useToast();
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -32,6 +17,7 @@ export const CreateClub = () => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    mainCategory: '',
     category: '',
     location: '',
     max_members: 50,
@@ -61,6 +47,7 @@ export const CreateClub = () => {
       setFormData(prev => ({ ...prev, image_url: res.data.url }));
     } catch (err) {
       setError('Bild konnte nicht hochgeladen werden');
+      toast.error('Bild konnte nicht hochgeladen werden');
     } finally {
       setUploading(false);
     }
@@ -86,7 +73,9 @@ export const CreateClub = () => {
       navigate(`/group/${response.data.id}`);
     } catch (err) {
       console.error('Error creating club:', err);
-      setError(err.response?.data?.error || 'Fehler beim Erstellen');
+      const msg = err.response?.data?.error || 'Fehler beim Erstellen';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -94,7 +83,7 @@ export const CreateClub = () => {
 
   const canProceed = () => {
     switch(step) {
-      case 1: return formData.title.trim() && formData.category;
+      case 1: return formData.title.trim() && formData.mainCategory && formData.category;
       case 2: return formData.location.trim();
       case 3: return true;
       default: return false;
@@ -124,7 +113,7 @@ export const CreateClub = () => {
       {step === 1 && (
         <div className="create-content">
           <div className="form-section">
-            <label className="form-label">Club Name *</label>
+            <label className="form-label">Club-Name *</label>
             <input
               type="text"
               name="title"
@@ -138,20 +127,39 @@ export const CreateClub = () => {
 
           <div className="form-section">
             <label className="form-label">Kategorie *</label>
-            <div className="category-grid">
-              {CLUB_CATEGORIES.map(({ name, icon }) => (
+            <div className="main-category-grid">
+              {CATEGORY_HIERARCHY.map(cat => (
                 <button
-                  key={name}
+                  key={cat.id}
                   type="button"
-                  className={`category-chip ${formData.category === name ? 'active' : ''}`}
-                  onClick={() => setFormData(prev => ({ ...prev, category: name }))}
+                  className={`main-category-chip ${formData.mainCategory === cat.id ? 'active' : ''}`}
+                  onClick={() => setFormData(prev => ({ ...prev, mainCategory: cat.id, category: '' }))}
                 >
-                  <span className="chip-icon">{icon}</span>
-                  <span>{name}</span>
+                  <span className="chip-icon">{cat.icon}</span>
+                  <span>{cat.label}</span>
                 </button>
               ))}
             </div>
           </div>
+
+          {formData.mainCategory && (
+            <div className="form-section">
+              <label className="form-label">Unterkategorie *</label>
+              <div className="category-grid">
+                {CATEGORY_HIERARCHY.find(c => c.id === formData.mainCategory)?.subs.map(sub => (
+                  <button
+                    key={sub.name}
+                    type="button"
+                    className={`category-chip ${formData.category === sub.name ? 'active' : ''}`}
+                    onClick={() => setFormData(prev => ({ ...prev, category: sub.name }))}
+                  >
+                    <span className="chip-icon">{sub.icon}</span>
+                    <span>{sub.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="form-section">
             <label className="form-label">Beschreibung</label>
@@ -170,7 +178,7 @@ export const CreateClub = () => {
             <div className="image-upload-area">
               {imagePreview ? (
                 <div className="image-preview">
-                  <img src={imagePreview} alt="Preview" />
+                  <img src={imagePreview} alt="Vorschau" />
                   <button className="remove-image" onClick={() => { setImagePreview(null); setFormData(prev => ({ ...prev, image_url: null })); }}>×</button>
                 </div>
               ) : (
@@ -279,7 +287,7 @@ export const CreateClub = () => {
           
           <div className="preview-card">
             {imagePreview ? (
-              <img src={imagePreview} alt="Preview" className="preview-image" />
+              <img src={imagePreview} alt="Vorschau" className="preview-image" />
             ) : (
               <div className="preview-image-placeholder"><span>🏆</span></div>
             )}
@@ -322,4 +330,4 @@ export const CreateClub = () => {
       </div>
     </div>
   );
-};
+};export default CreateClub;

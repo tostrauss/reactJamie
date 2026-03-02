@@ -1,35 +1,36 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext, AuthProvider } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
+import { ToastProvider } from './context/ToastContext';
+import { NetworkProvider } from './context/NetworkContext';
+import ErrorBoundary from './components/ErrorBoundary';
 
-// Auth Pages
+// Auth Pages (eagerly loaded - needed at startup)
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
-import { Onboarding } from './pages/Onboarding';
 
-// Main Pages
-import { Home } from './pages/Home';
-import { Favorites } from './pages/Favorites';
-import { Profile } from './pages/Profile';
-import { Settings } from './pages/Settings';
-import ProfileEdit from './pages/ProfileEdit';
-import SettingsPage from './pages/SettingsPage';
-
-// Chat Pages
-import { ChatList } from './pages/ChatList';
-import { ChatPage } from './pages/ChatPage';
-import DirectMessagePage from './pages/DirectMessagePage';
-
-// Group & User Pages
-import { GroupDetail } from './pages/GroupDetail';
-import { CreateGroup } from './pages/CreateGroup';
-import { CreateClub } from './pages/CreateClub';
-import { GroupRequests } from './pages/GroupRequests';
-import { UserProfile } from './pages/UserProfile';
-
-// Notifications
-import { Notifications } from './pages/Notifications';
+// Lazy-loaded pages (code-split per route)
+const Onboarding = lazy(() => import('./pages/Onboarding'));
+const Home = lazy(() => import('./pages/Home'));
+const Favorites = lazy(() => import('./pages/Favorites'));
+const Profile = lazy(() => import('./pages/Profile'));
+const ProfileEdit = lazy(() => import('./pages/ProfileEdit'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const ChatList = lazy(() => import('./pages/ChatList'));
+const ChatPage = lazy(() => import('./pages/ChatPage'));
+const DirectMessagePage = lazy(() => import('./pages/DirectMessagePage'));
+const GroupDetail = lazy(() => import('./pages/GroupDetail'));
+const CreateGroup = lazy(() => import('./pages/CreateGroup'));
+const CreateClub = lazy(() => import('./pages/CreateClub'));
+const GroupRequests = lazy(() => import('./pages/GroupRequests'));
+const UserProfile = lazy(() => import('./pages/UserProfile'));
+const ClubEdit = lazy(() => import('./pages/ClubEdit'));
+const Notifications = lazy(() => import('./pages/Notifications'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
+const SpotifyCallback = lazy(() => import('./pages/SpotifyCallback'));
 
 // Styles
 import './styles/global.css';
@@ -37,6 +38,19 @@ import './styles/home.css';
 import './styles/auth.css';
 import './styles/chat.css';
 import './styles/profile.css';
+
+// Loading fallback
+const PageLoader = () => (
+  <div style={{
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: '100vh',
+    background: 'var(--bg-primary, #1a1a2e)'
+  }}>
+    <div className="loading-spinner" />
+  </div>
+);
 
 // SVG Icons
 const HomeIcon = ({ active }) => (
@@ -67,7 +81,7 @@ const ProfileIcon = ({ active }) => (
 
 const CreateModal = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
-  
+
   if (!isOpen) return null;
 
   const handleOption = (path) => {
@@ -80,7 +94,7 @@ const CreateModal = ({ isOpen, onClose }) => {
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <div className="modal-handle" />
         <h2 className="modal-title">Was möchtest du erstellen?</h2>
-        
+
         <div className="modal-options">
           <button className="modal-option" onClick={() => handleOption('/create-group')}>
             <div className="modal-option-icon">👥</div>
@@ -90,7 +104,7 @@ const CreateModal = ({ isOpen, onClose }) => {
             </div>
             <div className="modal-option-arrow">→</div>
           </button>
-          
+
           <button className="modal-option" onClick={() => handleOption('/create-club')}>
             <div className="modal-option-icon">🏆</div>
             <div className="modal-option-text">
@@ -113,10 +127,10 @@ const Navigation = () => {
   const { user } = useContext(AuthContext);
   const location = useLocation();
   const [showCreateModal, setShowCreateModal] = useState(false);
-  
+
   const hideNavPaths = ['/login', '/register', '/onboarding'];
-  const hideOnChat = location.pathname.startsWith('/chat/');
-  
+  const hideOnChat = location.pathname.startsWith('/chat/') || location.pathname.startsWith('/dm/');
+
   if (!user || hideNavPaths.includes(location.pathname) || hideOnChat) return null;
 
   const isActive = (path) => {
@@ -131,27 +145,27 @@ const Navigation = () => {
           <div className="nav-icon"><HomeIcon active={isActive('/home')} /></div>
           <span className="nav-label">Home</span>
         </Link>
-        
+
         <Link to="/favorites" className={`nav-item ${isActive('/favorites') ? 'active' : ''}`}>
           <div className="nav-icon"><StarIcon active={isActive('/favorites')} /></div>
           <span className="nav-label">Favoriten</span>
         </Link>
-        
+
         <button className="nav-add-button" onClick={() => setShowCreateModal(true)}>
           <span className="plus-icon">+</span>
         </button>
-        
+
         <Link to="/chats" className={`nav-item ${isActive('/chats') ? 'active' : ''}`}>
           <div className="nav-icon"><ChatIcon active={isActive('/chats')} /></div>
           <span className="nav-label">Chats</span>
         </Link>
-        
+
         <Link to="/profile" className={`nav-item ${isActive('/profile') ? 'active' : ''}`}>
           <div className="nav-icon"><ProfileIcon active={isActive('/profile')} /></div>
           <span className="nav-label">Profil</span>
         </Link>
       </nav>
-      
+
       <CreateModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} />
     </>
   );
@@ -174,49 +188,58 @@ function AppRoutes() {
 
   return (
     <>
-      <Routes>
-        {/* Auth */}
-        <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
-        <Route path="/register" element={<AuthRoute><Register /></AuthRoute>} />
-        <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
-        
-        {/* Main */}
-        <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-        <Route path="/favorites" element={<ProtectedRoute><Favorites /></ProtectedRoute>} />
-        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-        <Route path="/profile/edit" element={<ProtectedRoute><ProfileEdit /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-        
-        {/* Chats */}
-        <Route path="/chats" element={<ProtectedRoute><ChatList /></ProtectedRoute>} />
-        <Route path="/chat/:groupId" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
-        <Route path="/dm/:userId" element={<ProtectedRoute><DirectMessagePage /></ProtectedRoute>} />
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          {/* Auth */}
+          <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
+          <Route path="/register" element={<AuthRoute><Register /></AuthRoute>} />
+          <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+          <Route path="/forgot-password" element={<AuthRoute><ForgotPassword /></AuthRoute>} />
+          <Route path="/reset-password" element={<AuthRoute><ResetPassword /></AuthRoute>} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
 
-        {/* Groups */}
-        <Route path="/group/:id" element={<ProtectedRoute><GroupDetail /></ProtectedRoute>} />
-        <Route path="/group/:id/requests" element={<ProtectedRoute><GroupRequests /></ProtectedRoute>} />
-        <Route path="/create-group" element={<ProtectedRoute><CreateGroup /></ProtectedRoute>} />
-        <Route path="/create-club" element={<ProtectedRoute><CreateClub /></ProtectedRoute>} />
-        
-        {/* User */}
-        <Route path="/user/:id" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
-        
-        {/* Notifications */}
-        <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-        
-        {/* Redirects */}
-        <Route path="/" element={<Navigate to={user ? "/home" : "/login"} replace />} />
-        
-        {/* 404 */}
-        <Route path="*" element={
-          <div className="page not-found-page">
-            <div className="not-found-icon">🤔</div>
-            <h1>Seite nicht gefunden</h1>
-            <p>Die Seite existiert nicht.</p>
-            <Link to="/" className="btn btn-primary">Zur Startseite</Link>
-          </div>
-        } />
-      </Routes>
+          {/* Main */}
+          <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+          <Route path="/favorites" element={<ProtectedRoute><Favorites /></ProtectedRoute>} />
+          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/profile/edit" element={<ProtectedRoute><ProfileEdit /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+
+          {/* Chats */}
+          <Route path="/chats" element={<ProtectedRoute><ChatList /></ProtectedRoute>} />
+          <Route path="/chat/:groupId" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+          <Route path="/dm/:userId" element={<ProtectedRoute><DirectMessagePage /></ProtectedRoute>} />
+
+          {/* Groups */}
+          <Route path="/group/:id" element={<ProtectedRoute><GroupDetail /></ProtectedRoute>} />
+          <Route path="/group/:id/requests" element={<ProtectedRoute><GroupRequests /></ProtectedRoute>} />
+          <Route path="/create-group" element={<ProtectedRoute><CreateGroup /></ProtectedRoute>} />
+          <Route path="/create-club" element={<ProtectedRoute><CreateClub /></ProtectedRoute>} />
+          <Route path="/club/:id/edit" element={<ProtectedRoute><ClubEdit /></ProtectedRoute>} />
+
+          {/* User */}
+          <Route path="/user/:id" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />
+
+          {/* Notifications */}
+          <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+
+          {/* Spotify */}
+          <Route path="/spotify/callback" element={<ProtectedRoute><SpotifyCallback /></ProtectedRoute>} />
+
+          {/* Redirects */}
+          <Route path="/" element={<Navigate to={user ? "/home" : "/login"} replace />} />
+
+          {/* 404 */}
+          <Route path="*" element={
+            <div className="page not-found-page">
+              <div className="not-found-icon">🤔</div>
+              <h1>Seite nicht gefunden</h1>
+              <p>Die Seite existiert nicht.</p>
+              <Link to="/" className="btn btn-primary">Zur Startseite</Link>
+            </div>
+          } />
+        </Routes>
+      </Suspense>
       <Navigation />
     </>
   );
@@ -224,13 +247,19 @@ function AppRoutes() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <SocketProvider>
-          <AppRoutes />
-        </SocketProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <NetworkProvider>
+          <ToastProvider>
+            <AuthProvider>
+              <SocketProvider>
+                <AppRoutes />
+              </SocketProvider>
+            </AuthProvider>
+          </ToastProvider>
+        </NetworkProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 

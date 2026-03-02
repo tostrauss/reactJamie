@@ -2,6 +2,34 @@
    JAMIE - Auth Pages Styles
    ======================================== */
 
+/* Password Strength Meter */
+.password-strength {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.strength-bar {
+  flex: 1;
+  display: flex;
+  gap: 4px;
+}
+
+.strength-segment {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  transition: background 0.25s ease;
+}
+
+.strength-label {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color 0.25s ease;
+}
+
 .auth-container {
   min-height: 100vh;
   display: flex;
@@ -320,10 +348,13 @@
   border: 2px solid transparent;
   border-radius: var(--radius-lg);
   color: var(--text-light);
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 18px;
+  font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .onboarding-option:hover {
@@ -332,8 +363,43 @@
 
 .onboarding-option.selected {
   border-color: var(--accent-coral);
-  background: rgba(253, 118, 102, 0.1);
+  background: rgba(253, 118, 102, 0.15);
   color: var(--text-white);
+}
+
+.option-icon {
+  font-size: 24px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(253, 118, 102, 0.1);
+  border-radius: 50%;
+}
+
+.onboarding-option.selected .option-icon {
+  background: rgba(253, 118, 102, 0.3);
+}
+
+.option-label {
+  font-size: 18px;
+}
+
+.onboarding-back {
+  background: none;
+  border: none;
+  color: var(--text-light);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.onboarding-step-text {
+  font-size: 14px;
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 .onboarding-footer {
@@ -343,6 +409,182 @@
 
 .onboarding-footer .auth-btn-primary {
   width: 100%;
+}
+
+/* Onboarding Form */
+.onboarding-form {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.onboarding-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.onboarding-field label {
+  font-size: 14px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.onboarding-add-btn {
+  width: 48px;
+  flex-shrink: 0;
+  background: var(--accent-coral);
+  border: none;
+  border-radius: var(--radius-lg);
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.interest-counter {
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* Photos Grid */
+.photos-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.photo-slot {
+  aspect-ratio: 1;
+  border-radius: var(--radius-md);
+  border: 2px dashed rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+}
+
+.photo-slot.main {
+  border: 2px solid var(--accent-coral);
+}
+
+.photo-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-add {
+  font-size: 28px;
+  color: var(--text-muted);
+}
+
+.photo-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  border: none;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.main-badge {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(253, 118, 102, 0.9);
+  color: white;
+  font-size: 10px;
+  text-align: center;
+  padding: 2px 0;
+}
+
+/* Complete Step */
+.complete-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.profile-preview-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  gap: 16px;
+  text-align: left;
+  margin-top: 20px;
+}
+
+.preview-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg-input);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+}
+
+.preview-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.preview-info {
+  flex: 1;
+}
+
+.preview-info p {
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.preview-bio {
+  color: var(--text-muted);
+}
+
+.preview-interests {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.preview-interest-tag {
+  background: rgba(253, 118, 102, 0.2);
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  color: var(--accent-coral);
+}
+
+.preview-more {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 3px 4px;
 }
 
 /* Interest Tags */

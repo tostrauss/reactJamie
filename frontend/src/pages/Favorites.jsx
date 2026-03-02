@@ -2,64 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { groups, clubs } from '../utils/api';
 import { GroupCard } from '../components/GroupCard';
+import { useToast } from '../context/ToastContext';
 import '../styles/home.css';
-
-// Demo-Daten für Favoriten
-const DEMO_FAV_GROUPS = [
-  {
-    id: 1,
-    title: "Wandern am Kahlenberg",
-    type: "group",
-    category: "Hiking",
-    date: "Sa, 25. Jan",
-    location: "Wien",
-    member_count: 4,
-    max_members: 6,
-    image_url: "https://images.unsplash.com/photo-1551632811-561732d1e306?w=400"
-  },
-  {
-    id: 3,
-    title: "Fotografie Walk",
-    type: "group",
-    category: "Kreativ",
-    date: "Mo, 27. Jan",
-    location: "Wien",
-    member_count: 3,
-    max_members: 5,
-    image_url: "https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=400"
-  }
-];
-
-const DEMO_FAV_CLUBS = [
-  {
-    id: 101,
-    title: "Tennis Club Wien",
-    type: "club",
-    category: "Tennis",
-    location: "Wien",
-    member_count: 45,
-    max_members: 100,
-    image_url: "https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=400"
-  },
-  {
-    id: 103,
-    title: "Wiener Buchclub",
-    type: "club",
-    category: "Kultur",
-    location: "Wien",
-    member_count: 32,
-    max_members: 50,
-    image_url: "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400"
-  }
-];
 
 export const Favorites = () => {
   const [activeTab, setActiveTab] = useState('gruppen');
   const [favoriteGroups, setFavoriteGroups] = useState([]);
   const [favoriteClubs, setFavoriteClubs] = useState([]);
-  const [joined, setJoined] = useState(new Set([1, 101]));
+  const [joined, setJoined] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const toast = useToast();
 
   useEffect(() => {
     loadData();
@@ -67,12 +20,6 @@ export const Favorites = () => {
 
   const loadData = async () => {
     setLoading(true);
-    
-    // Demo-Daten verwenden
-    setFavoriteGroups(DEMO_FAV_GROUPS);
-    setFavoriteClubs(DEMO_FAV_CLUBS);
-    
-    // Versuche echte Daten zu laden
     try {
       const [favGroupsRes, favClubsRes, joinedGroupsRes, joinedClubsRes] =
         await Promise.all([
@@ -82,33 +29,35 @@ export const Favorites = () => {
           clubs.getJoined()
         ]);
 
-      if (favGroupsRes.data && favGroupsRes.data.length > 0) {
-        setFavoriteGroups(favGroupsRes.data);
-      }
-      if (favClubsRes.data && favClubsRes.data.length > 0) {
-        setFavoriteClubs(favClubsRes.data);
-      }
+      setFavoriteGroups(favGroupsRes.data || []);
+      setFavoriteClubs(favClubsRes.data || []);
+
       const joinedIds = [
         ...(joinedGroupsRes.data || []).map((g) => g.id),
         ...(joinedClubsRes.data || []).map((c) => c.id)
       ];
-      if (joinedIds.length) {
-        setJoined(new Set(joinedIds));
-      }
+      setJoined(new Set(joinedIds));
     } catch (error) {
-      console.log('Backend nicht verfügbar, verwende Demo-Daten');
+      console.error('Error loading favorites:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const handleFavorite = async (groupId) => {
+    // Check if this is a club or group based on which tab/list it's in
+    const isClub = favoriteClubs.some(c => c.id === groupId);
+
     // Aus Favoriten entfernen
     setFavoriteGroups(prev => prev.filter(g => g.id !== groupId));
     setFavoriteClubs(prev => prev.filter(g => g.id !== groupId));
-    
+
     try {
-      await groups.toggleFavorite(groupId);
+      if (isClub) {
+        await clubs.toggleFavorite(groupId);
+      } else {
+        await groups.toggleFavorite(groupId);
+      }
     } catch (error) {
       console.log('Backend nicht verfügbar');
     }
@@ -131,15 +80,15 @@ export const Favorites = () => {
     try {
       if (action === 'join') {
         const res = await groups.joinWaitlist(groupId);
-        alert(`Auf Warteliste! Position: ${res.data.position}`);
+        toast.success(`Auf Warteliste! Position: ${res.data.position}`);
       } else {
         await groups.leaveWaitlist(groupId);
-        alert('Von Warteliste entfernt');
+        toast.info('Von Warteliste entfernt');
       }
-      loadData(); // Refresh
+      loadData();
     } catch (error) {
       console.error('Waitlist error:', error);
-      alert(error.response?.data?.error || 'Fehler bei Warteliste');
+      toast.error(error.response?.data?.error || 'Fehler bei Warteliste');
     }
   };
 

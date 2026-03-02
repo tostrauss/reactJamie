@@ -236,7 +236,7 @@ export const GroupRequests = () => {
               <div className="next-card-preview">
                 <img 
                   src={requests[currentIndex + 1].user.avatar} 
-                  alt="Next"
+                  alt="Nächste"
                 />
               </div>
             )}
@@ -483,4 +483,4 @@ export const GroupRequests = () => {
       `}</style>
     </div>
   );
-};
+};export default GroupRequests;

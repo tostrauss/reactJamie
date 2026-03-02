@@ -78,7 +78,7 @@ export const Settings = () => {
       <div className="settings-section">
         <h3>App</h3>
         <div className="settings-item">
-          <label>Dark Mode</label>
+          <label>Dunkelmodus</label>
           <input type="checkbox" defaultChecked disabled />
         </div>
         <div className="settings-item">
@@ -86,14 +86,14 @@ export const Settings = () => {
           <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Deutsch</span>
         </div>
         <div className="settings-item">
-          <label>App Version</label>
+          <label>App-Version</label>
           <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>1.0.0</span>
         </div>
       </div>
 
       {/* Support Section */}
       <div className="settings-section">
-        <h3>Support</h3>
+        <h3>Hilfe</h3>
         <button className="btn btn-secondary" style={{ width: '100%', marginBottom: '8px' }}>
           Hilfe & FAQ
         </button>

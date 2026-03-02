@@ -170,6 +170,23 @@
   justify-content: center;
 }
 
+.chat-type-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  margin-top: 2px;
+}
+
+.club-badge {
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
 .chat-requests-hint {
   margin-top: 6px;
 }
@@ -436,6 +453,17 @@
   background: var(--bg-input);
   cursor: not-allowed;
 }
+/* Reconnection Banner */
+.reconnect-banner {
+  background: rgba(255, 107, 107, 0.15);
+  border-bottom: 1px solid rgba(255, 107, 107, 0.35);
+  padding: 8px 16px;
+  text-align: center;
+  color: #ff6b6b;
+  font-size: 13px;
+  font-weight: 500;
+}
+
 /* Permission Banner for Club Restrictions */
 .permission-banner {
   background: rgba(255, 165, 0, 0.2);
@@ -478,4 +506,24 @@
   border-radius: 50%;
   margin-right: 12px;
   object-fit: cover;
+}
+
+/* Chat Avatar Placeholder */
+.chat-avatar-placeholder {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--accent-coral), var(--accent-coral-dark));
+  color: white;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+/* Message content text */
+.message-content {
+  font-size: 15px;
+  line-height: 1.4;
 }

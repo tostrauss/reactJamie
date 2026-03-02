@@ -1,17 +1,19 @@
-import React, { useState, useEffect, useContext, useRef } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { SocketContext } from '../context/SocketContext';
-import { directMessages } from '../utils/api';
+import { directMessages, users } from '../utils/api';
+import { useToast } from '../context/ToastContext';
 import '../styles/chat.css';
 
 export const DirectMessagePage = () => {
   const { userId: otherUserId } = useParams();
   const { user } = useContext(AuthContext);
-  const { socket } = useContext(SocketContext);
+  const { socket, isConnected } = useContext(SocketContext);
   const navigate = useNavigate();
+  const toast = useToast();
 
-  const [messages, setMessages] = useState([]);
+  const [messagesList, setMessagesList] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [otherUser, setOtherUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -21,10 +23,13 @@ export const DirectMessagePage = () => {
   const typingTimeoutRef = useRef(null);
 
   useEffect(() => {
-    if (!user || !socket || !otherUserId) return;
+    if (!user || !otherUserId) return;
 
+    loadOtherUser();
     loadMessages();
     markAsRead();
+
+    if (!socket) return;
 
     // Join DM room
     socket.emit('join_dm_room', { userId: user.id, otherUserId: parseInt(otherUserId) });
@@ -44,26 +49,28 @@ export const DirectMessagePage = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messagesList]);
+
+  const loadOtherUser = async () => {
+    try {
+      const res = await users.getById(otherUserId);
+      setOtherUser(res.data);
+    } catch (err) {
+      console.error('Error loading user info:', err);
+    }
+  };
 
   const loadMessages = async () => {
     try {
       const res = await directMessages.getConversation(otherUserId);
-      setMessages(res.data);
-      if (res.data.length > 0) {
-        const firstMessage = res.data[0];
-        const otherUserInfo = firstMessage.sender_id === user.id
-          ? { name: firstMessage.receiver_name, avatar_url: firstMessage.receiver_avatar }
-          : { name: firstMessage.sender_name, avatar_url: firstMessage.sender_avatar };
-        setOtherUser(otherUserInfo);
-      }
+      setMessagesList(res.data || []);
       setLoading(false);
     } catch (err) {
       console.error('Error loading messages:', err);
       if (err.response?.data?.requiresFriendship) {
-        setError('You must be friends to send messages');
+        setError('Ihr müsst befreundet sein, um Nachrichten zu senden');
       } else {
-        setError('Failed to load conversation');
+        setError('Konversation konnte nicht geladen werden');
       }
       setLoading(false);
     }
@@ -73,13 +80,14 @@ export const DirectMessagePage = () => {
     try {
       await directMessages.markRead(otherUserId);
     } catch (err) {
-      console.error('Error marking as read:', err);
+      // silent
     }
   };
 
   const handleReceiveDM = (data) => {
-    if (data.message) {
-      setMessages(prev => [...prev, data.message]);
+    // Skip messages sent by the current user — they're already added optimistically
+    if (data.message && data.senderId !== user.id) {
+      setMessagesList(prev => [...prev, data.message]);
       markAsRead();
     }
   };
@@ -89,32 +97,39 @@ export const DirectMessagePage = () => {
     if (!newMessage.trim()) return;
 
     try {
-      const res = await directMessages.send(otherUserId, newMessage);
+      const res = await directMessages.send(parseInt(otherUserId), newMessage);
+
+      // Add to local messages immediately
+      const sentMessage = {
+        ...res.data,
+        sender_name: user.name,
+        sender_avatar: user.avatar_url
+      };
+      setMessagesList(prev => [...prev, sentMessage]);
 
       // Emit socket event for real-time delivery
-      socket.emit('send_dm', {
-        senderId: user.id,
-        receiverId: parseInt(otherUserId),
-        message: {
-          ...res.data,
-          sender_name: user.name,
-          sender_avatar: user.avatar_url
-        }
-      });
+      if (socket) {
+        socket.emit('send_dm', {
+          senderId: user.id,
+          receiverId: parseInt(otherUserId),
+          message: sentMessage
+        });
+      }
 
       setNewMessage('');
       stopTyping();
     } catch (err) {
       console.error('Error sending message:', err);
       if (err.response?.data?.requiresFriendship) {
-        alert('You must be friends to send messages');
+        setError('Ihr müsst befreundet sein, um Nachrichten zu senden');
       } else {
-        alert('Failed to send message');
+        toast.error('Nachricht konnte nicht gesendet werden');
       }
     }
   };
 
   const handleTyping = () => {
+    if (!socket) return;
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
@@ -127,6 +142,7 @@ export const DirectMessagePage = () => {
   };
 
   const stopTyping = () => {
+    if (!socket) return;
     socket.emit('dm_stop_typing', { senderId: user.id, receiverId: parseInt(otherUserId) });
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
@@ -137,13 +153,34 @@ export const DirectMessagePage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  if (loading) return <div className="chat-page"><div className="loading">Loading...</div></div>;
+  if (loading) {
+    return (
+      <div className="chat-page">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+          <div className="loading">Laden...</div>
+        </div>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="chat-page">
+        <header className="chat-page-header">
+          <button className="back-button" onClick={() => navigate('/chats')}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+          </button>
+          <div className="chat-page-info">
+            <h2 className="chat-page-name">{otherUser?.name || 'Chat'}</h2>
+          </div>
+        </header>
         <div className="error-state">
           <p>{error}</p>
-          <button onClick={() => navigate('/chats')}>Back to Chats</button>
+          <button className="btn btn-primary" onClick={() => navigate('/chats')} style={{ marginTop: '12px' }}>
+            Zurück zu Chats
+          </button>
         </div>
       </div>
     );
@@ -151,18 +188,49 @@ export const DirectMessagePage = () => {
 
   return (
     <div className="chat-page">
-      <header className="chat-header">
-        <button className="back-btn" onClick={() => navigate('/chats')}>←</button>
-        <div className="chat-info">
-          {otherUser?.avatar_url && (
-            <img src={otherUser.avatar_url} alt={otherUser.name} className="chat-avatar" />
-          )}
-          <h2>{otherUser?.name || 'Chat'}</h2>
+      <header className="chat-page-header">
+        <button className="back-button" onClick={() => navigate('/chats')}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+        </button>
+        <div className="chat-page-info" onClick={() => navigate(`/user/${otherUserId}`)}>
+          <h2 className="chat-page-name">{otherUser?.name || 'Chat'}</h2>
+          <span className="chat-page-status">Tippe für Profil</span>
         </div>
+        {otherUser?.avatar_url ? (
+          <img
+            src={otherUser.avatar_url}
+            alt={otherUser.name}
+            className="chat-page-avatar"
+            onClick={() => navigate(`/user/${otherUserId}`)}
+          />
+        ) : (
+          <div
+            className="chat-avatar-placeholder"
+            style={{ width: '44px', height: '44px', fontSize: '18px', cursor: 'pointer' }}
+            onClick={() => navigate(`/user/${otherUserId}`)}
+          >
+            {(otherUser?.name || '?')[0].toUpperCase()}
+          </div>
+        )}
       </header>
 
+      {/* Reconnection Banner */}
+      {!isConnected && (
+        <div className="reconnect-banner">
+          Verbindung unterbrochen – Wiederverbindung...
+        </div>
+      )}
+
       <div className="messages-container">
-        {messages.map((msg) => (
+        {messagesList.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+            <p>Noch keine Nachrichten</p>
+            <p style={{ fontSize: '13px', marginTop: '8px' }}>Sag Hallo!</p>
+          </div>
+        )}
+        {messagesList.map((msg) => (
           <div
             key={msg.id}
             className={`message ${msg.sender_id === user.id ? 'sent' : 'received'}`}
@@ -184,7 +252,7 @@ export const DirectMessagePage = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      <form className="message-form" onSubmit={handleSendMessage}>
+      <div className="message-input-container">
         <input
           type="text"
           value={newMessage}
@@ -192,13 +260,26 @@ export const DirectMessagePage = () => {
             setNewMessage(e.target.value);
             handleTyping();
           }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSendMessage(e);
+            }
+          }}
           placeholder="Nachricht schreiben..."
           className="message-input"
         />
-        <button type="submit" className="send-btn" disabled={!newMessage.trim()}>
-          Senden
+        <button
+          className="send-button"
+          onClick={handleSendMessage}
+          disabled={!newMessage.trim()}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22,2 15,22 11,13 2,9"/>
+          </svg>
         </button>
-      </form>
+      </div>
     </div>
   );
 };

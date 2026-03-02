@@ -1,257 +1,154 @@
 import React, { useState, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../utils/api";
+import api, { groups, clubs } from "../utils/api";
 import { GroupCard } from "../components/GroupCard";
 import { AuthContext } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 import "../styles/home.css";
-
-// Demo-Daten
-const DEMO_GROUPS = [
-  {
-    id: 1,
-    title: "Wandern am Kahlenberg",
-    type: "group",
-    category: "Hiking",
-    date: "Sa, 25. Jan",
-    location: "Wien",
-    member_count: 4,
-    max_members: 6,
-    image_url: "https://images.unsplash.com/photo-1551632811-561732d1e306?w=400",
-    owner_name: "Max"
-  },
-  {
-    id: 2,
-    title: "Volleyball im Prater",
-    type: "group", 
-    category: "Sport",
-    date: "So, 26. Jan",
-    location: "Wien",
-    member_count: 5,
-    max_members: 8,
-    image_url: "https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?w=400",
-    owner_name: "Lisa"
-  },
-  {
-    id: 3,
-    title: "Fotografie Walk",
-    type: "group",
-    category: "Kreativ",
-    date: "Mo, 27. Jan",
-    location: "Wien",
-    member_count: 3,
-    max_members: 5,
-    image_url: "https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=400",
-    owner_name: "Tom"
-  },
-  {
-    id: 4,
-    title: "Brettspiele Abend",
-    type: "group",
-    category: "Gaming",
-    date: "Di, 28. Jan",
-    location: "Wien",
-    member_count: 4,
-    max_members: 6,
-    image_url: "https://images.unsplash.com/photo-1611371805429-8b5c1b2c34ba?w=400",
-    owner_name: "Sarah"
-  }
-];
-
-const DEMO_CLUBS = [
-  {
-    id: 101,
-    title: "Tennis Club Wien",
-    type: "club",
-    category: "Tennis",
-    location: "Wien",
-    member_count: 45,
-    max_members: 100,
-    image_url: "https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=400",
-    owner_name: "Club"
-  },
-  {
-    id: 102,
-    title: "Lauftreff Donaukanal",
-    type: "club",
-    category: "Running",
-    location: "Wien", 
-    member_count: 78,
-    max_members: 150,
-    image_url: "https://images.unsplash.com/photo-1571008887538-b36bb32f4571?w=400",
-    owner_name: "Club"
-  },
-  {
-    id: 103,
-    title: "Wiener Buchclub",
-    type: "club",
-    category: "Kultur",
-    location: "Wien",
-    member_count: 32,
-    max_members: 50,
-    image_url: "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400",
-    owner_name: "Club"
-  },
-  {
-    id: 104,
-    title: "Yoga Community",
-    type: "club",
-    category: "Wellness",
-    location: "Wien",
-    member_count: 89,
-    max_members: 200,
-    image_url: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400",
-    owner_name: "Club"
-  }
-];
-
-const CATEGORIES = [
-  { id: "all", label: "Alle" },
-  { id: "hiking", label: "Wandern" },
-  { id: "sport", label: "Sport" },
-  { id: "tennis", label: "Tennis" },
-  { id: "running", label: "Laufen" },
-  { id: "gaming", label: "Gaming" },
-  { id: "kultur", label: "Kultur" },
-  { id: "kreativ", label: "Kreativ" }
-];
+import { CATEGORY_HIERARCHY } from "../utils/categories";
 
 export const Home = () => {
-  const [groups, setGroups] = useState([]);
+  const [groupList, setGroupList] = useState([]);
+  const [clubList, setClubList] = useState([]);
+  const [myClubs, setMyClubs] = useState([]);
   const [activeTab, setActiveTab] = useState("gruppen");
-  const [activeCategory, setActiveCategory] = useState("all");
+  const [selectedMain, setSelectedMain] = useState("all");
+  const [selectedSub, setSelectedSub] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [favorites, setFavorites] = useState(new Set());
-  const [joined, setJoined] = useState(new Set([1, 101])); 
-  const [dateFilter, setDateFilter] = useState("all"); // 'all' | 'today' | 'week'
+  const [joined, setJoined] = useState(new Set());
+  const [loading, setLoading] = useState(true);
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const toast = useToast();
 
   useEffect(() => {
     loadData();
   }, [activeTab]);
 
   const loadData = async () => {
-    // Demo: Mock-Data as fallback
-    if (activeTab === "gruppen") {
-      setGroups(DEMO_GROUPS);
-    } else {
-      setGroups(DEMO_CLUBS);
-    }
+    setLoading(true);
     try {
-      const res =
-        activeTab === "gruppen"
-          ? await api.get("/groups", { params: { type: "group" } })
-          : await api.get("/clubs");
-      if (res.data && res.data.length > 0) {
-        setGroups(res.data);
+      if (activeTab === "gruppen") {
+        const res = await api.get("/groups", { params: { type: "group" } });
+        setGroupList(res.data || []);
+      } else {
+        const [allClubsRes, myClubsRes] = await Promise.all([
+          clubs.getAll(),
+          clubs.getJoined().catch(() => ({ data: [] }))
+        ]);
+        setClubList(allClubsRes.data || []);
+        setMyClubs(myClubsRes.data || []);
       }
+      const joinedRes = await groups.getJoined().catch(() => ({ data: [] }));
+      const joinedClubsRes = await clubs.getJoined().catch(() => ({ data: [] }));
+      const joinedIds = [
+        ...(joinedRes.data || []).map(g => g.id),
+        ...(joinedClubsRes.data || []).map(c => c.id)
+      ];
+      setJoined(new Set(joinedIds));
     } catch (error) {
-      console.log("Backend nicht verfügbar, verwende Demo-Daten");
+      console.error('Error loading data:', error);
+      if (!error.response) {
+        toast.error('Server nicht erreichbar');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleFavorite = (groupId) => {
+  const handleFavorite = async (groupId) => {
     setFavorites(prev => {
       const newFavs = new Set(prev);
-      if (newFavs.has(groupId)) {
-        newFavs.delete(groupId);
-      } else {
-        newFavs.add(groupId);
-      }
+      if (newFavs.has(groupId)) newFavs.delete(groupId);
+      else newFavs.add(groupId);
       return newFavs;
     });
+    try { await groups.toggleFavorite(groupId); } catch (err) { /* ignore */ }
   };
 
-  const handleJoin = (groupId) => {
-    setJoined(prev => new Set(prev).add(groupId));
+  const handleJoin = async (groupId) => {
+    try {
+      await groups.join(groupId);
+      setJoined(prev => new Set(prev).add(groupId));
+      loadData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Fehler beim Beitreten');
+    }
   };
 
-  const handleChat = (groupId) => {
-    navigate(`/chat/${groupId}`);
-  };
+  const handleChat = (groupId) => navigate(`/chat/${groupId}`);
 
   const handleWaitlist = async (groupId, action) => {
     try {
       if (action === 'join') {
-        const res = await api.groups.joinWaitlist(groupId);
-        alert(`Auf Warteliste! Position: ${res.data.position}`);
+        const res = await groups.joinWaitlist(groupId);
+        toast.success(`Auf Warteliste! Position: ${res.data.position}`);
       } else {
-        await api.groups.leaveWaitlist(groupId);
-        alert('Von Warteliste entfernt');
+        await groups.leaveWaitlist(groupId);
+        toast.info('Von Warteliste entfernt');
       }
-      loadData(); // Refresh
+      loadData();
     } catch (error) {
-      console.error('Waitlist error:', error);
-      alert(error.response?.data?.error || 'Fehler bei Warteliste');
+      toast.error(error.response?.data?.error || 'Fehler bei Warteliste');
     }
   };
 
-  const handleCardClick = (groupId) => {
-    navigate(`/group/${groupId}`);
+  const handleCardClick = (groupId) => navigate(`/group/${groupId}`);
+
+  const matchesCategory = (item) => {
+    if (selectedMain === 'all') return true;
+    const mainCat = CATEGORY_HIERARCHY.find(c => c.id === selectedMain);
+    if (!mainCat) return true;
+    const itemCat = (item.category || '').toLowerCase();
+    if (selectedSub) return itemCat === selectedSub.toLowerCase();
+    return mainCat.subs.some(sub => itemCat === sub.name.toLowerCase());
   };
 
-  const filteredGroups = groups.filter(group => {
-    const matchesSearch = group.title?.toLowerCase().includes(searchQuery.toLowerCase()) ?? true;
-    const matchesCategory = activeCategory === "all" ||
-      group.category?.toLowerCase() === activeCategory.toLowerCase();
-    let matchesDate = true;
+  const filteredGroups = groupList.filter(group => {
+    const matchesSearch = (group.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSearch && matchesCategory(group);
+  });
 
-    if (dateFilter !== "all" && group.date) {
-      const date = new Date(group.date);
-      if (!isNaN(date.getTime())) {
-        const now = new Date();
-        if (dateFilter === "today") {
-          const isSameDay =
-            date.getFullYear() === now.getFullYear() &&
-            date.getMonth() === now.getMonth() &&
-            date.getDate() === now.getDate();
-          matchesDate = isSameDay;
-        } else if (dateFilter === "week") {
-          const oneWeekFromNow = new Date();
-          oneWeekFromNow.setDate(now.getDate() + 7);
-          matchesDate = date >= now && date <= oneWeekFromNow;
-        }
-      }
-    }
-
-    return matchesSearch && matchesCategory && matchesDate;
+  const filteredClubs = clubList.filter(club => {
+    const matchesSearch = (club.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesSearch && matchesCategory(club);
   });
 
   return (
     <div className="home-container">
       <header className="home-header">
-        <h1 className="logo-text">Jamie</h1>
+        <h1 className="logo-text">jamie</h1>
       </header>
-      {/* Hinweis, falls Profil nicht fertig ist */}
+
       {user && user.onboarding_completed === false && (
         <div className="profile-warning-banner">
           <div className="profile-warning-title">Profil noch nicht vollständig</div>
           <p className="profile-warning-text">
-            Vervollständige dein Profil, um Gruppen beizutreten und Anfragen zu stellen.
+            Vervollständige dein Profil, um Gruppen beizutreten.
           </p>
-          <button
-            className="profile-warning-button"
-            onClick={() => navigate("/onboarding")}
-          >
+          <button className="profile-warning-button" onClick={() => navigate("/onboarding")}>
             Profil jetzt abschließen
           </button>
         </div>
       )}
+
       <div className="tabs-container">
-        <button 
-          className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`} 
-          onClick={() => setActiveTab('gruppen')}
+        <button
+          className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`}
+          onClick={() => { setActiveTab('gruppen'); setSelectedMain('all'); setSelectedSub(null); }}
         >
           Gruppen
         </button>
-        <button 
-          className={`tab ${activeTab === 'clubs' ? 'active' : ''}`} 
-          onClick={() => setActiveTab('clubs')}
+        <button
+          className={`tab ${activeTab === 'clubs' ? 'active' : ''}`}
+          onClick={() => { setActiveTab('clubs'); setSelectedMain('all'); setSelectedSub(null); }}
         >
           Clubs
         </button>
       </div>
-      {/* Suchleiste */}
+
+      {/* Search */}
       <div className="search-container">
         <div className="search-input-wrapper">
           <svg className="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -267,65 +164,165 @@ export const Home = () => {
           />
         </div>
       </div>
+
+      {/* Categories */}
       <div className="categories-container">
+        {/* Main category row */}
         <div className="categories-scroll">
-          {CATEGORIES.map(cat => (
+          <button
+            className={`category-pill ${selectedMain === 'all' ? 'active' : ''}`}
+            onClick={() => { setSelectedMain('all'); setSelectedSub(null); }}
+          >
+            Alle
+          </button>
+          {CATEGORY_HIERARCHY.map(cat => (
             <button
               key={cat.id}
-              className={`category-pill ${activeCategory === cat.id ? 'active' : ''}`}
-              onClick={() => setActiveCategory(cat.id)}
+              className={`category-pill ${selectedMain === cat.id ? 'active' : ''}`}
+              onClick={() => { setSelectedMain(cat.id); setSelectedSub(null); }}
             >
-              {cat.label}
+              {cat.icon} {cat.label}
             </button>
           ))}
         </div>
-      </div>
-      {/* Datumsfilter */}
-      <div className="date-filters">
-        <button
-          className={`date-filter-pill ${dateFilter === "all" ? "active" : ""}`}
-          onClick={() => setDateFilter("all")}
-        >
-          Alle Termine
-        </button>
-        <button
-          className={`date-filter-pill ${dateFilter === "today" ? "active" : ""}`}
-          onClick={() => setDateFilter("today")}
-        >
-          Heute
-        </button>
-        <button
-          className={`date-filter-pill ${dateFilter === "week" ? "active" : ""}`}
-          onClick={() => setDateFilter("week")}
-        >
-          Nächste 7 Tage
-        </button>
-      </div>
-      <div className="groups-feed">
-        {filteredGroups.length > 0 ? (
-          <div className="groups-grid">
-            {filteredGroups.map((group) => (
-              <GroupCard
-                key={group.id}
-                group={group}
-                isFavorite={favorites.has(group.id)}
-                isJoined={joined.has(group.id)}
-                onFavorite={handleFavorite}
-                onJoin={handleJoin}
-                onChat={handleChat}
-                onWaitlist={handleWaitlist}
-                onClick={() => handleCardClick(group.id)}
-              />
+
+        {/* Subcategory row — slides in when a main is selected */}
+        {selectedMain !== 'all' && (
+          <div className="categories-scroll subcategories-scroll">
+            {CATEGORY_HIERARCHY.find(c => c.id === selectedMain)?.subs.map(sub => (
+              <button
+                key={sub.name}
+                className={`category-pill sub ${selectedSub === sub.name ? 'active' : ''}`}
+                onClick={() => setSelectedSub(prev => prev === sub.name ? null : sub.name)}
+              >
+                {sub.icon} {sub.name}
+              </button>
             ))}
-          </div>
-        ) : (
-          <div className="empty-state">
-            <div className="empty-icon">🔍</div>
-            <p>Keine {activeTab === 'gruppen' ? 'Gruppen' : 'Clubs'} gefunden.</p>
-            <span className="empty-hint">Erstelle selbst eine!</span>
           </div>
         )}
       </div>
+
+      {/* GRUPPEN VIEW */}
+      {activeTab === 'gruppen' && (
+        <div className="groups-feed">
+          <div className="section-header">
+            <h2 className="section-heading">Alle Gruppen</h2>
+            <span className="section-count">{filteredGroups.length}</span>
+          </div>
+          {loading ? (
+            <div className="loading">Laden...</div>
+          ) : filteredGroups.length > 0 ? (
+            <div className="groups-grid">
+              {filteredGroups.map((group) => (
+                <GroupCard
+                  key={group.id}
+                  group={group}
+                  isFavorite={favorites.has(group.id)}
+                  isJoined={joined.has(group.id)}
+                  onFavorite={handleFavorite}
+                  onJoin={handleJoin}
+                  onChat={handleChat}
+                  onWaitlist={handleWaitlist}
+                  onClick={() => handleCardClick(group.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">
+              <div className="empty-icon">🔍</div>
+              <p>Keine Gruppen gefunden.</p>
+              <span className="empty-hint" onClick={() => navigate('/create-group')}>Erstelle selbst eine!</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* CLUBS VIEW */}
+      {activeTab === 'clubs' && (
+        <div className="clubs-feed">
+          {/* Meine Clubs Section */}
+          {myClubs.length > 0 && (
+            <div className="clubs-section">
+              <div className="section-header">
+                <h2 className="section-heading">Meine Clubs</h2>
+                <span className="section-count">{myClubs.length}</span>
+              </div>
+              <div className="my-clubs-scroll">
+                {myClubs.map(club => (
+                  <div key={club.id} className="my-club-card" onClick={() => handleCardClick(club.id)}>
+                    <div className="my-club-image">
+                      {club.image_url ? (
+                        <img src={club.image_url} alt={club.name || club.title} />
+                      ) : (
+                        <div className="my-club-placeholder">
+                          <span>{(club.name || club.title || 'C')[0]}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="my-club-info">
+                      <h4>{club.name || club.title}</h4>
+                      <span className="my-club-members">👥 {club.member_count || club.members_count || 0}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Im Trend Section */}
+          <div className="clubs-section">
+            <div className="section-header">
+              <h2 className="section-heading">Im Trend</h2>
+            </div>
+            {loading ? (
+              <div className="loading">Laden...</div>
+            ) : filteredClubs.length > 0 ? (
+              <div className="trend-clubs-list">
+                {filteredClubs.map(club => (
+                  <div key={club.id} className="trend-club-card" onClick={() => handleCardClick(club.id)}>
+                    <div className="trend-club-image">
+                      {club.image_url ? (
+                        <img src={club.image_url} alt={club.name || club.title} />
+                      ) : (
+                        <div className="trend-club-placeholder">
+                          <span>{(club.category || 'C')[0]}</span>
+                        </div>
+                      )}
+                      <div className="trend-club-overlay">
+                        {club.category && <span className="trend-club-badge">{club.category}</span>}
+                      </div>
+                    </div>
+                    <div className="trend-club-content">
+                      <h3>{club.name || club.title}</h3>
+                      <div className="trend-club-meta">
+                        <span className="trend-club-members">👥 {club.member_count || club.members_count || 0} Mitglieder</span>
+                        {club.location && <span className="trend-club-location">📍 {club.location}</span>}
+                      </div>
+                      <div className="trend-club-actions">
+                        {joined.has(club.id) ? (
+                          <button className="trend-btn joined" onClick={(e) => { e.stopPropagation(); handleChat(club.id); }}>
+                            💬 Chat
+                          </button>
+                        ) : (
+                          <button className="trend-btn join" onClick={(e) => { e.stopPropagation(); handleJoin(club.id); }}>
+                            Beitreten
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state">
+                <div className="empty-icon">🏆</div>
+                <p>Keine Clubs gefunden.</p>
+                <span className="empty-hint" onClick={() => navigate('/create-club')}>Gründe deinen eigenen!</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

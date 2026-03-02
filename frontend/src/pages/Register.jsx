@@ -13,6 +13,25 @@ export const Register = () => {
   const { register, loading } = useContext(AuthContext);
   const navigate = useNavigate();
 
+  const getPasswordStrength = (pwd) => {
+    if (pwd.length === 0) return { score: 0, label: '', color: '' };
+    let score = 0;
+    if (pwd.length >= 8) score++;
+    if (/[A-Z]/.test(pwd)) score++;
+    if (/[0-9]/.test(pwd)) score++;
+    if (/[^A-Za-z0-9]/.test(pwd)) score++;
+    const levels = [
+      { label: 'Sehr schwach', color: '#ff4444' },
+      { label: 'Schwach', color: '#ff8800' },
+      { label: 'Mittel', color: '#ffcc00' },
+      { label: 'Stark', color: '#88cc00' },
+      { label: 'Sehr stark', color: '#00cc66' },
+    ];
+    return { score, ...levels[score] };
+  };
+
+  const strength = getPasswordStrength(password);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -129,6 +148,20 @@ export const Register = () => {
                   required
                   autoFocus
                 />
+                {password.length > 0 && (
+                  <div className="password-strength">
+                    <div className="strength-bar">
+                      {[0, 1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className="strength-segment"
+                          style={{ background: i < strength.score ? strength.color : 'rgba(255,255,255,0.1)' }}
+                        />
+                      ))}
+                    </div>
+                    <span className="strength-label" style={{ color: strength.color }}>{strength.label}</span>
+                  </div>
+                )}
               </div>
               <div className="form-group">
                 <label>Passwort bestätigen</label>

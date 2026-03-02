@@ -194,7 +194,7 @@ const CreateActionModal = ({ isOpen, onClose }) => {
             </div>
             <h2 className="modal-title">Club gründen</h2>
             <div className="form-group">
-              <label>Club Name *</label>
+              <label>Club-Name *</label>
               <input
                 type="text"
                 name="name"
@@ -214,10 +214,10 @@ const CreateActionModal = ({ isOpen, onClose }) => {
                   Bitte wählen …
                 </option>
                 <option value="Sport">Sport</option>
-                <option value="Night Out">Night Out</option>
+                <option value="Ausgehen">Ausgehen</option>
                 <option value="Outdoor">Outdoor</option>
                 <option value="Kultur">Kultur</option>
-                <option value="Food">Food</option>
+                <option value="Essen & Trinken">Essen & Trinken</option>
               </select>
             </div>
             <div className="form-group">

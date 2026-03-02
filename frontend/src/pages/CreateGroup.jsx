@@ -2,24 +2,22 @@ import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { groups } from '../utils/api';
-
-const ACTIVITY_CATEGORIES = [
-  'Hiking', 'Tennis', 'Golf', 'Beachvolleyball', 'Running',
-  'Volleyball', 'Wandern', 'Fitness', 'Yoga', 'Swimming',
-  'Cycling', 'Basketball', 'Football', 'Skiing', 'Climbing'
-];
+import { useToast } from '../context/ToastContext';
+import { CATEGORY_HIERARCHY } from '../utils/categories';
 
 export const CreateGroup = () => {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
-  
+  const toast = useToast();
+
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
   const [formData, setFormData] = useState({
     name: '',
-    activity: '', // Used for UI selection
+    mainCategory: '',
+    activity: '',
     description: '',
     date: '',
     time: '',
@@ -86,7 +84,9 @@ export const CreateGroup = () => {
       navigate(`/group/${response.data.id}`);
     } catch (err) {
       console.error(err);
-      setError(err.response?.data?.error || err.message || 'Fehler beim Erstellen der Gruppe');
+      const msg = err.response?.data?.error || err.message || 'Fehler beim Erstellen der Gruppe';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -94,7 +94,7 @@ export const CreateGroup = () => {
 
   const canProceed = () => {
     switch(step) {
-      case 1: return formData.name && formData.activity;
+      case 1: return formData.name && formData.mainCategory && formData.activity;
       case 2: return formData.date && formData.location;
       case 3: return true;
       default: return false;
@@ -130,19 +130,39 @@ export const CreateGroup = () => {
             <input type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="z.B. Volleyball am Strand" className="input" />
           </div>
           <div className="form-section">
-            <label className="form-label">Aktivität</label>
-            <div className="activity-grid">
-              {ACTIVITY_CATEGORIES.map(activity => (
+            <label className="form-label">Kategorie</label>
+            <div className="main-category-grid">
+              {CATEGORY_HIERARCHY.map(cat => (
                 <button
-                  key={activity}
-                  className={`activity-chip ${formData.activity === activity ? 'active' : ''}`}
-                  onClick={() => setFormData(prev => ({ ...prev, activity }))}
+                  key={cat.id}
+                  type="button"
+                  className={`main-category-chip ${formData.mainCategory === cat.id ? 'active' : ''}`}
+                  onClick={() => setFormData(prev => ({ ...prev, mainCategory: cat.id, activity: '' }))}
                 >
-                  {activity}
+                  <span className="chip-icon">{cat.icon}</span>
+                  <span>{cat.label}</span>
                 </button>
               ))}
             </div>
           </div>
+
+          {formData.mainCategory && (
+            <div className="form-section">
+              <label className="form-label">Unterkategorie</label>
+              <div className="activity-grid">
+                {CATEGORY_HIERARCHY.find(c => c.id === formData.mainCategory)?.subs.map(sub => (
+                  <button
+                    key={sub.name}
+                    type="button"
+                    className={`activity-chip ${formData.activity === sub.name ? 'active' : ''}`}
+                    onClick={() => setFormData(prev => ({ ...prev, activity: sub.name }))}
+                  >
+                    {sub.icon} {sub.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="form-section">
             <label className="form-label">Beschreibung</label>
             <textarea name="description" value={formData.description} onChange={handleInputChange} placeholder="Erzähl etwas über deine Aktivität..." className="input textarea" rows={4} />
@@ -152,7 +172,7 @@ export const CreateGroup = () => {
             <div className="image-upload-area">
               {formData.imagePreview ? (
                 <div className="image-preview">
-                  <img src={formData.imagePreview} alt="Preview" />
+                  <img src={formData.imagePreview} alt="Vorschau" />
                   <button className="remove-image" onClick={() => setFormData(prev => ({ ...prev, image: null, imagePreview: null }))}>×</button>
                 </div>
               ) : (
@@ -184,13 +204,13 @@ export const CreateGroup = () => {
           <div className="form-section">
             <label className="form-label">Maximale Teilnehmer</label>
             <div className="counter-input">
-              <button className="counter-btn" onClick={() => setFormData(prev => ({ ...prev, maxMembers: Math.max(2, prev.maxMembers - 1) }))}>−</button>
+              <button type="button" className="counter-btn" onClick={() => setFormData(prev => ({ ...prev, maxMembers: Math.max(2, prev.maxMembers - 1) }))}>−</button>
               <span className="counter-value">{formData.maxMembers}</span>
-              <button className="counter-btn" onClick={() => setFormData(prev => ({ ...prev, maxMembers: Math.min(20, prev.maxMembers + 1) }))}>+</button>
+              <button type="button" className="counter-btn" onClick={() => setFormData(prev => ({ ...prev, maxMembers: Math.min(20, prev.maxMembers + 1) }))}>+</button>
             </div>
           </div>
           <div className="form-section">
-            <label className="form-label">Level</label>
+            <label className="form-label">Niveau</label>
             <div className="level-options">
               {['Anfänger', 'Alle Levels', 'Fortgeschritten', 'Experte'].map(level => (
                 <button key={level} className={`level-chip ${formData.level === level ? 'active' : ''}`} onClick={() => setFormData(prev => ({ ...prev, level }))}>{level}</button>
@@ -216,7 +236,7 @@ export const CreateGroup = () => {
           <div className="preview-section">
             <h3>Vorschau</h3>
             <div className="preview-card">
-              {formData.imagePreview && <img src={formData.imagePreview} alt="Preview" className="preview-image" />}
+              {formData.imagePreview && <img src={formData.imagePreview} alt="Vorschau" className="preview-image" />}
               <div className="preview-content">
                 <h4>{formData.name || 'Titel'}</h4>
                 <p className="preview-activity">{formData.activity}</p>
@@ -240,4 +260,4 @@ export const CreateGroup = () => {
       </div>
     </div>
   );
-};
+};export default CreateGroup;

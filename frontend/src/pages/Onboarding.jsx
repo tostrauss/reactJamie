@@ -4,15 +4,20 @@ import { AuthContext } from '../context/AuthContext';
 import { api } from '../utils/api';
 import { ImageUpload } from '../components/ImageUpload';
 import '../styles/auth.css';
-import '../styles/home.css';
 
 const INTEREST_OPTIONS = [
-  'Sports', 'Music', 'Tech', 'Art', 'Social', 'Gaming', 
-  'Fitness', 'Travel', 'Food', 'Movies', 'Reading', 'Photography',
-  'Hiking', 'Yoga', 'Dancing', 'Cooking', 'Fashion', 'Nature'
+  'Sport', 'Musik', 'Technik', 'Kunst', 'Soziales', 'Gaming',
+  'Fitness', 'Reisen', 'Essen', 'Filme', 'Lesen', 'Fotografie',
+  'Wandern', 'Yoga', 'Tanzen', 'Kochen', 'Mode', 'Natur'
 ];
 
-const STEPS = ['Welcome', 'Profile', 'Interests', 'Photos', 'Complete'];
+const STEPS = ['Geschlecht', 'Profil', 'Interessen', 'Fotos', 'Fertig'];
+
+const GENDER_OPTIONS = [
+  { value: 'm\u00e4nnlich', label: 'M\u00e4nnlich', icon: '\u2642' },
+  { value: 'weiblich', label: 'Weiblich', icon: '\u2640' },
+  { value: 'divers', label: 'Divers', icon: '\u26A7' }
+];
 
 export const Onboarding = () => {
   const navigate = useNavigate();
@@ -20,30 +25,23 @@ export const Onboarding = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  // Custom interest state
   const [customInterest, setCustomInterest] = useState('');
 
-  // Form Data
   const [formData, setFormData] = useState({
     gender: '',
     location: '',
     bio: '',
     interests: [],
     photos: [],
-    avatar_url: null // Added avatar_url
+    avatar_url: null
   });
 
   const handleNext = () => {
-    if (currentStep < STEPS.length - 1) {
-      setCurrentStep(prev => prev + 1);
-    }
+    if (currentStep < STEPS.length - 1) setCurrentStep(prev => prev + 1);
   };
 
   const handleBack = () => {
-    if (currentStep > 0) {
-      setCurrentStep(prev => prev - 1);
-    }
+    if (currentStep > 0) setCurrentStep(prev => prev - 1);
   };
 
   const toggleInterest = (interest) => {
@@ -67,13 +65,8 @@ export const Onboarding = () => {
     if (formData.photos.length < 6) {
       setFormData(prev => {
         const newPhotos = [...prev.photos, url];
-        // Automatically set first photo as avatar if none exists
         const newAvatar = prev.avatar_url || url;
-        return {
-          ...prev,
-          photos: newPhotos,
-          avatar_url: newAvatar
-        };
+        return { ...prev, photos: newPhotos, avatar_url: newAvatar };
       });
     }
   };
@@ -86,31 +79,20 @@ export const Onboarding = () => {
     setFormData(prev => {
       const photoToRemove = prev.photos[index];
       const newPhotos = prev.photos.filter((_, i) => i !== index);
-      
-      // If we removed the avatar, set a new one
       let newAvatar = prev.avatar_url;
       if (photoToRemove === prev.avatar_url) {
         newAvatar = newPhotos.length > 0 ? newPhotos[0] : null;
       }
-
-      return {
-        ...prev,
-        photos: newPhotos,
-        avatar_url: newAvatar
-      };
+      return { ...prev, photos: newPhotos, avatar_url: newAvatar };
     });
   };
 
   const handleComplete = async () => {
     setLoading(true);
     setError('');
-
     try {
       await api.put('/auth/onboarding', formData);
-      // Profil im Frontend aktualisieren, damit Gating & Badges direkt stimmen
-      if (typeof refreshProfile === 'function') {
-        await refreshProfile();
-      }
+      if (typeof refreshProfile === 'function') await refreshProfile();
       navigate('/home');
     } catch (err) {
       setError(err.response?.data?.error || 'Profil konnte nicht gespeichert werden');
@@ -119,435 +101,223 @@ export const Onboarding = () => {
     }
   };
 
-  const handleSkip = () => {
-    navigate('/home');
-  };
-
-  // Progress Bar
   const progress = ((currentStep + 1) / STEPS.length) * 100;
 
   return (
-    <div className="auth-container" style={{ padding: '20px' }}>
-      <div className="auth-box" style={{ maxWidth: '500px', padding: '30px' }}>
-        
-        {/* Progress Bar */}
-        <div style={{ marginBottom: '30px' }}>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            marginBottom: '10px',
-            fontSize: '12px',
-            color: '#999'
-          }}>
-            <span>Step {currentStep + 1} of {STEPS.length}</span>
-            <span>{STEPS[currentStep]}</span>
-          </div>
-          <div style={{ 
-            height: '4px', 
-            background: 'rgba(255,255,255,0.1)', 
-            borderRadius: '2px',
-            overflow: 'hidden'
-          }}>
-            <div style={{ 
-              width: `${progress}%`, 
-              height: '100%', 
-              background: 'linear-gradient(135deg, #ff6b6b, #ff8585)',
-              transition: 'width 0.3s ease'
-            }} />
+    <div className="onboarding-container">
+      {/* Progress */}
+      <div className="onboarding-header">
+        {currentStep > 0 && (
+          <button className="onboarding-back" onClick={handleBack}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+          </button>
+        )}
+        <div style={{ flex: 1 }} />
+        <span className="onboarding-step-text">
+          {currentStep + 1} / {STEPS.length}
+        </span>
+      </div>
+      <div className="onboarding-progress">
+        <div className="onboarding-progress-bar" style={{ width: `${progress}%` }} />
+      </div>
+
+      {/* Step 0: Gender Selection */}
+      {currentStep === 0 && (
+        <div className="onboarding-content">
+          <h1 className="onboarding-title">W&auml;hle dein<br/>Geschlecht</h1>
+          <p className="onboarding-subtitle">
+            Damit wir dir passendere Gruppen vorschlagen k&ouml;nnen
+          </p>
+          <div className="onboarding-options">
+            {GENDER_OPTIONS.map(({ value, label, icon }) => (
+              <button
+                key={value}
+                className={`onboarding-option ${formData.gender === value ? 'selected' : ''}`}
+                onClick={() => setFormData(prev => ({ ...prev, gender: value }))}
+              >
+                <span className="option-icon">{icon}</span>
+                <span className="option-label">{label}</span>
+              </button>
+            ))}
           </div>
         </div>
+      )}
 
-        {/* Step 0: Welcome */}
-        {currentStep === 0 && (
-          <div style={{ textAlign: 'center' }}>
-            <h1 className="logo" style={{ fontSize: '36px' }}>Willkommen bei JAMIE! 🎉</h1>
-            <p className="subtitle" style={{ marginBottom: '30px', lineHeight: '1.6' }}>
-              Lass uns kurz dein Profil einrichten, damit dich andere finden und du passende Gruppen & Clubs in deiner Nähe entdecken kannst.
-            </p>
-            <div style={{ 
-              background: 'rgba(255,107,107,0.1)', 
-              borderRadius: '15px', 
-              padding: '20px',
-              marginBottom: '30px'
-            }}>
-              <p style={{ fontSize: '14px', color: '#ddd' }}>
-                ✨ Dauert nur eine Minute – ohne vollständiges Profil kannst du später keine Gruppenanfragen stellen.
-              </p>
-            </div>
-            <button onClick={handleNext} className="btn-primary" style={{ width: '100%', padding: '14px' }}>
-              Los geht&apos;s
-            </button>
-            <button onClick={handleSkip} className="btn-secondary" style={{ width: '100%', marginTop: '10px', padding: '12px' }}>
-              Später abschließen (nur Demo)
-            </button>
-          </div>
-        )}
-
-        {/* Step 1: Basic Profile */}
-        {currentStep === 1 && (
-          <div>
-            <h2 style={{ marginBottom: '10px', textAlign: 'center' }}>Erzähl uns etwas über dich</h2>
-            <p className="subtitle" style={{ textAlign: 'center', marginBottom: '25px' }}>
-              Damit schlagen wir dir später passendere Gruppen vor
-            </p>
-
-            <div className="form-group" style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', color: '#ccc', fontSize: '13px' }}>
-                Geschlecht
-              </label>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                {['Männlich', 'Weiblich', 'Divers'].map(g => (
-                  <button
-                    key={g}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, gender: g.toLowerCase() })}
-                    style={{
-                      flex: 1,
-                      padding: '12px',
-                      borderRadius: '10px',
-                      border: formData.gender === g.toLowerCase() 
-                        ? '2px solid #ff6b6b' 
-                        : '1px solid rgba(255,255,255,0.2)',
-                      background: formData.gender === g.toLowerCase() 
-                        ? 'rgba(255,107,107,0.2)' 
-                        : 'rgba(255,255,255,0.05)',
-                      color: '#fff',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    {g}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="form-group" style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', color: '#ccc', fontSize: '13px' }}>
-                📍 Wohnort
-              </label>
+      {/* Step 1: Basic Profile */}
+      {currentStep === 1 && (
+        <div className="onboarding-content" style={{ justifyContent: 'flex-start', paddingTop: '20px' }}>
+          <h1 className="onboarding-title">Erzähl uns<br/>etwas über dich</h1>
+          <p className="onboarding-subtitle">
+            Damit schlagen wir dir später passendere Gruppen vor
+          </p>
+          <div className="onboarding-form">
+            <div className="onboarding-field">
+              <label>📍 Wohnort</label>
               <input
                 type="text"
                 placeholder="z.B. Wien, Österreich"
                 value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                style={{ marginBottom: 0 }}
+                onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
               />
             </div>
-
-            <div className="form-group" style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '8px', color: '#ccc', fontSize: '13px' }}>
-                ✍️ Kurzbeschreibung (optional)
-              </label>
+            <div className="onboarding-field">
+              <label>✍️ Kurzbeschreibung (optional)</label>
               <textarea
                 placeholder="Erzähl kurz, wer du bist und worauf du Lust hast..."
                 value={formData.bio}
-                onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-                style={{ minHeight: '100px', marginBottom: 0 }}
+                onChange={(e) => setFormData(prev => ({ ...prev, bio: e.target.value }))}
+                rows={4}
               />
             </div>
-
-            <div style={{ display: 'flex', gap: '10px', marginTop: '30px' }}>
-              <button onClick={handleBack} className="btn-secondary" style={{ flex: 1 }}>
-                Back
-              </button>
-              <button onClick={handleNext} className="btn-primary" style={{ flex: 2 }}>
-                Continue
-              </button>
-            </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Step 2: Interests */}
-        {currentStep === 2 && (
-          <div>
-            <h2 style={{ marginBottom: '10px', textAlign: 'center' }}>Worauf hast du Lust?</h2>
-            <p className="subtitle" style={{ textAlign: 'center', marginBottom: '25px' }}>
-              Wähle mindestens 3 Interessen, damit wir dir passende Gruppen zeigen können
-            </p>
-
-            {/* Custom Interest Input */}
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-              <input 
+      {/* Step 2: Interests */}
+      {currentStep === 2 && (
+        <div className="onboarding-content" style={{ justifyContent: 'flex-start', paddingTop: '20px' }}>
+          <h1 className="onboarding-title">Worauf hast<br/>du Lust?</h1>
+          <p className="onboarding-subtitle">
+            Wähle mindestens 3 Interessen
+          </p>
+          <div className="onboarding-field" style={{ marginBottom: '16px', width: '100%', maxWidth: '400px' }}>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <input
                 type="text"
-                placeholder="Eigenes Interesse hinzufügen..."
+                placeholder="Eigenes Interesse..."
                 value={customInterest}
                 onChange={(e) => setCustomInterest(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && addCustomInterest(e)}
-                style={{ marginBottom: 0 }}
+                onKeyDown={(e) => e.key === 'Enter' && addCustomInterest(e)}
               />
-              <button 
-                onClick={addCustomInterest}
-                className="btn-secondary"
-                style={{ width: 'auto', padding: '0 20px' }}
-              >
-                +
-              </button>
-            </div>
-
-            <div style={{ 
-              display: 'flex', 
-              flexWrap: 'wrap', 
-              gap: '10px',
-              marginBottom: '30px',
-              maxHeight: '300px',
-              overflowY: 'auto'
-            }}>
-              {/* Combine default options with any custom ones the user added */}
-              {[...new Set([...INTEREST_OPTIONS, ...formData.interests])].map(interest => (
-                <button
-                  key={interest}
-                  type="button"
-                  onClick={() => toggleInterest(interest)}
-                  style={{
-                    padding: '10px 18px',
-                    borderRadius: '25px',
-                    border: formData.interests.includes(interest) 
-                      ? '2px solid #ff6b6b' 
-                      : '1px solid rgba(255,255,255,0.2)',
-                    background: formData.interests.includes(interest) 
-                      ? 'rgba(255,107,107,0.3)' 
-                      : 'rgba(255,255,255,0.05)',
-                    color: '#fff',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  {interest}
-                </button>
-              ))}
-            </div>
-
-            <p style={{ 
-              textAlign: 'center', 
-              color: formData.interests.length >= 3 ? '#90ee90' : '#999',
-              fontSize: '13px',
-              marginBottom: '20px'
-            }}>
-              {formData.interests.length} selected {formData.interests.length < 3 && `(${3 - formData.interests.length} more needed)`}
-            </p>
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={handleBack} className="btn-secondary" style={{ flex: 1 }}>
-                Back
-              </button>
-              <button 
-                onClick={handleNext} 
-                className="btn-primary" 
-                style={{ flex: 2 }}
-                disabled={formData.interests.length < 3}
-              >
-                Continue
-              </button>
+              <button onClick={addCustomInterest} className="onboarding-add-btn">+</button>
             </div>
           </div>
-        )}
+          <div className="interests-grid">
+            {[...new Set([...INTEREST_OPTIONS, ...formData.interests])].map(interest => (
+              <button
+                key={interest}
+                className={`interest-tag ${formData.interests.includes(interest) ? 'selected' : ''}`}
+                onClick={() => toggleInterest(interest)}
+              >
+                {interest}
+              </button>
+            ))}
+          </div>
+          <p className="interest-counter">
+            {formData.interests.length} ausgewählt
+            {formData.interests.length < 3 && ` (noch ${3 - formData.interests.length} nötig)`}
+          </p>
+        </div>
+      )}
 
-        {/* Step 3: Photos */}
-        {currentStep === 3 && (
-          <div>
-            <h2 style={{ marginBottom: '10px', textAlign: 'center' }}>Füge ein paar Fotos hinzu</h2>
-            <p className="subtitle" style={{ textAlign: 'center', marginBottom: '25px' }}>
-              Zeig ein bisschen von dir! Tippe auf ein Foto, um es als Profilbild zu setzen.
-            </p>
+      {/* Step 3: Photos */}
+      {currentStep === 3 && (
+        <div className="onboarding-content" style={{ justifyContent: 'flex-start', paddingTop: '20px' }}>
+          <h1 className="onboarding-title">Füge Fotos<br/>hinzu</h1>
+          <p className="onboarding-subtitle">
+            Tippe auf ein Foto, um es als Profilbild zu setzen
+          </p>
+          <div className="photos-grid">
+            {[...Array(6)].map((_, index) => (
+              <div
+                key={index}
+                className={`photo-slot ${formData.photos[index] === formData.avatar_url ? 'main' : ''}`}
+                onClick={() => formData.photos[index] && setMainPhoto(formData.photos[index])}
+              >
+                {formData.photos[index] ? (
+                  <>
+                    <img src={formData.photos[index]} alt={`Foto ${index + 1}`} />
+                    {formData.photos[index] === formData.avatar_url && (
+                      <div className="main-badge">Profilbild</div>
+                    )}
+                    <button
+                      className="photo-remove"
+                      onClick={(e) => { e.stopPropagation(); removePhoto(index); }}
+                    >
+                      ×
+                    </button>
+                  </>
+                ) : (
+                  <span className="photo-add">+</span>
+                )}
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: '20px' }}>
+            <ImageUpload
+              onUpload={handlePhotoUpload}
+              label={`Foto hinzufügen (${formData.photos.length}/6)`}
+            />
+          </div>
+        </div>
+      )}
 
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(3, 1fr)', 
-              gap: '10px',
-              marginBottom: '20px'
-            }}>
-              {[...Array(6)].map((_, index) => (
-                <div 
-                  key={index}
-                  style={{
-                    aspectRatio: '1',
-                    borderRadius: '12px',
-                    border: formData.photos[index] === formData.avatar_url 
-                      ? '2px solid #ff6b6b' 
-                      : '2px dashed rgba(255,255,255,0.2)',
-                    background: 'rgba(255,255,255,0.05)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    overflow: 'hidden',
-                    position: 'relative',
-                    cursor: formData.photos[index] ? 'pointer' : 'default'
-                  }}
-                  onClick={() => formData.photos[index] && setMainPhoto(formData.photos[index])}
-                >
-                  {formData.photos[index] ? (
-                    <>
-                      <img 
-                        src={formData.photos[index]} 
-                        alt={`Photo ${index + 1}`}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                      
-                      {/* Avatar Indicator */}
-                      {formData.photos[index] === formData.avatar_url && (
-                        <div style={{
-                          position: 'absolute',
-                          bottom: '0',
-                          left: '0',
-                          right: '0',
-                          background: 'rgba(255, 107, 107, 0.9)',
-                          color: 'white',
-                          fontSize: '10px',
-                          textAlign: 'center',
-                          padding: '2px 0'
-                        }}>
-                          Main Profile
-                        </div>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removePhoto(index);
-                        }}
-                        style={{
-                          position: 'absolute',
-                          top: '5px',
-                          right: '5px',
-                          width: '24px',
-                          height: '24px',
-                          borderRadius: '50%',
-                          background: 'rgba(0,0,0,0.7)',
-                          border: 'none',
-                          color: '#fff',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '14px'
-                        }}
-                      >
-                        ×
-                      </button>
-                    </>
-                  ) : (
-                    <span style={{ color: '#666', fontSize: '24px' }}>+</span>
+      {/* Step 4: Complete */}
+      {currentStep === 4 && (
+        <div className="onboarding-content">
+          <div className="complete-icon">🎊</div>
+          <h1 className="onboarding-title">Du bist bereit!</h1>
+          <p className="onboarding-subtitle">
+            Dein Profil ist fertig. Du kannst jetzt Gruppen beitreten und mit anderen schreiben.
+          </p>
+          <div className="profile-preview-card">
+            <div className="preview-avatar">
+              {formData.avatar_url ? (
+                <img src={formData.avatar_url} alt="Profil" />
+              ) : (
+                <span>👤</span>
+              )}
+            </div>
+            <div className="preview-info">
+              {formData.location && <p>📍 {formData.location}</p>}
+              {formData.bio && <p className="preview-bio">"{formData.bio}"</p>}
+              {formData.interests.length > 0 && (
+                <div className="preview-interests">
+                  {formData.interests.slice(0, 5).map(i => (
+                    <span key={i} className="preview-interest-tag">{i}</span>
+                  ))}
+                  {formData.interests.length > 5 && (
+                    <span className="preview-more">+{formData.interests.length - 5}</span>
                   )}
                 </div>
-              ))}
-            </div>
-
-            <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-              <ImageUpload
-                onUpload={handlePhotoUpload}
-                label={`Add Photo (${formData.photos.length}/6)`}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={handleBack} className="btn-secondary" style={{ flex: 1 }}>
-                Back
-              </button>
-              <button onClick={handleNext} className="btn-primary" style={{ flex: 2 }}>
-                {formData.photos.length > 0 ? 'Continue' : 'Skip for now'}
-              </button>
+              )}
             </div>
           </div>
+          {error && <p className="error-message">{error}</p>}
+        </div>
+      )}
+
+      {/* Footer */}
+      <div className="onboarding-footer">
+        {currentStep === 0 ? (
+          <button
+            className="auth-btn auth-btn-primary"
+            onClick={handleNext}
+            disabled={!formData.gender}
+          >
+            Bestätigen
+          </button>
+        ) : currentStep < 4 ? (
+          <button
+            className="auth-btn auth-btn-primary"
+            onClick={handleNext}
+            disabled={currentStep === 2 && formData.interests.length < 3}
+          >
+            Weiter
+          </button>
+        ) : (
+          <button
+            className="auth-btn auth-btn-primary"
+            onClick={handleComplete}
+            disabled={loading}
+          >
+            {loading ? 'Speichere...' : "Los geht's! 🚀"}
+          </button>
         )}
-
-        {/* Step 4: Complete */}
-        {currentStep === 4 && (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '60px', marginBottom: '20px' }}>🎊</div>
-            <h2 style={{ marginBottom: '10px' }}>Du bist bereit! 🎊</h2>
-            <p className="subtitle" style={{ marginBottom: '30px', lineHeight: '1.6' }}>
-              Dein Profil ist fertig. Du kannst jetzt Gruppen beitreten, Clubs gründen und mit anderen schreiben.
-            </p>
-
-            {/* Profile Preview */}
-            <div style={{ 
-              background: 'rgba(255,255,255,0.05)', 
-              borderRadius: '15px', 
-              padding: '20px',
-              marginBottom: '30px',
-              textAlign: 'left',
-              display: 'flex',
-              gap: '15px',
-              alignItems: 'flex-start'
-            }}>
-              {/* Preview Avatar */}
-              <div style={{
-                width: '60px',
-                height: '60px',
-                borderRadius: '50%',
-                overflow: 'hidden',
-                background: '#333',
-                flexShrink: 0
-              }}>
-                {formData.avatar_url ? (
-                  <img src={formData.avatar_url} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                ) : (
-                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>👤</div>
-                )}
-              </div>
-
-              <div>
-                <h4 style={{ marginBottom: '5px', color: '#ff6b6b' }}>Profile Preview</h4>
-                
-                {formData.location && (
-                  <p style={{ fontSize: '13px', marginBottom: '8px' }}>
-                    📍 {formData.location}
-                  </p>
-                )}
-                
-                {formData.bio && (
-                  <p style={{ fontSize: '13px', marginBottom: '8px', color: '#ccc' }}>
-                    "{formData.bio}"
-                  </p>
-                )}
-                
-                {formData.interests.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '10px' }}>
-                    {formData.interests.slice(0, 5).map(i => (
-                      <span key={i} style={{ 
-                        background: 'rgba(255,107,107,0.2)', 
-                        padding: '4px 10px', 
-                        borderRadius: '15px',
-                        fontSize: '11px'
-                      }}>
-                        {i}
-                      </span>
-                    ))}
-                    {formData.interests.length > 5 && (
-                      <span style={{ fontSize: '11px', color: '#999' }}>
-                        +{formData.interests.length - 5} more
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {error && <p className="error" style={{ marginBottom: '15px' }}>{error}</p>}
-
-            <button 
-              onClick={handleComplete} 
-              className="btn-primary" 
-              style={{ width: '100%', padding: '14px' }}
-              disabled={loading}
-            >
-              {loading ? 'Speichere...' : 'Los geht&apos;s! 🚀'}
-            </button>
-            
-            <button 
-              onClick={handleBack} 
-              className="btn-secondary" 
-              style={{ width: '100%', marginTop: '10px', padding: '12px' }}
-            >
-              Zurück & Bearbeiten
-            </button>
-          </div>
-        )}
-
       </div>
     </div>
   );
 };
+export default Onboarding;
