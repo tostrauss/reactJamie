@@ -8,7 +8,7 @@ export const createGroup = async (req, res) => {
   const userId = req.userId; // JWT auth (not session)
 
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-  if (!name) return res.status(400).json({ error: 'Name is required' });
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
 
   try {
     // Combine date + time if both provided
@@ -81,11 +81,11 @@ export const getGroups = async (req, res) => {
 
     if (limit) {
       query += ` LIMIT $${paramIndex++}`;
-      params.push(parseInt(limit));
+      params.push(parseInt(limit, 10));
     }
     if (offset) {
       query += ` OFFSET $${paramIndex++}`;
-      params.push(parseInt(offset));
+      params.push(parseInt(offset, 10));
     }
 
     const result = await db.query(query, params);
@@ -220,18 +220,21 @@ export const joinGroup = async (req, res) => {
       return res.status(400).json({ error: 'Group is full' });
     }
 
-    // Private group → create join request
+    // Private group → create join request (or reset a previous rejection to pending)
     if (g.is_private) {
       const existingReq = await db.query(
-        `SELECT * FROM group_join_requests WHERE group_id = $1 AND user_id = $2 AND status = 'pending'`,
+        `SELECT * FROM group_join_requests WHERE group_id = $1 AND user_id = $2`,
         [id, req.userId]
       );
-      if (existingReq.rows.length > 0) {
+      if (existingReq.rows.length > 0 && existingReq.rows[0].status === 'pending') {
         return res.status(400).json({ error: 'Join request already pending' });
       }
 
       await db.query(
-        'INSERT INTO group_join_requests (group_id, user_id, message) VALUES ($1, $2, $3)',
+        `INSERT INTO group_join_requests (group_id, user_id, message)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (group_id, user_id)
+         DO UPDATE SET status = 'pending', message = $3, updated_at = CURRENT_TIMESTAMP`,
         [id, req.userId, message || null]
       );
       return res.json({ message: 'Join request sent', status: 'pending' });
@@ -388,12 +391,23 @@ export const getGroupMembers = async (req, res) => {
 export const getUserGroups = async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT g.*, u.name as owner_name, gm.role
+      `SELECT g.*, u.name as owner_name, gm.role,
+              lm.content as last_message,
+              lm.created_at as last_message_time,
+              lm_user.name as last_message_sender
        FROM group_members gm
        JOIN groups g ON gm.group_id = g.id
        LEFT JOIN users u ON g.owner_id = u.id
+       LEFT JOIN LATERAL (
+         SELECT m.content, m.created_at, m.user_id
+         FROM messages m
+         WHERE m.group_id = g.id
+         ORDER BY m.created_at DESC
+         LIMIT 1
+       ) lm ON TRUE
+       LEFT JOIN users lm_user ON lm.user_id = lm_user.id
        WHERE gm.user_id = $1
-       ORDER BY gm.joined_at DESC`,
+       ORDER BY lm.created_at DESC NULLS LAST, gm.joined_at DESC`,
       [req.userId]
     );
     res.json(result.rows);
@@ -495,7 +509,7 @@ export const kickMember = async (req, res) => {
     if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
 
     // Cannot kick yourself (owner)
-    if (parseInt(userId) === req.userId) {
+    if (parseInt(userId, 10) === req.userId) {
       return res.status(400).json({ error: 'Cannot remove yourself. Delete the group instead.' });
     }
 
@@ -544,8 +558,8 @@ export const cancelGroup = async (req, res) => {
     const groupName = group.rows[0].name;
     for (const member of members.rows) {
       await db.query(
-        `INSERT INTO notifications (user_id, sender_id, type, title, message, reference_id) 
-         VALUES ($1, $2, 'group_cancelled', $3, $4, $5)`,
+        `INSERT INTO notifications (user_id, sender_id, type, title, message, reference_type, reference_id)
+         VALUES ($1, $2, 'group_cancelled', $3, $4, 'group', $5)`,
         [member.user_id, req.userId, `${groupName} wurde abgesagt`, reason || 'Das Event wurde vom Ersteller abgesagt.', id]
       );
     }
@@ -671,7 +685,7 @@ export const getUserWaitlistStatus = async (req, res) => {
 export const getGroupMemberAvatars = async (req, res) => {
   try {
     const { id } = req.params;
-    const limit = parseInt(req.query.limit) || 4;
+    const limit = parseInt(req.query.limit, 10) || 4;
     const result = await db.query(
       `SELECT u.id, u.avatar_url, u.name
        FROM group_members gm

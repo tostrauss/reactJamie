@@ -10,6 +10,9 @@ export const sendDM = async (req, res) => {
     if (!receiverId || !content) {
       return res.status(400).json({ error: 'receiverId and content required' });
     }
+    if (content.length > 5000) {
+      return res.status(400).json({ error: 'Message cannot exceed 5000 characters' });
+    }
 
     // Verify friendship exists and is accepted
     const friendship = await db.query(
@@ -53,7 +56,7 @@ export const sendDM = async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error sending DM:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
@@ -63,8 +66,23 @@ export const sendDM = async (req, res) => {
 export const getConversation = async (req, res) => {
   try {
     const { userId } = req.params;
-    const limit = parseInt(req.query.limit) || 50;
-    const offset = parseInt(req.query.offset) || 0;
+    const limit = parseInt(req.query.limit, 10) || 50;
+    const offset = parseInt(req.query.offset, 10) || 0;
+
+    // Verify friendship before allowing message history access
+    const friendship = await db.query(
+      `SELECT id FROM friendships
+       WHERE status = 'accepted'
+       AND ((requester_id = $1 AND addressee_id = $2)
+            OR (requester_id = $2 AND addressee_id = $1))`,
+      [req.userId, userId]
+    );
+    if (friendship.rows.length === 0) {
+      return res.status(403).json({
+        error: 'You must be friends to view this conversation',
+        requiresFriendship: true
+      });
+    }
 
     const result = await db.query(
       `SELECT dm.*, 
@@ -83,7 +101,7 @@ export const getConversation = async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching conversation:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
@@ -93,7 +111,7 @@ export const getConversation = async (req, res) => {
 export const getConversations = async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT dc.*, u.name as other_name, u.avatar_url as other_avatar,
+      `SELECT dc.*, u.name as other_user_name, u.avatar_url as other_user_avatar,
               dm.content as last_message_text, dm.created_at as last_message_at
        FROM dm_conversations dc
        JOIN users u ON dc.other_user_id = u.id
@@ -106,7 +124,7 @@ export const getConversations = async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching conversations:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
@@ -132,6 +150,6 @@ export const markDMRead = async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Error marking DM read:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 };

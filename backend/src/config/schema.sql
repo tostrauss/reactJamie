@@ -37,11 +37,17 @@ CREATE TABLE users (
   interests JSONB DEFAULT '[]',
   favorite_song JSONB,
   pinterest_url TEXT,
+  spotify_access_token TEXT,
+  spotify_refresh_token TEXT,
+  spotify_token_expiry TIMESTAMP,
+  spotify_connected BOOLEAN DEFAULT FALSE,
   onboarding_completed BOOLEAN DEFAULT FALSE,
   onboarding_step INTEGER DEFAULT 0,
   profile_completion INTEGER DEFAULT 0,
   is_verified BOOLEAN DEFAULT FALSE,
   is_active BOOLEAN DEFAULT TRUE,
+  login_attempts INTEGER DEFAULT 0,
+  locked_until TIMESTAMP,
   last_seen TIMESTAMP,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -52,13 +58,14 @@ CREATE INDEX idx_users_location ON users(location);
 CREATE INDEX idx_users_auth_provider ON users(auth_provider, auth_provider_id);
 CREATE INDEX idx_users_onboarding ON users(onboarding_completed);
 
--- 2. Categories 
+-- 2. Categories
 CREATE TABLE categories (
   id SERIAL PRIMARY KEY,
   name VARCHAR(100) UNIQUE NOT NULL,
   icon VARCHAR(50),
   color VARCHAR(10),
   sort_order INTEGER DEFAULT 0,
+  parent_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,  -- NULL = Hauptkategorie
   is_active       BOOLEAN DEFAULT TRUE,
   created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -124,7 +131,7 @@ CREATE TABLE group_join_requests (
     reviewed_by     INTEGER REFERENCES users(id),          -- Who accepted/rejected
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(group_id, user_id, status)                      -- One pending request per user per group
+    UNIQUE(group_id, user_id)                              -- One request row per user per group; re-apply resets status
 );
 
 CREATE INDEX idx_gjr_group_status ON group_join_requests(group_id, status);
@@ -309,33 +316,58 @@ CREATE TABLE IF NOT EXISTS "session" (
 
 CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
 
--- SEED DATA: Categories
+-- SEED DATA: Hauptkategorien (parent_id = NULL)
 INSERT INTO categories (name, icon, color, sort_order) VALUES
-    ('Hiking',          '🥾', '#FD7666', 1),
-    ('Tennis',          '🎾', '#FD7666', 2),
-    ('Golf',            '⛳', '#FD7666', 3),
-    ('Beachvolleyball', '🏐', '#FD7666', 4),
-    ('Running',         '🏃', '#FD7666', 5),
-    ('Volleyball',      '🏐', '#FD7666', 6),
-    ('Fußball',         '⚽', '#FD7666', 7),
-    ('Basketball',      '🏀', '#FD7666', 8),
-    ('Yoga',            '🧘', '#FD7666', 9),
-    ('Schwimmen',       '🏊', '#FD7666', 10),
-    ('Radfahren',       '🚴', '#FD7666', 11),
-    ('Wandern',         '🏔️', '#FD7666', 12),
-    ('Klettern',        '🧗', '#FD7666', 13),
-    ('Skifahren',       '⛷️', '#FD7666', 14),
-    ('Fitness',         '💪', '#FD7666', 15),
-    ('Tanzen',          '💃', '#FD7666', 16),
-    ('Kochen',          '🍳', '#FD7666', 17),
-    ('Brettspiele',     '🎲', '#FD7666', 18),
-    ('Fotografie',      '📸', '#FD7666', 19),
-    ('Musik',           '🎵', '#FD7666', 20),
-    ('Kunst',           '🎨', '#FD7666', 21),
-    ('Sprachen',        '🗣️', '#FD7666', 22),
-    ('Bar-Hopping',     '🍺', '#FD7666', 23),
-    ('Networking',      '🤝', '#FD7666', 24),
-    ('Sonstiges',       '✨', '#FD7666', 25)
+    ('Sport',     '⚽', '#FD7666', 1),
+    ('Night Out', '🌙', '#FD7666', 2),
+    ('Outdoor',   '🏕️', '#FD7666', 3),
+    ('Kultur',    '🎭', '#FD7666', 4),
+    ('Food',      '🍳', '#FD7666', 5),
+    ('Sonstiges', '✨', '#FD7666', 6)
+ON CONFLICT (name) DO NOTHING;
+
+-- Sport — Unterkategorien
+INSERT INTO categories (name, icon, color, sort_order, parent_id) VALUES
+    ('Tennis',          '🎾', '#FD7666', 1,  (SELECT id FROM categories WHERE name = 'Sport')),
+    ('Golf',            '⛳', '#FD7666', 2,  (SELECT id FROM categories WHERE name = 'Sport')),
+    ('Beachvolleyball', '🏐', '#FD7666', 3,  (SELECT id FROM categories WHERE name = 'Sport')),
+    ('Running',         '🏃', '#FD7666', 4,  (SELECT id FROM categories WHERE name = 'Sport')),
+    ('Volleyball',      '🏐', '#FD7666', 5,  (SELECT id FROM categories WHERE name = 'Sport')),
+    ('Fußball',         '⚽', '#FD7666', 6,  (SELECT id FROM categories WHERE name = 'Sport')),
+    ('Basketball',      '🏀', '#FD7666', 7,  (SELECT id FROM categories WHERE name = 'Sport')),
+    ('Yoga',            '🧘', '#FD7666', 8,  (SELECT id FROM categories WHERE name = 'Sport')),
+    ('Schwimmen',       '🏊', '#FD7666', 9,  (SELECT id FROM categories WHERE name = 'Sport')),
+    ('Fitness',         '💪', '#FD7666', 10, (SELECT id FROM categories WHERE name = 'Sport'))
+ON CONFLICT (name) DO NOTHING;
+
+-- Night Out — Unterkategorien
+INSERT INTO categories (name, icon, color, sort_order, parent_id) VALUES
+    ('Bar-Hopping', '🍺', '#FD7666', 1, (SELECT id FROM categories WHERE name = 'Night Out')),
+    ('Tanzen',      '💃', '#FD7666', 2, (SELECT id FROM categories WHERE name = 'Night Out')),
+    ('Networking',  '🤝', '#FD7666', 3, (SELECT id FROM categories WHERE name = 'Night Out'))
+ON CONFLICT (name) DO NOTHING;
+
+-- Outdoor — Unterkategorien
+INSERT INTO categories (name, icon, color, sort_order, parent_id) VALUES
+    ('Hiking',    '🥾', '#FD7666', 1, (SELECT id FROM categories WHERE name = 'Outdoor')),
+    ('Wandern',   '🏔️', '#FD7666', 2, (SELECT id FROM categories WHERE name = 'Outdoor')),
+    ('Radfahren', '🚴', '#FD7666', 3, (SELECT id FROM categories WHERE name = 'Outdoor')),
+    ('Klettern',  '🧗', '#FD7666', 4, (SELECT id FROM categories WHERE name = 'Outdoor')),
+    ('Skifahren', '⛷️', '#FD7666', 5, (SELECT id FROM categories WHERE name = 'Outdoor'))
+ON CONFLICT (name) DO NOTHING;
+
+-- Kultur — Unterkategorien
+INSERT INTO categories (name, icon, color, sort_order, parent_id) VALUES
+    ('Musik',       '🎵', '#FD7666', 1, (SELECT id FROM categories WHERE name = 'Kultur')),
+    ('Kunst',       '🎨', '#FD7666', 2, (SELECT id FROM categories WHERE name = 'Kultur')),
+    ('Fotografie',  '📸', '#FD7666', 3, (SELECT id FROM categories WHERE name = 'Kultur')),
+    ('Brettspiele', '🎲', '#FD7666', 4, (SELECT id FROM categories WHERE name = 'Kultur')),
+    ('Sprachen',    '🗣️', '#FD7666', 5, (SELECT id FROM categories WHERE name = 'Kultur'))
+ON CONFLICT (name) DO NOTHING;
+
+-- Food — Unterkategorien
+INSERT INTO categories (name, icon, color, sort_order, parent_id) VALUES
+    ('Kochen', '🍳', '#FD7666', 1, (SELECT id FROM categories WHERE name = 'Food'))
 ON CONFLICT (name) DO NOTHING;
 
 

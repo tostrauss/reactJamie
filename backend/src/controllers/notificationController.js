@@ -17,7 +17,7 @@ export const getNotifications = async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching notifications:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
@@ -33,7 +33,7 @@ export const markRead = async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Error marking notifications read:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
@@ -50,7 +50,7 @@ export const markSingleRead = async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Error marking notification read:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
@@ -76,5 +76,6 @@ export const createNotification = async (userId, senderId, type, title, message,
     return notification;
   } catch (err) {
     console.error('Notification Error:', err);
+    return null;
   }
 };

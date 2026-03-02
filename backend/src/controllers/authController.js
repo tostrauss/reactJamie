@@ -1,6 +1,17 @@
 import db from '../config/database.js';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { generateToken } from '../middleware/auth.js';
+import { sendPasswordResetEmail, sendVerificationEmail } from '../utils/email.js';
+
+const parseUserJSONFields = (user) => {
+  try {
+    if (user.interests && typeof user.interests === 'string') user.interests = JSON.parse(user.interests);
+    if (user.photos && typeof user.photos === 'string') user.photos = JSON.parse(user.photos);
+    if (user.favorite_song && typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song);
+  } catch (e) { console.error('Failed to parse user JSON fields:', e.message); }
+  return user;
+};
 
 // ==========================================
 // REGISTER
@@ -40,13 +51,7 @@ export const register = async (req, res) => {
     const token = generateToken(user.id);
     delete user.password;
 
-    // Parse JSON fields for frontend
-    try {
-      if (user.interests && typeof user.interests === 'string') user.interests = JSON.parse(user.interests);
-      if (user.photos && typeof user.photos === 'string') user.photos = JSON.parse(user.photos);
-      if (user.favorite_song && typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song);
-    } catch (e) {}
-
+    parseUserJSONFields(user);
     res.status(201).json({ user, token });
   } catch (error) {
     console.error('Register error:', error);
@@ -70,20 +75,36 @@ export const login = async (req, res) => {
     }
 
     const user = result.rows[0];
+
+    // Account lockout check
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      const minutesLeft = Math.ceil((new Date(user.locked_until) - Date.now()) / 60000);
+      return res.status(429).json({
+        locked: true,
+        error: `Account gesperrt. Versuche es in ${minutesLeft} Minute${minutesLeft !== 1 ? 'n' : ''} erneut.`
+      });
+    }
+
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
+      const attempts = (user.login_attempts || 0) + 1;
+      const lockUntil = attempts >= 5 ? new Date(Date.now() + 30 * 60 * 1000) : null;
+      await db.query(
+        'UPDATE users SET login_attempts = $1, locked_until = $2 WHERE id = $3',
+        [attempts, lockUntil, user.id]
+      );
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    // Reset lockout on successful login
+    await db.query(
+      'UPDATE users SET login_attempts = 0, locked_until = NULL WHERE id = $1',
+      [user.id]
+    );
+
     const token = generateToken(user.id);
 
-    // Parse JSON fields
-    try {
-      if (user.interests && typeof user.interests === 'string') user.interests = JSON.parse(user.interests);
-      if (user.photos && typeof user.photos === 'string') user.photos = JSON.parse(user.photos);
-      if (user.favorite_song && typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song);
-    } catch (e) {}
-
+    parseUserJSONFields(user);
     delete user.password;
 
     res.json({ user, token });
@@ -109,13 +130,7 @@ export const getProfile = async (req, res) => {
     const user = result.rows[0];
     delete user.password;
 
-    // Parse JSON fields
-    try {
-      if (user.interests && typeof user.interests === 'string') user.interests = JSON.parse(user.interests);
-      if (user.photos && typeof user.photos === 'string') user.photos = JSON.parse(user.photos);
-      if (user.favorite_song && typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song);
-    } catch (e) {}
-
+    parseUserJSONFields(user);
     res.json(user);
   } catch (error) {
     console.error('GetProfile error:', error);
@@ -130,12 +145,25 @@ export const updateProfile = async (req, res) => {
   try {
     const { name, location, bio, gender, interests, photos, avatar_url, favorite_song } = req.body;
 
+    if (name !== undefined && (!name || !name.trim())) {
+      return res.status(400).json({ error: 'Name cannot be empty' });
+    }
+    if (bio && bio.length > 500) {
+      return res.status(400).json({ error: 'Bio cannot exceed 500 characters' });
+    }
+    if (location && location.length > 255) {
+      return res.status(400).json({ error: 'Location cannot exceed 255 characters' });
+    }
+
     const interestsStr = interests ? JSON.stringify(interests) : null;
     const photosStr = photos ? JSON.stringify(photos) : null;
-    const songStr = favorite_song ? JSON.stringify(favorite_song) : null;
+
+    // favorite_song: allow explicit null to clear it
+    const hasFavSong = 'favorite_song' in req.body;
+    const songStr = favorite_song ? JSON.stringify(favorite_song) : (hasFavSong ? null : undefined);
 
     await db.query(
-      `UPDATE users 
+      `UPDATE users
        SET name = COALESCE($1, name),
            location = COALESCE($2, location),
            bio = COALESCE($3, bio),
@@ -143,10 +171,10 @@ export const updateProfile = async (req, res) => {
            interests = COALESCE($5, interests),
            photos = COALESCE($6, photos),
            avatar_url = COALESCE($7, avatar_url),
-           favorite_song = COALESCE($8, favorite_song),
+           favorite_song = ${hasFavSong ? '$8' : 'COALESCE($8, favorite_song)'},
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $9`,
-      [name, location, bio, gender, interestsStr, photosStr, avatar_url, songStr, req.userId]
+      [name, location, bio, gender, interestsStr, photosStr, avatar_url, songStr || null, req.userId]
     );
 
     // Return updated profile
@@ -157,13 +185,7 @@ export const updateProfile = async (req, res) => {
     const user = result.rows[0];
     delete user.password;
 
-    // Parse JSON fields
-    try {
-      if (user.interests && typeof user.interests === 'string') user.interests = JSON.parse(user.interests);
-      if (user.photos && typeof user.photos === 'string') user.photos = JSON.parse(user.photos);
-      if (user.favorite_song && typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song);
-    } catch (e) {}
-
+    parseUserJSONFields(user);
     res.json(user);
   } catch (error) {
     console.error('UpdateProfile error:', error);
@@ -205,16 +227,239 @@ export const completeOnboarding = async (req, res) => {
     const user = result.rows[0];
     delete user.password;
 
-    // Parse JSON fields
-    try {
-      if (user.interests && typeof user.interests === 'string') user.interests = JSON.parse(user.interests);
-      if (user.photos && typeof user.photos === 'string') user.photos = JSON.parse(user.photos);
-      if (user.favorite_song && typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song);
-    } catch (e) { console.error('JSON parse error:', e); }
-
+    parseUserJSONFields(user);
     res.json(user);
   } catch (error) {
     console.error('CompleteOnboarding error:', error);
     res.status(500).json({ error: error.message });
+  }
+};
+
+// ==========================================
+// CHANGE PASSWORD
+// ==========================================
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current and new password required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+
+    const result = await db.query('SELECT password FROM users WHERE id = $1', [req.userId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const valid = await bcrypt.compare(currentPassword, result.rows[0].password);
+    if (!valid) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await db.query('UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [hashed, req.userId]);
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('ChangePassword error:', error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// ==========================================
+// DELETE ACCOUNT
+// ==========================================
+export const deleteAccount = async (req, res) => {
+  try {
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ error: 'Password required to delete account' });
+    }
+
+    const result = await db.query('SELECT password FROM users WHERE id = $1', [req.userId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const valid = await bcrypt.compare(password, result.rows[0].password);
+    if (!valid) {
+      return res.status(401).json({ error: 'Password is incorrect' });
+    }
+
+    // Delete user - cascades to all related data
+    await db.query('DELETE FROM users WHERE id = $1', [req.userId]);
+
+    res.json({ message: 'Account deleted successfully' });
+  } catch (error) {
+    console.error('DeleteAccount error:', error);
+    res.status(500).json({ error: 'Failed to delete account' });
+  }
+};
+
+// ==========================================
+// FORGOT PASSWORD (request reset link)
+// ==========================================
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'E-Mail ist erforderlich' });
+    }
+
+    // Always return success to prevent email enumeration
+    const successMsg = { message: 'Falls ein Konto mit dieser E-Mail existiert, wurde ein Link zum Zurücksetzen gesendet.' };
+
+    const result = await db.query('SELECT id, name FROM users WHERE email = $1', [email]);
+    if (result.rows.length === 0) {
+      return res.json(successMsg);
+    }
+
+    const user = result.rows[0];
+
+    // Delete any existing tokens for this user
+    await db.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user.id]);
+
+    // Generate secure token
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await db.query(
+      'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
+      [user.id, token, expiresAt]
+    );
+
+    // Send email (non-blocking - don't fail if email fails)
+    try {
+      await sendPasswordResetEmail(email, token, user.name);
+    } catch (emailErr) {
+      console.error('Failed to send reset email:', emailErr);
+    }
+
+    res.json(successMsg);
+  } catch (error) {
+    console.error('ForgotPassword error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// RESET PASSWORD (with token)
+// ==========================================
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Token und neues Passwort erforderlich' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Passwort muss mindestens 6 Zeichen lang sein' });
+    }
+
+    // Find valid token
+    const result = await db.query(
+      'SELECT * FROM password_reset_tokens WHERE token = $1 AND used = FALSE AND expires_at > NOW()',
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Ungültiger oder abgelaufener Link. Bitte fordere einen neuen an.' });
+    }
+
+    const resetToken = result.rows[0];
+
+    // Hash new password and update
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await db.query('UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [hashed, resetToken.user_id]);
+
+    // Mark token as used
+    await db.query('UPDATE password_reset_tokens SET used = TRUE WHERE id = $1', [resetToken.id]);
+
+    res.json({ message: 'Passwort erfolgreich zurückgesetzt. Du kannst dich jetzt einloggen.' });
+  } catch (error) {
+    console.error('ResetPassword error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// SEND VERIFICATION EMAIL
+// ==========================================
+export const sendVerification = async (req, res) => {
+  try {
+    const result = await db.query('SELECT id, email, name, is_verified FROM users WHERE id = $1', [req.userId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = result.rows[0];
+    if (user.is_verified) {
+      return res.json({ message: 'E-Mail ist bereits verifiziert' });
+    }
+
+    // Delete old tokens, create new one
+    await db.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user.id]);
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    await db.query(
+      'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
+      [user.id, token, expiresAt]
+    );
+
+    try {
+      await sendVerificationEmail(user.email, token, user.name);
+    } catch (emailErr) {
+      console.error('Failed to send verification email:', emailErr);
+      return res.status(500).json({ error: 'E-Mail konnte nicht gesendet werden' });
+    }
+
+    res.json({ message: 'Bestätigungs-E-Mail gesendet' });
+  } catch (error) {
+    console.error('SendVerification error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// VERIFY EMAIL (with token)
+// ==========================================
+export const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token erforderlich' });
+    }
+
+    const result = await db.query(
+      'SELECT * FROM password_reset_tokens WHERE token = $1 AND used = FALSE AND expires_at > NOW()',
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Ungültiger oder abgelaufener Link.' });
+    }
+
+    const resetToken = result.rows[0];
+
+    // Mark user as verified
+    await db.query('UPDATE users SET is_verified = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [resetToken.user_id]);
+
+    // Mark token as used
+    await db.query('UPDATE password_reset_tokens SET used = TRUE WHERE id = $1', [resetToken.id]);
+
+    res.json({ message: 'E-Mail erfolgreich verifiziert!' });
+  } catch (error) {
+    console.error('VerifyEmail error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };

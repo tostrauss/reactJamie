@@ -7,6 +7,13 @@ export const sendMessage = async (req, res) => {
   try {
     const { groupId, content } = req.body;
 
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'Message content is required' });
+    }
+    if (content.length > 5000) {
+      return res.status(400).json({ error: 'Message cannot exceed 5000 characters' });
+    }
+
     // Check membership
     const member = await db.query(
       'SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2',
@@ -55,7 +62,7 @@ export const sendMessage = async (req, res) => {
     });
   } catch (error) {
     console.error('Error sending message:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to send message' });
   }
 };
 
@@ -65,8 +72,8 @@ export const sendMessage = async (req, res) => {
 export const getMessages = async (req, res) => {
   try {
     const { groupId } = req.params;
-    const limit = parseInt(req.query.limit) || 50;
-    const offset = parseInt(req.query.offset) || 0;
+    const limit = parseInt(req.query.limit, 10) || 50;
+    const offset = parseInt(req.query.offset, 10) || 0;
 
     const result = await db.query(
       `SELECT m.*, u.name as user_name, u.avatar_url
@@ -81,7 +88,7 @@ export const getMessages = async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching messages:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to fetch messages' });
   }
 };
 
@@ -108,6 +115,6 @@ export const deleteMessage = async (req, res) => {
     res.json({ message: 'Message deleted' });
   } catch (error) {
     console.error('Error deleting message:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to delete message' });
   }
 };
