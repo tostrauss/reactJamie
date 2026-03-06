@@ -30,15 +30,21 @@ export const Home = () => {
     setLoading(true);
     try {
       if (activeTab === "gruppen") {
-        const res = await api.get("/groups", { params: { type: "group" } });
-        setGroupList(res.data || []);
+        const [groupsRes, favGroupsRes] = await Promise.all([
+          api.get("/groups", { params: { type: "group" } }),
+          groups.getFavorites().catch(() => ({ data: [] }))
+        ]);
+        setGroupList(groupsRes.data || []);
+        setFavorites(new Set((favGroupsRes.data || []).map(g => g.id)));
       } else {
-        const [allClubsRes, myClubsRes] = await Promise.all([
+        const [allClubsRes, myClubsRes, favClubsRes] = await Promise.all([
           clubs.getAll(),
-          clubs.getJoined().catch(() => ({ data: [] }))
+          clubs.getJoined().catch(() => ({ data: [] })),
+          clubs.getFavorites().catch(() => ({ data: [] }))
         ]);
         setClubList(allClubsRes.data || []);
         setMyClubs(myClubsRes.data || []);
+        setFavorites(new Set((favClubsRes.data || []).map(c => c.id)));
       }
       const joinedRes = await groups.getJoined().catch(() => ({ data: [] }));
       const joinedClubsRes = await clubs.getJoined().catch(() => ({ data: [] }));
@@ -58,18 +64,33 @@ export const Home = () => {
   };
 
   const handleFavorite = async (groupId) => {
+    const wasAlreadyFav = favorites.has(groupId);
     setFavorites(prev => {
       const newFavs = new Set(prev);
       if (newFavs.has(groupId)) newFavs.delete(groupId);
       else newFavs.add(groupId);
       return newFavs;
     });
-    try { await groups.toggleFavorite(groupId); } catch (err) { /* ignore */ }
+    try {
+      const isClub = activeTab === 'clubs';
+      if (isClub) { await clubs.toggleFavorite(groupId); }
+      else { await groups.toggleFavorite(groupId); }
+    } catch (err) {
+      // Revert optimistic update on failure
+      setFavorites(prev => {
+        const newFavs = new Set(prev);
+        if (wasAlreadyFav) newFavs.add(groupId); else newFavs.delete(groupId);
+        return newFavs;
+      });
+      toast.error('Favorit konnte nicht gespeichert werden');
+    }
   };
 
   const handleJoin = async (groupId) => {
     try {
-      await groups.join(groupId);
+      const isClub = activeTab === 'clubs';
+      if (isClub) { await clubs.join(groupId); }
+      else { await groups.join(groupId); }
       setJoined(prev => new Set(prev).add(groupId));
       loadData();
     } catch (err) {

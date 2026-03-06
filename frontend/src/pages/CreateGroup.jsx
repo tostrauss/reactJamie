@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { groups } from '../utils/api';
@@ -9,6 +9,12 @@ export const CreateGroup = () => {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const toast = useToast();
+
+  const imageBlobRef = useRef(null);
+
+  useEffect(() => {
+    return () => { if (imageBlobRef.current) URL.revokeObjectURL(imageBlobRef.current); };
+  }, []);
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -39,11 +45,10 @@ export const CreateGroup = () => {
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      setFormData(prev => ({
-        ...prev,
-        image: file,
-        imagePreview: URL.createObjectURL(file)
-      }));
+      if (imageBlobRef.current) URL.revokeObjectURL(imageBlobRef.current);
+      const blobUrl = URL.createObjectURL(file);
+      imageBlobRef.current = blobUrl;
+      setFormData(prev => ({ ...prev, image: file, imagePreview: blobUrl }));
     }
   };
 
@@ -173,7 +178,7 @@ export const CreateGroup = () => {
               {formData.imagePreview ? (
                 <div className="image-preview">
                   <img src={formData.imagePreview} alt="Vorschau" />
-                  <button className="remove-image" onClick={() => setFormData(prev => ({ ...prev, image: null, imagePreview: null }))}>×</button>
+                  <button className="remove-image" onClick={() => { if (imageBlobRef.current) { URL.revokeObjectURL(imageBlobRef.current); imageBlobRef.current = null; } setFormData(prev => ({ ...prev, image: null, imagePreview: null })); }}>×</button>
                 </div>
               ) : (
                 <label className="upload-placeholder">

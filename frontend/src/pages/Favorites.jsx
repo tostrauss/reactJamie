@@ -59,16 +59,24 @@ export const Favorites = () => {
         await groups.toggleFavorite(groupId);
       }
     } catch (error) {
-      console.log('Backend nicht verfügbar');
+      console.error('Toggle favorite failed:', error);
+      toast.error('Favorit konnte nicht entfernt werden');
+      loadData(); // Restore correct state
     }
   };
 
   const handleJoin = async (groupId) => {
     setJoined(prev => new Set(prev).add(groupId));
+    const isClub = favoriteClubs.some(c => c.id === groupId);
     try {
-      await groups.join(groupId);
+      if (isClub) {
+        await clubs.join(groupId);
+      } else {
+        await groups.join(groupId);
+      }
     } catch (error) {
-      console.log('Backend nicht verfügbar');
+      setJoined(prev => { const s = new Set(prev); s.delete(groupId); return s; });
+      toast.error(error.response?.data?.error || 'Beitreten fehlgeschlagen');
     }
   };
 

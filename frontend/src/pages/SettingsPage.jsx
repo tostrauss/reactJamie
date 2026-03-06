@@ -1,4 +1,4 @@
-import { useState, useContext } from 'react';
+import { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { auth } from '../utils/api';
@@ -22,10 +22,14 @@ export const SettingsPage = () => {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // Notification prefs (local for now)
-  const [notifMessages, setNotifMessages] = useState(true);
-  const [notifRequests, setNotifRequests] = useState(true);
-  const [notifGroups, setNotifGroups] = useState(true);
+  // Notification prefs — persisted to localStorage
+  const [notifMessages, setNotifMessages] = useState(() => localStorage.getItem('notif_messages') !== 'false');
+  const [notifRequests, setNotifRequests] = useState(() => localStorage.getItem('notif_requests') !== 'false');
+  const [notifGroups, setNotifGroups] = useState(() => localStorage.getItem('notif_groups') !== 'false');
+
+  useEffect(() => { localStorage.setItem('notif_messages', notifMessages); }, [notifMessages]);
+  useEffect(() => { localStorage.setItem('notif_requests', notifRequests); }, [notifRequests]);
+  useEffect(() => { localStorage.setItem('notif_groups', notifGroups); }, [notifGroups]);
 
   const handleLogout = () => {
     logout();

@@ -10,7 +10,6 @@ export const ChatList = () => {
   const [showRequests, setShowRequests] = useState(false);
   const [groupChats, setGroupChats] = useState([]);
   const [privateChats, setPrivateChats] = useState([]);
-  const [requests, setRequests] = useState([]);
   const [friendsList, setFriendsList] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -116,7 +115,6 @@ export const ChatList = () => {
   };
 
   const totalUnread = [...groupChats, ...privateChats].reduce((sum, chat) => sum + (chat.unread || 0), 0);
-  const totalRequests = requests.length;
 
   const handleChatClick = (chat) => {
     if (chat.isDM) {
@@ -124,14 +122,6 @@ export const ChatList = () => {
     } else {
       navigate(`/chat/${chat.id}`);
     }
-  };
-
-  const handleAcceptRequest = (requestId) => {
-    setRequests(prev => prev.filter(r => r.id !== requestId));
-  };
-
-  const handleDeclineRequest = (requestId) => {
-    setRequests(prev => prev.filter(r => r.id !== requestId));
   };
 
   const handleAcceptFriendRequest = async (requestId) => {
@@ -216,9 +206,6 @@ export const ChatList = () => {
             onClick={() => setShowRequests(true)}
           >
             Anfragen
-            {totalRequests > 0 && (
-              <span className="request-badge">{totalRequests}</span>
-            )}
           </button>
         </div>
       )}
@@ -325,30 +312,44 @@ export const ChatList = () => {
           {loading ? (
             <div className="loading">Laden...</div>
           ) : showRequests ? (
-            requests.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">📬</div>
-                <p>Keine offenen Anfragen</p>
-              </div>
-            ) : (
-              requests.map(request => (
-                <div key={request.id} className="request-item">
-                  <img src={request.avatar} alt={request.name} className="chat-avatar" />
-                  <div className="request-info">
-                    <div className="request-header">
-                      <span className="request-name">{request.name}</span>
-                      <span className="request-time">{request.time}</span>
-                    </div>
-                    <p className="request-group">{request.groupName}</p>
-                    <p className="request-message">{request.message}</p>
-                  </div>
-                  <div className="request-actions">
-                    <button className="request-btn accept" onClick={() => handleAcceptRequest(request.id)}>✓</button>
-                    <button className="request-btn decline" onClick={() => handleDeclineRequest(request.id)}>✕</button>
-                  </div>
+            /* Show all chats in this tab — owner check is enforced server-side on the requests page */
+            (() => {
+              const chatsForRequests = currentChats;
+              return chatsForRequests.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-icon">📬</div>
+                  <p>Keine Gruppen</p>
+                  <span className="empty-hint" onClick={() => navigate('/home')}>
+                    Erstelle eine Gruppe um Anfragen zu erhalten!
+                  </span>
                 </div>
-              ))
-            )
+              ) : (
+                chatsForRequests.map(chat => (
+                  <div
+                    key={chat.id}
+                    className="chat-item"
+                    onClick={() => navigate(`/group/${chat.id}/requests`)}
+                  >
+                    <div className="chat-avatar-wrapper">
+                      {chat.avatar ? (
+                        <img src={chat.avatar} alt={chat.name} className="chat-avatar" />
+                      ) : (
+                        <div className="chat-avatar-placeholder">
+                          {(chat.name || '?')[0].toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="chat-info">
+                      <div className="chat-top-row">
+                        <span className="chat-name">{chat.name}</span>
+                        <span className="chat-time" style={{ color: 'var(--coral)', fontSize: 13 }}>Anfragen →</span>
+                      </div>
+                      <p className="chat-last-message">Beitrittsanfragen anzeigen</p>
+                    </div>
+                  </div>
+                ))
+              );
+            })()
           ) : (
             currentChats.length === 0 ? (
               <div className="empty-state">

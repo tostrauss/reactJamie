@@ -1,4 +1,5 @@
-import React, { useContext, useState, lazy, Suspense } from 'react';
+import React, { useContext, useState, useEffect, lazy, Suspense } from 'react';
+import { useRegisterSW } from 'virtual:pwa-register/react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext, AuthProvider } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
@@ -31,6 +32,7 @@ const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const SpotifyCallback = lazy(() => import('./pages/SpotifyCallback'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 
 // Styles
 import './styles/global.css';
@@ -78,6 +80,95 @@ const ProfileIcon = ({ active }) => (
     <circle cx="12" cy="7" r="4"/>
   </svg>
 );
+
+// ==========================================
+// SW UPDATE BANNER
+// ==========================================
+const UpdateBanner = () => {
+  const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
+
+  if (!needRefresh) return null;
+
+  return (
+    <div className="update-banner">
+      <span>Neue Version verfügbar</span>
+      <button onClick={() => updateServiceWorker(true)}>Aktualisieren</button>
+    </div>
+  );
+};
+
+// ==========================================
+// INSTALL PROMPT BANNER
+// ==========================================
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isInStandaloneMode = () =>
+  window.matchMedia('(display-mode: standalone)').matches ||
+  window.navigator.standalone === true;
+
+const InstallBanner = () => {
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showBanner, setShowBanner] = useState(false);
+  const [iosMode, setIosMode] = useState(false);
+
+  useEffect(() => {
+    if (isInStandaloneMode()) return;
+
+    const dismissed = localStorage.getItem('pwa-install-dismissed');
+    if (dismissed && Date.now() - parseInt(dismissed) < 7 * 24 * 60 * 60 * 1000) return;
+
+    if (isIOS()) {
+      setIosMode(true);
+      setShowBanner(true);
+      return;
+    }
+
+    const handler = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowBanner(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setShowBanner(false);
+    }
+    setDeferredPrompt(null);
+  };
+
+  const handleDismiss = () => {
+    localStorage.setItem('pwa-install-dismissed', Date.now().toString());
+    setShowBanner(false);
+  };
+
+  if (!showBanner) return null;
+
+  return (
+    <div className="install-banner">
+      <div className="install-banner-content">
+        <div className="install-banner-icon">J</div>
+        <div className="install-banner-text">
+          <strong>JAMIE installieren</strong>
+          {iosMode
+            ? <span>Tippe auf <strong>Teilen</strong> → <strong>Zum Home-Bildschirm</strong></span>
+            : <span>App für schnellen Zugriff installieren</span>
+          }
+        </div>
+      </div>
+      <div className="install-banner-actions">
+        {!iosMode && (
+          <button className="install-btn" onClick={handleInstall}>Installieren</button>
+        )}
+        <button className="install-dismiss" onClick={handleDismiss}>✕</button>
+      </div>
+    </div>
+  );
+};
 
 const CreateModal = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
@@ -188,6 +279,8 @@ function AppRoutes() {
 
   return (
     <>
+      <UpdateBanner />
+      <InstallBanner />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Auth */}
@@ -225,6 +318,9 @@ function AppRoutes() {
 
           {/* Spotify */}
           <Route path="/spotify/callback" element={<ProtectedRoute><SpotifyCallback /></ProtectedRoute>} />
+
+          {/* Legal — public, no auth required */}
+          <Route path="/privacy" element={<PrivacyPolicy />} />
 
           {/* Redirects */}
           <Route path="/" element={<Navigate to={user ? "/home" : "/login"} replace />} />

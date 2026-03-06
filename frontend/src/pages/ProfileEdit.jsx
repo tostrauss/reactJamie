@@ -36,6 +36,11 @@ export const ProfileEdit = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const fileInputRef = useRef(null);
+  const avatarBlobRef = useRef(null);
+
+  useEffect(() => {
+    return () => { if (avatarBlobRef.current) URL.revokeObjectURL(avatarBlobRef.current); };
+  }, []);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -122,7 +127,10 @@ export const ProfileEdit = () => {
     const file = e.target.files[0];
     if (!file) return;
 
-    setAvatarPreview(URL.createObjectURL(file));
+    if (avatarBlobRef.current) URL.revokeObjectURL(avatarBlobRef.current);
+    const blobUrl = URL.createObjectURL(file);
+    avatarBlobRef.current = blobUrl;
+    setAvatarPreview(blobUrl);
     setUploading(true);
 
     try {

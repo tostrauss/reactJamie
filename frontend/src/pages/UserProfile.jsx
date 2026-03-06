@@ -44,6 +44,7 @@ export const UserProfile = () => {
       setProfile(data);
     } catch (err) {
       console.error('Error loading profile:', err);
+      toast.error('Profil konnte nicht geladen werden');
     } finally {
       setLoading(false);
     }

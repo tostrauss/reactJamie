@@ -14,7 +14,12 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     if (user && token) {
-      const newSocket = io({
+      // In production the frontend and backend are on different domains,
+      // so VITE_SOCKET_URL must point to the backend (e.g. https://your-backend.railway.app).
+      // In dev it's left empty so io() connects to the same host (proxied by Vite).
+      const socketUrl = import.meta.env.VITE_SOCKET_URL || undefined;
+
+      const newSocket = io(socketUrl, {
         path: '/socket.io',
         auth: { token },
         transports: ['websocket', 'polling'],

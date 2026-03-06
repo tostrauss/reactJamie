@@ -32,7 +32,6 @@ export const CATEGORY_HIERARCHY = [
     label: 'Outdoor',
     icon: '🏕️',
     subs: [
-      { name: 'Hiking', icon: '🥾' },
       { name: 'Wandern', icon: '🏔️' },
       { name: 'Radfahren', icon: '🚴' },
       { name: 'Klettern', icon: '🧗' },

@@ -164,6 +164,7 @@ export const DirectMessagePage = () => {
   }
 
   if (error) {
+    const isFriendshipError = error.includes('befreundet');
     return (
       <div className="chat-page">
         <header className="chat-page-header">
@@ -178,9 +179,15 @@ export const DirectMessagePage = () => {
         </header>
         <div className="error-state">
           <p>{error}</p>
-          <button className="btn btn-primary" onClick={() => navigate('/chats')} style={{ marginTop: '12px' }}>
-            Zurück zu Chats
-          </button>
+          {isFriendshipError ? (
+            <button className="btn btn-primary" onClick={() => navigate(`/user/${otherUserId}`)} style={{ marginTop: '12px' }}>
+              Freund hinzufügen
+            </button>
+          ) : (
+            <button className="btn btn-primary" onClick={() => navigate('/chats')} style={{ marginTop: '12px' }}>
+              Zurück zu Chats
+            </button>
+          )}
         </div>
       </div>
     );

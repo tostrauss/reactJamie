@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clubs, upload } from '../utils/api';
 import { useToast } from '../context/ToastContext';
@@ -29,6 +29,11 @@ export const CreateClub = () => {
   });
 
   const [imagePreview, setImagePreview] = useState(null);
+  const imageBlobRef = useRef(null);
+
+  useEffect(() => {
+    return () => { if (imageBlobRef.current) URL.revokeObjectURL(imageBlobRef.current); };
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -39,7 +44,10 @@ export const CreateClub = () => {
     const file = e.target.files[0];
     if (!file) return;
 
-    setImagePreview(URL.createObjectURL(file));
+    if (imageBlobRef.current) URL.revokeObjectURL(imageBlobRef.current);
+    const blobUrl = URL.createObjectURL(file);
+    imageBlobRef.current = blobUrl;
+    setImagePreview(blobUrl);
     setUploading(true);
     
     try {
@@ -179,7 +187,7 @@ export const CreateClub = () => {
               {imagePreview ? (
                 <div className="image-preview">
                   <img src={imagePreview} alt="Vorschau" />
-                  <button className="remove-image" onClick={() => { setImagePreview(null); setFormData(prev => ({ ...prev, image_url: null })); }}>×</button>
+                  <button className="remove-image" onClick={() => { if (imageBlobRef.current) { URL.revokeObjectURL(imageBlobRef.current); imageBlobRef.current = null; } setImagePreview(null); setFormData(prev => ({ ...prev, image_url: null })); }}>×</button>
                 </div>
               ) : (
                 <label className="upload-placeholder">

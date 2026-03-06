@@ -2,13 +2,15 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { groups, clubs } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import '../styles/home.css';
 
 export const GroupDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
-  
+  const toast = useToast();
+
   const [group, setGroup] = useState(null);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +51,7 @@ export const GroupDetail = () => {
         setMembers(membersRes.data);
       } catch (error) {
         console.error("Error fetching group details:", error);
+        toast.error('Gruppe konnte nicht geladen werden');
       } finally {
         setLoading(false);
       }
@@ -91,6 +94,7 @@ export const GroupDetail = () => {
       setGroup(response.data);
     } catch (error) {
       console.error("Error toggling join:", error);
+      toast.error(error.response?.data?.error || 'Fehler beim Beitreten/Verlassen');
     }
   };
 
@@ -99,7 +103,7 @@ export const GroupDetail = () => {
 
   const headerStyle = group.image_url 
     ? { backgroundImage: `url(${group.image_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-    : { background: `linear-gradient(135deg, #ff6b6b, #ff8585)` };
+    : { background: `linear-gradient(135deg, var(--accent-coral), #ff8585)` };
 
   return (
     <div className="home" style={{ paddingBottom: '100px' }}>
@@ -138,15 +142,15 @@ export const GroupDetail = () => {
         {/* Meta Info */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '15px' }}>
           <div>
-            <p style={{ color: '#999', fontSize: '12px', marginBottom: '4px', textTransform: 'uppercase' }}>Organisiert von</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '12px', marginBottom: '4px', textTransform: 'uppercase' }}>Organisiert von</p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-               <div style={{ width: 24, height: 24, background: '#ff6b6b', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: 'white' }}>{group.owner_name?.[0]}</div>
+               <div style={{ width: 24, height: 24, background: 'var(--accent-coral)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: 'white' }}>{group.owner_name?.[0]}</div>
                <p style={{ fontWeight: 'bold' }}>{group.owner_name}</p>
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <p style={{ color: '#999', fontSize: '12px', marginBottom: '4px', textTransform: 'uppercase' }}>Mitglieder</p>
-            <p style={{ fontWeight: 'bold', fontSize: '16px' }}>{group.members_count ?? group.member_count ?? 0} <span style={{fontSize: '12px', color: '#666'}}>/ {group.max_members || group.maxMembers || 6}</span></p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '12px', marginBottom: '4px', textTransform: 'uppercase' }}>Mitglieder</p>
+            <p style={{ fontWeight: 'bold', fontSize: '16px' }}>{group.members_count ?? group.member_count ?? 0} <span style={{fontSize: '12px', color: 'var(--text-muted)'}}>/ {group.max_members || group.maxMembers || 6}</span></p>
           </div>
         </div>
 
@@ -222,7 +226,7 @@ export const GroupDetail = () => {
                   </div>
                   <div>
                     <div style={{ fontWeight: 'bold', fontSize: '15px' }}>{member.name}</div>
-                    <div style={{ fontSize: '12px', color: '#999' }}>{member.location || 'Kein Standort'}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{member.location || 'Kein Standort'}</div>
                   </div>
                 </div>
               ))}

@@ -82,8 +82,7 @@ const CreateActionModal = ({ isOpen, onClose }) => {
       if (data?.id) {
         navigate(`/group/${data.id}`);
       } else {
-        // Fallback: Seite neu laden, falls keine ID zurückkommt
-        window.location.reload();
+        navigate('/home');
       }
     } catch (err) {
       console.error(err);

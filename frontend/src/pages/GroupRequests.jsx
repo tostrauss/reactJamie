@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { api } from '../utils/api';
+import { groups } from '../utils/api';
+import { useToast } from '../context/ToastContext';
 
 export const GroupRequests = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  
+  const toast = useToast();
+
   const [requests, setRequests] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [swipeDirection, setSwipeDirection] = useState(null);
   const [startX, setStartX] = useState(0);
   const [offsetX, setOffsetX] = useState(0);
+  const [processing, setProcessing] = useState(false);
   const cardRef = useRef(null);
 
   useEffect(() => {
@@ -19,49 +22,13 @@ export const GroupRequests = () => {
   }, [id]);
 
   const loadRequests = async () => {
+    setLoading(true);
     try {
-      const mockRequests = [
-        {
-          id: 1,
-          user: {
-            id: 101,
-            name: 'Max',
-            age: 22,
-            avatar: 'https://i.pravatar.cc/400?img=11',
-            message: 'Hey, hätte mega Lust dabei zu sein',
-            interests: ['Hiking', 'Tennis', 'Golf'],
-            verified: true
-          }
-        },
-        {
-          id: 2,
-          user: {
-            id: 102,
-            name: 'Lisa',
-            age: 24,
-            avatar: 'https://i.pravatar.cc/400?img=12',
-            message: 'Bin Anfänger aber sehr motiviert!',
-            interests: ['Yoga', 'Running', 'Swimming'],
-            verified: true
-          }
-        },
-        {
-          id: 3,
-          user: {
-            id: 103,
-            name: 'Tom',
-            age: 28,
-            avatar: 'https://i.pravatar.cc/400?img=13',
-            message: 'Spiele seit 5 Jahren, würde mich freuen!',
-            interests: ['Volleyball', 'Fitness', 'Cycling'],
-            verified: false
-          }
-        }
-      ];
-      
-      setRequests(mockRequests);
+      const res = await groups.getRequests(id);
+      setRequests(res.data || []);
     } catch (err) {
       console.error('Failed to load requests:', err);
+      toast.error('Anfragen konnten nicht geladen werden');
     } finally {
       setLoading(false);
     }
@@ -75,70 +42,53 @@ export const GroupRequests = () => {
     const currentX = e.touches[0].clientX;
     const diff = currentX - startX;
     setOffsetX(diff);
-    
-    if (diff > 50) {
-      setSwipeDirection('right');
-    } else if (diff < -50) {
-      setSwipeDirection('left');
-    } else {
-      setSwipeDirection(null);
-    }
+    if (diff > 50) setSwipeDirection('right');
+    else if (diff < -50) setSwipeDirection('left');
+    else setSwipeDirection(null);
   };
 
   const handleTouchEnd = () => {
-    if (offsetX > 100) {
-      handleAccept();
-    } else if (offsetX < -100) {
-      handleDecline();
-    } else {
-      setOffsetX(0);
-      setSwipeDirection(null);
-    }
+    if (offsetX > 100) handleAccept();
+    else if (offsetX < -100) handleDecline();
+    else { setOffsetX(0); setSwipeDirection(null); }
   };
 
   const handleAccept = async () => {
+    if (processing) return;
     const request = requests[currentIndex];
-    
+    setProcessing(true);
     try {
-      console.log('Accepted:', request.user.name);
+      await groups.handleRequest(id, request.id, 'accept');
+      toast.success(`${request.user_name} wurde angenommen!`);
+      setSwipeDirection('right');
+      setOffsetX(300);
+      setTimeout(() => { goToNext(); setProcessing(false); }, 300);
     } catch (err) {
-      console.error('Failed to accept:', err);
+      toast.error(err.response?.data?.error || 'Fehler beim Annehmen');
+      setOffsetX(0); setSwipeDirection(null); setProcessing(false);
     }
-    
-    setSwipeDirection('right');
-    setOffsetX(300);
-    
-    setTimeout(() => {
-      goToNext();
-    }, 300);
   };
 
   const handleDecline = async () => {
+    if (processing) return;
     const request = requests[currentIndex];
-    
+    setProcessing(true);
     try {
-      console.log('Declined:', request.user.name);
+      await groups.handleRequest(id, request.id, 'reject');
+      toast.info(`${request.user_name} wurde abgelehnt`);
+      setSwipeDirection('left');
+      setOffsetX(-300);
+      setTimeout(() => { goToNext(); setProcessing(false); }, 300);
     } catch (err) {
-      console.error('Failed to decline:', err);
+      toast.error(err.response?.data?.error || 'Fehler beim Ablehnen');
+      setOffsetX(0); setSwipeDirection(null); setProcessing(false);
     }
-    
-    setSwipeDirection('left');
-    setOffsetX(-300);
-    
-    setTimeout(() => {
-      goToNext();
-    }, 300);
   };
 
   const goToNext = () => {
     setOffsetX(0);
     setSwipeDirection(null);
-    
-    if (currentIndex < requests.length - 1) {
-      setCurrentIndex(currentIndex + 1);
-    } else {
-      setCurrentIndex(requests.length);
-    }
+    setCurrentIndex(prev => prev + 1);
   };
 
   const currentRequest = requests[currentIndex];
@@ -163,7 +113,9 @@ export const GroupRequests = () => {
           </svg>
         </button>
         <h1 className="requests-title">
-          {requests.length - currentIndex} neue Anfragen
+          {requests.length - currentIndex > 0
+            ? `${requests.length - currentIndex} Anfragen`
+            : 'Keine Anfragen'}
         </h1>
         <div style={{ width: 40 }} />
       </div>
@@ -173,15 +125,13 @@ export const GroupRequests = () => {
           <div className="empty-state">
             <div className="empty-state-icon">✅</div>
             <h2 className="empty-state-title">Alle Anfragen bearbeitet!</h2>
-            <p className="empty-state-text">
-              Du hast alle Beitrittsanfragen durchgesehen.
-            </p>
+            <p className="empty-state-text">Du hast alle Beitrittsanfragen durchgesehen.</p>
             <button className="btn btn-primary" onClick={() => navigate(-1)}>
               Zurück zur Gruppe
             </button>
           </div>
         ) : currentRequest ? (
-          <div 
+          <div
             className="request-card-wrapper"
             ref={cardRef}
             onTouchStart={handleTouchStart}
@@ -203,41 +153,43 @@ export const GroupRequests = () => {
 
             <div className="request-card">
               <div className="request-image-container">
-                <img 
-                  src={currentRequest.user.avatar} 
-                  alt={currentRequest.user.name}
-                  className="request-user-image"
-                />
-                {currentRequest.user.verified && (
-                  <div className="verified-badge">✓</div>
+                {currentRequest.user_avatar ? (
+                  <img src={currentRequest.user_avatar} alt={currentRequest.user_name} className="request-user-image" />
+                ) : (
+                  <div className="request-avatar-placeholder">
+                    {(currentRequest.user_name || '?')[0].toUpperCase()}
+                  </div>
                 )}
               </div>
-              
+
               <div className="request-user-info">
-                <h2 className="request-name">
-                  {currentRequest.user.name}, {currentRequest.user.age}
-                </h2>
-                
-                <p className="request-message">
-                  {currentRequest.user.message}
+                <h2 className="request-name">{currentRequest.user_name}</h2>
+
+                {currentRequest.user_bio && (
+                  <p className="request-bio">{currentRequest.user_bio}</p>
+                )}
+
+                {currentRequest.message && (
+                  <div className="request-message-box">
+                    <p className="request-message">"{currentRequest.message}"</p>
+                  </div>
+                )}
+
+                <p className="request-date">
+                  Angefragt {new Date(currentRequest.created_at).toLocaleDateString('de-DE')}
                 </p>
-                
-                <div className="request-interests">
-                  {currentRequest.user.interests.map(interest => (
-                    <span key={interest} className="interest-tag">
-                      {interest}
-                    </span>
-                  ))}
-                </div>
               </div>
             </div>
 
             {currentIndex < requests.length - 1 && (
               <div className="next-card-preview">
-                <img 
-                  src={requests[currentIndex + 1].user.avatar} 
-                  alt="Nächste"
-                />
+                {requests[currentIndex + 1].user_avatar ? (
+                  <img src={requests[currentIndex + 1].user_avatar} alt="Nächste" />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', background: 'var(--bg-input)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, color: 'var(--coral)' }}>
+                    {(requests[currentIndex + 1].user_name || '?')[0].toUpperCase()}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -246,13 +198,12 @@ export const GroupRequests = () => {
 
       {currentIndex < requests.length && (
         <div className="requests-actions">
-          <button className="action-btn decline" onClick={handleDecline}>
+          <button className="action-btn decline" onClick={handleDecline} disabled={processing}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
           </button>
-          
-          <button className="action-btn accept" onClick={handleAccept}>
+          <button className="action-btn accept" onClick={handleAccept} disabled={processing}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
               <polyline points="20,6 9,17 4,12"/>
             </svg>
@@ -261,226 +212,46 @@ export const GroupRequests = () => {
       )}
 
       <style>{`
-        .requests-page {
-          display: flex;
-          flex-direction: column;
-          height: 100vh;
-          padding-bottom: 0;
-        }
-        .requests-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 16px;
-          padding-top: calc(env(safe-area-inset-top, 20px) + 16px);
-        }
-        .back-btn {
-          background: none;
-          border: none;
-          color: var(--text-white);
-          cursor: pointer;
-          padding: 8px;
-        }
-        .requests-title {
-          font-size: 18px;
-          font-weight: 600;
-          color: var(--text-white);
-        }
-        .requests-content {
-          flex: 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 20px;
-          overflow: hidden;
-        }
-        .request-card-wrapper {
-          position: relative;
-          width: 100%;
-          max-width: 340px;
-          user-select: none;
-        }
-        .swipe-indicator {
-          position: absolute;
-          top: 50%;
-          transform: translateY(-50%);
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 8px;
-          font-size: 14px;
-          font-weight: 600;
-          opacity: 0;
-          transition: opacity 0.2s;
-          z-index: 10;
-        }
-        .swipe-indicator span:first-child {
-          width: 60px;
-          height: 60px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 28px;
-        }
-        .swipe-accept {
-          right: -20px;
-          color: var(--accent-green);
-        }
-        .swipe-accept span:first-child {
-          background: var(--accent-green);
-          color: white;
-        }
-        .swipe-decline {
-          left: -20px;
-          color: var(--status-busy);
-        }
-        .swipe-decline span:first-child {
-          background: var(--status-busy);
-          color: white;
-        }
-        .swipe-indicator.visible {
-          opacity: 1;
-        }
-        .request-card {
-          background: var(--bg-card);
-          border-radius: 20px;
-          overflow: hidden;
-          box-shadow: var(--shadow-lg);
-        }
-        .request-image-container {
-          position: relative;
-          width: 100%;
-          aspect-ratio: 3/4;
-        }
-        .request-user-image {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-        .verified-badge {
-          position: absolute;
-          bottom: 16px;
-          right: 16px;
-          width: 32px;
-          height: 32px;
-          background: var(--accent-green);
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-size: 18px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        }
-        .request-user-info {
-          padding: 20px;
-          text-align: center;
-        }
-        .request-name {
-          font-size: 24px;
-          font-weight: 700;
-          color: var(--text-white);
-          margin-bottom: 8px;
-        }
-        .request-message {
-          font-size: 14px;
-          color: var(--text-muted);
-          margin-bottom: 16px;
-          line-height: 1.4;
-        }
-        .request-interests {
-          display: flex;
-          flex-wrap: wrap;
-          justify-content: center;
-          gap: 8px;
-        }
-        .interest-tag {
-          padding: 8px 16px;
-          background: var(--bg-input);
-          border-radius: 20px;
-          font-size: 13px;
-          color: var(--text-light);
-        }
-        .next-card-preview {
-          position: absolute;
-          bottom: -60px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 80%;
-          height: 60px;
-          border-radius: 20px 20px 0 0;
-          overflow: hidden;
-          opacity: 0.5;
-          z-index: -1;
-        }
-        .next-card-preview img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          filter: blur(2px);
-        }
-        .requests-actions {
-          display: flex;
-          justify-content: center;
-          gap: 40px;
-          padding: 24px;
-          padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 24px);
-        }
-        .action-btn {
-          width: 70px;
-          height: 70px;
-          border-radius: 50%;
-          border: none;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .action-btn:hover {
-          transform: scale(1.1);
-        }
-        .action-btn:active {
-          transform: scale(0.95);
-        }
-        .action-btn.decline {
-          background: var(--bg-input);
-          color: var(--text-muted);
-        }
-        .action-btn.decline:hover {
-          background: var(--status-busy);
-          color: white;
-          box-shadow: 0 4px 20px rgba(255, 59, 48, 0.4);
-        }
-        .action-btn.accept {
-          background: var(--accent-green);
-          color: white;
-          box-shadow: 0 4px 20px rgba(76, 217, 100, 0.4);
-        }
-        .action-btn.accept:hover {
-          box-shadow: 0 6px 25px rgba(76, 217, 100, 0.5);
-        }
-        .empty-state {
-          text-align: center;
-          padding: 40px 20px;
-        }
-        .empty-state-icon {
-          font-size: 64px;
-          margin-bottom: 16px;
-        }
-        .empty-state-title {
-          font-size: 20px;
-          font-weight: 600;
-          color: var(--text-white);
-          margin-bottom: 8px;
-        }
-        .empty-state-text {
-          font-size: 14px;
-          color: var(--text-muted);
-          margin-bottom: 24px;
-        }
+        .requests-page { display: flex; flex-direction: column; height: 100vh; padding-bottom: 0; }
+        .requests-header { display: flex; align-items: center; justify-content: space-between; padding: 16px; padding-top: calc(env(safe-area-inset-top, 20px) + 16px); }
+        .back-btn { background: none; border: none; color: var(--text-white); cursor: pointer; padding: 8px; }
+        .requests-title { font-size: 18px; font-weight: 600; color: var(--text-white); }
+        .requests-content { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; overflow: hidden; }
+        .request-card-wrapper { position: relative; width: 100%; max-width: 340px; user-select: none; }
+        .swipe-indicator { position: absolute; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity 0.2s; z-index: 10; }
+        .swipe-indicator span:first-child { width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; }
+        .swipe-accept { right: -20px; color: var(--accent-green); }
+        .swipe-accept span:first-child { background: var(--accent-green); color: white; }
+        .swipe-decline { left: -20px; color: var(--status-busy); }
+        .swipe-decline span:first-child { background: var(--status-busy); color: white; }
+        .swipe-indicator.visible { opacity: 1; }
+        .request-card { background: var(--bg-card); border-radius: 20px; overflow: hidden; box-shadow: var(--shadow-lg); }
+        .request-image-container { position: relative; width: 100%; aspect-ratio: 4/3; background: var(--bg-input); }
+        .request-user-image { width: 100%; height: 100%; object-fit: cover; }
+        .request-avatar-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 64px; font-weight: 700; color: var(--coral); background: var(--bg-input); }
+        .request-user-info { padding: 20px; text-align: center; }
+        .request-name { font-size: 24px; font-weight: 700; color: var(--text-white); margin-bottom: 8px; }
+        .request-bio { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4; }
+        .request-message-box { background: var(--bg-input); border-radius: 12px; padding: 12px 16px; margin-bottom: 12px; }
+        .request-message { font-size: 14px; color: var(--text-light); font-style: italic; line-height: 1.4; }
+        .request-date { font-size: 12px; color: var(--text-muted); }
+        .next-card-preview { position: absolute; bottom: -60px; left: 50%; transform: translateX(-50%); width: 80%; height: 60px; border-radius: 20px 20px 0 0; overflow: hidden; opacity: 0.5; z-index: -1; }
+        .next-card-preview img { width: 100%; height: 100%; object-fit: cover; filter: blur(2px); }
+        .requests-actions { display: flex; justify-content: center; gap: 40px; padding: 24px; padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 24px); }
+        .action-btn { width: 70px; height: 70px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+        .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .action-btn:not(:disabled):hover { transform: scale(1.1); }
+        .action-btn:not(:disabled):active { transform: scale(0.95); }
+        .action-btn.decline { background: var(--bg-input); color: var(--text-muted); }
+        .action-btn.decline:not(:disabled):hover { background: var(--status-busy); color: white; box-shadow: 0 4px 20px rgba(255,59,48,0.4); }
+        .action-btn.accept { background: var(--accent-green); color: white; box-shadow: 0 4px 20px rgba(76,217,100,0.4); }
+        .action-btn.accept:not(:disabled):hover { box-shadow: 0 6px 25px rgba(76,217,100,0.5); }
+        .empty-state { text-align: center; padding: 40px 20px; }
+        .empty-state-icon { font-size: 64px; margin-bottom: 16px; }
+        .empty-state-title { font-size: 20px; font-weight: 600; color: var(--text-white); margin-bottom: 8px; }
+        .empty-state-text { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; }
       `}</style>
     </div>
   );
-};export default GroupRequests;
+};
+export default GroupRequests;

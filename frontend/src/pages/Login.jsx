@@ -28,10 +28,8 @@ export const Login = () => {
   };
 
   const handleSocialLogin = (provider) => {
-    // TODO: Implement OAuth
-    console.log(`${provider} Login - Wird bald verfügbar sein`);
-    // Für Demo: Guest Login verwenden
-    handleGuestLogin();
+    // Social login not yet implemented — show info, do NOT fall back to guest
+    alert(`${provider} Login kommt bald! Bitte nutze E-Mail Login.`);
   };
 
   return (

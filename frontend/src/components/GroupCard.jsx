@@ -55,7 +55,7 @@ export const GroupCard = ({
                   <img src={member.avatar_url} alt={member.name} />
                 ) : (
                   <div className="avatar-placeholder">
-                    {member.name[0].toUpperCase()}
+                    {(member.name || '?')[0].toUpperCase()}
                   </div>
                 )}
               </div>

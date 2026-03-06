@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { notifications } from '../utils/api';
+import { useToast } from '../context/ToastContext';
 
 export const Notifications = () => {
   const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const toast = useToast();
 
   useEffect(() => {
     loadNotifications();
@@ -16,6 +18,7 @@ export const Notifications = () => {
       await notifications.markRead();
     } catch (err) {
       console.error(err);
+      toast.error('Benachrichtigungen konnten nicht geladen werden');
     } finally {
       setLoading(false);
     }

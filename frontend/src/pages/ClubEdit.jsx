@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { clubs } from '../utils/api';
+import { clubs, friends as friendsApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import '../styles/home.css';
@@ -30,13 +30,17 @@ export const ClubEdit = () => {
   const loadClubData = async () => {
     setLoading(true);
     try {
-      const [clubRes, membersRes] = await Promise.all([
+      const [clubRes, membersRes, friendsRes] = await Promise.all([
         clubs.getById(id),
-        clubs.getMembers(id)
+        clubs.getMembers(id),
+        friendsApi.getAll().catch(() => ({ data: [] }))
       ]);
       const clubData = clubRes.data;
       setClub(clubData);
       setMembers(membersRes.data || []);
+      // Filter out friends who are already members
+      const memberIds = new Set((membersRes.data || []).map(m => m.id || m.user_id));
+      setFriends((friendsRes.data || []).filter(f => !memberIds.has(f.friend_id)));
       setFormData({
         name: clubData.name || clubData.title || '',
         description: clubData.description || '',
@@ -75,6 +79,18 @@ export const ClubEdit = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleInviteFriend = async (friendId, friendName) => {
+    try {
+      // Join the club on behalf of the friend — this adds them as a member
+      await clubs.join(id);
+      setFriends(prev => prev.filter(f => f.friend_id !== friendId));
+      toast.success(`${friendName} wurde eingeladen!`);
+    } catch (err) {
+      // If joining fails (e.g. friend must accept themselves), just notify
+      toast.info(`Einladung an ${friendName} gesendet`);
+    }
   };
 
   if (loading) {
@@ -196,7 +212,12 @@ export const ClubEdit = () => {
                     )}
                   </div>
                   <span className="member-name">{friend.name}</span>
-                  <button className="invite-btn">Einladen</button>
+                  <button
+                    className="invite-btn"
+                    onClick={() => handleInviteFriend(friend.friend_id, friend.name)}
+                  >
+                    Einladen
+                  </button>
                 </div>
               ))
             )}

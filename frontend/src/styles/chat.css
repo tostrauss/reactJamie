@@ -366,6 +366,8 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  overscroll-behavior-y: contain; /* prevent pull-to-refresh gesture in chat */
+  -webkit-overflow-scrolling: touch; /* smooth momentum scroll on iOS */
 }
 
 .message {
