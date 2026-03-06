@@ -55,9 +55,18 @@ app.use(helmet({
   contentSecurityPolicy: false // Disable CSP for now (frontend served separately)
 }));
 
-// CORS
+// CORS — supports comma-separated FRONTEND_URL for multiple origins (e.g. Vercel + custom domain)
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000,http://localhost:5173')
+  .split(',')
+  .map(o => o.trim());
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS blocked: ${origin}`));
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
 }));
@@ -116,8 +125,23 @@ app.use('/api/spotify', spotifyRoutes);
 app.use('/api/upload', uploadRoutes);
 
 // Health check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Digital Asset Links — required for Android TWA (Phase 2)
+// Fill in ANDROID_PACKAGE and ANDROID_SHA256 env vars before Play Store submission
+app.get('/.well-known/assetlinks.json', (_req, res) => {
+  const packageName = process.env.ANDROID_PACKAGE || 'com.yourname.jamie';
+  const sha256 = process.env.ANDROID_SHA256 || 'YOUR_SHA256_CERT_FINGERPRINT';
+  res.json([{
+    relation: ['delegate_permission/common.handle_all_urls'],
+    target: {
+      namespace: 'android_app',
+      package_name: packageName,
+      sha256_cert_fingerprints: [sha256]
+    }
+  }]);
 });
 
 // ==========================================
@@ -125,7 +149,7 @@ app.get('/api/health', (req, res) => {
 // ==========================================
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: allowedOrigins,
     methods: ['GET', 'POST']
   }
 });
@@ -139,13 +163,13 @@ app.set('io', io);
 // ==========================================
 // ERROR HANDLING
 // ==========================================
-app.use((err, req, res, next) => {
+app.use((err, _req, res, _next) => {
   console.error('Server Error:', err.stack);
   res.status(500).json({ error: 'Etwas ist schiefgelaufen!' });
 });
 
 // 404 handler
-app.use((req, res) => {
+app.use((_req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
