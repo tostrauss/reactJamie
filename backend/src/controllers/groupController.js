@@ -48,7 +48,12 @@ export const getGroups = async (req, res) => {
 
     let query = `
       SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar,
-             CASE WHEN g.members_count >= g.max_members THEN 1 ELSE 0 END as is_full
+             CASE WHEN g.members_count >= g.max_members THEN 1 ELSE 0 END as is_full,
+             CASE WHEN EXISTS (
+               SELECT 1 FROM boosts b
+               WHERE b.target_id = g.id AND b.target_type = g.type
+                 AND b.boosted_until > CURRENT_TIMESTAMP
+             ) THEN TRUE ELSE FALSE END as is_boosted
       FROM groups g
       LEFT JOIN users u ON g.owner_id = u.id
       WHERE g.is_active = TRUE
@@ -77,7 +82,7 @@ export const getGroups = async (req, res) => {
       query += ` AND g.date >= CURRENT_TIMESTAMP`;
     }
 
-    query += ` ORDER BY is_full ASC, g.created_at DESC`;
+    query += ` ORDER BY is_boosted DESC, is_full ASC, g.created_at DESC`;
 
     if (limit) {
       query += ` LIMIT $${paramIndex++}`;

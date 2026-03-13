@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { sendPushToUser } from './pushController.js';
 
 // ==========================================
 // GET NOTIFICATIONS
@@ -68,10 +69,13 @@ export const createNotification = async (userId, senderId, type, title, message,
 
     const notification = result.rows[0];
 
-    // Realtime Push via Socket.io
+    // Realtime: Socket.io (for active sessions)
     if (io) {
       io.to(`user_${userId}`).emit('new_notification', notification);
     }
+
+    // Push notification (non-blocking — fires for background/closed sessions)
+    sendPushToUser(userId, title, message, '/notifications');
 
     return notification;
   } catch (err) {

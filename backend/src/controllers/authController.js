@@ -20,6 +20,23 @@ export const register = async (req, res) => {
   try {
     const { email, password, name } = req.body;
 
+    // Password policy validation (server-side mirror of frontend rules)
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: 'Mindestens 6 Zeichen erforderlich' });
+    }
+    if (!/[A-Z]/.test(password)) {
+      return res.status(400).json({ error: 'Mindestens 1 Großbuchstabe erforderlich' });
+    }
+    if (!/[a-z]/.test(password)) {
+      return res.status(400).json({ error: 'Mindestens 1 Kleinbuchstabe erforderlich' });
+    }
+    if (!/[0-9]/.test(password)) {
+      return res.status(400).json({ error: 'Mindestens 1 Zahl erforderlich' });
+    }
+    if (!/[^A-Za-z0-9]/.test(password)) {
+      return res.status(400).json({ error: 'Mindestens 1 Sonderzeichen erforderlich' });
+    }
+
     // Check if user exists
     const userExists = await db.query(
       'SELECT id FROM users WHERE email = $1',
@@ -39,6 +56,44 @@ export const register = async (req, res) => {
     );
 
     const newUserId = insertResult.rows[0].id;
+
+    // Initialize boost wallet + generate referral code
+    await db.query(
+      'INSERT INTO boost_credits (user_id) VALUES ($1) ON CONFLICT DO NOTHING',
+      [newUserId]
+    );
+    const refCode = 'JAMIE-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+    await db.query(
+      'INSERT INTO referral_codes (user_id, code) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [newUserId, refCode]
+    );
+
+    // Redeem referral code if provided
+    const { referral_code } = req.body;
+    if (referral_code) {
+      const codeOwner = await db.query(
+        'SELECT user_id FROM referral_codes WHERE UPPER(code) = UPPER($1)',
+        [referral_code]
+      );
+      if (codeOwner.rows.length && codeOwner.rows[0].user_id !== newUserId) {
+        const ownerId = codeOwner.rows[0].user_id;
+        // Credit new user
+        await db.query(
+          `INSERT INTO boost_credits (user_id, credits, total_earned) VALUES ($1, 1, 1)
+           ON CONFLICT (user_id) DO UPDATE SET credits = boost_credits.credits + 1, total_earned = boost_credits.total_earned + 1`,
+          [newUserId]
+        );
+        // Credit code owner
+        await db.query(
+          `UPDATE boost_credits SET credits = credits + 1, total_earned = total_earned + 1 WHERE user_id = $1`,
+          [ownerId]
+        );
+        await db.query(
+          'UPDATE referral_codes SET used_count = used_count + 1 WHERE user_id = $1',
+          [ownerId]
+        );
+      }
+    }
 
     // Fetch full user object
     const userResult = await db.query(

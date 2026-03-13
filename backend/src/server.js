@@ -43,6 +43,13 @@ import dmRoutes from './routes/dmRoutes.js';
 import friendshipRoutes from './routes/friendshipRoutes.js';
 import spotifyRoutes from './routes/spotifyRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
+import reportRoutes from './routes/reportRoutes.js';
+import pushRoutes from './routes/pushRoutes.js';
+import boostRoutes from './routes/boostRoutes.js';
+import { stripeWebhook } from './controllers/boostController.js';
+import analyticsRoutes from './routes/analyticsRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import reviewRoutes from './routes/reviewRoutes.js';
 import socketHandler from './socket.js';
 
 // ==========================================
@@ -50,9 +57,44 @@ import socketHandler from './socket.js';
 // ==========================================
 
 // Helmet: security headers (XSS, clickjacking, MIME sniffing, etc.)
+const storageOrigin = process.env.STORAGE_PUBLIC_URL || null;
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow uploaded images to load
-  contentSecurityPolicy: false // Disable CSP for now (frontend served separately)
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      connectSrc: [
+        "'self'",
+        'https://api.spotify.com',
+        'https://api.stripe.com',
+        'https://hooks.stripe.com',
+        'https://www.paypal.com',
+        'https://www.sandbox.paypal.com',
+        ...(storageOrigin ? [storageOrigin] : []),
+      ],
+      imgSrc: [
+        "'self'",
+        'data:',
+        'blob:',
+        'https://i.scdn.co',         // Spotify album art
+        'https://images.unsplash.com',
+        'https://www.paypal.com',
+        ...(storageOrigin ? [storageOrigin] : []),
+      ],
+      scriptSrc: [
+        "'self'",
+        'https://js.stripe.com',
+        'https://www.paypal.com',
+        'https://www.sandbox.paypal.com',
+      ],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      fontSrc: ["'self'", 'data:'],
+      mediaSrc: ["'self'", 'https://p.scdn.co'], // Spotify audio previews
+      frameSrc: ['https://js.stripe.com', 'https://hooks.stripe.com'],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
 }));
 
 // CORS — supports comma-separated FRONTEND_URL for multiple origins (e.g. Vercel + custom domain)
@@ -74,6 +116,9 @@ app.use(cors({
 // Compression: gzip responses
 app.use(compression());
 
+// Stripe webhook — must receive raw body BEFORE express.json() parses it
+app.post('/api/boost/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhook);
+
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -84,12 +129,14 @@ app.use(sanitizeInputs);
 // General rate limit on all API routes
 app.use('/api', generalLimiter);
 
-// Serve uploaded files statically
-const uploadsDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+// Serve uploaded files statically — dev only (cloud storage is used in production)
+if (process.env.NODE_ENV !== 'production') {
+  const uploadsDir = path.join(__dirname, '../uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  app.use('/uploads', express.static(uploadsDir));
 }
-app.use('/uploads', express.static(uploadsDir));
 
 // Session Management
 app.use(session({
@@ -123,25 +170,68 @@ app.use('/api/dm', dmRoutes);
 app.use('/api/friends', friendshipRoutes);
 app.use('/api/spotify', spotifyRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/push', pushRoutes);
+app.use('/api/boost', boostRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Digital Asset Links — required for Android TWA (Phase 2)
-// Fill in ANDROID_PACKAGE and ANDROID_SHA256 env vars before Play Store submission
+// Digital Asset Links — required for Android TWA
+// Set env vars: ANDROID_PACKAGE, ANDROID_SHA256
+// If using Play App Signing (recommended), also set ANDROID_SHA256_PLAY
+// (Play Console → Setup → App Signing → "App signing key certificate" SHA-256)
 app.get('/.well-known/assetlinks.json', (_req, res) => {
-  const packageName = process.env.ANDROID_PACKAGE || 'com.yourname.jamie';
-  const sha256 = process.env.ANDROID_SHA256 || 'YOUR_SHA256_CERT_FINGERPRINT';
+  const packageName = process.env.ANDROID_PACKAGE || 'jamie.app';
+
+  // Collect all configured fingerprints (your keystore + optional Play-managed key)
+  const fingerprints = [
+    process.env.ANDROID_SHA256,       // your release keystore fingerprint
+    process.env.ANDROID_SHA256_PLAY,  // Play App Signing fingerprint (if using)
+  ].filter(Boolean);
+
+  if (fingerprints.length === 0) {
+    fingerprints.push('CONFIGURE_ANDROID_SHA256_ENV_VAR');
+  }
+
+  res.setHeader('Cache-Control', 'public, max-age=3600');
   res.json([{
     relation: ['delegate_permission/common.handle_all_urls'],
     target: {
       namespace: 'android_app',
       package_name: packageName,
-      sha256_cert_fingerprints: [sha256]
+      sha256_cert_fingerprints: fingerprints
     }
   }]);
+});
+
+// Apple App Site Association — enables Universal Links for iOS (deep linking, password reset emails)
+// Set env vars: APPLE_TEAM_ID, APPLE_BUNDLE_ID
+app.get('/.well-known/apple-app-site-association', (_req, res) => {
+  const teamId = process.env.APPLE_TEAM_ID || 'REPLACE_TEAM_ID';
+  const bundleId = process.env.APPLE_BUNDLE_ID || 'jamie.app';
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.json({
+    applinks: {
+      apps: [],
+      details: [{
+        appIDs: [`${teamId}.${bundleId}`],
+        components: [
+          { '/': '/reset-password*', comment: 'Password reset deep link' },
+          { '/': '/verify-email*', comment: 'Email verification deep link' },
+        ]
+      }]
+    },
+    webcredentials: {
+      apps: [`${teamId}.${bundleId}`]
+    }
+  });
 });
 
 // ==========================================
