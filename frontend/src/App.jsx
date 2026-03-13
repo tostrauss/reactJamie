@@ -6,6 +6,11 @@ import { SocketProvider } from './context/SocketContext';
 import { ToastProvider } from './context/ToastContext';
 import { NetworkProvider } from './context/NetworkContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import { isNative, isNativeIOS } from './utils/platform';
+import { AppIntro, shouldShowIntro } from './pages/AppIntro';
+import { useAnalytics } from './hooks/useAnalytics';
+import { EventReviewModal } from './components/EventReviewModal';
+import { reviews } from './utils/api';
 
 // Auth Pages (eagerly loaded - needed at startup)
 import { Login } from './pages/Login';
@@ -33,6 +38,7 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const SpotifyCallback = lazy(() => import('./pages/SpotifyCallback'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 
 // Styles
 import './styles/global.css';
@@ -273,14 +279,59 @@ const AuthRoute = ({ children }) => {
   return user ? <Navigate to="/home" replace /> : children;
 };
 
+// ==========================================
+// NATIVE IOS PUSH REGISTRATION
+// ==========================================
+function useNativePush(user) {
+  useEffect(() => {
+    if (!user || !isNativeIOS()) return;
+
+    // Dynamic import — only available inside Capacitor native shell
+    import('@capacitor/push-notifications').then(({ PushNotifications }) => {
+      PushNotifications.requestPermissions().then(({ receive }) => {
+        if (receive !== 'granted') return;
+        PushNotifications.register();
+      });
+
+      const regListener = PushNotifications.addListener('registration', ({ value: token }) => {
+        // Send APNs device token to backend
+        import('./utils/api.js').then(({ push }) => {
+          push.saveApnsToken(token).catch(() => {});
+        });
+      });
+
+      return () => { regListener.remove(); };
+    }).catch(() => {});
+  }, [user]);
+}
+
 // Main App Routes
 function AppRoutes() {
   const { user } = useContext(AuthContext);
+  useNativePush(user);
+  useAnalytics();
+  const [showIntro, setShowIntro] = useState(() => !!user && shouldShowIntro());
+  const [pendingReviews, setPendingReviews] = useState(null);
+
+  // Show intro when user first logs in
+  useEffect(() => {
+    if (user && shouldShowIntro()) setShowIntro(true);
+  }, [user]);
+
+  // Check for pending post-event reviews once after login
+  useEffect(() => {
+    if (!user) return;
+    reviews.getPending()
+      .then(res => { if (res.data?.length) setPendingReviews(res.data); })
+      .catch(() => {});
+  }, [user?.id]);
+
+  if (showIntro) return <AppIntro onDone={() => setShowIntro(false)} />;
 
   return (
     <>
-      <UpdateBanner />
-      <InstallBanner />
+      {!isNative() && <UpdateBanner />}
+      {!isNative() && <InstallBanner />}
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Auth */}
@@ -319,6 +370,9 @@ function AppRoutes() {
           {/* Spotify */}
           <Route path="/spotify/callback" element={<ProtectedRoute><SpotifyCallback /></ProtectedRoute>} />
 
+          {/* Admin — public but protected by secret header */}
+          <Route path="/admin" element={<AdminDashboard />} />
+
           {/* Legal — public, no auth required */}
           <Route path="/privacy" element={<PrivacyPolicy />} />
 
@@ -337,6 +391,12 @@ function AppRoutes() {
         </Routes>
       </Suspense>
       <Navigation />
+      {pendingReviews && (
+        <EventReviewModal
+          pendingReviews={pendingReviews}
+          onDone={() => setPendingReviews(null)}
+        />
+      )}
     </>
   );
 }

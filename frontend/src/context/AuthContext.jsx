@@ -23,10 +23,10 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const register = useCallback(async (email, password, name) => {
+  const register = useCallback(async (email, password, name, referral_code) => {
     setLoading(true);
     try {
-      const response = await auth.register(email, password, name);
+      const response = await auth.register(email, password, name, referral_code);
       setUser(response.data.user);
       setToken(response.data.token);
       localStorage.setItem('token', response.data.token);

@@ -1,4 +1,5 @@
 {
+  "id": "/",
   "name": "JAMIE - Social Activity App",
   "short_name": "JAMIE",
   "description": "Finde Leute für Aktivitäten, tritt Gruppen bei und gründe Clubs in deiner Nähe.",
@@ -8,6 +9,9 @@
   "theme_color": "#1a1a2e",
   "orientation": "portrait",
   "scope": "/",
+  "lang": "de",
+  "dir": "ltr",
+  "categories": ["social", "lifestyle"],
   "icons": [
     {
       "src": "/icon.svg",
@@ -28,7 +32,8 @@
     {
       "src": "/pwa-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/maskable-icon-512x512.png",
@@ -51,7 +56,20 @@
       "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
     }
   ],
-  "categories": ["social", "lifestyle"],
-  "lang": "de",
-  "dir": "ltr"
+  "screenshots": [
+    {
+      "src": "/screenshots/home.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Home — Gruppen entdecken"
+    },
+    {
+      "src": "/screenshots/chat.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Gruppen-Chat"
+    }
+  ]
 }

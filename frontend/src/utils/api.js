@@ -77,8 +77,8 @@ axiosInstance.interceptors.response.use(
 // ==========================================
 
 export const auth = {
-  register: (email, password, name) => 
-    axiosInstance.post('/auth/register', { email, password, name }),
+  register: (email, password, name, referral_code) =>
+    axiosInstance.post('/auth/register', { email, password, name, ...(referral_code ? { referral_code } : {}) }),
   
   login: (email, password) => 
     axiosInstance.post('/auth/login', { email, password }),
@@ -419,6 +419,85 @@ export const spotify = {
 };
 
 // ==========================================
+// REPORTS API
+// ==========================================
+
+export const reports = {
+  create: (reported_type, reported_id, reason, details) =>
+    axiosInstance.post('/reports', { reported_type, reported_id, reason, details }),
+};
+
+// ==========================================
+// BOOST API
+// ==========================================
+
+export const boost = {
+  getCredits: () => axiosInstance.get('/boost/credits'),
+  getPackages: () => axiosInstance.get('/boost/packages'),
+  getPaypalClientId: () => axiosInstance.get('/boost/paypal-client-id'),
+  apply: (target_type, target_id, hours = 24) =>
+    axiosInstance.post('/boost/apply', { target_type, target_id, hours }),
+  createStripeIntent: (package_id) =>
+    axiosInstance.post('/boost/stripe/create-intent', { package_id }),
+  createPaypalOrder: (package_id) =>
+    axiosInstance.post('/boost/paypal/create-order', { package_id }),
+  capturePaypalOrder: (order_id) =>
+    axiosInstance.post('/boost/paypal/capture-order', { order_id }),
+  redeemReferral: (code) =>
+    axiosInstance.post('/boost/redeem-referral', { code }),
+};
+
+// ==========================================
+// PUSH API
+// ==========================================
+
+export const push = {
+  getVapidKey: () => axiosInstance.get('/push/vapid-key'),
+  subscribe: (subscription) => axiosInstance.post('/push/subscribe', subscription),
+  unsubscribe: (endpoint) => axiosInstance.post('/push/unsubscribe', { endpoint }),
+  saveApnsToken: (token) => axiosInstance.post('/push/apns-token', { token }),
+};
+
+// ==========================================
+// ANALYTICS API
+// ==========================================
+
+export const analytics = {
+  trackEvent: (event_type, screen_name, duration_ms, metadata) =>
+    axiosInstance.post('/analytics/event', { event_type, screen_name, duration_ms, metadata }),
+  suggestCategory: (suggestion) =>
+    axiosInstance.post('/analytics/suggest-category', { suggestion }),
+};
+
+// ==========================================
+// ADMIN API
+// ==========================================
+
+export const admin = {
+  getStats: (secret) =>
+    axiosInstance.get('/admin/stats', { headers: { 'x-admin-secret': secret } }),
+  getUsers: (secret, limit = 50) =>
+    axiosInstance.get('/admin/users', { headers: { 'x-admin-secret': secret }, params: { limit } }),
+  getScreenTime: (secret) =>
+    axiosInstance.get('/admin/screen-time', { headers: { 'x-admin-secret': secret } }),
+  exportUsers: (secret) =>
+    axiosInstance.get('/admin/export/users', { headers: { 'x-admin-secret': secret } }),
+  exportScreens: (secret) =>
+    axiosInstance.get('/admin/export/screens', { headers: { 'x-admin-secret': secret } }),
+  exportSuggestions: (secret) =>
+    axiosInstance.get('/admin/export/suggestions', { headers: { 'x-admin-secret': secret } }),
+};
+
+// ==========================================
+// REVIEWS API
+// ==========================================
+
+export const reviews = {
+  getPending: () => axiosInstance.get('/reviews/pending'),
+  submit: (group_id, attendances) => axiosInstance.post('/reviews', { group_id, attendances }),
+};
+
+// ==========================================
 // UPLOAD API
 // ==========================================
 
@@ -447,6 +526,9 @@ axiosInstance.friends = friends;
 axiosInstance.notifications = notifications;
 axiosInstance.spotify = spotify;
 axiosInstance.upload = upload;
+axiosInstance.reports = reports;
+axiosInstance.boost = boost;
+axiosInstance.push = push;
 
 // Export the instance as 'api'
 export const api = axiosInstance;

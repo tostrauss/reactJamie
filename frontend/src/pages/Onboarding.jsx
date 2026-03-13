@@ -8,7 +8,7 @@ import '../styles/auth.css';
 const INTEREST_OPTIONS = [
   'Sport', 'Musik', 'Technik', 'Kunst', 'Soziales', 'Gaming',
   'Fitness', 'Reisen', 'Essen', 'Filme', 'Lesen', 'Fotografie',
-  'Wandern', 'Yoga', 'Tanzen', 'Kochen', 'Mode', 'Natur'
+  'Wandern', 'Yoga', 'Tanzen', 'Kochen', 'Mode', 'Natur', 'Clubbing'
 ];
 
 const STEPS = ['Geschlecht', 'Profil', 'Interessen', 'Fotos', 'Fertig'];
@@ -26,6 +26,8 @@ export const Onboarding = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [customInterest, setCustomInterest] = useState('');
+  const [categorySuggestion, setCategorySuggestion] = useState('');
+  const [suggestionSent, setSuggestionSent] = useState(false);
 
   const [formData, setFormData] = useState({
     gender: '',
@@ -58,6 +60,19 @@ export const Onboarding = () => {
     if (customInterest.trim() && !formData.interests.includes(customInterest.trim())) {
       toggleInterest(customInterest.trim());
       setCustomInterest('');
+    }
+  };
+
+  const sendCategorySuggestion = async (e) => {
+    e?.preventDefault();
+    const text = categorySuggestion.trim();
+    if (!text || suggestionSent) return;
+    try {
+      await api.post('/analytics/suggest-category', { suggestion: text });
+      setSuggestionSent(true);
+      setCategorySuggestion('');
+    } catch {
+      // non-blocking — ignore errors
     }
   };
 
@@ -209,6 +224,34 @@ export const Onboarding = () => {
             {formData.interests.length} ausgewählt
             {formData.interests.length < 3 && ` (noch ${3 - formData.interests.length} nötig)`}
           </p>
+
+          {/* Category suggestion */}
+          <div style={{ width: '100%', maxWidth: '400px', marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '16px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+              Kategorie vermissen? Vorschlag abgeben:
+            </p>
+            {suggestionSent ? (
+              <p style={{ fontSize: '13px', color: '#4ade80' }}>✓ Danke für deinen Vorschlag!</p>
+            ) : (
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  placeholder="z.B. Volleyball, Fotografie…"
+                  value={categorySuggestion}
+                  onChange={(e) => setCategorySuggestion(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && sendCategorySuggestion(e)}
+                  style={{ flex: 1 }}
+                />
+                <button
+                  onClick={sendCategorySuggestion}
+                  disabled={!categorySuggestion.trim()}
+                  className="onboarding-add-btn"
+                >
+                  Senden
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

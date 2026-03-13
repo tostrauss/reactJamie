@@ -38,56 +38,79 @@ export const Profile = () => {
 
   const profilePhotos = user?.photos || [];
   const interests = user?.interests || [];
+  const coverPhoto = profilePhotos[0] || user?.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800';
+  const avatarPhoto = user?.avatar_url || profilePhotos[0];
+  const completion = user?.profile_completion || 0;
 
   return (
     <div className="profile-page">
-      {/* Header Bild */}
+      {/* Cover */}
       <div className="profile-header-image">
-        <img
-          src={profilePhotos[0] || user?.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400'}
-          alt={user?.name}
-          className="profile-cover"
-        />
+        <img src={coverPhoto} alt={user?.name} className="profile-cover" />
+        <div className="profile-cover-gradient" />
 
         {/* Overlay Buttons */}
         <div className="profile-header-actions">
           <button className="profile-action-btn" onClick={() => navigate(-1)}>
-            ←
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
           </button>
           <div className="profile-edit-actions">
             <button className="profile-action-btn" onClick={() => navigate('/settings')} title="Einstellungen">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="3"/>
                 <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
               </svg>
             </button>
             <button className="profile-action-btn" onClick={() => navigate('/profile/edit')} title="Profil bearbeiten">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
               </svg>
             </button>
           </div>
         </div>
+
+        {/* Floating Avatar */}
+        <div className="profile-avatar-float">
+          {avatarPhoto ? (
+            <img src={avatarPhoto} alt={user?.name} />
+          ) : (
+            <span>{user?.name?.[0]?.toUpperCase() || '?'}</span>
+          )}
+          {user?.is_trusted_user && (
+            <div className="profile-trusted-badge" title="Vertrauenswürdiger Nutzer">✓</div>
+          )}
+        </div>
       </div>
 
-      {/* Profile */}
+      {/* Info Section */}
       <div className="profile-info-section">
         {/* Name & Location */}
         <div className="profile-name-row">
-          <div className="profile-location">
-            <span className="location-icon">📍</span>
-            {user?.location || 'Kein Standort'}
-          </div>
-          <h1 className="profile-name">
-            {user?.name || 'Nutzer'}
-          </h1>
+          <h1 className="profile-name">{user?.name || 'Nutzer'}</h1>
+          {user?.location && (
+            <div className="profile-location">
+              <span className="location-icon">📍</span>
+              {user.location}
+            </div>
+          )}
         </div>
+
+        {/* Profile Completion Bar */}
+        {completion < 100 && (
+          <div className="profile-completion">
+            <div className="completion-bar">
+              <div className="completion-fill" style={{ width: `${completion}%` }} />
+            </div>
+            <span className="completion-text">{completion}% vollständig</span>
+          </div>
+        )}
 
         {/* Bio */}
         {user?.bio && (
           <div className="profile-bio-section">
-            <h3 className="section-title">Über Dich!</h3>
             <p className="profile-bio">{user.bio}</p>
           </div>
         )}
@@ -96,9 +119,7 @@ export const Profile = () => {
         {interests.length > 0 && (
           <div className="profile-interests">
             {interests.map((interest, index) => (
-              <span key={index} className="interest-chip">
-                {interest}
-              </span>
+              <span key={index} className="interest-chip">{interest}</span>
             ))}
           </div>
         )}
@@ -124,12 +145,16 @@ export const Profile = () => {
           {activeTab === 'pinnwand' ? (
             <div className="pinnwand-grid">
               {profilePhotos.map((photo, index) => (
-                <div key={index} className="pinnwand-item">
+                <div
+                  key={index}
+                  className={`pinnwand-item${index === 0 ? ' pinnwand-item--large' : ''}`}
+                >
                   <img src={photo} alt={`Foto ${index + 1}`} />
                 </div>
               ))}
               <div className="pinnwand-item add-photo" onClick={() => navigate('/profile/edit')}>
                 <span>+</span>
+                <p>Foto hinzufügen</p>
               </div>
             </div>
           ) : (

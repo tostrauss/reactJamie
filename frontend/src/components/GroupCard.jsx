@@ -84,6 +84,9 @@ export const GroupCard = ({
             {isFull && (
               <span className="category-pill full-badge">Voll</span>
             )}
+            {group.is_boosted && (
+              <span className="category-pill" style={{ background: 'rgba(253,118,102,0.85)', color: '#fff', fontWeight: '700' }}>🚀 Boost</span>
+            )}
           </div>
         </div>
       </div>

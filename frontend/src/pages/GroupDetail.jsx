@@ -3,7 +3,23 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { groups, clubs } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import '../styles/home.css';
+import { ReportModal } from '../components/ReportModal';
+import { BoostModal } from '../components/BoostModal';
+import '../styles/group-detail.css';
+
+const formatGroupDate = (dateStr) => {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d)) return null;
+  return d.toLocaleDateString('de-AT', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+const formatGroupTime = (dateStr) => {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d)) return null;
+  return d.toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' Uhr';
+};
 
 export const GroupDetail = () => {
   const { id } = useParams();
@@ -15,17 +31,14 @@ export const GroupDetail = () => {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isJoined, setIsJoined] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showBoostModal, setShowBoostModal] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // Try loading as group first, then as club
-        let groupRes;
-        let membersRes;
-        let joinedGroupsRes;
-        let joinedClubsRes;
-
+        let groupRes, membersRes, joinedGroupsRes, joinedClubsRes;
         try {
           [groupRes, joinedGroupsRes, membersRes] = await Promise.all([
             groups.getById(id),
@@ -50,7 +63,7 @@ export const GroupDetail = () => {
         setIsJoined(joinedList.some((g) => g.id === parseInt(id, 10)));
         setMembers(membersRes.data);
       } catch (error) {
-        console.error("Error fetching group details:", error);
+        console.error('Error fetching group details:', error);
         toast.error('Gruppe konnte nicht geladen werden');
       } finally {
         setLoading(false);
@@ -62,38 +75,18 @@ export const GroupDetail = () => {
   const handleJoinToggle = async () => {
     try {
       const isClub = group?.type === 'club';
-
       if (isJoined) {
-        if (isClub) {
-          await clubs.leave(id);
-        } else {
-          await groups.leave(id);
-        }
+        isClub ? await clubs.leave(id) : await groups.leave(id);
         setIsJoined(false);
         setMembers(prev => prev.filter(m => m.id !== user.id));
       } else {
-        if (isClub) {
-          await clubs.join(id);
-        } else {
-          await groups.join(id);
-        }
+        isClub ? await clubs.join(id) : await groups.join(id);
         setIsJoined(true);
-        // Optimistic update
-        const newMember = {
-            id: user.id,
-            name: user.name,
-            avatar_url: user.avatar_url,
-            location: 'Du'
-        };
-        setMembers(prev => [newMember, ...prev]);
+        setMembers(prev => [{ id: user.id, name: user.name, avatar_url: user.avatar_url, location: user.location }, ...prev]);
       }
-      
-      const response = group?.type === 'club'
-        ? await clubs.getById(id)
-        : await groups.getById(id);
+      const response = group?.type === 'club' ? await clubs.getById(id) : await groups.getById(id);
       setGroup(response.data);
     } catch (error) {
-      console.error("Error toggling join:", error);
       toast.error(error.response?.data?.error || 'Fehler beim Beitreten/Verlassen');
     }
   };
@@ -101,139 +94,169 @@ export const GroupDetail = () => {
   if (loading) return <div className="loading">Laden...</div>;
   if (!group) return <div className="error">Gruppe nicht gefunden</div>;
 
-  const headerStyle = group.image_url 
-    ? { backgroundImage: `url(${group.image_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-    : { background: `linear-gradient(135deg, var(--accent-coral), #ff8585)` };
+  const isClub = group.type === 'club';
+  const isOwner = user && group.owner_id === user.id;
+  const formattedDate = formatGroupDate(group.date);
+  const formattedTime = formatGroupTime(group.date);
 
   return (
-    <div className="home" style={{ paddingBottom: '100px' }}>
-      <button 
-        onClick={() => navigate(-1)} 
-        style={{ position: 'absolute', top: 20, left: 20, zIndex: 10, background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', fontSize: '24px', width: 40, height: 40, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-      >
-        ←
-      </button>
+    <div className="gd-page">
 
-      {/* Header Image/Gradient */}
-      <div className="group-detail-header" style={{ position: 'relative', height: '300px', overflow: 'hidden' }}>
-        <div style={{ width: '100%', height: '100%', ...headerStyle }}></div>
-        
-        {/* Overlay Content */}
-        <div style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          width: '100%',
-          padding: '20px',
-          background: 'linear-gradient(to top, #1a1a3e, transparent)',
-          paddingTop: '60px'
-        }}>
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
-            <span className={`badge ${group.type}`}>{group.type === 'club' ? 'Club' : 'Gruppe'}</span>
+      {/* Header */}
+      <div className="gd-header">
+        {group.image_url ? (
+          <img src={group.image_url} alt={group.name} className="gd-cover" />
+        ) : (
+          <div className="gd-cover-gradient-bg" />
+        )}
+        <div className="gd-cover-overlay" />
+
+        <button className="gd-back-btn" onClick={() => navigate(-1)}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+        </button>
+
+        <div className="gd-header-content">
+          <div className="gd-badges">
+            <span className={`gd-badge type-${isClub ? 'club' : 'group'}`}>
+              {isClub ? 'Club' : 'Gruppe'}
+            </span>
             {group.category && (
-              <span className="category-pill">{group.category}</span>
+              <span className="gd-badge category">{group.category}</span>
             )}
           </div>
-          <h1 style={{ fontSize: '32px', margin: '0', textShadow: '0 2px 10px rgba(0,0,0,0.5)' }}>{group.name || group.title}</h1>
+          <h1 className="gd-title">{group.name || group.title}</h1>
         </div>
       </div>
 
-      <div className="card-content" style={{ padding: '20px' }}>
-        {/* Meta Info */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '15px' }}>
-          <div>
-            <p style={{ color: 'var(--text-muted)', fontSize: '12px', marginBottom: '4px', textTransform: 'uppercase' }}>Organisiert von</p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-               <div style={{ width: 24, height: 24, background: 'var(--accent-coral)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: 'white' }}>{group.owner_name?.[0]}</div>
-               <p style={{ fontWeight: 'bold' }}>{group.owner_name}</p>
+      {/* Body */}
+      <div className="gd-body">
+
+        {/* Meta */}
+        <div className="gd-meta">
+          <div className="gd-meta-card">
+            <div className="gd-meta-label">Organisiert von</div>
+            <div className="gd-meta-owner">
+              <div className="gd-owner-avatar">
+                {group.owner_avatar
+                  ? <img src={group.owner_avatar} alt={group.owner_name} />
+                  : group.owner_name?.[0]?.toUpperCase()}
+              </div>
+              <span className="gd-owner-name">{group.owner_name}</span>
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <p style={{ color: 'var(--text-muted)', fontSize: '12px', marginBottom: '4px', textTransform: 'uppercase' }}>Mitglieder</p>
-            <p style={{ fontWeight: 'bold', fontSize: '16px' }}>{group.members_count ?? group.member_count ?? 0} <span style={{fontSize: '12px', color: 'var(--text-muted)'}}>/ {group.max_members || group.maxMembers || 6}</span></p>
+          <div className="gd-meta-card">
+            <div className="gd-meta-label">Mitglieder</div>
+            <div className="gd-member-count">
+              {group.members_count ?? group.member_count ?? 0}
+              <span> / {group.max_members || '∞'}</span>
+            </div>
           </div>
         </div>
 
+        {/* Info Pills */}
+        {(formattedDate || formattedTime || group.location || group.skill_level) && (
+          <div className="gd-info-pills">
+            {formattedDate && (
+              <span className="gd-pill"><span className="gd-pill-icon">📅</span>{formattedDate}</span>
+            )}
+            {formattedTime && (
+              <span className="gd-pill"><span className="gd-pill-icon">🕐</span>{formattedTime}</span>
+            )}
+            {group.location && (
+              <span className="gd-pill"><span className="gd-pill-icon">📍</span>{group.location}</span>
+            )}
+            {group.skill_level && group.skill_level !== 'Alle Levels' && (
+              <span className="gd-pill"><span className="gd-pill-icon">⚡</span>{group.skill_level}</span>
+            )}
+          </div>
+        )}
+
         {/* Description */}
-        <div style={{ marginBottom: '30px' }}>
-          <h3 style={{ marginBottom: '10px', fontSize: '18px' }}>{'\u00dc'}ber {group.type === 'club' ? 'diesen Club' : 'diese Gruppe'}</h3>
-          <p style={{ lineHeight: '1.6', color: '#ccc', fontSize: '15px' }}>{group.description}</p>
-        </div>
+        {group.description && (
+          <>
+            <h3 className="gd-section-title">Über {isClub ? 'diesen Club' : 'diese Gruppe'}</h3>
+            <p className="gd-description">{group.description}</p>
+          </>
+        )}
 
         {/* Action Buttons */}
-        <div className="action-buttons" style={{ display: 'flex', gap: '10px', marginBottom: '30px' }}>
+        <div className="gd-actions">
           {isJoined ? (
             <>
-              <button 
-                className="btn-primary" 
-                style={{ flex: 2, background: 'rgba(100, 200, 100, 0.2)', color: '#90ee90', border: '1px solid rgba(100, 200, 100, 0.3)' }}
-                onClick={() => navigate(`/chat/${group.id}`)}
-              >
-                Chat {'\u00f6'}ffnen {'\uD83D\uDCAC'}
+              <button className="gd-btn-chat" onClick={() => navigate(`/chat/${group.id}`)}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                Chat öffnen
               </button>
-              <button 
-                className="btn-secondary" 
-                style={{ flex: 1, borderColor: '#ff6b6b', color: '#ff6b6b' }}
-                onClick={handleJoinToggle}
-              >
-                Verlassen
-              </button>
+              <button className="gd-btn-leave" onClick={handleJoinToggle}>Verlassen</button>
             </>
           ) : (
-            <button 
-              className="btn-primary" 
-              style={{ width: '100%', height: '50px', fontSize: '16px' }}
-              onClick={handleJoinToggle}
-            >
-              {group.type === 'club' ? 'Club beitreten' : 'Gruppe beitreten'}
+            <button className="gd-btn-join" onClick={handleJoinToggle}>
+              {isClub ? 'Club beitreten' : 'Gruppe beitreten'}
             </button>
           )}
         </div>
 
-        {/* Members List */}
-        <div className="members-section">
-          <h3 style={{ marginBottom: '15px', fontSize: '18px' }}>Mitglieder</h3>
+        {/* Members */}
+        <div className="gd-members">
+          <h3 className="gd-section-title">Mitglieder</h3>
           {members.length === 0 ? (
-            <p style={{ color: '#666', fontSize: '14px' }}>Noch keine Mitglieder. Sei der Erste!</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Noch keine Mitglieder. Sei der Erste!</p>
           ) : (
-            <div className="members-list" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {members.map(member => (
-                <div
-                  key={member.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '15px',
-                    padding: '12px',
-                    background: 'rgba(255,255,255,0.03)',
-                    borderRadius: '12px',
-                    border: '1px solid rgba(255,255,255,0.05)',
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => navigate(`/user/${member.id}`)}
-                >
-                  <div style={{ 
-                    width: '40px', height: '40px', borderRadius: '50%', 
-                    background: '#333', overflow: 'hidden', flexShrink: 0 
-                  }}>
-                    {member.avatar_url ? (
-                      <img src={member.avatar_url} alt={member.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 'bold' }}>
-                        {(member.name || '?')[0].toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 'bold', fontSize: '15px' }}>{member.name}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{member.location || 'Kein Standort'}</div>
-                  </div>
+            members.map(member => (
+              <div key={member.id} className="gd-member-item" onClick={() => navigate(`/user/${member.id}`)}>
+                <div className="gd-member-avatar">
+                  {member.avatar_url
+                    ? <img src={member.avatar_url} alt={member.name} />
+                    : (member.name || '?')[0].toUpperCase()}
                 </div>
-              ))}
-            </div>
+                <div>
+                  <div className="gd-member-name">{member.name}</div>
+                  <div className="gd-member-location">{member.location || 'Kein Standort'}</div>
+                </div>
+                {member.id === group.owner_id && (
+                  <span className="gd-member-role">Owner</span>
+                )}
+              </div>
+            ))
           )}
         </div>
+
+        {/* Boost (owner only) */}
+        {isOwner && (
+          <button className="gd-boost-btn" onClick={() => setShowBoostModal(true)}>
+            🚀 {isClub ? 'Club' : 'Gruppe'} boosten
+          </button>
+        )}
+
+        {/* Report */}
+        <button className="gd-report-btn" onClick={() => setShowReportModal(true)}>
+          {isClub ? 'Club melden' : 'Gruppe melden'}
+        </button>
       </div>
+
+      {showReportModal && (
+        <ReportModal
+          type="group"
+          id={parseInt(id)}
+          name={group.name || group.title}
+          onClose={() => setShowReportModal(false)}
+        />
+      )}
+
+      {showBoostModal && (
+        <BoostModal
+          targetType={group.type || 'group'}
+          targetId={parseInt(id)}
+          targetName={group.name || group.title}
+          onClose={() => setShowBoostModal(false)}
+        />
+      )}
     </div>
   );
-};export default GroupDetail;
+};
+
+export default GroupDetail;

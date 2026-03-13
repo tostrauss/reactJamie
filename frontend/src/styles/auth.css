@@ -167,17 +167,25 @@
 
 .back-btn {
   align-self: flex-start;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  color: var(--text-light);
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  padding: 8px 0;
-  transition: color var(--transition-fast);
+  padding: 7px 14px;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  letter-spacing: 0.01em;
 }
 
 .back-btn:hover {
-  color: var(--text-white);
+  background: rgba(255, 255, 255, 0.13);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
 }
 
 .form-group {

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { users, friends } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { ReportModal } from '../components/ReportModal';
 import '../styles/profile.css';
 
 export const UserProfile = () => {
@@ -18,6 +19,7 @@ export const UserProfile = () => {
   const [friendshipId, setFriendshipId] = useState(null);
   const [isRequester, setIsRequester] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   useEffect(() => {
     if (currentUser && currentUser.id === parseInt(id)) {
@@ -225,7 +227,17 @@ export const UserProfile = () => {
           )}
         </div>
 
-        <h2 className="user-profile-name">{profile.name}</h2>
+        <h2 className="user-profile-name">
+          {profile.name}
+          {profile.is_trusted_user && (
+            <span title="Vertrauenswürdiger Nutzer" style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              width: 20, height: 20, borderRadius: '50%',
+              background: '#4ade80', color: '#fff',
+              fontSize: 11, fontWeight: 700, marginLeft: 8, verticalAlign: 'middle',
+            }}>✓</span>
+          )}
+        </h2>
 
         {profile.gender && (
           <p className="user-profile-gender">
@@ -249,6 +261,17 @@ export const UserProfile = () => {
 
         {/* Action Buttons */}
         {renderFriendshipActions()}
+
+        {/* Report link */}
+        <button
+          onClick={() => setShowReportModal(true)}
+          style={{
+            background: 'none', border: 'none', color: 'var(--text-muted)',
+            fontSize: 12, cursor: 'pointer', marginTop: 8, textDecoration: 'underline',
+          }}
+        >
+          Nutzer melden
+        </button>
       </div>
 
       {/* Tabs */}
@@ -302,6 +325,14 @@ export const UserProfile = () => {
             </p>
           )}
         </div>
+      )}
+      {showReportModal && (
+        <ReportModal
+          type="user"
+          id={parseInt(id)}
+          name={profile.name}
+          onClose={() => setShowReportModal(false)}
+        />
       )}
     </div>
   );

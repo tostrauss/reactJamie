@@ -3,6 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { auth } from '../utils/api';
 import { useToast } from '../context/ToastContext';
+import {
+  isPushSupported,
+  getPushPermission,
+  isPushSubscribed,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from '../utils/pushNotifications';
 import '../styles/profile.css';
 
 export const SettingsPage = () => {
@@ -30,6 +37,38 @@ export const SettingsPage = () => {
   useEffect(() => { localStorage.setItem('notif_messages', notifMessages); }, [notifMessages]);
   useEffect(() => { localStorage.setItem('notif_requests', notifRequests); }, [notifRequests]);
   useEffect(() => { localStorage.setItem('notif_groups', notifGroups); }, [notifGroups]);
+
+  // Push notification subscription state
+  const [pushSupported] = useState(() => isPushSupported());
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
+
+  useEffect(() => {
+    if (!pushSupported) return;
+    isPushSubscribed().then(setPushEnabled);
+  }, [pushSupported]);
+
+  const handlePushToggle = async () => {
+    if (getPushPermission() === 'denied') {
+      toast.error('Benachrichtigungen sind im Browser blockiert. Bitte in den Browser-Einstellungen freigeben.');
+      return;
+    }
+    setPushLoading(true);
+    try {
+      if (pushEnabled) {
+        await unsubscribeFromPush();
+        setPushEnabled(false);
+        toast.success('Push-Benachrichtigungen deaktiviert');
+      } else {
+        const ok = await subscribeToPush();
+        setPushEnabled(ok);
+        if (ok) toast.success('Push-Benachrichtigungen aktiviert!');
+        else toast.error('Berechtigung verweigert oder Fehler beim Aktivieren');
+      }
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -233,6 +272,26 @@ export const SettingsPage = () => {
             <span className="settings-toggle-slider" />
           </label>
         </div>
+
+        {pushSupported && (
+          <div className="settings-row">
+            <div className="settings-row-left">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                <line x1="12" y1="2" x2="12" y2="4"/>
+              </svg>
+              <div className="settings-row-stacked">
+                <span>Push-Benachrichtigungen</span>
+                <span className="settings-row-detail">Benachrichtigungen auch wenn App geschlossen</span>
+              </div>
+            </div>
+            <label className="settings-toggle" style={{ opacity: pushLoading ? 0.5 : 1 }}>
+              <input type="checkbox" checked={pushEnabled} onChange={handlePushToggle} disabled={pushLoading} />
+              <span className="settings-toggle-slider" />
+            </label>
+          </div>
+        )}
       </div>
 
       {/* App */}

@@ -81,7 +81,7 @@ export const Login = () => {
               className="back-btn"
               onClick={() => setShowEmailForm(false)}
             >
-              ← Zurück
+              ‹ Zurück
             </button>
 
             <div className="form-group">
@@ -93,6 +93,7 @@ export const Login = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoFocus
+                autoComplete="email"
               />
             </div>
 
@@ -104,6 +105,7 @@ export const Login = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                autoComplete="current-password"
               />
             </div>
 

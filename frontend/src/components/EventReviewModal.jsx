@@ -1,0 +1,177 @@
+import React, { useState } from 'react';
+import { reviews } from '../utils/api';
+
+/**
+ * Post-event feedback modal.
+ * Props:
+ *   pendingReviews  - array of { group_id, group_name, event_date, members: [{ id, name, avatar_url }] }
+ *   onDone          - called when all reviews are submitted or skipped
+ */
+export const EventReviewModal = ({ pendingReviews, onDone }) => {
+  const [index, setIndex] = useState(0);
+  const [attendances, setAttendances] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+
+  if (!pendingReviews?.length) return null;
+
+  const current = pendingReviews[index];
+  const isLast = index >= pendingReviews.length - 1;
+
+  const toggle = (memberId, wasPresent) => {
+    setAttendances(prev => ({
+      ...prev,
+      [memberId]: prev[memberId] === wasPresent ? undefined : wasPresent,
+    }));
+  };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      const marked = current.members
+        .filter(m => attendances[m.id] !== undefined)
+        .map(m => ({ user_id: m.id, was_present: attendances[m.id] }));
+
+      if (marked.length > 0) {
+        await reviews.submit(current.group_id, marked);
+      }
+    } catch {
+      // non-blocking — proceed regardless
+    } finally {
+      setSubmitting(false);
+      advance();
+    }
+  };
+
+  const advance = () => {
+    setAttendances({});
+    if (isLast) {
+      onDone();
+    } else {
+      setIndex(i => i + 1);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9000,
+      background: 'rgba(0,0,0,0.7)',
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+    }}>
+      <div style={{
+        width: '100%', maxWidth: 480,
+        background: '#1e2235',
+        borderRadius: '24px 24px 0 0',
+        padding: '28px 20px',
+        paddingBottom: 'calc(28px + env(safe-area-inset-bottom, 0px))',
+        maxHeight: '85vh',
+        display: 'flex', flexDirection: 'column',
+      }}>
+        {/* Skip — always visible at top */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 4 }}>
+              Event-Feedback {index + 1}/{pendingReviews.length}
+            </div>
+            <h2 style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: 0 }}>
+              {current.group_name}
+            </h2>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, margin: '4px 0 0' }}>
+              {new Date(current.event_date).toLocaleDateString('de-AT', { day: 'numeric', month: 'long' })}
+            </p>
+          </div>
+          <button
+            onClick={advance}
+            style={{
+              background: 'rgba(255,255,255,0.08)',
+              border: 'none', borderRadius: 20,
+              color: 'rgba(255,255,255,0.6)',
+              fontSize: 13, fontWeight: 600,
+              padding: '8px 16px', cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            Überspringen
+          </button>
+        </div>
+
+        <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14, marginBottom: 16 }}>
+          Wer war dabei? Deine Angaben sind anonym.
+        </p>
+
+        {/* Member list */}
+        <div style={{ flex: 1, overflowY: 'auto', marginBottom: 20 }}>
+          {current.members.map(member => {
+            const state = attendances[member.id]; // true | false | undefined
+            return (
+              <div key={member.id} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '12px 0',
+                borderBottom: '1px solid rgba(255,255,255,0.06)',
+              }}>
+                {/* Avatar */}
+                <div style={{
+                  width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                  background: '#FD7666', overflow: 'hidden',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 16, fontWeight: 700, color: '#fff',
+                }}>
+                  {member.avatar_url
+                    ? <img src={member.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : member.name?.[0]?.toUpperCase()}
+                </div>
+
+                <span style={{ flex: 1, color: '#fff', fontSize: 15, fontWeight: 500 }}>
+                  {member.name}
+                </span>
+
+                {/* ✓ / ✗ toggles */}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => toggle(member.id, true)}
+                    style={{
+                      width: 40, height: 40, borderRadius: '50%', border: 'none',
+                      background: state === true ? '#4ade80' : 'rgba(74,222,128,0.12)',
+                      color: state === true ? '#fff' : '#4ade80',
+                      fontSize: 18, cursor: 'pointer', fontWeight: 700,
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    ✓
+                  </button>
+                  <button
+                    onClick={() => toggle(member.id, false)}
+                    style={{
+                      width: 40, height: 40, borderRadius: '50%', border: 'none',
+                      background: state === false ? '#f87171' : 'rgba(248,113,113,0.12)',
+                      color: state === false ? '#fff' : '#f87171',
+                      fontSize: 18, cursor: 'pointer', fontWeight: 700,
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    ✗
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Submit */}
+        <button
+          onClick={handleSubmit}
+          disabled={submitting}
+          style={{
+            width: '100%', padding: 16, borderRadius: 14,
+            background: '#FD7666', color: '#fff',
+            fontSize: 16, fontWeight: 700, border: 'none',
+            cursor: 'pointer', opacity: submitting ? 0.6 : 1,
+          }}
+        >
+          {submitting ? 'Sende...' : isLast ? 'Fertig' : 'Weiter'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default EventReviewModal;

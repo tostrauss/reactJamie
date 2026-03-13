@@ -1,0 +1,27 @@
+{
+  "appId": "jamie.app",
+  "appName": "JAMIE",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "capacitor"
+  },
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#1a1a2e",
+    "limitsNavigationsToAppBoundDomains": true
+  },
+  "plugins": {
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#1a1a2e",
+      "overlaysWebView": false
+    },
+    "SplashScreen": {
+      "launchShowDuration": 1500,
+      "backgroundColor": "#1a1a2e",
+      "showSpinner": false,
+      "launchFadeOutDuration": 500
+    }
+  }
+}

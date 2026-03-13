@@ -9,6 +9,7 @@ export const Register = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [error, setError] = useState('');
   const { register, loading } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -32,6 +33,15 @@ export const Register = () => {
 
   const strength = getPasswordStrength(password);
 
+  const validatePassword = (pwd) => {
+    if (pwd.length < 6) return 'Mindestens 6 Zeichen erforderlich';
+    if (!/[A-Z]/.test(pwd)) return 'Mindestens 1 Großbuchstabe erforderlich';
+    if (!/[a-z]/.test(pwd)) return 'Mindestens 1 Kleinbuchstabe erforderlich';
+    if (!/[0-9]/.test(pwd)) return 'Mindestens 1 Zahl erforderlich';
+    if (!/[^A-Za-z0-9]/.test(pwd)) return 'Mindestens 1 Sonderzeichen erforderlich (!@#$…)';
+    return null;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -41,13 +51,14 @@ export const Register = () => {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Passwort muss mindestens 6 Zeichen haben');
+    const pwdError = validatePassword(password);
+    if (pwdError) {
+      setError(pwdError);
       return;
     }
 
     try {
-      await register(email, password, name);
+      await register(email, password, name, referralCode.trim() || undefined);
       navigate('/onboarding');
     } catch (err) {
       setError(err.response?.data?.error || 'Registrierung fehlgeschlagen');
@@ -85,6 +96,7 @@ export const Register = () => {
                   onChange={(e) => setName(e.target.value)}
                   required
                   autoFocus
+                  autoComplete="name"
                 />
               </div>
               <button 
@@ -116,6 +128,7 @@ export const Register = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoFocus
+                  autoComplete="email"
                 />
               </div>
               <button 
@@ -142,11 +155,12 @@ export const Register = () => {
                 <label>Wähle ein Passwort</label>
                 <input
                   type="password"
-                  placeholder="Mindestens 6 Zeichen"
+                  placeholder="Min. 6 Zeichen, Groß/Klein, Zahl, Sonderzeichen"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   autoFocus
+                  autoComplete="new-password"
                 />
                 {password.length > 0 && (
                   <div className="password-strength">
@@ -171,11 +185,22 @@ export const Register = () => {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="form-group" style={{ marginTop: '8px' }}>
+                <label style={{ opacity: 0.7 }}>Einladungscode (optional)</label>
+                <input
+                  type="text"
+                  placeholder="z.B. JAMIE-X7K2"
+                  value={referralCode}
+                  onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                  style={{ letterSpacing: '1px' }}
                 />
               </div>
               {error && <p className="error-message">{error}</p>}
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="auth-btn auth-btn-primary"
                 disabled={loading || !password || !confirmPassword}
               >
