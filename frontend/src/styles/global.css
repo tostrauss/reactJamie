@@ -3,6 +3,33 @@
    Brand Colors: #FD7666 (Coral), #242340 (Dark Purple)
    ======================================== */
 
+/* ── Google Maps Places autocomplete (global) ─────────────────────────────── */
+.pac-container {
+  z-index: 99999 !important;
+  background: #1e1e2e;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  margin-top: 4px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  font-family: inherit;
+  overflow: hidden;
+}
+.pac-item {
+  padding: 10px 14px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  cursor: pointer;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.pac-item:first-child { border-top: none; }
+.pac-item:hover,
+.pac-item-selected { background: rgba(253, 118, 102, 0.15); }
+.pac-item-query { color: #fff; font-size: 14px; }
+.pac-matched { color: #fd7666; font-weight: 600; }
+.pac-icon { display: none; }
+.pac-logo::after { display: none; }
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 /* CSS Variables */
 :root {
   /* Brand Colors */

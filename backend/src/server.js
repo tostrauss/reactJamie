@@ -50,6 +50,8 @@ import { stripeWebhook } from './controllers/boostController.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
+import subscriptionRoutes from './routes/subscriptionRoutes.js';
+import { subscriptionWebhook } from './controllers/subscriptionController.js';
 import socketHandler from './socket.js';
 
 // ==========================================
@@ -116,8 +118,9 @@ app.use(cors({
 // Compression: gzip responses
 app.use(compression());
 
-// Stripe webhook — must receive raw body BEFORE express.json() parses it
+// Stripe webhooks — must receive raw body BEFORE express.json() parses it
 app.post('/api/boost/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhook);
+app.post('/api/subscription/stripe/webhook', express.raw({ type: 'application/json' }), subscriptionWebhook);
 
 // Body parsing
 app.use(express.json({ limit: '10mb' }));
@@ -176,6 +179,7 @@ app.use('/api/boost', boostRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/subscription', subscriptionRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

@@ -489,6 +489,16 @@ export const admin = {
 };
 
 // ==========================================
+// SUBSCRIPTION API
+// ==========================================
+
+export const subscription = {
+  getStatus: () => axiosInstance.get('/subscription/status'),
+  create: () => axiosInstance.post('/subscription/create'),
+  cancel: () => axiosInstance.post('/subscription/cancel'),
+};
+
+// ==========================================
 // REVIEWS API
 // ==========================================
 

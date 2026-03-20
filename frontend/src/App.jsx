@@ -8,6 +8,7 @@ import { NetworkProvider } from './context/NetworkContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { isNative, isNativeIOS } from './utils/platform';
 import { AppIntro, shouldShowIntro } from './pages/AppIntro';
+const ProModal = lazy(() => import('./components/ProModal').then(m => ({ default: m.ProModal })));
 import { useAnalytics } from './hooks/useAnalytics';
 import { EventReviewModal } from './components/EventReviewModal';
 import { reviews } from './utils/api';
@@ -39,6 +40,7 @@ const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const SpotifyCallback = lazy(() => import('./pages/SpotifyCallback'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const WelcomeIntro = lazy(() => import('./pages/WelcomeIntro'));
 
 // Styles
 import './styles/global.css';
@@ -225,7 +227,7 @@ const Navigation = () => {
   const location = useLocation();
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const hideNavPaths = ['/login', '/register', '/onboarding'];
+  const hideNavPaths = ['/login', '/register', '/onboarding', '/welcome'];
   const hideOnChat = location.pathname.startsWith('/chat/') || location.pathname.startsWith('/dm/');
 
   if (!user || hideNavPaths.includes(location.pathname) || hideOnChat) return null;
@@ -311,6 +313,7 @@ function AppRoutes() {
   useNativePush(user);
   useAnalytics();
   const [showIntro, setShowIntro] = useState(() => !!user && shouldShowIntro());
+  const [showProModal, setShowProModal] = useState(false);
   const [pendingReviews, setPendingReviews] = useState(null);
 
   // Show intro when user first logs in
@@ -326,6 +329,15 @@ function AppRoutes() {
       .catch(() => {});
   }, [user?.id]);
 
+  // Show Pro modal if flagged from WelcomeIntro
+  useEffect(() => {
+    if (!user) return;
+    if (localStorage.getItem('jamie_show_pro_modal') === '1') {
+      localStorage.removeItem('jamie_show_pro_modal');
+      setShowProModal(true);
+    }
+  }, [user?.id]);
+
   if (showIntro) return <AppIntro onDone={() => setShowIntro(false)} />;
 
   return (
@@ -337,6 +349,7 @@ function AppRoutes() {
           {/* Auth */}
           <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
           <Route path="/register" element={<AuthRoute><Register /></AuthRoute>} />
+          <Route path="/welcome" element={<ProtectedRoute><WelcomeIntro /></ProtectedRoute>} />
           <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
           <Route path="/forgot-password" element={<AuthRoute><ForgotPassword /></AuthRoute>} />
           <Route path="/reset-password" element={<AuthRoute><ResetPassword /></AuthRoute>} />
@@ -396,6 +409,14 @@ function AppRoutes() {
           pendingReviews={pendingReviews}
           onDone={() => setPendingReviews(null)}
         />
+      )}
+      {showProModal && (
+        <Suspense fallback={null}>
+          <ProModal
+            onClose={() => setShowProModal(false)}
+            onSuccess={() => setShowProModal(false)}
+          />
+        </Suspense>
       )}
     </>
   );

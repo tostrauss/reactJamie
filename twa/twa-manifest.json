@@ -1,0 +1,44 @@
+{
+  "packageId": "jamie.app",
+  "host": "REPLACE_WITH_YOUR_DOMAIN",
+  "name": "JAMIE - Social Activity App",
+  "launcherName": "JAMIE",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#1a1a2e",
+  "navigationColor": "#1a1a2e",
+  "navigationColorDark": "#1a1a2e",
+  "navigationDividerColor": "#1a1a2e",
+  "navigationDividerColorDark": "#1a1a2e",
+  "backgroundColor": "#1a1a2e",
+  "startUrl": "/",
+  "iconUrl": "https://REPLACE_WITH_YOUR_DOMAIN/pwa-512x512.png",
+  "maskableIconUrl": "https://REPLACE_WITH_YOUR_DOMAIN/maskable-icon-512x512.png",
+  "monochromeIconUrl": "https://REPLACE_WITH_YOUR_DOMAIN/pwa-512x512.png",
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [
+    {
+      "name": "Gruppe erstellen",
+      "short_name": "Gruppe",
+      "url": "/create-group",
+      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+    }
+  ],
+  "signing": {
+    "keystore": "keystore/jamie-release.jks",
+    "keyAlias": "jamie-key"
+  },
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://REPLACE_WITH_YOUR_DOMAIN/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {
+    "locationDelegation": { "enabled": false },
+    "playBilling": { "enabled": false }
+  },
+  "alphaDependencies": false,
+  "enableNotifications": false,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://REPLACE_WITH_YOUR_DOMAIN/"
+}

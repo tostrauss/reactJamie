@@ -1,5 +1,6 @@
 import db from '../config/database.js';
 import Stripe from 'stripe';
+import { isUserPro } from './subscriptionController.js';
 
 // Lazy-init Stripe (only when key is set)
 const getStripe = () => {
@@ -72,14 +73,19 @@ export const applyBoost = async (req, res) => {
   }
 
   try {
-    // Check balance
-    const balanceRes = await db.query(
-      'SELECT credits FROM boost_credits WHERE user_id = $1',
-      [req.userId]
-    );
-    const credits = balanceRes.rows[0]?.credits || 0;
-    if (credits < 1) {
-      return res.status(402).json({ error: 'Nicht genug Boost-Credits' });
+    // Check if user has active Pro subscription (free boosts)
+    const isPro = await isUserPro(req.userId);
+
+    if (!isPro) {
+      // Check credit balance
+      const balanceRes = await db.query(
+        'SELECT credits FROM boost_credits WHERE user_id = $1',
+        [req.userId]
+      );
+      const credits = balanceRes.rows[0]?.credits || 0;
+      if (credits < 1) {
+        return res.status(402).json({ error: 'Nicht genug Boost-Credits. Kaufe Credits oder werde JAMIE Pro für kostenlose Boosts.' });
+      }
     }
 
     // Verify ownership
@@ -94,20 +100,22 @@ export const applyBoost = async (req, res) => {
     const boostedUntil = new Date(Date.now() + hours * 60 * 60 * 1000);
 
     await db.query('BEGIN');
-    // Deduct credit
-    await db.query(
-      'UPDATE boost_credits SET credits = credits - 1 WHERE user_id = $1',
-      [req.userId]
-    );
+    if (!isPro) {
+      // Deduct credit (Pro users boost for free)
+      await db.query(
+        'UPDATE boost_credits SET credits = credits - 1 WHERE user_id = $1',
+        [req.userId]
+      );
+    }
     // Insert boost
     await db.query(
       `INSERT INTO boosts (user_id, target_type, target_id, credits_spent, boosted_until)
-       VALUES ($1, $2, $3, 1, $4)`,
-      [req.userId, target_type, target_id, boostedUntil]
+       VALUES ($1, $2, $3, $4, $5)`,
+      [req.userId, target_type, target_id, isPro ? 0 : 1, boostedUntil]
     );
     await db.query('COMMIT');
 
-    res.json({ success: true, boosted_until: boostedUntil });
+    res.json({ success: true, boosted_until: boostedUntil, pro_boost: isPro });
   } catch (err) {
     await db.query('ROLLBACK').catch(() => {});
     console.error('applyBoost error:', err);

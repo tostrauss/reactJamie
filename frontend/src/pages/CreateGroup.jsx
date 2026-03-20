@@ -5,19 +5,42 @@ import { useToast } from '../context/ToastContext';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import '../styles/create.css';
 
+// ── Google Places loader (runs once per page) ─────────────────────────────────
+let googleMapsLoading = false;
+let googleMapsLoaded  = false;
+const mapsCallbacks   = [];
+function loadGoogleMaps(apiKey) {
+  if (googleMapsLoaded) { mapsCallbacks.forEach(cb => cb()); mapsCallbacks.length = 0; return; }
+  if (googleMapsLoading) return;
+  googleMapsLoading = true;
+  window.__googleMapsReady = () => {
+    googleMapsLoaded = true;
+    googleMapsLoading = false;
+    mapsCallbacks.forEach(cb => cb());
+    mapsCallbacks.length = 0;
+  };
+  const s = document.createElement('script');
+  s.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=de&callback=__googleMapsReady`;
+  s.async = true;
+  document.head.appendChild(s);
+}
+function onGoogleMapsReady(cb) {
+  if (googleMapsLoaded) { cb(); return; }
+  mapsCallbacks.push(cb);
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const CreateGroup = () => {
   const navigate = useNavigate();
   const toast = useToast();
-  const imageBlobRef = useRef(null);
+  const imageBlobRef    = useRef(null);
+  const locationRef     = useRef(null);
+  const autocompleteRef = useRef(null);
 
-  useEffect(() => {
-    return () => { if (imageBlobRef.current) URL.revokeObjectURL(imageBlobRef.current); };
-  }, []);
-
+  // State — declared before all useEffects
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
   const [formData, setFormData] = useState({
     name: '',
     mainCategory: '',
@@ -32,6 +55,40 @@ export const CreateGroup = () => {
     image: null,
     imagePreview: null
   });
+
+  useEffect(() => {
+    return () => { if (imageBlobRef.current) URL.revokeObjectURL(imageBlobRef.current); };
+  }, []);
+
+  // Start loading the Google Maps script immediately on mount
+  useEffect(() => {
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    if (apiKey) loadGoogleMaps(apiKey);
+  }, []);
+
+  // Attach autocomplete once the location input is rendered (step 2)
+  useEffect(() => {
+    if (step !== 2) return;
+
+    const attach = () => {
+      if (!window.google?.maps?.places) return;
+      if (autocompleteRef.current) return;
+      if (!locationRef.current) return;
+      const ac = new window.google.maps.places.Autocomplete(locationRef.current, {
+        componentRestrictions: { country: ['at', 'de', 'ch'] },
+        fields: ['formatted_address', 'name'],
+      });
+      ac.addListener('place_changed', () => {
+        const place = ac.getPlace();
+        const val = place.formatted_address || place.name || '';
+        if (val) setFormData(prev => ({ ...prev, location: val }));
+      });
+      autocompleteRef.current = ac;
+    };
+
+    const timer = setTimeout(() => onGoogleMapsReady(attach), 50);
+    return () => clearTimeout(timer);
+  }, [step]);
 
 
   const handleInputChange = (e) => {
@@ -270,13 +327,36 @@ export const CreateGroup = () => {
               <label className="form-label">
                 <span className="form-label-icon">🕐</span> Uhrzeit
               </label>
-              <input
-                type="time"
-                name="time"
-                value={formData.time}
-                onChange={handleInputChange}
-                className="input"
-              />
+              <div className="time-select-row">
+                <select
+                  className="input time-select"
+                  value={formData.time ? formData.time.split(':')[0] : ''}
+                  onChange={(e) => {
+                    const h = e.target.value;
+                    const m = formData.time ? formData.time.split(':')[1] : '00';
+                    setFormData(prev => ({ ...prev, time: h ? `${h}:${m}` : '' }));
+                  }}
+                >
+                  <option value="">Std.</option>
+                  {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => (
+                    <option key={h} value={h}>{h}</option>
+                  ))}
+                </select>
+                <span className="time-sep">:</span>
+                <select
+                  className="input time-select"
+                  value={formData.time ? formData.time.split(':')[1] : '00'}
+                  onChange={(e) => {
+                    const h = formData.time ? formData.time.split(':')[0] : '';
+                    if (h) setFormData(prev => ({ ...prev, time: `${h}:${e.target.value}` }));
+                  }}
+                >
+                  {['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+                <span className="time-unit">Uhr</span>
+              </div>
             </div>
           </div>
 
@@ -285,12 +365,14 @@ export const CreateGroup = () => {
               <span className="form-label-icon">📍</span> Ort
             </label>
             <input
+              ref={locationRef}
               type="text"
               name="location"
               value={formData.location}
               onChange={handleInputChange}
               placeholder="z.B. Wien, Donauinsel"
               className="input"
+              autoComplete="off"
             />
           </div>
 

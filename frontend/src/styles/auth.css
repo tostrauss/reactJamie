@@ -413,10 +413,13 @@
 .onboarding-footer {
   padding: 20px;
   padding-bottom: 40px;
+  display: flex;
+  justify-content: center;
 }
 
 .onboarding-footer .auth-btn-primary {
   width: 100%;
+  max-width: 360px;
 }
 
 /* Onboarding Form */

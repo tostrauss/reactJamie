@@ -221,14 +221,14 @@
    Group Card
    ======================================== */
 .group-card {
-  background: var(--bg-card);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
   border-radius: var(--radius-xl);
   overflow: hidden;
-  transition: all var(--transition-normal);
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
+  aspect-ratio: 1/1;
+  transition: transform var(--transition-normal), box-shadow var(--transition-normal), border-color var(--transition-normal);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #1a1a3e;
 }
 
 .group-card:hover {
@@ -237,6 +237,107 @@
   border-color: rgba(253, 118, 102, 0.3);
 }
 
+/* ── Full-card avatar grid ─────────────────────────────── */
+.card-avatars-full {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 3px;
+  background: #111128;
+}
+
+/* ── Gradient overlay ──────────────────────────────────── */
+.card-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.15) 0%,
+    transparent 35%,
+    rgba(0, 0, 0, 0.5) 60%,
+    rgba(0, 0, 0, 0.88) 100%
+  );
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 10px;
+}
+
+.card-top-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: flex-start;
+}
+
+.card-top-badges .badge {
+  font-size: 10px;
+  padding: 3px 8px;
+  backdrop-filter: blur(6px);
+}
+
+.card-top-badges .category-pill {
+  padding: 4px 10px;
+  font-size: 10px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.85);
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+/* ── Bottom info inside overlay ────────────────────────── */
+.card-bottom-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.25;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+}
+
+.card-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.status-members {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.status-date {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: rgba(255, 255, 255, 0.65);
+  font-weight: 500;
+}
+
+.card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Legacy classes kept for other views that may still reference them */
 .card-image-wrapper {
   position: relative;
   width: 100%;
@@ -250,42 +351,6 @@
   background-size: cover;
   background-position: center;
   transition: transform var(--transition-slow);
-}
-
-.group-card:hover .card-image {
-  transform: scale(1.08);
-}
-
-.card-image-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.1) 0%,
-    transparent 40%,
-    rgba(0, 0, 0, 0.6) 100%
-  );
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.card-top-badges {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.card-top-badges .category-pill {
-  padding: 6px 12px;
-  font-size: 11px;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(8px);
-  border: none;
 }
 
 .card-date-badge {
@@ -320,68 +385,42 @@
   overflow: hidden;
 }
 
-.card-status-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.status-members {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.status-members .icon {
-  font-size: 14px;
-}
-
-.status-date {
-  color: var(--accent-coral);
-  font-weight: 500;
-}
-
-.card-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: auto;
-}
-
 .fav-btn-small {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-input);
-  border: none;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: var(--radius-md);
   font-size: 18px;
   cursor: pointer;
   transition: all var(--transition-fast);
+  flex-shrink: 0;
 }
 
 .fav-btn-small:hover {
-  background: var(--bg-hover);
+  background: rgba(0, 0, 0, 0.65);
   transform: scale(1.1);
 }
 
 .fav-btn-small.active {
-  background: rgba(253, 118, 102, 0.2);
+  background: rgba(253, 118, 102, 0.3);
+  border-color: rgba(253, 118, 102, 0.5);
 }
 
 .action-btn {
   flex: 1;
-  height: 40px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
   border-radius: var(--radius-md);
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   cursor: pointer;
   transition: all var(--transition-fast);
 }
@@ -389,20 +428,23 @@
 .action-btn.join {
   background: var(--accent-coral);
   color: white;
+  box-shadow: 0 2px 10px rgba(253, 118, 102, 0.45);
 }
 
 .action-btn.join:hover {
   background: var(--accent-coral-dark);
-  transform: scale(1.02);
+  transform: scale(1.03);
 }
 
 .action-btn.chat {
-  background: var(--bg-input);
-  color: var(--text-light);
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(6px);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .action-btn.chat:hover {
-  background: var(--bg-hover);
+  background: rgba(255, 255, 255, 0.25);
 }
 
 /* ========================================
@@ -1006,26 +1048,33 @@
 }
 
 .full-badge {
-  background-color: rgba(255, 107, 107, 0.8) !important;
+  background-color: rgba(255, 107, 107, 0.75) !important;
+  color: #fff !important;
+}
+
+.boost-badge {
+  background: linear-gradient(135deg, rgba(255, 200, 0, 0.75), rgba(255, 140, 0, 0.75)) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255, 215, 0, 0.4) !important;
 }
 
 /* ========================================
    WAITLIST BUTTONS
    ======================================== */
 .action-btn.waitlist {
-  background: rgba(255, 165, 0, 0.2);
-  color: #ffa500;
-  border: 1px solid rgba(255, 165, 0, 0.3);
+  background: rgba(255, 165, 0, 0.25);
+  color: #ffc946;
+  border: 1px solid rgba(255, 165, 0, 0.35);
+  font-size: 13px;
 }
 
 .action-btn.waitlist.active {
-  background: rgba(255, 165, 0, 0.3);
+  background: rgba(255, 165, 0, 0.35);
   font-size: 12px;
-  padding: 4px 8px;
 }
 
 .action-btn.waitlist:hover {
-  background: rgba(255, 165, 0, 0.3);
+  background: rgba(255, 165, 0, 0.4);
 }
 
 /* ========================================
@@ -1035,8 +1084,8 @@
   opacity: 0.85;
 }
 
-.group-card.full .card-content {
-  border-left: 3px solid rgba(255, 107, 107, 0.5);
+.group-card.full {
+  border-color: rgba(255, 107, 107, 0.35);
 }
 
 /* ========================================

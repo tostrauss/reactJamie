@@ -1,0 +1,19 @@
+# TWA / Android build artifacts
+twa/keystore/
+twa/*.jks
+twa/android/
+twa/output/
+twa/*.aab
+twa/*.apk
+
+# Environment (local secrets — never commit)
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+*.iml

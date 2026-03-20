@@ -1,8 +1,9 @@
-import { useState, useContext } from 'react';
+import { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { auth } from '../utils/api';
+import { auth, subscription as subscriptionApi } from '../utils/api';
 import SpotifySongPicker from '../components/SpotifySongPicker';
+import { ProModal } from '../components/ProModal';
 import '../styles/home.css';
 import '../styles/profile.css';
 
@@ -11,6 +12,14 @@ export const Profile = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('pinnwand');
   const [savingSong, setSavingSong] = useState(false);
+  const [isPro, setIsPro] = useState(false);
+  const [showProModal, setShowProModal] = useState(false);
+
+  useEffect(() => {
+    subscriptionApi.getStatus()
+      .then(res => setIsPro(res.data?.is_pro || false))
+      .catch(() => {});
+  }, []);
 
   const handleSongSelect = async (song) => {
     setSavingSong(true);
@@ -43,6 +52,7 @@ export const Profile = () => {
   const completion = user?.profile_completion || 0;
 
   return (
+    <>
     <div className="profile-page">
       {/* Cover */}
       <div className="profile-header-image">
@@ -89,7 +99,30 @@ export const Profile = () => {
       <div className="profile-info-section">
         {/* Name & Location */}
         <div className="profile-name-row">
-          <h1 className="profile-name">{user?.name || 'Nutzer'}</h1>
+          <h1 className="profile-name">
+            {user?.name || 'Nutzer'}
+            {isPro && (
+              <span
+                title="JAMIE Pro"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+                  color: '#1a1a2e',
+                  fontSize: '11px',
+                  fontWeight: '800',
+                  borderRadius: '8px',
+                  padding: '2px 8px',
+                  marginLeft: '8px',
+                  verticalAlign: 'middle',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                👑 PRO
+              </span>
+            )}
+          </h1>
           {user?.location && (
             <div className="profile-location">
               <span className="location-icon">📍</span>
@@ -97,6 +130,72 @@ export const Profile = () => {
             </div>
           )}
         </div>
+
+        {/* Pro CTA banner */}
+        {!isPro && (
+          <button
+            onClick={() => setShowProModal(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '12px',
+              width: '100%', textAlign: 'left', cursor: 'pointer',
+              background: 'linear-gradient(135deg, rgba(255,215,0,0.08) 0%, rgba(255,140,0,0.05) 100%)',
+              border: '1px solid rgba(255,215,0,0.22)',
+              borderRadius: '16px', padding: '14px 16px', marginBottom: '4px',
+            }}
+          >
+            <div style={{
+              width: '44px', height: '44px', borderRadius: '12px', flexShrink: 0,
+              background: 'rgba(255,215,0,0.15)', border: '1px solid rgba(255,215,0,0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px',
+            }}>👑</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: '#FFD700', fontWeight: '800', fontSize: '14px', marginBottom: '2px' }}>
+                JAMIE Pro — 5 € / Monat
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '12px' }}>
+                Kostenlose Boosts für Gruppen & Clubs
+              </div>
+            </div>
+            <div style={{
+              width: '28px', height: '28px', borderRadius: '50%',
+              background: 'rgba(255,215,0,0.12)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#FFD700', fontSize: '14px', flexShrink: 0,
+            }}>→</div>
+          </button>
+        )}
+
+        {/* Pro active banner */}
+        {isPro && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '12px',
+            background: 'linear-gradient(135deg, rgba(255,215,0,0.1) 0%, rgba(255,140,0,0.06) 100%)',
+            border: '1px solid rgba(255,215,0,0.28)',
+            borderRadius: '16px', padding: '14px 16px', marginBottom: '4px',
+          }}>
+            <div style={{
+              width: '44px', height: '44px', borderRadius: '12px', flexShrink: 0,
+              background: 'rgba(255,215,0,0.18)', border: '1px solid rgba(255,215,0,0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px',
+            }}>👑</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: '#FFD700', fontWeight: '800', fontSize: '14px', marginBottom: '2px' }}>
+                JAMIE Pro aktiv
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '12px' }}>
+                Kostenlose Boosts für deine Gruppen & Clubs
+              </div>
+            </div>
+            <div style={{
+              width: '22px', height: '22px', borderRadius: '50%', background: '#22c55e', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20,6 9,17 4,12" />
+              </svg>
+            </div>
+          </div>
+        )}
 
         {/* Profile Completion Bar */}
         {completion < 100 && (
@@ -176,6 +275,14 @@ export const Profile = () => {
         </div>
       </div>
     </div>
+
+    {showProModal && (
+      <ProModal
+        onClose={() => setShowProModal(false)}
+        onSuccess={() => { setIsPro(true); setShowProModal(false); }}
+      />
+    )}
+    </>
   );
 };
 
