@@ -108,7 +108,13 @@ export const auth = {
     axiosInstance.post('/auth/send-verification'),
 
   verifyEmail: (token) =>
-    axiosInstance.post('/auth/verify-email', { token })
+    axiosInstance.post('/auth/verify-email', { token }),
+
+  sendEmailCode: (email, name) =>
+    axiosInstance.post('/auth/send-email-code', { email, name }),
+
+  verifyEmailCode: (email, code) =>
+    axiosInstance.post('/auth/verify-email-code', { email, code })
 };
 
 // ==========================================

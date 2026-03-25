@@ -76,12 +76,15 @@ export const Login = () => {
           </div>
         ) : (
           <form onSubmit={handleEmailLogin} className="auth-form">
-            <button 
-              type="button" 
-              className="back-btn"
+            <button
+              type="button"
+              className="auth-back-btn"
               onClick={() => setShowEmailForm(false)}
             >
-              ‹ Zurück
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
+              </svg>
+              Zurück
             </button>
 
             <div className="form-group">

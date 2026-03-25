@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { isUserPro } from './subscriptionController.js';
 
 // ==========================================
 // SEND FRIEND REQUEST
@@ -9,6 +10,11 @@ export const sendFriendRequest = async (req, res) => {
 
     if (!userId) return res.status(400).json({ error: 'userId is required' });
     if (userId === req.userId) return res.status(400).json({ error: 'Cannot send friend request to yourself' });
+
+    const pro = await isUserPro(req.userId);
+    if (!pro) {
+      return res.status(403).json({ error: 'Pro-Abonnement erforderlich', requiresPro: true });
+    }
 
     // Check if friendship already exists (in either direction)
     const existing = await db.query(

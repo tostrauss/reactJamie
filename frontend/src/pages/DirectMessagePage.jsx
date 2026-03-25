@@ -2,8 +2,9 @@ import { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { SocketContext } from '../context/SocketContext';
-import { directMessages, users } from '../utils/api';
+import { directMessages, users, subscription as subscriptionApi } from '../utils/api';
 import { useToast } from '../context/ToastContext';
+import { ProModal } from '../components/ProModal';
 import '../styles/chat.css';
 
 export const DirectMessagePage = () => {
@@ -19,11 +20,22 @@ export const DirectMessagePage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isTyping, setIsTyping] = useState(false);
+  const [isPro, setIsPro] = useState(null);
+  const [showProModal, setShowProModal] = useState(false);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
   useEffect(() => {
-    if (!user || !otherUserId) return;
+    subscriptionApi.getStatus().then(r => setIsPro(r.data.is_pro)).catch(() => setIsPro(false));
+  }, []);
+
+  useEffect(() => {
+    if (!user || !otherUserId || isPro === null) return;
+
+    if (!isPro) {
+      setLoading(false);
+      return;
+    }
 
     loadOtherUser();
     loadMessages();
@@ -153,12 +165,45 @@ export const DirectMessagePage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  if (loading) {
+  if (loading || isPro === null) {
     return (
       <div className="chat-page">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
           <div className="loading">Laden...</div>
         </div>
+      </div>
+    );
+  }
+
+  if (!isPro) {
+    return (
+      <div className="chat-page">
+        <header className="chat-page-header">
+          <button className="back-button" onClick={() => navigate('/chats')}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+          </button>
+          <div className="chat-page-info">
+            <h2 className="chat-page-name">Direktnachrichten</h2>
+          </div>
+        </header>
+        <div className="error-state">
+          <p style={{ fontSize: '32px', marginBottom: '12px' }}>👑</p>
+          <p style={{ fontWeight: 700, marginBottom: '8px' }}>Pro erforderlich</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '20px' }}>
+            Direktnachrichten sind exklusiv für Pro-Mitglieder.
+          </p>
+          <button className="btn btn-primary" onClick={() => setShowProModal(true)}>
+            Pro aktivieren
+          </button>
+        </div>
+        {showProModal && (
+          <ProModal
+            onClose={() => setShowProModal(false)}
+            onSuccess={() => setIsPro(true)}
+          />
+        )}
       </div>
     );
   }

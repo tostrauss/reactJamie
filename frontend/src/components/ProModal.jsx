@@ -117,10 +117,11 @@ function Spinner() {
 
 // ── Feature rows ─────────────────────────────────────────────────────────
 const FEATURES = [
-  { icon:'⚡', title:'Gruppen boosten', desc:'Kostenlos & unbegrenzt für deine Events' },
-  { icon:'🏆', title:'Clubs boosten',   desc:'Mehr Mitglieder für deine Community' },
-  { icon:'🔝', title:'Top-Platzierung', desc:'Immer ganz oben in der Entdecken-Liste' },
-  { icon:'∞',  title:'Kein Limit',      desc:'Jederzeit kündbar, keine Mindestlaufzeit' },
+  { icon:'👥', title:'Freunde hinzufügen', desc:'Sende Freundschaftsanfragen an andere Nutzer' },
+  { icon:'💬', title:'Direktnachrichten',  desc:'Chatte privat mit deinen Freunden' },
+  { icon:'⚡', title:'Gruppen boosten',    desc:'Kostenlos & unbegrenzt für deine Events' },
+  { icon:'🏆', title:'Clubs boosten',      desc:'Mehr Mitglieder für deine Community' },
+  { icon:'🔝', title:'Top-Platzierung',    desc:'Immer ganz oben in der Entdecken-Liste' },
 ];
 
 // ── Confetti piece ───────────────────────────────────────────────────────
@@ -242,7 +243,7 @@ export const ProModal = ({ onClose, onSuccess }) => {
                 Willkommen bei Pro!
               </h2>
               <p style={{ color:'rgba(255,255,255,0.6)', fontSize:'15px', lineHeight:1.7, maxWidth:'280px', margin:'0 auto' }}>
-                Du kannst ab sofort deine Gruppen & Clubs kostenlos boosten.
+                Du kannst ab sofort Freunde hinzufügen, Direktnachrichten senden und deine Gruppen & Clubs boosten.
               </p>
             </div>
           )}

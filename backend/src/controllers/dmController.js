@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { isUserPro } from './subscriptionController.js';
 
 // ==========================================
 // SEND DIRECT MESSAGE
@@ -9,6 +10,11 @@ export const sendDM = async (req, res) => {
 
     if (!receiverId || !content) {
       return res.status(400).json({ error: 'receiverId and content required' });
+    }
+
+    const pro = await isUserPro(req.userId);
+    if (!pro) {
+      return res.status(403).json({ error: 'Pro-Abonnement erforderlich', requiresPro: true });
     }
     if (content.length > 5000) {
       return res.status(400).json({ error: 'Message cannot exceed 5000 characters' });
@@ -69,6 +75,11 @@ export const getConversation = async (req, res) => {
     const limit = parseInt(req.query.limit, 10) || 50;
     const offset = parseInt(req.query.offset, 10) || 0;
 
+    const pro = await isUserPro(req.userId);
+    if (!pro) {
+      return res.status(403).json({ error: 'Pro-Abonnement erforderlich', requiresPro: true });
+    }
+
     // Verify friendship before allowing message history access
     const friendship = await db.query(
       `SELECT id FROM friendships
@@ -110,6 +121,11 @@ export const getConversation = async (req, res) => {
 // ==========================================
 export const getConversations = async (req, res) => {
   try {
+    const pro = await isUserPro(req.userId);
+    if (!pro) {
+      return res.status(403).json({ error: 'Pro-Abonnement erforderlich', requiresPro: true });
+    }
+
     const result = await db.query(
       `SELECT dc.*, u.name as other_user_name, u.avatar_url as other_user_avatar,
               dm.content as last_message_text, dm.created_at as last_message_at

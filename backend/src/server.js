@@ -293,8 +293,75 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 // START SERVER
 // ==========================================
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+
+const runStartupMigrations = async () => {
+  try {
+    // Email OTP verification
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS email_verification_codes (
+        id         SERIAL PRIMARY KEY,
+        email      VARCHAR(255) NOT NULL,
+        code       VARCHAR(6)   NOT NULL,
+        expires_at TIMESTAMPTZ  NOT NULL,
+        used       BOOLEAN      DEFAULT FALSE,
+        created_at TIMESTAMPTZ  DEFAULT NOW()
+      )
+    `);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_evc_email ON email_verification_codes(email)`);
+
+    // Analytics events
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS analytics_events (
+        id          BIGSERIAL PRIMARY KEY,
+        user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        event_type  VARCHAR(50)  NOT NULL,
+        screen_name VARCHAR(120),
+        duration_ms INTEGER,
+        metadata    JSONB,
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_analytics_user    ON analytics_events(user_id)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_analytics_type    ON analytics_events(event_type)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_analytics_screen  ON analytics_events(screen_name)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics_events(created_at DESC)`);
+
+    // Category suggestions
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS category_suggestions (
+        id          SERIAL PRIMARY KEY,
+        user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        suggestion  TEXT NOT NULL,
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Event reviews + trusted user columns
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS event_reviews (
+        id               SERIAL PRIMARY KEY,
+        group_id         INTEGER NOT NULL REFERENCES groups(id)  ON DELETE CASCADE,
+        reviewer_id      INTEGER NOT NULL REFERENCES users(id)   ON DELETE CASCADE,
+        reviewed_user_id INTEGER NOT NULL REFERENCES users(id)   ON DELETE CASCADE,
+        was_present      BOOLEAN NOT NULL,
+        created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(group_id, reviewer_id, reviewed_user_id)
+      )
+    `);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_event_reviews_group    ON event_reviews(group_id)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_event_reviews_reviewed ON event_reviews(reviewed_user_id)`);
+    await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_trusted_user BOOLEAN NOT NULL DEFAULT FALSE`);
+    await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trusted_count   INTEGER NOT NULL DEFAULT 0`);
+
+    console.log('✅ Startup migrations done');
+  } catch (err) {
+    console.error('⚠️ Startup migration error:', err.message);
+  }
+};
+
+server.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`API: http://localhost:${PORT}/api`);
   console.log(`Socket.io ready`);
+  await runStartupMigrations();
 });

@@ -106,7 +106,7 @@ export const AdminDashboard = () => {
           </p>
           <input
             type="password"
-            placeholder="Admin Secret"
+            placeholder="Admin-Code"
             value={secret}
             onChange={e => setSecret(e.target.value)}
             style={{
@@ -176,14 +176,14 @@ export const AdminDashboard = () => {
         {screens.length > 0 && (
           <div style={{ marginBottom: 32 }}>
             <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
-              Top Screens (30 Tage)
+              Top Seiten (30 Tage)
             </h2>
             <div style={{ background: 'var(--bg-card, #1e2235)', borderRadius: 16, overflow: 'hidden' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                    <th style={{ padding: '12px 16px', textAlign: 'left', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>Screen</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>Views</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>Seite</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>Aufrufe</th>
                     <th style={{ padding: '12px 16px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>Ø Dauer</th>
                   </tr>
                 </thead>
@@ -267,7 +267,7 @@ export const AdminDashboard = () => {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
           {[
             { key: 'users', label: 'Nutzer exportieren' },
-            { key: 'screens', label: 'Screens exportieren' },
+            { key: 'screens', label: 'Seiten exportieren' },
             { key: 'suggestions', label: 'Vorschläge exportieren' },
           ].map(({ key, label }) => (
             <button

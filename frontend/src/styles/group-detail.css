@@ -292,6 +292,31 @@
   box-shadow: 0 6px 24px rgba(253,118,102,0.5);
 }
 
+.gd-btn-fav {
+  flex-shrink: 0;
+  width: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 15px;
+  background: transparent;
+  border: 1.5px solid rgba(255,255,255,0.15);
+  border-radius: 14px;
+  color: rgba(255,255,255,0.6);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.gd-btn-fav:hover {
+  border-color: rgba(253,118,102,0.5);
+  background: rgba(253,118,102,0.08);
+}
+
+.gd-btn-fav.active {
+  border-color: rgba(253,118,102,0.5);
+  background: rgba(253,118,102,0.1);
+}
+
 /* Members */
 .gd-members {
   margin-bottom: 24px;

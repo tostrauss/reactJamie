@@ -31,6 +31,7 @@ export const GroupDetail = () => {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isJoined, setIsJoined] = useState(false);
+  const [isFavorited, setIsFavorited] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBoostModal, setShowBoostModal] = useState(false);
 
@@ -54,10 +55,15 @@ export const GroupDetail = () => {
         }
 
         const entity = groupRes.data;
+        const isClubType = entity.type === 'club';
         const joinedList = [
           ...(joinedGroupsRes?.data || []),
           ...(joinedClubsRes?.data || [])
         ];
+
+        // Load favorite status
+        const favRes = await (isClubType ? clubs.getFavorites() : groups.getFavorites()).catch(() => ({ data: [] }));
+        setIsFavorited((favRes.data || []).some(f => f.id === parseInt(id, 10)));
 
         setGroup(entity);
         setIsJoined(joinedList.some((g) => g.id === parseInt(id, 10)));
@@ -71,6 +77,18 @@ export const GroupDetail = () => {
     };
     fetchData();
   }, [id]);
+
+  const handleFavoriteToggle = async () => {
+    const wasFav = isFavorited;
+    setIsFavorited(!wasFav);
+    try {
+      const isClubType = group?.type === 'club';
+      isClubType ? await clubs.toggleFavorite(id) : await groups.toggleFavorite(id);
+    } catch {
+      setIsFavorited(wasFav);
+      toast.error('Favorit konnte nicht gespeichert werden');
+    }
+  };
 
   const handleJoinToggle = async () => {
     try {
@@ -198,6 +216,15 @@ export const GroupDetail = () => {
               {isClub ? 'Club beitreten' : 'Gruppe beitreten'}
             </button>
           )}
+          <button
+            className={`gd-btn-fav${isFavorited ? ' active' : ''}`}
+            onClick={handleFavoriteToggle}
+            title={isFavorited ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill={isFavorited ? '#FD7666' : 'none'} stroke={isFavorited ? '#FD7666' : 'currentColor'} strokeWidth="2">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+            </svg>
+          </button>
         </div>
 
         {/* Members */}

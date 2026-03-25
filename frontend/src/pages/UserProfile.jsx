@@ -1,9 +1,10 @@
 import { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { users, friends } from '../utils/api';
+import { users, friends, subscription as subscriptionApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
+import { ProModal } from '../components/ProModal';
 import '../styles/profile.css';
 
 export const UserProfile = () => {
@@ -20,6 +21,8 @@ export const UserProfile = () => {
   const [isRequester, setIsRequester] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showProModal, setShowProModal] = useState(false);
+  const [isPro, setIsPro] = useState(false);
 
   useEffect(() => {
     if (currentUser && currentUser.id === parseInt(id)) {
@@ -28,6 +31,7 @@ export const UserProfile = () => {
     }
     loadProfile();
     checkFriendship();
+    subscriptionApi.getStatus().then(r => setIsPro(r.data.is_pro)).catch(() => {});
   }, [id, currentUser]);
 
   const loadProfile = async () => {
@@ -133,7 +137,7 @@ export const UserProfile = () => {
     return (
       <div className="page" style={{ textAlign: 'center', padding: '60px 20px' }}>
         <div style={{ fontSize: '64px', marginBottom: '16px' }}>😕</div>
-        <h2>User nicht gefunden</h2>
+        <h2>Nutzer nicht gefunden</h2>
         <button className="btn btn-primary" onClick={() => navigate(-1)} style={{ marginTop: '20px' }}>
           Zurück
         </button>
@@ -154,11 +158,14 @@ export const UserProfile = () => {
       case 'accepted':
         return (
           <div className="user-profile-actions">
-            <button className="user-action-btn primary" onClick={handleSendMessage}>
+            <button
+              className="user-action-btn primary"
+              onClick={isPro ? handleSendMessage : () => setShowProModal(true)}
+            >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
               </svg>
-              Nachricht
+              {isPro ? 'Nachricht' : '👑 Nachricht (Pro)'}
             </button>
             <button className="user-action-btn danger" onClick={handleRemoveFriend}>
               Freund entfernen
@@ -190,14 +197,17 @@ export const UserProfile = () => {
       default:
         return (
           <div className="user-profile-actions">
-            <button className="user-action-btn primary" onClick={handleSendFriendRequest}>
+            <button
+              className="user-action-btn primary"
+              onClick={isPro ? handleSendFriendRequest : () => setShowProModal(true)}
+            >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                 <circle cx="8.5" cy="7" r="4"/>
                 <line x1="20" y1="8" x2="20" y2="14"/>
                 <line x1="23" y1="11" x2="17" y2="11"/>
               </svg>
-              Freund hinzufügen
+              {isPro ? 'Freund hinzufügen' : '👑 Freund hinzufügen (Pro)'}
             </button>
           </div>
         );
@@ -332,6 +342,12 @@ export const UserProfile = () => {
           id={parseInt(id)}
           name={profile.name}
           onClose={() => setShowReportModal(false)}
+        />
+      )}
+      {showProModal && (
+        <ProModal
+          onClose={() => setShowProModal(false)}
+          onSuccess={() => setIsPro(true)}
         />
       )}
     </div>

@@ -812,6 +812,25 @@
   background: var(--bg-hover);
 }
 
+.trend-btn.fav {
+  background: transparent;
+  border: 1.5px solid rgba(255,255,255,0.15);
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.trend-btn.fav:hover {
+  border-color: rgba(253,118,102,0.5);
+  background: rgba(253,118,102,0.08);
+}
+
+.trend-btn.fav.fav-active {
+  border-color: rgba(253,118,102,0.4);
+  background: rgba(253,118,102,0.1);
+}
+
 /* ========================================
    Club Edit Page
    ======================================== */

@@ -120,3 +120,41 @@ export const sendVerificationEmail = async (email, token, userName) => {
 
   return info;
 };
+
+/**
+ * Send 6-digit OTP code for registration email verification
+ */
+export const sendOTPEmail = async (email, code, userName) => {
+  const transport = await getTransporter();
+
+  const info = await transport.sendMail({
+    from: getFromAddress(),
+    to: email,
+    subject: 'JAMIE - Dein Bestätigungscode',
+    html: `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 500px; margin: 0 auto; padding: 40px 20px; background: #f9f9f9;">
+        <div style="background: #fff; border-radius: 16px; padding: 40px 32px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);">
+          <h1 style="color: #FD7666; font-size: 28px; margin: 0 0 4px;">JAMIE</h1>
+          <h2 style="color: #222; font-size: 20px; margin: 0 0 20px;">E-Mail bestätigen</h2>
+          <p style="color: #555; line-height: 1.6; margin-bottom: 28px;">
+            Hallo ${userName || ''},<br><br>
+            Gib diesen Code in der App ein, um deine E-Mail-Adresse zu bestätigen:
+          </p>
+          <div style="background: #f4f4f4; border-radius: 12px; padding: 24px; text-align: center; letter-spacing: 12px; font-size: 40px; font-weight: 800; color: #222; margin-bottom: 28px;">
+            ${code}
+          </div>
+          <p style="color: #999; font-size: 13px; line-height: 1.5; margin: 0;">
+            Der Code ist <strong>10 Minuten</strong> gültig.<br>
+            Falls du kein Konto erstellt hast, ignoriere diese E-Mail.
+          </p>
+        </div>
+      </div>
+    `
+  });
+
+  if (!process.env.SMTP_HOST) {
+    console.log('OTP email preview:', nodemailer.getTestMessageUrl(info));
+  }
+
+  return info;
+};

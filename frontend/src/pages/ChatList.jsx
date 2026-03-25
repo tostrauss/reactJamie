@@ -1,7 +1,8 @@
 import { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { groups, directMessages, friends } from '../utils/api';
+import { groups, directMessages, friends, subscription as subscriptionApi } from '../utils/api';
 import { SocketContext } from '../context/SocketContext';
+import { ProModal } from '../components/ProModal';
 import '../styles/chat.css';
 import '../styles/profile.css';
 
@@ -14,11 +15,14 @@ export const ChatList = () => {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showHidden, setShowHidden] = useState(false);
+  const [isPro, setIsPro] = useState(false);
+  const [showProModal, setShowProModal] = useState(false);
   const navigate = useNavigate();
   const { socket } = useContext(SocketContext);
 
   useEffect(() => {
     loadData();
+    subscriptionApi.getStatus().then(r => setIsPro(r.data.is_pro)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -118,6 +122,7 @@ export const ChatList = () => {
 
   const handleChatClick = (chat) => {
     if (chat.isDM) {
+      if (!isPro) { setShowProModal(true); return; }
       navigate(`/dm/${chat.id}`);
     } else {
       navigate(`/chat/${chat.id}`);
@@ -213,6 +218,38 @@ export const ChatList = () => {
       {/* Friends Tab Content */}
       {activeTab === 'freunde' ? (
         <div>
+          {/* Pro Banner for non-Pro users */}
+          {!isPro && (
+            <div style={{
+              margin: '16px 0',
+              padding: '20px',
+              borderRadius: '20px',
+              background: 'linear-gradient(135deg, rgba(255,215,0,0.12), rgba(255,140,0,0.06))',
+              border: '1px solid rgba(255,215,0,0.25)',
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: '32px', marginBottom: '10px' }}>👑</div>
+              <div style={{ color: '#FFD700', fontWeight: '800', fontSize: '17px', marginBottom: '6px' }}>
+                Pro-Mitgliedschaft erforderlich
+              </div>
+              <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '13px', lineHeight: 1.6, marginBottom: '16px' }}>
+                Freunde hinzufügen und Direktnachrichten senden ist exklusiv für Pro-Mitglieder.
+              </p>
+              <button
+                onClick={() => setShowProModal(true)}
+                style={{
+                  padding: '13px 28px', borderRadius: '14px', border: 'none',
+                  background: 'linear-gradient(135deg, #FFD700, #FFAA00)',
+                  color: '#1a1100', fontWeight: '800', fontSize: '14px',
+                  cursor: 'pointer',
+                  boxShadow: '0 6px 20px rgba(255,215,0,0.3)',
+                }}
+              >
+                👑 Pro aktivieren — 5 € / Monat
+              </button>
+            </div>
+          )}
+
           {/* Pending Friend Requests */}
           {pendingRequests.length > 0 && (
             <div className="pending-requests-section">
@@ -256,7 +293,7 @@ export const ChatList = () => {
           <div className="friends-list">
             {loading ? (
               <div className="loading">Laden...</div>
-            ) : friendsList.length === 0 ? (
+            ) : !isPro ? null : friendsList.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">👥</div>
                 <p>Noch keine Freunde</p>
@@ -283,8 +320,8 @@ export const ChatList = () => {
                   <div className="friend-actions">
                     <button
                       className="friend-action-btn"
-                      onClick={() => navigate(`/dm/${friend.friend_id}`)}
-                      title="Nachricht senden"
+                      onClick={() => isPro ? navigate(`/dm/${friend.friend_id}`) : setShowProModal(true)}
+                      title={isPro ? 'Nachricht senden' : 'Pro erforderlich'}
                     >
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
@@ -430,6 +467,12 @@ export const ChatList = () => {
           )}
         </div>
       )}
+    {showProModal && (
+      <ProModal
+        onClose={() => setShowProModal(false)}
+        onSuccess={() => setIsPro(true)}
+      />
+    )}
     </div>
   );
 };

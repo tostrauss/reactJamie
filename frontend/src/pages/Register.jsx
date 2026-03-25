@@ -4,6 +4,8 @@ import { AuthContext } from '../context/AuthContext';
 import { auth } from '../utils/api';
 import '../styles/auth.css';
 
+const OTP_RESEND_SECONDS = 60;
+
 // ── Google Places loader (shared singleton) ───────────────────────────────────
 let _gmLoading = false;
 let _gmLoaded  = false;
@@ -32,6 +34,10 @@ export const Register = () => {
   const [step, setStep]                     = useState(1);
   const [name, setName]                     = useState('');
   const [email, setEmail]                   = useState('');
+  const [otpCode, setOtpCode]               = useState('');
+  const [otpLoading, setOtpLoading]         = useState(false);
+  const [otpError, setOtpError]             = useState('');
+  const [otpResendTimer, setOtpResendTimer] = useState(0);
   const [location, setLocation]             = useState('');
   const [password, setPassword]             = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -43,6 +49,7 @@ export const Register = () => {
 
   const locationRef     = useRef(null);
   const autocompleteRef = useRef(null);
+  const resendIntervalRef = useRef(null);
 
   // Load Google Maps script on mount
   useEffect(() => {
@@ -50,9 +57,24 @@ export const Register = () => {
     if (apiKey) loadGM(apiKey);
   }, []);
 
-  // Attach autocomplete when step 3 renders
+  // Countdown timer for OTP resend
   useEffect(() => {
-    if (step !== 3) return;
+    if (otpResendTimer <= 0) {
+      clearInterval(resendIntervalRef.current);
+      return;
+    }
+    resendIntervalRef.current = setInterval(() => {
+      setOtpResendTimer(t => {
+        if (t <= 1) { clearInterval(resendIntervalRef.current); return 0; }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(resendIntervalRef.current);
+  }, [otpResendTimer]);
+
+  // Attach autocomplete when step 4 renders
+  useEffect(() => {
+    if (step !== 4) return;
 
     const attach = () => {
       if (!window.google?.maps?.places) return;
@@ -73,6 +95,48 @@ export const Register = () => {
     const timer = setTimeout(() => onGM(attach), 50);
     return () => clearTimeout(timer);
   }, [step]);
+
+  const handleSendCode = async () => {
+    setOtpError('');
+    setOtpLoading(true);
+    try {
+      await auth.sendEmailCode(email, name);
+      setStep(3);
+      setOtpResendTimer(OTP_RESEND_SECONDS);
+    } catch (err) {
+      setOtpError(err.response?.data?.error || 'Code konnte nicht gesendet werden');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    setOtpError('');
+    if (otpCode.length !== 6) { setOtpError('Bitte alle 6 Ziffern eingeben'); return; }
+    setOtpLoading(true);
+    try {
+      await auth.verifyEmailCode(email, otpCode);
+      setStep(4);
+    } catch (err) {
+      setOtpError(err.response?.data?.error || 'Ungültiger Code');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    setOtpError('');
+    setOtpCode('');
+    setOtpLoading(true);
+    try {
+      await auth.sendEmailCode(email, name);
+      setOtpResendTimer(OTP_RESEND_SECONDS);
+    } catch (err) {
+      setOtpError(err.response?.data?.error || 'Code konnte nicht gesendet werden');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const getPasswordStrength = (pwd) => {
@@ -124,8 +188,8 @@ export const Register = () => {
     }
   };
 
-  // 4 steps: name → email → location → password
-  const TOTAL_STEPS = 4;
+  // 5 steps: name → email → verify code → location → password
+  const TOTAL_STEPS = 5;
 
   return (
     <div className="auth-container">
@@ -177,7 +241,10 @@ export const Register = () => {
           {/* ── Step 2: E-Mail ───────────────────────────────────────── */}
           {step === 2 && (
             <>
-              <button type="button" className="back-btn" onClick={() => setStep(1)}>← Zurück</button>
+              <button type="button" className="auth-back-btn" onClick={() => setStep(1)}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+              Zurück
+            </button>
               <div className="form-group">
                 <label>Deine E-Mail</label>
                 <input
@@ -190,21 +257,70 @@ export const Register = () => {
                   autoComplete="email"
                 />
               </div>
+              {otpError && step === 2 && <p className="error-message">{otpError}</p>}
               <button
                 type="button"
                 className="auth-btn auth-btn-primary"
-                onClick={() => email && setStep(3)}
-                disabled={!email}
+                onClick={handleSendCode}
+                disabled={!email || otpLoading}
               >
-                Weiter
+                {otpLoading ? 'Wird gesendet...' : 'Code senden'}
               </button>
             </>
           )}
 
-          {/* ── Step 3: Standort (Google Maps) ──────────────────────── */}
+          {/* ── Step 3: E-Mail OTP ───────────────────────────────────── */}
           {step === 3 && (
             <>
-              <button type="button" className="back-btn" onClick={() => setStep(2)}>← Zurück</button>
+              <button type="button" className="auth-back-btn" onClick={() => { setStep(2); setOtpCode(''); setOtpError(''); }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+              Zurück
+            </button>
+              <div className="form-group">
+                <label>Bestätigungscode</label>
+                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '14px', marginTop: '-4px' }}>
+                  Wir haben einen 6-stelligen Code an <strong style={{ color: 'rgba(255,255,255,0.8)' }}>{email}</strong> gesendet.
+                </p>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  placeholder="_ _ _ _ _ _"
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  autoFocus
+                  style={{ letterSpacing: '8px', fontSize: '24px', textAlign: 'center' }}
+                />
+              </div>
+              {otpError && <p className="error-message">{otpError}</p>}
+              <button
+                type="button"
+                className="auth-btn auth-btn-primary"
+                onClick={handleVerifyCode}
+                disabled={otpCode.length !== 6 || otpLoading}
+              >
+                {otpLoading ? 'Prüfe...' : 'Bestätigen'}
+              </button>
+              <button
+                type="button"
+                className="auth-btn"
+                onClick={handleResendCode}
+                disabled={otpResendTimer > 0 || otpLoading}
+                style={{ marginTop: '10px', background: 'none', border: '1px solid rgba(255,255,255,0.15)', color: otpResendTimer > 0 ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.7)' }}
+              >
+                {otpResendTimer > 0 ? `Code erneut senden (${otpResendTimer}s)` : 'Code erneut senden'}
+              </button>
+            </>
+          )}
+
+          {/* ── Step 4: Standort (Google Maps) ──────────────────────── */}
+          {step === 4 && (
+            <>
+              <button type="button" className="auth-back-btn" onClick={() => setStep(3)}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+              Zurück
+            </button>
               <div className="form-group">
                 <label>Wo bist du? <span style={{ opacity: 0.5, fontSize: '13px' }}>(optional)</span></label>
                 <div style={{ position: 'relative' }}>
@@ -238,17 +354,20 @@ export const Register = () => {
               <button
                 type="button"
                 className="auth-btn auth-btn-primary"
-                onClick={() => setStep(4)}
+                onClick={() => setStep(5)}
               >
                 {location ? 'Weiter' : 'Überspringen'}
               </button>
             </>
           )}
 
-          {/* ── Step 4: Passwort ─────────────────────────────────────── */}
-          {step === 4 && (
+          {/* ── Step 5: Passwort ─────────────────────────────────────── */}
+          {step === 5 && (
             <>
-              <button type="button" className="back-btn" onClick={() => setStep(3)}>← Zurück</button>
+              <button type="button" className="auth-back-btn" onClick={() => setStep(4)}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+              Zurück
+            </button>
               <div className="form-group">
                 <label>Wähle ein Passwort</label>
                 <input

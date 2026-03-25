@@ -248,7 +248,7 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
                 disabled={loading}
                 style={{ width: '100%', padding: '16px', borderRadius: '14px', background: '#FD7666', border: 'none', color: '#fff', fontSize: '16px', fontWeight: '700', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}
               >
-                {loading ? 'Boosting...' : '🚀 Jetzt boosten (1 Credit)'}
+                {loading ? 'Wird geboostet...' : '🚀 Jetzt boosten (1 Credit)'}
               </button>
             )}
           </div>

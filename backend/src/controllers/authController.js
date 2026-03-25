@@ -2,7 +2,7 @@ import db from '../config/database.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { generateToken } from '../middleware/auth.js';
-import { sendPasswordResetEmail, sendVerificationEmail } from '../utils/email.js';
+import { sendPasswordResetEmail, sendVerificationEmail, sendOTPEmail } from '../utils/email.js';
 
 const parseUserJSONFields = (user) => {
   try {
@@ -480,6 +480,73 @@ export const sendVerification = async (req, res) => {
     res.json({ message: 'Bestätigungs-E-Mail gesendet' });
   } catch (error) {
     console.error('SendVerification error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// SEND EMAIL OTP (pre-registration, no auth)
+// ==========================================
+export const sendEmailCode = async (req, res) => {
+  try {
+    const { email, name } = req.body;
+    if (!email) return res.status(400).json({ error: 'E-Mail ist erforderlich' });
+
+    // Check email not already registered
+    const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ error: 'Diese E-Mail ist bereits registriert' });
+    }
+
+    // Delete any old codes for this email
+    await db.query('DELETE FROM email_verification_codes WHERE email = $1', [email]);
+
+    // Generate 6-digit code
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    await db.query(
+      'INSERT INTO email_verification_codes (email, code, expires_at) VALUES ($1, $2, $3)',
+      [email, code, expiresAt]
+    );
+
+    try {
+      await sendOTPEmail(email, code, name || '');
+    } catch (emailErr) {
+      console.error('Failed to send OTP email:', emailErr);
+      return res.status(500).json({ error: 'E-Mail konnte nicht gesendet werden' });
+    }
+
+    res.json({ message: 'Code gesendet' });
+  } catch (error) {
+    console.error('sendEmailCode error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// VERIFY EMAIL OTP (pre-registration, no auth)
+// ==========================================
+export const verifyEmailCode = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) return res.status(400).json({ error: 'E-Mail und Code erforderlich' });
+
+    const result = await db.query(
+      'SELECT * FROM email_verification_codes WHERE email = $1 AND code = $2 AND used = FALSE AND expires_at > NOW()',
+      [email, code]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Ungültiger oder abgelaufener Code' });
+    }
+
+    // Mark as used
+    await db.query('UPDATE email_verification_codes SET used = TRUE WHERE id = $1', [result.rows[0].id]);
+
+    res.json({ verified: true });
+  } catch (error) {
+    console.error('verifyEmailCode error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

@@ -1,5 +1,5 @@
 import express from 'express';
-import { register, login, getProfile, updateProfile, completeOnboarding, changePassword, deleteAccount, forgotPassword, resetPassword, sendVerification, verifyEmail } from '../controllers/authController.js';
+import { register, login, getProfile, updateProfile, completeOnboarding, changePassword, deleteAccount, forgotPassword, resetPassword, sendVerification, verifyEmail, sendEmailCode, verifyEmailCode } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
 import { strictLimiter } from '../middleware/rateLimiter.js';
 
@@ -16,6 +16,10 @@ router.delete('/account', authenticate, strictLimiter, deleteAccount);
 // Password reset (public - no auth needed)
 router.post('/forgot-password', strictLimiter, forgotPassword);
 router.post('/reset-password', strictLimiter, resetPassword);
+
+// Registration OTP (public - no auth needed)
+router.post('/send-email-code', strictLimiter, sendEmailCode);
+router.post('/verify-email-code', strictLimiter, verifyEmailCode);
 
 // Email verification (requires auth)
 router.post('/send-verification', authenticate, sendVerification);
