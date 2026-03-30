@@ -3,9 +3,10 @@
    ======================================== */
 
 .profile-page {
-  min-height: 100vh;
+  min-height: 100dvh;
+  min-height: 100vh; /* fallback */
   background: var(--bg-primary);
-  padding-bottom: 100px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
 }
 
 /* Profile Header Image */
@@ -36,7 +37,7 @@
 
 .profile-header-actions {
   position: absolute;
-  top: 20px;
+  top: calc(env(safe-area-inset-top, 0px) + 20px);
   left: 20px;
   right: 20px;
   display: flex;
@@ -57,13 +58,21 @@
   border-radius: 50%;
   color: white;
   font-size: 18px;
+  font-family: inherit;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition: all var(--transition-fast);
 }
 
 .profile-action-btn:hover {
   background: rgba(0, 0, 0, 0.65);
   transform: scale(1.08);
+}
+
+.profile-action-btn:active {
+  transform: scale(0.93);
+  background: rgba(0, 0, 0, 0.65);
 }
 
 /* Floating Avatar */
@@ -241,6 +250,99 @@
   color: var(--accent-coral);
 }
 
+/* Pro name badge */
+.pro-name-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 3px 10px;
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 140, 0, 0.12));
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+  color: #FFD700;
+  vertical-align: middle;
+}
+
+/* Pro CTA card (non-pro) */
+.pro-cta-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 140, 0, 0.06));
+  border: 1px solid rgba(255, 215, 0, 0.25);
+  border-radius: 16px;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.pro-cta-card:active {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
+
+/* Pro active card */
+.pro-active-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(255, 140, 0, 0.06));
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  border-radius: 16px;
+}
+
+/* Shared pro card sub-elements */
+.pro-card-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.pro-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.pro-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #FFD700;
+  margin-bottom: 2px;
+}
+
+.pro-card-sub {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.pro-card-arrow {
+  font-size: 18px;
+  color: #FFD700;
+  flex-shrink: 0;
+}
+
+.pro-card-check {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #FFD700;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 /* Profile Tabs */
 .profile-tabs {
   display: flex;
@@ -252,13 +354,17 @@
 
 .profile-tab {
   flex: 1;
+  min-height: 44px;
   padding: 14px;
   background: none;
   border: none;
   font-size: 15px;
   font-weight: 600;
+  font-family: inherit;
   color: var(--text-muted);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition: all var(--transition-fast);
   position: relative;
 }
@@ -321,8 +427,16 @@
   justify-content: center;
   gap: 4px;
   border: 2px dashed rgba(255,255,255,0.12);
+  background: none;
+  font-family: inherit;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition: all var(--transition-fast);
+}
+
+.pinnwand-item:active {
+  opacity: 0.85;
 }
 
 .pinnwand-item.add-photo span {
@@ -451,7 +565,11 @@
   gap: 10px;
   margin-bottom: 24px;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
+
+.pe-avatar-section:active .pe-avatar { transform: scale(0.95); }
 
 .pe-avatar-wrapper {
   position: relative;
@@ -574,27 +692,24 @@
 .pe-gender-chip {
   flex: 1;
   padding: 10px 8px;
+  min-height: 44px;
   background: var(--bg-input);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: var(--radius-md);
   color: var(--text-muted);
   font-size: 13px;
   font-weight: 500;
+  font-family: inherit;
   cursor: pointer;
   transition: all var(--transition-fast);
   text-align: center;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.pe-gender-chip:hover {
-  border-color: rgba(255, 255, 255, 0.15);
-  color: var(--text-light);
-}
-
-.pe-gender-chip.active {
-  background: rgba(253, 118, 102, 0.15);
-  border-color: var(--accent-coral);
-  color: var(--accent-coral);
-}
+.pe-gender-chip:active { transform: scale(0.95); }
+.pe-gender-chip:hover { border-color: rgba(255, 255, 255, 0.15); color: var(--text-light); }
+.pe-gender-chip.active { background: rgba(253, 118, 102, 0.15); border-color: var(--accent-coral); color: var(--accent-coral); }
 
 /* Interests */
 .pe-interest-count {
@@ -618,26 +733,23 @@
   align-items: center;
   gap: 6px;
   padding: 10px 14px;
+  min-height: 40px;
   background: var(--bg-input);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: var(--radius-full);
   color: var(--text-light);
   font-size: 13px;
   font-weight: 500;
+  font-family: inherit;
   cursor: pointer;
   transition: all var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.pe-interest-chip:hover {
-  border-color: rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.pe-interest-chip.active {
-  background: rgba(253, 118, 102, 0.15);
-  border-color: var(--accent-coral);
-  color: var(--accent-coral);
-}
+.pe-interest-chip:active { transform: scale(0.93); }
+.pe-interest-chip:hover { border-color: rgba(255, 255, 255, 0.15); background: rgba(255, 255, 255, 0.06); }
+.pe-interest-chip.active { background: rgba(253, 118, 102, 0.15); border-color: var(--accent-coral); color: var(--accent-coral); }
 
 .pe-interest-icon {
   font-size: 16px;
@@ -685,13 +797,19 @@
   border-radius: var(--radius-md, 10px);
   font-size: 15px;
   font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
+  min-height: 48px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
+
+.pe-spotify-btn:active { transform: scale(0.97); }
 
 .pe-spotify-btn.connect {
   width: 100%;
@@ -729,6 +847,7 @@
   justify-content: center;
   gap: 10px;
   width: 100%;
+  min-height: 56px;
   padding: 16px;
   background: linear-gradient(135deg, var(--accent-coral), var(--accent-coral-dark));
   border: none;
@@ -736,41 +855,53 @@
   color: white;
   font-size: 16px;
   font-weight: 700;
+  font-family: inherit;
   cursor: pointer;
   transition: all var(--transition-fast);
   margin-top: 8px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.pe-save-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(253, 118, 102, 0.4);
-}
-
-.pe-save-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
+.pe-save-btn:active:not(:disabled) { transform: scale(0.97); box-shadow: 0 2px 12px rgba(253,118,102,0.4); }
+.pe-save-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(253, 118, 102, 0.4); }
+.pe-save-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
 
 /* ========================================
    Settings Page (redesigned)
    ======================================== */
 .settings-page {
-  padding: 20px;
-  padding-bottom: 100px;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  overflow: hidden;
 }
 
 .settings-header {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-bottom: 24px;
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 20px 14px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  z-index: 10;
+}
+
+.settings-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding: 20px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 48px);
 }
 
 .settings-back {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -779,8 +910,17 @@
   border-radius: var(--radius-md);
   color: var(--text-light);
   font-size: 20px;
+  font-family: inherit;
   cursor: pointer;
   transition: all var(--transition-fast);
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.settings-back:active {
+  transform: scale(0.92);
+  background: var(--bg-hover);
 }
 
 .settings-back:hover {
@@ -803,6 +943,13 @@
   margin-bottom: 20px;
   cursor: pointer;
   transition: all var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.settings-user-card:active {
+  transform: scale(0.985);
+  background: var(--bg-hover);
 }
 
 .settings-user-card:hover {
@@ -882,9 +1029,16 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
+  min-height: 52px;
   cursor: pointer;
   transition: background var(--transition-fast);
   border-top: 1px solid rgba(255, 255, 255, 0.04);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.settings-row:active {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .settings-row:hover {
@@ -893,9 +1047,15 @@
 
 .settings-row.static {
   cursor: default;
+  -webkit-tap-highlight-color: unset;
+  touch-action: unset;
 }
 
 .settings-row.static:hover {
+  background: transparent;
+}
+
+.settings-row.static:active {
   background: transparent;
 }
 
@@ -937,9 +1097,14 @@
 /* Toggle Switch */
 .settings-toggle {
   position: relative;
-  width: 44px;
-  height: 24px;
+  width: 52px;
+  height: 44px; /* tall tap target */
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .settings-toggle input {
@@ -950,12 +1115,13 @@
 
 .settings-toggle-slider {
   position: absolute;
-  top: 0;
+  top: 50%;
   left: 0;
-  right: 0;
-  bottom: 0;
+  transform: translateY(-50%);
+  width: 52px;
+  height: 28px;
   background: var(--bg-input);
-  border-radius: 24px;
+  border-radius: 28px;
   cursor: pointer;
   transition: all var(--transition-fast);
 }
@@ -963,13 +1129,14 @@
 .settings-toggle-slider::before {
   content: '';
   position: absolute;
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   left: 3px;
-  bottom: 3px;
+  top: 3px;
   background: white;
   border-radius: 50%;
   transition: transform var(--transition-fast);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
 }
 
 .settings-toggle input:checked + .settings-toggle-slider {
@@ -977,7 +1144,7 @@
 }
 
 .settings-toggle input:checked + .settings-toggle-slider::before {
-  transform: translateX(20px);
+  transform: translateX(24px);
 }
 
 /* Expand Section (password form, delete form) */
@@ -993,6 +1160,7 @@
   justify-content: center;
   gap: 10px;
   width: 100%;
+  min-height: 56px;
   padding: 16px;
   background: var(--bg-card);
   border: none;
@@ -1000,9 +1168,18 @@
   color: var(--text-light);
   font-size: 15px;
   font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
   transition: all var(--transition-fast);
   margin-bottom: 16px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.settings-logout-btn:active {
+  transform: scale(0.97);
+  background: var(--bg-hover);
+  color: var(--accent-coral);
 }
 
 .settings-logout-btn:hover {
@@ -1012,9 +1189,11 @@
 
 .settings-logout-btn svg {
   color: var(--text-muted);
+  flex-shrink: 0;
 }
 
-.settings-logout-btn:hover svg {
+.settings-logout-btn:hover svg,
+.settings-logout-btn:active svg {
   color: var(--accent-coral);
 }
 
@@ -1029,6 +1208,7 @@
   justify-content: center;
   gap: 8px;
   width: 100%;
+  min-height: 52px;
   padding: 14px 18px;
   background: transparent;
   border: 1px solid rgba(248, 113, 113, 0.3);
@@ -1036,8 +1216,17 @@
   color: var(--status-busy);
   font-size: 15px;
   font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
   transition: all var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.danger-btn:active {
+  transform: scale(0.97);
+  background: rgba(248, 113, 113, 0.15);
+  border-color: var(--status-busy);
 }
 
 .danger-btn:hover {
@@ -1064,15 +1253,24 @@
 /* Settings Action Buttons */
 .settings-action-btn {
   flex: 1;
+  min-height: 48px;
   padding: 12px;
   background: var(--bg-input);
   border: none;
   border-radius: var(--radius-md);
   color: var(--text-light);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
   transition: all var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.settings-action-btn:active {
+  transform: scale(0.97);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .settings-action-btn:hover {
@@ -1082,6 +1280,11 @@
 .settings-action-btn.primary {
   background: linear-gradient(135deg, var(--accent-coral), var(--accent-coral-dark));
   color: white;
+}
+
+.settings-action-btn.primary:active {
+  transform: scale(0.97);
+  box-shadow: 0 2px 8px rgba(253, 118, 102, 0.3);
 }
 
 .settings-action-btn.primary:hover {
@@ -1110,15 +1313,18 @@
 
 .settings-input {
   width: 100%;
+  min-height: 52px;
   padding: 14px 16px;
   background: var(--bg-input);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: var(--radius-md);
   color: var(--text-white);
-  font-size: 15px;
+  font-size: 16px; /* 16px prevents iOS auto-zoom on focus */
+  font-family: inherit;
   outline: none;
   transition: border-color var(--transition-fast);
   box-sizing: border-box;
+  -webkit-appearance: none;
 }
 
 .settings-input::placeholder {
@@ -1141,13 +1347,91 @@
   border: none;
   color: var(--text-light);
   font-size: 15px;
+  font-family: inherit;
   cursor: pointer;
   padding: 16px 20px;
+  min-height: 52px;
   transition: color var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.user-profile-back:hover {
-  color: var(--text-white);
+.user-profile-back:active { color: var(--text-white); transform: scale(0.97); }
+.user-profile-back:hover { color: var(--text-white); }
+
+/* Trusted badge in UserProfile */
+.up-trusted-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #4ade80;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+/* Report button in UserProfile */
+.up-report-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  margin-top: 8px;
+  text-decoration: underline;
+  min-height: 44px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.up-report-btn:active { color: #f87171; }
+.up-report-btn:hover { color: #f87171; }
+
+/* About/Photos sections */
+.up-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.up-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent-coral);
+  margin-bottom: 12px;
+}
+
+.up-interests {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.up-photos-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 16px 0;
+}
+
+.up-photo-item {
+  aspect-ratio: 3/4;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+.up-photo-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .user-profile-header {
@@ -1225,13 +1509,19 @@
   justify-content: center;
   gap: 8px;
   padding: 12px 24px;
+  min-height: 48px;
   font-size: 15px;
   font-weight: 600;
+  font-family: inherit;
   border: none;
   border-radius: var(--radius-full);
   cursor: pointer;
   transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
+
+.user-action-btn:active { transform: scale(0.96); }
 
 .user-action-btn.primary {
   background: linear-gradient(135deg, var(--accent-coral), var(--accent-coral-dark));

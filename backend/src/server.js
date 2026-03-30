@@ -52,6 +52,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import { subscriptionWebhook } from './controllers/subscriptionController.js';
+import mapRoutes from './routes/mapRoutes.js';
 import socketHandler from './socket.js';
 
 // ==========================================
@@ -72,6 +73,7 @@ app.use(helmet({
         'https://hooks.stripe.com',
         'https://www.paypal.com',
         'https://www.sandbox.paypal.com',
+        'https://nominatim.openstreetmap.org',
         ...(storageOrigin ? [storageOrigin] : []),
       ],
       imgSrc: [
@@ -81,6 +83,7 @@ app.use(helmet({
         'https://i.scdn.co',         // Spotify album art
         'https://images.unsplash.com',
         'https://www.paypal.com',
+        'https://*.tile.openstreetmap.org',  // Leaflet map tiles
         ...(storageOrigin ? [storageOrigin] : []),
       ],
       scriptSrc: [
@@ -180,6 +183,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/map', mapRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -352,6 +356,9 @@ const runStartupMigrations = async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_event_reviews_reviewed ON event_reviews(reviewed_user_id)`);
     await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_trusted_user BOOLEAN NOT NULL DEFAULT FALSE`);
     await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trusted_count   INTEGER NOT NULL DEFAULT 0`);
+    await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION`);
+    await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_lat_lng ON groups(lat, lng) WHERE lat IS NOT NULL AND lng IS NOT NULL`);
 
     console.log('✅ Startup migrations done');
   } catch (err) {

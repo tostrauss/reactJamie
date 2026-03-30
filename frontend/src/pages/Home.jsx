@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import api, { groups, clubs } from "../utils/api";
 import { GroupCard } from "../components/GroupCard";
 import { AuthContext } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import MapView from "../components/MapView";
 import "../styles/home.css";
 import { CATEGORY_HIERARCHY } from "../utils/categories";
 
@@ -48,16 +49,13 @@ export const Home = () => {
       }
       const joinedRes = await groups.getJoined().catch(() => ({ data: [] }));
       const joinedClubsRes = await clubs.getJoined().catch(() => ({ data: [] }));
-      const joinedIds = [
+      setJoined(new Set([
         ...(joinedRes.data || []).map(g => g.id),
         ...(joinedClubsRes.data || []).map(c => c.id)
-      ];
-      setJoined(new Set(joinedIds));
+      ]));
     } catch (error) {
       console.error('Error loading data:', error);
-      if (!error.response) {
-        toast.error('Server nicht erreichbar');
-      }
+      if (!error.response) toast.error('Server nicht erreichbar');
     } finally {
       setLoading(false);
     }
@@ -66,21 +64,18 @@ export const Home = () => {
   const handleFavorite = async (groupId) => {
     const wasAlreadyFav = favorites.has(groupId);
     setFavorites(prev => {
-      const newFavs = new Set(prev);
-      if (newFavs.has(groupId)) newFavs.delete(groupId);
-      else newFavs.add(groupId);
-      return newFavs;
+      const n = new Set(prev);
+      n.has(groupId) ? n.delete(groupId) : n.add(groupId);
+      return n;
     });
     try {
-      const isClub = activeTab === 'clubs';
-      if (isClub) { await clubs.toggleFavorite(groupId); }
-      else { await groups.toggleFavorite(groupId); }
-    } catch (err) {
-      // Revert optimistic update on failure
+      if (activeTab === 'clubs') await clubs.toggleFavorite(groupId);
+      else await groups.toggleFavorite(groupId);
+    } catch {
       setFavorites(prev => {
-        const newFavs = new Set(prev);
-        if (wasAlreadyFav) newFavs.add(groupId); else newFavs.delete(groupId);
-        return newFavs;
+        const n = new Set(prev);
+        wasAlreadyFav ? n.add(groupId) : n.delete(groupId);
+        return n;
       });
       toast.error('Favorit konnte nicht gespeichert werden');
     }
@@ -88,9 +83,8 @@ export const Home = () => {
 
   const handleJoin = async (groupId) => {
     try {
-      const isClub = activeTab === 'clubs';
-      if (isClub) { await clubs.join(groupId); }
-      else { await groups.join(groupId); }
+      if (activeTab === 'clubs') await clubs.join(groupId);
+      else await groups.join(groupId);
       setJoined(prev => new Set(prev).add(groupId));
       loadData();
     } catch (err) {
@@ -126,233 +120,263 @@ export const Home = () => {
     return mainCat.subs.some(sub => itemCat === sub.name.toLowerCase());
   };
 
-  const filteredGroups = groupList.filter(group => {
-    const matchesSearch = (group.name || '').toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSearch && matchesCategory(group);
-  });
+  const filteredGroups = groupList.filter(g =>
+    (g.name || '').toLowerCase().includes(searchQuery.toLowerCase()) && matchesCategory(g)
+  );
 
-  const filteredClubs = clubList.filter(club => {
-    const matchesSearch = (club.name || '').toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSearch && matchesCategory(club);
-  });
+  const filteredClubs = clubList.filter(c =>
+    (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) && matchesCategory(c)
+  );
+
+  const handleTabSwitch = (tab) => {
+    setActiveTab(tab);
+    setSelectedMain('all');
+    setSelectedSub(null);
+    if (tab !== 'karte') setSearchQuery('');
+  };
 
   return (
     <div className="home-container">
-      <header className="home-header">
-        <h1 className="logo-text">jamie</h1>
-      </header>
 
-      {user && user.onboarding_completed === false && (
-        <div className="profile-warning-banner">
-          <div className="profile-warning-title">Profil noch nicht vollständig</div>
-          <p className="profile-warning-text">
-            Vervollständige dein Profil, um Gruppen beizutreten.
-          </p>
-          <button className="profile-warning-button" onClick={() => navigate("/onboarding")}>
-            Profil jetzt abschließen
-          </button>
-        </div>
-      )}
+      {/* ── Sticky header (doesn't scroll) ─────────────────────────── */}
+      <div className="home-sticky-header">
+        <header className="home-header">
+          <h1 className="logo-text">jamie</h1>
+        </header>
 
-      <div className="tabs-container">
-        <button
-          className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('gruppen'); setSelectedMain('all'); setSelectedSub(null); }}
-        >
-          Gruppen
-        </button>
-        <button
-          className={`tab ${activeTab === 'clubs' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('clubs'); setSelectedMain('all'); setSelectedSub(null); }}
-        >
-          Clubs
-        </button>
-      </div>
-
-      {/* Search */}
-      <div className="search-container">
-        <div className="search-input-wrapper">
-          <svg className="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="M21 21l-4.35-4.35"/>
-          </svg>
-          <input
-            type="text"
-            placeholder="Suchen..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="search-input"
-          />
-        </div>
-      </div>
-
-      {/* Categories */}
-      <div className="categories-container">
-        {/* Main category row */}
-        <div className="categories-scroll">
+        <div className="tabs-container">
           <button
-            className={`category-pill ${selectedMain === 'all' ? 'active' : ''}`}
-            onClick={() => { setSelectedMain('all'); setSelectedSub(null); }}
+            className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`}
+            onClick={() => handleTabSwitch('gruppen')}
           >
-            Alle
+            Gruppen
           </button>
-          {CATEGORY_HIERARCHY.map(cat => (
-            <button
-              key={cat.id}
-              className={`category-pill ${selectedMain === cat.id ? 'active' : ''}`}
-              onClick={() => { setSelectedMain(cat.id); setSelectedSub(null); }}
-            >
-              {cat.icon} {cat.label}
-            </button>
-          ))}
+          <button
+            className={`tab ${activeTab === 'clubs' ? 'active' : ''}`}
+            onClick={() => handleTabSwitch('clubs')}
+          >
+            Clubs
+          </button>
+          <button
+            className={`tab ${activeTab === 'karte' ? 'active' : ''}`}
+            onClick={() => handleTabSwitch('karte')}
+          >
+            Karte
+          </button>
         </div>
 
-        {/* Subcategory row — slides in when a main is selected */}
-        {selectedMain !== 'all' && (
-          <div className="categories-scroll subcategories-scroll">
-            {CATEGORY_HIERARCHY.find(c => c.id === selectedMain)?.subs.map(sub => (
-              <button
-                key={sub.name}
-                className={`category-pill sub ${selectedSub === sub.name ? 'active' : ''}`}
-                onClick={() => setSelectedSub(prev => prev === sub.name ? null : sub.name)}
-              >
-                {sub.icon} {sub.name}
-              </button>
-            ))}
-          </div>
+        {activeTab !== 'karte' && (
+          <>
+            <div className="search-container">
+              <div className="search-input-wrapper">
+                <svg className="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8"/>
+                  <path d="M21 21l-4.35-4.35"/>
+                </svg>
+                <input
+                  type="search"
+                  placeholder="Suchen…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="search-input"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
+                />
+              </div>
+            </div>
+
+            <div className="categories-container">
+              <div className="categories-scroll">
+                <button
+                  className={`category-pill ${selectedMain === 'all' ? 'active' : ''}`}
+                  onClick={() => { setSelectedMain('all'); setSelectedSub(null); }}
+                >
+                  Alle
+                </button>
+                {CATEGORY_HIERARCHY.map(cat => (
+                  <button
+                    key={cat.id}
+                    className={`category-pill ${selectedMain === cat.id ? 'active' : ''}`}
+                    onClick={() => { setSelectedMain(cat.id); setSelectedSub(null); }}
+                  >
+                    {cat.icon} {cat.label}
+                  </button>
+                ))}
+              </div>
+
+              {selectedMain !== 'all' && (
+                <div className="categories-scroll subcategories-scroll">
+                  {CATEGORY_HIERARCHY.find(c => c.id === selectedMain)?.subs.map(sub => (
+                    <button
+                      key={sub.name}
+                      className={`category-pill sub ${selectedSub === sub.name ? 'active' : ''}`}
+                      onClick={() => setSelectedSub(prev => prev === sub.name ? null : sub.name)}
+                    >
+                      {sub.icon} {sub.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
 
-      {/* GRUPPEN VIEW */}
-      {activeTab === 'gruppen' && (
-        <div className="groups-feed">
-          <div className="section-header">
-            <h2 className="section-heading">Alle Gruppen</h2>
-            <span className="section-count">{filteredGroups.length}</span>
+      {/* ── Scrollable content ──────────────────────────────────────── */}
+      <div className={`home-content${activeTab === 'karte' ? ' home-content--map' : ''}`}>
+
+        {user && user.onboarding_completed === false && (
+          <div className="profile-warning-banner">
+            <div className="profile-warning-title">Profil noch nicht vollständig</div>
+            <p className="profile-warning-text">
+              Vervollständige dein Profil, um Gruppen beizutreten.
+            </p>
+            <button className="profile-warning-button" onClick={() => navigate("/onboarding")}>
+              Profil jetzt abschließen
+            </button>
           </div>
-          {loading ? (
-            <div className="loading">Laden...</div>
-          ) : filteredGroups.length > 0 ? (
-            <div className="groups-grid">
-              {filteredGroups.map((group) => (
-                <GroupCard
-                  key={group.id}
-                  group={group}
-                  isFavorite={favorites.has(group.id)}
-                  isJoined={joined.has(group.id)}
-                  onFavorite={handleFavorite}
-                  onJoin={handleJoin}
-                  onChat={handleChat}
-                  onWaitlist={handleWaitlist}
-                  onClick={() => handleCardClick(group.id)}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state">
-              <div className="empty-icon">🔍</div>
-              <p>Keine Gruppen gefunden.</p>
-              <span className="empty-hint" onClick={() => navigate('/create-group')}>Erstelle selbst eine!</span>
-            </div>
-          )}
-        </div>
-      )}
+        )}
 
-      {/* CLUBS VIEW */}
-      {activeTab === 'clubs' && (
-        <div className="clubs-feed">
-          {/* Meine Clubs Section */}
-          {myClubs.length > 0 && (
-            <div className="clubs-section">
-              <div className="section-header">
-                <h2 className="section-heading">Meine Clubs</h2>
-                <span className="section-count">{myClubs.length}</span>
-              </div>
-              <div className="my-clubs-scroll">
-                {myClubs.map(club => (
-                  <div key={club.id} className="my-club-card" onClick={() => handleCardClick(club.id)}>
-                    <div className="my-club-image">
-                      {club.image_url ? (
-                        <img src={club.image_url} alt={club.name || club.title} />
-                      ) : (
-                        <div className="my-club-placeholder">
-                          <span>{(club.name || club.title || 'C')[0]}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="my-club-info">
-                      <h4>{club.name || club.title}</h4>
-                      <span className="my-club-members">👥 {club.member_count || club.members_count || 0}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Im Trend Section */}
-          <div className="clubs-section">
+        {/* GRUPPEN */}
+        {activeTab === 'gruppen' && (
+          <div className="groups-feed">
             <div className="section-header">
-              <h2 className="section-heading">Im Trend</h2>
+              <h2 className="section-heading">Alle Gruppen</h2>
+              <span className="section-count">{filteredGroups.length}</span>
             </div>
             {loading ? (
-              <div className="loading">Laden...</div>
-            ) : filteredClubs.length > 0 ? (
-              <div className="trend-clubs-list">
-                {filteredClubs.map(club => (
-                  <div key={club.id} className="trend-club-card" onClick={() => handleCardClick(club.id)}>
-                    <div className="trend-club-image">
-                      {club.image_url ? (
-                        <img src={club.image_url} alt={club.name || club.title} />
-                      ) : (
-                        <div className="trend-club-placeholder">
-                          <span>{(club.category || 'C')[0]}</span>
-                        </div>
-                      )}
-                      <div className="trend-club-overlay">
-                        {club.category && <span className="trend-club-badge">{club.category}</span>}
-                      </div>
-                    </div>
-                    <div className="trend-club-content">
-                      <h3>{club.name || club.title}</h3>
-                      <div className="trend-club-meta">
-                        <span className="trend-club-members">👥 {club.member_count || club.members_count || 0} Mitglieder</span>
-                        {club.location && <span className="trend-club-location">📍 {club.location}</span>}
-                      </div>
-                      <div className="trend-club-actions">
-                        {joined.has(club.id) ? (
-                          <button className="trend-btn joined" onClick={(e) => { e.stopPropagation(); handleChat(club.id); }}>
-                            💬 Chat
-                          </button>
-                        ) : (
-                          <button className="trend-btn join" onClick={(e) => { e.stopPropagation(); handleJoin(club.id); }}>
-                            Beitreten
-                          </button>
-                        )}
-                        <button
-                          className={`trend-btn fav${favorites.has(club.id) ? ' fav-active' : ''}`}
-                          onClick={(e) => { e.stopPropagation(); handleFavorite(club.id); }}
-                          title={favorites.has(club.id) ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'}
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill={favorites.has(club.id) ? '#FD7666' : 'none'} stroke={favorites.has(club.id) ? '#FD7666' : 'rgba(255,255,255,0.7)'} strokeWidth="2">
-                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+              <div className="home-loading">
+                <div className="home-spinner" />
+              </div>
+            ) : filteredGroups.length > 0 ? (
+              <div className="groups-grid">
+                {filteredGroups.map((group) => (
+                  <GroupCard
+                    key={group.id}
+                    group={group}
+                    isFavorite={favorites.has(group.id)}
+                    isJoined={joined.has(group.id)}
+                    onFavorite={handleFavorite}
+                    onJoin={handleJoin}
+                    onChat={handleChat}
+                    onWaitlist={handleWaitlist}
+                    onClick={() => handleCardClick(group.id)}
+                  />
                 ))}
               </div>
             ) : (
               <div className="empty-state">
-                <div className="empty-icon">🏆</div>
-                <p>Keine Clubs gefunden.</p>
-                <span className="empty-hint" onClick={() => navigate('/create-club')}>Gründe deinen eigenen!</span>
+                <div className="empty-icon">🔍</div>
+                <p>Keine Gruppen gefunden.</p>
+                <button className="empty-hint" onClick={() => navigate('/create-group')}>
+                  Erstelle selbst eine!
+                </button>
               </div>
             )}
           </div>
-        </div>
-      )}
+        )}
+
+        {/* CLUBS */}
+        {activeTab === 'clubs' && (
+          <div className="clubs-feed">
+            {myClubs.length > 0 && (
+              <div className="clubs-section">
+                <div className="section-header">
+                  <h2 className="section-heading">Meine Clubs</h2>
+                  <span className="section-count">{myClubs.length}</span>
+                </div>
+                <div className="my-clubs-scroll">
+                  {myClubs.map(club => (
+                    <div key={club.id} className="my-club-card" onClick={() => handleCardClick(club.id)}>
+                      <div className="my-club-image">
+                        {club.image_url
+                          ? <img src={club.image_url} alt={club.name || club.title} />
+                          : <div className="my-club-placeholder"><span>{(club.name || club.title || 'C')[0]}</span></div>
+                        }
+                      </div>
+                      <div className="my-club-info">
+                        <h4>{club.name || club.title}</h4>
+                        <span className="my-club-members">👥 {club.member_count || club.members_count || 0}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="clubs-section">
+              <div className="section-header">
+                <h2 className="section-heading">Im Trend</h2>
+              </div>
+              {loading ? (
+                <div className="home-loading">
+                  <div className="home-spinner" />
+                </div>
+              ) : filteredClubs.length > 0 ? (
+                <div className="trend-clubs-list">
+                  {filteredClubs.map(club => (
+                    <div key={club.id} className="trend-club-card" onClick={() => handleCardClick(club.id)}>
+                      <div className="trend-club-image">
+                        {club.image_url
+                          ? <img src={club.image_url} alt={club.name || club.title} />
+                          : <div className="trend-club-placeholder"><span>{(club.category || 'C')[0]}</span></div>
+                        }
+                        <div className="trend-club-overlay">
+                          {club.category && <span className="trend-club-badge">{club.category}</span>}
+                        </div>
+                      </div>
+                      <div className="trend-club-content">
+                        <h3>{club.name || club.title}</h3>
+                        <div className="trend-club-meta">
+                          <span className="trend-club-members">👥 {club.member_count || club.members_count || 0} Mitglieder</span>
+                          {club.location && <span className="trend-club-location">📍 {club.location}</span>}
+                        </div>
+                        <div className="trend-club-actions">
+                          {joined.has(club.id) ? (
+                            <button className="trend-btn joined" onClick={(e) => { e.stopPropagation(); handleChat(club.id); }}>
+                              💬 Chat
+                            </button>
+                          ) : (
+                            <button className="trend-btn join" onClick={(e) => { e.stopPropagation(); handleJoin(club.id); }}>
+                              Beitreten
+                            </button>
+                          )}
+                          <button
+                            className={`trend-btn fav${favorites.has(club.id) ? ' fav-active' : ''}`}
+                            onClick={(e) => { e.stopPropagation(); handleFavorite(club.id); }}
+                            aria-label={favorites.has(club.id) ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24"
+                              fill={favorites.has(club.id) ? '#FD7666' : 'none'}
+                              stroke={favorites.has(club.id) ? '#FD7666' : 'rgba(255,255,255,0.7)'}
+                              strokeWidth="2">
+                              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-icon">🏆</div>
+                  <p>Keine Clubs gefunden.</p>
+                  <button className="empty-hint" onClick={() => navigate('/create-club')}>
+                    Gründe deinen eigenen!
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* KARTE */}
+        {activeTab === 'karte' && <MapView />}
+
+      </div>
     </div>
   );
 };

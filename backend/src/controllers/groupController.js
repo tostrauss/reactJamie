@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { geocodeLocation } from '../utils/geocode.js';
 
 // ==========================================
 // CREATE GROUP / CLUB
@@ -17,11 +18,14 @@ export const createGroup = async (req, res) => {
       dateTime = `${date}T${time}`;
     }
 
+    // Geocode location (non-blocking on failure)
+    const coords = await geocodeLocation(location);
+
     const result = await db.query(
-      `INSERT INTO groups (name, description, type, category, date, location, image_url, max_members, is_private, skill_level, owner_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `INSERT INTO groups (name, description, type, category, date, location, image_url, max_members, is_private, skill_level, owner_id, lat, lng)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
-      [name, description, type || 'group', category, dateTime, location, image_url, max_members || 10, is_private || false, skill_level, userId]
+      [name, description, type || 'group', category, dateTime, location, image_url, max_members || 10, is_private || false, skill_level, userId, coords?.lat ?? null, coords?.lng ?? null]
     );
 
     const newGroup = result.rows[0];
@@ -156,8 +160,17 @@ export const updateGroup = async (req, res) => {
     if (group.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
     if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
 
+    // Re-geocode if location is being updated
+    let latUpdate = null;
+    let lngUpdate = null;
+    if (location !== undefined) {
+      const coords = await geocodeLocation(location);
+      latUpdate = coords?.lat ?? null;
+      lngUpdate = coords?.lng ?? null;
+    }
+
     const result = await db.query(
-      `UPDATE groups 
+      `UPDATE groups
        SET name = COALESCE($1, name),
            description = COALESCE($2, description),
            category = COALESCE($3, category),
@@ -167,10 +180,12 @@ export const updateGroup = async (req, res) => {
            max_members = COALESCE($7, max_members),
            is_private = COALESCE($8, is_private),
            skill_level = COALESCE($9, skill_level),
+           lat = CASE WHEN $5 IS NOT NULL THEN $11 ELSE lat END,
+           lng = CASE WHEN $5 IS NOT NULL THEN $12 ELSE lng END,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $10
        RETURNING *`,
-      [name, description, category, date, location, image_url, max_members, is_private, skill_level, id]
+      [name, description, category, date, location, image_url, max_members, is_private, skill_level, id, latUpdate, lngUpdate]
     );
 
     res.json(result.rows[0]);

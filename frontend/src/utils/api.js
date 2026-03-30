@@ -531,6 +531,14 @@ export const upload = {
 // COMBINED API OBJECT
 // ==========================================
 
+// ==========================================
+// MAP API
+// ==========================================
+
+export const map = {
+  getPins: (params) => axiosInstance.get('/map/pins', { params }),
+};
+
 // Attach modules to instance for convenience
 axiosInstance.auth = auth;
 axiosInstance.users = users;
@@ -545,6 +553,7 @@ axiosInstance.upload = upload;
 axiosInstance.reports = reports;
 axiosInstance.boost = boost;
 axiosInstance.push = push;
+axiosInstance.map = map;
 
 // Export the instance as 'api'
 export const api = axiosInstance;

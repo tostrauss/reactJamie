@@ -3,9 +3,24 @@
    ======================================== */
 
 .gd-page {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
   background: var(--bg-primary);
-  padding-bottom: 100px;
+  overflow: hidden;
+}
+
+/* Header image + back btn — fixed height, no scroll */
+.gd-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+.gd-body {
+  padding: 0 20px calc(env(safe-area-inset-bottom, 0px) + 100px);
 }
 
 /* Header */
@@ -37,11 +52,11 @@
 
 .gd-back-btn {
   position: absolute;
-  top: 20px;
+  top: calc(env(safe-area-inset-top, 0px) + 20px);
   left: 20px;
   z-index: 5;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -53,8 +68,13 @@
   color: white;
   cursor: pointer;
   transition: background 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
+.gd-back-btn:active { background: rgba(0,0,0,0.75); transform: scale(0.92); }
 .gd-back-btn:hover { background: rgba(0,0,0,0.65); }
 
 .gd-header-content {
@@ -108,9 +128,6 @@
 }
 
 /* Body */
-.gd-body {
-  padding: 0 20px;
-}
 
 /* Meta Row */
 .gd-meta {
@@ -235,6 +252,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
+  min-height: 52px;
   padding: 15px;
   background: rgba(34,197,94,0.15);
   border: 1.5px solid rgba(34,197,94,0.35);
@@ -242,14 +260,15 @@
   color: #4ade80;
   font-size: 15px;
   font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
   transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.gd-btn-chat:hover {
-  background: rgba(34,197,94,0.25);
-  border-color: rgba(34,197,94,0.5);
-}
+.gd-btn-chat:active { transform: scale(0.97); background: rgba(34,197,94,0.25); }
+.gd-btn-chat:hover { background: rgba(34,197,94,0.25); border-color: rgba(34,197,94,0.5); }
 
 .gd-btn-leave {
   flex: 1;
@@ -257,6 +276,7 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
+  min-height: 52px;
   padding: 15px;
   background: transparent;
   border: 1.5px solid rgba(248,113,113,0.35);
@@ -264,17 +284,19 @@
   color: #f87171;
   font-size: 15px;
   font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
   transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.gd-btn-leave:hover {
-  background: rgba(248,113,113,0.1);
-  border-color: rgba(248,113,113,0.6);
-}
+.gd-btn-leave:active { transform: scale(0.97); background: rgba(248,113,113,0.12); }
+.gd-btn-leave:hover { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.6); }
 
 .gd-btn-join {
   width: 100%;
+  min-height: 56px;
   padding: 16px;
   background: linear-gradient(135deg, var(--accent-coral), var(--accent-coral-dark));
   border: none;
@@ -282,19 +304,21 @@
   color: white;
   font-size: 16px;
   font-weight: 700;
+  font-family: inherit;
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: 0 4px 20px rgba(253,118,102,0.35);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.gd-btn-join:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 24px rgba(253,118,102,0.5);
-}
+.gd-btn-join:active { transform: scale(0.97); box-shadow: 0 2px 12px rgba(253,118,102,0.4); }
+.gd-btn-join:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(253,118,102,0.5); }
 
 .gd-btn-fav {
   flex-shrink: 0;
-  width: 50px;
+  width: 52px;
+  min-height: 52px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -305,17 +329,13 @@
   color: rgba(255,255,255,0.6);
   cursor: pointer;
   transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.gd-btn-fav:hover {
-  border-color: rgba(253,118,102,0.5);
-  background: rgba(253,118,102,0.08);
-}
-
-.gd-btn-fav.active {
-  border-color: rgba(253,118,102,0.5);
-  background: rgba(253,118,102,0.1);
-}
+.gd-btn-fav:active { transform: scale(0.92); }
+.gd-btn-fav:hover { border-color: rgba(253,118,102,0.5); background: rgba(253,118,102,0.08); }
+.gd-btn-fav.active { border-color: rgba(253,118,102,0.5); background: rgba(253,118,102,0.1); }
 
 /* Members */
 .gd-members {
@@ -327,17 +347,19 @@
   align-items: center;
   gap: 14px;
   padding: 12px 14px;
+  min-height: 52px;
   background: var(--bg-card);
   border-radius: 14px;
   margin-bottom: 8px;
   cursor: pointer;
   transition: background 0.2s;
   border: 1px solid rgba(255,255,255,0.04);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.gd-member-item:hover {
-  background: var(--bg-hover);
-}
+.gd-member-item:active { transform: scale(0.985); background: var(--bg-hover); }
+.gd-member-item:hover { background: var(--bg-hover); }
 
 .gd-member-avatar {
   width: 44px;
@@ -385,6 +407,7 @@
 /* Boost Button */
 .gd-boost-btn {
   width: 100%;
+  min-height: 52px;
   padding: 14px;
   background: linear-gradient(135deg, #FD7666, #ff4f4f);
   border: none;
@@ -392,29 +415,35 @@
   color: white;
   font-size: 15px;
   font-weight: 700;
+  font-family: inherit;
   cursor: pointer;
   margin-bottom: 16px;
   box-shadow: 0 4px 16px rgba(253,118,102,0.4);
   transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.gd-boost-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(253,118,102,0.55);
-}
+.gd-boost-btn:active { transform: scale(0.97); box-shadow: 0 2px 10px rgba(253,118,102,0.4); }
+.gd-boost-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(253,118,102,0.55); }
 
 /* Report */
 .gd-report-btn {
   display: block;
   width: 100%;
+  min-height: 44px;
   background: none;
   border: none;
   color: var(--text-muted);
   font-size: 12px;
+  font-family: inherit;
   cursor: pointer;
   text-decoration: underline;
   padding: 8px 0 0;
   text-align: center;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
+.gd-report-btn:active { color: #f87171; }
 .gd-report-btn:hover { color: #f87171; }

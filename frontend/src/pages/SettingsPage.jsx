@@ -127,10 +127,10 @@ export const SettingsPage = () => {
   );
 
   return (
-    <div className="settings-page page">
-      {/* Header */}
+    <div className="settings-page">
+      {/* Sticky Header */}
       <div className="settings-header">
-        <button className="settings-back" onClick={() => navigate(-1)}>
+        <button className="settings-back" onClick={() => navigate(-1)} aria-label="Zurück">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
@@ -138,6 +138,7 @@ export const SettingsPage = () => {
         <h1 className="settings-title">Einstellungen</h1>
       </div>
 
+      <div className="settings-body">
       {/* User Card */}
       <div className="settings-user-card" onClick={() => navigate('/profile')}>
         <div className="settings-user-avatar">
@@ -393,6 +394,7 @@ export const SettingsPage = () => {
           </div>
         )}
       </div>
+      </div>{/* settings-body */}
     </div>
   );
 };

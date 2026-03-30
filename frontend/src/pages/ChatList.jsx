@@ -7,16 +7,16 @@ import '../styles/chat.css';
 import '../styles/profile.css';
 
 export const ChatList = () => {
-  const [activeTab, setActiveTab] = useState('gruppen');
-  const [showRequests, setShowRequests] = useState(false);
-  const [groupChats, setGroupChats] = useState([]);
-  const [privateChats, setPrivateChats] = useState([]);
-  const [friendsList, setFriendsList] = useState([]);
+  const [activeTab, setActiveTab]           = useState('gruppen');
+  const [showRequests, setShowRequests]     = useState(false);
+  const [groupChats, setGroupChats]         = useState([]);
+  const [privateChats, setPrivateChats]     = useState([]);
+  const [friendsList, setFriendsList]       = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showHidden, setShowHidden] = useState(false);
-  const [isPro, setIsPro] = useState(false);
-  const [showProModal, setShowProModal] = useState(false);
+  const [loading, setLoading]               = useState(true);
+  const [showHidden, setShowHidden]         = useState(false);
+  const [isPro, setIsPro]                   = useState(false);
+  const [showProModal, setShowProModal]     = useState(false);
   const navigate = useNavigate();
   const { socket } = useContext(SocketContext);
 
@@ -27,10 +27,8 @@ export const ChatList = () => {
 
   useEffect(() => {
     if (!socket) return;
-
     socket.on('receive_message', handleNewGroupMessage);
     socket.on('new_dm_notification', handleNewDM);
-
     return () => {
       socket.off('receive_message', handleNewGroupMessage);
       socket.off('new_dm_notification', handleNewDM);
@@ -48,11 +46,11 @@ export const ChatList = () => {
       ]);
 
       setGroupChats((joinedRes?.data || []).map(g => {
-        const senderPrefix = g.last_message_sender ? `${g.last_message_sender}: ` : '';
+        const prefix = g.last_message_sender ? `${g.last_message_sender}: ` : '';
         return {
           id: g.id,
           name: g.name || g.title,
-          lastMessage: g.last_message ? `${senderPrefix}${g.last_message}` : '',
+          lastMessage: g.last_message ? `${prefix}${g.last_message}` : '',
           time: g.last_message_time ? formatTime(g.last_message_time) : '',
           unread: g.unread_count || 0,
           avatar: g.image_url,
@@ -71,15 +69,10 @@ export const ChatList = () => {
         isDM: true
       })));
 
-      if (friendsRes?.data) {
-        setFriendsList(friendsRes.data);
-      }
-
-      if (pendingRes?.data) {
-        setPendingRequests(pendingRes.data);
-      }
-    } catch (error) {
-      console.error('Error loading chat data:', error);
+      if (friendsRes?.data) setFriendsList(friendsRes.data);
+      if (pendingRes?.data) setPendingRequests(pendingRes.data);
+    } catch (err) {
+      console.error('Error loading chat data:', err);
     } finally {
       setLoading(false);
     }
@@ -88,24 +81,17 @@ export const ChatList = () => {
   const formatTime = (dateStr) => {
     const date = new Date(dateStr);
     const now = new Date();
-    const diffMs = now - date;
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) {
-      return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-    } else if (diffDays === 1) {
-      return 'Gestern';
-    } else if (diffDays < 7) {
-      return date.toLocaleDateString('de-DE', { weekday: 'short' });
-    }
+    const diffDays = Math.floor((now - date) / 86400000);
+    if (diffDays === 0) return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    if (diffDays === 1) return 'Gestern';
+    if (diffDays < 7)  return date.toLocaleDateString('de-DE', { weekday: 'short' });
     return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
   };
 
   const handleNewGroupMessage = (data) => {
-    const senderPrefix = data.user_name ? `${data.user_name}: ` : '';
     setGroupChats(prev => prev.map(chat =>
       chat.id === (data.group_id || data.groupId)
-        ? { ...chat, lastMessage: `${senderPrefix}${data.content}`, time: formatTime(new Date().toISOString()), unread: (chat.unread || 0) + 1 }
+        ? { ...chat, lastMessage: `${data.user_name ? `${data.user_name}: ` : ''}${data.content}`, time: formatTime(new Date().toISOString()), unread: (chat.unread || 0) + 1 }
         : chat
     ));
   };
@@ -117,8 +103,6 @@ export const ChatList = () => {
         : chat
     ));
   };
-
-  const totalUnread = [...groupChats, ...privateChats].reduce((sum, chat) => sum + (chat.unread || 0), 0);
 
   const handleChatClick = (chat) => {
     if (chat.isDM) {
@@ -133,7 +117,6 @@ export const ChatList = () => {
     try {
       await friends.respondRequest(requestId, 'accept');
       setPendingRequests(prev => prev.filter(r => r.id !== requestId));
-      // Reload friends list
       const res = await friends.getAll().catch(() => null);
       if (res?.data) setFriendsList(res.data);
     } catch (err) {
@@ -150,268 +133,215 @@ export const ChatList = () => {
     }
   };
 
-  const onlyGroups = groupChats.filter(c => c.type !== 'club');
-  const onlyClubs = groupChats.filter(c => c.type === 'club');
-  const currentChats = activeTab === 'gruppen' ? onlyGroups : activeTab === 'clubs' ? onlyClubs : privateChats;
+  const onlyGroups     = groupChats.filter(c => c.type !== 'club');
+  const onlyClubs      = groupChats.filter(c => c.type === 'club');
+  const currentChats   = activeTab === 'gruppen' ? onlyGroups : activeTab === 'clubs' ? onlyClubs : privateChats;
+  const totalUnread    = [...groupChats, ...privateChats].reduce((sum, c) => sum + (c.unread || 0), 0);
+  const isGroupOrClub  = activeTab === 'gruppen' || activeTab === 'clubs';
 
   return (
     <div className="home-container chat-list-page">
-      {/* Header */}
-      <header className="chat-header">
-        <h1 className="page-title">Chats</h1>
-        {totalUnread > 0 && (
-          <span className="total-badge">{totalUnread}</span>
-        )}
-      </header>
 
-      {/* Tabs */}
-      <div className="tabs-container">
-        <button
-          className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('gruppen'); setShowRequests(false); }}
-        >
-          Gruppen
-          {onlyGroups.length > 0 && (
-            <span className="tab-count">{onlyGroups.length}</span>
-          )}
-        </button>
-        <button
-          className={`tab ${activeTab === 'clubs' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('clubs'); setShowRequests(false); }}
-        >
-          Clubs
-          {onlyClubs.length > 0 && (
-            <span className="tab-count">{onlyClubs.length}</span>
-          )}
-        </button>
-        <button
-          className={`tab ${activeTab === 'freunde' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('freunde'); setShowRequests(false); }}
-        >
-          Freunde
-          {pendingRequests.length > 0 && (
-            <span className="total-badge" style={{ marginLeft: '6px', fontSize: '10px', padding: '2px 6px' }}>
-              {pendingRequests.length}
-            </span>
-          )}
-        </button>
+      {/* ── Sticky header ───────────────────────────────────────────── */}
+      <div className="home-sticky-header">
+        <header className="chat-header">
+          <h1 className="page-title">Chats</h1>
+          {totalUnread > 0 && <span className="total-badge">{totalUnread}</span>}
+        </header>
+
+        <div className="tabs-container">
+          <button
+            className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('gruppen'); setShowRequests(false); }}
+          >
+            Gruppen
+            {onlyGroups.length > 0 && <span className="tab-count">{onlyGroups.length}</span>}
+          </button>
+          <button
+            className={`tab ${activeTab === 'clubs' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('clubs'); setShowRequests(false); }}
+          >
+            Clubs
+            {onlyClubs.length > 0 && <span className="tab-count">{onlyClubs.length}</span>}
+          </button>
+          <button
+            className={`tab ${activeTab === 'freunde' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('freunde'); setShowRequests(false); }}
+          >
+            Freunde
+            {pendingRequests.length > 0 && (
+              <span className="tab-count">{pendingRequests.length}</span>
+            )}
+          </button>
+        </div>
+
+        {isGroupOrClub && (
+          <div className="chat-actions">
+            <button
+              className={`action-tab ${!showRequests ? 'active' : ''}`}
+              onClick={() => setShowRequests(false)}
+            >
+              Chats
+            </button>
+            <button
+              className={`action-tab ${showRequests ? 'active' : ''}`}
+              onClick={() => setShowRequests(true)}
+            >
+              Anfragen
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Action Tabs (Anfragen/Verwalten) - for Gruppen and Clubs */}
-      {(activeTab === 'gruppen' || activeTab === 'clubs') && (
-        <div className="chat-actions">
-          <button
-            className={`action-tab ${!showRequests ? 'active' : ''}`}
-            onClick={() => setShowRequests(false)}
-          >
-            Chats
-          </button>
-          <button
-            className={`action-tab ${showRequests ? 'active' : ''}`}
-            onClick={() => setShowRequests(true)}
-          >
-            Anfragen
-          </button>
-        </div>
-      )}
+      {/* ── Scrollable content ──────────────────────────────────────── */}
+      <div className="home-content">
 
-      {/* Friends Tab Content */}
-      {activeTab === 'freunde' ? (
-        <div>
-          {/* Pro Banner for non-Pro users */}
-          {!isPro && (
-            <div style={{
-              margin: '16px 0',
-              padding: '20px',
-              borderRadius: '20px',
-              background: 'linear-gradient(135deg, rgba(255,215,0,0.12), rgba(255,140,0,0.06))',
-              border: '1px solid rgba(255,215,0,0.25)',
-              textAlign: 'center',
-            }}>
-              <div style={{ fontSize: '32px', marginBottom: '10px' }}>👑</div>
-              <div style={{ color: '#FFD700', fontWeight: '800', fontSize: '17px', marginBottom: '6px' }}>
-                Pro-Mitgliedschaft erforderlich
-              </div>
-              <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '13px', lineHeight: 1.6, marginBottom: '16px' }}>
-                Freunde hinzufügen und Direktnachrichten senden ist exklusiv für Pro-Mitglieder.
-              </p>
-              <button
-                onClick={() => setShowProModal(true)}
-                style={{
-                  padding: '13px 28px', borderRadius: '14px', border: 'none',
-                  background: 'linear-gradient(135deg, #FFD700, #FFAA00)',
-                  color: '#1a1100', fontWeight: '800', fontSize: '14px',
-                  cursor: 'pointer',
-                  boxShadow: '0 6px 20px rgba(255,215,0,0.3)',
-                }}
-              >
-                👑 Pro aktivieren — 5 € / Monat
-              </button>
-            </div>
-          )}
+        {/* ── Freunde tab ─────────────────────────────────────────── */}
+        {activeTab === 'freunde' && (
+          <div className="chat-friends-section">
 
-          {/* Pending Friend Requests */}
-          {pendingRequests.length > 0 && (
-            <div className="pending-requests-section">
-              <div className="pending-requests-header">
-                <span className="pending-requests-title">Freundschaftsanfragen</span>
-                <span className="pending-count">{pendingRequests.length}</span>
+            {!isPro && (
+              <div className="pro-banner">
+                <div className="pro-banner-icon">👑</div>
+                <div className="pro-banner-title">Pro-Mitgliedschaft erforderlich</div>
+                <p className="pro-banner-text">
+                  Freunde hinzufügen und Direktnachrichten senden ist exklusiv für Pro-Mitglieder.
+                </p>
+                <button className="pro-banner-btn" onClick={() => setShowProModal(true)}>
+                  👑 Pro aktivieren — 5 € / Monat
+                </button>
               </div>
-              {pendingRequests.map(req => (
-                <div key={req.id} className="friend-request-item">
-                  {req.requester_avatar ? (
-                    <img src={req.requester_avatar} alt={req.requester_name} className="friend-avatar" />
-                  ) : (
-                    <div className="friend-avatar-placeholder">
-                      {(req.requester_name || '?')[0].toUpperCase()}
-                    </div>
-                  )}
-                  <div className="friend-info" onClick={() => navigate(`/user/${req.requester_id}`)}>
-                    <div className="friend-name">{req.requester_name}</div>
-                    <div className="friend-location">{req.requester_location || 'Kein Standort'}</div>
-                  </div>
-                  <div className="friend-request-actions">
-                    <button
-                      className="friend-request-btn accept"
-                      onClick={() => handleAcceptFriendRequest(req.id)}
-                    >
-                      ✓
-                    </button>
-                    <button
-                      className="friend-request-btn decline"
-                      onClick={() => handleRejectFriendRequest(req.id)}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Friends List */}
-          <div className="friends-list">
-            {loading ? (
-              <div className="loading">Laden...</div>
-            ) : !isPro ? null : friendsList.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">👥</div>
-                <p>Noch keine Freunde</p>
-                <span className="empty-hint" onClick={() => navigate('/home')}>
-                  Entdecke Gruppen und lerne Leute kennen!
-                </span>
-              </div>
-            ) : (
-              friendsList.map(friend => (
-                <div key={friend.friend_id} className="friend-item">
-                  {friend.avatar_url ? (
-                    <img src={friend.avatar_url} alt={friend.name} className="friend-avatar" />
-                  ) : (
-                    <div className="friend-avatar-placeholder">
-                      {(friend.name || '?')[0].toUpperCase()}
-                    </div>
-                  )}
-                  <div className="friend-info" onClick={() => navigate(`/user/${friend.friend_id}`)}>
-                    <div className="friend-name">{friend.name}</div>
-                    <div className="friend-location">
-                      {friend.location || 'Kein Standort'}
-                    </div>
-                  </div>
-                  <div className="friend-actions">
-                    <button
-                      className="friend-action-btn"
-                      onClick={() => isPro ? navigate(`/dm/${friend.friend_id}`) : setShowProModal(true)}
-                      title={isPro ? 'Nachricht senden' : 'Pro erforderlich'}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
-                      </svg>
-                    </button>
-                    <button
-                      className="friend-action-btn"
-                      onClick={() => navigate(`/user/${friend.friend_id}`)}
-                      title="Profil anzeigen"
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                        <circle cx="12" cy="7" r="4"/>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              ))
             )}
+
+            {pendingRequests.length > 0 && (
+              <div className="pending-requests-section">
+                <div className="pending-requests-header">
+                  <span className="pending-requests-title">Freundschaftsanfragen</span>
+                  <span className="pending-count">{pendingRequests.length}</span>
+                </div>
+                {pendingRequests.map(req => (
+                  <div key={req.id} className="friend-request-item">
+                    {req.requester_avatar
+                      ? <img src={req.requester_avatar} alt={req.requester_name} className="friend-avatar" />
+                      : <div className="friend-avatar-placeholder">{(req.requester_name || '?')[0].toUpperCase()}</div>
+                    }
+                    <div className="friend-info" onClick={() => navigate(`/user/${req.requester_id}`)}>
+                      <div className="friend-name">{req.requester_name}</div>
+                      <div className="friend-location">{req.requester_location || 'Kein Standort'}</div>
+                    </div>
+                    <div className="friend-request-actions">
+                      <button className="friend-request-btn accept" onClick={() => handleAcceptFriendRequest(req.id)}>✓</button>
+                      <button className="friend-request-btn decline" onClick={() => handleRejectFriendRequest(req.id)}>✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="friends-list">
+              {loading ? (
+                <div className="home-loading"><div className="home-spinner" /></div>
+              ) : !isPro ? null : friendsList.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-icon">👥</div>
+                  <p>Noch keine Freunde</p>
+                  <button className="empty-hint" onClick={() => navigate('/home')}>
+                    Entdecke Gruppen und lerne Leute kennen!
+                  </button>
+                </div>
+              ) : (
+                friendsList.map(friend => (
+                  <div key={friend.friend_id} className="friend-item">
+                    {friend.avatar_url
+                      ? <img src={friend.avatar_url} alt={friend.name} className="friend-avatar" />
+                      : <div className="friend-avatar-placeholder">{(friend.name || '?')[0].toUpperCase()}</div>
+                    }
+                    <div className="friend-info" onClick={() => navigate(`/user/${friend.friend_id}`)}>
+                      <div className="friend-name">{friend.name}</div>
+                      <div className="friend-location">{friend.location || 'Kein Standort'}</div>
+                    </div>
+                    <div className="friend-actions">
+                      <button
+                        className="friend-action-btn"
+                        onClick={() => isPro ? navigate(`/dm/${friend.friend_id}`) : setShowProModal(true)}
+                        title={isPro ? 'Nachricht senden' : 'Pro erforderlich'}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                        </svg>
+                      </button>
+                      <button
+                        className="friend-action-btn"
+                        onClick={() => navigate(`/user/${friend.friend_id}`)}
+                        title="Profil anzeigen"
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                          <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-        </div>
-      ) : (
-        /* Chat List / Requests */
-        <div className="chat-list">
-          {loading ? (
-            <div className="loading">Laden...</div>
-          ) : showRequests ? (
-            /* Show all chats in this tab — owner check is enforced server-side on the requests page */
-            (() => {
-              const chatsForRequests = currentChats;
-              return chatsForRequests.length === 0 ? (
+        )}
+
+        {/* ── Gruppen / Clubs tab ──────────────────────────────────── */}
+        {isGroupOrClub && (
+          <div className="chat-list">
+            {loading ? (
+              <div className="home-loading"><div className="home-spinner" /></div>
+            ) : showRequests ? (
+              currentChats.length === 0 ? (
                 <div className="empty-state">
                   <div className="empty-icon">📬</div>
                   <p>Keine Gruppen</p>
-                  <span className="empty-hint" onClick={() => navigate('/home')}>
+                  <button className="empty-hint" onClick={() => navigate('/home')}>
                     Erstelle eine Gruppe um Anfragen zu erhalten!
-                  </span>
+                  </button>
                 </div>
               ) : (
-                chatsForRequests.map(chat => (
+                currentChats.map(chat => (
                   <div
                     key={chat.id}
                     className="chat-item"
                     onClick={() => navigate(`/group/${chat.id}/requests`)}
                   >
                     <div className="chat-avatar-wrapper">
-                      {chat.avatar ? (
-                        <img src={chat.avatar} alt={chat.name} className="chat-avatar" />
-                      ) : (
-                        <div className="chat-avatar-placeholder">
-                          {(chat.name || '?')[0].toUpperCase()}
-                        </div>
-                      )}
+                      {chat.avatar
+                        ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" />
+                        : <div className="chat-avatar-placeholder">{(chat.name || '?')[0].toUpperCase()}</div>
+                      }
                     </div>
                     <div className="chat-info">
                       <div className="chat-top-row">
                         <span className="chat-name">{chat.name}</span>
-                        <span className="chat-time" style={{ color: 'var(--coral)', fontSize: 13 }}>Anfragen →</span>
+                        <span className="chat-time chat-time--link">Anfragen →</span>
                       </div>
                       <p className="chat-last-message">Beitrittsanfragen anzeigen</p>
                     </div>
                   </div>
                 ))
-              );
-            })()
-          ) : (
-            currentChats.length === 0 ? (
+              )
+            ) : currentChats.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">{activeTab === 'clubs' ? '🏆' : '💬'}</div>
                 <p>Noch keine {activeTab === 'clubs' ? 'Club-Chats' : 'Gruppen-Chats'}</p>
-                <span className="empty-hint" onClick={() => navigate('/home')}>
+                <button className="empty-hint" onClick={() => navigate('/home')}>
                   {activeTab === 'clubs' ? 'Entdecke Clubs!' : 'Tritt einer Gruppe bei!'}
-                </span>
+                </button>
               </div>
             ) : (
               <>
                 {currentChats.map(chat => (
-                  <div
-                    key={chat.id}
-                    className="chat-item"
-                    onClick={() => handleChatClick(chat)}
-                  >
+                  <div key={chat.id} className="chat-item" onClick={() => handleChatClick(chat)}>
                     <div className="chat-avatar-wrapper">
-                      {chat.avatar ? (
-                        <img src={chat.avatar} alt={chat.name} className="chat-avatar" />
-                      ) : (
-                        <div className="chat-avatar-placeholder">
-                          {(chat.name || '?')[0].toUpperCase()}
-                        </div>
-                      )}
+                      {chat.avatar
+                        ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" />
+                        : <div className="chat-avatar-placeholder">{(chat.name || '?')[0].toUpperCase()}</div>
+                      }
                       {chat.isOnline && <span className="online-indicator" />}
                     </div>
                     <div className="chat-info">
@@ -424,9 +354,7 @@ export const ChatList = () => {
                       )}
                       <div className="chat-bottom-row">
                         <p className="chat-last-message">{chat.lastMessage}</p>
-                        {chat.unread > 0 && (
-                          <span className="unread-badge">{chat.unread}</span>
-                        )}
+                        {chat.unread > 0 && <span className="unread-badge">{chat.unread}</span>}
                       </div>
                       {chat.hasRequests && chat.requestCount > 0 && (
                         <div className="chat-requests-hint">
@@ -437,42 +365,31 @@ export const ChatList = () => {
                   </div>
                 ))}
 
-                {/* Ausgeblendet Toggle */}
-                <div
-                  className="hidden-chats-toggle"
-                  onClick={() => setShowHidden(!showHidden)}
-                >
+                <button className="hidden-chats-toggle" onClick={() => setShowHidden(!showHidden)}>
                   <span>Ausgeblendet</span>
                   <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    style={{ transform: showHidden ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}
+                    width="16" height="16" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" strokeWidth="2"
+                    className={showHidden ? 'chevron-up' : ''}
                   >
                     <path d="M6 9l6 6 6-6"/>
                   </svg>
-                </div>
+                </button>
                 {showHidden && (
                   <div className="hidden-chats-content">
-                    <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px', fontSize: '14px' }}>
-                      Keine ausgeblendeten Chats
-                    </p>
+                    <p className="hidden-empty-text">Keine ausgeblendeten Chats</p>
                   </div>
                 )}
               </>
-            )
-          )}
-        </div>
+            )}
+          </div>
+        )}
+
+      </div>
+
+      {showProModal && (
+        <ProModal onClose={() => setShowProModal(false)} onSuccess={() => setIsPro(true)} />
       )}
-    {showProModal && (
-      <ProModal
-        onClose={() => setShowProModal(false)}
-        onSuccess={() => setIsPro(true)}
-      />
-    )}
     </div>
   );
 };

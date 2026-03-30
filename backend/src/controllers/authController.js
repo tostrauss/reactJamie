@@ -513,8 +513,13 @@ export const sendEmailCode = async (req, res) => {
     try {
       await sendOTPEmail(email, code, name || '');
     } catch (emailErr) {
-      console.error('Failed to send OTP email:', emailErr);
-      return res.status(500).json({ error: 'E-Mail konnte nicht gesendet werden' });
+      if (process.env.NODE_ENV !== 'production') {
+        // In development: log the code so you can test without a verified Resend domain
+        console.warn(`[DEV] OTP email failed — use this code for ${email}: ${code}`);
+      } else {
+        console.error('Failed to send OTP email:', emailErr);
+        return res.status(500).json({ error: 'E-Mail konnte nicht gesendet werden' });
+      }
     }
 
     res.json({ message: 'Code gesendet' });

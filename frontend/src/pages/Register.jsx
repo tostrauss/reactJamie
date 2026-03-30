@@ -5,8 +5,9 @@ import { auth } from '../utils/api';
 import '../styles/auth.css';
 
 const OTP_RESEND_SECONDS = 60;
+const TOTAL_STEPS = 5;
 
-// ── Google Places loader (shared singleton) ───────────────────────────────────
+// ── Google Places loader (shared singleton) ──────────────────────────────────
 let _gmLoading = false;
 let _gmLoaded  = false;
 const _gmCbs   = [];
@@ -30,19 +31,18 @@ function onGM(cb) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const Register = () => {
-  // ── State — all declared first ────────────────────────────────────────────
-  const [step, setStep]                     = useState(1);
-  const [name, setName]                     = useState('');
-  const [email, setEmail]                   = useState('');
-  const [otpCode, setOtpCode]               = useState('');
-  const [otpLoading, setOtpLoading]         = useState(false);
-  const [otpError, setOtpError]             = useState('');
-  const [otpResendTimer, setOtpResendTimer] = useState(0);
-  const [location, setLocation]             = useState('');
-  const [password, setPassword]             = useState('');
+  const [step, setStep]                       = useState(1);
+  const [name, setName]                       = useState('');
+  const [email, setEmail]                     = useState('');
+  const [otpCode, setOtpCode]                 = useState('');
+  const [otpLoading, setOtpLoading]           = useState(false);
+  const [otpError, setOtpError]               = useState('');
+  const [otpResendTimer, setOtpResendTimer]   = useState(0);
+  const [location, setLocation]               = useState('');
+  const [password, setPassword]               = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [referralCode, setReferralCode]     = useState('');
-  const [error, setError]                   = useState('');
+  const [referralCode, setReferralCode]       = useState('');
+  const [error, setError]                     = useState('');
 
   const { register, loading } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -51,18 +51,13 @@ export const Register = () => {
   const autocompleteRef = useRef(null);
   const resendIntervalRef = useRef(null);
 
-  // Load Google Maps script on mount
   useEffect(() => {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
     if (apiKey) loadGM(apiKey);
   }, []);
 
-  // Countdown timer for OTP resend
   useEffect(() => {
-    if (otpResendTimer <= 0) {
-      clearInterval(resendIntervalRef.current);
-      return;
-    }
+    if (otpResendTimer <= 0) { clearInterval(resendIntervalRef.current); return; }
     resendIntervalRef.current = setInterval(() => {
       setOtpResendTimer(t => {
         if (t <= 1) { clearInterval(resendIntervalRef.current); return 0; }
@@ -72,14 +67,10 @@ export const Register = () => {
     return () => clearInterval(resendIntervalRef.current);
   }, [otpResendTimer]);
 
-  // Attach autocomplete when step 4 renders
   useEffect(() => {
     if (step !== 4) return;
-
     const attach = () => {
-      if (!window.google?.maps?.places) return;
-      if (autocompleteRef.current) return;
-      if (!locationRef.current) return;
+      if (!window.google?.maps?.places || autocompleteRef.current || !locationRef.current) return;
       const ac = new window.google.maps.places.Autocomplete(locationRef.current, {
         componentRestrictions: { country: ['at', 'de', 'ch'] },
         fields: ['formatted_address', 'name'],
@@ -91,7 +82,6 @@ export const Register = () => {
       });
       autocompleteRef.current = ac;
     };
-
     const timer = setTimeout(() => onGM(attach), 50);
     return () => clearTimeout(timer);
   }, [step]);
@@ -138,7 +128,6 @@ export const Register = () => {
     }
   };
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
   const getPasswordStrength = (pwd) => {
     if (pwd.length === 0) return { score: 0, label: '', color: '' };
     let score = 0;
@@ -159,25 +148,22 @@ export const Register = () => {
   const strength = getPasswordStrength(password);
 
   const validatePassword = (pwd) => {
-    if (pwd.length < 6)               return 'Mindestens 6 Zeichen erforderlich';
-    if (!/[A-Z]/.test(pwd))           return 'Mindestens 1 Großbuchstabe erforderlich';
-    if (!/[a-z]/.test(pwd))           return 'Mindestens 1 Kleinbuchstabe erforderlich';
-    if (!/[0-9]/.test(pwd))           return 'Mindestens 1 Zahl erforderlich';
-    if (!/[^A-Za-z0-9]/.test(pwd))   return 'Mindestens 1 Sonderzeichen erforderlich (!@#$…)';
+    if (pwd.length < 6)             return 'Mindestens 6 Zeichen erforderlich';
+    if (!/[A-Z]/.test(pwd))         return 'Mindestens 1 Großbuchstabe erforderlich';
+    if (!/[a-z]/.test(pwd))         return 'Mindestens 1 Kleinbuchstabe erforderlich';
+    if (!/[0-9]/.test(pwd))         return 'Mindestens 1 Zahl erforderlich';
+    if (!/[^A-Za-z0-9]/.test(pwd))  return 'Mindestens 1 Sonderzeichen erforderlich (!@#$…)';
     return null;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
     if (password !== confirmPassword) { setError('Passwörter stimmen nicht überein'); return; }
     const pwdError = validatePassword(password);
     if (pwdError) { setError(pwdError); return; }
-
     try {
       await register(email, password, name, referralCode.trim() || undefined);
-      // Save location if provided
       if (location.trim()) {
         try { await auth.updateProfile({ location: location.trim() }); } catch (_) {}
       }
@@ -188,109 +174,118 @@ export const Register = () => {
     }
   };
 
-  // 5 steps: name → email → verify code → location → password
-  const TOTAL_STEPS = 5;
+  const BackBtn = ({ onClick }) => (
+    <button type="button" className="auth-back-btn" onClick={onClick}>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+      Zurück
+    </button>
+  );
 
   return (
-    <div className="auth-container">
-      <div className="auth-content">
-        {/* Logo */}
-        <div className="auth-logo">
-          <h1 className="logo-text">JAMIE</h1>
-        </div>
-
-        {/* Progress dots */}
-        <div className="register-steps">
+    <div className="auth-screen auth-screen--scroll">
+      {/* Top — logo + progress */}
+      <div className="auth-top auth-top--compact">
+        <h1 className="auth-wordmark">JAMIE</h1>
+        <div className="reg-steps">
           {Array.from({ length: TOTAL_STEPS }, (_, i) => (
-            <div key={i} className={`step-dot ${step > i ? 'active' : ''}`} />
+            <div
+              key={i}
+              className={`reg-dot ${i + 1 === step ? 'reg-dot--active' : i + 1 < step ? 'reg-dot--done' : ''}`}
+            />
           ))}
         </div>
+        <p className="reg-step-label">Schritt {step} von {TOTAL_STEPS}</p>
+      </div>
 
-        <p className="auth-subtitle">
-          Erstelle dein Konto und werde Teil der Community
-        </p>
-
+      {/* Middle — step content */}
+      <div className="auth-mid">
         <form onSubmit={handleSubmit} className="auth-form">
 
-          {/* ── Step 1: Name ─────────────────────────────────────────── */}
+          {/* ── Step 1: Name ─────────────────────────────────────────────── */}
           {step === 1 && (
             <>
+              <div className="reg-step-heading">
+                <h2 className="reg-title">Wie heißt du?</h2>
+                <p className="reg-hint">So wirst du in der App angezeigt</p>
+              </div>
               <div className="form-group">
-                <label>Wie heißt du?</label>
+                <label>Dein Name</label>
                 <input
                   type="text"
                   placeholder="Dein Name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
-                  autoFocus
                   autoComplete="name"
                 />
               </div>
               <button
                 type="button"
                 className="auth-btn auth-btn-primary"
-                onClick={() => name && setStep(2)}
-                disabled={!name}
+                onClick={() => name.trim() && setStep(2)}
+                disabled={!name.trim()}
               >
                 Weiter
               </button>
             </>
           )}
 
-          {/* ── Step 2: E-Mail ───────────────────────────────────────── */}
+          {/* ── Step 2: E-Mail ───────────────────────────────────────────── */}
           {step === 2 && (
             <>
-              <button type="button" className="auth-back-btn" onClick={() => setStep(1)}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-              Zurück
-            </button>
+              <BackBtn onClick={() => setStep(1)} />
+              <div className="reg-step-heading">
+                <h2 className="reg-title">Deine E-Mail</h2>
+                <p className="reg-hint">Wir schicken dir einen Bestätigungscode</p>
+              </div>
               <div className="form-group">
-                <label>Deine E-Mail</label>
+                <label>E-Mail-Adresse</label>
                 <input
                   type="email"
                   placeholder="deine@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  autoFocus
                   autoComplete="email"
                 />
               </div>
-              {otpError && step === 2 && <p className="error-message">{otpError}</p>}
+              {otpError && <p className="error-message">{otpError}</p>}
               <button
                 type="button"
                 className="auth-btn auth-btn-primary"
                 onClick={handleSendCode}
                 disabled={!email || otpLoading}
               >
-                {otpLoading ? 'Wird gesendet...' : 'Code senden'}
+                {otpLoading ? 'Wird gesendet…' : 'Code senden'}
               </button>
             </>
           )}
 
-          {/* ── Step 3: E-Mail OTP ───────────────────────────────────── */}
+          {/* ── Step 3: OTP ─────────────────────────────────────────────── */}
           {step === 3 && (
             <>
-              <button type="button" className="auth-back-btn" onClick={() => { setStep(2); setOtpCode(''); setOtpError(''); }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-              Zurück
-            </button>
+              <BackBtn onClick={() => { setStep(2); setOtpCode(''); setOtpError(''); }} />
+              <div className="reg-step-heading">
+                <h2 className="reg-title">Code eingeben</h2>
+                <p className="reg-hint">
+                  Wir haben einen 6-stelligen Code an{' '}
+                  <strong className="reg-hint-em">{email}</strong> gesendet.
+                </p>
+              </div>
               <div className="form-group">
                 <label>Bestätigungscode</label>
-                <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)', marginBottom: '14px', marginTop: '-4px' }}>
-                  Wir haben einen 6-stelligen Code an <strong style={{ color: 'rgba(255,255,255,0.8)' }}>{email}</strong> gesendet.
-                </p>
                 <input
+                  className="otp-input"
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
                   maxLength={6}
-                  placeholder="_ _ _ _ _ _"
+                  placeholder="— — — — — —"
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  autoFocus
-                  style={{ letterSpacing: '8px', fontSize: '24px', textAlign: 'center' }}
+                  autoComplete="one-time-code"
                 />
               </div>
               {otpError && <p className="error-message">{otpError}</p>}
@@ -300,30 +295,35 @@ export const Register = () => {
                 onClick={handleVerifyCode}
                 disabled={otpCode.length !== 6 || otpLoading}
               >
-                {otpLoading ? 'Prüfe...' : 'Bestätigen'}
+                {otpLoading ? 'Prüfe…' : 'Bestätigen'}
               </button>
               <button
                 type="button"
-                className="auth-btn"
+                className="auth-btn auth-btn-resend"
                 onClick={handleResendCode}
                 disabled={otpResendTimer > 0 || otpLoading}
-                style={{ marginTop: '10px', background: 'none', border: '1px solid rgba(255,255,255,0.15)', color: otpResendTimer > 0 ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.7)' }}
               >
-                {otpResendTimer > 0 ? `Code erneut senden (${otpResendTimer}s)` : 'Code erneut senden'}
+                {otpResendTimer > 0
+                  ? `Erneut senden (${otpResendTimer}s)`
+                  : 'Code erneut senden'}
               </button>
             </>
           )}
 
-          {/* ── Step 4: Standort (Google Maps) ──────────────────────── */}
+          {/* ── Step 4: Standort ─────────────────────────────────────────── */}
           {step === 4 && (
             <>
-              <button type="button" className="auth-back-btn" onClick={() => setStep(3)}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-              Zurück
-            </button>
+              <BackBtn onClick={() => setStep(3)} />
+              <div className="reg-step-heading">
+                <h2 className="reg-title">Wo bist du?</h2>
+                <p className="reg-hint">Hilft dir, Events in deiner Nähe zu finden</p>
+              </div>
               <div className="form-group">
-                <label>Wo bist du? <span style={{ opacity: 0.5, fontSize: '13px' }}>(optional)</span></label>
-                <div style={{ position: 'relative' }}>
+                <label>
+                  Stadt oder Region
+                  <span className="field-optional"> (optional)</span>
+                </label>
+                <div className="location-field">
                   <input
                     ref={locationRef}
                     type="text"
@@ -331,25 +331,18 @@ export const Register = () => {
                     value={location}
                     onChange={(e) => setLocation(e.target.value)}
                     autoComplete="off"
-                    autoFocus
                   />
                   {location && (
                     <button
                       type="button"
+                      className="location-clear"
                       onClick={() => setLocation('')}
-                      style={{
-                        position: 'absolute', right: '12px', top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none', border: 'none',
-                        color: 'rgba(255,255,255,0.4)', fontSize: '18px',
-                        cursor: 'pointer', lineHeight: 1,
-                      }}
-                    >×</button>
+                      aria-label="Ort entfernen"
+                    >
+                      ×
+                    </button>
                   )}
                 </div>
-                <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '6px' }}>
-                  Hilft dir, Events in deiner Nähe zu finden
-                </p>
               </div>
               <button
                 type="button"
@@ -361,22 +354,22 @@ export const Register = () => {
             </>
           )}
 
-          {/* ── Step 5: Passwort ─────────────────────────────────────── */}
+          {/* ── Step 5: Passwort ─────────────────────────────────────────── */}
           {step === 5 && (
             <>
-              <button type="button" className="auth-back-btn" onClick={() => setStep(4)}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-              Zurück
-            </button>
+              <BackBtn onClick={() => setStep(4)} />
+              <div className="reg-step-heading">
+                <h2 className="reg-title">Passwort wählen</h2>
+                <p className="reg-hint">Mind. 6 Zeichen, Groß/Klein, Zahl & Sonderzeichen</p>
+              </div>
               <div className="form-group">
-                <label>Wähle ein Passwort</label>
+                <label>Passwort</label>
                 <input
                   type="password"
-                  placeholder="Min. 6 Zeichen, Groß/Klein, Zahl, Sonderzeichen"
+                  placeholder="Dein Passwort"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  autoFocus
                   autoComplete="new-password"
                 />
                 {password.length > 0 && (
@@ -390,7 +383,9 @@ export const Register = () => {
                         />
                       ))}
                     </div>
-                    <span className="strength-label" style={{ color: strength.color }}>{strength.label}</span>
+                    <span className="strength-label" style={{ color: strength.color }}>
+                      {strength.label}
+                    </span>
                   </div>
                 )}
               </div>
@@ -405,14 +400,18 @@ export const Register = () => {
                   autoComplete="new-password"
                 />
               </div>
-              <div className="form-group" style={{ marginTop: '8px' }}>
-                <label style={{ opacity: 0.7 }}>Einladungscode (optional)</label>
+              <div className="form-group">
+                <label>
+                  Einladungscode
+                  <span className="field-optional"> (optional)</span>
+                </label>
                 <input
                   type="text"
                   placeholder="z.B. JAMIE-X7K2"
                   value={referralCode}
                   onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                  style={{ letterSpacing: '1px' }}
+                  className="referral-input"
+                  autoComplete="off"
                 />
               </div>
               {error && <p className="error-message">{error}</p>}
@@ -421,18 +420,20 @@ export const Register = () => {
                 className="auth-btn auth-btn-primary"
                 disabled={loading || !password || !confirmPassword}
               >
-                {loading ? 'Wird erstellt...' : 'Konto erstellen'}
+                {loading ? 'Wird erstellt…' : 'Konto erstellen'}
               </button>
             </>
           )}
-        </form>
 
-        <div className="auth-footer">
-          <p>
-            Bereits ein Konto?{' '}
-            <Link to="/login" className="auth-link">Jetzt einloggen</Link>
-          </p>
-        </div>
+        </form>
+      </div>
+
+      {/* Bottom — login link */}
+      <div className="auth-bottom">
+        <p>
+          Bereits ein Konto?{' '}
+          <Link to="/login" className="auth-link">Jetzt einloggen</Link>
+        </p>
       </div>
     </div>
   );

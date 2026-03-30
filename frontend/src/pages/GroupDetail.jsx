@@ -119,7 +119,7 @@ export const GroupDetail = () => {
 
   return (
     <div className="gd-page">
-
+      <div className="gd-scroll">
       {/* Header */}
       <div className="gd-header">
         {group.image_url ? (
@@ -282,6 +282,7 @@ export const GroupDetail = () => {
           onClose={() => setShowBoostModal(false)}
         />
       )}
+      </div>{/* gd-scroll */}
     </div>
   );
 };

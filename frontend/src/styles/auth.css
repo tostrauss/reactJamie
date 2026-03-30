@@ -1,8 +1,382 @@
 /* ========================================
-   JAMIE - Auth Pages Styles
+   JAMIE – Auth Pages
+   iOS-first: safe areas, 100dvh, 44pt+ targets
    ======================================== */
 
-/* Password Strength Meter */
+/* ── Full-screen shell ── */
+.auth-screen {
+  /* Use dynamic viewport height so iOS Safari bottom bar doesn't cut content */
+  min-height: 100dvh;
+  min-height: 100vh; /* fallback */
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 60%);
+  /* Honour notch / Dynamic Island at top, home indicator at bottom */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  overflow: hidden;
+}
+
+/* ── Three-zone layout ── */
+.auth-top {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 28px 40px;
+  text-align: center;
+}
+
+.auth-mid {
+  flex-shrink: 0;
+  padding: 0 24px;
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.auth-bottom {
+  flex-shrink: 0;
+  padding: 28px 24px 32px;
+  text-align: center;
+}
+
+/* ── Logo ── */
+.auth-wordmark {
+  font-size: 64px;
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: 2px;
+  color: var(--accent-coral);
+  text-shadow: 0 4px 24px rgba(253, 118, 102, 0.35);
+  line-height: 1;
+  margin: 0 0 16px;
+}
+
+.auth-tagline {
+  font-size: 15px;
+  color: var(--text-muted);
+  line-height: 1.55;
+  max-width: 280px;
+  margin: 0;
+}
+
+/* ── Button list ── */
+.auth-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Base button ── */
+.auth-btn {
+  width: 100%;
+  min-height: 56px; /* Apple HIG: 44pt min; 56pt feels premium */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 24px;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: inherit;
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+  overflow: hidden;
+  letter-spacing: 0.01em;
+}
+
+/* Ripple-free active state — feels native on iOS */
+.auth-btn:active {
+  transform: scale(0.97);
+  opacity: 0.88;
+}
+
+.auth-btn-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Primary — coral gradient */
+.auth-btn-primary {
+  background: linear-gradient(135deg, var(--accent-coral) 0%, var(--accent-coral-dark) 100%);
+  color: #fff;
+  box-shadow: 0 4px 20px rgba(253, 118, 102, 0.35);
+}
+
+.auth-btn-primary:hover {
+  box-shadow: 0 6px 28px rgba(253, 118, 102, 0.5);
+}
+
+.auth-btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Secondary — dark card style (Apple / Google) */
+.auth-btn-secondary {
+  background: var(--bg-card);
+  color: var(--text-white);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.auth-btn-secondary:hover {
+  background: var(--bg-hover);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* Ghost — dashed, low emphasis (Demo mode) */
+.auth-btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1.5px dashed rgba(155, 162, 176, 0.35);
+  font-size: 14px;
+  min-height: 48px;
+}
+
+.auth-btn-ghost:hover {
+  border-color: var(--text-muted);
+  color: var(--text-light);
+}
+
+/* ── Divider ── */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 2px 0;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.auth-divider span {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ── Email form ── */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.auth-back-btn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 6px 12px 6px 8px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
+  letter-spacing: 0.02em;
+  margin-bottom: -4px;
+}
+
+.auth-back-btn:active,
+.auth-back-btn:hover {
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  transform: translateX(-2px);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-light);
+}
+
+.form-group input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 18px;
+  /* 16px prevents iOS auto-zoom on focus — critical */
+  font-size: 16px;
+  font-family: inherit;
+  background: var(--bg-card);
+  border: 2px solid transparent;
+  border-radius: var(--radius-lg);
+  color: var(--text-white);
+  box-sizing: border-box;
+  transition: border-color 0.15s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.form-group input::placeholder {
+  color: var(--text-muted);
+}
+
+.form-group input:focus {
+  border-color: var(--accent-coral);
+  outline: none;
+}
+
+.error-message {
+  color: var(--status-busy);
+  font-size: 14px;
+  text-align: center;
+  padding: 12px 16px;
+  background: rgba(248, 113, 113, 0.1);
+  border-radius: var(--radius-md);
+  line-height: 1.4;
+}
+
+.forgot-link {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s;
+}
+
+.forgot-link:hover,
+.forgot-link:active {
+  color: var(--accent-coral);
+}
+
+/* ── Footer ── */
+.auth-bottom p {
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.auth-link {
+  color: var(--accent-coral);
+  font-weight: 600;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.auth-link:hover {
+  text-decoration: underline;
+}
+
+/* ══════════════════════════════════════════
+   REGISTER PAGE
+   ══════════════════════════════════════════ */
+
+/* Keep old .auth-container for Register / ForgotPassword / etc. */
+.auth-container {
+  min-height: 100dvh;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+  padding: calc(env(safe-area-inset-top, 0px) + 32px) 20px
+           calc(env(safe-area-inset-bottom, 0px) + 32px);
+  box-sizing: border-box;
+}
+
+.auth-content {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Legacy logo classes used on Register */
+.auth-logo {
+  margin-bottom: 20px;
+}
+
+.auth-logo .logo-text {
+  font-size: 56px;
+  font-weight: 800;
+  color: var(--accent-coral);
+  letter-spacing: 2px;
+  font-style: italic;
+  text-shadow: 0 4px 20px rgba(253, 118, 102, 0.3);
+}
+
+.auth-subtitle {
+  font-size: 15px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.5;
+  margin-bottom: 36px;
+  max-width: 300px;
+}
+
+.auth-footer {
+  margin-top: 36px;
+  text-align: center;
+}
+
+.auth-footer p {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* ── Register step dots ── */
+.register-steps {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+
+.step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bg-input);
+  transition: all var(--transition-fast);
+}
+
+.step-dot.active {
+  width: 24px;
+  border-radius: var(--radius-full);
+  background: var(--accent-coral);
+}
+
+.step-dot.completed {
+  background: var(--accent-green);
+}
+
+/* Password strength */
 .password-strength {
   margin-top: 8px;
   display: flex;
@@ -30,281 +404,17 @@
   transition: color 0.25s ease;
 }
 
-.auth-container {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
-  padding: 40px 20px;
-}
-
-.auth-content {
-  width: 100%;
-  max-width: 400px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-/* Logo */
-.auth-logo {
-  margin-bottom: 24px;
-}
-
-.auth-logo .logo-text {
-  font-size: 56px;
-  font-weight: 800;
-  color: var(--accent-coral);
-  letter-spacing: 2px;
-  font-style: italic;
-  text-shadow: 0 4px 20px rgba(253, 118, 102, 0.3);
-}
-
-/* Subtitle */
-.auth-subtitle {
-  font-size: 16px;
-  color: var(--text-muted);
-  text-align: center;
-  line-height: 1.5;
-  margin-bottom: 40px;
-  max-width: 300px;
-}
-
-/* Auth Options */
-.auth-options {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-/* Auth Buttons */
-.auth-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 16px 24px;
-  font-size: 16px;
-  font-weight: 600;
-  border: none;
-  border-radius: var(--radius-full);
-  cursor: pointer;
-  transition: all var(--transition-normal);
-}
-
-.auth-btn-icon {
-  font-size: 20px;
-}
-
-.auth-btn-primary {
-  background: linear-gradient(135deg, var(--accent-coral), var(--accent-coral-dark));
-  color: white;
-  box-shadow: 0 4px 20px rgba(253, 118, 102, 0.3);
-}
-
-.auth-btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 30px rgba(253, 118, 102, 0.5);
-}
-
-.auth-btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.auth-btn-apple {
-  background: var(--bg-card);
-  color: var(--text-white);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.auth-btn-apple:hover {
-  background: var(--bg-hover);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.auth-btn-google {
-  background: var(--bg-card);
-  color: var(--text-white);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.auth-btn-google:hover {
-  background: var(--bg-hover);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-.auth-btn-google .auth-btn-icon {
-  font-family: 'Google Sans', Arial, sans-serif;
-  font-weight: 700;
-  color: #4285f4;
-}
-
-.auth-btn-dev {
-  background: transparent;
-  color: var(--text-muted);
-  border: 1px dashed var(--bg-input);
-  font-size: 14px;
-  margin-top: 8px;
-}
-
-.auth-btn-dev:hover {
-  border-color: var(--text-muted);
-  color: var(--text-light);
-}
-
-/* Auth Form */
-.auth-form {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.auth-back-btn {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 5px 10px 5px 7px;
-  transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.15s;
-  letter-spacing: 0.02em;
-  margin-bottom: -4px;
-}
-
-.back-btn svg {
-  flex-shrink: 0;
-  transition: transform 0.15s;
-}
-
-.auth-back-btn:hover {
-  background: rgba(255, 255, 255, 0.11);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #fff;
-  transform: translateX(-2px);
-}
-
-.auth-back-btn:hover svg {
-  transform: translateX(-2px);
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.form-group label {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-light);
-}
-
-.form-group input {
-  padding: 16px 20px;
-  font-size: 16px;
-  background: var(--bg-card);
-  border: 2px solid transparent;
-  border-radius: var(--radius-lg);
-  color: var(--text-white);
-  transition: all var(--transition-fast);
-}
-
-.form-group input::placeholder {
-  color: var(--text-muted);
-}
-
-.form-group input:focus {
-  border-color: var(--accent-coral);
-  outline: none;
-}
-
-.error-message {
-  color: var(--status-busy);
-  font-size: 14px;
-  text-align: center;
-  padding: 12px;
-  background: rgba(248, 113, 113, 0.1);
-  border-radius: var(--radius-md);
-}
-
-.forgot-link {
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 14px;
-  transition: color var(--transition-fast);
-}
-
-.forgot-link:hover {
-  color: var(--accent-coral);
-}
-
-/* Auth Footer */
-.auth-footer {
-  margin-top: 40px;
-  text-align: center;
-}
-
-.auth-footer p {
-  color: var(--text-muted);
-  font-size: 14px;
-}
-
-.auth-link {
-  color: var(--accent-coral);
-  font-weight: 600;
-}
-
-.auth-link:hover {
-  text-decoration: underline;
-}
-
-/* ========================================
-   Register Page
-   ======================================== */
-.register-steps {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 32px;
-}
-
-.step-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--bg-input);
-  transition: all var(--transition-fast);
-}
-
-.step-dot.active {
-  width: 24px;
-  border-radius: var(--radius-full);
-  background: var(--accent-coral);
-}
-
-.step-dot.completed {
-  background: var(--accent-green);
-}
-
-/* ========================================
-   Onboarding Styles
-   ======================================== */
+/* ══════════════════════════════════════════
+   ONBOARDING
+   ══════════════════════════════════════════ */
 .onboarding-container {
+  min-height: 100dvh;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .onboarding-header {
@@ -340,7 +450,7 @@
 }
 
 .onboarding-title {
-  font-size: 32px;
+  font-size: 30px;
   font-weight: 700;
   color: var(--accent-coral);
   margin-bottom: 16px;
@@ -362,21 +472,26 @@
 }
 
 .onboarding-option {
-  padding: 18px 24px;
+  min-height: 56px;
+  padding: 0 24px;
   background: var(--bg-card);
   border: 2px solid transparent;
   border-radius: var(--radius-lg);
   color: var(--text-light);
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: border-color 0.15s, background 0.15s;
   display: flex;
   align-items: center;
   gap: 16px;
 }
 
-.onboarding-option:hover {
+.onboarding-option:hover,
+.onboarding-option:active {
   border-color: var(--accent-coral);
 }
 
@@ -387,7 +502,7 @@
 }
 
 .option-icon {
-  font-size: 24px;
+  font-size: 22px;
   width: 44px;
   height: 44px;
   display: flex;
@@ -395,6 +510,7 @@
   justify-content: center;
   background: rgba(253, 118, 102, 0.1);
   border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .onboarding-option.selected .option-icon {
@@ -402,7 +518,7 @@
 }
 
 .option-label {
-  font-size: 18px;
+  font-size: 17px;
 }
 
 .onboarding-back {
@@ -413,6 +529,8 @@
   padding: 4px;
   display: flex;
   align-items: center;
+  min-height: 44px;
+  min-width: 44px;
 }
 
 .onboarding-step-text {
@@ -423,7 +541,7 @@
 
 .onboarding-footer {
   padding: 20px;
-  padding-bottom: 40px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
   display: flex;
   justify-content: center;
 }
@@ -433,7 +551,6 @@
   max-width: 360px;
 }
 
-/* Onboarding Form */
 .onboarding-form {
   width: 100%;
   max-width: 400px;
@@ -472,7 +589,7 @@
   color: var(--text-muted);
 }
 
-/* Photos Grid */
+/* Photos grid */
 .photos-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -513,8 +630,8 @@
   position: absolute;
   top: 4px;
   right: 4px;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.7);
   border: none;
@@ -538,7 +655,7 @@
   padding: 2px 0;
 }
 
-/* Complete Step */
+/* Complete step */
 .complete-icon {
   font-size: 64px;
   margin-bottom: 16px;
@@ -609,7 +726,7 @@
   padding: 3px 4px;
 }
 
-/* Interest Tags */
+/* Interest tags */
 .interests-grid {
   display: flex;
   flex-wrap: wrap;
@@ -627,10 +744,13 @@
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
 
-.interest-tag:hover {
+.interest-tag:hover,
+.interest-tag:active {
   border-color: var(--accent-coral);
 }
 
@@ -640,20 +760,194 @@
   color: white;
 }
 
-/* ========================================
-   Responsive
-   ======================================== */
-@media (max-width: 480px) {
-  .auth-logo .logo-text {
-    font-size: 48px;
+/* ══════════════════════════════════════════
+   REGISTER — scroll variant + step UI
+   ══════════════════════════════════════════ */
+
+/* Allow the screen to scroll when step content is tall (e.g. step 5) */
+.auth-screen--scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Compact top: logo sits higher, less bottom padding */
+.auth-top--compact {
+  flex: 0 0 auto;
+  justify-content: center;
+  padding-top: 32px;
+  padding-bottom: 28px;
+  gap: 16px;
+}
+
+.auth-top--compact .auth-wordmark {
+  font-size: 48px;
+  margin-bottom: 0;
+}
+
+/* Progress dots */
+.reg-steps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reg-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  transition: width 0.2s ease, background 0.2s ease, border-radius 0.2s ease;
+}
+
+.reg-dot--active {
+  width: 28px;
+  border-radius: var(--radius-full);
+  background: var(--accent-coral);
+}
+
+.reg-dot--done {
+  background: var(--accent-green);
+}
+
+.reg-step-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Per-step heading block */
+.reg-step-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.reg-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-white);
+  line-height: 1.2;
+}
+
+.reg-hint {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.reg-hint-em {
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 600;
+}
+
+/* OTP input — big centered digits */
+.otp-input {
+  letter-spacing: 10px !important;
+  font-size: 28px !important;
+  text-align: center !important;
+  font-weight: 700 !important;
+  padding: 0 20px !important;
+}
+
+/* Resend button — low emphasis */
+.auth-btn-resend {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 14px;
+  font-weight: 500;
+  min-height: 48px;
+}
+
+.auth-btn-resend:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.auth-btn-resend:not(:disabled):hover,
+.auth-btn-resend:not(:disabled):active {
+  border-color: rgba(255, 255, 255, 0.25);
+  color: var(--text-light);
+}
+
+/* Location field with inline clear button */
+.location-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.location-field input {
+  width: 100%;
+  padding-right: 44px; /* room for × button */
+}
+
+.location-clear {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: color 0.15s;
+}
+
+.location-clear:hover,
+.location-clear:active {
+  color: var(--text-white);
+}
+
+/* Optional label suffix */
+.field-optional {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+/* Referral code — monospace feel */
+.referral-input {
+  letter-spacing: 1.5px !important;
+}
+
+/* ── Responsive tweaks ── */
+@media (max-width: 390px) {
+  /* iPhone SE / mini */
+  .auth-wordmark {
+    font-size: 52px;
   }
-  
-  .auth-subtitle {
+
+  .auth-tagline {
     font-size: 14px;
   }
-  
+
+  .auth-top {
+    padding-bottom: 28px;
+  }
+
   .auth-btn {
-    padding: 14px 20px;
+    min-height: 52px;
     font-size: 15px;
+  }
+}
+
+@media (min-height: 800px) {
+  /* Tall phones (Pro Max, etc.) — give the logo more breathing room */
+  .auth-top {
+    padding-bottom: 52px;
   }
 }

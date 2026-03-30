@@ -3,16 +3,66 @@
    ======================================== */
 
 .home-container {
-  min-height: 100vh;
+  /* Fill the full dynamic viewport — no inner page scroll */
+  height: 100dvh;
+  height: 100vh; /* fallback */
   background: var(--bg-primary);
-  padding-bottom: 100px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Sticky header zone (logo + tabs + search + categories) ── */
+.home-sticky-header {
+  flex-shrink: 0;
+  background: var(--bg-primary);
+  /* Push content below status bar / Dynamic Island */
+  padding-top: env(safe-area-inset-top, 0px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  z-index: 100;
+}
+
+/* ── Scrollable content zone ── */
+.home-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* iOS momentum scroll */
+  overscroll-behavior-y: contain;   /* bounce stays inside, doesn't propagate */
+  /* Clear the fixed bottom nav + home indicator */
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
+}
+
+/* Map tab: remove padding and scrolling so map fills exactly */
+.home-content--map {
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+/* ── Loading spinner ── */
+.home-loading {
+  display: flex;
+  justify-content: center;
+  padding: 48px 0;
+}
+
+.home-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(253, 118, 102, 0.2);
+  border-top-color: var(--accent-coral);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ========================================
    Header
    ======================================== */
 .home-header {
-  padding: 20px 20px 16px;
+  padding: 14px 20px 10px;
   text-align: center;
 }
 
@@ -31,20 +81,22 @@
   display: flex;
   justify-content: center;
   gap: 8px;
-  padding: 0 20px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: 16px;
+  padding: 0 20px 3px;
 }
 
 .tab {
-  padding: 12px 32px;
+  padding: 10px 32px;
+  min-height: 44px; /* Apple HIG touch target */
   cursor: pointer;
   color: var(--text-muted);
   font-size: 16px;
   font-weight: 600;
+  font-family: inherit;
   border: none;
   background: none;
   border-radius: var(--radius-full);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition: all var(--transition-fast);
   position: relative;
 }
@@ -61,7 +113,7 @@
 .tab.active::after {
   content: '';
   position: absolute;
-  bottom: -17px;
+  bottom: -3px;
   left: 50%;
   transform: translateX(-50%);
   width: 40px;
@@ -110,7 +162,7 @@
 .search-input {
   width: 100%;
   padding: 14px 20px 14px 48px;
-  font-size: 15px;
+  font-size: 16px; /* 16px prevents iOS auto-zoom on focus */
   color: var(--text-white);
   background: var(--bg-card);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -132,7 +184,7 @@
    Categories
    ======================================== */
 .categories-container {
-  padding: 0 20px 20px;
+  padding: 10px 0 14px;
   overflow: hidden;
 }
 
@@ -140,7 +192,8 @@
   display: flex;
   gap: 10px;
   overflow-x: auto;
-  padding-bottom: 8px;
+  padding: 2px 20px 8px; /* side padding keeps first/last pill off the edge */
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -152,13 +205,17 @@
 .category-pill {
   flex-shrink: 0;
   padding: 10px 20px;
+  min-height: 40px;
   font-size: 14px;
   font-weight: 500;
+  font-family: inherit;
   color: var(--text-light);
   background: var(--bg-card);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-full);
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition: all var(--transition-fast);
   white-space: nowrap;
 }
@@ -226,9 +283,16 @@
   overflow: hidden;
   cursor: pointer;
   aspect-ratio: 1/1;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition: transform var(--transition-normal), box-shadow var(--transition-normal), border-color var(--transition-normal);
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: #1a1a3e;
+}
+
+.group-card:active {
+  transform: scale(0.97);
+  opacity: 0.9;
 }
 
 .group-card:hover {
@@ -279,7 +343,8 @@
 }
 
 .card-top-badges .category-pill {
-  padding: 4px 10px;
+  padding: 3px 8px;
+  min-height: unset;
   font-size: 10px;
   background: rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(8px);
@@ -287,6 +352,8 @@
   color: rgba(255, 255, 255, 0.85);
   border-radius: var(--radius-full);
   white-space: nowrap;
+  cursor: default;
+  touch-action: unset;
 }
 
 /* ── Bottom info inside overlay ────────────────────────── */
@@ -386,8 +453,8 @@
 }
 
 .fav-btn-small {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -397,6 +464,8 @@
   border-radius: var(--radius-md);
   font-size: 18px;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition: all var(--transition-fast);
   flex-shrink: 0;
 }
@@ -413,7 +482,7 @@
 
 .action-btn {
   flex: 1;
-  height: 36px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -421,7 +490,10 @@
   border-radius: var(--radius-md);
   font-size: 15px;
   font-weight: 700;
+  font-family: inherit;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition: all var(--transition-fast);
 }
 
@@ -475,9 +547,18 @@
   font-size: 14px;
   color: var(--accent-coral);
   cursor: pointer;
+  background: none;
+  border: none;
+  font-family: inherit;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.empty-hint:hover {
+.empty-hint:hover,
+.empty-hint:active {
   text-decoration: underline;
 }
 
@@ -624,7 +705,14 @@
   border-radius: var(--radius-lg);
   overflow: hidden;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition: all var(--transition-fast);
+}
+
+.my-club-card:active {
+  transform: scale(0.96);
+  opacity: 0.88;
 }
 
 .my-club-card:hover {
@@ -694,7 +782,14 @@
   border-radius: var(--radius-xl);
   overflow: hidden;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition: all var(--transition-normal);
+}
+
+.trend-club-card:active {
+  transform: scale(0.99);
+  opacity: 0.92;
 }
 
 .trend-club-card:hover {
@@ -784,13 +879,20 @@
 }
 
 .trend-btn {
-  padding: 10px 24px;
+  padding: 0 24px;
+  min-height: 44px;
   border-radius: var(--radius-full);
   font-size: 14px;
   font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition: all var(--transition-fast);
   border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .trend-btn.join {
@@ -1393,4 +1495,151 @@ input:checked + .slider:before {
 
 .btn-danger-outline:hover {
   background: rgba(255, 68, 68, 0.1);
+}
+
+/* ========================================
+   MAP TAB
+   ======================================== */
+
+/* Map fills the scrollable content area completely */
+.map-container {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  background: var(--bg-primary);
+}
+
+.map-leaflet {
+  height: 100%;
+  width: 100%;
+  background: #1a1a2e;
+}
+
+/* Loading overlay on top of map */
+.map-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 15, 35, 0.7);
+  pointer-events: none;
+}
+
+/* Locate me button (floating, bottom-right) */
+.map-locate-btn {
+  position: absolute;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
+  right: 16px;
+  z-index: 1000;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 50%;
+  color: var(--text-white);
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.map-locate-btn:active { transform: scale(0.92); }
+
+/* Empty state overlay */
+.map-empty {
+  position: absolute;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 160px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: var(--bg-card);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 16px 24px;
+  text-align: center;
+  white-space: nowrap;
+}
+.map-empty-icon { font-size: 24px; margin-bottom: 6px; }
+.map-empty p { color: var(--text-muted); font-size: 13px; margin: 0; }
+
+/* ── Leaflet popup dark-theme override ── */
+.map-popup-wrapper .leaflet-popup-content-wrapper {
+  background: var(--bg-card, #1e1e38);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  padding: 0;
+  overflow: hidden;
+}
+.map-popup-wrapper .leaflet-popup-content {
+  margin: 0;
+  width: 220px !important;
+}
+.map-popup-wrapper .leaflet-popup-tip-container { display: none; }
+
+.map-popup {
+  cursor: pointer;
+  user-select: none;
+}
+.map-popup-img {
+  width: 100%;
+  height: 110px;
+  object-fit: cover;
+  display: block;
+}
+.map-popup-body {
+  padding: 12px 14px;
+}
+.map-popup-badges {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.map-popup-type {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.map-popup-type.group {
+  background: rgba(253,118,102,0.2);
+  border: 1px solid rgba(253,118,102,0.4);
+  color: #ffb3aa;
+}
+.map-popup-type.club {
+  background: rgba(139,92,246,0.2);
+  border: 1px solid rgba(139,92,246,0.4);
+  color: #c4b5fd;
+}
+.map-popup-cat {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: rgba(34,197,94,0.15);
+  border: 1px solid rgba(34,197,94,0.3);
+  color: #86efac;
+}
+.map-popup-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+.map-popup-loc {
+  font-size: 11px;
+  color: var(--text-muted, #888);
+  margin-bottom: 4px;
+}
+.map-popup-meta {
+  font-size: 11px;
+  color: var(--text-muted, #888);
 }

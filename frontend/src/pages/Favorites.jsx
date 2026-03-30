@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { groups, clubs } from '../utils/api';
 import { GroupCard } from '../components/GroupCard';
@@ -14,54 +14,40 @@ export const Favorites = () => {
   const navigate = useNavigate();
   const toast = useToast();
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [favGroupsRes, favClubsRes, joinedGroupsRes, joinedClubsRes] =
-        await Promise.all([
-          groups.getFavorites(),
-          clubs.getFavorites(),
-          groups.getJoined(),
-          clubs.getJoined()
-        ]);
-
+      const [favGroupsRes, favClubsRes, joinedGroupsRes, joinedClubsRes] = await Promise.all([
+        groups.getFavorites(),
+        clubs.getFavorites(),
+        groups.getJoined(),
+        clubs.getJoined()
+      ]);
       setFavoriteGroups(favGroupsRes.data || []);
       setFavoriteClubs(favClubsRes.data || []);
-
-      const joinedIds = [
-        ...(joinedGroupsRes.data || []).map((g) => g.id),
-        ...(joinedClubsRes.data || []).map((c) => c.id)
-      ];
-      setJoined(new Set(joinedIds));
-    } catch (error) {
-      console.error('Error loading favorites:', error);
+      setJoined(new Set([
+        ...(joinedGroupsRes.data || []).map(g => g.id),
+        ...(joinedClubsRes.data || []).map(c => c.id)
+      ]));
+    } catch (err) {
+      console.error('Error loading favorites:', err);
     } finally {
       setLoading(false);
     }
   };
 
   const handleFavorite = async (groupId) => {
-    // Check if this is a club or group based on which tab/list it's in
     const isClub = favoriteClubs.some(c => c.id === groupId);
-
-    // Aus Favoriten entfernen
     setFavoriteGroups(prev => prev.filter(g => g.id !== groupId));
     setFavoriteClubs(prev => prev.filter(g => g.id !== groupId));
-
     try {
-      if (isClub) {
-        await clubs.toggleFavorite(groupId);
-      } else {
-        await groups.toggleFavorite(groupId);
-      }
-    } catch (error) {
-      console.error('Toggle favorite failed:', error);
+      if (isClub) await clubs.toggleFavorite(groupId);
+      else await groups.toggleFavorite(groupId);
+    } catch {
       toast.error('Favorit konnte nicht entfernt werden');
-      loadData(); // Restore correct state
+      loadData();
     }
   };
 
@@ -69,19 +55,12 @@ export const Favorites = () => {
     setJoined(prev => new Set(prev).add(groupId));
     const isClub = favoriteClubs.some(c => c.id === groupId);
     try {
-      if (isClub) {
-        await clubs.join(groupId);
-      } else {
-        await groups.join(groupId);
-      }
-    } catch (error) {
+      if (isClub) await clubs.join(groupId);
+      else await groups.join(groupId);
+    } catch (err) {
       setJoined(prev => { const s = new Set(prev); s.delete(groupId); return s; });
-      toast.error(error.response?.data?.error || 'Beitreten fehlgeschlagen');
+      toast.error(err.response?.data?.error || 'Beitreten fehlgeschlagen');
     }
-  };
-
-  const handleChat = (groupId) => {
-    navigate(`/chat/${groupId}`);
   };
 
   const handleWaitlist = async (groupId, action) => {
@@ -94,83 +73,79 @@ export const Favorites = () => {
         toast.info('Von Warteliste entfernt');
       }
       loadData();
-    } catch (error) {
-      console.error('Waitlist error:', error);
-      toast.error(error.response?.data?.error || 'Fehler bei Warteliste');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Fehler bei Warteliste');
     }
-  };
-
-  const handleCardClick = (groupId) => {
-    navigate(`/group/${groupId}`);
   };
 
   const currentFavorites = activeTab === 'gruppen' ? favoriteGroups : favoriteClubs;
 
-  if (loading) {
-    return (
-      <div className="home-container">
-        <div className="loading">Laden...</div>
-      </div>
-    );
-  }
-
   return (
     <div className="home-container">
-      {/* Header */}
-      <header className="home-header">
-        <h1 className="page-title">Deine Favoriten</h1>
-      </header>
 
-      {/* Tabs */}
-      <div className="tabs-container">
-        <button 
-          className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`} 
-          onClick={() => setActiveTab('gruppen')}
-        >
-          Gruppen
-          {favoriteGroups.length > 0 && (
-            <span className="tab-count">{favoriteGroups.length}</span>
-          )}
-        </button>
-        <button 
-          className={`tab ${activeTab === 'clubs' ? 'active' : ''}`} 
-          onClick={() => setActiveTab('clubs')}
-        >
-          Clubs
-          {favoriteClubs.length > 0 && (
-            <span className="tab-count">{favoriteClubs.length}</span>
-          )}
-        </button>
+      {/* ── Sticky header ───────────────────────────────────────────── */}
+      <div className="home-sticky-header">
+        <header className="home-header">
+          <h1 className="page-title">Deine Favoriten</h1>
+        </header>
+
+        <div className="tabs-container">
+          <button
+            className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`}
+            onClick={() => setActiveTab('gruppen')}
+          >
+            Gruppen
+            {favoriteGroups.length > 0 && (
+              <span className="tab-count">{favoriteGroups.length}</span>
+            )}
+          </button>
+          <button
+            className={`tab ${activeTab === 'clubs' ? 'active' : ''}`}
+            onClick={() => setActiveTab('clubs')}
+          >
+            Clubs
+            {favoriteClubs.length > 0 && (
+              <span className="tab-count">{favoriteClubs.length}</span>
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* Content */}
-      <div className="groups-feed">
-        {currentFavorites.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon">⭐</div>
-            <p>Noch keine {activeTab === 'gruppen' ? 'Gruppen' : 'Clubs'} gespeichert</p>
-            <span className="empty-hint" onClick={() => navigate('/home')}>
-              Entdecke neue {activeTab === 'gruppen' ? 'Gruppen' : 'Clubs'}!
-            </span>
-          </div>
-        ) : (
-          <div className="groups-grid">
-            {currentFavorites.map(item => (
-              <GroupCard
-                key={item.id}
-                group={item}
-                isFavorite={true}
-                isJoined={joined.has(item.id)}
-                onFavorite={handleFavorite}
-                onJoin={handleJoin}
-                onChat={handleChat}
-                onWaitlist={handleWaitlist}
-                onClick={() => handleCardClick(item.id)}
-              />
-            ))}
-          </div>
-        )}
+      {/* ── Scrollable content ──────────────────────────────────────── */}
+      <div className="home-content">
+        <div className="groups-feed">
+          {loading ? (
+            <div className="home-loading">
+              <div className="home-spinner" />
+            </div>
+          ) : currentFavorites.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">⭐</div>
+              <p>Noch keine {activeTab === 'gruppen' ? 'Gruppen' : 'Clubs'} gespeichert</p>
+              <button className="empty-hint" onClick={() => navigate('/home')}>
+                Entdecke neue {activeTab === 'gruppen' ? 'Gruppen' : 'Clubs'}!
+              </button>
+            </div>
+          ) : (
+            <div className="groups-grid">
+              {currentFavorites.map(item => (
+                <GroupCard
+                  key={item.id}
+                  group={item}
+                  isFavorite={true}
+                  isJoined={joined.has(item.id)}
+                  onFavorite={handleFavorite}
+                  onJoin={handleJoin}
+                  onChat={(id) => navigate(`/chat/${id}`)}
+                  onWaitlist={handleWaitlist}
+                  onClick={() => navigate(`/group/${item.id}`)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+
     </div>
   );
 };

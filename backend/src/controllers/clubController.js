@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { geocodeLocation } from '../utils/geocode.js';
 
 // Helper to ensure we always target clubs
 const CLUB_TYPE = 'club';
@@ -31,6 +32,9 @@ export const createClub = async (req, res) => {
       dateTime = `${date}T${time}`;
     }
 
+    // Geocode location (non-blocking on failure)
+    const coords = await geocodeLocation(location);
+
     const result = await db.query(
       `INSERT INTO groups (
         name,
@@ -43,9 +47,11 @@ export const createClub = async (req, res) => {
         max_members,
         is_private,
         skill_level,
-        owner_id
+        owner_id,
+        lat,
+        lng
       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         name,
@@ -58,7 +64,9 @@ export const createClub = async (req, res) => {
         max_members || 100, // Clubs are larger communities by default
         is_private || false,
         skill_level,
-        userId
+        userId,
+        coords?.lat ?? null,
+        coords?.lng ?? null
       ]
     );
 
@@ -195,8 +203,17 @@ export const updateClub = async (req, res) => {
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
     if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
 
+    // Re-geocode if location is being updated
+    let latUpdate = null;
+    let lngUpdate = null;
+    if (location !== undefined) {
+      const coords = await geocodeLocation(location);
+      latUpdate = coords?.lat ?? null;
+      lngUpdate = coords?.lng ?? null;
+    }
+
     const result = await db.query(
-      `UPDATE groups 
+      `UPDATE groups
        SET name = COALESCE($1, name),
            description = COALESCE($2, description),
            category = COALESCE($3, category),
@@ -206,6 +223,8 @@ export const updateClub = async (req, res) => {
            max_members = COALESCE($7, max_members),
            is_private = COALESCE($8, is_private),
            skill_level = COALESCE($9, skill_level),
+           lat = CASE WHEN $5 IS NOT NULL THEN $12 ELSE lat END,
+           lng = CASE WHEN $5 IS NOT NULL THEN $13 ELSE lng END,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $10 AND type = $11
        RETURNING *`,
@@ -220,7 +239,9 @@ export const updateClub = async (req, res) => {
         is_private,
         skill_level,
         id,
-        CLUB_TYPE
+        CLUB_TYPE,
+        latUpdate,
+        lngUpdate
       ]
     );
 

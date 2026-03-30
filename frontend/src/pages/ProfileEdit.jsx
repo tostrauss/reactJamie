@@ -161,10 +161,10 @@ export const ProfileEdit = () => {
   };
 
   return (
-    <div className="settings-page page">
+    <div className="settings-page">
       {/* Header */}
       <div className="settings-header">
-        <button className="settings-back" onClick={() => navigate(-1)}>
+        <button className="settings-back" onClick={() => navigate(-1)} aria-label="Zurück">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
@@ -172,6 +172,7 @@ export const ProfileEdit = () => {
         <h1 className="settings-title">Profil bearbeiten</h1>
       </div>
 
+      <div className="settings-body">
       {/* Avatar Section */}
       <div className="pe-avatar-section" onClick={() => fileInputRef.current?.click()}>
         <div className="pe-avatar-wrapper">
@@ -425,6 +426,7 @@ export const ProfileEdit = () => {
           )}
         </button>
       </form>
+      </div>{/* settings-body */}
     </div>
   );
 };
