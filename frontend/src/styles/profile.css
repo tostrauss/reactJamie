@@ -13,7 +13,7 @@
 .profile-header-image {
   position: relative;
   width: 100%;
-  height: 420px;
+  height: 260px;
   overflow: visible;
 }
 
@@ -33,6 +33,33 @@
   height: 55%;
   background: linear-gradient(to bottom, transparent, var(--bg-primary));
   pointer-events: none;
+}
+
+.profile-cover-top-gradient {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 90px;
+  background: linear-gradient(to bottom, rgba(15,15,35,0.6) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.profile-logo-overlay {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 18px);
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 28px;
+  font-weight: 800;
+  font-style: italic;
+  color: var(--accent-coral);
+  letter-spacing: -0.5px;
+  z-index: 2;
+  pointer-events: none;
+  text-shadow: 0 1px 8px rgba(0,0,0,0.4);
 }
 
 .profile-header-actions {
@@ -78,20 +105,20 @@
 /* Floating Avatar */
 .profile-avatar-float {
   position: absolute;
-  bottom: -48px;
+  bottom: -36px;
   left: 50%;
   transform: translateX(-50%);
-  width: 96px;
-  height: 96px;
+  width: 76px;
+  height: 76px;
   border-radius: 50%;
-  border: 4px solid var(--bg-primary);
+  border: 3px solid var(--bg-primary);
   background: linear-gradient(135deg, var(--accent-coral), var(--accent-coral-dark));
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: visible;
   z-index: 3;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.45);
 }
 
 .profile-avatar-float img {
@@ -103,7 +130,7 @@
 
 .profile-avatar-float span {
   color: white;
-  font-size: 36px;
+  font-size: 28px;
   font-weight: 700;
 }
 
@@ -143,7 +170,7 @@
 
 /* Profile Info Section */
 .profile-info-section {
-  padding: 64px 20px 24px;
+  padding: 48px 20px 24px;
   background: var(--bg-primary);
   position: relative;
   text-align: center;
@@ -199,7 +226,7 @@
 }
 
 .profile-name {
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 700;
   color: var(--text-white);
   margin: 0;
@@ -1333,6 +1360,22 @@
 
 .settings-input:focus {
   border-color: var(--accent-coral);
+}
+
+.dob-select-row {
+  display: flex;
+  gap: 8px;
+}
+
+.dob-select {
+  flex: 1;
+  padding-left: 10px;
+  padding-right: 10px;
+  cursor: pointer;
+}
+
+.dob-select--month {
+  flex: 1.7;
 }
 
 /* ========================================

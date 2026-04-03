@@ -7,6 +7,34 @@ import { ProModal } from '../components/ProModal';
 import '../styles/home.css';
 import '../styles/profile.css';
 
+const INTEREST_DE = {
+  // English → Deutsch
+  'Sports': 'Sport', 'Sport': 'Sport',
+  'Music': 'Musik', 'Musik': 'Musik',
+  'Tech': 'Technik', 'Technology': 'Technik', 'Technik': 'Technik',
+  'Art': 'Kunst', 'Kunst': 'Kunst',
+  'Gaming': 'Gaming',
+  'Fitness': 'Fitness',
+  'Travel': 'Reisen', 'Reisen': 'Reisen',
+  'Food': 'Essen', 'Essen': 'Essen',
+  'Movies': 'Filme', 'Filme': 'Filme',
+  'Reading': 'Lesen', 'Lesen': 'Lesen',
+  'Photography': 'Fotografie', 'Fotografie': 'Fotografie',
+  'Hiking': 'Wandern', 'Wandern': 'Wandern',
+  'Yoga': 'Yoga',
+  'Dancing': 'Tanzen', 'Tanzen': 'Tanzen',
+  'Cooking': 'Kochen', 'Kochen': 'Kochen',
+  'Fashion': 'Mode', 'Mode': 'Mode',
+  'Nature': 'Natur', 'Natur': 'Natur',
+  'Clubbing': 'Clubbing',
+  'Social': 'Soziales', 'Soziales': 'Soziales',
+  'Tennis': 'Tennis', 'Golf': 'Golf',
+  'Volleyball': 'Volleyball', 'Swimming': 'Schwimmen', 'Schwimmen': 'Schwimmen',
+  'Board Games': 'Brettspiele', 'Brettspiele': 'Brettspiele',
+};
+
+const translateInterest = (i) => INTEREST_DE[i] ?? i;
+
 export const Profile = () => {
   const { user, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -59,6 +87,8 @@ export const Profile = () => {
         <div className="profile-header-image">
           <img src={coverPhoto} alt={user?.name} className="profile-cover" />
           <div className="profile-cover-gradient" />
+          <div className="profile-cover-top-gradient" />
+          <h1 className="profile-logo-overlay">jamie</h1>
 
           <div className="profile-header-actions">
             <button className="profile-action-btn" onClick={() => navigate(-1)} aria-label="Zurück">
@@ -160,7 +190,7 @@ export const Profile = () => {
           {interests.length > 0 && (
             <div className="profile-interests">
               {interests.map((interest, i) => (
-                <span key={i} className="interest-chip">{interest}</span>
+                <span key={i} className="interest-chip">{translateInterest(interest)}</span>
               ))}
             </div>
           )}

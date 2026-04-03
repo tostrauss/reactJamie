@@ -9,7 +9,7 @@ export const createGroup = async (req, res) => {
   const userId = req.userId; // JWT auth (not session)
 
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
-  if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
 
   try {
     // Combine date + time if both provided
@@ -237,7 +237,7 @@ export const joinGroup = async (req, res) => {
     // Check capacity
     const g = group.rows[0];
     if (g.members_count >= g.max_members) {
-      return res.status(400).json({ error: 'Group is full' });
+      return res.status(400).json({ error: 'Die Gruppe ist bereits voll' });
     }
 
     // Private group → create join request (or reset a previous rejection to pending)
@@ -247,7 +247,7 @@ export const joinGroup = async (req, res) => {
         [id, req.userId]
       );
       if (existingReq.rows.length > 0 && existingReq.rows[0].status === 'pending') {
-        return res.status(400).json({ error: 'Join request already pending' });
+        return res.status(400).json({ error: 'Beitrittsanfrage bereits ausstehend' });
       }
 
       await db.query(
@@ -283,7 +283,7 @@ export const leaveGroup = async (req, res) => {
     // Prevent owner from leaving (they must delete the group)
     const group = await db.query('SELECT owner_id, members_count, max_members FROM groups WHERE id = $1', [id]);
     if (group.rows.length > 0 && group.rows[0].owner_id === req.userId) {
-      return res.status(400).json({ error: 'Owner cannot leave. Transfer ownership or delete the group.' });
+      return res.status(400).json({ error: 'Als Ersteller kannst du die Gruppe nicht verlassen – lösche sie stattdessen.' });
     }
 
     const result = await db.query(
@@ -508,7 +508,7 @@ export const handleJoinRequest = async (req, res) => {
       );
       res.json({ message: 'Request rejected', status: 'rejected' });
     } else {
-      res.status(400).json({ error: 'Invalid action. Use "accept" or "reject".' });
+      res.status(400).json({ error: 'Ungültige Aktion' });
     }
   } catch (err) {
     console.error('Error handling join request:', err);
@@ -530,7 +530,7 @@ export const kickMember = async (req, res) => {
 
     // Cannot kick yourself (owner)
     if (parseInt(userId, 10) === req.userId) {
-      return res.status(400).json({ error: 'Cannot remove yourself. Delete the group instead.' });
+      return res.status(400).json({ error: 'Du kannst dich nicht selbst entfernen – lösche die Gruppe stattdessen.' });
     }
 
     const result = await db.query(
@@ -539,7 +539,7 @@ export const kickMember = async (req, res) => {
     );
 
     if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'User is not a member of this group' });
+      return res.status(404).json({ error: 'Nutzer ist kein Mitglied dieser Gruppe' });
     }
 
     res.json({ message: 'Member removed successfully' });

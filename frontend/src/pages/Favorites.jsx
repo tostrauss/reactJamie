@@ -86,7 +86,7 @@ export const Favorites = () => {
       {/* ── Sticky header ───────────────────────────────────────────── */}
       <div className="home-sticky-header">
         <header className="home-header">
-          <h1 className="page-title">Deine Favoriten</h1>
+          <h1 className="logo-text">jamie</h1>
         </header>
 
         <div className="tabs-container">

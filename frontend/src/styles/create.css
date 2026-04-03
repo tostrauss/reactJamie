@@ -381,33 +381,113 @@
 }
 
 /* Time select (24h German) */
-.time-select-row {
+/* ── Date select row ── */
+.date-select-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
-.time-select {
-  width: auto;
+.date-select-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
   flex: 1;
-  padding: 14px 10px;
+}
+
+.date-select-col--month {
+  flex: 1.6;
+}
+
+.date-select {
+  width: 100%;
+  padding: 13px 8px;
   text-align: center;
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
 }
 
-.time-sep {
+.date-select-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Time picker box ── */
+.time-picker-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1.5px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  padding: 16px 20px;
+}
+
+.time-picker-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.time-picker-select {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-white);
+  font-size: 28px;
+  font-weight: 700;
+  font-family: inherit;
+  text-align: center;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  padding: 0;
+  line-height: 1.2;
+}
+
+.time-picker-select option {
+  background: var(--bg-secondary, #1e1e3a);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.time-picker-col--wide {
+  flex: 1.8;
+}
+
+.time-picker-select--year {
   font-size: 20px;
+}
+
+.time-picker-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.time-picker-colon {
+  font-size: 28px;
   font-weight: 700;
   color: var(--text-muted);
   flex-shrink: 0;
+  padding-bottom: 16px;
 }
 
-.time-unit {
+.time-picker-uhr {
   font-size: 14px;
+  font-weight: 600;
   color: var(--text-muted);
   flex-shrink: 0;
+  padding-bottom: 16px;
   white-space: nowrap;
 }
 

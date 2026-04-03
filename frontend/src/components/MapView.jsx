@@ -6,36 +6,37 @@ import { CATEGORY_HIERARCHY } from '../utils/categories';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-// All markers are pure CSS DivIcons — no external CDN images needed.
-// This works in Capacitor WebView, TWA, and browsers alike.
+// Build a flat lookup: sub-category name → emoji
+const CATEGORY_EMOJI = {};
+for (const cat of CATEGORY_HIERARCHY) {
+  for (const sub of cat.subs) {
+    CATEGORY_EMOJI[sub.name.toLowerCase()] = sub.icon;
+  }
+  CATEGORY_EMOJI[cat.label.toLowerCase()] = cat.icon;
+  CATEGORY_EMOJI[cat.id] = cat.icon;
+}
 
-const clubIcon = new L.DivIcon({
-  html: `<div style="
-    width:28px;height:28px;border-radius:50% 50% 50% 0;
-    background:linear-gradient(135deg,#8b5cf6,#6d28d9);
-    transform:rotate(-45deg);
-    border:2px solid rgba(255,255,255,0.7);
-    box-shadow:0 2px 8px rgba(109,40,217,0.5);
-  "></div>`,
-  iconSize: [28, 28],
-  iconAnchor: [14, 28],
-  popupAnchor: [0, -30],
-  className: '',
-});
+function getEmojiForCategory(category) {
+  if (!category) return '✨';
+  return CATEGORY_EMOJI[category.toLowerCase()] ?? '✨';
+}
 
-const coralIcon = new L.DivIcon({
-  html: `<div style="
-    width:28px;height:28px;border-radius:50% 50% 50% 0;
-    background:linear-gradient(135deg,#FD7666,#e05a4b);
-    transform:rotate(-45deg);
-    border:2px solid rgba(255,255,255,0.7);
-    box-shadow:0 2px 8px rgba(253,118,102,0.5);
-  "></div>`,
-  iconSize: [28, 28],
-  iconAnchor: [14, 28],
-  popupAnchor: [0, -30],
-  className: '',
-});
+function makeEmojiIcon(emoji) {
+  return new L.DivIcon({
+    html: `<div style="
+      width:44px;height:44px;border-radius:50%;
+      background:#fff;
+      display:flex;align-items:center;justify-content:center;
+      font-size:22px;line-height:1;
+      box-shadow:0 2px 12px rgba(0,0,0,0.25);
+      border:2px solid rgba(255,255,255,0.9);
+    ">${emoji}</div>`,
+    iconSize: [44, 44],
+    iconAnchor: [22, 22],
+    popupAnchor: [0, -26],
+    className: '',
+  });
+}
 
 function LocateControl() {
   const map = useMap();
@@ -120,7 +121,7 @@ export default function MapView({ typeFilter }) {
           <Marker
             key={pin.id}
             position={[pin.lat, pin.lng]}
-            icon={pin.type === 'club' ? clubIcon : coralIcon}
+            icon={makeEmojiIcon(getEmojiForCategory(pin.category))}
           >
             <Popup className="map-popup-wrapper">
               <div className="map-popup" onClick={() => navigate(`/group/${pin.id}`)}>
@@ -151,15 +152,20 @@ export default function MapView({ typeFilter }) {
       </MapContainer>
 
       <button
-        className="map-locate-btn"
+        className={`map-locate-btn${selectedCategory ? ' has-filter' : ''}`}
         onClick={() => setLocating(v => !v)}
         title="Meinen Standort anzeigen"
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
-          <circle cx="12" cy="12" r="8" strokeOpacity="0.3"/>
-        </svg>
+        {selectedCategory
+          ? <span className="map-locate-emoji">
+              {CATEGORY_HIERARCHY.find(c => c.id === selectedCategory)?.icon}
+            </span>
+          : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+              <circle cx="12" cy="12" r="8" strokeOpacity="0.3"/>
+            </svg>
+        }
       </button>
 
       {!loading && pins.length === 0 && (

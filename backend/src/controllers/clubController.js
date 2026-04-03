@@ -341,7 +341,7 @@ export const leaveClub = async (req, res) => {
     );
     if (club.rows.length > 0 && club.rows[0].owner_id === req.userId) {
       return res.status(400).json({
-        error: 'Owner cannot leave. Transfer ownership or delete the club.'
+        error: 'Als Ersteller kannst du den Club nicht verlassen – lösche ihn stattdessen.'
       });
     }
 

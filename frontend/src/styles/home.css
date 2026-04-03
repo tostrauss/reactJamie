@@ -1593,6 +1593,15 @@ input:checked + .slider:before {
   touch-action: manipulation;
 }
 .map-locate-btn:active { transform: scale(0.92); }
+.map-locate-btn.has-filter {
+  background: var(--accent-coral);
+  border-color: var(--accent-coral);
+  box-shadow: 0 4px 16px rgba(253,118,102,0.5);
+}
+.map-locate-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
 
 /* Empty state overlay */
 .map-empty {

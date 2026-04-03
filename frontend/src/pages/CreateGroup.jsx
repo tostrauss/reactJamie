@@ -47,7 +47,12 @@ export const CreateGroup = () => {
     activity: '',
     description: '',
     date: '',
+    dateDay: '',
+    dateMonth: '',
+    dateYear: '',
     time: '',
+    timeHour: '',
+    timeMinute: '00',
     location: '',
     maxMembers: 4,
     level: 'Alle Levels',
@@ -55,6 +60,29 @@ export const CreateGroup = () => {
     image: null,
     imagePreview: null
   });
+
+  const DE_MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+
+  const handleDateChange = (field, value) => {
+    setFormData(prev => {
+      const next = { ...prev, [field]: value };
+      const d = field === 'dateDay'   ? value : next.dateDay;
+      const m = field === 'dateMonth' ? value : next.dateMonth;
+      const y = field === 'dateYear'  ? value : next.dateYear;
+      const date = d && m && y ? `${y}-${m}-${d}` : '';
+      return { ...next, date };
+    });
+  };
+
+  const handleTimeChange = (field, value) => {
+    setFormData(prev => {
+      const next = { ...prev, [field]: value };
+      const h = next.timeHour;
+      const mi = next.timeMinute;
+      const time = h ? `${h}:${mi}` : '';
+      return { ...next, time };
+    });
+  };
 
   useEffect(() => {
     return () => { if (imageBlobRef.current) URL.revokeObjectURL(imageBlobRef.current); };
@@ -309,54 +337,89 @@ export const CreateGroup = () => {
       {/* Step 2 */}
       {step === 2 && (
         <div className="create-content">
-          <div className="form-row">
-            <div className="form-section">
-              <label className="form-label">
-                <span className="form-label-icon">📅</span> Datum
-              </label>
-              <input
-                type="date"
-                name="date"
-                value={formData.date}
-                onChange={handleInputChange}
-                className="input"
-                min={new Date().toISOString().split('T')[0]}
-              />
-            </div>
-            <div className="form-section">
-              <label className="form-label">
-                <span className="form-label-icon">🕐</span> Uhrzeit
-              </label>
-              <div className="time-select-row">
+          {/* Date */}
+          <div className="form-section">
+            <label className="form-label">
+              <span className="form-label-icon">📅</span> Datum
+            </label>
+            <div className="time-picker-box">
+              <div className="time-picker-col">
                 <select
-                  className="input time-select"
-                  value={formData.time ? formData.time.split(':')[0] : ''}
-                  onChange={(e) => {
-                    const h = e.target.value;
-                    const m = formData.time ? formData.time.split(':')[1] : '00';
-                    setFormData(prev => ({ ...prev, time: h ? `${h}:${m}` : '' }));
-                  }}
+                  className="time-picker-select"
+                  value={formData.dateDay}
+                  onChange={e => handleDateChange('dateDay', e.target.value)}
                 >
-                  <option value="">Std.</option>
+                  <option value="">--</option>
+                  {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+                <span className="time-picker-label">Tag</span>
+              </div>
+              <span className="time-picker-colon">.</span>
+              <div className="time-picker-col time-picker-col--wide">
+                <select
+                  className="time-picker-select"
+                  value={formData.dateMonth}
+                  onChange={e => handleDateChange('dateMonth', e.target.value)}
+                >
+                  <option value="">--</option>
+                  {DE_MONTHS.map((m, i) => (
+                    <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>
+                  ))}
+                </select>
+                <span className="time-picker-label">Monat</span>
+              </div>
+              <span className="time-picker-colon">.</span>
+              <div className="time-picker-col">
+                <select
+                  className="time-picker-select time-picker-select--year"
+                  value={formData.dateYear}
+                  onChange={e => handleDateChange('dateYear', e.target.value)}
+                >
+                  <option value="">----</option>
+                  {Array.from({ length: 3 }, (_, i) => new Date().getFullYear() + i).map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+                <span className="time-picker-label">Jahr</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Time */}
+          <div className="form-section">
+            <label className="form-label">
+              <span className="form-label-icon">🕐</span> Uhrzeit
+            </label>
+            <div className="time-picker-box">
+              <div className="time-picker-col">
+                <select
+                  className="time-picker-select"
+                  value={formData.timeHour}
+                  onChange={e => handleTimeChange('timeHour', e.target.value)}
+                >
+                  <option value="">--</option>
                   {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => (
                     <option key={h} value={h}>{h}</option>
                   ))}
                 </select>
-                <span className="time-sep">:</span>
+                <span className="time-picker-label">Stunden</span>
+              </div>
+              <span className="time-picker-colon">:</span>
+              <div className="time-picker-col">
                 <select
-                  className="input time-select"
-                  value={formData.time ? formData.time.split(':')[1] : '00'}
-                  onChange={(e) => {
-                    const h = formData.time ? formData.time.split(':')[0] : '';
-                    if (h) setFormData(prev => ({ ...prev, time: `${h}:${e.target.value}` }));
-                  }}
+                  className="time-picker-select"
+                  value={formData.timeMinute}
+                  onChange={e => handleTimeChange('timeMinute', e.target.value)}
                 >
-                  {['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map(m => (
+                  {['00','05','10','15','20','25','30','35','40','45','50','55'].map(m => (
                     <option key={m} value={m}>{m}</option>
                   ))}
                 </select>
-                <span className="time-unit">Uhr</span>
+                <span className="time-picker-label">Minuten</span>
               </div>
+              <span className="time-picker-uhr">Uhr</span>
             </div>
           </div>
 

@@ -388,8 +388,8 @@ input:focus, textarea:focus, select:focus {
 /* Plus Button - Hauptaktion */
 .nav-add-button {
   position: relative;
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   background: linear-gradient(135deg, var(--accent-coral), var(--accent-coral-dark));
   border: none;
   border-radius: 50%;
@@ -399,7 +399,7 @@ input:focus, textarea:focus, select:focus {
   justify-content: center;
   box-shadow: 0 4px 20px rgba(253, 118, 102, 0.4);
   transition: all var(--transition-normal);
-  margin-top: -28px;
+  margin-top: -16px;
 }
 
 .nav-add-button:hover {

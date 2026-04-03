@@ -114,6 +114,18 @@ export const GroupDetail = () => {
 
   const isClub = group.type === 'club';
   const isOwner = user && group.owner_id === user.id;
+
+  const handleDelete = async () => {
+    const label = isClub ? 'Club' : 'Gruppe';
+    if (!window.confirm(`${label} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) return;
+    try {
+      isClub ? await clubs.delete(id) : await groups.delete(id);
+      toast.success(`${label} wurde gelöscht.`);
+      navigate('/home');
+    } catch (error) {
+      toast.error(error.response?.data?.error || `${label} konnte nicht gelöscht werden.`);
+    }
+  };
   const formattedDate = formatGroupDate(group.date);
   const formattedTime = formatGroupTime(group.date);
 
@@ -209,7 +221,12 @@ export const GroupDetail = () => {
                 </svg>
                 Chat öffnen
               </button>
-              <button className="gd-btn-leave" onClick={handleJoinToggle}>Verlassen</button>
+              {isOwner
+                ? <button className="gd-btn-leave" onClick={handleDelete}>
+                    {isClub ? 'Club löschen' : 'Gruppe löschen'}
+                  </button>
+                : <button className="gd-btn-leave" onClick={handleJoinToggle}>Verlassen</button>
+              }
             </>
           ) : (
             <button className="gd-btn-join" onClick={handleJoinToggle}>
@@ -245,7 +262,7 @@ export const GroupDetail = () => {
                   <div className="gd-member-location">{member.location || 'Kein Standort'}</div>
                 </div>
                 {member.id === group.owner_id && (
-                  <span className="gd-member-role">Owner</span>
+                  <span className="gd-member-role">Ersteller</span>
                 )}
               </div>
             ))

@@ -11,7 +11,11 @@ export const getPendingReviews = async (req, res) => {
   try {
     const result = await db.query(
       `SELECT
-         g.id, g.name, g.type, g.date, g.image_url,
+         g.id        AS group_id,
+         g.name      AS group_name,
+         g.type,
+         g.date      AS event_date,
+         g.image_url,
          COALESCE(
            json_agg(
              json_build_object('id', u.id, 'name', u.name, 'avatar_url', u.avatar_url)
@@ -51,25 +55,26 @@ export const submitReview = async (req, res) => {
     return res.status(400).json({ error: 'group_id and attendances[] required' });
   }
 
-  // Verify reviewer was a member
-  const memberCheck = await db.query(
-    'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
-    [group_id, req.userId]
-  );
-  if (!memberCheck.rows.length) {
-    return res.status(403).json({ error: 'Nur Mitglieder können bewerten' });
-  }
-
-  // Prevent duplicate submission
-  const dupCheck = await db.query(
-    'SELECT 1 FROM event_reviews WHERE group_id = $1 AND reviewer_id = $2 LIMIT 1',
-    [group_id, req.userId]
-  );
-  if (dupCheck.rows.length) {
-    return res.status(409).json({ error: 'Bereits bewertet' });
-  }
-
   try {
+    // Verify reviewer was a member
+    const memberCheck = await db.query(
+      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [group_id, req.userId]
+    );
+    if (!memberCheck.rows.length) {
+      return res.status(403).json({ error: 'Nur Mitglieder können bewerten' });
+    }
+
+    // Prevent duplicate submission
+    const dupCheck = await db.query(
+      'SELECT 1 FROM event_reviews WHERE group_id = $1 AND reviewer_id = $2 LIMIT 1',
+      [group_id, req.userId]
+    );
+    if (dupCheck.rows.length) {
+      return res.status(409).json({ error: 'Bereits bewertet' });
+    }
+
+
     await db.query('BEGIN');
 
     for (const { user_id, was_present } of attendances) {

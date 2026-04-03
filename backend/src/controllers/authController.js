@@ -43,7 +43,7 @@ export const register = async (req, res) => {
       [email]
     );
     if (userExists.rows.length > 0) {
-      return res.status(400).json({ error: 'User already exists' });
+      return res.status(400).json({ error: 'Diese E-Mail-Adresse ist bereits registriert' });
     }
 
     // Hash password
@@ -126,7 +126,7 @@ export const login = async (req, res) => {
       [email]
     );
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
     }
 
     const user = result.rows[0];
@@ -148,7 +148,7 @@ export const login = async (req, res) => {
         'UPDATE users SET login_attempts = $1, locked_until = $2 WHERE id = $3',
         [attempts, lockUntil, user.id]
       );
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
     }
 
     // Reset lockout on successful login
@@ -298,21 +298,21 @@ export const changePassword = async (req, res) => {
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'Current and new password required' });
+      return res.status(400).json({ error: 'Altes und neues Passwort erforderlich' });
     }
 
     if (newPassword.length < 6) {
-      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+      return res.status(400).json({ error: 'Neues Passwort muss mindestens 6 Zeichen haben' });
     }
 
     const result = await db.query('SELECT password FROM users WHERE id = $1', [req.userId]);
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: 'Nutzer nicht gefunden' });
     }
 
     const valid = await bcrypt.compare(currentPassword, result.rows[0].password);
     if (!valid) {
-      return res.status(401).json({ error: 'Current password is incorrect' });
+      return res.status(401).json({ error: 'Aktuelles Passwort ist falsch' });
     }
 
     const hashed = await bcrypt.hash(newPassword, 10);

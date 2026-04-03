@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { groups } from '../utils/api';
 import { useToast } from '../context/ToastContext';
@@ -18,21 +18,29 @@ export const GroupRequests = () => {
   const cardRef = useRef(null);
 
   useEffect(() => {
+    let cancelled = false;
+    const loadRequests = async () => {
+      setLoading(true);
+      try {
+        const res = await groups.getRequests(id);
+        if (!cancelled) setRequests(res.data || []);
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to load requests:', err);
+          const status = err.response?.status;
+          if (status === 403) {
+            toast.error('Keine Berechtigung – du bist nicht der Ersteller dieser Gruppe');
+          } else {
+            toast.error('Anfragen konnten nicht geladen werden');
+          }
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
     loadRequests();
+    return () => { cancelled = true; };
   }, [id]);
-
-  const loadRequests = async () => {
-    setLoading(true);
-    try {
-      const res = await groups.getRequests(id);
-      setRequests(res.data || []);
-    } catch (err) {
-      console.error('Failed to load requests:', err);
-      toast.error('Anfragen konnten nicht geladen werden');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleTouchStart = (e) => {
     setStartX(e.touches[0].clientX);

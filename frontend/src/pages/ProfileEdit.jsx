@@ -80,6 +80,20 @@ export const ProfileEdit = () => {
     }).catch(() => {});
   }, []);
 
+  const DE_MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+
+  const dobParts = formData.date_of_birth ? formData.date_of_birth.split('-') : ['','',''];
+  const dobYear  = dobParts[0] || '';
+  const dobMonth = dobParts[1] || '';
+  const dobDay   = dobParts[2] || '';
+
+  const handleDobChange = (field, value) => {
+    const y = field === 'y' ? value : dobYear;
+    const m = field === 'm' ? value : dobMonth;
+    const d = field === 'd' ? value : dobDay;
+    handleChange('date_of_birth', y && m && d ? `${y}-${m}-${d}` : '');
+  };
+
   const handleSpotifyConnect = async () => {
     setSpotifyLoading(true);
     try {
@@ -281,12 +295,26 @@ export const ProfileEdit = () => {
                 </svg>
                 <span>Geburtsdatum</span>
               </div>
-              <input
-                type="date"
-                value={formData.date_of_birth}
-                onChange={(e) => handleChange('date_of_birth', e.target.value)}
-                className="settings-input"
-              />
+              <div className="dob-select-row">
+                <select className="settings-input dob-select" value={dobDay} onChange={e => handleDobChange('d', e.target.value)}>
+                  <option value="">Tag</option>
+                  {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+                <select className="settings-input dob-select dob-select--month" value={dobMonth} onChange={e => handleDobChange('m', e.target.value)}>
+                  <option value="">Monat</option>
+                  {DE_MONTHS.map((mo, i) => (
+                    <option key={mo} value={String(i + 1).padStart(2, '0')}>{mo}</option>
+                  ))}
+                </select>
+                <select className="settings-input dob-select" value={dobYear} onChange={e => handleDobChange('y', e.target.value)}>
+                  <option value="">Jahr</option>
+                  {Array.from({ length: 80 }, (_, i) => new Date().getFullYear() - 10 - i).map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="pe-field pe-field-half">
