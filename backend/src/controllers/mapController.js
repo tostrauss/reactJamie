@@ -7,7 +7,7 @@ import db from '../config/database.js';
  */
 export const getMapPins = async (req, res) => {
   try {
-    const { type, category } = req.query;
+    const { type, categories } = req.query;
 
     let query = `
       SELECT g.id, g.name, g.type, g.category, g.location,
@@ -27,9 +27,12 @@ export const getMapPins = async (req, res) => {
       query += ` AND g.type = $${paramIndex++}`;
       params.push(type);
     }
-    if (category) {
-      query += ` AND g.category ILIKE $${paramIndex++}`;
-      params.push(category);
+    if (categories) {
+      const list = categories.split(',').map(c => c.trim()).filter(Boolean);
+      if (list.length > 0) {
+        query += ` AND g.category ILIKE ANY($${paramIndex++}::text[])`;
+        params.push(list);
+      }
     }
 
     query += ` ORDER BY g.created_at DESC LIMIT 500`;

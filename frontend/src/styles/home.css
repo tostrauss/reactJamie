@@ -205,7 +205,7 @@
 .category-pill {
   flex-shrink: 0;
   padding: 10px 20px;
-  min-height: 40px;
+  min-height: 44px;
   font-size: 14px;
   font-weight: 500;
   font-family: inherit;
@@ -453,8 +453,8 @@
 }
 
 .fav-btn-small {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -482,7 +482,7 @@
 
 .action-btn {
   flex: 1;
-  height: 40px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -691,6 +691,7 @@
   padding-bottom: 8px;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
 }
 
 .my-clubs-scroll::-webkit-scrollbar {
@@ -1218,8 +1219,8 @@
 }
 
 .profile-action-btn {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.5);
   border: none;
@@ -1500,6 +1501,50 @@ input:checked + .slider:before {
 /* ========================================
    MAP TAB
    ======================================== */
+
+/* Category filter strip floating over map */
+.map-category-strip {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  display: flex;
+  gap: 8px;
+  padding: 0 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.map-category-strip::-webkit-scrollbar { display: none; }
+
+.map-cat-pill {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  background: var(--bg-card);
+  border: 1.5px solid rgba(255,255,255,0.12);
+  border-radius: 30px;
+  color: var(--text-light);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: all 0.18s;
+}
+.map-cat-pill:active { transform: scale(0.95); }
+.map-cat-pill.active {
+  background: var(--accent-coral);
+  border-color: var(--accent-coral);
+  color: #fff;
+  box-shadow: 0 3px 14px rgba(253,118,102,0.45);
+}
 
 /* Map fills the scrollable content area completely */
 .map-container {

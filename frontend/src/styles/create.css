@@ -277,7 +277,7 @@
 
 .activity-chip {
   padding: 9px 16px;
-  min-height: 40px;
+  min-height: 44px;
   background: var(--bg-card);
   border: 1.5px solid rgba(255,255,255,0.08);
   border-radius: 30px;
@@ -472,7 +472,7 @@
 
 .level-chip {
   padding: 9px 18px;
-  min-height: 40px;
+  min-height: 44px;
   background: var(--bg-card);
   border: 1.5px solid rgba(255,255,255,0.08);
   border-radius: 30px;

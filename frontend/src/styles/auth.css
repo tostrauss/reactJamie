@@ -768,6 +768,7 @@
 .auth-screen--scroll {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 /* Compact top: logo sits higher, less bottom padding */

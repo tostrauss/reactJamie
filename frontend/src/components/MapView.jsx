@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { useNavigate } from 'react-router-dom';
 import { map as mapApi } from '../utils/api';
+import { CATEGORY_HIERARCHY } from '../utils/categories';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
@@ -49,6 +50,7 @@ export default function MapView({ typeFilter }) {
   const [pins, setPins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [locating, setLocating] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +59,10 @@ export default function MapView({ typeFilter }) {
       try {
         const params = {};
         if (typeFilter && typeFilter !== 'all') params.type = typeFilter;
+        if (selectedCategory) {
+          const cat = CATEGORY_HIERARCHY.find(c => c.id === selectedCategory);
+          if (cat) params.categories = cat.subs.map(s => s.name).join(',');
+        }
         const res = await mapApi.getPins(params);
         if (!cancelled) setPins(res.data || []);
       } catch {
@@ -67,12 +73,31 @@ export default function MapView({ typeFilter }) {
     };
     load();
     return () => { cancelled = true; };
-  }, [typeFilter]);
+  }, [typeFilter, selectedCategory]);
 
   const center = [48.2082, 16.3738]; // Wien
 
   return (
     <div className="map-container">
+      {/* Category filter strip */}
+      <div className="map-category-strip">
+        <button
+          className={`map-cat-pill${!selectedCategory ? ' active' : ''}`}
+          onClick={() => setSelectedCategory(null)}
+        >
+          Alle
+        </button>
+        {CATEGORY_HIERARCHY.map(cat => (
+          <button
+            key={cat.id}
+            className={`map-cat-pill${selectedCategory === cat.id ? ' active' : ''}`}
+            onClick={() => setSelectedCategory(prev => prev === cat.id ? null : cat.id)}
+          >
+            {cat.icon} {cat.label}
+          </button>
+        ))}
+      </div>
+
       {loading && (
         <div className="map-loading">
           <div className="home-spinner" />

@@ -91,6 +91,9 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
   /* Prevent elastic/bounce scroll + pull-to-refresh in Android TWA/PWA */
   overscroll-behavior: none;
+  /* Prevent text-size adjustment on orientation change (Android/iOS) */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 /* Hide scrollbars everywhere — keeps the app feeling native on Android */

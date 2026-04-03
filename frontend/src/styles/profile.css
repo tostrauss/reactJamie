@@ -733,7 +733,7 @@
   align-items: center;
   gap: 6px;
   padding: 10px 14px;
-  min-height: 40px;
+  min-height: 44px;
   background: var(--bg-input);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: var(--radius-full);
@@ -1649,8 +1649,8 @@
 }
 
 .friend-action-btn {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1684,8 +1684,8 @@
 }
 
 .friend-request-btn {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: var(--radius-md);
   font-size: 18px;
@@ -1864,6 +1864,8 @@
 .song-picker-results {
   max-height: 300px;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 .song-picker-loading,

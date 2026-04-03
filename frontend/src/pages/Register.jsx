@@ -90,9 +90,15 @@ export const Register = () => {
     setOtpError('');
     setOtpLoading(true);
     try {
-      await auth.sendEmailCode(email, name);
-      setStep(3);
-      setOtpResendTimer(OTP_RESEND_SECONDS);
+      const res = await auth.sendEmailCode(email, name);
+      if (res.data?.devCode) {
+        // Dev mode: auto-verify and skip the OTP step
+        await auth.verifyEmailCode(email, res.data.devCode);
+        setStep(4);
+      } else {
+        setStep(3);
+        setOtpResendTimer(OTP_RESEND_SECONDS);
+      }
     } catch (err) {
       setOtpError(err.response?.data?.error || 'Code konnte nicht gesendet werden');
     } finally {

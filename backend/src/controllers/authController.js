@@ -522,7 +522,8 @@ export const sendEmailCode = async (req, res) => {
       }
     }
 
-    res.json({ message: 'Code gesendet' });
+    const isDev = process.env.NODE_ENV !== 'production';
+    res.json({ message: 'Code gesendet', ...(isDev && { devCode: code }) });
   } catch (error) {
     console.error('sendEmailCode error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -536,6 +537,11 @@ export const verifyEmailCode = async (req, res) => {
   try {
     const { email, code } = req.body;
     if (!email || !code) return res.status(400).json({ error: 'E-Mail und Code erforderlich' });
+
+    // In development: skip DB check so demos work without Resend
+    if (process.env.NODE_ENV !== 'production') {
+      return res.json({ verified: true });
+    }
 
     const result = await db.query(
       'SELECT * FROM email_verification_codes WHERE email = $1 AND code = $2 AND used = FALSE AND expires_at > NOW()',
