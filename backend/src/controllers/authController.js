@@ -513,17 +513,11 @@ export const sendEmailCode = async (req, res) => {
     try {
       await sendOTPEmail(email, code, name || '');
     } catch (emailErr) {
-      if (process.env.NODE_ENV !== 'production') {
-        // In development: log the code so you can test without a verified Resend domain
-        console.warn(`[DEV] OTP email failed — use this code for ${email}: ${code}`);
-      } else {
-        console.error('Failed to send OTP email:', emailErr);
-        return res.status(500).json({ error: 'E-Mail konnte nicht gesendet werden' });
-      }
+      console.error('Failed to send OTP email:', emailErr);
+      return res.status(500).json({ error: 'E-Mail konnte nicht gesendet werden' });
     }
 
-    const isDev = process.env.NODE_ENV !== 'production';
-    res.json({ message: 'Code gesendet', ...(isDev && { devCode: code }) });
+    res.json({ message: 'Code gesendet' });
   } catch (error) {
     console.error('sendEmailCode error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -537,11 +531,6 @@ export const verifyEmailCode = async (req, res) => {
   try {
     const { email, code } = req.body;
     if (!email || !code) return res.status(400).json({ error: 'E-Mail und Code erforderlich' });
-
-    // In development: skip DB check so demos work without Resend
-    if (process.env.NODE_ENV !== 'production') {
-      return res.json({ verified: true });
-    }
 
     const result = await db.query(
       'SELECT * FROM email_verification_codes WHERE email = $1 AND code = $2 AND used = FALSE AND expires_at > NOW()',

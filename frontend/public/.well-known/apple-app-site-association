@@ -1,0 +1,17 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["REPLACE_TEAM_ID.jamie.app"],
+        "components": [
+          { "/": "/reset-password*" },
+          { "/": "/verify-email*" }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["REPLACE_TEAM_ID.jamie.app"]
+  }
+}

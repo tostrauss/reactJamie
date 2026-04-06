@@ -1,7 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import { admin } from '../utils/api';
 
+// sessionStorage: cleared when tab closes, never persisted to disk like localStorage
 const STORAGE_KEY = 'jamie_admin_secret';
+const adminStore = sessionStorage;
 
 const downloadCSV = (data, filename) => {
   if (!data?.length) return;
@@ -34,7 +36,7 @@ const KPICard = ({ label, value, sub }) => (
 );
 
 export const AdminDashboard = () => {
-  const [secret, setSecret] = useState(() => localStorage.getItem(STORAGE_KEY) || '');
+  const [secret, setSecret] = useState(() => adminStore.getItem(STORAGE_KEY) || '');
   const [authed, setAuthed] = useState(false);
   const [stats, setStats] = useState(null);
   const [screens, setScreens] = useState([]);
@@ -56,11 +58,11 @@ export const AdminDashboard = () => {
       setScreens(screensRes.data || []);
       setRecentUsers(usersRes.data || []);
       setAuthed(true);
-      localStorage.setItem(STORAGE_KEY, s);
+      adminStore.setItem(STORAGE_KEY, s);
     } catch (err) {
       if (err.response?.status === 403) {
         setError('Falsches Admin-Passwort');
-        localStorage.removeItem(STORAGE_KEY);
+        adminStore.removeItem(STORAGE_KEY);
       } else {
         setError('Fehler beim Laden');
       }
@@ -144,7 +146,7 @@ export const AdminDashboard = () => {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
           <h1 style={{ color: '#FD7666', fontSize: 24, fontWeight: 800 }}>JAMIE Analytics</h1>
           <button
-            onClick={() => { setAuthed(false); localStorage.removeItem(STORAGE_KEY); }}
+            onClick={() => { setAuthed(false); adminStore.removeItem(STORAGE_KEY); }}
             style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 13 }}
           >
             Ausloggen

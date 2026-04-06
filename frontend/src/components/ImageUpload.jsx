@@ -6,19 +6,34 @@ export const ImageUpload = ({ onUpload, label = "Bild hochladen" }) => {
   const [uploading, setUploading] = useState(false);
   const toast = useToast();
 
+  const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  const MAX_SIZE_MB = 5;
+
   const handleFile = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      toast.error('Nur JPEG, PNG, WebP oder GIF erlaubt');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      toast.error(`Bild darf maximal ${MAX_SIZE_MB} MB groß sein`);
+      e.target.value = '';
+      return;
+    }
 
     setUploading(true);
     try {
       const res = await upload.image(file);
       onUpload(res.data.url);
     } catch (err) {
-      console.error('Upload failed:', err);
-      toast.error('Upload fehlgeschlagen');
+      toast.error(err?.response?.data?.error || 'Upload fehlgeschlagen');
     } finally {
       setUploading(false);
+      e.target.value = '';
     }
   };
 

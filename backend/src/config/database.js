@@ -6,6 +6,11 @@ dotenv.config();
 const { Pool } = pg;
 
 // Support both Railway-style DATABASE_URL and individual env vars
+if (!process.env.DATABASE_URL && process.env.NODE_ENV === 'production' && !process.env.DB_PASSWORD) {
+  console.error('FATAL: DB_PASSWORD or DATABASE_URL must be set in production');
+  process.exit(1);
+}
+
 const poolConfig = process.env.DATABASE_URL
   ? {
       connectionString: process.env.DATABASE_URL,
@@ -13,7 +18,7 @@ const poolConfig = process.env.DATABASE_URL
     }
   : {
       user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || 'password',
+      password: process.env.DB_PASSWORD || 'postgres',
       host: process.env.DB_HOST || 'localhost',
       port: process.env.DB_PORT || 5432,
       database: process.env.DB_NAME || 'jamie_db',

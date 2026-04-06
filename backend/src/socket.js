@@ -1,19 +1,45 @@
-import { Server } from 'socket.io';
+import jwt from 'jsonwebtoken';
 
 const socketHandler = (io) => {
-  io.on('connection', (socket) => {
-    console.log(`🔌 User connected: ${socket.id}`);
+  // Verify JWT on every connection attempt
+  io.use((socket, next) => {
+    const token = socket.handshake.auth?.token;
+    if (!token) {
+      return next(new Error('Authentication required'));
+    }
+    // Guest token only allowed when explicitly enabled
+    if (token === 'guest_token') {
+      if (process.env.ALLOW_GUEST_TOKEN === 'true') {
+        socket.userId = 0;
+        socket.isGuest = true;
+        return next();
+      }
+      return next(new Error('Guest access is disabled'));
+    }
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      socket.userId = decoded.id;
+      socket.isGuest = false;
+      next();
+    } catch {
+      next(new Error('Invalid or expired token'));
+    }
+  });
 
-    // Join user's personal room (for notifications)
-    socket.on('join_user', (userId) => {
-      socket.join(`user_${userId}`);
-      console.log(`User ${socket.id} joined personal room user_${userId}`);
+  io.on('connection', (socket) => {
+    // Auto-join the authenticated user's personal notification room
+    if (socket.userId) {
+      socket.join(`user_${socket.userId}`);
+    }
+
+    // join_user is kept for compatibility but enforces the authenticated userId
+    socket.on('join_user', () => {
+      if (socket.userId) socket.join(`user_${socket.userId}`);
     });
 
     // Join a specific chat room (group)
     socket.on('join_room', (groupId) => {
       socket.join(groupId);
-      console.log(`User ${socket.id} joined room ${groupId}`);
     });
 
     // Leave a room
@@ -30,38 +56,36 @@ const socketHandler = (io) => {
     // Handle typing indicator
     socket.on('typing', (data) => {
       socket.to(data.groupId).emit('user_typing', {
-        userId: data.userId,
+        userId: socket.userId,
         userName: data.userName
       });
     });
 
     socket.on('stop_typing', (data) => {
       socket.to(data.groupId).emit('user_stop_typing', {
-        userId: data.userId
+        userId: socket.userId
       });
     });
 
     // Direct Message Handlers
-    socket.on('join_dm_room', ({ userId, otherUserId }) => {
-      // Create consistent room name (sorted user IDs)
-      const roomName = `dm_${Math.min(userId, otherUserId)}_${Math.max(userId, otherUserId)}`;
+    socket.on('join_dm_room', ({ otherUserId }) => {
+      // Use authenticated userId, not client-provided one
+      const roomName = `dm_${Math.min(socket.userId, otherUserId)}_${Math.max(socket.userId, otherUserId)}`;
       socket.join(roomName);
-      console.log(`User ${socket.id} joined DM room ${roomName}`);
     });
 
-    socket.on('leave_dm_room', ({ userId, otherUserId }) => {
-      const roomName = `dm_${Math.min(userId, otherUserId)}_${Math.max(userId, otherUserId)}`;
+    socket.on('leave_dm_room', ({ otherUserId }) => {
+      const roomName = `dm_${Math.min(socket.userId, otherUserId)}_${Math.max(socket.userId, otherUserId)}`;
       socket.leave(roomName);
     });
 
     socket.on('send_dm', (data) => {
-      const { senderId, receiverId, message } = data;
+      // Always use authenticated userId as senderId — never trust client-provided value
+      const senderId = socket.userId;
+      const { receiverId, message } = data;
       const roomName = `dm_${Math.min(senderId, receiverId)}_${Math.max(senderId, receiverId)}`;
 
-      // Broadcast to DM room (both users)
-      io.to(roomName).emit('receive_dm', data);
-
-      // Also emit to receiver's personal room for notifications
+      io.to(roomName).emit('receive_dm', { ...data, senderId });
       io.to(`user_${receiverId}`).emit('new_dm_notification', {
         senderId,
         message,
@@ -69,19 +93,17 @@ const socketHandler = (io) => {
       });
     });
 
-    socket.on('dm_typing', ({ senderId, receiverId }) => {
-      const roomName = `dm_${Math.min(senderId, receiverId)}_${Math.max(senderId, receiverId)}`;
-      socket.to(roomName).emit('dm_user_typing', { userId: senderId });
+    socket.on('dm_typing', ({ receiverId }) => {
+      const roomName = `dm_${Math.min(socket.userId, receiverId)}_${Math.max(socket.userId, receiverId)}`;
+      socket.to(roomName).emit('dm_user_typing', { userId: socket.userId });
     });
 
-    socket.on('dm_stop_typing', ({ senderId, receiverId }) => {
-      const roomName = `dm_${Math.min(senderId, receiverId)}_${Math.max(senderId, receiverId)}`;
-      socket.to(roomName).emit('dm_user_stop_typing', { userId: senderId });
+    socket.on('dm_stop_typing', ({ receiverId }) => {
+      const roomName = `dm_${Math.min(socket.userId, receiverId)}_${Math.max(socket.userId, receiverId)}`;
+      socket.to(roomName).emit('dm_user_stop_typing', { userId: socket.userId });
     });
 
-    socket.on('disconnect', () => {
-      console.log('User disconnected:', socket.id);
-    });
+    socket.on('disconnect', () => {});
   });
 
   return io;

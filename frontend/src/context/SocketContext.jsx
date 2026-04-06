@@ -31,7 +31,6 @@ export const SocketProvider = ({ children }) => {
       setSocket(newSocket);
 
       newSocket.on('connect', () => {
-        console.log('Socket connected:', newSocket.id);
         setIsConnected(true);
         newSocket.emit('join_user', user.id);
         if (wasConnectedRef.current) {
@@ -41,15 +40,13 @@ export const SocketProvider = ({ children }) => {
       });
 
       newSocket.on('disconnect', (reason) => {
-        console.warn('Socket disconnected:', reason);
         setIsConnected(false);
         if (reason !== 'io client disconnect') {
           toast.warning('Verbindung unterbrochen – Wiederverbindung...');
         }
       });
 
-      newSocket.on('connect_error', (err) => {
-        console.error('Socket connection error:', err);
+      newSocket.on('connect_error', () => {
         setIsConnected(false);
       });
 

@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 
-const allowGuestToken =
-  process.env.ALLOW_GUEST_TOKEN === 'true' || process.env.NODE_ENV !== 'production';
+// Guest access only allowed when explicitly enabled via env var
+const isGuestAllowed = () => process.env.ALLOW_GUEST_TOKEN === 'true';
 
 /**
  * Required authentication middleware
@@ -21,10 +21,9 @@ export const authenticate = (req, res, next) => {
       return res.status(401).json({ error: 'No token provided' });
     }
 
-    // Skip verification for guest token (dev / demo mode only)
     if (token === 'guest_token') {
-      if (!allowGuestToken) {
-        return res.status(401).json({ error: 'Guest access is disabled in production' });
+      if (!isGuestAllowed()) {
+        return res.status(401).json({ error: 'Guest access is disabled' });
       }
       req.userId = 0;
       req.isGuest = true;
@@ -36,7 +35,6 @@ export const authenticate = (req, res, next) => {
     req.isGuest = false;
     next();
   } catch (error) {
-    console.error('Auth error:', error.message);
     res.status(401).json({ error: 'Invalid or expired token' });
   }
 };
@@ -62,13 +60,13 @@ export const optionalAuth = (req, res, next) => {
     }
 
     if (token === 'guest_token') {
-      if (!allowGuestToken) {
+      if (isGuestAllowed()) {
+        req.userId = 0;
+        req.isGuest = true;
+      } else {
         req.userId = null;
         req.isGuest = false;
-        return next();
       }
-      req.userId = 0;
-      req.isGuest = true;
       return next();
     }
 
@@ -86,7 +84,7 @@ export const optionalAuth = (req, res, next) => {
  * Generate JWT token
  */
 export const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '30d' });
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 };
 
 /**

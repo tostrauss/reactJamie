@@ -190,57 +190,9 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Digital Asset Links — required for Android TWA
-// Set env vars: ANDROID_PACKAGE, ANDROID_SHA256
-// If using Play App Signing (recommended), also set ANDROID_SHA256_PLAY
-// (Play Console → Setup → App Signing → "App signing key certificate" SHA-256)
-app.get('/.well-known/assetlinks.json', (_req, res) => {
-  const packageName = process.env.ANDROID_PACKAGE || 'jamie.app';
-
-  // Collect all configured fingerprints (your keystore + optional Play-managed key)
-  const fingerprints = [
-    process.env.ANDROID_SHA256,       // your release keystore fingerprint
-    process.env.ANDROID_SHA256_PLAY,  // Play App Signing fingerprint (if using)
-  ].filter(Boolean);
-
-  if (fingerprints.length === 0) {
-    fingerprints.push('CONFIGURE_ANDROID_SHA256_ENV_VAR');
-  }
-
-  res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.json([{
-    relation: ['delegate_permission/common.handle_all_urls'],
-    target: {
-      namespace: 'android_app',
-      package_name: packageName,
-      sha256_cert_fingerprints: fingerprints
-    }
-  }]);
-});
-
-// Apple App Site Association — enables Universal Links for iOS (deep linking, password reset emails)
-// Set env vars: APPLE_TEAM_ID, APPLE_BUNDLE_ID
-app.get('/.well-known/apple-app-site-association', (_req, res) => {
-  const teamId = process.env.APPLE_TEAM_ID || 'REPLACE_TEAM_ID';
-  const bundleId = process.env.APPLE_BUNDLE_ID || 'jamie.app';
-  res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Cache-Control', 'public, max-age=3600');
-  res.json({
-    applinks: {
-      apps: [],
-      details: [{
-        appIDs: [`${teamId}.${bundleId}`],
-        components: [
-          { '/': '/reset-password*', comment: 'Password reset deep link' },
-          { '/': '/verify-email*', comment: 'Email verification deep link' },
-        ]
-      }]
-    },
-    webcredentials: {
-      apps: [`${teamId}.${bundleId}`]
-    }
-  });
-});
+// .well-known files (assetlinks.json + apple-app-site-association) are served
+// as static files from the frontend (frontend/public/.well-known/).
+// The backend does not need to handle these routes.
 
 // ==========================================
 // SOCKET.IO
