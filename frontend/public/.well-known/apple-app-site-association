@@ -3,7 +3,7 @@
     "apps": [],
     "details": [
       {
-        "appIDs": ["REPLACE_TEAM_ID.jamie.app"],
+        "appIDs": ["YOUR_10_CHAR_TEAM_ID.jamie.app"],
         "components": [
           { "/": "/reset-password*" },
           { "/": "/verify-email*" }
@@ -12,6 +12,6 @@
     ]
   },
   "webcredentials": {
-    "apps": ["REPLACE_TEAM_ID.jamie.app"]
+    "apps": ["YOUR_10_CHAR_TEAM_ID.jamie.app"]
   }
 }

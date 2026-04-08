@@ -46,6 +46,22 @@ function LocateControl() {
   return null;
 }
 
+// After pins load, zoom to fit all of them (max zoom 13 so we don't over-zoom 2 nearby pins).
+// If only 1 pin, just fly to it. If no pins, keep the Austria default.
+function FitBoundsControl({ pins }) {
+  const map = useMap();
+  useEffect(() => {
+    if (pins.length === 0) return;
+    if (pins.length === 1) {
+      map.flyTo([pins[0].lat, pins[0].lng], 13, { animate: true, duration: 1 });
+      return;
+    }
+    const bounds = L.latLngBounds(pins.map(p => [p.lat, p.lng]));
+    map.flyToBounds(bounds.pad(0.35), { maxZoom: 13, animate: true, duration: 1 });
+  }, [pins, map]);
+  return null;
+}
+
 export default function MapView({ typeFilter }) {
   const navigate = useNavigate();
   const [pins, setPins] = useState([]);
@@ -116,6 +132,7 @@ export default function MapView({ typeFilter }) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {locating && <LocateControl />}
+        <FitBoundsControl pins={pins} />
 
         {pins.map(pin => (
           <Marker
@@ -169,9 +186,16 @@ export default function MapView({ typeFilter }) {
       </button>
 
       {!loading && pins.length === 0 && (
-        <div className="map-empty">
-          <div className="map-empty-icon">🗺️</div>
-          <p>Noch keine Gruppen mit Standort in dieser Region</p>
+        <div className="map-pioneer-cta">
+          <div className="map-pioneer-icon">🏔️</div>
+          <h2 className="map-pioneer-title">Trau dich, sei der Erste!</h2>
+          <p className="map-pioneer-text">
+            In deiner Region gibt es noch keine Gruppen. Erstelle die erste
+            und erhalte einen <strong>kostenlosen 7-Tage-Boost</strong> + Pioneer-Badge!
+          </p>
+          <button className="map-pioneer-btn" onClick={() => navigate('/create-group')}>
+            Erste Gruppe erstellen ✨
+          </button>
         </div>
       )}
     </div>

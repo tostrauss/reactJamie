@@ -539,6 +539,14 @@ export const map = {
   getPins: (params) => axiosInstance.get('/map/pins', { params }),
 };
 
+// ==========================================
+// WAITLIST API (international / geofencing)
+// ==========================================
+export const waitlist = {
+  join:     (email, country) => axiosInstance.post('/waitlist', { email, country }),
+  getVotes: ()               => axiosInstance.get('/waitlist/votes'),
+};
+
 // Attach modules to instance for convenience
 axiosInstance.auth = auth;
 axiosInstance.users = users;
@@ -553,7 +561,8 @@ axiosInstance.upload = upload;
 axiosInstance.reports = reports;
 axiosInstance.boost = boost;
 axiosInstance.push = push;
-axiosInstance.map = map;
+axiosInstance.map      = map;
+axiosInstance.waitlist = waitlist;
 
 // Export the instance as 'api'
 export const api = axiosInstance;

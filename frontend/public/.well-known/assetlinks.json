@@ -5,8 +5,8 @@
       "namespace": "android_app",
       "package_name": "jamie.app",
       "sha256_cert_fingerprints": [
-        "REPLACE_WITH_YOUR_KEYSTORE_SHA256",
-        "REPLACE_WITH_PLAY_SIGNING_SHA256"
+        "PASTE_YOUR_SHA256_FROM_STEP_5.4_HERE",
+        "PASTE_PLAY_STORE_SIGNING_SHA256_HERE"
       ]
     }
   }

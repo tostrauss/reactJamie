@@ -40,7 +40,8 @@ const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const SpotifyCallback = lazy(() => import('./pages/SpotifyCallback'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
-const WelcomeIntro = lazy(() => import('./pages/WelcomeIntro'));
+const WelcomeIntro   = lazy(() => import('./pages/WelcomeIntro'));
+const OutOfRegion    = lazy(() => import('./pages/OutOfRegion'));
 
 // Styles
 import './styles/global.css';
@@ -282,6 +283,45 @@ const AuthRoute = ({ children }) => {
 };
 
 // ==========================================
+// GEOFENCING — block non-Austrian users
+// ==========================================
+const AUSTRIA = { latMin: 46.37, latMax: 49.02, lngMin: 9.53, lngMax: 17.16 };
+
+function isInAustria(lat, lng) {
+  return lat >= AUSTRIA.latMin && lat <= AUSTRIA.latMax
+      && lng >= AUSTRIA.lngMin && lng <= AUSTRIA.lngMax;
+}
+
+// Returns 'austria' | 'outside' | 'unknown'
+function useGeoFence() {
+  const [region, setRegion] = useState(() => {
+    // Re-use result within the same browser session
+    return sessionStorage.getItem('jamie_region') || 'unknown';
+  });
+
+  useEffect(() => {
+    if (region !== 'unknown') return; // already checked
+    if (!navigator.geolocation) { setRegion('unknown'); return; }
+
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const r = isInAustria(coords.latitude, coords.longitude) ? 'austria' : 'outside';
+        sessionStorage.setItem('jamie_region', r);
+        setRegion(r);
+      },
+      () => {
+        // Permission denied or error — don't block access
+        sessionStorage.setItem('jamie_region', 'unknown');
+        setRegion('unknown');
+      },
+      { timeout: 6000, maximumAge: 60000 }
+    );
+  }, [region]);
+
+  return region;
+}
+
+// ==========================================
 // NATIVE IOS PUSH REGISTRATION
 // ==========================================
 function useNativePush(user) {
@@ -338,7 +378,18 @@ function AppRoutes() {
     }
   }, [user?.id]);
 
+  const region = useGeoFence();
+
   if (showIntro) return <AppIntro onDone={() => setShowIntro(false)} />;
+
+  // Block non-Austrian users (only when we have a confirmed location)
+  if (region === 'outside') {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <OutOfRegion />
+      </Suspense>
+    );
+  }
 
   return (
     <>

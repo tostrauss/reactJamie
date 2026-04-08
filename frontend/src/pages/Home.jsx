@@ -12,7 +12,7 @@ export const Home = () => {
   const [groupList, setGroupList] = useState([]);
   const [clubList, setClubList] = useState([]);
   const [myClubs, setMyClubs] = useState([]);
-  const [activeTab, setActiveTab] = useState("gruppen");
+  const [activeTab, setActiveTab] = useState("karte");
   const [selectedMain, setSelectedMain] = useState("all");
   const [selectedSub, setSelectedSub] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");

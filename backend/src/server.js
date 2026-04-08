@@ -53,6 +53,7 @@ import reviewRoutes from './routes/reviewRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import { subscriptionWebhook } from './controllers/subscriptionController.js';
 import mapRoutes from './routes/mapRoutes.js';
+import waitlistRoutes from './routes/waitlistRoutes.js';
 import socketHandler from './socket.js';
 
 // ==========================================
@@ -184,6 +185,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/map', mapRoutes);
+app.use('/api/waitlist', waitlistRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {
@@ -311,6 +313,24 @@ const runStartupMigrations = async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION`);
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_lat_lng ON groups(lat, lng) WHERE lat IS NOT NULL AND lng IS NOT NULL`);
+
+    // Geofencing & pioneer system
+    await db.query(`CREATE TABLE IF NOT EXISTS waitlist (
+      id SERIAL PRIMARY KEY, email VARCHAR(255) NOT NULL UNIQUE,
+      country VARCHAR(10), ip VARCHAR(50),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_waitlist_country ON waitlist(country)`);
+    await db.query(`CREATE TABLE IF NOT EXISTS country_votes (
+      country VARCHAR(10) PRIMARY KEY, votes INTEGER NOT NULL DEFAULT 0)`);
+    await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_pioneer BOOLEAN NOT NULL DEFAULT FALSE`);
+    await db.query(`CREATE TABLE IF NOT EXISTS pioneer_claims (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      group_id INTEGER REFERENCES groups(id) ON DELETE SET NULL,
+      lat_cell NUMERIC(6,2) NOT NULL, lng_cell NUMERIC(6,2) NOT NULL,
+      claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(lat_cell, lng_cell))`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_pioneer_claims_cell ON pioneer_claims(lat_cell, lng_cell)`);
 
     console.log('✅ Startup migrations done');
   } catch (err) {

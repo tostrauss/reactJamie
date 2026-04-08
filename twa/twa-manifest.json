@@ -1,6 +1,6 @@
 {
   "packageId": "jamie.app",
-  "host": "REPLACE_WITH_YOUR_DOMAIN",
+  "host": "getjamie.app",
   "name": "JAMIE - Social Activity App",
   "launcherName": "JAMIE",
   "display": "standalone",
@@ -12,9 +12,9 @@
   "navigationDividerColorDark": "#1a1a2e",
   "backgroundColor": "#1a1a2e",
   "startUrl": "/",
-  "iconUrl": "https://REPLACE_WITH_YOUR_DOMAIN/pwa-512x512.png",
-  "maskableIconUrl": "https://REPLACE_WITH_YOUR_DOMAIN/maskable-icon-512x512.png",
-  "monochromeIconUrl": "https://REPLACE_WITH_YOUR_DOMAIN/pwa-512x512.png",
+  "iconUrl": "https://getjamie.app/pwa-512x512.png",
+  "maskableIconUrl": "https://getjamie.app/maskable-icon-512x512.png",
+  "monochromeIconUrl": "https://getjamie.app/pwa-512x512.png",
   "appVersionName": "1.0.0",
   "appVersionCode": 1,
   "shortcuts": [
@@ -30,15 +30,15 @@
     "keyAlias": "jamie-key"
   },
   "generatorApp": "bubblewrap-cli",
-  "webManifestUrl": "https://REPLACE_WITH_YOUR_DOMAIN/manifest.json",
+  "webManifestUrl": "https://getjamie.app/manifest.json",
   "fallbackType": "customtabs",
   "features": {
     "locationDelegation": { "enabled": false },
     "playBilling": { "enabled": false }
   },
   "alphaDependencies": false,
-  "enableNotifications": false,
+  "enableNotifications": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "fullScopeUrl": "https://REPLACE_WITH_YOUR_DOMAIN/"
+  "fullScopeUrl": "https://getjamie.app/"
 }

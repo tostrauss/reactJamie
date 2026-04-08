@@ -2,6 +2,67 @@ import db from '../config/database.js';
 import { geocodeLocation } from '../utils/geocode.js';
 
 // ==========================================
+// PIONEER HELPER
+// Checks if a newly-created group is the first in its ~50km cell.
+// If yes: awards pioneer badge + a free 7-day boost.
+// ==========================================
+async function checkAndAwardPioneer(userId, groupId, lat, lng) {
+  try {
+    const RADIUS_KM = 50;
+
+    // Count other active groups within radius (Haversine formula)
+    const nearbyRes = await db.query(
+      `SELECT COUNT(*) AS count FROM groups
+       WHERE is_active = TRUE
+         AND id != $1
+         AND lat IS NOT NULL AND lng IS NOT NULL
+         AND (
+           6371 * acos(
+             LEAST(1, cos(radians($2)) * cos(radians(lat))
+               * cos(radians(lng) - radians($3))
+               + sin(radians($2)) * sin(radians(lat))
+             )
+           )
+         ) < $4`,
+      [groupId, lat, lng, RADIUS_KM]
+    );
+
+    if (parseInt(nearbyRes.rows[0].count) > 0) return; // not pioneer territory
+
+    // Grid cell: 0.5° ≈ 40-55 km
+    const latCell = Math.floor(lat / 0.5) * 0.5;
+    const lngCell = Math.floor(lng / 0.5) * 0.5;
+
+    // Race-safe insert — ON CONFLICT means someone else was faster
+    const claim = await db.query(
+      `INSERT INTO pioneer_claims (user_id, group_id, lat_cell, lng_cell)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (lat_cell, lng_cell) DO NOTHING
+       RETURNING id`,
+      [userId, groupId, latCell, lngCell]
+    );
+
+    if (claim.rowCount === 0) return; // cell already claimed
+
+    // Award pioneer badge
+    await db.query('UPDATE users SET is_pioneer = TRUE WHERE id = $1', [userId]);
+
+    // Free 7-day boost (credits_spent = 0 = gifted)
+    const until = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await db.query(
+      `INSERT INTO boosts (user_id, target_type, target_id, credits_spent, boosted_until)
+       VALUES ($1, 'group', $2, 0, $3)`,
+      [userId, groupId, until]
+    );
+
+    console.log(`[pioneer] user ${userId} claimed cell (${latCell}, ${lngCell}) for group ${groupId}`);
+  } catch (err) {
+    // Non-critical — must not fail group creation
+    console.error('[pioneer] check error:', err.message);
+  }
+}
+
+// ==========================================
 // CREATE GROUP / CLUB
 // ==========================================
 export const createGroup = async (req, res) => {
@@ -35,6 +96,11 @@ export const createGroup = async (req, res) => {
       'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
       [newGroup.id, userId, 'owner']
     );
+
+    // Pioneer check (fire-and-forget — must not block the response)
+    if (coords?.lat && coords?.lng) {
+      checkAndAwardPioneer(userId, newGroup.id, coords.lat, coords.lng);
+    }
 
     res.status(201).json(newGroup);
   } catch (err) {
