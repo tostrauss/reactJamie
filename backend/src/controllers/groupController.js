@@ -1,5 +1,6 @@
 import db from '../config/database.js';
 import { geocodeLocation } from '../utils/geocode.js';
+import { checkTextSafety } from '../config/moderation.js';
 
 // ==========================================
 // PIONEER HELPER
@@ -73,6 +74,12 @@ export const createGroup = async (req, res) => {
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
 
   try {
+    const textToCheck = [name, description].filter(Boolean).join('\n');
+    const { safe, reason } = await checkTextSafety(textToCheck);
+    if (!safe) {
+      return res.status(422).json({ error: reason });
+    }
+
     // Combine date + time if both provided
     let dateTime = date || null;
     if (date && time) {
@@ -225,6 +232,14 @@ export const updateGroup = async (req, res) => {
     const group = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
     if (group.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
     if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
+
+    const textToCheck = [name, description].filter(Boolean).join('\n');
+    if (textToCheck) {
+      const { safe, reason } = await checkTextSafety(textToCheck);
+      if (!safe) {
+        return res.status(422).json({ error: reason });
+      }
+    }
 
     // Re-geocode if location is being updated
     let latUpdate = null;

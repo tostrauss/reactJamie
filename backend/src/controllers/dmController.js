@@ -1,5 +1,6 @@
 import db from '../config/database.js';
 import { isUserPro } from './subscriptionController.js';
+import { checkTextSafety } from '../config/moderation.js';
 
 // ==========================================
 // SEND DIRECT MESSAGE
@@ -18,6 +19,11 @@ export const sendDM = async (req, res) => {
     }
     if (content.length > 5000) {
       return res.status(400).json({ error: 'Message cannot exceed 5000 characters' });
+    }
+
+    const { safe, reason } = await checkTextSafety(content);
+    if (!safe) {
+      return res.status(422).json({ error: reason });
     }
 
     // Verify friendship exists and is accepted

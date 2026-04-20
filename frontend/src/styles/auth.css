@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&display=swap');
+
 /* ========================================
    JAMIE – Auth Pages
    iOS-first: safe areas, 100dvh, 44pt+ targets
@@ -25,8 +27,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
-  padding: 0 28px 40px;
+  padding: 200px 28px 40px;
   text-align: center;
 }
 
@@ -125,16 +126,18 @@
   transform: none;
 }
 
-/* Secondary — dark card style (Apple / Google) */
+/* Secondary — transparent with white border (Apple / Google) */
 .auth-btn-secondary {
-  background: var(--bg-card);
+  background: transparent;
   color: var(--text-white);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  border-radius: 0;
+  font-family: 'Archivo', sans-serif;
 }
 
 .auth-btn-secondary:hover {
-  background: var(--bg-hover);
-  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: #fff;
 }
 
 /* Ghost — dashed, low emphasis (Demo mode) */

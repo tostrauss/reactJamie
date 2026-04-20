@@ -25,12 +25,13 @@ function makeEmojiIcon(emoji) {
   return new L.DivIcon({
     html: `<div style="
       width:44px;height:44px;border-radius:50%;
-      background:#fff;
+      background:#291C4B;
       display:flex;align-items:center;justify-content:center;
-      font-size:22px;line-height:1;
-      box-shadow:0 2px 12px rgba(0,0,0,0.25);
-      border:2px solid rgba(255,255,255,0.9);
-    ">${emoji}</div>`,
+      font-size:13px;font-weight:700;color:#FD7666;line-height:1;
+      font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;
+      box-shadow:0 2px 12px rgba(0,0,0,0.45);
+      border:2px solid #392B58;
+    ">${emoji[0] ?? '?'}</div>`,
     iconSize: [44, 44],
     iconAnchor: [22, 22],
     popupAnchor: [0, -26],
@@ -110,7 +111,7 @@ export default function MapView({ typeFilter }) {
             className={`map-cat-pill${selectedCategory === cat.id ? ' active' : ''}`}
             onClick={() => setSelectedCategory(prev => prev === cat.id ? null : cat.id)}
           >
-            {cat.icon} {cat.label}
+            {cat.label}
           </button>
         ))}
       </div>
@@ -156,7 +157,7 @@ export default function MapView({ typeFilter }) {
                   </div>
                   <div className="map-popup-name">{pin.name}</div>
                   {pin.location && (
-                    <div className="map-popup-loc">📍 {pin.location}</div>
+                    <div className="map-popup-loc">{pin.location}</div>
                   )}
                   <div className="map-popup-meta">
                     {pin.members_count ?? 0} / {pin.max_members || '∞'} Mitglieder
@@ -174,9 +175,7 @@ export default function MapView({ typeFilter }) {
         title="Meinen Standort anzeigen"
       >
         {selectedCategory
-          ? <span className="map-locate-emoji">
-              {CATEGORY_HIERARCHY.find(c => c.id === selectedCategory)?.icon}
-            </span>
+          ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
           : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="3"/>
               <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
@@ -187,14 +186,14 @@ export default function MapView({ typeFilter }) {
 
       {!loading && pins.length === 0 && (
         <div className="map-pioneer-cta">
-          <div className="map-pioneer-icon">🏔️</div>
+          <div className="map-pioneer-icon"></div>
           <h2 className="map-pioneer-title">Trau dich, sei der Erste!</h2>
           <p className="map-pioneer-text">
             In deiner Region gibt es noch keine Gruppen. Erstelle die erste
             und erhalte einen <strong>kostenlosen 7-Tage-Boost</strong> + Pioneer-Badge!
           </p>
           <button className="map-pioneer-btn" onClick={() => navigate('/create-group')}>
-            Erste Gruppe erstellen ✨
+            Erste Gruppe erstellen
           </button>
         </div>
       )}

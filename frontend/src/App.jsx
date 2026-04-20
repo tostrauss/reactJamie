@@ -20,7 +20,7 @@ import { Register } from './pages/Register';
 // Lazy-loaded pages (code-split per route)
 const Onboarding = lazy(() => import('./pages/Onboarding'));
 const Home = lazy(() => import('./pages/Home'));
-const Favorites = lazy(() => import('./pages/Favorites'));
+const Explore = lazy(() => import('./pages/Explore'));
 const Profile = lazy(() => import('./pages/Profile'));
 const ProfileEdit = lazy(() => import('./pages/ProfileEdit'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
@@ -65,15 +65,18 @@ const PageLoader = () => (
 
 // SVG Icons
 const HomeIcon = ({ active }) => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? "#FD7666" : "none"} stroke={active ? "#FD7666" : "#9BA2B0"} strokeWidth="2">
-    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-    <polyline points="9,22 9,12 15,12 15,22"/>
+  <svg width="26" height="24" viewBox="0 0 26 24" fill="none" stroke={active ? "#FD7666" : "#9BA2B0"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="9" cy="7" r="3.5"/>
+    <path d="M1 20c0-4 3.5-7 8-7s8 3 8 7"/>
+    <circle cx="20" cy="8" r="2.5"/>
+    <path d="M15 20c0-2.8 2-5 5-5s5 2.2 5 5"/>
   </svg>
 );
 
-const StarIcon = ({ active }) => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill={active ? "#FD7666" : "none"} stroke={active ? "#FD7666" : "#9BA2B0"} strokeWidth="2">
-    <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
+const ExploreIcon = ({ active }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#FD7666" : "#9BA2B0"} strokeWidth="2">
+    <circle cx="12" cy="12" r="10"/>
+    <polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88" fill={active ? "#FD7666" : "none"} stroke={active ? "#FD7666" : "#9BA2B0"}/>
   </svg>
 );
 
@@ -227,9 +230,24 @@ const Navigation = () => {
   const { user } = useContext(AuthContext);
   const location = useLocation();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const hideNavPaths = ['/login', '/register', '/onboarding', '/welcome'];
   const hideOnChat = location.pathname.startsWith('/chat/') || location.pathname.startsWith('/dm/');
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchUnread = async () => {
+      try {
+        const res = await import('./utils/api').then(m => m.directMessages.getConversations());
+        const total = (res.data || []).reduce((sum, c) => sum + (c.unread_count || 0), 0);
+        setUnreadCount(total);
+      } catch {}
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 15000);
+    return () => clearInterval(interval);
+  }, [user, location.pathname]);
 
   if (!user || hideNavPaths.includes(location.pathname) || hideOnChat) return null;
 
@@ -246,22 +264,30 @@ const Navigation = () => {
           <span className="nav-label">Home</span>
         </Link>
 
-        <Link to="/favorites" className={`nav-item ${isActive('/favorites') ? 'active' : ''}`}>
-          <div className="nav-icon"><StarIcon active={isActive('/favorites')} /></div>
-          <span className="nav-label">Favoriten</span>
+        <Link to="/explore" className={`nav-item ${isActive('/explore') ? 'active' : ''}`}>
+          <div className="nav-icon"><ExploreIcon active={isActive('/explore')} /></div>
+          <span className="nav-label">Entdecken</span>
         </Link>
 
         <button className="nav-add-button" onClick={() => setShowCreateModal(true)}>
           <span className="plus-icon">+</span>
         </button>
 
-        <Link to="/chats" className={`nav-item ${isActive('/chats') ? 'active' : ''}`}>
-          <div className="nav-icon"><ChatIcon active={isActive('/chats')} /></div>
+        <Link to="/chats" className={`nav-item ${isActive('/chats') ? 'active' : ''}`} style={{ position: 'relative' }}>
+          <div className="nav-icon">
+            <ChatIcon active={isActive('/chats')} />
+            {unreadCount > 0 && <span className="nav-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+          </div>
           <span className="nav-label">Chats</span>
         </Link>
 
         <Link to="/profile" className={`nav-item ${isActive('/profile') ? 'active' : ''}`}>
-          <div className="nav-icon"><ProfileIcon active={isActive('/profile')} /></div>
+          <div className="nav-icon">
+            {user.avatar_url
+              ? <img src={user.avatar_url} alt="Profil" className="nav-avatar" />
+              : <ProfileIcon active={isActive('/profile')} />
+            }
+          </div>
           <span className="nav-label">Profil</span>
         </Link>
       </nav>
@@ -408,7 +434,8 @@ function AppRoutes() {
 
           {/* Main */}
           <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
-          <Route path="/favorites" element={<ProtectedRoute><Favorites /></ProtectedRoute>} />
+          <Route path="/explore" element={<ProtectedRoute><Explore /></ProtectedRoute>} />
+          <Route path="/favorites" element={<Navigate to="/explore" replace />} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/profile/edit" element={<ProtectedRoute><ProfileEdit /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />

@@ -761,8 +761,8 @@
   gap: 6px;
   padding: 10px 14px;
   min-height: 44px;
-  background: var(--bg-input);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #39395E;
+  border: 1px solid var(--border-chip);
   border-radius: var(--radius-full);
   color: var(--text-light);
   font-size: 13px;

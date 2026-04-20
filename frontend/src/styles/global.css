@@ -6,7 +6,7 @@
 /* ── Google Maps Places autocomplete (global) ─────────────────────────────── */
 .pac-container {
   z-index: 99999 !important;
-  background: #1e1e2e;
+  background: var(--bg-card);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
   margin-top: 4px;
@@ -36,38 +36,42 @@
   --accent-coral: #FD7666;
   --accent-coral-light: #ff8a7a;
   --accent-coral-dark: #e5574a;
-  
+
   /* Background Colors */
-  --bg-primary: #1c1c2e;
-  --bg-secondary: #242340;
-  --bg-card: #2a2a4a;
-  --bg-input: #353560;
-  --bg-hover: #3a3a5a;
-  
+  --bg-primary: #231B43;
+  --bg-secondary: #231B43;
+  --bg-card: #291C4B;
+  --bg-input: #313154;
+  --bg-hover: #392B58;
+
+  /* Border */
+  --border-default: #392B58;
+  --border-chip: #39395E;
+
   /* Text Colors */
   --text-white: #ffffff;
   --text-light: #e8e8ed;
   --text-muted: #9BA2B0;
   --text-dark: #6b7280;
-  
+
   /* Status Colors */
   --status-online: #4ade80;
   --status-busy: #f87171;
   --accent-green: #22c55e;
-  
+
   /* Shadows */
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.2);
   --shadow-glow: 0 0 20px rgba(253, 118, 102, 0.3);
-  
+
   /* Border Radius */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 24px;
   --radius-full: 9999px;
-  
+
   /* Transitions */
   --transition-fast: 0.15s ease;
   --transition-normal: 0.3s ease;
@@ -381,30 +385,30 @@ input:focus, textarea:focus, select:focus {
 }
 
 .nav-label {
-  font-size: 11px;
-  font-weight: 500;
+  display: none;
 }
 
 /* Plus Button - Hauptaktion */
 .nav-add-button {
   position: relative;
-  width: 64px;
-  height: 64px;
-  background: linear-gradient(135deg, var(--accent-coral), var(--accent-coral-dark));
-  border: none;
-  border-radius: 50%;
+  width: 72px;
+  height: 72px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: 26px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 20px rgba(253, 118, 102, 0.4);
   transition: all var(--transition-normal);
-  margin-top: -16px;
+  margin-top: -36px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .nav-add-button:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 30px rgba(253, 118, 102, 0.6);
+  background: var(--bg-hover);
+  transform: scale(1.05);
 }
 
 .nav-add-button:active {
@@ -412,10 +416,42 @@ input:focus, textarea:focus, select:focus {
 }
 
 .plus-icon {
-  font-size: 32px;
-  font-weight: 300;
+  font-size: 44px;
+  font-weight: 400;
   color: white;
   line-height: 1;
+}
+
+/* Chat unread badge */
+.nav-badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  background: var(--accent-coral);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  pointer-events: none;
+}
+
+/* Profile avatar in nav */
+.nav-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid transparent;
+}
+
+.nav-item.active .nav-avatar {
+  border-color: var(--accent-coral);
 }
 
 /* ========================================
@@ -801,7 +837,7 @@ input:focus, textarea:focus, select:focus {
 
 .toast-warning {
   background: rgba(234, 179, 8, 0.85);
-  color: #1a1a2e;
+  color: var(--bg-primary);
   border: 1px solid rgba(234, 179, 8, 0.3);
 }
 

@@ -37,7 +37,7 @@ export const Login = () => {
       <div className="auth-top">
         <h1 className="auth-wordmark">JAMIE</h1>
         <p className="auth-tagline">
-          Login ist nervig, aber wir versuchen es so kurz wie möglich zu halten. Bussis
+          Login ist nervig, aber wir versuchen es so kurz wie möglich zu halten. 
         </p>
       </div>
 
@@ -63,7 +63,7 @@ export const Login = () => {
               <svg className="auth-btn-icon" width="17" height="20" viewBox="0 0 814 1000" fill="currentColor">
                 <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-37.5-155.5-127.4C46 790.7 0 663 0 541.8c0-207.9 135.5-317.9 269-317.9 70.9 0 130 46.4 174.4 46.4 42.7 0 109.2-49 192.5-49 33.5.2 124.6 4.8 185 57zM549.8 0c1 0 2.1 0 3.1.1v.1c0 30.1-11.2 67.1-33.5 97.5-23.8 33.1-62.5 57.2-104.8 53.8-1.2-3.4-1.8-7.1-1.8-10.8 0-28.7 12.4-60.7 34.2-89.5C468.5 20.9 511 0 549.8 0z"/>
               </svg>
-              Mit Apple fortfahren
+              Apple
             </button>
 
             <button
@@ -76,7 +76,7 @@ export const Login = () => {
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
-              Mit Google fortfahren
+              Google
             </button>
 
             <div className="auth-divider"><span>oder</span></div>

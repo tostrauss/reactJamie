@@ -453,7 +453,7 @@
 }
 
 .time-picker-select option {
-  background: var(--bg-secondary, #1e1e3a);
+  background: var(--bg-secondary);
   font-size: 16px;
   font-weight: 600;
 }
@@ -656,7 +656,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1a1a3e, #2d2d5f);
+  background: linear-gradient(135deg, var(--bg-primary), var(--bg-card));
   font-size: 48px;
 }
 

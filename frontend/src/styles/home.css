@@ -81,7 +81,7 @@
   display: flex;
   justify-content: center;
   gap: 8px;
-  padding: 0 20px 3px;
+  padding: 44px 20px 3px;
 }
 
 .tab {
@@ -90,8 +90,8 @@
   cursor: pointer;
   color: var(--text-muted);
   font-size: 16px;
-  font-weight: 600;
-  font-family: inherit;
+  font-weight: 700;
+  font-family: 'Archivo', sans-serif;
   border: none;
   background: none;
   border-radius: var(--radius-full);
@@ -114,9 +114,8 @@
   content: '';
   position: absolute;
   bottom: -3px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 40px;
+  left: 0;
+  right: 0;
   height: 3px;
   background: var(--accent-coral);
   border-radius: var(--radius-full);
@@ -143,7 +142,7 @@
    Search
    ======================================== */
 .search-container {
-  padding: 0 20px 16px;
+  padding: 20px 20px 16px;
 }
 
 .search-input-wrapper {
@@ -152,23 +151,26 @@
   align-items: center;
 }
 
-.search-icon {
+.search-filter-icon {
   position: absolute;
-  left: 16px;
-  color: var(--text-muted);
+  right: 16px;
+  color: var(--accent-coral);
   pointer-events: none;
+  display: flex;
+  align-items: center;
 }
 
 .search-input {
   width: 100%;
-  padding: 14px 20px 14px 48px;
-  font-size: 16px; /* 16px prevents iOS auto-zoom on focus */
-  color: var(--text-white);
-  background: var(--bg-card);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-lg);
+  padding: 14px 48px 14px 20px;
+  font-size: 16px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
   outline: none;
   transition: all var(--transition-fast);
+  box-sizing: border-box;
 }
 
 .search-input::placeholder {
@@ -177,7 +179,7 @@
 
 .search-input:focus {
   border-color: var(--accent-coral);
-  background: var(--bg-hover);
+  color: var(--text-white);
 }
 
 /* ========================================
@@ -208,10 +210,10 @@
   min-height: 44px;
   font-size: 14px;
   font-weight: 500;
-  font-family: inherit;
+  font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
   color: var(--text-light);
-  background: var(--bg-card);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #39395E;
+  border: 1px solid var(--border-chip);
   border-radius: var(--radius-full);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -253,19 +255,13 @@
    Groups Feed & Grid
    ======================================== */
 .groups-feed {
-  padding: 0 20px;
+  padding: 12px 28px 0;
 }
 
 .groups-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
-}
-
-@media (max-width: 480px) {
-  .groups-grid {
-    grid-template-columns: 1fr;
-  }
+  gap: 24px;
 }
 
 @media (min-width: 768px) {
@@ -286,8 +282,10 @@
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   transition: transform var(--transition-normal), box-shadow var(--transition-normal), border-color var(--transition-normal);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: #1e1e42;
+  border: 1px solid var(--border-default);
+  background: var(--bg-card);
+  aspect-ratio: 3/4;
+  position: relative;
 }
 
 .group-card:active {
@@ -314,16 +312,17 @@
 .card-text-area {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
   flex: 1;
 }
 
 .card-title {
-  font-size: 20px;
-  font-weight: 800;
+  font-size: 28px;
+  font-weight: 700;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
   color: var(--accent-coral);
-  line-height: 1.15;
+  line-height: 1.1;
   margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -335,10 +334,9 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--accent-coral);
-  opacity: 0.85;
 }
 
 .card-private-badge {
@@ -358,15 +356,18 @@
 }
 
 .card-badge {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 3px 8px;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: var(--radius-full);
-  color: rgba(255, 255, 255, 0.85);
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 3;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+  background: #39395E;
+  border: none;
+  border-radius: 0 var(--radius-xl) 0 6px;
+  color: rgba(255, 255, 255, 0.9);
   white-space: nowrap;
-  backdrop-filter: blur(6px);
 }
 
 /* ── Photo grid (bottom portion) ───────────────────────── */
@@ -376,17 +377,30 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  gap: 3px;
-  background: #111128;
+  gap: 2px;
+  background: var(--bg-primary);
   min-height: 0;
+  margin: 0 7px 7px;
+  border-radius: 10px;
+  border: 1.5px solid #424166;
+  overflow: hidden;
 }
 
 /* ── Join/Chat button overlay on photo grid ─────────────── */
 .card-action-overlay {
   position: absolute;
-  bottom: 10px;
-  right: 10px;
+  bottom: 8px;
+  right: 8px;
   z-index: 2;
+}
+
+.card-action-overlay .action-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex: none;
+  font-size: 20px;
+  padding: 0;
 }
 
 /* ── Legacy — kept so old overlay code doesn't break ────── */
@@ -452,8 +466,8 @@
 }
 
 .fav-btn-small {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -653,7 +667,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 0 16px;
+  padding: 0 0 18px;
 }
 
 .section-heading {
@@ -701,7 +715,7 @@
   flex-shrink: 0;
   width: 140px;
   background: var(--bg-card);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   overflow: hidden;
   cursor: pointer;
@@ -739,7 +753,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #2a2a4a, #3a3a5a);
+  background: linear-gradient(135deg, var(--bg-card), var(--bg-hover));
 }
 
 .my-club-placeholder span {
@@ -778,7 +792,7 @@
 
 .trend-club-card {
   background: var(--bg-card);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-default);
   border-radius: var(--radius-xl);
   overflow: hidden;
   cursor: pointer;
@@ -822,7 +836,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1a1a3e, #2d2d5f);
+  background: linear-gradient(135deg, var(--bg-primary), var(--bg-card));
 }
 
 .trend-club-placeholder span {
@@ -1116,7 +1130,7 @@
   position: relative;
   width: 100%;
   height: 180px;
-  background: linear-gradient(135deg, #1a1a3e, #2d2d5f);
+  background: linear-gradient(135deg, var(--bg-primary), var(--bg-card));
   border-radius: 15px 15px 0 0;
 }
 
@@ -1130,13 +1144,13 @@
 }
 
 .avatar-slot {
-  border-radius: 12px;
+  border-radius: 6px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.05);
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid rgba(255, 255, 255, 0.1);
+  border: none;
 }
 
 .avatar-slot img {
@@ -1242,7 +1256,7 @@
    ======================================== */
 .profile-edit-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #1c1c2e 0%, #242340 100%);
+  background: var(--bg-primary);
   color: white;
   padding-bottom: 80px;
 }
@@ -1330,8 +1344,8 @@
 .interest-chip {
   padding: 8px 16px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-chip);
+  background: #39395E;
   color: white;
   font-size: 13px;
   cursor: pointer;
@@ -1353,7 +1367,7 @@
    ======================================== */
 .settings-page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #1c1c2e 0%, #242340 100%);
+  background: var(--bg-primary);
   color: white;
   padding-bottom: 80px;
 }
@@ -1556,7 +1570,7 @@ input:checked + .slider:before {
 .map-leaflet {
   height: 100%;
   width: 100%;
-  background: #1a1a2e;
+  background: var(--bg-primary);
 }
 
 /* Loading overlay on top of map */
@@ -1683,7 +1697,7 @@ input:checked + .slider:before {
 
 /* ── Leaflet popup dark-theme override ── */
 .map-popup-wrapper .leaflet-popup-content-wrapper {
-  background: var(--bg-card, #1e1e38);
+  background: var(--bg-card);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 16px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.5);

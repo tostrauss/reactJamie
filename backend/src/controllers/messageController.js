@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { checkTextSafety } from '../config/moderation.js';
 
 // ==========================================
 // SEND MESSAGE
@@ -12,6 +13,11 @@ export const sendMessage = async (req, res) => {
     }
     if (content.length > 5000) {
       return res.status(400).json({ error: 'Message cannot exceed 5000 characters' });
+    }
+
+    const { safe, reason } = await checkTextSafety(content);
+    if (!safe) {
+      return res.status(422).json({ error: reason });
     }
 
     // Check membership

@@ -144,12 +144,13 @@ export const ChatList = () => {
 
       {/* ── Sticky header ───────────────────────────────────────────── */}
       <div className="home-sticky-header">
-        <header className="chat-header">
-          <h1 className="logo-text">jamie</h1>
-          {totalUnread > 0 && <span className="total-badge">{totalUnread}</span>}
-        </header>
+        {totalUnread > 0 && (
+          <div className="chat-header">
+            <span className="total-badge">{totalUnread}</span>
+          </div>
+        )}
 
-        <div className="tabs-container">
+        <div className="tabs-container chat-tabs-container">
           <button
             className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`}
             onClick={() => { setActiveTab('gruppen'); setShowRequests(false); }}

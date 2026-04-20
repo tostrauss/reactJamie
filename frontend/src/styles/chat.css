@@ -12,9 +12,9 @@
 .chat-header {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 12px;
-  padding: 14px 20px 10px;
+  padding: 6px 20px 0;
 }
 
 .total-badge {
@@ -26,11 +26,16 @@
   border-radius: var(--radius-full);
 }
 
+/* Custom top padding for chat tabs */
+.chat-tabs-container {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 36px) !important;
+}
+
 /* Chat Actions (Anfragen/Verwalten) */
 .chat-actions {
   display: flex;
   gap: 8px;
-  padding: 0 20px 14px;
+  padding: 20px 20px 18px;
 }
 
 .action-tab {
@@ -84,7 +89,7 @@
 
 /* Friends section wrapper */
 .chat-friends-section {
-  padding: 0 20px;
+  padding: 0 20px 20px;
 }
 
 /* ── Pro banner ── */
@@ -149,11 +154,11 @@
 .chat-item {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 16px;
+  gap: 16px;
+  padding: 18px 16px;
   background: var(--bg-card);
-  border-radius: var(--radius-lg);
-  margin-bottom: 10px;
+  border-radius: 18px;
+  margin-bottom: 12px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
@@ -176,8 +181,8 @@
 }
 
 .chat-avatar {
-  width: 52px;
-  height: 52px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   object-fit: cover;
 }
@@ -617,8 +622,8 @@
 
 /* Chat Avatar Placeholder */
 .chat-avatar-placeholder {
-  width: 52px;
-  height: 52px;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
   display: flex;
   align-items: center;

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { writeFile, mkdir } from 'fs/promises';
 import { authenticate } from '../middleware/auth.js';
 import { uploadToCloud, isCloudStorageEnabled } from '../config/storage.js';
+import { checkImageSafety } from '../config/moderation.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,6 +32,16 @@ router.post('/', authenticate, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    // Moderation check — runs before anything is saved (cloud or disk)
+    const { safe, reason } = await checkImageSafety(
+      req.file.buffer,
+      req.file.mimetype,
+      req.file.originalname
+    );
+    if (!safe) {
+      return res.status(422).json({ error: reason });
     }
 
     let imageUrl;

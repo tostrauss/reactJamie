@@ -140,10 +140,6 @@ export const Home = () => {
 
       {/* ── Sticky header (doesn't scroll) ─────────────────────────── */}
       <div className="home-sticky-header">
-        <header className="home-header">
-          <h1 className="logo-text">jamie</h1>
-        </header>
-
         <div className="tabs-container">
           <button
             className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`}
@@ -169,13 +165,9 @@ export const Home = () => {
           <>
             <div className="search-container">
               <div className="search-input-wrapper">
-                <svg className="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="11" cy="11" r="8"/>
-                  <path d="M21 21l-4.35-4.35"/>
-                </svg>
                 <input
                   type="search"
-                  placeholder="Suchen…"
+                  placeholder="Suchen"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="search-input"
@@ -184,6 +176,13 @@ export const Home = () => {
                   autoCapitalize="off"
                   spellCheck="false"
                 />
+                <svg className="search-filter-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <line x1="4" y1="6" x2="20" y2="6"/>
+                  <line x1="8" y1="12" x2="16" y2="12"/>
+                  <line x1="12" y1="18" x2="12" y2="18" strokeWidth="3"/>
+                  <circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/>
+                  <circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/>
+                </svg>
               </div>
             </div>
 
@@ -201,7 +200,7 @@ export const Home = () => {
                     className={`category-pill ${selectedMain === cat.id ? 'active' : ''}`}
                     onClick={() => { setSelectedMain(cat.id); setSelectedSub(null); }}
                   >
-                    {cat.icon} {cat.label}
+                    {cat.label}
                   </button>
                 ))}
               </div>
@@ -214,7 +213,7 @@ export const Home = () => {
                       className={`category-pill sub ${selectedSub === sub.name ? 'active' : ''}`}
                       onClick={() => setSelectedSub(prev => prev === sub.name ? null : sub.name)}
                     >
-                      {sub.icon} {sub.name}
+                      {sub.name}
                     </button>
                   ))}
                 </div>
@@ -242,10 +241,6 @@ export const Home = () => {
         {/* GRUPPEN */}
         {activeTab === 'gruppen' && (
           <div className="groups-feed">
-            <div className="section-header">
-              <h2 className="section-heading">Alle Gruppen</h2>
-              <span className="section-count">{filteredGroups.length}</span>
-            </div>
             {loading ? (
               <div className="home-loading">
                 <div className="home-spinner" />
