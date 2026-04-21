@@ -3,10 +3,10 @@ import rateLimit from 'express-rate-limit';
 // Rate limits are always enforced. Set DISABLE_RATE_LIMIT=true only in local dev.
 const disabled = process.env.DISABLE_RATE_LIMIT === 'true';
 
-// General API rate limit: 100 req/15min
+// General API rate limit: 500 req/15min
 export const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: disabled ? 10000 : 100,
+  max: disabled ? 10000 : 500,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Zu viele Anfragen. Bitte versuche es in 15 Minuten erneut.' }
