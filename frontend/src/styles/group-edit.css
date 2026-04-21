@@ -1,0 +1,512 @@
+/* ============================================
+   Group Edit — Professional Redesign
+   ============================================ */
+
+.ge-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--bg-primary);
+  overflow-x: hidden;
+}
+
+.ge-loading {
+  align-items: center;
+  justify-content: center;
+}
+
+.ge-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255,255,255,0.1);
+  border-top-color: var(--accent-coral);
+  border-radius: 50%;
+  animation: ge-spin 0.7s linear infinite;
+}
+
+@keyframes ge-spin { to { transform: rotate(360deg); } }
+
+/* ── Cover image area ── */
+.ge-cover {
+  position: relative;
+  height: 180px;
+  flex-shrink: 0;
+}
+
+.ge-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ge-cover-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #2d2b55 0%, #1e1d3d 100%);
+}
+
+.ge-cover-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(10,9,30,0.55) 0%,
+    rgba(10,9,30,0.2) 50%,
+    rgba(10,9,30,0.75) 100%
+  );
+}
+
+/* ── Floating header ── */
+.ge-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 14px);
+}
+
+.ge-back-btn {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  flex-shrink: 0;
+}
+
+.ge-page-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.4);
+  text-align: center;
+  flex: 1;
+  padding: 0 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ge-save-header-btn {
+  padding: 8px 16px;
+  background: var(--accent-coral);
+  border: none;
+  border-radius: var(--radius-full);
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  flex-shrink: 0;
+  min-height: 36px;
+  transition: opacity 0.15s;
+}
+
+.ge-save-header-btn:disabled {
+  opacity: 0.6;
+}
+
+/* ── Scrollable body ── */
+.ge-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 18px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 90px);
+}
+
+/* ── Section ── */
+.ge-section {
+  margin-top: 28px;
+}
+
+.ge-section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ge-section-title {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--text-white);
+  letter-spacing: -0.3px;
+}
+
+.ge-section-count {
+  background: rgba(255,255,255,0.1);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: var(--radius-full);
+}
+
+/* ── Card container ── */
+.ge-card {
+  background: var(--bg-card);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+/* ── Member row ── */
+.ge-member-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+}
+
+.ge-row-divider {
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+/* ── Avatars ── */
+.ge-avatar {
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--accent-coral), #ff8c69);
+  font-weight: 700;
+  color: white;
+}
+
+.ge-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ge-avatar-md {
+  width: 50px;
+  height: 50px;
+  font-size: 18px;
+}
+
+.ge-avatar-lg {
+  width: 56px;
+  height: 56px;
+  font-size: 20px;
+}
+
+.ge-member-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ge-member-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-white);
+  margin: 0;
+}
+
+.ge-member-role {
+  font-size: 12px;
+  color: var(--accent-coral);
+  font-weight: 500;
+  margin: 2px 0 0;
+}
+
+.ge-remove-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  color: var(--accent-coral);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 10px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.ge-remove-btn:active {
+  background: rgba(255,107,107,0.12);
+}
+
+/* ── Search ── */
+.ge-search-wrap {
+  position: relative;
+  margin-bottom: 14px;
+}
+
+.ge-search-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.ge-search {
+  width: 100%;
+  padding: 14px 18px 14px 44px;
+  background: var(--bg-card);
+  border: none;
+  border-radius: 16px;
+  color: var(--text-white);
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+}
+
+.ge-search::placeholder {
+  color: var(--text-muted);
+}
+
+.ge-empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 20px 0;
+}
+
+/* ── Friends grid ── */
+.ge-friends-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.ge-friend-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border: 1.5px solid transparent;
+  border-radius: 18px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: border-color 0.15s, background 0.15s;
+  font-family: inherit;
+  text-align: left;
+  overflow: hidden;
+}
+
+.ge-friend-card:active {
+  border-color: var(--accent-coral);
+  background: rgba(255,107,107,0.07);
+}
+
+.ge-friend-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Form card ── */
+.ge-form-card {
+  padding: 0;
+}
+
+.ge-field {
+  padding: 14px 18px;
+}
+
+.ge-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.ge-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-white);
+  font-size: 16px;
+  font-weight: 500;
+  font-family: inherit;
+  outline: none;
+  padding: 0;
+  box-sizing: border-box;
+  resize: none;
+  -webkit-appearance: none;
+}
+
+.ge-input::placeholder {
+  color: var(--text-muted);
+}
+
+.ge-textarea {
+  line-height: 1.55;
+  font-size: 15px;
+}
+
+.ge-divider {
+  height: 1px;
+  background: rgba(255,255,255,0.07);
+  margin: 0 18px;
+}
+
+/* ── Controls row (size + date) ── */
+.ge-controls-row {
+  display: flex;
+  align-items: stretch;
+}
+
+.ge-control-block {
+  flex: 1;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ge-control-divider {
+  width: 1px;
+  background: rgba(255,255,255,0.07);
+  margin: 12px 0;
+}
+
+.ge-control-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+}
+
+.ge-stepper {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.ge-step-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.07);
+  color: var(--text-white);
+  font-size: 22px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+
+.ge-step-btn:active {
+  background: rgba(255,107,107,0.2);
+  border-color: var(--accent-coral);
+  color: var(--accent-coral);
+}
+
+.ge-step-val {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-white);
+  min-width: 28px;
+  text-align: center;
+}
+
+/* Date picker */
+.ge-date-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ge-date-display {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-white);
+  letter-spacing: 0.5px;
+}
+
+.ge-date-overlay {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+}
+
+/* ── Bottom space ── */
+.ge-bottom-space {
+  height: 20px;
+}
+
+/* ── Sticky footer ── */
+.ge-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 14px 20px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 14px);
+  background: linear-gradient(to top, var(--bg-primary) 70%, transparent);
+}
+
+.ge-save-btn {
+  width: 100%;
+  min-height: 54px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: linear-gradient(135deg, var(--accent-coral) 0%, #ff7043 100%);
+  color: white;
+  font-size: 16px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  box-shadow: 0 8px 24px rgba(255, 107, 107, 0.35);
+  transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s;
+  letter-spacing: 0.3px;
+}
+
+.ge-save-btn:not(:disabled):active {
+  transform: scale(0.98);
+  opacity: 0.9;
+  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.25);
+}
+
+.ge-save-btn:disabled {
+  opacity: 0.55;
+  box-shadow: none;
+}

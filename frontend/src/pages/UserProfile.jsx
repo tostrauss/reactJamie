@@ -5,7 +5,12 @@ import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
 import { ProModal } from '../components/ProModal';
-import '../styles/profile.css';
+import '../styles/user-profile.css';
+
+const calcAge = (dob) => {
+  if (!dob) return null;
+  return Math.floor((Date.now() - new Date(dob)) / 31557600000);
+};
 
 export const UserProfile = () => {
   const { id } = useParams();
@@ -13,16 +18,16 @@ export const UserProfile = () => {
   const { user: currentUser } = useContext(AuthContext);
   const toast = useToast();
 
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('about');
+  const [profile, setProfile]               = useState(null);
+  const [loading, setLoading]               = useState(true);
+  const [activeTab, setActiveTab]           = useState('pinnwand');
   const [friendshipStatus, setFriendshipStatus] = useState('none');
-  const [friendshipId, setFriendshipId] = useState(null);
-  const [isRequester, setIsRequester] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [friendshipId, setFriendshipId]     = useState(null);
+  const [isRequester, setIsRequester]       = useState(false);
+  const [actionLoading, setActionLoading]   = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [showProModal, setShowProModal] = useState(false);
-  const [isPro, setIsPro] = useState(false);
+  const [showProModal, setShowProModal]     = useState(false);
+  const [isPro, setIsPro]                   = useState(false);
 
   useEffect(() => {
     if (currentUser && currentUser.id === parseInt(id)) {
@@ -37,19 +42,15 @@ export const UserProfile = () => {
   const loadProfile = async () => {
     try {
       setLoading(true);
-      const response = await users.getById(id);
-      const data = response.data;
-
-      if (typeof data.interests === 'string') {
-        try { data.interests = JSON.parse(data.interests); } catch { data.interests = []; }
+      const res = await users.getById(id);
+      const data = res.data;
+      if (typeof data.interests === 'string') { try { data.interests = JSON.parse(data.interests); } catch { data.interests = []; } }
+      if (typeof data.photos === 'string')    { try { data.photos    = JSON.parse(data.photos);    } catch { data.photos = []; } }
+      if (typeof data.favorite_song === 'string' && data.favorite_song.startsWith('{')) {
+        try { data.favorite_song = JSON.parse(data.favorite_song); } catch {}
       }
-      if (typeof data.photos === 'string') {
-        try { data.photos = JSON.parse(data.photos); } catch { data.photos = []; }
-      }
-
       setProfile(data);
-    } catch (err) {
-      console.error('Error loading profile:', err);
+    } catch {
       toast.error('Profil konnte nicht geladen werden');
     } finally {
       setLoading(false);
@@ -62,9 +63,7 @@ export const UserProfile = () => {
       setFriendshipStatus(res.data.status || 'none');
       setFriendshipId(res.data.friendship_id || null);
       setIsRequester(res.data.is_requester || false);
-    } catch (err) {
-      console.error('Error checking friendship:', err);
-    }
+    } catch {}
   };
 
   const handleSendFriendRequest = async () => {
@@ -74,270 +73,227 @@ export const UserProfile = () => {
       setFriendshipStatus('pending');
       setIsRequester(true);
     } catch (err) {
-      const msg = err.response?.data?.error || 'Fehler beim Senden';
-      toast.error(msg);
-    } finally {
-      setActionLoading(false);
-    }
+      toast.error(err.response?.data?.error || 'Fehler beim Senden');
+    } finally { setActionLoading(false); }
   };
 
   const handleAcceptRequest = async () => {
     if (!friendshipId) return;
     setActionLoading(true);
-    try {
-      await friends.respondRequest(friendshipId, 'accept');
-      setFriendshipStatus('accepted');
-    } catch (err) {
-      toast.error('Fehler beim Annehmen');
-    } finally {
-      setActionLoading(false);
-    }
+    try { await friends.respondRequest(friendshipId, 'accept'); setFriendshipStatus('accepted'); }
+    catch { toast.error('Fehler beim Annehmen'); }
+    finally { setActionLoading(false); }
   };
 
   const handleRejectRequest = async () => {
     if (!friendshipId) return;
     setActionLoading(true);
-    try {
-      await friends.respondRequest(friendshipId, 'reject');
-      setFriendshipStatus('none');
-      setFriendshipId(null);
-    } catch (err) {
-      toast.error('Fehler beim Ablehnen');
-    } finally {
-      setActionLoading(false);
-    }
+    try { await friends.respondRequest(friendshipId, 'reject'); setFriendshipStatus('none'); setFriendshipId(null); }
+    catch { toast.error('Fehler beim Ablehnen'); }
+    finally { setActionLoading(false); }
   };
 
   const handleRemoveFriend = async () => {
     setActionLoading(true);
-    try {
-      await friends.remove(id);
-      setFriendshipStatus('none');
-      setFriendshipId(null);
-    } catch (err) {
-      toast.error('Fehler beim Entfernen');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleSendMessage = () => {
-    navigate(`/dm/${id}`);
+    try { await friends.remove(id); setFriendshipStatus('none'); setFriendshipId(null); }
+    catch { toast.error('Fehler beim Entfernen'); }
+    finally { setActionLoading(false); }
   };
 
   if (loading) {
     return (
-      <div className="notif-page">
-        <div className="notif-loading"><div className="home-spinner" /></div>
+      <div className="up-page up-loading">
+        <div className="up-spinner" />
       </div>
     );
   }
 
   if (!profile) {
     return (
-      <div className="notif-page">
-        <div className="notif-empty">
-          <div className="notif-empty-icon">😕</div>
-          <h2 className="notif-empty-title">Nutzer nicht gefunden</h2>
-          <button className="btn btn-primary" onClick={() => navigate(-1)} style={{ marginTop: '20px' }}>
-            Zurück
-          </button>
+      <div className="up-page up-loading">
+        <div className="up-not-found">
+          <div style={{ fontSize: 48 }}>😕</div>
+          <p>Nutzer nicht gefunden</p>
+          <button className="up-cta-btn" onClick={() => navigate(-1)}>Zurück</button>
         </div>
       </div>
     );
   }
 
-  const renderFriendshipActions = () => {
-    if (actionLoading) {
-      return (
-        <div className="user-profile-actions">
-          <button className="user-action-btn primary" disabled>Laden...</button>
-        </div>
-      );
-    }
+  const age = calcAge(profile.date_of_birth);
+  const heroImg = profile.photos?.[0] || profile.avatar_url;
+  const extraPhotos = profile.photos?.slice(1) || [];
+  const song = profile.favorite_song;
+
+  const renderBottomAction = () => {
+    if (actionLoading) return <button className="up-cta-btn" disabled>Laden…</button>;
 
     switch (friendshipStatus) {
       case 'accepted':
         return (
-          <div className="user-profile-actions">
+          <div className="up-cta-row">
             <button
-              className="user-action-btn primary"
-              onClick={isPro ? handleSendMessage : () => setShowProModal(true)}
+              className="up-cta-btn up-cta-msg"
+              onClick={isPro ? () => navigate(`/dm/${id}`) : () => setShowProModal(true)}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
-              </svg>
-              {isPro ? 'Nachricht' : '👑 Nachricht (Pro)'}
+              {isPro ? 'Nachricht senden' : '👑 Nachricht (Pro)'}
             </button>
-            <button className="user-action-btn danger" onClick={handleRemoveFriend}>
+            <button className="up-cta-btn up-cta-ghost" onClick={handleRemoveFriend}>
               Freund entfernen
             </button>
           </div>
         );
-
       case 'pending':
-        if (isRequester) {
-          return (
-            <div className="user-profile-actions">
-              <button className="user-action-btn secondary" disabled>
-                Anfrage gesendet
-              </button>
-            </div>
-          );
-        }
+        if (isRequester) return <button className="up-cta-btn up-cta-muted" disabled>Anfrage gesendet ✓</button>;
         return (
-          <div className="user-profile-actions">
-            <button className="user-action-btn accept" onClick={handleAcceptRequest}>
-              Annehmen
-            </button>
-            <button className="user-action-btn decline" onClick={handleRejectRequest}>
-              Ablehnen
-            </button>
+          <div className="up-cta-row">
+            <button className="up-cta-btn" onClick={handleAcceptRequest}>Annehmen</button>
+            <button className="up-cta-btn up-cta-ghost" onClick={handleRejectRequest}>Ablehnen</button>
           </div>
         );
-
       default:
         return (
-          <div className="user-profile-actions">
-            <button
-              className="user-action-btn primary"
-              onClick={isPro ? handleSendFriendRequest : () => setShowProModal(true)}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                <circle cx="8.5" cy="7" r="4"/>
-                <line x1="20" y1="8" x2="20" y2="14"/>
-                <line x1="23" y1="11" x2="17" y2="11"/>
-              </svg>
-              {isPro ? 'Freund hinzufügen' : '👑 Freund hinzufügen (Pro)'}
-            </button>
-          </div>
+          <button
+            className="up-cta-btn"
+            onClick={isPro ? handleSendFriendRequest : () => setShowProModal(true)}
+          >
+            + {isPro ? 'Freundschaftsanfrage' : 'Freundschaftsanfrage (Pro)'}
+          </button>
         );
     }
   };
 
   return (
-    <div className="page">
-      {/* Back Button */}
-      <button
-        onClick={() => navigate(-1)}
-        className="user-profile-back"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-        Zurück
-      </button>
+    <div className="up-page">
+    <div className="up-scroll-body">
 
-      {/* Header Card */}
-      <div className="user-profile-header">
-        <div className="user-profile-avatar">
-          {profile.avatar_url ? (
-            <img src={profile.avatar_url} alt={profile.name} />
-          ) : (
-            <span>{profile.name?.[0]?.toUpperCase()}</span>
-          )}
-        </div>
+      {/* ── Hero image ── */}
+      <div className="up-hero">
+        {heroImg
+          ? <img src={heroImg} alt={profile.name} className="up-hero-img" />
+          : <div className="up-hero-placeholder">
+              <span>{profile.name?.[0]?.toUpperCase()}</span>
+            </div>
+        }
+        <div className="up-hero-gradient" />
 
-        <h2 className="user-profile-name">
-          {profile.name}
-          {profile.is_trusted_user && (
-            <span className="up-trusted-badge" title="Vertrauenswürdiger Nutzer">✓</span>
-          )}
-        </h2>
+        {/* Floating back button */}
+        <button className="up-back-btn" onClick={() => navigate(-1)}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M15 18l-6-6 6-6"/>
+          </svg>
+        </button>
 
-        {profile.gender && (
-          <p className="user-profile-gender">
-            {profile.gender === 'männlich' ? '♂' : profile.gender === 'weiblich' ? '♀' : '⚧'} {profile.gender}
-          </p>
-        )}
-
-        <p className="user-profile-location">
-          📍 {profile.location || 'Kein Standort'}
-        </p>
-
-        {/* Friendship Status Badge */}
-        {friendshipStatus === 'accepted' && (
-          <div className="friendship-badge">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M20 6L9 17l-5-5"/>
+        {/* Trusted badge */}
+        {profile.is_trusted_user && (
+          <div className="up-trusted-overlay">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+              <polyline points="20,6 9,17 4,12"/>
             </svg>
-            Befreundet
           </div>
         )}
-
-        {/* Action Buttons */}
-        {renderFriendshipActions()}
-
-        <button className="up-report-btn" onClick={() => setShowReportModal(true)}>
-          Nutzer melden
-        </button>
       </div>
 
-      {/* Tabs */}
-      <div className="tabs-container">
-        <button className={`tab ${activeTab === 'about' ? 'active' : ''}`} onClick={() => setActiveTab('about')}>
-          Über
-        </button>
-        <button className={`tab ${activeTab === 'photos' ? 'active' : ''}`} onClick={() => setActiveTab('photos')}>
-          Fotos
-        </button>
+      {/* ── Identity row ── */}
+      <div className="up-identity">
+        <div className="up-location">
+          <span>{profile.location || 'Wien'}</span>
+        </div>
+        <div className="up-name-age">
+          <span className="up-name">{profile.name?.toUpperCase()}</span>
+          {age && <span className="up-age">{age}</span>}
+        </div>
       </div>
 
-      {/* Content */}
-      {activeTab === 'about' && (
-        <div style={{ padding: '16px 0' }}>
-          {profile.bio && (
-            <div className="up-card">
-              <h3 className="up-card-title">Über {profile.name?.split(' ')[0]}</h3>
-              <p style={{ lineHeight: '1.6', color: 'var(--text-light)' }}>{profile.bio}</p>
-            </div>
-          )}
-          <div className="up-card">
-            <h3 className="up-card-title">Interessen</h3>
-            <div className="up-interests">
-              {profile.interests?.length > 0 ? (
-                profile.interests.map((interest, i) => (
-                  <span key={i} className="interest-chip">{interest}</span>
-                ))
-              ) : (
-                <p style={{ color: 'var(--text-muted)' }}>Keine Interessen</p>
-              )}
-            </div>
-          </div>
+      {/* ── Interest tags ── */}
+      {profile.interests?.length > 0 && (
+        <div className="up-tags">
+          {profile.interests.map((tag, i) => (
+            <span key={i} className="up-tag">{tag}</span>
+          ))}
         </div>
       )}
 
-      {activeTab === 'photos' && (
-        <div className="up-photos-grid">
-          {profile.photos?.length > 0 ? (
-            profile.photos.map((photo, i) => (
-              <div key={i} className="up-photo-item">
+      {/* ── Bio card ── */}
+      {profile.bio && (
+        <div className="up-bio-card">
+          <h3 className="up-bio-label">Über Dich!</h3>
+          <p className="up-bio-text">{profile.bio}</p>
+        </div>
+      )}
+
+      {/* ── Tabs: Pinnwand / Hall of Fame ── */}
+      <div className="up-tabs">
+        <button
+          className={`up-tab ${activeTab === 'pinnwand' ? 'up-tab-active' : ''}`}
+          onClick={() => setActiveTab('pinnwand')}
+        >
+          Pinnwand
+        </button>
+        <button
+          className={`up-tab ${activeTab === 'halloffame' ? 'up-tab-active' : ''}`}
+          onClick={() => setActiveTab('halloffame')}
+        >
+          Hall of Fame
+        </button>
+      </div>
+
+      {/* ── Photo grid ── */}
+      {activeTab === 'pinnwand' && (
+        <div className="up-photo-grid">
+          {extraPhotos.length > 0 ? (
+            extraPhotos.map((photo, i) => (
+              <div key={i} className="up-photo-cell">
                 <img src={photo} alt="" />
               </div>
             ))
           ) : (
-            <p style={{ color: 'var(--text-muted)', gridColumn: '1/-1', textAlign: 'center', padding: '40px' }}>
-              Keine Fotos
-            </p>
+            <p className="up-empty-photos">Keine weiteren Fotos</p>
           )}
         </div>
       )}
+
+      {activeTab === 'halloffame' && (
+        <div className="up-photo-grid">
+          <p className="up-empty-photos">Noch nichts hier</p>
+        </div>
+      )}
+
+      {/* ── Favorite song ── */}
+      {song && (
+        <div className="up-song-card">
+          {song.image
+            ? <img src={song.image} alt="" className="up-song-art" />
+            : <div className="up-song-art up-song-art-placeholder">♪</div>
+          }
+          <div className="up-song-info">
+            <p className="up-song-title">{song.name || song.title || (typeof song === 'string' ? song : '')}</p>
+            {song.artist && <p className="up-song-artist">{song.artist}</p>}
+          </div>
+          <svg className="up-song-spotify" width="20" height="20" viewBox="0 0 24 24" fill="#1DB954">
+            <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+          </svg>
+        </div>
+      )}
+
+    </div>{/* end up-scroll-body */}
+
+      {/* ── Bottom action ── */}
+      <div className="up-footer">
+        {renderBottomAction()}
+        <button className="up-report-link" onClick={() => setShowReportModal(true)}>
+          Nutzer melden
+        </button>
+      </div>
+
       {showReportModal && (
-        <ReportModal
-          type="user"
-          id={parseInt(id)}
-          name={profile.name}
-          onClose={() => setShowReportModal(false)}
-        />
+        <ReportModal type="user" id={parseInt(id)} name={profile.name} onClose={() => setShowReportModal(false)} />
       )}
       {showProModal && (
-        <ProModal
-          onClose={() => setShowProModal(false)}
-          onSuccess={() => setIsPro(true)}
-        />
+        <ProModal onClose={() => setShowProModal(false)} onSuccess={() => setIsPro(true)} />
       )}
     </div>
   );
 };
+
 export default UserProfile;

@@ -531,7 +531,9 @@ export const getJoinRequests = async (req, res) => {
     if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
 
     const result = await db.query(
-      `SELECT jr.*, u.name as user_name, u.avatar_url as user_avatar, u.bio as user_bio
+      `SELECT jr.*, u.name as user_name, u.avatar_url as user_avatar, u.bio as user_bio,
+              u.interests as user_interests, u.date_of_birth as user_dob,
+              u.is_trusted_user as user_trusted
        FROM group_join_requests jr
        JOIN users u ON jr.user_id = u.id
        WHERE jr.group_id = $1 AND jr.status = 'pending'
@@ -800,6 +802,53 @@ export const getGroupMemberAvatars = async (req, res) => {
   } catch (err) {
     console.error('Error fetching avatars:', err);
     res.status(500).json({ error: 'Failed to fetch avatars' });
+  }
+};
+
+// ==========================================
+// INVITE FRIEND TO GROUP (owner only)
+// ==========================================
+export const inviteMember = async (req, res) => {
+  try {
+    const { id, friendId } = req.params;
+
+    const group = await db.query('SELECT * FROM groups WHERE id = $1', [id]);
+    if (group.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
+    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
+
+    const g = group.rows[0];
+
+    const memberCount = await db.query('SELECT COUNT(*) FROM group_members WHERE group_id = $1', [id]);
+    if (g.max_members && parseInt(memberCount.rows[0].count) >= g.max_members) {
+      return res.status(400).json({ error: 'Group is full' });
+    }
+
+    const existing = await db.query(
+      'SELECT id FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [id, friendId]
+    );
+    if (existing.rows.length) return res.status(400).json({ error: 'Already a member' });
+
+    await db.query(
+      'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+      [id, friendId, 'member']
+    );
+
+    await db.query(
+      'UPDATE groups SET members_count = members_count + 1 WHERE id = $1',
+      [id]
+    );
+
+    await db.query(
+      `INSERT INTO notifications (user_id, sender_id, type, title, message, reference_type, reference_id)
+       VALUES ($1, $2, 'group_invite', $3, $4, 'group', $5)`,
+      [friendId, req.userId, `Einladung: ${g.name}`, `Du wurdest zur Gruppe "${g.name}" eingeladen!`, id]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error inviting member:', err);
+    res.status(500).json({ error: 'Failed to invite member' });
   }
 };
 

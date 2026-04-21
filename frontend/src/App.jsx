@@ -33,6 +33,7 @@ const CreateClub = lazy(() => import('./pages/CreateClub'));
 const GroupRequests = lazy(() => import('./pages/GroupRequests'));
 const UserProfile = lazy(() => import('./pages/UserProfile'));
 const ClubEdit = lazy(() => import('./pages/ClubEdit'));
+const GroupEdit = lazy(() => import('./pages/GroupEdit'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
@@ -42,6 +43,7 @@ const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const WelcomeIntro   = lazy(() => import('./pages/WelcomeIntro'));
 const OutOfRegion    = lazy(() => import('./pages/OutOfRegion'));
+const Friends        = lazy(() => import('./pages/Friends'));
 
 // Styles
 import './styles/global.css';
@@ -448,9 +450,13 @@ function AppRoutes() {
           {/* Groups */}
           <Route path="/group/:id" element={<ProtectedRoute><GroupDetail /></ProtectedRoute>} />
           <Route path="/group/:id/requests" element={<ProtectedRoute><GroupRequests /></ProtectedRoute>} />
+          <Route path="/group/:id/edit" element={<ProtectedRoute><GroupEdit /></ProtectedRoute>} />
           <Route path="/create-group" element={<ProtectedRoute><CreateGroup /></ProtectedRoute>} />
           <Route path="/create-club" element={<ProtectedRoute><CreateClub /></ProtectedRoute>} />
           <Route path="/club/:id/edit" element={<ProtectedRoute><ClubEdit /></ProtectedRoute>} />
+
+          {/* Friends */}
+          <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
 
           {/* User */}
           <Route path="/user/:id" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />

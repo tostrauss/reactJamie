@@ -491,6 +491,54 @@ input:focus, textarea:focus, select:focus {
   to { transform: translateY(0); }
 }
 
+.modal-overlay-center {
+  align-items: center;
+  padding: 20px;
+}
+
+.modal-container {
+  width: 100%;
+  background: var(--bg-secondary);
+  border-radius: 20px;
+  padding: 20px 20px 24px;
+  animation: slideUp 0.25s ease;
+}
+
+.modal-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.modal-close {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  border: none;
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+
+.modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-submit-btn {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 4px;
+}
+
 .modal-handle {
   width: 40px;
   height: 4px;

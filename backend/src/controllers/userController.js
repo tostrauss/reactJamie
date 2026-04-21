@@ -7,7 +7,8 @@ export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
     const result = await db.query(
-      `SELECT id, name, bio, location, avatar_url, interests, photos, gender, favorite_song, created_at
+      `SELECT id, name, bio, location, avatar_url, interests, photos, gender, favorite_song, created_at,
+              date_of_birth, is_trusted_user
        FROM users WHERE id = $1`,
       [id]
     );

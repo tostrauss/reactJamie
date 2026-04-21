@@ -8,7 +8,6 @@ import '../styles/home.css';
 import '../styles/profile.css';
 
 const INTEREST_DE = {
-  // English → Deutsch
   'Sports': 'Sport', 'Sport': 'Sport',
   'Music': 'Musik', 'Musik': 'Musik',
   'Tech': 'Technik', 'Technology': 'Technik', 'Technik': 'Technik',
@@ -75,20 +74,29 @@ export const Profile = () => {
 
   const profilePhotos = user?.photos || [];
   const interests     = user?.interests || [];
-  const coverPhoto    = profilePhotos[0] || user?.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800';
-  const avatarPhoto   = user?.avatar_url || profilePhotos[0];
+  const coverPhoto    = user?.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800';
   const completion    = user?.profile_completion || 0;
+  const age = (() => {
+    const dob = user?.date_of_birth;
+    if (!dob) return null;
+    const birth = new Date(dob);
+    if (isNaN(birth)) return null;
+    const today = new Date();
+    let a = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) a--;
+    return a > 0 ? a : null;
+  })();
 
   return (
     <>
       <div className="profile-page">
 
-        {/* ── Cover image + overlay buttons ───────────────────────── */}
+        {/* ── Cover image ───────────────────────────────────────────── */}
         <div className="profile-header-image">
           <img src={coverPhoto} alt={user?.name} className="profile-cover" />
           <div className="profile-cover-gradient" />
           <div className="profile-cover-top-gradient" />
-          <h1 className="profile-logo-overlay">jamie</h1>
 
           <div className="profile-header-actions">
             <button className="profile-action-btn" onClick={() => navigate(-1)} aria-label="Zurück">
@@ -96,7 +104,7 @@ export const Profile = () => {
                 <path d="M19 12H5M12 19l-7-7 7-7"/>
               </svg>
             </button>
-            <div className="profile-edit-actions">
+            <div style={{ display: 'flex', gap: '8px' }}>
               <button className="profile-action-btn" onClick={() => navigate('/settings')} aria-label="Einstellungen">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="12" cy="12" r="3"/>
@@ -112,36 +120,55 @@ export const Profile = () => {
             </div>
           </div>
 
-          {/* Floating avatar */}
-          <div className="profile-avatar-float">
-            {avatarPhoto
-              ? <img src={avatarPhoto} alt={user?.name} />
-              : <span>{user?.name?.[0]?.toUpperCase() || '?'}</span>
-            }
-            {user?.is_trusted_user && (
-              <div className="profile-trusted-badge" title="Vertrauenswürdiger Nutzer">✓</div>
-            )}
-          </div>
+          {/* Trusted / verified badge bottom-right */}
+          {user?.is_trusted_user && (
+            <div className="profile-verified-cover">✓</div>
+          )}
         </div>
 
-        {/* ── Info section ────────────────────────────────────────── */}
+        {/* ── Progress bar ──────────────────────────────────────────── */}
+        {completion < 100 && (
+          <div className="profile-progress-bar-wrap">
+            <div className="profile-progress-bar">
+              <div className="profile-progress-fill" style={{ width: `${completion}%` }} />
+            </div>
+            <span className="profile-progress-label">{completion}% Profil completed</span>
+          </div>
+        )}
+
+        {/* ── Info section ──────────────────────────────────────────── */}
         <div className="profile-info-section">
 
-          {/* Name + location */}
-          <div className="profile-name-row">
-            <h1 className="profile-name">
-              {user?.name || 'Nutzer'}
-              {isPro && <span className="pro-name-badge">👑 PRO</span>}
-            </h1>
-            {user?.location && (
-              <div className="profile-location">
-                <span className="location-icon">📍</span>
-                {user.location}
-              </div>
-            )}
+          {/* Location left — Name + Age right */}
+          <div className="profile-identity-row">
+            {user?.location ? (
+              <div className="profile-location-left">{user.location}</div>
+            ) : <div />}
+            <div className="profile-name-age">
+              <span className="profile-name-cap">{(user?.name || 'Nutzer').toUpperCase()}</span>
+              {age && <span className="profile-age-sup">{age}</span>}
+              {isPro && <span className="pro-name-badge">👑</span>}
+            </div>
           </div>
 
-          {/* Pro CTA (non-pro) */}
+          {/* Interests */}
+          {interests.length > 0 && (
+            <div className="profile-interests">
+              {interests.map((interest, i) => (
+                <span key={i} className="interest-chip">{translateInterest(interest)}</span>
+              ))}
+            </div>
+          )}
+
+          {/* Bio card */}
+          {user?.bio && (
+            <div className="profile-bio-card">
+              <p className="profile-bio-card-title">Über Dich!</p>
+              <p className="profile-bio">{user.bio}</p>
+            </div>
+          )}
+
+          {/* Pro CTA */}
           {!isPro && (
             <button className="pro-cta-card" onClick={() => setShowProModal(true)}>
               <div className="pro-card-icon">👑</div>
@@ -153,47 +180,19 @@ export const Profile = () => {
             </button>
           )}
 
-          {/* Pro active */}
-          {isPro && (
-            <div className="pro-active-card">
-              <div className="pro-card-icon">👑</div>
-              <div className="pro-card-body">
-                <div className="pro-card-title">JAMIE Pro aktiv</div>
-                <div className="pro-card-sub">Kostenlose Boosts für deine Gruppen &amp; Clubs</div>
-              </div>
-              <div className="pro-card-check">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20,6 9,17 4,12"/>
-                </svg>
-              </div>
-            </div>
-          )}
-
-          {/* Profile completion bar */}
-          {completion < 100 && (
-            <div className="profile-completion">
-              <div className="completion-bar">
-                <div className="completion-fill" style={{ width: `${completion}%` }} />
-              </div>
-              <span className="completion-text">{completion}% vollständig</span>
-            </div>
-          )}
-
-          {/* Bio */}
-          {user?.bio && (
-            <div className="profile-bio-section">
-              <p className="profile-bio">{user.bio}</p>
-            </div>
-          )}
-
-          {/* Interests */}
-          {interests.length > 0 && (
-            <div className="profile-interests">
-              {interests.map((interest, i) => (
-                <span key={i} className="interest-chip">{translateInterest(interest)}</span>
-              ))}
-            </div>
-          )}
+          {/* Friends shortcut */}
+          <button className="profile-friends-btn" onClick={() => navigate('/friends')}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            Freunde &amp; Anfragen
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </button>
 
           {/* Tabs */}
           <div className="profile-tabs">
@@ -204,41 +203,49 @@ export const Profile = () => {
               Pinnwand
             </button>
             <button
-              className={`profile-tab ${activeTab === 'musik' ? 'active' : ''}`}
-              onClick={() => setActiveTab('musik')}
+              className={`profile-tab ${activeTab === 'halloffame' ? 'active' : ''}`}
+              onClick={() => setActiveTab('halloffame')}
             >
-              Musik
+              Hall of Fame
             </button>
           </div>
 
           {/* Tab content */}
           <div className="profile-tab-content">
             {activeTab === 'pinnwand' ? (
-              <div className="pinnwand-grid">
-                {profilePhotos.map((photo, i) => (
-                  <div key={i} className={`pinnwand-item${i === 0 ? ' pinnwand-item--large' : ''}`}>
-                    <img src={photo} alt={`Foto ${i + 1}`} />
-                  </div>
-                ))}
-                <button className="pinnwand-item add-photo" onClick={() => navigate('/profile/edit')}>
-                  <span>+</span>
-                  <p>Foto hinzufügen</p>
-                </button>
-              </div>
+              <>
+                <div className="pinnwand-grid">
+                  {profilePhotos.map((photo, i) => (
+                    <div key={i} className={`pinnwand-item${i === 0 ? ' pinnwand-item--large' : ''}`}>
+                      <img src={photo} alt={`Foto ${i + 1}`} />
+                    </div>
+                  ))}
+                  <button className="pinnwand-item add-photo" onClick={() => navigate('/profile/edit')}>
+                    <span>+</span>
+                    <p>Foto hinzufügen</p>
+                  </button>
+                </div>
+
+                {/* Lieblingssong below pinnwand */}
+                <div className="profile-song-section">
+                  {savingSong ? (
+                    <div className="empty-music"><p>Wird gespeichert…</p></div>
+                  ) : (
+                    <SpotifySongPicker
+                      currentSong={user?.favorite_song}
+                      onSelect={handleSongSelect}
+                      onRemove={handleSongRemove}
+                    />
+                  )}
+                </div>
+              </>
             ) : (
-              <div className="musik-section">
-                {savingSong ? (
-                  <div className="empty-music">
-                    <span>⏳</span>
-                    <p>Wird gespeichert…</p>
-                  </div>
-                ) : (
-                  <SpotifySongPicker
-                    currentSong={user?.favorite_song}
-                    onSelect={handleSongSelect}
-                    onRemove={handleSongRemove}
-                  />
-                )}
+              <div className="halloffame-section">
+                <div className="halloffame-empty">
+                  <span className="halloffame-icon">🏆</span>
+                  <p>Deine Hall of Fame</p>
+                  <span>Hier erscheinen bald deine besten Momente</span>
+                </div>
               </div>
             )}
           </div>

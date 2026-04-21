@@ -198,7 +198,7 @@ export const getProfile = async (req, res) => {
 // ==========================================
 export const updateProfile = async (req, res) => {
   try {
-    const { name, location, bio, gender, interests, photos, avatar_url, favorite_song } = req.body;
+    const { name, location, bio, gender, interests, photos, avatar_url, favorite_song, date_of_birth } = req.body;
 
     if (name !== undefined && (!name || !name.trim())) {
       return res.status(400).json({ error: 'Name cannot be empty' });
@@ -227,9 +227,10 @@ export const updateProfile = async (req, res) => {
            photos = COALESCE($6, photos),
            avatar_url = COALESCE($7, avatar_url),
            favorite_song = ${hasFavSong ? '$8' : 'COALESCE($8, favorite_song)'},
+           date_of_birth = CASE WHEN $10::text IS NOT NULL THEN $10::date ELSE date_of_birth END,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $9`,
-      [name, location, bio, gender, interestsStr, photosStr, avatar_url, songStr || null, req.userId]
+      [name, location, bio, gender, interestsStr, photosStr, avatar_url, songStr || null, req.userId, date_of_birth || null]
     );
 
     // Return updated profile

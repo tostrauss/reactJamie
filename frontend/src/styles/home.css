@@ -1160,14 +1160,39 @@
 }
 
 .avatar-slot.empty {
-  background: rgba(255, 255, 255, 0.02);
-  border-style: dashed;
+  background: rgba(255, 255, 255, 0.04);
+  border: none;
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .avatar-gamble {
-  font-size: 32px;
-  color: rgba(255, 255, 255, 0.3);
-  font-weight: bold;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  background: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 44px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: box-shadow 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+}
+
+.avatar-gamble:hover {
+  border-color: rgba(255, 255, 255, 0.9);
+  color: white;
+  box-shadow: 0 0 14px 4px rgba(255, 255, 255, 0.3), 0 0 36px 10px rgba(255, 255, 255, 0.12);
 }
 
 .avatar-placeholder {

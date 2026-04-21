@@ -217,6 +217,10 @@ export const groups = {
   kickMember: (groupId, userId) =>
     axiosInstance.delete(`/groups/${groupId}/members/${userId}`),
 
+  // Invite a friend directly into the group (owner only)
+  invite: (groupId, friendId) =>
+    axiosInstance.post(`/groups/${groupId}/invite/${friendId}`),
+
   // Get member avatars for card display
   getMemberAvatars: (id, limit = 4) =>
     axiosInstance.get(`/groups/${id}/members/avatars`, { params: { limit } })

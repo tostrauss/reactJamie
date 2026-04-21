@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect, useRef } from 'react';
+import { useState, useContext, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { auth, upload, spotify } from '../utils/api';
@@ -51,20 +51,33 @@ export const ProfileEdit = () => {
     interests: [],
     photos: []
   });
+  const [dobParts, setDobParts] = useState({ y: '', m: '', d: '' });
   const [favoriteSong, setFavoriteSong] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
+  const photoInputRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [spotifyConnected, setSpotifyConnected] = useState(false);
   const [spotifyLoading, setSpotifyLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
+      // Parse existing date_of_birth — postgres may return full ISO string
+      let y = '', m = '', d = '';
+      if (user.date_of_birth) {
+        const raw = user.date_of_birth.substring(0, 10); // "YYYY-MM-DD"
+        const parts = raw.split('-');
+        y = parts[0] || '';
+        m = parts[1] || '';
+        d = parts[2] || '';
+      }
+      setDobParts({ y, m, d });
       setFormData({
         name: user.name || '',
         bio: user.bio || '',
         location: user.location || '',
-        date_of_birth: user.date_of_birth || '',
+        date_of_birth: y && m && d ? `${y}-${m}-${d}` : '',
         gender: user.gender || '',
         interests: user.interests || [],
         photos: user.photos || []
@@ -82,16 +95,13 @@ export const ProfileEdit = () => {
 
   const DE_MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 
-  const dobParts = formData.date_of_birth ? formData.date_of_birth.split('-') : ['','',''];
-  const dobYear  = dobParts[0] || '';
-  const dobMonth = dobParts[1] || '';
-  const dobDay   = dobParts[2] || '';
-
   const handleDobChange = (field, value) => {
-    const y = field === 'y' ? value : dobYear;
-    const m = field === 'm' ? value : dobMonth;
-    const d = field === 'd' ? value : dobDay;
-    handleChange('date_of_birth', y && m && d ? `${y}-${m}-${d}` : '');
+    const next = { ...dobParts, [field]: value };
+    setDobParts(next);
+    // Always store what we have; backend CASE WHEN handles partial nulls
+    if (next.y && next.m && next.d) {
+      handleChange('date_of_birth', `${next.y}-${next.m.padStart(2,'0')}-${next.d.padStart(2,'0')}`);
+    }
   };
 
   const handleSpotifyConnect = async () => {
@@ -172,6 +182,25 @@ export const ProfileEdit = () => {
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handlePhotoAdd = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setPhotoUploading(true);
+    try {
+      const res = await upload.image(file);
+      setFormData(prev => ({ ...prev, photos: [...(prev.photos || []), res.data.url] }));
+    } catch {
+      toast.error('Foto konnte nicht hochgeladen werden');
+    } finally {
+      setPhotoUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handlePhotoRemove = (index) => {
+    setFormData(prev => ({ ...prev, photos: prev.photos.filter((_, i) => i !== index) }));
   };
 
   return (
@@ -296,22 +325,22 @@ export const ProfileEdit = () => {
                 <span>Geburtsdatum</span>
               </div>
               <div className="dob-select-row">
-                <select className="settings-input dob-select" value={dobDay} onChange={e => handleDobChange('d', e.target.value)}>
+                <select className="settings-input dob-select" value={dobParts.d} onChange={e => handleDobChange('d', e.target.value)}>
                   <option value="">Tag</option>
                   {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(d => (
                     <option key={d} value={d}>{d}</option>
                   ))}
                 </select>
-                <select className="settings-input dob-select dob-select--month" value={dobMonth} onChange={e => handleDobChange('m', e.target.value)}>
+                <select className="settings-input dob-select dob-select--month" value={dobParts.m} onChange={e => handleDobChange('m', e.target.value)}>
                   <option value="">Monat</option>
                   {DE_MONTHS.map((mo, i) => (
                     <option key={mo} value={String(i + 1).padStart(2, '0')}>{mo}</option>
                   ))}
                 </select>
-                <select className="settings-input dob-select" value={dobYear} onChange={e => handleDobChange('y', e.target.value)}>
+                <select className="settings-input dob-select" value={dobParts.y} onChange={e => handleDobChange('y', e.target.value)}>
                   <option value="">Jahr</option>
                   {Array.from({ length: 80 }, (_, i) => new Date().getFullYear() - 10 - i).map(y => (
-                    <option key={y} value={y}>{y}</option>
+                    <option key={y} value={String(y)}>{y}</option>
                   ))}
                 </select>
               </div>
@@ -435,6 +464,57 @@ export const ProfileEdit = () => {
                 )}
               </button>
             )}
+          </div>
+        </div>
+
+        {/* Fotos */}
+        <div className="settings-section">
+          <h3 className="settings-section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            Meine Fotos
+            <span className="pe-interest-count">{(formData.photos || []).length} / 6</span>
+          </h3>
+
+          <div className="pe-photo-grid">
+            {(formData.photos || []).map((url, i) => (
+              <div key={i} className="pe-photo-cell">
+                <img src={url} alt="" />
+                <button
+                  type="button"
+                  className="pe-photo-remove"
+                  onClick={() => handlePhotoRemove(i)}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+            ))}
+            {(formData.photos || []).length < 6 && (
+              <button
+                type="button"
+                className="pe-photo-add"
+                onClick={() => photoInputRef.current?.click()}
+                disabled={photoUploading}
+              >
+                {photoUploading
+                  ? <div className="pe-photo-spinner" />
+                  : <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                }
+              </button>
+            )}
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handlePhotoAdd}
+              hidden
+            />
           </div>
         </div>
 

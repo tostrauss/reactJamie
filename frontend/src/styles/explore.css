@@ -1,6 +1,5 @@
 /* ================================================================
    JAMIE — Explore Page
-   Instagram-inspired feed for young Austrians
    ================================================================ */
 
 /* ── Container / layout ──────────────────────────────────────── */
@@ -39,10 +38,14 @@
 
 .explore-title {
   font-size: 28px;
-  font-weight: 800;
+  font-weight: 900;
   color: var(--text-white);
-  letter-spacing: -0.5px;
+  letter-spacing: -0.7px;
   margin: 0;
+  background: linear-gradient(135deg, #fff 40%, rgba(255,255,255,0.65));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .explore-search-btn {
@@ -55,7 +58,6 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 50%;
   color: var(--text-light);
-  font-size: 18px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
@@ -68,7 +70,7 @@
   color: var(--accent-coral);
 }
 
-/* ── Search bar (animated collapse) ──────────────────────────── */
+/* ── Search bar ──────────────────────────────────────────────── */
 .explore-search-wrap {
   overflow: hidden;
   max-height: 0;
@@ -97,6 +99,7 @@
 
 .explore-search-inner:focus-within {
   border-color: var(--accent-coral);
+  box-shadow: 0 0 0 3px rgba(253,118,102,0.12);
 }
 
 .explore-search-icon {
@@ -128,9 +131,8 @@
   background: rgba(255, 255, 255, 0.12);
   border: none;
   border-radius: 50%;
-  width: 22px;
-  height: 22px;
-  font-size: 11px;
+  width: 24px;
+  height: 24px;
   color: var(--text-light);
   cursor: pointer;
   display: flex;
@@ -141,7 +143,7 @@
 
 /* ── Category chips ──────────────────────────────────────────── */
 .explore-cats-wrap {
-  padding: 8px 0 12px;
+  padding: 6px 0 12px;
   overflow: hidden;
 }
 
@@ -161,8 +163,8 @@
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 9px 16px;
+  gap: 6px;
+  padding: 8px 14px;
   min-height: 44px;
   background: var(--bg-card);
   border: 1.5px solid rgba(255, 255, 255, 0.1);
@@ -178,16 +180,20 @@
   transition: all 0.18s;
 }
 
-.explore-cat-chip:active { transform: scale(0.94); }
+.explore-cat-chip:active { transform: scale(0.93); }
 
 .explore-cat-chip.active {
   background: var(--accent-coral);
   border-color: var(--accent-coral);
   color: #fff;
-  box-shadow: 0 3px 12px rgba(253, 118, 102, 0.4);
+  box-shadow: 0 4px 14px rgba(253, 118, 102, 0.45);
 }
 
-.chip-icon { font-size: 16px; line-height: 1; }
+.chip-icon {
+  font-size: 15px;
+  line-height: 1;
+  font-family: 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;
+}
 .chip-label { font-size: 13px; }
 
 /* ── Loading ─────────────────────────────────────────────────── */
@@ -219,7 +225,11 @@
   gap: 12px;
 }
 
-.explore-empty-icon { font-size: 56px; opacity: 0.5; }
+.explore-empty-icon {
+  font-size: 56px;
+  line-height: 1;
+  font-family: 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;
+}
 
 .explore-empty p {
   font-size: 17px;
@@ -257,7 +267,7 @@
 
 /* ── Section layout ──────────────────────────────────────────── */
 .explore-section {
-  padding: 20px 0 0;
+  padding: 24px 0 0;
 }
 
 .explore-section--stories {
@@ -268,15 +278,15 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding: 0 20px 12px;
+  padding: 0 20px 14px;
   gap: 8px;
 }
 
 .explore-section-title {
   font-size: 18px;
-  font-weight: 800;
+  font-weight: 900;
   color: var(--text-white);
-  letter-spacing: -0.2px;
+  letter-spacing: -0.3px;
 }
 
 .explore-section-sub {
@@ -286,7 +296,7 @@
 
 .explore-see-all {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--accent-coral);
   background: none;
   border: none;
@@ -324,19 +334,19 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  width: 70px;
+  width: 72px;
 }
 
 .story-circle:active .story-ring {
-  transform: scale(0.93);
+  transform: scale(0.91);
 }
 
 .story-ring {
-  width: 64px;
-  height: 64px;
+  width: 66px;
+  height: 66px;
   border-radius: 50%;
   padding: 3px;
-  background: linear-gradient(135deg, #fd7666, #ff9a8b, #ffc3a0, #fd7666);
+  background: linear-gradient(135deg, var(--accent-coral), #ff9a8b, #ffc3a0, #a855f7);
   transition: transform 0.15s;
 }
 
@@ -357,9 +367,8 @@
   align-items: center;
   justify-content: center;
   background: var(--bg-card);
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--accent-coral);
+  font-size: 24px;
+  font-family: 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;
 }
 
 .story-label {
@@ -375,106 +384,131 @@
 }
 
 /* ================================================================
-   EXPLORE CARDS  (2-column "Für dich" grid)
+   FÜR DICH — horizontal scroll portrait cards
    ================================================================ */
-.explore-2col {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.explore-fy-row {
+  display: flex;
   gap: 12px;
-  padding: 0 20px;
+  overflow-x: auto;
+  padding: 0 20px 4px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
 }
 
-.ec-card {
+.explore-fy-row::-webkit-scrollbar { display: none; }
+
+.fy-card {
+  flex-shrink: 0;
+  width: 155px;
   display: flex;
   flex-direction: column;
   background: var(--bg-card);
   border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 18px;
+  border-radius: 20px;
   overflow: hidden;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
   text-align: left;
+  transition: transform 0.18s, box-shadow 0.18s;
 }
 
-.ec-card:active { transform: scale(0.96); opacity: 0.9; }
-.ec-card:hover  { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.35); border-color: rgba(253,118,102,0.3); }
+.fy-card:active { transform: scale(0.95); opacity: 0.9; }
 
-.ec-card--past { opacity: 0.78; }
-
-.ec-img-wrap {
+.fy-img-wrap {
   position: relative;
   width: 100%;
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 3 / 4;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
-.ec-img {
+.fy-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   transition: transform 0.3s;
 }
 
-.ec-card:hover .ec-img { transform: scale(1.06); }
+.fy-card:active .fy-img { transform: scale(1.05); }
 
-.ec-img-placeholder {
+.fy-img-placeholder {
   width: 100%;
   height: 100%;
+  background: linear-gradient(135deg, #2d2a55 0%, #1a1840 50%, #291C4B 100%);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-card);
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--accent-coral);
 }
 
-.ec-past-badge {
+.fy-ph-icon {
+  font-size: 40px;
+  line-height: 1;
+  font-family: 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
+}
+
+.fy-img-gradient {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 55%;
+  background: linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.fy-boost-badge {
+  position: absolute;
+  top: 9px;
+  left: 9px;
   padding: 3px 8px;
   font-size: 10px;
   font-weight: 700;
-  background: rgba(0,0,0,0.55);
-  backdrop-filter: blur(6px);
-  color: rgba(255,255,255,0.85);
-  border-radius: 999px;
-}
-
-.ec-boost-badge {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: 3px 8px;
-  font-size: 10px;
-  font-weight: 700;
-  background: linear-gradient(135deg, rgba(255,200,0,0.8), rgba(255,140,0,0.8));
+  background: linear-gradient(135deg, rgba(255,200,0,0.85), rgba(255,140,0,0.85));
   color: #fff;
   border-radius: 999px;
   backdrop-filter: blur(6px);
 }
 
-.ec-body {
+.fy-overlay-meta {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+}
+
+.fy-members-pill {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.9);
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(6px);
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.fy-body {
   padding: 10px 12px 12px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
-.ec-cat {
+.fy-cat {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--accent-coral);
   margin: 0;
-  opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;
 }
 
-.ec-title {
-  font-size: 14px;
-  font-weight: 700;
+.fy-title {
+  font-size: 13px;
+  font-weight: 800;
   color: var(--text-white);
   margin: 0;
   display: -webkit-box;
@@ -484,20 +518,22 @@
   line-height: 1.3;
 }
 
-.ec-meta {
-  display: flex;
-  gap: 8px;
+.fy-loc {
   font-size: 11px;
   color: var(--text-muted);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ================================================================
-   TRENDING CARDS  (full-width, big image)
+   TRENDING CARDS  (horizontal, image left)
    ================================================================ */
 .explore-trending {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   padding: 0 20px;
 }
 
@@ -510,21 +546,16 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s;
   text-align: left;
 }
 
 .tc-card:active { transform: scale(0.98); opacity: 0.9; }
-.tc-card:hover  {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 28px rgba(0,0,0,0.4);
-  border-color: rgba(253,118,102,0.3);
-}
 
 .tc-img-wrap {
   flex-shrink: 0;
-  width: 110px;
-  min-height: 130px;
+  width: 115px;
+  min-height: 135px;
   position: relative;
   overflow: hidden;
 }
@@ -536,7 +567,7 @@
   transition: transform 0.3s;
 }
 
-.tc-card:hover .tc-img { transform: scale(1.07); }
+.tc-card:active .tc-img { transform: scale(1.06); }
 
 .tc-img-placeholder {
   width: 100%;
@@ -544,10 +575,24 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-card);
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--accent-coral);
+  background: linear-gradient(135deg, #2d2a55, #1a1840);
+  font-size: 34px;
+  font-family: 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;
+}
+
+.tc-rank {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  padding-top: 6px;
+  font-size: 28px;
+  font-weight: 900;
+  color: rgba(255,255,255,0.12);
+  letter-spacing: -1px;
+  pointer-events: none;
+  font-family: inherit;
 }
 
 .tc-body {
@@ -557,6 +602,7 @@
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+  border-left: 3px solid rgba(253,118,102,0.15);
 }
 
 .tc-top {
@@ -570,10 +616,11 @@
   font-size: 11px;
   font-weight: 700;
   padding: 3px 9px;
-  background: rgba(253, 118, 102, 0.18);
-  border: 1px solid rgba(253, 118, 102, 0.35);
+  background: rgba(253, 118, 102, 0.14);
+  border: 1px solid rgba(253, 118, 102, 0.28);
   border-radius: 999px;
   color: var(--accent-coral);
+  font-family: 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;
 }
 
 .tc-location {
@@ -582,7 +629,7 @@
 }
 
 .tc-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
   color: var(--text-white);
   margin: 0;
@@ -591,6 +638,7 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   line-height: 1.25;
+  letter-spacing: -0.2px;
 }
 
 .tc-desc {
@@ -608,12 +656,12 @@
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
 .tc-fill-bar {
   height: 4px;
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.08);
   border-radius: 99px;
   overflow: hidden;
 }
@@ -656,7 +704,7 @@
   transition: transform 0.18s, opacity 0.18s;
 }
 
-.pe-card:active { transform: scale(0.97); opacity: 0.88; }
+.pe-card:active { transform: scale(0.96); opacity: 0.85; }
 
 .pe-card--tall .pe-placeholder,
 .pe-card--tall .pe-img {
@@ -671,34 +719,36 @@
   transition: transform 0.3s;
 }
 
-.pe-card:hover .pe-img { transform: scale(1.04); }
-
 .pe-placeholder {
   width: 100%;
   aspect-ratio: 1 / 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-card);
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--accent-coral);
+  background: linear-gradient(135deg, #2d2a55 0%, #1a1840 100%);
+}
+
+.pe-ph-icon {
+  font-size: 36px;
+  line-height: 1;
+  font-family: 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;
 }
 
 .pe-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 55%);
+  background: linear-gradient(to top, rgba(0,0,0,0.78) 0%, transparent 55%);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: 10px 10px 10px;
+  padding: 10px;
   gap: 2px;
 }
 
 .pe-cat {
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1;
+  font-family: 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;
 }
 
 .pe-info {
@@ -721,7 +771,7 @@
 
 .pe-date {
   font-size: 10px;
-  color: rgba(255,255,255,0.65);
+  color: rgba(255,255,255,0.6);
   margin: 0;
 }
 
@@ -751,7 +801,6 @@
 }
 
 .sr-item:active { background: rgba(255,255,255,0.04); }
-.sr-item:hover  { background: rgba(255,255,255,0.05); }
 
 .sr-thumb {
   flex-shrink: 0;
@@ -764,6 +813,7 @@
   align-items: center;
   justify-content: center;
   font-size: 24px;
+  font-family: 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;
   border: 1px solid rgba(255,255,255,0.08);
 }
 
@@ -778,7 +828,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .sr-name {
@@ -795,19 +845,32 @@
   font-size: 12px;
   color: var(--text-muted);
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sr-type-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(253,118,102,0.15);
+  color: var(--accent-coral);
+}
+
+.sr-type-badge.club {
+  background: rgba(168,85,247,0.15);
+  color: #a855f7;
 }
 
 .sr-arrow {
-  font-size: 22px;
   color: var(--text-muted);
   flex-shrink: 0;
 }
 
 /* ── responsive ───────────────────────────────────────────────── */
 @media (min-width: 600px) {
-  .explore-2col {
-    grid-template-columns: repeat(3, 1fr);
-  }
   .explore-past-grid {
     columns: 3;
   }

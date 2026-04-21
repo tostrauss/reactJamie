@@ -1,14 +1,14 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { groups, directMessages, friends, subscription as subscriptionApi } from '../utils/api';
 import { SocketContext } from '../context/SocketContext';
 import { ProModal } from '../components/ProModal';
+import { useToast } from '../context/ToastContext';
 import '../styles/chat.css';
 import '../styles/profile.css';
 
 export const ChatList = () => {
   const [activeTab, setActiveTab]           = useState('gruppen');
-  const [showRequests, setShowRequests]     = useState(false);
   const [groupChats, setGroupChats]         = useState([]);
   const [privateChats, setPrivateChats]     = useState([]);
   const [friendsList, setFriendsList]       = useState([]);
@@ -17,8 +17,18 @@ export const ChatList = () => {
   const [showHidden, setShowHidden]         = useState(false);
   const [isPro, setIsPro]                   = useState(false);
   const [showProModal, setShowProModal]     = useState(false);
+  const [requestsModal, setRequestsModal]   = useState(null); // { groupId, groupName }
+  const [modalRequests, setModalRequests]   = useState([]);
+  const [modalIndex, setModalIndex]         = useState(0);
+  const [modalLoading, setModalLoading]     = useState(false);
+  const [modalProcessing, setModalProcessing] = useState(false);
+  const [modalOffsetX, setModalOffsetX]     = useState(0);
+  const [modalSwipeDir, setModalSwipeDir]   = useState(null);
+  const [modalStartX, setModalStartX]       = useState(0);
+  const modalCardRef = useRef(null);
   const navigate = useNavigate();
   const { socket } = useContext(SocketContext);
+  const toast = useToast();
 
   useEffect(() => {
     loadData();
@@ -54,7 +64,8 @@ export const ChatList = () => {
           time: g.last_message_time ? formatTime(g.last_message_time) : '',
           unread: g.unread_count || 0,
           avatar: g.image_url,
-          type: g.type
+          type: g.type,
+          isOwner: g.role === 'owner'
         };
       }));
 
@@ -133,6 +144,70 @@ export const ChatList = () => {
     }
   };
 
+  const openRequestsModal = async (groupId, groupName) => {
+    setRequestsModal({ groupId, groupName });
+    setModalIndex(0);
+    setModalOffsetX(0);
+    setModalSwipeDir(null);
+    setModalLoading(true);
+    try {
+      const res = await groups.getRequests(groupId);
+      setModalRequests(res.data || []);
+    } catch (err) {
+      toast.error('Anfragen konnten nicht geladen werden');
+      setRequestsModal(null);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const modalHandleTouchStart = (e) => setModalStartX(e.touches[0].clientX);
+  const modalHandleTouchMove = (e) => {
+    const diff = e.touches[0].clientX - modalStartX;
+    setModalOffsetX(diff);
+    if (diff > 50) setModalSwipeDir('right');
+    else if (diff < -50) setModalSwipeDir('left');
+    else setModalSwipeDir(null);
+  };
+  const modalHandleTouchEnd = () => {
+    if (modalOffsetX > 100) modalHandleAccept();
+    else if (modalOffsetX < -100) modalHandleDecline();
+    else { setModalOffsetX(0); setModalSwipeDir(null); }
+  };
+  const modalGoNext = () => {
+    setModalOffsetX(0);
+    setModalSwipeDir(null);
+    setModalIndex(prev => prev + 1);
+  };
+  const modalHandleAccept = async () => {
+    if (modalProcessing) return;
+    const req = modalRequests[modalIndex];
+    setModalProcessing(true);
+    try {
+      await groups.handleRequest(requestsModal.groupId, req.id, 'accept');
+      toast.success(`${req.user_name} wurde angenommen!`);
+      setModalSwipeDir('right'); setModalOffsetX(300);
+      setTimeout(() => { modalGoNext(); setModalProcessing(false); }, 300);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Fehler beim Annehmen');
+      setModalOffsetX(0); setModalSwipeDir(null); setModalProcessing(false);
+    }
+  };
+  const modalHandleDecline = async () => {
+    if (modalProcessing) return;
+    const req = modalRequests[modalIndex];
+    setModalProcessing(true);
+    try {
+      await groups.handleRequest(requestsModal.groupId, req.id, 'reject');
+      toast.info(`${req.user_name} wurde abgelehnt`);
+      setModalSwipeDir('left'); setModalOffsetX(-300);
+      setTimeout(() => { modalGoNext(); setModalProcessing(false); }, 300);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Fehler beim Ablehnen');
+      setModalOffsetX(0); setModalSwipeDir(null); setModalProcessing(false);
+    }
+  };
+
   const onlyGroups     = groupChats.filter(c => c.type !== 'club');
   const onlyClubs      = groupChats.filter(c => c.type === 'club');
   const currentChats   = activeTab === 'gruppen' ? onlyGroups : activeTab === 'clubs' ? onlyClubs : privateChats;
@@ -167,31 +242,14 @@ export const ChatList = () => {
           </button>
           <button
             className={`tab ${activeTab === 'freunde' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('freunde'); setShowRequests(false); }}
+            onClick={() => setActiveTab('freunde')}
           >
-            Freunde
+            Deine Chats
             {pendingRequests.length > 0 && (
               <span className="tab-count">{pendingRequests.length}</span>
             )}
           </button>
         </div>
-
-        {isGroupOrClub && (
-          <div className="chat-actions">
-            <button
-              className={`action-tab ${!showRequests ? 'active' : ''}`}
-              onClick={() => setShowRequests(false)}
-            >
-              Chats
-            </button>
-            <button
-              className={`action-tab ${showRequests ? 'active' : ''}`}
-              onClick={() => setShowRequests(true)}
-            >
-              Anfragen
-            </button>
-          </div>
-        )}
       </div>
 
       {/* ── Scrollable content ──────────────────────────────────────── */}
@@ -294,38 +352,6 @@ export const ChatList = () => {
           <div className="chat-list">
             {loading ? (
               <div className="home-loading"><div className="home-spinner" /></div>
-            ) : showRequests ? (
-              currentChats.length === 0 ? (
-                <div className="empty-state">
-                  <div className="empty-icon">📬</div>
-                  <p>Keine Gruppen</p>
-                  <button className="empty-hint" onClick={() => navigate('/home')}>
-                    Erstelle eine Gruppe um Anfragen zu erhalten!
-                  </button>
-                </div>
-              ) : (
-                currentChats.map(chat => (
-                  <div
-                    key={chat.id}
-                    className="chat-item"
-                    onClick={() => navigate(`/group/${chat.id}/requests`)}
-                  >
-                    <div className="chat-avatar-wrapper">
-                      {chat.avatar
-                        ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" />
-                        : <div className="chat-avatar-placeholder">{(chat.name || '?')[0].toUpperCase()}</div>
-                      }
-                    </div>
-                    <div className="chat-info">
-                      <div className="chat-top-row">
-                        <span className="chat-name">{chat.name}</span>
-                        <span className="chat-time chat-time--link">Anfragen →</span>
-                      </div>
-                      <p className="chat-last-message">Beitrittsanfragen anzeigen</p>
-                    </div>
-                  </div>
-                ))
-              )
             ) : currentChats.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">{activeTab === 'clubs' ? '🏆' : '💬'}</div>
@@ -336,35 +362,87 @@ export const ChatList = () => {
               </div>
             ) : (
               <>
-                {currentChats.map(chat => (
-                  <div key={chat.id} className="chat-item" onClick={() => handleChatClick(chat)}>
-                    <div className="chat-avatar-wrapper">
-                      {chat.avatar
-                        ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" />
-                        : <div className="chat-avatar-placeholder">{(chat.name || '?')[0].toUpperCase()}</div>
-                      }
-                      {chat.isOnline && <span className="online-indicator" />}
-                    </div>
-                    <div className="chat-info">
-                      <div className="chat-top-row">
-                        <span className="chat-name">{chat.name}</span>
-                        <span className="chat-time">{chat.time}</span>
-                      </div>
-                      {chat.type === 'club' && (
-                        <span className="chat-type-badge club-badge">Club</span>
+                {(() => {
+                  const owned = currentChats.filter(c => c.isOwner);
+                  const others = currentChats.filter(c => !c.isOwner);
+                  return (
+                    <>
+                      {owned.length > 0 && (
+                        <>
+                          <div className="chat-section-label">Von dir Erstellt</div>
+                          {owned.map(chat => (
+                            <div key={chat.id} className="chat-item chat-item--owner">
+                              <div className="chat-item-main" onClick={() => handleChatClick(chat)}>
+                                <div className="chat-avatar-wrapper">
+                                  {chat.avatar
+                                    ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" />
+                                    : <div className="chat-avatar-placeholder">{(chat.name || '?')[0].toUpperCase()}</div>
+                                  }
+                                </div>
+                                <div className="chat-info">
+                                  <div className="chat-top-row">
+                                    <span className="chat-name">{chat.name}</span>
+                                    <span className="chat-time">{chat.time}</span>
+                                  </div>
+                                  {chat.type === 'club' && (
+                                    <span className="chat-type-badge club-badge">Club</span>
+                                  )}
+                                  <div className="chat-bottom-row">
+                                    <p className="chat-last-message">{chat.lastMessage}</p>
+                                    {chat.unread > 0 && <span className="unread-badge">{chat.unread}</span>}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="chat-owner-actions">
+                                <button
+                                  className="chat-owner-btn chat-owner-btn--requests"
+                                  onClick={(e) => { e.stopPropagation(); openRequestsModal(chat.id, chat.name); }}
+                                >
+                                  Anfragen
+                                </button>
+                                <button
+                                  className="chat-owner-btn chat-owner-btn--manage"
+                                  onClick={(e) => { e.stopPropagation(); navigate(`/group/${chat.id}/edit`); }}
+                                >
+                                  Verwalten
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </>
                       )}
-                      <div className="chat-bottom-row">
-                        <p className="chat-last-message">{chat.lastMessage}</p>
-                        {chat.unread > 0 && <span className="unread-badge">{chat.unread}</span>}
-                      </div>
-                      {chat.hasRequests && chat.requestCount > 0 && (
-                        <div className="chat-requests-hint">
-                          <span className="request-indicator">{chat.requestCount} Anfragen</span>
-                        </div>
+                      {others.length > 0 && (
+                        <>
+                          {owned.length > 0 && <div className="chat-section-label">Andere</div>}
+                          {others.map(chat => (
+                            <div key={chat.id} className="chat-item" onClick={() => handleChatClick(chat)}>
+                              <div className="chat-avatar-wrapper">
+                                {chat.avatar
+                                  ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" />
+                                  : <div className="chat-avatar-placeholder">{(chat.name || '?')[0].toUpperCase()}</div>
+                                }
+                                {chat.isOnline && <span className="online-indicator" />}
+                              </div>
+                              <div className="chat-info">
+                                <div className="chat-top-row">
+                                  <span className="chat-name">{chat.name}</span>
+                                  <span className="chat-time">{chat.time}</span>
+                                </div>
+                                {chat.type === 'club' && (
+                                  <span className="chat-type-badge club-badge">Club</span>
+                                )}
+                                <div className="chat-bottom-row">
+                                  <p className="chat-last-message">{chat.lastMessage}</p>
+                                  {chat.unread > 0 && <span className="unread-badge">{chat.unread}</span>}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </>
                       )}
-                    </div>
-                  </div>
-                ))}
+                    </>
+                  );
+                })()}
 
                 <button className="hidden-chats-toggle" onClick={() => setShowHidden(!showHidden)}>
                   <span>Ausgeblendet</span>
@@ -390,6 +468,120 @@ export const ChatList = () => {
 
       {showProModal && (
         <ProModal onClose={() => setShowProModal(false)} onSuccess={() => setIsPro(true)} />
+      )}
+
+      {/* ── Anfragen Modal ──────────────────────────────────────────── */}
+      {requestsModal && (
+        <div className="requests-modal-overlay" onClick={() => setRequestsModal(null)}>
+          <div className="requests-modal" onClick={e => e.stopPropagation()}>
+            <div className="requests-modal-header">
+              <span className="requests-modal-title">
+                {modalLoading ? 'Lade…' : modalIndex < modalRequests.length
+                  ? `${modalRequests.length - modalIndex} Anfragen`
+                  : 'Keine Anfragen'}
+              </span>
+              <button className="requests-modal-close" onClick={() => setRequestsModal(null)}>✕</button>
+            </div>
+
+            <div className="requests-modal-body">
+              {modalLoading ? (
+                <div className="home-loading"><div className="home-spinner" /></div>
+              ) : modalIndex >= modalRequests.length ? (
+                <div className="empty-state" style={{ padding: '40px 20px' }}>
+                  <div className="empty-icon">✅</div>
+                  <p>Alle Anfragen bearbeitet!</p>
+                </div>
+              ) : (() => {
+                const req = modalRequests[modalIndex];
+                const age = req.user_dob
+                  ? Math.floor((Date.now() - new Date(req.user_dob)) / 31557600000)
+                  : null;
+                let interests = [];
+                try {
+                  interests = req.user_interests
+                    ? (typeof req.user_interests === 'string' ? JSON.parse(req.user_interests) : req.user_interests)
+                    : [];
+                } catch {}
+                const nextReq = modalRequests[modalIndex + 1];
+                return (
+                  <>
+                    <div
+                      className="request-card-wrapper"
+                      ref={modalCardRef}
+                      onTouchStart={modalHandleTouchStart}
+                      onTouchMove={modalHandleTouchMove}
+                      onTouchEnd={modalHandleTouchEnd}
+                      style={{
+                        transform: `translateX(${modalOffsetX}px) rotate(${modalOffsetX * 0.05}deg)`,
+                        transition: Math.abs(modalOffsetX) > 100 ? 'transform 0.3s ease' : 'none'
+                      }}
+                    >
+                      <div className={`swipe-indicator swipe-accept ${modalSwipeDir === 'right' ? 'visible' : ''}`}>
+                        <span>✓</span><span>Annehmen</span>
+                      </div>
+                      <div className={`swipe-indicator swipe-decline ${modalSwipeDir === 'left' ? 'visible' : ''}`}>
+                        <span>✕</span><span>Ablehnen</span>
+                      </div>
+                      <div className="request-card">
+                        <div className="request-image-container request-image-tall">
+                          {req.user_avatar
+                            ? <img src={req.user_avatar} alt={req.user_name} className="request-user-image" />
+                            : <div className="request-avatar-placeholder">{(req.user_name || '?')[0].toUpperCase()}</div>
+                          }
+                          {req.user_trusted && (
+                            <div className="request-trusted-badge">
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                                <polyline points="20,6 9,17 4,12" stroke="white" strokeWidth="3" fill="none"/>
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+                        <div className="request-user-info">
+                          <h2 className="request-name">
+                            {req.user_name}{age ? `, ${age}` : ''}
+                          </h2>
+                          {req.message && (
+                            <p className="request-bio">{req.message}</p>
+                          )}
+                          {interests.length > 0 && (
+                            <div className="request-interests">
+                              {interests.slice(0, 5).map((tag, i) => (
+                                <span key={i} className="request-interest-tag">{tag}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {nextReq && (
+                        <div className="next-card-preview">
+                          {nextReq.user_avatar
+                            ? <img src={nextReq.user_avatar} alt="" />
+                            : <div style={{ width: '100%', height: '100%', background: 'var(--bg-input)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: 'var(--accent-coral)' }}>
+                                {(nextReq.user_name || '?')[0].toUpperCase()}
+                              </div>
+                          }
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="requests-actions" style={{ padding: '20px 0 0' }}>
+                      <button className="action-btn decline" onClick={modalHandleDecline} disabled={modalProcessing}>
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                      </button>
+                      <button className="action-btn accept" onClick={modalHandleAccept} disabled={modalProcessing}>
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                          <polyline points="20,6 9,17 4,12"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -110,7 +110,13 @@ export const GroupCard = ({
         ))}
         {[...Array(emptySpots)].map((_, idx) => (
           <div key={`empty-${idx}`} className="avatar-slot empty">
-            <div className="avatar-gamble">?</div>
+            <button
+              className="avatar-gamble"
+              onClick={(e) => {
+                e.stopPropagation();
+                isJoined ? onChat?.(group.id) : onJoin?.(group.id);
+              }}
+            >+</button>
           </div>
         ))}
 

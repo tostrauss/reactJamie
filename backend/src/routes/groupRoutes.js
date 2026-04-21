@@ -20,7 +20,8 @@ import {
   leaveWaitlist,
   getWaitlist,
   getUserWaitlistStatus,
-  getGroupMemberAvatars
+  getGroupMemberAvatars,
+  inviteMember
 } from '../controllers/groupController.js';
 import { authenticate, optionalAuth, requireCompleteProfile } from '../middleware/auth.js';
 
@@ -77,6 +78,7 @@ router.get('/:id/members/avatars', optionalAuth, getGroupMemberAvatars);
 // ADMIN ACTIONS (owner only)
 // ==========================================
 router.delete('/:id/members/:userId', authenticate, kickMember);
+router.post('/:id/invite/:friendId', authenticate, inviteMember);
 router.post('/:id/cancel', authenticate, cancelGroup);
 
 export default router;

@@ -27,11 +27,11 @@ function makeEmojiIcon(emoji) {
       width:44px;height:44px;border-radius:50%;
       background:#291C4B;
       display:flex;align-items:center;justify-content:center;
-      font-size:13px;font-weight:700;color:#FD7666;line-height:1;
-      font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;
+      font-size:20px;line-height:1;
+      font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;
       box-shadow:0 2px 12px rgba(0,0,0,0.45);
       border:2px solid #392B58;
-    ">${emoji[0] ?? '?'}</div>`,
+    ">${emoji ?? '✨'}</div>`,
     iconSize: [44, 44],
     iconAnchor: [22, 22],
     popupAnchor: [0, -26],

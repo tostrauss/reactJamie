@@ -1,0 +1,283 @@
+import React, { useState, useEffect, useContext } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { groups, friends as friendsApi } from '../utils/api';
+import { AuthContext } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+import '../styles/group-edit.css';
+
+export const GroupEdit = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
+  const toast = useToast();
+
+  const [group, setGroup]           = useState(null);
+  const [members, setMembers]       = useState([]);
+  const [friends, setFriends]       = useState([]);
+  const [friendSearch, setFriendSearch] = useState('');
+  const [loading, setLoading]       = useState(true);
+  const [saving, setSaving]         = useState(false);
+  const [formData, setFormData]     = useState({ name: '', description: '', max_members: 10, date: '' });
+
+  useEffect(() => { loadData(); }, [id]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [groupRes, membersRes, friendsRes] = await Promise.all([
+        groups.getById(id),
+        groups.getMembers(id),
+        friendsApi.getAll().catch(() => ({ data: [] }))
+      ]);
+      const g = groupRes.data;
+      setGroup(g);
+      setMembers(membersRes.data || []);
+      const memberIds = new Set((membersRes.data || []).map(m => m.id || m.user_id));
+      setFriends((friendsRes.data || []).filter(f => !memberIds.has(f.friend_id)));
+      setFormData({
+        name: g.name || g.title || '',
+        description: g.description || '',
+        max_members: g.max_members || 10,
+        date: g.date ? g.date.slice(0, 10) : ''
+      });
+    } catch {
+      toast.error('Gruppe konnte nicht geladen werden');
+      navigate(-1);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await groups.update(id, formData);
+      toast.success('Gespeichert!');
+      navigate(-1);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Fehler beim Speichern');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemoveMember = async (memberId) => {
+    try {
+      await groups.kickMember(id, memberId);
+      setMembers(prev => prev.filter(m => m.id !== memberId && m.user_id !== memberId));
+    } catch {
+      toast.error('Fehler beim Entfernen');
+    }
+  };
+
+  const handleInviteFriend = async (friendId, friendName) => {
+    try {
+      await groups.invite(id, friendId);
+      setFriends(prev => prev.filter(f => f.friend_id !== friendId));
+      setMembers(prev => [...prev, { user_id: friendId, name: friendName, role: 'member' }]);
+      toast.success(`${friendName} eingeladen!`);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Einladung fehlgeschlagen');
+    }
+  };
+
+  const filteredFriends = friends.filter(f =>
+    f.name?.toLowerCase().includes(friendSearch.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="ge-page ge-loading">
+        <div className="ge-spinner" />
+      </div>
+    );
+  }
+
+  const groupName = group?.name || group?.title || 'Gruppe';
+  const displayDate = formData.date
+    ? new Date(formData.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })
+    : '—';
+
+  return (
+    <div className="ge-page">
+
+      {/* ── Cover + Header ── */}
+      <div className="ge-cover">
+        {group?.image_url
+          ? <img src={group.image_url} alt="" className="ge-cover-img" />
+          : <div className="ge-cover-placeholder" />
+        }
+        <div className="ge-cover-overlay" />
+        <div className="ge-header">
+          <button className="ge-back-btn" onClick={() => navigate(-1)}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M15 18l-6-6 6-6"/>
+            </svg>
+          </button>
+          <h1 className="ge-page-title">{groupName}</h1>
+          <button className="ge-save-header-btn" onClick={handleSave} disabled={saving}>
+            {saving ? '…' : 'Speichern'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Scrollable body ── */}
+      <div className="ge-body">
+
+        {/* ── Mitglieder ── */}
+        <section className="ge-section">
+          <div className="ge-section-head">
+            <span className="ge-section-title">Mitglieder</span>
+            <span className="ge-section-count">{members.length}</span>
+          </div>
+          <div className="ge-card">
+            {members.map((member, idx) => {
+              const mid = member.user_id || member.id;
+              const isOwner = member.role === 'owner';
+              const canRemove = !isOwner && mid !== user?.id;
+              return (
+                <div key={mid} className={`ge-member-row ${idx < members.length - 1 ? 'ge-row-divider' : ''}`}>
+                  <div className="ge-avatar ge-avatar-md">
+                    {member.avatar_url
+                      ? <img src={member.avatar_url} alt={member.name} />
+                      : <span>{(member.name || '?')[0].toUpperCase()}</span>
+                    }
+                  </div>
+                  <div className="ge-member-info">
+                    <p className="ge-member-name">{member.name}</p>
+                    {isOwner && <p className="ge-member-role">Ersteller</p>}
+                  </div>
+                  {canRemove && (
+                    <button className="ge-remove-btn" onClick={() => handleRemoveMember(mid)}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <path d="M18 6L6 18M6 6l12 12"/>
+                      </svg>
+                      <span>Entfernen</span>
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* ── Freunde hinzufügen ── */}
+        <section className="ge-section">
+          <div className="ge-section-head">
+            <span className="ge-section-title">Freunde hinzufügen</span>
+          </div>
+          <div className="ge-search-wrap">
+            <svg className="ge-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+            </svg>
+            <input
+              className="ge-search"
+              placeholder="Suchen"
+              value={friendSearch}
+              onChange={e => setFriendSearch(e.target.value)}
+            />
+          </div>
+          {filteredFriends.length === 0 ? (
+            <p className="ge-empty">Keine Freunde verfügbar</p>
+          ) : (
+            <div className="ge-friends-grid">
+              {filteredFriends.map(friend => (
+                <button
+                  key={friend.friend_id}
+                  className="ge-friend-card"
+                  onClick={() => handleInviteFriend(friend.friend_id, friend.name)}
+                >
+                  <div className="ge-avatar ge-avatar-lg">
+                    {friend.avatar_url
+                      ? <img src={friend.avatar_url} alt={friend.name} />
+                      : <span>{(friend.name || '?')[0].toUpperCase()}</span>
+                    }
+                  </div>
+                  <span className="ge-friend-name">{friend.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* ── Gruppe bearbeiten ── */}
+        <section className="ge-section">
+          <div className="ge-section-head">
+            <span className="ge-section-title">Gruppeninfo</span>
+          </div>
+          <div className="ge-card ge-form-card">
+
+            <div className="ge-field">
+              <label className="ge-label">Titel</label>
+              <input
+                className="ge-input"
+                placeholder="Gruppenname"
+                value={formData.name}
+                onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
+              />
+            </div>
+
+            <div className="ge-divider" />
+
+            <div className="ge-field">
+              <label className="ge-label">Beschreibung</label>
+              <textarea
+                className="ge-input ge-textarea"
+                placeholder="Erzähl etwas über die Gruppe…"
+                rows={3}
+                value={formData.description}
+                onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
+              />
+            </div>
+
+            <div className="ge-divider" />
+
+            <div className="ge-controls-row">
+              <div className="ge-control-block">
+                <span className="ge-control-label">Gruppengröße</span>
+                <div className="ge-stepper">
+                  <button
+                    className="ge-step-btn"
+                    onClick={() => setFormData(p => ({ ...p, max_members: Math.max(2, p.max_members - 1) }))}
+                  >−</button>
+                  <span className="ge-step-val">{formData.max_members}</span>
+                  <button
+                    className="ge-step-btn"
+                    onClick={() => setFormData(p => ({ ...p, max_members: Math.min(100, p.max_members + 1) }))}
+                  >+</button>
+                </div>
+              </div>
+
+              <div className="ge-control-divider" />
+
+              <div className="ge-control-block">
+                <span className="ge-control-label">Datum</span>
+                <div className="ge-date-wrap">
+                  <span className="ge-date-display">{displayDate}</span>
+                  <input
+                    type="date"
+                    className="ge-date-overlay"
+                    value={formData.date}
+                    onChange={e => setFormData(p => ({ ...p, date: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <div className="ge-bottom-space" />
+      </div>
+
+      {/* ── Sticky footer ── */}
+      <div className="ge-footer">
+        <button className="ge-save-btn" onClick={handleSave} disabled={saving}>
+          {saving ? 'Speichern…' : 'Speichern'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default GroupEdit;

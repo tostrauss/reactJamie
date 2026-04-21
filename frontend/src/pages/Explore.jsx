@@ -5,9 +5,8 @@ import { AuthContext } from '../context/AuthContext';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import '../styles/explore.css';
 
-// ─── helpers ────────────────────────────────────────────────────────────────
-
 const getCategoryIcon = (catName) => {
+  if (!catName) return '✨';
   for (const cat of CATEGORY_HIERARCHY) {
     if (cat.label === catName || cat.id === catName) return cat.icon;
     const sub = cat.subs?.find(s => s.name === catName);
@@ -21,10 +20,7 @@ const formatDate = (dateStr) => {
   const d = new Date(dateStr);
   const now = new Date();
   const diff = now - d;
-  if (diff < 0) {
-    // future
-    return d.toLocaleDateString('de-AT', { day: '2-digit', month: 'short' });
-  }
+  if (diff < 0) return d.toLocaleDateString('de-AT', { day: '2-digit', month: 'short' });
   if (diff < 86400000 * 7) return `vor ${Math.ceil(diff / 86400000)}d`;
   return d.toLocaleDateString('de-AT', { day: '2-digit', month: 'short' });
 };
@@ -37,13 +33,14 @@ const isPast = (dateStr) => {
 // ─── sub-components ─────────────────────────────────────────────────────────
 
 const StoryCircle = ({ item, navigate }) => {
+  const icon = getCategoryIcon(item.category);
   return (
     <button className="story-circle" onClick={() => navigate(`/group/${item.id}`)}>
       <div className="story-ring">
         {item.image_url ? (
           <img src={item.image_url} alt={item.name} className="story-img" />
         ) : (
-          <div className="story-placeholder">{(item.name || '?')[0]}</div>
+          <div className="story-placeholder">{icon}</div>
         )}
       </div>
       <span className="story-label">{item.name}</span>
@@ -51,34 +48,37 @@ const StoryCircle = ({ item, navigate }) => {
   );
 };
 
-const ExploreCard = ({ item, navigate }) => {
-  const past = isPast(item.date);
+const FYCard = ({ item, navigate }) => {
+  const icon = getCategoryIcon(item.category);
   return (
-    <button className={`ec-card ${past ? 'ec-card--past' : ''}`} onClick={() => navigate(`/group/${item.id}`)}>
-      <div className="ec-img-wrap">
+    <button className="fy-card" onClick={() => navigate(`/group/${item.id}`)}>
+      <div className="fy-img-wrap">
         {item.image_url ? (
-          <img src={item.image_url} alt={item.name} className="ec-img" />
+          <img src={item.image_url} alt={item.name} className="fy-img" />
         ) : (
-          <div className="ec-img-placeholder">{(item.name || '?')[0]}</div>
+          <div className="fy-img-placeholder"><span className="fy-ph-icon">{icon}</span></div>
         )}
-        {past && <span className="ec-past-badge">Vergangen</span>}
-        {item.is_boosted && <span className="ec-boost-badge">Boost</span>}
-      </div>
-      <div className="ec-body">
-        <p className="ec-cat">{item.category}</p>
-        <h3 className="ec-title">{item.name}</h3>
-        <div className="ec-meta">
-          <span>{item.current_members ?? 0}/{item.max_members}</span>
-          {item.date && <span>{formatDate(item.date)}</span>}
+        {item.is_boosted && <span className="fy-boost-badge">⚡ Boost</span>}
+        <div className="fy-img-gradient" />
+        <div className="fy-overlay-meta">
+          <span className="fy-members-pill">
+            {item.current_members ?? 0}/{item.max_members || '∞'}
+          </span>
         </div>
+      </div>
+      <div className="fy-body">
+        <p className="fy-cat">{icon} {item.category}</p>
+        <h3 className="fy-title">{item.name}</h3>
+        {item.location && <p className="fy-loc">{item.location}</p>}
       </div>
     </button>
   );
 };
 
-const TrendingCard = ({ item, navigate }) => {
+const TrendingCard = ({ item, rank, navigate }) => {
+  const icon = getCategoryIcon(item.category);
   const fillPct = item.max_members
-    ? Math.round(((item.current_members ?? 0) / item.max_members) * 100)
+    ? Math.min(100, Math.round(((item.current_members ?? 0) / item.max_members) * 100))
     : 0;
   return (
     <button className="tc-card" onClick={() => navigate(`/group/${item.id}`)}>
@@ -86,13 +86,16 @@ const TrendingCard = ({ item, navigate }) => {
         {item.image_url ? (
           <img src={item.image_url} alt={item.name} className="tc-img" />
         ) : (
-          <div className="tc-img-placeholder">{(item.name || '?')[0]}</div>
+          <div className="tc-img-placeholder"><span>{icon}</span></div>
         )}
+        <span className="tc-rank">
+          {String(rank).padStart(2, '0')}
+        </span>
       </div>
       <div className="tc-body">
         <div className="tc-top">
-          <span className="tc-cat-badge">{item.category}</span>
-          {item.location && <span className="tc-location">{item.location}</span>}
+          <span className="tc-cat-badge">{icon} {item.category}</span>
+          {item.location && <span className="tc-location">📍 {item.location}</span>}
         </div>
         <h3 className="tc-title">{item.name}</h3>
         {item.description && (
@@ -103,7 +106,7 @@ const TrendingCard = ({ item, navigate }) => {
             <div className="tc-fill-inner" style={{ width: `${fillPct}%` }} />
           </div>
           <span className="tc-fill-label">
-            {item.current_members ?? 0} / {item.max_members} Mitglieder
+            {item.current_members ?? 0} / {item.max_members || '∞'} Mitglieder
           </span>
         </div>
       </div>
@@ -112,6 +115,7 @@ const TrendingCard = ({ item, navigate }) => {
 };
 
 const PastEventCard = ({ item, tall, navigate }) => {
+  const icon = getCategoryIcon(item.category);
   return (
     <button
       className={`pe-card ${tall ? 'pe-card--tall' : ''}`}
@@ -120,10 +124,10 @@ const PastEventCard = ({ item, tall, navigate }) => {
       {item.image_url ? (
         <img src={item.image_url} alt={item.name} className="pe-img" />
       ) : (
-        <div className="pe-placeholder">{(item.name || '?')[0]}</div>
+        <div className="pe-placeholder"><span className="pe-ph-icon">{icon}</span></div>
       )}
       <div className="pe-overlay">
-        <span className="pe-cat">{item.category}</span>
+        <span className="pe-cat">{icon}</span>
         <div className="pe-info">
           <p className="pe-title">{item.name}</p>
           {item.date && <p className="pe-date">{formatDate(item.date)}</p>}
@@ -144,7 +148,7 @@ const SearchResults = ({ results, loading, navigate }) => {
   if (!results.length) {
     return (
       <div className="explore-empty">
-        <div className="explore-empty-icon"></div>
+        <div className="explore-empty-icon">🔍</div>
         <p>Keine Ergebnisse gefunden</p>
       </div>
     );
@@ -153,9 +157,8 @@ const SearchResults = ({ results, loading, navigate }) => {
     <div className="search-results-list">
       {results.map(item => {
         const icon = getCategoryIcon(item.category);
-        const path = item._type === 'club' ? `/group/${item.id}` : `/group/${item.id}`;
         return (
-          <button key={`${item._type}-${item.id}`} className="sr-item" onClick={() => navigate(path)}>
+          <button key={`${item._type}-${item.id}`} className="sr-item" onClick={() => navigate(`/group/${item.id}`)}>
             <div className="sr-thumb">
               {item.image_url
                 ? <img src={item.image_url} alt={item.name} />
@@ -164,10 +167,13 @@ const SearchResults = ({ results, loading, navigate }) => {
             <div className="sr-body">
               <p className="sr-name">{item.name}</p>
               <p className="sr-meta">
-                {item._type === 'club' ? 'Club' : 'Gruppe'} · {item.category}
+                <span className={`sr-type-badge ${item._type}`}>{item._type === 'club' ? 'Club' : 'Gruppe'}</span>
+                {' · '}{item.category}
               </p>
             </div>
-            <span className="sr-arrow">›</span>
+            <svg className="sr-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
           </button>
         );
       })}
@@ -195,7 +201,6 @@ export const Explore = () => {
   const searchRef = useRef(null);
   const debounceRef = useRef(null);
 
-  // ── load explore data ──────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -206,25 +211,23 @@ export const Explore = () => {
         groups.getAll({ ...catParam, limit: 12 }),
       ]);
 
-      const all   = trendRes.data  || [];
-      const allB  = pastRes.data   || [];
+      const all  = trendRes.data || [];
+      const allB = pastRes.data  || [];
 
-      // split into upcoming vs past client-side (backend may not support upcoming=false)
       const upcoming = all.filter(g => !isPast(g.date) || !g.date);
       const past     = allB.filter(g => isPast(g.date));
 
       setTrendingItems(upcoming.length ? upcoming : all);
       setPastEvents(past);
 
-      // personalised "for you" — use user interests if available
       const interests = user?.interests || user?.categories || [];
       if (interests.length && !activeCategory) {
         const pick = interests[Math.floor(Math.random() * interests.length)];
-        const fyRes = await groups.getAll({ category: pick, limit: 6 });
+        const fyRes = await groups.getAll({ category: pick, limit: 8 });
         const fy = fyRes.data || [];
-        setForYouItems(fy.length ? fy : upcoming.slice(0, 6));
+        setForYouItems(fy.length ? fy : upcoming.slice(0, 8));
       } else {
-        setForYouItems(upcoming.slice(0, 6));
+        setForYouItems(upcoming.slice(0, 8));
       }
     } catch (err) {
       console.error('Explore load error:', err);
@@ -235,7 +238,6 @@ export const Explore = () => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // ── debounced search ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!searchQuery.trim()) { setSearchResults([]); return; }
     clearTimeout(debounceRef.current);
@@ -256,21 +258,17 @@ export const Explore = () => {
     return () => clearTimeout(debounceRef.current);
   }, [searchQuery]);
 
-  // ── auto-focus search ──────────────────────────────────────────────────────
   useEffect(() => {
     if (searchOpen) searchRef.current?.focus();
     else setSearchQuery('');
   }, [searchOpen]);
 
-  // ── categories row ─────────────────────────────────────────────────────────
   const categories = [
     { id: null, label: 'Alle', icon: '✨' },
     ...CATEGORY_HIERARCHY.map(c => ({ id: c.id, label: c.label, icon: c.icon })),
   ];
 
-  // stories: all items with images (or just show them all)
   const highlights = [...trendingItems].slice(0, 10);
-
   const showEmpty = !loading && trendingItems.length === 0 && pastEvents.length === 0;
 
   return (
@@ -285,7 +283,11 @@ export const Explore = () => {
             onClick={() => setSearchOpen(v => !v)}
             aria-label="Suche"
           >
-            {searchOpen ? '✕' : (
+            {searchOpen ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+            ) : (
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
                 <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
               </svg>
@@ -293,7 +295,6 @@ export const Explore = () => {
           </button>
         </div>
 
-        {/* ── search bar (animated) ────────────────────────────────────── */}
         <div className={`explore-search-wrap ${searchOpen ? 'open' : ''}`}>
           <div className="explore-search-inner">
             <svg className="explore-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -307,12 +308,15 @@ export const Explore = () => {
               onChange={e => setSearchQuery(e.target.value)}
             />
             {searchQuery && (
-              <button className="explore-search-clear" onClick={() => setSearchQuery('')}>✕</button>
+              <button className="explore-search-clear" onClick={() => setSearchQuery('')}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
             )}
           </div>
         </div>
 
-        {/* ── category chips ───────────────────────────────────────────── */}
         {!searchOpen && (
           <div className="explore-cats-wrap">
             <div className="explore-cats-scroll">
@@ -322,6 +326,7 @@ export const Explore = () => {
                   className={`explore-cat-chip ${activeCategory === cat.id ? 'active' : ''}`}
                   onClick={() => setActiveCategory(cat.id)}
                 >
+                  <span className="chip-icon">{cat.icon}</span>
                   <span className="chip-label">{cat.label}</span>
                 </button>
               ))}
@@ -333,7 +338,6 @@ export const Explore = () => {
       {/* ── scrollable content ─────────────────────────────────────────── */}
       <div className="explore-content">
 
-        {/* search mode */}
         {searchOpen && (searchQuery ? (
           <SearchResults results={searchResults} loading={searchLoading} navigate={navigate} />
         ) : (
@@ -342,7 +346,6 @@ export const Explore = () => {
           </div>
         ))}
 
-        {/* explore mode */}
         {!searchOpen && (
           <>
             {loading ? (
@@ -351,7 +354,7 @@ export const Explore = () => {
               </div>
             ) : showEmpty ? (
               <div className="explore-empty">
-                <div className="explore-empty-icon"></div>
+                <div className="explore-empty-icon">🌍</div>
                 <p>Noch keine Events in dieser Kategorie</p>
                 <button className="explore-empty-btn" onClick={() => setActiveCategory(null)}>
                   Alle anzeigen
@@ -382,9 +385,9 @@ export const Explore = () => {
                         Alle sehen →
                       </button>
                     </div>
-                    <div className="explore-2col">
+                    <div className="explore-fy-row">
                       {forYouItems.map(item => (
-                        <ExploreCard key={item.id} item={item} navigate={navigate} />
+                        <FYCard key={item.id} item={item} navigate={navigate} />
                       ))}
                     </div>
                   </section>
@@ -397,8 +400,8 @@ export const Explore = () => {
                       <span className="explore-section-title">🔥 Gerade angesagt</span>
                     </div>
                     <div className="explore-trending">
-                      {trendingItems.slice(0, 6).map(item => (
-                        <TrendingCard key={item.id} item={item} navigate={navigate} />
+                      {trendingItems.slice(0, 6).map((item, i) => (
+                        <TrendingCard key={item.id} item={item} rank={i + 1} navigate={navigate} />
                       ))}
                     </div>
                   </section>

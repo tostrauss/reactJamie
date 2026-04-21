@@ -1,0 +1,255 @@
+/* ================================================================
+   JAMIE — Friends Page
+   ================================================================ */
+
+.fr-page {
+  height: 100dvh;
+  height: 100vh;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.fr-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.fr-back {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 50%;
+  color: var(--text-white);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fr-title {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--text-white);
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+/* ── Tabs ── */
+.fr-tabs {
+  flex-shrink: 0;
+  display: flex;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  padding: 0 20px;
+}
+
+.fr-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px 0;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.fr-tab-active {
+  color: var(--text-white);
+  border-bottom-color: var(--accent-coral);
+}
+
+.fr-count {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  background: rgba(255,255,255,0.1);
+  color: var(--text-light);
+  border-radius: 999px;
+  min-width: 18px;
+  text-align: center;
+}
+
+.fr-count-red {
+  background: var(--accent-coral);
+  color: #fff;
+}
+
+/* ── Body ── */
+.fr-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
+}
+
+.fr-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 0;
+}
+
+.fr-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(253,118,102,0.2);
+  border-top-color: var(--accent-coral);
+  border-radius: 50%;
+  animation: fr-spin 0.7s linear infinite;
+}
+
+@keyframes fr-spin { to { transform: rotate(360deg); } }
+
+/* ── Empty state ── */
+.fr-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.fr-empty-icon {
+  font-size: 48px;
+  line-height: 1;
+}
+
+.fr-empty p {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-white);
+  margin: 0;
+}
+
+.fr-empty span {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* ── List / Rows ── */
+.fr-list {
+  padding: 8px 0;
+}
+
+.fr-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  gap: 12px;
+  transition: background 0.15s;
+}
+
+.fr-row:active { background: rgba(255,255,255,0.03); }
+
+.fr-row-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.fr-avatar {
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--accent-coral);
+  border: 1.5px solid rgba(255,255,255,0.08);
+}
+
+.fr-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fr-row-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.fr-row-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-white);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fr-row-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 2px 0 0;
+}
+
+.fr-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.fr-btn {
+  min-width: 40px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: none;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.fr-btn:active { transform: scale(0.93); opacity: 0.85; }
+.fr-btn:disabled { opacity: 0.5; cursor: default; }
+
+.fr-btn-accept {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: white;
+  box-shadow: 0 3px 10px rgba(34,197,94,0.3);
+}
+
+.fr-btn-remove {
+  background: rgba(255,255,255,0.08);
+  color: var(--text-muted);
+  font-size: 20px;
+}
+
+.fr-btn-ghost {
+  background: rgba(255,255,255,0.08);
+  color: var(--text-light);
+}
