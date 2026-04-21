@@ -44,16 +44,16 @@ export const GroupDetail = () => {
       try {
         let groupRes, membersRes, joinedGroupsRes, joinedClubsRes;
         try {
-          [groupRes, joinedGroupsRes, membersRes] = await Promise.all([
-            groups.getById(id),
-            groups.getJoined(),
-            groups.getMembers(id)
+          groupRes = await groups.getById(id);
+          [joinedGroupsRes, membersRes] = await Promise.all([
+            groups.getJoined().catch(() => ({ data: [] })),
+            groups.getMembers(id).catch(() => ({ data: [] })),
           ]);
         } catch {
-          [groupRes, joinedClubsRes, membersRes] = await Promise.all([
-            clubs.getById(id),
-            clubs.getJoined(),
-            clubs.getMembers(id)
+          groupRes = await clubs.getById(id);
+          [joinedClubsRes, membersRes] = await Promise.all([
+            clubs.getJoined().catch(() => ({ data: [] })),
+            clubs.getMembers(id).catch(() => ({ data: [] })),
           ]);
         }
         const entity = groupRes.data;
@@ -66,7 +66,7 @@ export const GroupDetail = () => {
         setIsFavorited((favRes.data || []).some(f => f.id === parseInt(id, 10)));
         setGroup(entity);
         setIsJoined(joinedList.some((g) => g.id === parseInt(id, 10)));
-        setMembers(membersRes.data);
+        setMembers(membersRes.data || []);
       } catch (error) {
         toast.error('Gruppe konnte nicht geladen werden');
       } finally {
