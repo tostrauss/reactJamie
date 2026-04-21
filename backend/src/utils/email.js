@@ -1,5 +1,8 @@
 const FROM_NAME = 'JAMIE';
-const FROM_EMAIL = process.env.BREVO_FROM_EMAIL || 'a8c81b001@smtp-brevo.com';
+// EMAIL_FROM may be "Name <email>" or just "email" — extract the address
+const _rawFrom = process.env.EMAIL_FROM || 'tobias.p.strauss@gmail.com';
+const _match = _rawFrom.match(/<(.+)>/);
+const FROM_EMAIL = _match ? _match[1] : _rawFrom;
 const FRONTEND_URL = () => process.env.FRONTEND_URL || 'http://localhost:5173';
 
 const sendEmail = async ({ to, subject, html }) => {
