@@ -1,29 +1,36 @@
-import nodemailer from 'nodemailer';
-
-const FROM = process.env.EMAIL_FROM || 'JAMIE <a8c81b001@smtp-brevo.com>';
+const FROM_NAME = 'JAMIE';
+const FROM_EMAIL = process.env.BREVO_FROM_EMAIL || 'a8c81b001@smtp-brevo.com';
 const FRONTEND_URL = () => process.env.FRONTEND_URL || 'http://localhost:5173';
 
-const createTransport = () => nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
 const sendEmail = async ({ to, subject, html }) => {
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  if (!user || !pass) {
-    console.warn('[email] SMTP credentials not set — skipping email to', to);
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) {
+    console.warn('[email] BREVO_API_KEY not set — skipping email to', to);
     return;
   }
 
-  const transporter = createTransport();
-  const info = await transporter.sendMail({ from: FROM, to, subject, html });
-  console.log('[email] Sent to', to, '— id:', info.messageId);
-  return info;
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: FROM_NAME, email: FROM_EMAIL },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    console.error('[email] Brevo error:', data);
+    throw new Error(data.message || 'Failed to send email');
+  }
+
+  console.log('[email] Sent to', to, '— id:', data.messageId);
+  return data;
 };
 
 export const sendPasswordResetEmail = async (email, token, userName) => {
