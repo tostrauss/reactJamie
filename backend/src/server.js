@@ -27,6 +27,7 @@ if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
 }
 
 const app = express();
+app.set('trust proxy', 1); // Trust Railway's reverse proxy — use real client IP for rate limiting
 const server = http.createServer(app);
 const PGStore = pgSession(session);
 
