@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import { useNavigate } from 'react-router-dom';
 import { map as mapApi } from '../utils/api';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
@@ -63,12 +64,22 @@ function FitBoundsControl({ pins }) {
   return null;
 }
 
+const SESSION_KEY = 'jamie_map_category';
+
 export default function MapView({ typeFilter }) {
   const navigate = useNavigate();
   const [pins, setPins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [locating, setLocating] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(
+    () => sessionStorage.getItem(SESSION_KEY) || null
+  );
+
+  const updateCategory = (cat) => {
+    setSelectedCategory(cat);
+    if (cat) sessionStorage.setItem(SESSION_KEY, cat);
+    else sessionStorage.removeItem(SESSION_KEY);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -101,7 +112,7 @@ export default function MapView({ typeFilter }) {
       <div className="map-category-strip">
         <button
           className={`map-cat-pill${!selectedCategory ? ' active' : ''}`}
-          onClick={() => setSelectedCategory(null)}
+          onClick={() => updateCategory(null)}
         >
           Alle
         </button>
@@ -109,7 +120,7 @@ export default function MapView({ typeFilter }) {
           <button
             key={cat.id}
             className={`map-cat-pill${selectedCategory === cat.id ? ' active' : ''}`}
-            onClick={() => setSelectedCategory(prev => prev === cat.id ? null : cat.id)}
+            onClick={() => updateCategory(selectedCategory === cat.id ? null : cat.id)}
           >
             {cat.label}
           </button>
@@ -135,38 +146,55 @@ export default function MapView({ typeFilter }) {
         {locating && <LocateControl />}
         <FitBoundsControl pins={pins} />
 
-        {pins.map(pin => (
-          <Marker
-            key={pin.id}
-            position={[pin.lat, pin.lng]}
-            icon={makeEmojiIcon(getEmojiForCategory(pin.category))}
-          >
-            <Popup className="map-popup-wrapper">
-              <div className="map-popup" onClick={() => navigate(`/group/${pin.id}`)}>
-                {pin.image_url && (
-                  <img src={pin.image_url} alt={pin.name} className="map-popup-img" />
-                )}
-                <div className="map-popup-body">
-                  <div className="map-popup-badges">
-                    <span className={`map-popup-type ${pin.type}`}>
-                      {pin.type === 'club' ? 'Club' : 'Gruppe'}
-                    </span>
-                    {pin.category && (
-                      <span className="map-popup-cat">{pin.category}</span>
-                    )}
-                  </div>
-                  <div className="map-popup-name">{pin.name}</div>
-                  {pin.location && (
-                    <div className="map-popup-loc">{pin.location}</div>
+        <MarkerClusterGroup
+          chunkedLoading
+          iconCreateFunction={(cluster) => new L.DivIcon({
+            html: `<div style="
+              width:44px;height:44px;border-radius:50%;
+              background:#FD7666;
+              display:flex;align-items:center;justify-content:center;
+              font-size:15px;font-weight:800;color:#fff;
+              box-shadow:0 2px 12px rgba(253,118,102,0.55);
+              border:2px solid rgba(255,255,255,0.25);
+            ">${cluster.getChildCount()}</div>`,
+            iconSize: [44, 44],
+            iconAnchor: [22, 22],
+            className: '',
+          })}
+        >
+          {pins.map(pin => (
+            <Marker
+              key={pin.id}
+              position={[pin.lat, pin.lng]}
+              icon={makeEmojiIcon(getEmojiForCategory(pin.category))}
+            >
+              <Popup className="map-popup-wrapper">
+                <div className="map-popup" onClick={() => navigate(`/group/${pin.id}`)}>
+                  {pin.image_url && (
+                    <img src={pin.image_url} alt={pin.name} className="map-popup-img" />
                   )}
-                  <div className="map-popup-meta">
-                    {pin.members_count ?? 0} / {pin.max_members || '∞'} Mitglieder
+                  <div className="map-popup-body">
+                    <div className="map-popup-badges">
+                      <span className={`map-popup-type ${pin.type}`}>
+                        {pin.type === 'club' ? 'Club' : 'Gruppe'}
+                      </span>
+                      {pin.category && (
+                        <span className="map-popup-cat">{pin.category}</span>
+                      )}
+                    </div>
+                    <div className="map-popup-name">{pin.name}</div>
+                    {pin.location && (
+                      <div className="map-popup-loc">{pin.location}</div>
+                    )}
+                    <div className="map-popup-meta">
+                      {pin.members_count ?? 0} / {pin.max_members || '∞'} Mitglieder
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+              </Popup>
+            </Marker>
+          ))}
+        </MarkerClusterGroup>
       </MapContainer>
 
       <button

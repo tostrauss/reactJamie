@@ -19,11 +19,12 @@ const SIGHTENGINE_URL = 'https://api.sightengine.com/1.0/check.json';
 const MODELS = 'nudity-2.0,gore-2.0';
 
 // Thresholds — score 0.0–1.0, higher = more likely flagged content
+// Intentionally strict: this is a social app rated 16+ with mixed audiences
 const THRESHOLDS = {
-  nudity_sexual_activity: 0.5,
-  nudity_sexual_display:  0.6,
-  nudity_erotica:         0.7,
-  gore:                   0.7,
+  nudity_sexual_activity: 0.2,
+  nudity_sexual_display:  0.25,
+  nudity_erotica:         0.3,
+  gore:                   0.3,
 };
 
 /**

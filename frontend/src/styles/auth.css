@@ -576,14 +576,31 @@
 }
 
 .onboarding-add-btn {
-  width: 48px;
   flex-shrink: 0;
+  padding: 0 18px;
+  height: 48px;
   background: var(--accent-coral);
   border: none;
   border-radius: var(--radius-lg);
   color: white;
-  font-size: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s;
+}
+
+.onboarding-add-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.onboarding-add-btn:not(:disabled):active {
+  opacity: 0.8;
 }
 
 .interest-counter {

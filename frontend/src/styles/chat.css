@@ -2,6 +2,29 @@
    JAMIE - Chat Pages Styles
    ======================================== */
 
+/* Load-earlier messages button */
+.load-earlier-btn {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.6);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.load-earlier-btn:hover,
+.load-earlier-btn:active {
+  background: rgba(255,255,255,0.13);
+  color: #fff;
+}
+.load-earlier-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* Chat List Page */
 .chat-list-page .page-title {
   font-size: 28px;

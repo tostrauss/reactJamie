@@ -1,8 +1,14 @@
 const FROM_NAME = 'JAMIE';
-// EMAIL_FROM may be "Name <email>" or just "email" — extract the address
-const _rawFrom = process.env.EMAIL_FROM || 'tobias.p.strauss@gmail.com';
-const _match = _rawFrom.match(/<(.+)>/);
-const FROM_EMAIL = _match ? _match[1] : _rawFrom;
+// EMAIL_FROM may be "Name <email>" or just "email@domain.com"
+// Must be set in production — Brevo only sends from verified sender domains
+const _rawFrom = process.env.EMAIL_FROM;
+if (!_rawFrom && process.env.NODE_ENV === 'production') {
+  console.error('FATAL: EMAIL_FROM environment variable must be set in production (e.g. noreply@jamie.app)');
+  process.exit(1);
+}
+const _effectiveFrom = _rawFrom || 'noreply@jamie.app';
+const _match = _effectiveFrom.match(/<(.+)>/);
+const FROM_EMAIL = _match ? _match[1] : _effectiveFrom;
 const FRONTEND_URL = () => process.env.FRONTEND_URL || 'http://localhost:5173';
 
 const sendEmail = async ({ to, subject, html }) => {

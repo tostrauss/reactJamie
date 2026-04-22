@@ -1,4 +1,5 @@
 import React, { useContext, useState, useEffect, lazy, Suspense } from 'react';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext, AuthProvider } from './context/AuthContext';
@@ -11,6 +12,7 @@ import { AppIntro, shouldShowIntro } from './pages/AppIntro';
 const ProModal = lazy(() => import('./components/ProModal').then(m => ({ default: m.ProModal })));
 import { useAnalytics } from './hooks/useAnalytics';
 import { EventReviewModal } from './components/EventReviewModal';
+import { ConsentBanner } from './components/ConsentBanner';
 import { reviews } from './utils/api';
 
 // Auth Pages (eagerly loaded - needed at startup)
@@ -508,19 +510,22 @@ function AppRoutes() {
 
 function App() {
   return (
-    <ErrorBoundary>
-      <BrowserRouter>
-        <NetworkProvider>
-          <ToastProvider>
-            <AuthProvider>
-              <SocketProvider>
-                <AppRoutes />
-              </SocketProvider>
-            </AuthProvider>
-          </ToastProvider>
-        </NetworkProvider>
-      </BrowserRouter>
-    </ErrorBoundary>
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ''}>
+      <ErrorBoundary>
+        <BrowserRouter>
+          <NetworkProvider>
+            <ToastProvider>
+              <AuthProvider>
+                <SocketProvider>
+                  <AppRoutes />
+                  <ConsentBanner />
+                </SocketProvider>
+              </AuthProvider>
+            </ToastProvider>
+          </NetworkProvider>
+        </BrowserRouter>
+      </ErrorBoundary>
+    </GoogleOAuthProvider>
   );
 }
 

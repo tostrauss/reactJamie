@@ -34,6 +34,10 @@ export const GroupDetail = () => {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isJoined, setIsJoined] = useState(false);
+  const [joinRequestStatus, setJoinRequestStatus] = useState(null); // 'pending' | 'rejected' | null
+  const [waitlistStatus, setWaitlistStatus] = useState(null);   // 'waiting' | 'notified' | null
+  const [waitlistPosition, setWaitlistPosition] = useState(null);
+  const [waitlistLoading, setWaitlistLoading] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBoostModal, setShowBoostModal] = useState(false);
@@ -42,30 +46,24 @@ export const GroupDetail = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        let groupRes, membersRes, joinedGroupsRes, joinedClubsRes;
+        let groupRes, membersRes;
         try {
           groupRes = await groups.getById(id);
-          [joinedGroupsRes, membersRes] = await Promise.all([
-            groups.getJoined().catch(() => ({ data: [] })),
-            groups.getMembers(id).catch(() => ({ data: [] })),
-          ]);
+          membersRes = await groups.getMembers(id).catch(() => ({ data: [] }));
         } catch {
           groupRes = await clubs.getById(id);
-          [joinedClubsRes, membersRes] = await Promise.all([
-            clubs.getJoined().catch(() => ({ data: [] })),
-            clubs.getMembers(id).catch(() => ({ data: [] })),
-          ]);
+          membersRes = await clubs.getMembers(id).catch(() => ({ data: [] }));
         }
         const entity = groupRes.data;
         const isClubType = entity.type === 'club';
-        const joinedList = [
-          ...(joinedGroupsRes?.data || []),
-          ...(joinedClubsRes?.data || [])
-        ];
         const favRes = await (isClubType ? clubs.getFavorites() : groups.getFavorites()).catch(() => ({ data: [] }));
         setIsFavorited((favRes.data || []).some(f => f.id === parseInt(id, 10)));
         setGroup(entity);
-        setIsJoined(joinedList.some((g) => g.id === parseInt(id, 10)));
+        // Use is_member and join_request_status from the API (set by getGroupById)
+        setIsJoined(entity.is_member === true);
+        setJoinRequestStatus(entity.join_request_status || null);
+        setWaitlistStatus(entity.waitlist_status || null);
+        setWaitlistPosition(entity.waitlist_position || null);
         setMembers(membersRes.data || []);
       } catch (error) {
         toast.error('Gruppe konnte nicht geladen werden');
@@ -93,16 +91,56 @@ export const GroupDetail = () => {
       if (isJoined) {
         isClub ? await clubs.leave(id) : await groups.leave(id);
         setIsJoined(false);
+        setJoinRequestStatus(null);
         setMembers(prev => prev.filter(m => m.id !== user.id));
+        const response = isClub ? await clubs.getById(id) : await groups.getById(id);
+        setGroup(response.data);
       } else {
-        isClub ? await clubs.join(id) : await groups.join(id);
-        setIsJoined(true);
-        setMembers(prev => [...prev, { id: user.id, name: user.name, avatar_url: user.avatar_url }]);
+        const res = isClub ? await clubs.join(id) : await groups.join(id);
+        if (res.data?.status === 'pending') {
+          // Private group — request is waiting for owner approval
+          setJoinRequestStatus('pending');
+          toast.success('Beitrittsanfrage gesendet');
+        } else {
+          // Public group — joined immediately
+          setIsJoined(true);
+          setMembers(prev => [...prev, { id: user.id, name: user.name, avatar_url: user.avatar_url }]);
+          const response = isClub ? await clubs.getById(id) : await groups.getById(id);
+          setGroup(response.data);
+        }
       }
-      const response = group?.type === 'club' ? await clubs.getById(id) : await groups.getById(id);
-      setGroup(response.data);
     } catch (error) {
       toast.error(error.response?.data?.error || 'Fehler beim Beitreten/Verlassen');
+    }
+  };
+
+  const handleJoinWaitlist = async () => {
+    setWaitlistLoading(true);
+    try {
+      const isClub = group?.type === 'club';
+      const res = isClub ? await clubs.joinWaitlist(id) : await groups.joinWaitlist(id);
+      setWaitlistStatus('waiting');
+      setWaitlistPosition(res.data?.position || null);
+      toast.success(`Du stehst auf der Warteliste${res.data?.position ? ` (Position ${res.data.position})` : ''}`);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Fehler bei der Warteliste');
+    } finally {
+      setWaitlistLoading(false);
+    }
+  };
+
+  const handleLeaveWaitlist = async () => {
+    setWaitlistLoading(true);
+    try {
+      const isClub = group?.type === 'club';
+      isClub ? await clubs.leaveWaitlist(id) : await groups.leaveWaitlist(id);
+      setWaitlistStatus(null);
+      setWaitlistPosition(null);
+      toast.success('Von der Warteliste entfernt');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Fehler beim Entfernen');
+    } finally {
+      setWaitlistLoading(false);
     }
   };
 
@@ -180,18 +218,80 @@ export const GroupDetail = () => {
           </div>
         </div>
 
-        {/* Anfragen / Chat button */}
-        <div className="gd-anfragen-row">
-          {isJoined ? (
-            <button className="gd-anfragen-btn joined" onClick={() => navigate(`/chat/${group.id}`)}>
-              Chat öffnen
-            </button>
-          ) : (
-            <button className="gd-anfragen-btn" onClick={handleJoinToggle}>
-              Anfragen
-            </button>
-          )}
-        </div>
+        {/* Anfragen / Chat / Waitlist button */}
+        {(() => {
+          const isFull = group.members_count >= group.max_members;
+          if (isJoined) {
+            return (
+              <div className="gd-anfragen-row">
+                <button className="gd-anfragen-btn joined" onClick={() => navigate(`/chat/${group.id}`)}>
+                  Chat öffnen
+                </button>
+              </div>
+            );
+          }
+          if (joinRequestStatus === 'pending') {
+            return (
+              <div className="gd-anfragen-row">
+                <button className="gd-anfragen-btn" disabled style={{ opacity: 0.6, cursor: 'default' }}>
+                  Anfrage ausstehend…
+                </button>
+              </div>
+            );
+          }
+          if (waitlistStatus === 'notified') {
+            return (
+              <div className="gd-anfragen-row" style={{ flexDirection: 'column', gap: '8px' }}>
+                <button className="gd-anfragen-btn" onClick={handleJoinToggle}>
+                  🎉 Platz frei – Jetzt beitreten!
+                </button>
+                <button
+                  onClick={handleLeaveWaitlist}
+                  disabled={waitlistLoading}
+                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '12px', cursor: 'pointer', padding: '4px' }}
+                >
+                  Von Warteliste entfernen
+                </button>
+              </div>
+            );
+          }
+          if (waitlistStatus === 'waiting') {
+            return (
+              <div className="gd-anfragen-row" style={{ flexDirection: 'column', gap: '8px' }}>
+                <button className="gd-anfragen-btn" disabled style={{ opacity: 0.6, cursor: 'default' }}>
+                  Warteliste{waitlistPosition ? ` · Position ${waitlistPosition}` : ''}
+                </button>
+                <button
+                  onClick={handleLeaveWaitlist}
+                  disabled={waitlistLoading}
+                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '12px', cursor: 'pointer', padding: '4px' }}
+                >
+                  {waitlistLoading ? 'Laden…' : 'Von Warteliste entfernen'}
+                </button>
+              </div>
+            );
+          }
+          if (isFull) {
+            return (
+              <div className="gd-anfragen-row">
+                <button
+                  className="gd-anfragen-btn"
+                  onClick={handleJoinWaitlist}
+                  disabled={waitlistLoading}
+                >
+                  {waitlistLoading ? 'Laden…' : 'Warteliste beitreten'}
+                </button>
+              </div>
+            );
+          }
+          return (
+            <div className="gd-anfragen-row">
+              <button className="gd-anfragen-btn" onClick={handleJoinToggle}>
+                {group.is_private ? 'Beitritt anfragen' : 'Anfragen'}
+              </button>
+            </div>
+          );
+        })()}
 
         <div className="gd-body">
           <div className="gd-content-card">

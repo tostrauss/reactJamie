@@ -1,6 +1,7 @@
 import db from '../config/database.js';
 import { isUserPro } from './subscriptionController.js';
 import { checkTextSafety } from '../config/moderation.js';
+import { sendPushToUser } from './pushController.js';
 
 // ==========================================
 // SEND DIRECT MESSAGE
@@ -13,10 +14,6 @@ export const sendDM = async (req, res) => {
       return res.status(400).json({ error: 'receiverId and content required' });
     }
 
-    const pro = await isUserPro(req.userId);
-    if (!pro) {
-      return res.status(403).json({ error: 'Pro-Abonnement erforderlich', requiresPro: true });
-    }
     if (content.length > 5000) {
       return res.status(400).json({ error: 'Message cannot exceed 5000 characters' });
     }
@@ -65,12 +62,23 @@ export const sendDM = async (req, res) => {
       [receiverId, req.userId, result.rows[0].id]
     );
 
+    // Notify receiver (fire-and-forget)
+    notifyDMReceived(req.userId, receiverId);
+
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error sending DM:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+async function notifyDMReceived(fromUserId, toUserId) {
+  try {
+    const { rows } = await db.query('SELECT name FROM users WHERE id = $1', [fromUserId]);
+    const name = rows[0]?.name || 'Jemand';
+    sendPushToUser(toUserId, 'Neue Nachricht', `${name} hat dir eine Nachricht geschickt`, '/messages');
+  } catch { /* non-critical */ }
+}
 
 // ==========================================
 // GET CONVERSATION WITH USER
@@ -80,11 +88,6 @@ export const getConversation = async (req, res) => {
     const { userId } = req.params;
     const limit = parseInt(req.query.limit, 10) || 50;
     const offset = parseInt(req.query.offset, 10) || 0;
-
-    const pro = await isUserPro(req.userId);
-    if (!pro) {
-      return res.status(403).json({ error: 'Pro-Abonnement erforderlich', requiresPro: true });
-    }
 
     // Verify friendship before allowing message history access
     const friendship = await db.query(
@@ -127,11 +130,6 @@ export const getConversation = async (req, res) => {
 // ==========================================
 export const getConversations = async (req, res) => {
   try {
-    const pro = await isUserPro(req.userId);
-    if (!pro) {
-      return res.status(403).json({ error: 'Pro-Abonnement erforderlich', requiresPro: true });
-    }
-
     const result = await db.query(
       `SELECT dc.*, u.name as other_user_name, u.avatar_url as other_user_avatar,
               dm.content as last_message_text, dm.created_at as last_message_at

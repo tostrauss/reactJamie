@@ -63,24 +63,6 @@ const SpotifySongPicker = ({ currentSong, onSelect, onRemove }) => {
                 <span className="song-artist">{currentSong.artist}</span>
               </div>
             </div>
-            <div className="song-picker-actions">
-              <button
-                type="button"
-                className="song-picker-btn change"
-                onClick={() => setIsOpen(true)}
-              >
-                Ändern
-              </button>
-              {onRemove && (
-                <button
-                  type="button"
-                  className="song-picker-btn remove"
-                  onClick={onRemove}
-                >
-                  Entfernen
-                </button>
-              )}
-            </div>
           </div>
         ) : (
           <button

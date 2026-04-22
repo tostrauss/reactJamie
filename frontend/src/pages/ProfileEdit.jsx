@@ -31,6 +31,18 @@ const GENDER_OPTIONS = [
   { value: 'other', label: 'Divers' }
 ];
 
+async function fetchLocationSuggestions(query) {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1&countrycodes=at,de,ch&accept-language=de`;
+  const res = await fetch(url, { headers: { 'Accept-Language': 'de' } });
+  const data = await res.json();
+  return data.map(item => {
+    const a = item.address || {};
+    const place = a.city || a.town || a.village || a.municipality || item.name;
+    const country = a.country;
+    return place && country ? `${place}, ${country}` : item.display_name;
+  });
+}
+
 export const ProfileEdit = () => {
   const { user, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -60,6 +72,8 @@ export const ProfileEdit = () => {
   const [photoUploading, setPhotoUploading] = useState(false);
   const [spotifyConnected, setSpotifyConnected] = useState(false);
   const [spotifyLoading, setSpotifyLoading] = useState(false);
+  const [locationSuggestions, setLocationSuggestions] = useState([]);
+  const locationDebounceRef = useRef(null);
 
   useEffect(() => {
     if (user) {
@@ -184,6 +198,27 @@ export const ProfileEdit = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleLocationInput = (value) => {
+    handleChange('location', value);
+    setLocationSuggestions([]);
+    if (locationDebounceRef.current) clearTimeout(locationDebounceRef.current);
+    if (!value.trim() || value.length < 2) return;
+    locationDebounceRef.current = setTimeout(async () => {
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(value)}&format=json&limit=5&addressdetails=1&countrycodes=at,de,ch&accept-language=de`;
+        const res = await fetch(url, { headers: { 'Accept-Language': 'de' } });
+        const data = await res.json();
+        const suggestions = data.map(item => {
+          const a = item.address || {};
+          const place = a.city || a.town || a.village || a.municipality || item.name;
+          const country = a.country;
+          return place && country ? `${place}, ${country}` : item.display_name;
+        });
+        setLocationSuggestions(suggestions);
+      } catch (_) {}
+    }, 350);
+  };
+
   const handlePhotoAdd = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -304,13 +339,23 @@ export const ProfileEdit = () => {
               </svg>
               <span>Standort</span>
             </div>
-            <input
-              type="text"
-              value={formData.location}
-              onChange={(e) => handleChange('location', e.target.value)}
-              className="settings-input"
-              placeholder="z.B. Wien"
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                value={formData.location}
+                onChange={(e) => handleLocationInput(e.target.value)}
+                className="settings-input"
+                placeholder="z.B. Wien"
+                autoComplete="off"
+              />
+              {locationSuggestions.length > 0 && (
+                <ul className="location-suggestions">
+                  {locationSuggestions.map((s, i) => (
+                    <li key={i} onMouseDown={() => { handleChange('location', s); setLocationSuggestions([]); }}>{s}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
 
           <div className="pe-field-row">

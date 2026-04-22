@@ -3,31 +3,37 @@
    Brand Colors: #FD7666 (Coral), #242340 (Dark Purple)
    ======================================== */
 
-/* ── Google Maps Places autocomplete (global) ─────────────────────────────── */
-.pac-container {
-  z-index: 99999 !important;
-  background: var(--bg-card);
+/* ── Nominatim location autocomplete (global) ────────────────────────────── */
+.location-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: #1e1e2e;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
+  border-radius: 10px;
   margin-top: 4px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  font-family: inherit;
-  overflow: hidden;
+  list-style: none;
+  padding: 4px 0;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  max-height: 220px;
+  overflow-y: auto;
 }
-.pac-item {
+.location-suggestions li {
   padding: 10px 14px;
-  color: rgba(255, 255, 255, 0.85);
   font-size: 14px;
+  color: rgba(255,255,255,0.85);
   cursor: pointer;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  line-height: 1.3;
 }
-.pac-item:first-child { border-top: none; }
-.pac-item:hover,
-.pac-item-selected { background: rgba(253, 118, 102, 0.15); }
-.pac-item-query { color: #fff; font-size: 14px; }
-.pac-matched { color: #fd7666; font-weight: 600; }
-.pac-icon { display: none; }
-.pac-logo::after { display: none; }
+.location-suggestions li:last-child { border-bottom: none; }
+.location-suggestions li:hover,
+.location-suggestions li:active {
+  background: rgba(253,118,102,0.15);
+  color: #fff;
+}
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 /* CSS Variables */

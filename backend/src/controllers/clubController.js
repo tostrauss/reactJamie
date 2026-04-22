@@ -158,17 +158,23 @@ export const getClubById = async (req, res) => {
     const club = result.rows[0];
 
     if (req.userId) {
-      const memberCheck = await db.query(
-        'SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2',
-        [id, req.userId]
-      );
+      const [memberCheck, favCheck, requestCheck, waitlistCheck] = await Promise.all([
+        db.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
+        db.query('SELECT 1 FROM group_favorites WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
+        db.query(
+          `SELECT status FROM group_join_requests WHERE group_id = $1 AND user_id = $2 ORDER BY updated_at DESC LIMIT 1`,
+          [id, req.userId]
+        ),
+        db.query(
+          `SELECT status, position FROM group_waitlist WHERE group_id = $1 AND user_id = $2`,
+          [id, req.userId]
+        ),
+      ]);
       club.is_member = memberCheck.rows.length > 0;
-
-      const favCheck = await db.query(
-        'SELECT * FROM group_favorites WHERE group_id = $1 AND user_id = $2',
-        [id, req.userId]
-      );
       club.is_favorite = favCheck.rows.length > 0;
+      club.join_request_status = requestCheck.rows[0]?.status || null;
+      club.waitlist_status = waitlistCheck.rows[0]?.status || null;
+      club.waitlist_position = waitlistCheck.rows[0]?.position || null;
     }
 
     res.json(club);

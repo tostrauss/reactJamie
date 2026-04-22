@@ -326,7 +326,6 @@ export const Explore = () => {
                   className={`explore-cat-chip ${activeCategory === cat.id ? 'active' : ''}`}
                   onClick={() => setActiveCategory(cat.id)}
                 >
-                  <span className="chip-icon">{cat.icon}</span>
                   <span className="chip-label">{cat.label}</span>
                 </button>
               ))}

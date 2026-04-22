@@ -49,8 +49,8 @@ const socketHandler = (io) => {
 
     // Handle new message
     socket.on('send_message', (data) => {
-      // Broadcast to all room members (including sender for confirmation)
-      io.to(data.group_id || data.groupId).emit('receive_message', data);
+      // Broadcast to all room members except the sender (sender adds it optimistically)
+      socket.to(data.group_id || data.groupId).emit('receive_message', data);
     });
 
     // Handle typing indicator

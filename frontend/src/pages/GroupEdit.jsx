@@ -81,6 +81,18 @@ export const GroupEdit = () => {
     }
   };
 
+  const handleShare = async () => {
+    const url = `${window.location.origin}/group/${id}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: group?.name || group?.title || 'Gruppe', url });
+      } catch { /* user cancelled */ }
+    } else {
+      await navigator.clipboard.writeText(url);
+      toast.success('Link kopiert!');
+    }
+  };
+
   const filteredFriends = friends.filter(f =>
     f.name?.toLowerCase().includes(friendSearch.toLowerCase())
   );
@@ -135,15 +147,24 @@ export const GroupEdit = () => {
               const mid = member.user_id || member.id;
               const isOwner = member.role === 'owner';
               const canRemove = !isOwner && mid !== user?.id;
+              const isSelf = mid === user?.id;
               return (
                 <div key={mid} className={`ge-member-row ${idx < members.length - 1 ? 'ge-row-divider' : ''}`}>
-                  <div className="ge-avatar ge-avatar-md">
+                  <div
+                    className="ge-avatar ge-avatar-md"
+                    style={{ cursor: isSelf ? 'default' : 'pointer' }}
+                    onClick={() => !isSelf && navigate(`/user/${mid}`)}
+                  >
                     {member.avatar_url
                       ? <img src={member.avatar_url} alt={member.name} />
                       : <span>{(member.name || '?')[0].toUpperCase()}</span>
                     }
                   </div>
-                  <div className="ge-member-info">
+                  <div
+                    className="ge-member-info"
+                    style={{ cursor: isSelf ? 'default' : 'pointer' }}
+                    onClick={() => !isSelf && navigate(`/user/${mid}`)}
+                  >
                     <p className="ge-member-name">{member.name}</p>
                     {isOwner && <p className="ge-member-role">Ersteller</p>}
                   </div>
@@ -265,6 +286,20 @@ export const GroupEdit = () => {
             </div>
 
           </div>
+        </section>
+
+        {/* ── Gruppe teilen ── */}
+        <section className="ge-section">
+          <div className="ge-section-head">
+            <span className="ge-section-title">Gruppe teilen</span>
+          </div>
+          <button className="ge-share-btn" onClick={handleShare}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+              <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"/>
+            </svg>
+            Link teilen
+          </button>
         </section>
 
         <div className="ge-bottom-space" />

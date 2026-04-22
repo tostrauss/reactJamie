@@ -153,11 +153,8 @@ export const UserProfile = () => {
         );
       default:
         return (
-          <button
-            className="up-cta-btn"
-            onClick={isPro ? handleSendFriendRequest : () => setShowProModal(true)}
-          >
-            + {isPro ? 'Freundschaftsanfrage' : 'Freundschaftsanfrage (Pro)'}
+          <button className="up-cta-btn" onClick={handleSendFriendRequest}>
+            + Freundschaftsanfrage
           </button>
         );
     }

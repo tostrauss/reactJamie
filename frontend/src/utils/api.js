@@ -77,8 +77,8 @@ axiosInstance.interceptors.response.use(
 // ==========================================
 
 export const auth = {
-  register: (email, password, name, referral_code) =>
-    axiosInstance.post('/auth/register', { email, password, name, ...(referral_code ? { referral_code } : {}) }),
+  register: (email, password, name, referral_code, date_of_birth) =>
+    axiosInstance.post('/auth/register', { email, password, name, date_of_birth, ...(referral_code ? { referral_code } : {}) }),
   
   login: (email, password) => 
     axiosInstance.post('/auth/login', { email, password }),
@@ -114,7 +114,10 @@ export const auth = {
     axiosInstance.post('/auth/send-email-code', { email, name }),
 
   verifyEmailCode: (email, code) =>
-    axiosInstance.post('/auth/verify-email-code', { email, code })
+    axiosInstance.post('/auth/verify-email-code', { email, code }),
+
+  googleLogin: (credential) =>
+    axiosInstance.post('/auth/google', { credential })
 };
 
 // ==========================================
@@ -327,9 +330,9 @@ export const messages = {
   send: (groupId, content) => 
     axiosInstance.post('/messages', { groupId, content }),
   
-  // Get messages for a group
-  get: (groupId, limit = 50, offset = 0) => 
-    axiosInstance.get(`/messages/${groupId}`, { params: { limit, offset } }),
+  // Get messages for a group. Pass `before` (message id) to load older messages.
+  get: (groupId, { limit = 50, before } = {}) =>
+    axiosInstance.get(`/messages/${groupId}`, { params: { limit, ...(before ? { before } : {}) } }),
   
   // Delete message
   delete: (messageId) => 

@@ -1,4 +1,4 @@
-import React, { useState, useContext, useRef, useEffect } from 'react';
+import React, { useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { api } from '../utils/api';
@@ -23,8 +23,8 @@ export const Onboarding = () => {
   const navigate = useNavigate();
   const { user, refreshProfile } = useContext(AuthContext);
   const [currentStep, setCurrentStep] = useState(0);
-  const locationRef     = useRef(null);
-  const autocompleteRef = useRef(null);
+  const [locationSuggestions, setLocationSuggestions] = useState([]);
+  const locationDebounceRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [customInterest, setCustomInterest] = useState('');
@@ -40,46 +40,20 @@ export const Onboarding = () => {
     avatar_url: null
   });
 
-  // Load Google Maps on mount
-  useEffect(() => {
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) return;
-    if (window.__gmLoaded) return;
-    if (window.__gmLoading) return;
-    window.__gmLoading = true;
-    window.__gmOnReady = () => { window.__gmLoaded = true; window.__gmLoading = false; };
-    const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=de&callback=__gmOnReady`;
-    s.async = true;
-    document.head.appendChild(s);
+  const fetchLocationSuggestions = useCallback((query) => {
+    clearTimeout(locationDebounceRef.current);
+    if (!query || query.length < 2) { setLocationSuggestions([]); return; }
+    locationDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=at,de,ch&limit=5&addressdetails=1`,
+          { headers: { 'Accept-Language': 'de' } }
+        );
+        const data = await res.json();
+        setLocationSuggestions(data.map(r => r.display_name));
+      } catch { setLocationSuggestions([]); }
+    }, 300);
   }, []);
-
-  // Attach autocomplete when step 1 (location field) renders
-  useEffect(() => {
-    if (currentStep !== 1) return;
-
-    const attach = () => {
-      if (!window.google?.maps?.places) return;
-      if (autocompleteRef.current) return;
-      if (!locationRef.current) return;
-      const ac = new window.google.maps.places.Autocomplete(locationRef.current, {
-        componentRestrictions: { country: ['at', 'de', 'ch'] },
-        fields: ['formatted_address', 'name'],
-      });
-      ac.addListener('place_changed', () => {
-        const place = ac.getPlace();
-        const val = place.formatted_address || place.name || '';
-        if (val) setFormData(prev => ({ ...prev, location: val }));
-      });
-      autocompleteRef.current = ac;
-    };
-
-    const timer = setTimeout(() => {
-      if (window.__gmLoaded) attach();
-      else { window.__gmOnReady = () => { window.__gmLoaded = true; attach(); }; }
-    }, 50);
-    return () => clearTimeout(timer);
-  }, [currentStep]);
 
   const handleNext = () => {
     if (currentStep < STEPS.length - 1) setCurrentStep(prev => prev + 1);
@@ -211,16 +185,47 @@ export const Onboarding = () => {
             Damit schlagen wir dir später passendere Gruppen vor
           </p>
           <div className="onboarding-form">
-            <div className="onboarding-field">
+            <div className="onboarding-field" style={{ position: 'relative' }}>
               <label>📍 Wohnort</label>
               <input
-                ref={locationRef}
                 type="text"
                 placeholder="z.B. Wien, Österreich"
                 value={formData.location}
-                onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                onChange={(e) => {
+                  setFormData(prev => ({ ...prev, location: e.target.value }));
+                  fetchLocationSuggestions(e.target.value);
+                }}
+                onBlur={() => setTimeout(() => setLocationSuggestions([]), 150)}
                 autoComplete="off"
               />
+              {locationSuggestions.length > 0 && (
+                <ul style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                  background: 'var(--bg-card, #1e1e3a)', border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '12px', margin: '4px 0 0', padding: '4px 0',
+                  listStyle: 'none', boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                  maxHeight: '220px', overflowY: 'auto',
+                }}>
+                  {locationSuggestions.map((s, i) => (
+                    <li
+                      key={i}
+                      onMouseDown={() => {
+                        setFormData(prev => ({ ...prev, location: s }));
+                        setLocationSuggestions([]);
+                      }}
+                      style={{
+                        padding: '10px 16px', fontSize: '13px', color: 'var(--text-white, #fff)',
+                        cursor: 'pointer', lineHeight: 1.4,
+                        borderBottom: i < locationSuggestions.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      📍 {s}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
             <div className="onboarding-field">
               <label>✍️ Kurzbeschreibung (optional)</label>
@@ -273,7 +278,7 @@ export const Onboarding = () => {
           {/* Category suggestion */}
           <div style={{ width: '100%', maxWidth: '400px', marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '16px' }}>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
-              Kategorie vermissen? Vorschlag abgeben:
+              Dein Vorschlag für eine neue Kategorie:
             </p>
             {suggestionSent ? (
               <p style={{ fontSize: '13px', color: '#4ade80' }}>✓ Danke für deinen Vorschlag!</p>

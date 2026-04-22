@@ -1,6 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { analytics } from '../utils/api';
+import { CONSENT_KEY } from '../components/ConsentBanner';
+
+const hasConsent = () => localStorage.getItem(CONSENT_KEY) === 'true';
+const track = (type, screen, duration) => {
+  if (!hasConsent()) return;
+  analytics.trackEvent(type, screen, duration).catch(() => {});
+};
 
 // Maps route patterns to human-readable screen names
 const getScreenName = (pathname) => {
@@ -32,12 +39,10 @@ export function useAnalytics() {
   // Track app open/close via visibility change
   useEffect(() => {
     const handleVisibility = () => {
-      const event_type = document.hidden ? 'app_close' : 'app_open';
-      analytics.trackEvent(event_type).catch(() => {});
+      track(document.hidden ? 'app_close' : 'app_open');
     };
     document.addEventListener('visibilitychange', handleVisibility);
-    // Log initial app_open
-    analytics.trackEvent('app_open').catch(() => {});
+    track('app_open');
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
@@ -46,14 +51,11 @@ export function useAnalytics() {
     const screenName = getScreenName(location.pathname);
     const now = Date.now();
 
-    // Log leave event for previous screen with duration
     if (prevScreen.current && enterTime.current) {
-      const duration_ms = now - enterTime.current;
-      analytics.trackEvent('screen_leave', prevScreen.current, duration_ms).catch(() => {});
+      track('screen_leave', prevScreen.current, now - enterTime.current);
     }
 
-    // Log view event for new screen
-    analytics.trackEvent('screen_view', screenName).catch(() => {});
+    track('screen_view', screenName);
 
     prevScreen.current = screenName;
     enterTime.current = now;

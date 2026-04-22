@@ -73,25 +73,40 @@ export const sendMessage = async (req, res) => {
 };
 
 // ==========================================
-// GET MESSAGES (for a group)
+// GET MESSAGES (for a group) — cursor-based pagination
+// ?limit=50          — max messages to return (default 50, max 100)
+// ?before=<id>       — return messages with id < this value (for "load earlier")
+// Returns messages in chronological order (ASC); use `has_more` to know if older messages exist.
 // ==========================================
 export const getMessages = async (req, res) => {
   try {
     const { groupId } = req.params;
-    const limit = parseInt(req.query.limit, 10) || 50;
-    const offset = parseInt(req.query.offset, 10) || 0;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+    const before = req.query.before ? parseInt(req.query.before, 10) : null;
+
+    const params = [groupId, limit + 1]; // fetch one extra to detect has_more
+    let whereClause = 'WHERE m.group_id = $1';
+    if (before) {
+      whereClause += ` AND m.id < $3`;
+      params.push(before);
+    }
 
     const result = await db.query(
       `SELECT m.*, u.name as user_name, u.avatar_url
        FROM messages m
        LEFT JOIN users u ON m.user_id = u.id
-       WHERE m.group_id = $1
-       ORDER BY m.created_at ASC
-       LIMIT $2 OFFSET $3`,
-      [groupId, limit, offset]
+       ${whereClause}
+       ORDER BY m.created_at DESC
+       LIMIT $2`,
+      params
     );
 
-    res.json(result.rows);
+    const rows = result.rows;
+    const hasMore = rows.length > limit;
+    if (hasMore) rows.pop(); // remove the extra sentinel row
+
+    // Return in chronological order so the UI renders oldest→newest
+    res.json({ messages: rows.reverse(), has_more: hasMore });
   } catch (error) {
     console.error('Error fetching messages:', error);
     res.status(500).json({ error: 'Failed to fetch messages' });

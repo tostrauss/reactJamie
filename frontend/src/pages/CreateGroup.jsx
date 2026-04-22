@@ -176,14 +176,24 @@ export const CreateGroup = () => {
     }
   };
 
+  const isDateInFuture = () => {
+    if (!formData.date) return true;
+    const dt = formData.time ? new Date(`${formData.date}T${formData.time}`) : new Date(formData.date);
+    return dt > new Date();
+  };
+
   const canProceed = () => {
     switch (step) {
       case 1: return formData.name && formData.mainCategory && formData.activity;
-      case 2: return formData.date && formData.location;
+      case 2: return formData.date && formData.location && isDateInFuture();
       case 3: return true;
       default: return false;
     }
   };
+
+  const dateError = step === 2 && formData.date && !isDateInFuture()
+    ? 'Das Event-Datum muss in der Zukunft liegen'
+    : '';
 
   const stepLabels = ['Details', 'Wann & Wo', 'Vorschau'];
 
@@ -337,6 +347,8 @@ export const CreateGroup = () => {
       {/* Step 2 */}
       {step === 2 && (
         <div className="create-content">
+          {dateError && <div className="error-message" style={{ marginBottom: 12 }}>{dateError}</div>}
+
           {/* Date */}
           <div className="form-section">
             <label className="form-label">

@@ -1,5 +1,6 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useGoogleLogin } from '@react-oauth/google';
 import { AuthContext } from '../context/AuthContext';
 import '../styles/auth.css';
 
@@ -8,8 +9,20 @@ export const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { login, loading, loginAsGuest } = useContext(AuthContext);
+  const { login, loginWithGoogle, loading, loginAsGuest } = useContext(AuthContext);
   const navigate = useNavigate();
+
+  const handleGoogleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      try {
+        await loginWithGoogle(tokenResponse.access_token);
+        navigate('/home');
+      } catch (err) {
+        setError('Google Login fehlgeschlagen');
+      }
+    },
+    onError: () => setError('Google Login fehlgeschlagen'),
+  });
 
   const handleEmailLogin = async (e) => {
     e.preventDefault();
@@ -30,6 +43,7 @@ export const Login = () => {
   const handleSocialLogin = (provider) => {
     alert(`${provider} Login kommt bald! Bitte nutze E-Mail Login.`);
   };
+
 
   return (
     <div className="auth-screen">
@@ -68,7 +82,7 @@ export const Login = () => {
 
             <button
               className="auth-btn auth-btn-secondary"
-              onClick={() => handleSocialLogin('Google')}
+              onClick={() => handleGoogleLogin()}
             >
               <svg className="auth-btn-icon" width="20" height="20" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

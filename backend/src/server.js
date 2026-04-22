@@ -12,6 +12,8 @@ import db from './config/database.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import morgan from 'morgan';
+import cron from 'node-cron';
 import { generalLimiter, authLimiter } from './middleware/rateLimiter.js';
 import { sanitizeInputs } from './middleware/sanitize.js';
 
@@ -21,10 +23,40 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
-if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
-  console.error('FATAL: SESSION_SECRET environment variable must be set in production');
-  process.exit(1);
+// ── Production boot-time env var validation ───────────────────────────────
+if (process.env.NODE_ENV === 'production') {
+  const REQUIRED = [
+    ['SESSION_SECRET',    'express-session signing key'],
+    ['JWT_SECRET',        'JWT token signing key'],
+    ['DATABASE_URL',      'PostgreSQL connection string'],
+    ['EMAIL_FROM',        'verified Brevo sender address (e.g. noreply@jamie.app)'],
+    ['BREVO_API_KEY',     'Brevo transactional email API key'],
+    ['FRONTEND_URL',      'public frontend URL for email links'],
+  ];
+  const WARNED = [
+    ['SIGHTENGINE_API_USER',   'image moderation (nudity/gore) will be DISABLED'],
+    ['SIGHTENGINE_API_SECRET', 'image moderation (nudity/gore) will be DISABLED'],
+    ['OPENAI_API_KEY',         'text moderation will be DISABLED — unsafe content may pass through'],
+    ['STRIPE_WEBHOOK_SECRET',  'Stripe webhook signature validation will FAIL'],
+    ['ADMIN_SECRET',           'admin dashboard will be inaccessible'],
+  ];
+
+  let fatal = false;
+  for (const [key, desc] of REQUIRED) {
+    if (!process.env[key]) {
+      console.error(`FATAL: Missing required env var ${key} — ${desc}`);
+      fatal = true;
+    }
+  }
+  if (fatal) process.exit(1);
+
+  for (const [key, warn] of WARNED) {
+    if (!process.env[key]) {
+      console.warn(`WARNING: Missing env var ${key} — ${warn}`);
+    }
+  }
 }
+// ─────────────────────────────────────────────────────────────────────────────
 
 const app = express();
 app.set('trust proxy', 1); // Trust Railway's reverse proxy — use real client IP for rate limiting
@@ -93,11 +125,18 @@ app.use(helmet({
         'https://js.stripe.com',
         'https://www.paypal.com',
         'https://www.sandbox.paypal.com',
+        'https://accounts.google.com',
+        'https://appleid.cdn-apple.com',
+      ],
+      frameSrc: [
+        'https://js.stripe.com',
+        'https://hooks.stripe.com',
+        'https://accounts.google.com',
+        'https://appleid.apple.com',
       ],
       styleSrc: ["'self'", "'unsafe-inline'"],
       fontSrc: ["'self'", 'data:'],
       mediaSrc: ["'self'", 'https://p.scdn.co'], // Spotify audio previews
-      frameSrc: ['https://js.stripe.com', 'https://hooks.stripe.com'],
       objectSrc: ["'none'"],
       frameAncestors: ["'none'"],
     },
@@ -122,6 +161,9 @@ app.use(cors({
 
 // Compression: gzip responses
 app.use(compression());
+
+// Request logging
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 // Stripe webhooks — must receive raw body BEFORE express.json() parses it
 app.post('/api/boost/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhook);
@@ -344,4 +386,16 @@ server.listen(PORT, async () => {
   console.log(`API: http://localhost:${PORT}/api`);
   console.log(`Socket.io ready`);
   await runStartupMigrations();
+});
+
+// Analytics retention: purge events older than 90 days, runs every day at 03:00
+cron.schedule('0 3 * * *', async () => {
+  try {
+    const result = await db.query(
+      `DELETE FROM analytics_events WHERE created_at < NOW() - INTERVAL '90 days'`
+    );
+    console.log(`[cron] analytics_events purged: ${result.rowCount} rows deleted`);
+  } catch (err) {
+    console.error('[cron] analytics purge failed:', err.message);
+  }
 });

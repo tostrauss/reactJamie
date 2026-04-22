@@ -1,10 +1,14 @@
-import React, { createContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useState, useCallback, useEffect, useRef } from 'react';
 import { auth } from '../utils/api';
 
 export const AuthContext = createContext();
 
+const getCachedUser = () => {
+  try { return JSON.parse(localStorage.getItem('jamie_user') || 'null'); } catch { return null; }
+};
+
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(getCachedUser);
   const [token, setToken] = useState(localStorage.getItem('token') || null);
   const [loading, setLoading] = useState(false);
 
@@ -15,6 +19,7 @@ export const AuthProvider = ({ children }) => {
       setUser(response.data.user);
       setToken(response.data.token);
       localStorage.setItem('token', response.data.token);
+      localStorage.setItem('jamie_user', JSON.stringify(response.data.user));
       return response.data.user;
     } catch (error) {
       throw error;
@@ -23,16 +28,31 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const register = useCallback(async (email, password, name, referral_code) => {
+  const register = useCallback(async (email, password, name, referral_code, date_of_birth) => {
     setLoading(true);
     try {
-      const response = await auth.register(email, password, name, referral_code);
+      const response = await auth.register(email, password, name, referral_code, date_of_birth);
       setUser(response.data.user);
       setToken(response.data.token);
       localStorage.setItem('token', response.data.token);
+      localStorage.setItem('jamie_user', JSON.stringify(response.data.user));
       return response.data.user;
     } catch (error) {
       throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loginWithGoogle = useCallback(async (credential) => {
+    setLoading(true);
+    try {
+      const response = await auth.googleLogin(credential);
+      setUser(response.data.user);
+      setToken(response.data.token);
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('jamie_user', JSON.stringify(response.data.user));
+      return response.data.user;
     } finally {
       setLoading(false);
     }
@@ -55,6 +75,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setToken(null);
     localStorage.removeItem('token');
+    localStorage.removeItem('jamie_user');
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -63,6 +84,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await auth.getProfile();
       setUser(response.data);
+      localStorage.setItem('jamie_user', JSON.stringify(response.data));
       return response.data;
     } catch (error) {
       console.error('Profil konnte nicht aktualisiert werden:', error);
@@ -72,11 +94,13 @@ export const AuthProvider = ({ children }) => {
     }
   }, [token]);
 
-  // Load profile on initial mount if we already have a token
+  // Validate token and refresh profile on mount (non-blocking — user already set from cache)
+  const didMountRef = useRef(false);
   useEffect(() => {
-    if (!token || user || token === 'guest_token') return;
+    if (didMountRef.current || !token || token === 'guest_token') return;
+    didMountRef.current = true;
     refreshProfile();
-  }, [token, user, refreshProfile]);
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <AuthContext.Provider
@@ -87,6 +111,7 @@ export const AuthProvider = ({ children }) => {
         loading,
         login,
         register,
+        loginWithGoogle,
         loginAsGuest,
         logout,
         refreshProfile

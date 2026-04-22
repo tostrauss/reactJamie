@@ -220,13 +220,18 @@ export const subscriptionWebhook = async (req, res) => {
 // HELPER: check if a userId has active Pro
 // ==========================================
 export const isUserPro = async (userId) => {
-  const result = await db.query(
-    `SELECT id FROM subscriptions
-     WHERE user_id = $1
-       AND (status = 'active' OR status = 'canceling')
-       AND current_period_end > NOW()
-     LIMIT 1`,
-    [userId]
-  );
-  return result.rows.length > 0;
+  try {
+    const result = await db.query(
+      `SELECT id FROM subscriptions
+       WHERE user_id = $1
+         AND (status = 'active' OR status = 'canceling')
+         AND current_period_end > NOW()
+       LIMIT 1`,
+      [userId]
+    );
+    return result.rows.length > 0;
+  } catch (err) {
+    if (err.code === '42P01') return false; // table doesn't exist yet (run subscriptions_migration.sql)
+    throw err;
+  }
 };

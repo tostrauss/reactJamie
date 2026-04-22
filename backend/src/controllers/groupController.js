@@ -1,6 +1,7 @@
 import db from '../config/database.js';
 import { geocodeLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
+import { sendPushToUser } from './pushController.js';
 
 // ==========================================
 // PIONEER HELPER
@@ -84,6 +85,23 @@ export const createGroup = async (req, res) => {
     let dateTime = date || null;
     if (date && time) {
       dateTime = `${date}T${time}`;
+    }
+
+    // Events must be in the future (clubs have no date, so skip check)
+    if (dateTime && (type === 'group' || !type)) {
+      const eventDate = new Date(dateTime);
+      if (isNaN(eventDate.getTime())) {
+        return res.status(400).json({ error: 'Ungültiges Datum' });
+      }
+      if (eventDate <= new Date()) {
+        return res.status(400).json({ error: 'Das Event-Datum muss in der Zukunft liegen' });
+      }
+    }
+
+    // Validate max_members
+    const parsedMax = parseInt(max_members, 10);
+    if (max_members !== undefined && (isNaN(parsedMax) || parsedMax < 2 || parsedMax > 500)) {
+      return res.status(400).json({ error: 'Maximale Teilnehmerzahl muss zwischen 2 und 500 liegen' });
     }
 
     // Geocode location (non-blocking on failure)
@@ -198,19 +216,25 @@ export const getGroupById = async (req, res) => {
 
     const group = result.rows[0];
 
-    // Check if current user is member/favorite (if authenticated)
+    // Check if current user is member/favorite/pending (if authenticated)
     if (req.userId) {
-      const memberCheck = await db.query(
-        'SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2',
-        [id, req.userId]
-      );
+      const [memberCheck, favCheck, requestCheck, waitlistCheck] = await Promise.all([
+        db.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
+        db.query('SELECT 1 FROM group_favorites WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
+        db.query(
+          `SELECT status FROM group_join_requests WHERE group_id = $1 AND user_id = $2 ORDER BY updated_at DESC LIMIT 1`,
+          [id, req.userId]
+        ),
+        db.query(
+          `SELECT status, position FROM group_waitlist WHERE group_id = $1 AND user_id = $2`,
+          [id, req.userId]
+        ),
+      ]);
       group.is_member = memberCheck.rows.length > 0;
-
-      const favCheck = await db.query(
-        'SELECT * FROM group_favorites WHERE group_id = $1 AND user_id = $2',
-        [id, req.userId]
-      );
       group.is_favorite = favCheck.rows.length > 0;
+      group.join_request_status = requestCheck.rows[0]?.status || null;
+      group.waitlist_status = waitlistCheck.rows[0]?.status || null;
+      group.waitlist_position = waitlistCheck.rows[0]?.position || null;
     }
 
     res.json(group);
@@ -238,6 +262,17 @@ export const updateGroup = async (req, res) => {
       const { safe, reason } = await checkTextSafety(textToCheck);
       if (!safe) {
         return res.status(422).json({ error: reason });
+      }
+    }
+
+    // Validate future date on update (groups only, clubs have no date)
+    if (date !== undefined && date !== null) {
+      const eventDate = new Date(date);
+      if (isNaN(eventDate.getTime())) {
+        return res.status(400).json({ error: 'Ungültiges Datum' });
+      }
+      if (eventDate <= new Date()) {
+        return res.status(400).json({ error: 'Das Event-Datum muss in der Zukunft liegen' });
       }
     }
 
@@ -346,6 +381,14 @@ export const joinGroup = async (req, res) => {
       'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
       [id, req.userId, 'member']
     );
+    await db.query('UPDATE groups SET members_count = members_count + 1 WHERE id = $1', [id]);
+    // Clean up any leftover waitlist entry for this user
+    await db.query('DELETE FROM group_waitlist WHERE group_id = $1 AND user_id = $2', [id, req.userId]);
+
+    // Notify group owner (fire-and-forget)
+    if (g.owner_id && g.owner_id !== req.userId) {
+      notifyGroupJoin(req.userId, g.owner_id, g.name || g.title);
+    }
 
     res.json({ message: 'Joined group successfully', status: 'joined' });
   } catch (err) {
@@ -376,9 +419,15 @@ export const leaveGroup = async (req, res) => {
       return res.status(400).json({ error: 'Not a member of this group' });
     }
 
-    // Check if there's a waitlist and notify first person
+    // Decrement member count
+    await db.query(
+      'UPDATE groups SET members_count = GREATEST(members_count - 1, 0) WHERE id = $1',
+      [id]
+    );
+
+    // If group was full, notify first person on waitlist (spot just opened)
     const g = group.rows[0];
-    if (g.members_count === g.max_members) {
+    if (g.members_count >= g.max_members) {
       const waitlistUser = await db.query(
         `SELECT user_id FROM group_waitlist
          WHERE group_id = $1 AND status = 'waiting'
@@ -387,19 +436,25 @@ export const leaveGroup = async (req, res) => {
       );
 
       if (waitlistUser.rows.length > 0) {
-        // Notify first person on waitlist
-        await db.query(
-          `INSERT INTO notifications (user_id, type, title, message, reference_type, reference_id)
-           VALUES ($1, 'waitlist_opening', 'Platz frei!', 'Ein Platz ist in deiner Warteliste-Gruppe frei geworden.', 'group', $2)`,
-          [waitlistUser.rows[0].user_id, id]
-        );
+        const wUserId = waitlistUser.rows[0].user_id;
 
-        // Mark as notified
+        // Mark as notified so frontend shows "Jetzt beitreten"
         await db.query(
           `UPDATE group_waitlist SET status = 'notified', notified_at = CURRENT_TIMESTAMP
            WHERE group_id = $1 AND user_id = $2`,
-          [id, waitlistUser.rows[0].user_id]
+          [id, wUserId]
         );
+
+        // In-app notification
+        await db.query(
+          `INSERT INTO notifications (user_id, type, title, message, reference_type, reference_id)
+           VALUES ($1, 'waitlist_opening', 'Platz frei!', 'Ein Platz ist in deiner Warteliste-Gruppe frei geworden.', 'group', $2)`,
+          [wUserId, id]
+        );
+
+        // Push notification
+        const grpName = (await db.query('SELECT name FROM groups WHERE id = $1', [id])).rows[0]?.name || '';
+        sendPushToUser(wUserId, 'Platz frei!', `Ein Platz in "${grpName}" ist frei geworden`, `/group/${id}`);
       }
     }
 
@@ -571,17 +626,22 @@ export const handleJoinRequest = async (req, res) => {
     const joinReq = request.rows[0];
 
     if (action === 'accept') {
-      // Update request status
       await db.query(
         `UPDATE group_join_requests SET status = 'accepted', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
         [requestId]
       );
-
-      // Add user as member
       await db.query(
         'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
         [id, joinReq.user_id, 'member']
       );
+      await db.query(
+        'UPDATE groups SET members_count = members_count + 1 WHERE id = $1',
+        [id]
+      );
+
+      // Notify the accepted user (group name already fetched above)
+      const gname = (await db.query('SELECT name FROM groups WHERE id = $1', [id])).rows[0]?.name || '';
+      sendPushToUser(joinReq.user_id, 'Beitrittsanfrage akzeptiert', `Du bist jetzt Mitglied von "${gname}"`, `/group/${id}`);
 
       res.json({ message: 'Request accepted', status: 'accepted' });
     } else if (action === 'reject') {
@@ -624,6 +684,11 @@ export const kickMember = async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Nutzer ist kein Mitglied dieser Gruppe' });
     }
+
+    await db.query(
+      'UPDATE groups SET members_count = GREATEST(members_count - 1, 0) WHERE id = $1',
+      [id]
+    );
 
     res.json({ message: 'Member removed successfully' });
   } catch (err) {
@@ -851,6 +916,15 @@ export const inviteMember = async (req, res) => {
     res.status(500).json({ error: 'Failed to invite member' });
   }
 };
+
+// ── Push helper (fire-and-forget) ───────────────────────────────────────────
+async function notifyGroupJoin(joinerUserId, ownerUserId, groupName) {
+  try {
+    const { rows } = await db.query('SELECT name FROM users WHERE id = $1', [joinerUserId]);
+    const name = rows[0]?.name || 'Jemand';
+    sendPushToUser(ownerUserId, 'Neues Mitglied', `${name} ist "${groupName}" beigetreten`, '/my-groups');
+  } catch { /* non-critical */ }
+}
 
 // ==========================================
 // GET CATEGORIES

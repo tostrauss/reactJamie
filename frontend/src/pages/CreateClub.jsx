@@ -332,7 +332,7 @@ export const CreateClub = () => {
           </button>
         ) : (
           <button className="btn btn-primary btn-block" onClick={handleSubmit} disabled={loading}>
-            {loading ? 'Erstelle...' : 'Club gründen 🏆'}
+            {loading ? 'Erstelle...' : 'Club gründen'}
           </button>
         )}
       </div>

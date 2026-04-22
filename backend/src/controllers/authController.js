@@ -18,7 +18,21 @@ const parseUserJSONFields = (user) => {
 // ==========================================
 export const register = async (req, res) => {
   try {
-    const { email, password, name } = req.body;
+    const { email, password, name, date_of_birth } = req.body;
+
+    // Age gating: must be 18+
+    if (!date_of_birth) {
+      return res.status(400).json({ error: 'Geburtsdatum ist erforderlich' });
+    }
+    const dob = new Date(date_of_birth);
+    if (isNaN(dob.getTime())) {
+      return res.status(400).json({ error: 'Ungültiges Geburtsdatum' });
+    }
+    const ageCutoff = new Date();
+    ageCutoff.setFullYear(ageCutoff.getFullYear() - 18);
+    if (dob > ageCutoff) {
+      return res.status(400).json({ error: 'Du musst mindestens 18 Jahre alt sein, um JAMIE zu nutzen.' });
+    }
 
     // Password policy validation (server-side mirror of frontend rules)
     if (!password || password.length < 6) {
@@ -51,8 +65,8 @@ export const register = async (req, res) => {
 
     // Insert new user with RETURNING
     const insertResult = await db.query(
-      'INSERT INTO users (email, password, name) VALUES ($1, $2, $3) RETURNING id',
-      [email, hashedPassword, name]
+      'INSERT INTO users (email, password, name, date_of_birth) VALUES ($1, $2, $3, $4) RETURNING id',
+      [email, hashedPassword, name, date_of_birth]
     );
 
     const newUserId = insertResult.rows[0].id;
@@ -511,6 +525,11 @@ export const sendEmailCode = async (req, res) => {
       [email, code, expiresAt]
     );
 
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[DEV] OTP for ${email}: ${code}`);
+      return res.json({ message: 'Code gesendet', devCode: code });
+    }
+
     try {
       await sendOTPEmail(email, code, name || '');
     } catch (emailErr) {
@@ -584,5 +603,73 @@ export const verifyEmail = async (req, res) => {
   } catch (error) {
     console.error('VerifyEmail error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+// ==========================================
+// GOOGLE OAUTH LOGIN
+// ==========================================
+export const googleLogin = async (req, res) => {
+  try {
+    const { credential } = req.body; // Google OAuth2 access token
+    if (!credential) return res.status(400).json({ error: 'Google credential fehlt' });
+
+    // Fetch user info using the access token
+    const googleRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${credential}` },
+    });
+    if (!googleRes.ok) return res.status(401).json({ error: 'Google Token ungültig' });
+    const { email, name, picture, sub: googleId } = await googleRes.json();
+
+    if (!email) return res.status(400).json({ error: 'Kein E-Mail von Google' });
+
+    // Find or create user
+    let userResult = await db.query(
+      'SELECT * FROM users WHERE email = $1 OR google_id = $2',
+      [email, googleId]
+    );
+
+    let userId;
+    if (userResult.rows.length > 0) {
+      // Existing user — link google_id if not set
+      userId = userResult.rows[0].id;
+      if (!userResult.rows[0].google_id) {
+        await db.query('UPDATE users SET google_id = $1, updated_at = NOW() WHERE id = $2', [googleId, userId]);
+      }
+      if (picture && !userResult.rows[0].avatar_url) {
+        await db.query('UPDATE users SET avatar_url = $1 WHERE id = $2', [picture, userId]);
+      }
+    } else {
+      // New user — create account (no password, Google-only)
+      const dob = new Date();
+      dob.setFullYear(dob.getFullYear() - 25); // default age (will be updated in onboarding)
+      const insert = await db.query(
+        `INSERT INTO users (email, name, avatar_url, google_id, date_of_birth, is_verified)
+         VALUES ($1, $2, $3, $4, $5, TRUE) RETURNING id`,
+        [email, name || email.split('@')[0], picture || null, googleId, dob.toISOString().split('T')[0]]
+      );
+      userId = insert.rows[0].id;
+
+      // Initialize boost wallet
+      await db.query(
+        'INSERT INTO boost_credits (user_id) VALUES ($1) ON CONFLICT DO NOTHING',
+        [userId]
+      );
+      const refCode = 'JAMIE-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+      await db.query(
+        'INSERT INTO referral_codes (user_id, code) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [userId, refCode]
+      );
+    }
+
+    const fullUser = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+    const user = fullUser.rows[0];
+    delete user.password;
+    parseUserJSONFields(user);
+
+    const token = generateToken(user.id);
+    res.json({ user, token });
+  } catch (err) {
+    console.error('Google login error:', err);
+    res.status(500).json({ error: 'Google Login fehlgeschlagen' });
   }
 };

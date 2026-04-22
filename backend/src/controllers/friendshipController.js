@@ -1,5 +1,5 @@
 import db from '../config/database.js';
-import { isUserPro } from './subscriptionController.js';
+import { sendPushToUser } from './pushController.js';
 
 // ==========================================
 // SEND FRIEND REQUEST
@@ -10,11 +10,6 @@ export const sendFriendRequest = async (req, res) => {
 
     if (!userId) return res.status(400).json({ error: 'userId is required' });
     if (userId === req.userId) return res.status(400).json({ error: 'Cannot send friend request to yourself' });
-
-    const pro = await isUserPro(req.userId);
-    if (!pro) {
-      return res.status(403).json({ error: 'Pro-Abonnement erforderlich', requiresPro: true });
-    }
 
     // Check if friendship already exists (in either direction)
     const existing = await db.query(
@@ -31,22 +26,24 @@ export const sendFriendRequest = async (req, res) => {
       if (f.status === 'rejected') {
         // Allow re-requesting after rejection
         await db.query(
-          `UPDATE friendships SET status = 'pending', requester_id = $1, addressee_id = $2, updated_at = CURRENT_TIMESTAMP 
+          `UPDATE friendships SET status = 'pending', requester_id = $1, addressee_id = $2, updated_at = CURRENT_TIMESTAMP
            WHERE id = $3`,
           [req.userId, userId, f.id]
         );
+        notifyFriendRequest(req.userId, userId);
         return res.json({ message: 'Friend request sent', status: 'pending' });
       }
     }
 
     // Create new friend request
     const result = await db.query(
-      `INSERT INTO friendships (requester_id, addressee_id, status) 
-       VALUES ($1, $2, 'pending') 
+      `INSERT INTO friendships (requester_id, addressee_id, status)
+       VALUES ($1, $2, 'pending')
        RETURNING *`,
       [req.userId, userId]
     );
 
+    notifyFriendRequest(req.userId, userId);
     res.status(201).json({ message: 'Friend request sent', friendship: result.rows[0] });
   } catch (error) {
     console.error('Error sending friend request:', error);
@@ -82,6 +79,10 @@ export const respondFriendRequest = async (req, res) => {
       `UPDATE friendships SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
       [newStatus, requestId]
     );
+
+    if (action === 'accept') {
+      notifyFriendAccepted(req.userId, request.rows[0].requester_id);
+    }
 
     res.json({ message: `Friend request ${newStatus}`, status: newStatus });
   } catch (error) {
@@ -217,3 +218,20 @@ export const checkFriendship = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+// ── Push helpers (fire-and-forget) ──────────────────────────────────────────
+async function notifyFriendRequest(fromUserId, toUserId) {
+  try {
+    const { rows } = await db.query('SELECT name FROM users WHERE id = $1', [fromUserId]);
+    const name = rows[0]?.name || 'Jemand';
+    sendPushToUser(toUserId, 'Neue Freundschaftsanfrage', `${name} möchte dein Freund sein`, '/friends');
+  } catch { /* non-critical */ }
+}
+
+async function notifyFriendAccepted(fromUserId, toUserId) {
+  try {
+    const { rows } = await db.query('SELECT name FROM users WHERE id = $1', [fromUserId]);
+    const name = rows[0]?.name || 'Jemand';
+    sendPushToUser(toUserId, 'Freundschaft bestätigt', `${name} hat deine Anfrage angenommen`, '/friends');
+  } catch { /* non-critical */ }
+}

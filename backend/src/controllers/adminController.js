@@ -133,11 +133,22 @@ export const exportUsers = async (_req, res) => {
              onboarding_completed
       FROM users ORDER BY created_at DESC
     `);
-    res.json(result.rows);
+    const masked = result.rows.map(u => ({
+      ...u,
+      email: maskEmail(u.email),
+    }));
+    res.json(masked);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+function maskEmail(email) {
+  if (!email) return null;
+  const [local, domain] = email.split('@');
+  if (!domain) return '***';
+  return local.slice(0, 2) + '***@' + domain;
+}
 
 // ==========================================
 // EXPORT: screen analytics (CSV-ready JSON)

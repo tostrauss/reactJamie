@@ -146,8 +146,10 @@ export const WelcomeIntro = () => {
   const onTouchEnd   = (e) => {
     if (touchX.current === null) return;
     const d = touchX.current - e.changedTouches[0].clientX;
-    if (d > 50 && current < SLIDES.length - 1) goTo(current + 1);
-    if (d < -50 && current > 0)               goTo(current - 1);
+    if (Math.abs(d) > 50) {
+      if (d > 0) next();                                    // swipe left  → vorwärts (wie Button)
+      else if (current > 0) goTo(current - 1);             // swipe right → zurück
+    }
     touchX.current = null;
   };
 

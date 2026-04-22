@@ -13,6 +13,8 @@ export const ChatPage = () => {
   const [messageList, setMessageList] = useState([]);
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [canSendMessages, setCanSendMessages] = useState(true);
   const [permissionMessage, setPermissionMessage] = useState('');
 
@@ -72,39 +74,60 @@ export const ChatPage = () => {
   const loadMessages = async () => {
     try {
       const response = await messages.get(groupId);
-      setMessageList(response.data);
+      setMessageList(response.data.messages);
+      setHasMore(response.data.has_more);
     } catch (error) {
       console.error('Error loading messages:', error);
       toast.error('Nachrichten konnten nicht geladen werden');
     }
   };
 
+  const loadEarlier = async () => {
+    if (!hasMore || loadingMore || messageList.length === 0) return;
+    setLoadingMore(true);
+    try {
+      const oldestId = messageList[0].id;
+      const response = await messages.get(groupId, { before: oldestId });
+      setMessageList(prev => [...response.data.messages, ...prev]);
+      setHasMore(response.data.has_more);
+    } catch (error) {
+      console.error('Error loading earlier messages:', error);
+      toast.error('Ältere Nachrichten konnten nicht geladen werden');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const isSendingRef = useRef(false);
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!content.trim() || !canSendMessages) return;
+    if (!content.trim() || !canSendMessages || isSendingRef.current) return;
+
+    const sentContent = content;
+    isSendingRef.current = true;
+    setContent('');
 
     try {
-      const response = await messages.send(groupId, content);
+      const response = await messages.send(groupId, sentContent);
+      const msg = { ...response.data, user_name: user.name, avatar_url: user.avatar_url, user_id: user.id };
+
+      // Add own message immediately — socket only broadcasts to others
+      setMessageList(prev => [...prev, msg]);
 
       if (socket) {
-        socket.emit('send_message', {
-          ...response.data,
-          group_id: groupId,
-          groupId: groupId,
-          user_name: user.name,
-          avatar_url: user.avatar_url,
-          user_id: user.id
-        });
+        socket.emit('send_message', { ...msg, group_id: groupId, groupId });
       }
-
-      setContent('');
     } catch (error) {
+      setContent(sentContent);
       console.error('Error sending message:', error);
       toast.error('Nachricht konnte nicht gesendet werden');
       if (error.response?.data?.isOwnerOnly) {
         setCanSendMessages(false);
         setPermissionMessage('Nur der Club-Gründer kann Nachrichten senden');
       }
+    } finally {
+      isSendingRef.current = false;
     }
   };
 
@@ -148,6 +171,17 @@ export const ChatPage = () => {
 
       {/* Messages */}
       <div className="messages-container">
+        {hasMore && (
+          <div style={{ textAlign: 'center', padding: '8px 0' }}>
+            <button
+              className="load-earlier-btn"
+              onClick={loadEarlier}
+              disabled={loadingMore}
+            >
+              {loadingMore ? 'Laden…' : 'Ältere Nachrichten laden'}
+            </button>
+          </div>
+        )}
         {messageList.map((msg, index) => (
           <div key={msg.id || index} className={`message ${msg.user_id === user?.id ? 'sent' : 'received'}`}>
             {msg.user_id !== user?.id && (

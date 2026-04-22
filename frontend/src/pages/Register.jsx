@@ -7,28 +7,17 @@ import '../styles/auth.css';
 const OTP_RESEND_SECONDS = 60;
 const TOTAL_STEPS = 5;
 
-// ── Google Places loader (shared singleton) ──────────────────────────────────
-let _gmLoading = false;
-let _gmLoaded  = false;
-const _gmCbs   = [];
-function loadGM(apiKey) {
-  if (_gmLoaded)  { _gmCbs.forEach(cb => cb()); _gmCbs.length = 0; return; }
-  if (_gmLoading) return;
-  _gmLoading = true;
-  window.__gmReady = () => {
-    _gmLoaded = true; _gmLoading = false;
-    _gmCbs.forEach(cb => cb()); _gmCbs.length = 0;
-  };
-  const s = document.createElement('script');
-  s.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=de&callback=__gmReady`;
-  s.async = true;
-  document.head.appendChild(s);
+async function fetchLocationSuggestions(query) {
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1&countrycodes=at,de,ch&accept-language=de`;
+  const res = await fetch(url, { headers: { 'Accept-Language': 'de' } });
+  const data = await res.json();
+  return data.map(item => {
+    const a = item.address || {};
+    const place = a.city || a.town || a.village || a.municipality || item.name;
+    const country = a.country;
+    return place && country ? `${place}, ${country}` : item.display_name;
+  });
 }
-function onGM(cb) {
-  if (_gmLoaded) { cb(); return; }
-  _gmCbs.push(cb);
-}
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const Register = () => {
   const [step, setStep]                       = useState(1);
@@ -39,6 +28,7 @@ export const Register = () => {
   const [otpError, setOtpError]               = useState('');
   const [otpResendTimer, setOtpResendTimer]   = useState(0);
   const [location, setLocation]               = useState('');
+  const [dateOfBirth, setDateOfBirth]         = useState('');
   const [password, setPassword]               = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [referralCode, setReferralCode]       = useState('');
@@ -47,14 +37,28 @@ export const Register = () => {
   const { register, loading } = useContext(AuthContext);
   const navigate = useNavigate();
 
-  const locationRef     = useRef(null);
-  const autocompleteRef = useRef(null);
+  const [locationSuggestions, setLocationSuggestions] = useState([]);
+  const locationDebounceRef = useRef(null);
   const resendIntervalRef = useRef(null);
 
-  useEffect(() => {
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    if (apiKey) loadGM(apiKey);
-  }, []);
+  const handleLocationInput = (value) => {
+    setLocation(value);
+    setLocationSuggestions([]);
+    if (locationDebounceRef.current) clearTimeout(locationDebounceRef.current);
+    if (!value.trim() || value.length < 2) return;
+    locationDebounceRef.current = setTimeout(async () => {
+      try {
+        const suggestions = await fetchLocationSuggestions(value);
+        setLocationSuggestions(suggestions);
+      } catch (_) {}
+    }, 350);
+  };
+
+  const selectLocationSuggestion = (suggestion) => {
+    setLocation(suggestion);
+    setLocationSuggestions([]);
+    if (locationDebounceRef.current) clearTimeout(locationDebounceRef.current);
+  };
 
   useEffect(() => {
     if (otpResendTimer <= 0) { clearInterval(resendIntervalRef.current); return; }
@@ -66,25 +70,6 @@ export const Register = () => {
     }, 1000);
     return () => clearInterval(resendIntervalRef.current);
   }, [otpResendTimer]);
-
-  useEffect(() => {
-    if (step !== 4) return;
-    const attach = () => {
-      if (!window.google?.maps?.places || autocompleteRef.current || !locationRef.current) return;
-      const ac = new window.google.maps.places.Autocomplete(locationRef.current, {
-        componentRestrictions: { country: ['at', 'de', 'ch'] },
-        fields: ['formatted_address', 'name'],
-      });
-      ac.addListener('place_changed', () => {
-        const place = ac.getPlace();
-        const val = place.formatted_address || place.name || '';
-        if (val) setLocation(val);
-      });
-      autocompleteRef.current = ac;
-    };
-    const timer = setTimeout(() => onGM(attach), 50);
-    return () => clearTimeout(timer);
-  }, [step]);
 
   const handleSendCode = async () => {
     setOtpError('');
@@ -125,8 +110,13 @@ export const Register = () => {
     setOtpCode('');
     setOtpLoading(true);
     try {
-      await auth.sendEmailCode(email, name);
-      setOtpResendTimer(OTP_RESEND_SECONDS);
+      const res = await auth.sendEmailCode(email, name);
+      if (res.data?.devCode) {
+        await auth.verifyEmailCode(email, res.data.devCode);
+        setStep(4);
+      } else {
+        setOtpResendTimer(OTP_RESEND_SECONDS);
+      }
     } catch (err) {
       setOtpError(err.response?.data?.error || 'Code konnte nicht gesendet werden');
     } finally {
@@ -162,14 +152,22 @@ export const Register = () => {
     return null;
   };
 
+  const maxDOB = (() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 18);
+    return d.toISOString().split('T')[0];
+  })();
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (!dateOfBirth) { setError('Bitte gib dein Geburtsdatum ein'); return; }
+    if (dateOfBirth > maxDOB) { setError('Du musst mindestens 18 Jahre alt sein, um JAMIE zu nutzen.'); return; }
     if (password !== confirmPassword) { setError('Passwörter stimmen nicht überein'); return; }
     const pwdError = validatePassword(password);
     if (pwdError) { setError(pwdError); return; }
     try {
-      await register(email, password, name, referralCode.trim() || undefined);
+      await register(email, password, name, referralCode.trim() || undefined, dateOfBirth);
       if (location.trim()) {
         try { await auth.updateProfile({ location: location.trim() }); } catch (_) {}
       }
@@ -325,24 +323,46 @@ export const Register = () => {
                 <p className="reg-hint">Hilft dir, Events in deiner Nähe zu finden</p>
               </div>
               <div className="form-group">
+                <label>Geburtsdatum</label>
+                <input
+                  type="date"
+                  value={dateOfBirth}
+                  onChange={(e) => setDateOfBirth(e.target.value)}
+                  max={maxDOB}
+                  required
+                  style={{ colorScheme: 'dark' }}
+                />
+                {dateOfBirth && dateOfBirth > maxDOB && (
+                  <p className="error-message" style={{ marginTop: 6 }}>
+                    Du musst mindestens 18 Jahre alt sein.
+                  </p>
+                )}
+              </div>
+              <div className="form-group">
                 <label>
                   Stadt oder Region
                   <span className="field-optional"> (optional)</span>
                 </label>
                 <div className="location-field">
                   <input
-                    ref={locationRef}
                     type="text"
                     placeholder="z.B. Wien, Österreich"
                     value={location}
-                    onChange={(e) => setLocation(e.target.value)}
+                    onChange={(e) => handleLocationInput(e.target.value)}
                     autoComplete="off"
                   />
+                  {locationSuggestions.length > 0 && (
+                    <ul className="location-suggestions">
+                      {locationSuggestions.map((s, i) => (
+                        <li key={i} onMouseDown={() => selectLocationSuggestion(s)}>{s}</li>
+                      ))}
+                    </ul>
+                  )}
                   {location && (
                     <button
                       type="button"
                       className="location-clear"
-                      onClick={() => setLocation('')}
+                      onClick={() => { setLocation(''); setLocationSuggestions([]); }}
                       aria-label="Ort entfernen"
                     >
                       ×
@@ -354,8 +374,9 @@ export const Register = () => {
                 type="button"
                 className="auth-btn auth-btn-primary"
                 onClick={() => setStep(5)}
+                disabled={!dateOfBirth || dateOfBirth > maxDOB}
               >
-                {location ? 'Weiter' : 'Überspringen'}
+                Weiter
               </button>
             </>
           )}

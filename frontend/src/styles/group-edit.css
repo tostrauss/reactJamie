@@ -510,3 +510,29 @@
   opacity: 0.55;
   box-shadow: none;
 }
+
+/* ── Share button ── */
+.ge-share-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid rgba(255,255,255,0.12);
+  background: var(--bg-card);
+  color: var(--text-white);
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.ge-share-btn:active {
+  border-color: var(--accent-coral);
+  background: rgba(255,107,107,0.07);
+}
