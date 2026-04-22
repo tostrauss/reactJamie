@@ -11,6 +11,7 @@ export const ChatPage = () => {
   const navigate = useNavigate();
   const [group, setGroup] = useState(null);
   const [messageList, setMessageList] = useState([]);
+  const safeSetMessageList = (val) => setMessageList(Array.isArray(val) ? val : []);
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
@@ -76,7 +77,7 @@ export const ChatPage = () => {
       const response = await messages.get(groupId);
       const data = response.data;
       const msgs = Array.isArray(data) ? data : (data?.messages ?? []);
-      setMessageList(msgs);
+      safeSetMessageList(msgs);
       setHasMore(Array.isArray(data) ? false : (data?.has_more ?? false));
     } catch (error) {
       console.error('Error loading messages:', error);
@@ -186,7 +187,7 @@ export const ChatPage = () => {
             </button>
           </div>
         )}
-        {messageList.map((msg, index) => (
+        {(Array.isArray(messageList) ? messageList : []).map((msg, index) => (
           <div key={msg.id || index} className={`message ${msg.user_id === user?.id ? 'sent' : 'received'}`}>
             {msg.user_id !== user?.id && (
               <div className="message-sender">{msg.user_name}</div>
