@@ -5,7 +5,7 @@ import { auth } from '../utils/api';
 import '../styles/auth.css';
 
 const OTP_RESEND_SECONDS = 60;
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
 async function fetchLocationSuggestions(query) {
   const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1&countrycodes=at,de,ch&accept-language=de`;
@@ -314,13 +314,13 @@ export const Register = () => {
             </>
           )}
 
-          {/* ── Step 4: Standort ─────────────────────────────────────────── */}
+          {/* ── Step 4: Geburtsdatum ─────────────────────────────────────── */}
           {step === 4 && (
             <>
               <BackBtn onClick={() => setStep(3)} />
               <div className="reg-step-heading">
-                <h2 className="reg-title">Wo bist du?</h2>
-                <p className="reg-hint">Hilft dir, Events in deiner Nähe zu finden</p>
+                <h2 className="reg-title">Dein Geburtsdatum</h2>
+                <p className="reg-hint">Du musst mindestens 18 Jahre alt sein</p>
               </div>
               <div className="form-group">
                 <label>Geburtsdatum</label>
@@ -337,6 +337,25 @@ export const Register = () => {
                     Du musst mindestens 18 Jahre alt sein.
                   </p>
                 )}
+              </div>
+              <button
+                type="button"
+                className="auth-btn auth-btn-primary"
+                onClick={() => setStep(5)}
+                disabled={!dateOfBirth || dateOfBirth > maxDOB}
+              >
+                Weiter
+              </button>
+            </>
+          )}
+
+          {/* ── Step 5: Standort ─────────────────────────────────────────── */}
+          {step === 5 && (
+            <>
+              <BackBtn onClick={() => setStep(4)} />
+              <div className="reg-step-heading">
+                <h2 className="reg-title">Wo bist du?</h2>
+                <p className="reg-hint">Hilft dir, Events in deiner Nähe zu finden</p>
               </div>
               <div className="form-group">
                 <label>
@@ -373,18 +392,17 @@ export const Register = () => {
               <button
                 type="button"
                 className="auth-btn auth-btn-primary"
-                onClick={() => setStep(5)}
-                disabled={!dateOfBirth || dateOfBirth > maxDOB}
+                onClick={() => setStep(6)}
               >
                 Weiter
               </button>
             </>
           )}
 
-          {/* ── Step 5: Passwort ─────────────────────────────────────────── */}
-          {step === 5 && (
+          {/* ── Step 6: Passwort ─────────────────────────────────────────── */}
+          {step === 6 && (
             <>
-              <BackBtn onClick={() => setStep(4)} />
+              <BackBtn onClick={() => setStep(5)} />
               <div className="reg-step-heading">
                 <h2 className="reg-title">Passwort wählen</h2>
                 <p className="reg-hint">Mind. 6 Zeichen, Groß/Klein, Zahl & Sonderzeichen</p>
