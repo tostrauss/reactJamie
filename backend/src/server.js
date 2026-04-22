@@ -256,6 +256,18 @@ socketHandler(io);
 app.set('io', io);
 
 // ==========================================
+// FRONTEND STATIC SERVING (production)
+// ==========================================
+if (process.env.NODE_ENV === 'production') {
+  const publicPath = path.join(__dirname, '../public');
+  app.use(express.static(publicPath, { maxAge: '1d' }));
+  // SPA fallback — all non-API routes return index.html
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(publicPath, 'index.html'));
+  });
+}
+
+// ==========================================
 // ERROR HANDLING
 // ==========================================
 app.use((err, _req, res, _next) => {
