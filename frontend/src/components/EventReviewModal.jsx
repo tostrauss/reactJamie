@@ -30,16 +30,19 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
       const marked = current.members
         .filter(m => attendances[m.id] !== undefined)
         .map(m => ({ user_id: m.id, was_present: attendances[m.id] }));
-
-      if (marked.length > 0) {
-        await reviews.submit(current.group_id, marked);
-      }
+      await reviews.submit(current.group_id, marked);
     } catch {
       // non-blocking — proceed regardless
     } finally {
       setSubmitting(false);
       advance();
     }
+  };
+
+  const handleSkip = () => {
+    // Still mark as seen so the modal doesn't reappear
+    reviews.submit(current.group_id, []).catch(() => {});
+    advance();
   };
 
   const advance = () => {
@@ -80,7 +83,7 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
             </p>
           </div>
           <button
-            onClick={advance}
+            onClick={handleSkip}
             style={{
               background: 'rgba(255,255,255,0.08)',
               border: 'none', borderRadius: 20,

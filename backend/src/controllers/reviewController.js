@@ -51,7 +51,7 @@ export const getPendingReviews = async (req, res) => {
 // ==========================================
 export const submitReview = async (req, res) => {
   const { group_id, attendances } = req.body;
-  if (!group_id || !Array.isArray(attendances) || attendances.length === 0) {
+  if (!group_id || !Array.isArray(attendances)) {
     return res.status(400).json({ error: 'group_id and attendances[] required' });
   }
 
@@ -76,6 +76,13 @@ export const submitReview = async (req, res) => {
 
 
     await db.query('BEGIN');
+
+    // Sentinel row — marks the event as "seen" so it never reappears, even on skip
+    await db.query(
+      `INSERT INTO event_reviews (group_id, reviewer_id, reviewed_user_id, was_present)
+       VALUES ($1, $2, $2, FALSE) ON CONFLICT DO NOTHING`,
+      [group_id, req.userId]
+    );
 
     for (const { user_id, was_present } of attendances) {
       if (user_id === req.userId) continue; // can't review yourself
