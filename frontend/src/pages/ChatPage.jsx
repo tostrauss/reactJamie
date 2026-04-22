@@ -74,8 +74,10 @@ export const ChatPage = () => {
   const loadMessages = async () => {
     try {
       const response = await messages.get(groupId);
-      setMessageList(response.data.messages);
-      setHasMore(response.data.has_more);
+      const data = response.data;
+      const msgs = Array.isArray(data) ? data : (data?.messages ?? []);
+      setMessageList(msgs);
+      setHasMore(Array.isArray(data) ? false : (data?.has_more ?? false));
     } catch (error) {
       console.error('Error loading messages:', error);
       toast.error('Nachrichten konnten nicht geladen werden');
@@ -88,8 +90,10 @@ export const ChatPage = () => {
     try {
       const oldestId = messageList[0].id;
       const response = await messages.get(groupId, { before: oldestId });
-      setMessageList(prev => [...response.data.messages, ...prev]);
-      setHasMore(response.data.has_more);
+      const data = response.data;
+      const older = Array.isArray(data) ? data : (data?.messages ?? []);
+      setMessageList(prev => [...older, ...prev]);
+      setHasMore(Array.isArray(data) ? false : (data?.has_more ?? false));
     } catch (error) {
       console.error('Error loading earlier messages:', error);
       toast.error('Ältere Nachrichten konnten nicht geladen werden');
