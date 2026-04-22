@@ -165,6 +165,16 @@ app.use(compression());
 // Request logging
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
+// ==========================================
+// FRONTEND STATIC SERVING — early, before session/body-parsing
+// Static assets (JS/CSS/images) never need a session; serving them here
+// avoids session-store errors aborting asset requests in production.
+// ==========================================
+if (process.env.NODE_ENV === 'production') {
+  const publicPath = path.resolve(__dirname, '../public');
+  app.use(express.static(publicPath, { maxAge: '1d' }));
+}
+
 // Stripe webhooks — must receive raw body BEFORE express.json() parses it
 app.post('/api/boost/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhook);
 app.post('/api/subscription/stripe/webhook', express.raw({ type: 'application/json' }), subscriptionWebhook);
@@ -255,13 +265,9 @@ socketHandler(io);
 // Make io accessible to controllers (for realtime notifications)
 app.set('io', io);
 
-// ==========================================
-// FRONTEND STATIC SERVING (production)
-// ==========================================
+// SPA fallback — serves index.html for all non-API GET routes (React Router)
 if (process.env.NODE_ENV === 'production') {
-  const publicPath = path.join(__dirname, '../public');
-  app.use(express.static(publicPath, { maxAge: '1d' }));
-  // SPA fallback — all non-API routes return index.html
+  const publicPath = path.resolve(__dirname, '../public');
   app.get('*', (_req, res) => {
     res.sendFile(path.join(publicPath, 'index.html'));
   });
@@ -275,8 +281,8 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Etwas ist schiefgelaufen!' });
 });
 
-// 404 handler
-app.use((_req, res) => {
+// API 404 — only fires for unmatched /api/* routes
+app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
