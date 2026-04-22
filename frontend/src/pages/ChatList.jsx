@@ -228,14 +228,14 @@ export const ChatList = () => {
         <div className="tabs-container chat-tabs-container">
           <button
             className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('gruppen'); setShowRequests(false); }}
+            onClick={() => setActiveTab('gruppen')}
           >
             Gruppen
             {onlyGroups.length > 0 && <span className="tab-count">{onlyGroups.length}</span>}
           </button>
           <button
             className={`tab ${activeTab === 'clubs' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('clubs'); setShowRequests(false); }}
+            onClick={() => setActiveTab('clubs')}
           >
             Clubs
             {onlyClubs.length > 0 && <span className="tab-count">{onlyClubs.length}</span>}
