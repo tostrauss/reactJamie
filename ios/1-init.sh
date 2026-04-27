@@ -17,6 +17,10 @@ npx cap add ios
 echo "🔄  Syncing web assets into native project..."
 npx cap sync ios
 
+echo "📋  Copying NSPrivacyManifest..."
+cp ../ios/PrivacyInfo.xcprivacy ios/App/App/PrivacyInfo.xcprivacy
+echo "    ⚠️  Open Xcode and add PrivacyInfo.xcprivacy to the App target (File → Add Files)."
+
 echo ""
 echo "✅  iOS project created at frontend/ios/"
 echo ""
@@ -24,3 +28,4 @@ echo "Next steps:"
 echo "  1. Open Xcode:  bash ios/2-open-xcode.sh"
 echo "  2. In Xcode → Signing & Capabilities → set your Team + Bundle ID"
 echo "  3. Bundle ID must match capacitor.config.json appId: jamie.app"
+echo "  4. In Xcode: right-click App group → Add Files → select PrivacyInfo.xcprivacy"

@@ -2,22 +2,8 @@
 -- Run: psql -U postgres -d jamie_db -f schema.sql
 -- Or:  node migrate.js
 
--- Clean slate (only in development - remove before production!!)
-DROP TABLE IF EXISTS password_reset_tokens CASCADE;
-DROP TABLE IF EXISTS user_pinnwand CASCADE;
-DROP TABLE IF EXISTS notifications CASCADE;
-DROP TABLE IF EXISTS dm_conversations CASCADE;
-DROP TABLE IF EXISTS direct_messages CASCADE;
-DROP TABLE IF EXISTS messages CASCADE;
-DROP TABLE IF EXISTS group_favorites CASCADE;
-DROP TABLE IF EXISTS group_waitlist CASCADE;
-DROP TABLE IF EXISTS group_join_requests CASCADE;
-DROP TABLE IF EXISTS group_members CASCADE;
-DROP TABLE IF EXISTS friendships CASCADE;
-DROP TABLE IF EXISTS groups CASCADE;
-DROP TABLE IF EXISTS categories CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS "session" CASCADE;
+-- WARNING: To reset a dev database run reset.sql first, then this file.
+-- Never run DROP statements directly against production data.
 
 -- 1. Users
 CREATE TABLE users (
@@ -49,6 +35,7 @@ CREATE TABLE users (
   login_attempts INTEGER DEFAULT 0,
   locked_until TIMESTAMP,
   last_seen TIMESTAMP,
+  is_admin BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -83,8 +70,8 @@ CREATE TABLE groups (
   is_recurring    BOOLEAN DEFAULT FALSE,                 -- For clubs with regular meetups
   location        VARCHAR(255),                          -- City/venue name
   address         TEXT,                                   -- Full address
-  latitude        DECIMAL(10, 8),
-  longitude       DECIMAL(11, 8),
+  lat             DOUBLE PRECISION,
+  lng             DOUBLE PRECISION,
   image_url       TEXT,                                   -- Cover/header image
   photos          JSONB DEFAULT '[]',                    -- Additional photos array
   max_members     INTEGER DEFAULT 10,                    -- Groups: 3-10, Clubs: unlimited
@@ -105,6 +92,7 @@ CREATE INDEX idx_groups_location ON groups(location);
 CREATE INDEX idx_groups_date ON groups(date);
 CREATE INDEX idx_groups_active ON groups(is_active);
 CREATE INDEX idx_groups_featured ON groups(is_featured) WHERE is_featured = TRUE;
+CREATE INDEX idx_groups_lat_lng ON groups(lat, lng) WHERE lat IS NOT NULL AND lng IS NOT NULL;
 CREATE INDEX idx_groups_type_active ON groups(type, is_active);
 
 -- 4. Group Members
@@ -488,106 +476,7 @@ CREATE TRIGGER trg_waitlist_reorder
     FOR EACH ROW EXECUTE FUNCTION update_waitlist_position();
 
 
--- ============================================================
--- SEED DATA: Demo Users (for presentation)
--- ============================================================
-
-INSERT INTO users (email, password, name, gender, date_of_birth, bio, location, avatar_url, interests, onboarding_completed, is_verified) VALUES
-    ('emily@demo.de', '$2a$10$dummy_hash_for_demo_only_12345678', 'Emily', 'female', '2005-03-15', 
-     'Hey ich bin Emily, 20 Jahre alt und bin gerade neu nach Wien gezogen. In meiner Freizeit gehe ich sehr gerne Wandern oder Joggen. Was Essen angeht, bin ich sehr neugierig und sage zu keinem Restaurantbesuch nein:)', 
-     'Wien', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400', 
-     '["Hiking", "Tennis", "Golf"]', TRUE, TRUE),
-    
-    ('mats@demo.de', '$2a$10$dummy_hash_for_demo_only_12345678', 'Mats', 'male', '2003-07-22', 
-     'Jo Jungs ich bin Mats (22) und habe Bock auf ne Runde Volleyball (spiele hobbymäßig). Also joint gerne!', 
-     'Wien', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400', 
-     '["Volleyball", "Beachvolleyball", "Running"]', TRUE, FALSE),
-    
-    ('lara@demo.de', '$2a$10$dummy_hash_for_demo_only_12345678', 'Lara', 'female', '2002-11-08', 
-     'Sportbegeistert und immer für neue Abenteuer zu haben!', 
-     'Wien', 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400', 
-     '["Hiking", "Yoga", "Schwimmen"]', TRUE, TRUE),
-    
-    ('ben@demo.de', '$2a$10$dummy_hash_for_demo_only_12345678', 'Ben', 'male', '2003-04-30', 
-     'Neu in Wien, suche Leute zum Sport machen und ausgehen!', 
-     'Wien', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400', 
-     '["Fußball", "Bar-Hopping", "Brettspiele"]', TRUE, FALSE),
-    
-    ('chantal@demo.de', '$2a$10$dummy_hash_for_demo_only_12345678', 'Chantal', 'female', '2003-01-25', 
-     'Studentin in Wien. Liebe Kochen, Tanzen und alles was draußen ist!', 
-     'Wien', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400', 
-     '["Kochen", "Tanzen", "Hiking"]', TRUE, FALSE),
-    
-    ('max@demo.de', '$2a$10$dummy_hash_for_demo_only_12345678', 'Max', 'male', '2003-09-12', 
-     'Hey, hätte mega Lust dabei zu sein', 
-     'Wien', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400', 
-     '["Hiking", "Tennis", "Golf"]', TRUE, TRUE)
-ON CONFLICT (email) DO NOTHING;
-
-
--- ============================================================
--- SEED DATA: Demo Groups & Clubs
--- ============================================================
-
--- Groups (event-based, 3-10 people)
-INSERT INTO groups (name, description, type, category, date, location, max_members, owner_id, is_private, skill_level) VALUES
-    ('Wandern', 'Gemeinsame Wanderung im Wienerwald. Treffpunkt wird noch bekannt gegeben!', 
-     'group', 'Hiking', NOW() + INTERVAL '2 days', 'Wien', 6, 1, FALSE, 'beginner'),
-    
-    ('Volleyball', 'Jo Jungs ich bin Mats (22) und habe Bock auf ne Runde Volleyball (spiele hobbymäßig). Also joint gerne! Wann? 25.07.24 Irgendwann am Nachmittag...', 
-     'group', 'Volleyball', NOW() + INTERVAL '5 days', 'Wien', 8, 2, FALSE, 'intermediate'),
-    
-    ('Bar-Hopping Wien', 'Wir erkunden die besten Bars in Wien! Start im 7. Bezirk.', 
-     'group', 'Bar-Hopping', NOW() + INTERVAL '3 days', 'Wien', 10, 4, FALSE, NULL),
-    
-    ('Spiele Abend im Bukowski', 'Brettspiele-Abend im Café Bukowski. Bringt eure Lieblingsspiele mit!', 
-     'group', 'Brettspiele', NOW() + INTERVAL '1 day', 'Wien', 8, 5, FALSE, NULL)
-ON CONFLICT DO NOTHING;
-
--- Clubs (permanent communities)
-INSERT INTO groups (name, description, type, category, location, max_members, owner_id, is_private, is_featured) VALUES
-    ('Der Super Club', 'Wiens größter Sport- und Social Club. Wir machen alles von Hiking bis Bar-Hopping!', 
-     'club', 'Sonstiges', 'Wien', 100, 1, FALSE, TRUE),
-    
-    ('Tennis Wien', 'Tennisclub für alle Level. Wöchentliche Matches und Turniere.', 
-     'club', 'Tennis', 'Wien', 50, 3, FALSE, TRUE),
-    
-    ('Wiener Wandergruppe', 'Regelmäßige Wanderungen rund um Wien und in den Alpen.', 
-     'club', 'Hiking', 'Wien', 80, 1, TRUE, FALSE)
-ON CONFLICT DO NOTHING;
-
-
--- ============================================================
--- SEED DATA: Demo Memberships
--- ============================================================
-INSERT INTO group_members (group_id, user_id, role) VALUES
-    -- Wandern group
-    (1, 1, 'owner'), (1, 2, 'member'), (1, 3, 'member'), (1, 5, 'member'),
-    -- Volleyball group
-    (2, 2, 'owner'), (2, 3, 'member'), (2, 4, 'member'),
-    -- Bar-Hopping group
-    (3, 4, 'owner'), (3, 2, 'member'),
-    -- Spiele Abend group
-    (4, 5, 'owner'), (4, 1, 'member'), (4, 4, 'member'),
-    -- Der Super Club
-    (5, 1, 'owner'), (5, 2, 'member'), (5, 3, 'member'), (5, 4, 'member'), (5, 5, 'member'), (5, 6, 'member'),
-    -- Tennis Wien
-    (6, 3, 'owner'), (6, 1, 'member'), (6, 6, 'member'),
-    -- Wiener Wandergruppe
-    (7, 1, 'owner'), (7, 3, 'member'), (7, 5, 'member')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO group_join_requests (group_id, user_id, message, status) VALUES
-    (2, 6, 'Hey, hätte mega Lust dabei zu sein', 'pending'),
-    (7, 2, 'Bin begeisterter Wanderer, würde gerne dazukommen!', 'pending'),
-    (7, 4, 'Suche eine Wandergruppe in Wien!', 'pending')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO group_favorites (user_id, group_id) VALUES
-    (1, 2), (1, 5), (1, 6),
-    (2, 1), (2, 5),
-    (3, 1), (3, 5)
-ON CONFLICT DO NOTHING;
+-- Seed data lives in backend/src/config/seed.sql (dev only, not applied automatically).
 
 INSERT INTO friendships (requester_id, addressee_id, status) VALUES
     (1, 2, 'accepted'),

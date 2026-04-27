@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,600;0,700;0,900;1,900&display=swap');
 
 /* ========================================
    JAMIE – Auth Pages
@@ -46,12 +46,13 @@
   text-align: center;
 }
 
-/* ── Logo ── */
+/* ── Logo — Archivo Black italic (matches brand wordmark) ── */
 .auth-wordmark {
+  font-family: 'Archivo', -apple-system, sans-serif;
   font-size: 64px;
-  font-weight: 800;
+  font-weight: 900;
   font-style: italic;
-  letter-spacing: 2px;
+  letter-spacing: -1px;
   color: var(--accent-coral);
   text-shadow: 0 4px 24px rgba(253, 118, 102, 0.35);
   line-height: 1;
@@ -198,7 +199,8 @@
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  padding: 6px 12px 6px 8px;
+  padding: 0 12px 0 8px;
+  min-height: 44px; /* Apple HIG minimum touch target */
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
@@ -327,10 +329,11 @@
 }
 
 .auth-logo .logo-text {
+  font-family: 'Archivo', -apple-system, sans-serif;
   font-size: 56px;
-  font-weight: 800;
+  font-weight: 900;
   color: var(--accent-coral);
-  letter-spacing: 2px;
+  letter-spacing: -1px;
   font-style: italic;
   text-shadow: 0 4px 20px rgba(253, 118, 102, 0.3);
 }

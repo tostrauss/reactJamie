@@ -34,7 +34,11 @@ const pool = new Pool({
 
 pool.on('error', (err) => {
   console.error('❌ Unexpected error on idle client', err);
-  process.exit(-1);
+});
+
+// Prevent runaway queries from hanging the server
+pool.on('connect', (client) => {
+  client.query('SET statement_timeout = 30000'); // 30s max per statement
 });
 
 export default {

@@ -54,7 +54,6 @@ export const Profile = () => {
       const res = await auth.updateProfile({ favorite_song: song });
       setUser(res.data);
     } catch (err) {
-      console.error('Error saving song:', err);
     } finally {
       setSavingSong(false);
     }
@@ -66,7 +65,6 @@ export const Profile = () => {
       const res = await auth.updateProfile({ favorite_song: null });
       setUser(res.data);
     } catch (err) {
-      console.error('Error removing song:', err);
     } finally {
       setSavingSong(false);
     }

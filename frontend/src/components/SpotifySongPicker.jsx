@@ -8,6 +8,7 @@ const SpotifySongPicker = ({ currentSong, onSelect, onRemove }) => {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef(null);
+  const abortRef = useRef(null);
 
   useEffect(() => {
     if (!query || query.length < 2) {
@@ -18,20 +19,26 @@ const SpotifySongPicker = ({ currentSong, onSelect, onRemove }) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     debounceRef.current = setTimeout(async () => {
+      if (abortRef.current) abortRef.current.abort();
+      abortRef.current = new AbortController();
+      const { signal } = abortRef.current;
+
       setLoading(true);
       try {
-        const res = await spotify.search(query);
-        setResults(res.data?.items || []);
+        const res = await spotify.search(query, { signal });
+        if (!signal.aborted) setResults(res.data?.items || []);
       } catch (err) {
-        console.error('Search error:', err);
-        setResults([]);
+        if (err.name !== 'AbortError' && err.name !== 'CanceledError') {
+          setResults([]);
+        }
       } finally {
-        setLoading(false);
+        if (!signal.aborted) setLoading(false);
       }
     }, 400);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (abortRef.current) abortRef.current.abort();
     };
   }, [query]);
 

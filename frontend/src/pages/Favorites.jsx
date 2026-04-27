@@ -32,7 +32,6 @@ export const Favorites = () => {
         ...(joinedClubsRes.data || []).map(c => c.id)
       ]));
     } catch (err) {
-      console.error('Error loading favorites:', err);
     } finally {
       setLoading(false);
     }

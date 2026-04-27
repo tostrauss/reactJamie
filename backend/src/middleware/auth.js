@@ -87,14 +87,21 @@ export const generateToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
 };
 
-/**
- * Admin check middleware (for future use)
- */
-export const requireAdmin = (req, res, next) => {
+export const requireAdmin = async (req, res, next) => {
   if (!req.userId) {
     return res.status(401).json({ error: 'Authentication required' });
   }
-  next();
+  try {
+    const { default: db } = await import('../config/database.js');
+    const result = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);
+    if (!result.rows[0]?.is_admin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    next();
+  } catch (error) {
+    console.error('Admin check error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 };
 
 /**

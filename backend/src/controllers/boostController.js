@@ -1,5 +1,6 @@
 import db from '../config/database.js';
 import Stripe from 'stripe';
+import crypto from 'crypto';
 import { isUserPro } from './subscriptionController.js';
 
 // Lazy-init Stripe (only when key is set)
@@ -33,19 +34,17 @@ export const getCredits = async (req, res) => {
       'SELECT code, used_count FROM referral_codes WHERE user_id = $1',
       [req.userId]
     );
-    if (codeResult.rows.length === 0) {
-      const code = await generateUniqueCode(req.userId);
-      codeResult = await db.query(
-        'SELECT code, used_count FROM referral_codes WHERE user_id = $1',
-        [req.userId]
-      );
+    let referralCode = codeResult.rows[0]?.code || null;
+    let referralUsed = codeResult.rows[0]?.used_count || 0;
+    if (!referralCode) {
+      referralCode = await generateUniqueCode(req.userId);
     }
 
     res.json({
       credits: row.credits,
       total_earned: row.total_earned,
-      referral_code: codeResult.rows[0]?.code || null,
-      referral_used: codeResult.rows[0]?.used_count || 0,
+      referral_code: referralCode,
+      referral_used: referralUsed,
     });
   } catch (err) {
     console.error('getCredits error:', err);
@@ -117,7 +116,7 @@ export const applyBoost = async (req, res) => {
 
     res.json({ success: true, boosted_until: boostedUntil, pro_boost: isPro });
   } catch (err) {
-    await db.query('ROLLBACK').catch(() => {});
+    await db.query('ROLLBACK').catch((rbErr) => console.error('ROLLBACK failed:', rbErr));
     console.error('applyBoost error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -161,12 +160,17 @@ export const createStripeIntent = async (req, res) => {
 // ==========================================
 export const stripeWebhook = async (req, res) => {
   const stripe = getStripe();
-  if (!stripe) return res.status(503).send('Not configured');
+  if (!stripe) return res.status(503).send('Stripe not configured');
+
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) return res.status(503).send('Webhook secret not configured');
 
   const sig = req.headers['stripe-signature'];
+  if (!sig) return res.status(400).send('Missing stripe-signature header');
+
   let event;
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
   } catch (err) {
     return res.status(400).send(`Webhook error: ${err.message}`);
   }
@@ -175,8 +179,14 @@ export const stripeWebhook = async (req, res) => {
     const intent = event.data.object;
     const userId = parseInt(intent.metadata.user_id);
     const credits = parseInt(intent.metadata.credits);
-
-    await creditUser(userId, credits, 'stripe', intent.id);
+    if (!isNaN(userId) && !isNaN(credits) && credits > 0) {
+      try {
+        await creditUser(userId, credits, 'stripe', intent.id);
+      } catch (err) {
+        console.error('creditUser failed in stripeWebhook:', err);
+        // Return 200 to prevent Stripe from retrying — log to monitor instead
+      }
+    }
   }
 
   res.json({ received: true });
@@ -321,7 +331,7 @@ async function generateUniqueCode(userId) {
   // Generate a short memorable code like JAMIE-X7K2
   let attempts = 0;
   while (attempts < 10) {
-    const code = 'JAMIE-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+    const code = 'JAMIE-' + crypto.randomBytes(3).toString('hex').toUpperCase();
     try {
       await db.query(
         'INSERT INTO referral_codes (user_id, code) VALUES ($1, $2)',
@@ -373,7 +383,7 @@ export const redeemReferral = async (req, res) => {
 
     res.json({ success: true, message: 'Code eingelöst! +1 Boost-Credit' });
   } catch (err) {
-    await db.query('ROLLBACK').catch(() => {});
+    await db.query('ROLLBACK').catch((rbErr) => console.error('ROLLBACK failed:', rbErr));
     console.error('redeemReferral error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }

@@ -1,9 +1,11 @@
-import { useState, useEffect, useContext, useRef, useCallback } from 'react';
+import { useState, useEffect, useContext, useRef, useCallback, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { groups, clubs } from '../utils/api';
+import { groups, clubs, deals } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import '../styles/explore.css';
+
+const ProModal = lazy(() => import('../components/ProModal').then(m => ({ default: m.ProModal })));
 
 const getCategoryIcon = (catName) => {
   if (!catName) return '✨';
@@ -181,6 +183,86 @@ const SearchResults = ({ results, loading, navigate }) => {
   );
 };
 
+// ─── Für Dich deals ─────────────────────────────────────────────────────────
+
+const DealCard = ({ deal, navigate }) => (
+  <button className="deal-card" onClick={() => navigate(`/deal/${deal.id}`)}>
+    <div className="deal-card-img-wrap">
+      {deal.photos?.[0] ? (
+        <img src={deal.photos[0]} alt={deal.name} className="deal-card-img" />
+      ) : (
+        <div className="deal-card-img-placeholder">🍵</div>
+      )}
+      <span className="deal-card-badge">Für Dich</span>
+      <div className="deal-card-gradient" />
+    </div>
+    <div className="deal-card-body">
+      <span className="deal-card-label">{deal.deal_label}</span>
+      <h3 className="deal-card-name">{deal.name}</h3>
+      {deal.address && <p className="deal-card-addr">{deal.address}</p>}
+    </div>
+  </button>
+);
+
+const ProDealsSection = ({ navigate }) => {
+  const [dealList, setDealList] = useState([]);
+  const [proError, setProError] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [showProModal, setShowProModal] = useState(false);
+
+  useEffect(() => {
+    deals.getAll()
+      .then(res => setDealList(res.data || []))
+      .catch(err => {
+        if (err.response?.data?.code === 'PRO_REQUIRED') setProError(true);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return null;
+
+  return (
+    <section className="explore-section">
+      <div className="explore-section-header">
+        <span className="explore-section-title">⭐ Für Dich</span>
+        {!proError && <span className="deals-pro-badge">Pro</span>}
+      </div>
+
+      {proError ? (
+        <button className="deals-pro-teaser" onClick={() => setShowProModal(true)}>
+          <div className="deals-pro-teaser-inner">
+            <span className="deals-pro-lock">👑</span>
+            <div>
+              <p className="deals-pro-teaser-title">Exklusive Deals für Pro-Mitglieder</p>
+              <p className="deals-pro-teaser-sub">Erhalte 1+1 Deals, Rabatte und mehr in Wien</p>
+            </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M9 18l6-6-6-6"/>
+            </svg>
+          </div>
+          {showProModal && (
+            <Suspense fallback={null}>
+              <ProModal onClose={() => setShowProModal(false)} onSuccess={() => setShowProModal(false)} />
+            </Suspense>
+          )}
+        </button>
+      ) : dealList.length === 0 ? null : (
+        <div className="deals-row">
+          {dealList.map(deal => (
+            <DealCard key={deal.id} deal={deal} navigate={navigate} />
+          ))}
+        </div>
+      )}
+
+      {showProModal && !proError && (
+        <Suspense fallback={null}>
+          <ProModal onClose={() => setShowProModal(false)} onSuccess={() => setShowProModal(false)} />
+        </Suspense>
+      )}
+    </section>
+  );
+};
+
 // ─── main page ───────────────────────────────────────────────────────────────
 
 export const Explore = () => {
@@ -230,7 +312,6 @@ export const Explore = () => {
         setForYouItems(upcoming.slice(0, 8));
       }
     } catch (err) {
-      console.error('Explore load error:', err);
     } finally {
       setLoading(false);
     }
@@ -391,6 +472,9 @@ export const Explore = () => {
                     </div>
                   </section>
                 )}
+
+                {/* ── Für Dich Deals (Pro) ────────────────────────────── */}
+                <ProDealsSection navigate={navigate} />
 
                 {/* ── Gerade angesagt ─────────────────────────────────── */}
                 {trendingItems.length > 0 && (

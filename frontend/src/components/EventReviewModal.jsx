@@ -11,6 +11,7 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
   const [index, setIndex] = useState(0);
   const [attendances, setAttendances] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(false);
 
   if (!pendingReviews?.length) return null;
 
@@ -26,21 +27,21 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
 
   const handleSubmit = async () => {
     setSubmitting(true);
+    setSubmitError(false);
     try {
       const marked = current.members
         .filter(m => attendances[m.id] !== undefined)
         .map(m => ({ user_id: m.id, was_present: attendances[m.id] }));
       await reviews.submit(current.group_id, marked);
-    } catch {
-      // non-blocking — proceed regardless
+      advance();
+    } catch (err) {
+      setSubmitError(true);
     } finally {
       setSubmitting(false);
-      advance();
     }
   };
 
   const handleSkip = () => {
-    // Still mark as seen so the modal doesn't reappear
     reviews.submit(current.group_id, []).catch(() => {});
     advance();
   };
@@ -159,18 +160,22 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
           })}
         </div>
 
-        {/* Submit */}
+        {submitError && (
+          <p style={{ color: '#f87171', fontSize: 13, textAlign: 'center', marginBottom: 8 }}>
+            Senden fehlgeschlagen. Bitte erneut versuchen.
+          </p>
+        )}
         <button
           onClick={handleSubmit}
           disabled={submitting}
           style={{
             width: '100%', padding: 16, borderRadius: 14,
-            background: '#FD7666', color: '#fff',
+            background: submitError ? '#ef4444' : '#FD7666', color: '#fff',
             fontSize: 16, fontWeight: 700, border: 'none',
             cursor: 'pointer', opacity: submitting ? 0.6 : 1,
           }}
         >
-          {submitting ? 'Sende...' : isLast ? 'Fertig' : 'Weiter'}
+          {submitting ? 'Sende...' : submitError ? 'Erneut versuchen' : isLast ? 'Fertig' : 'Weiter'}
         </button>
       </div>
     </div>

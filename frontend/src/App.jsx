@@ -46,6 +46,7 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const WelcomeIntro   = lazy(() => import('./pages/WelcomeIntro'));
 const OutOfRegion    = lazy(() => import('./pages/OutOfRegion'));
 const Friends        = lazy(() => import('./pages/Friends'));
+const DealDetail     = lazy(() => import('./pages/DealDetail'));
 
 // Styles
 import './styles/global.css';
@@ -459,6 +460,9 @@ function AppRoutes() {
 
           {/* Friends */}
           <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />
+
+          {/* Für Dich Deals */}
+          <Route path="/deal/:id" element={<ProtectedRoute><DealDetail /></ProtectedRoute>} />
 
           {/* User */}
           <Route path="/user/:id" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />

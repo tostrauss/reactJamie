@@ -5,8 +5,8 @@
   "description": "Finde Leute für Aktivitäten, tritt Gruppen bei und gründe Clubs in deiner Nähe.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1a1a2e",
-  "theme_color": "#1a1a2e",
+  "background_color": "#231B43",
+  "theme_color": "#231B43",
   "orientation": "portrait",
   "scope": "/",
   "lang": "de",
@@ -56,20 +56,5 @@
       "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
     }
   ],
-  "screenshots": [
-    {
-      "src": "/screenshots/home.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Home — Gruppen entdecken"
-    },
-    {
-      "src": "/screenshots/chat.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Gruppen-Chat"
-    }
-  ]
+  "screenshots": []
 }

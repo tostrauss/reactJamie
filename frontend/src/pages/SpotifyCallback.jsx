@@ -35,7 +35,6 @@ const SpotifyCallback = () => {
         toast.success(res.data.message || 'Spotify erfolgreich verbunden!');
         setTimeout(() => navigate('/profile/edit'), 1500);
       } catch (err) {
-        console.error('Spotify callback error:', err);
         setStatus('error');
         toast.error(err.response?.data?.error || 'Spotify-Verbindung fehlgeschlagen');
         setTimeout(() => navigate('/profile/edit'), 2000);

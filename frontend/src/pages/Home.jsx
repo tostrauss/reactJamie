@@ -54,7 +54,6 @@ export const Home = () => {
         ...(joinedClubsRes.data || []).map(c => c.id)
       ]));
     } catch (error) {
-      console.error('Error loading data:', error);
       if (!error.response) toast.error('Server nicht erreichbar');
     } finally {
       setLoading(false);
@@ -140,6 +139,9 @@ export const Home = () => {
 
       {/* ── Sticky header (doesn't scroll) ─────────────────────────── */}
       <div className="home-sticky-header">
+        <div className="home-header">
+          <span className="logo-text">JAMIE</span>
+        </div>
         <div className="tabs-container">
           <button
             className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`}

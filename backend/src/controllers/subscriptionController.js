@@ -156,10 +156,14 @@ export const cancelSubscription = async (req, res) => {
 // ==========================================
 export const subscriptionWebhook = async (req, res) => {
   const stripe = getStripe();
-  if (!stripe) return res.status(503).send('Not configured');
+  if (!stripe) return res.status(503).send('Stripe not configured');
+
+  const secret = process.env.STRIPE_SUBSCRIPTION_WEBHOOK_SECRET;
+  if (!secret) return res.status(503).send('Subscription webhook secret not configured');
 
   const sig = req.headers['stripe-signature'];
-  const secret = process.env.STRIPE_SUBSCRIPTION_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET;
+  if (!sig) return res.status(400).send('Missing stripe-signature header');
+
   let event;
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, secret);

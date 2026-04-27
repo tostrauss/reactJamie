@@ -154,7 +154,6 @@ export const ProfileEdit = () => {
       toast.success('Profil gespeichert');
       navigate('/profile');
     } catch (error) {
-      console.error('Update failed:', error);
       toast.error('Fehler beim Speichern');
     } finally {
       setLoading(false);
@@ -177,7 +176,6 @@ export const ProfileEdit = () => {
       setUser(prev => ({ ...prev, avatar_url: res.data.url }));
       toast.success('Profilbild aktualisiert');
     } catch (err) {
-      console.error('Avatar upload failed:', err);
       toast.error('Bild konnte nicht hochgeladen werden');
       setAvatarPreview(user?.avatar_url || null);
     } finally {

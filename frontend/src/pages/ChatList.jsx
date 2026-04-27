@@ -83,7 +83,6 @@ export const ChatList = () => {
       if (friendsRes?.data) setFriendsList(friendsRes.data);
       if (pendingRes?.data) setPendingRequests(pendingRes.data);
     } catch (err) {
-      console.error('Error loading chat data:', err);
     } finally {
       setLoading(false);
     }
@@ -131,7 +130,6 @@ export const ChatList = () => {
       const res = await friends.getAll().catch(() => null);
       if (res?.data) setFriendsList(res.data);
     } catch (err) {
-      console.error('Error accepting friend request:', err);
     }
   };
 
@@ -140,7 +138,6 @@ export const ChatList = () => {
       await friends.respondRequest(requestId, 'reject');
       setPendingRequests(prev => prev.filter(r => r.id !== requestId));
     } catch (err) {
-      console.error('Error rejecting friend request:', err);
     }
   };
 

@@ -381,7 +381,6 @@ export const joinGroup = async (req, res) => {
       'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
       [id, req.userId, 'member']
     );
-    await db.query('UPDATE groups SET members_count = members_count + 1 WHERE id = $1', [id]);
     // Clean up any leftover waitlist entry for this user
     await db.query('DELETE FROM group_waitlist WHERE group_id = $1 AND user_id = $2', [id, req.userId]);
 
@@ -418,12 +417,6 @@ export const leaveGroup = async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(400).json({ error: 'Not a member of this group' });
     }
-
-    // Decrement member count
-    await db.query(
-      'UPDATE groups SET members_count = GREATEST(members_count - 1, 0) WHERE id = $1',
-      [id]
-    );
 
     // If group was full, notify first person on waitlist (spot just opened)
     const g = group.rows[0];
@@ -634,10 +627,6 @@ export const handleJoinRequest = async (req, res) => {
         'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
         [id, joinReq.user_id, 'member']
       );
-      await db.query(
-        'UPDATE groups SET members_count = members_count + 1 WHERE id = $1',
-        [id]
-      );
 
       // Notify the accepted user (group name already fetched above)
       const gname = (await db.query('SELECT name FROM groups WHERE id = $1', [id])).rows[0]?.name || '';
@@ -685,11 +674,6 @@ export const kickMember = async (req, res) => {
       return res.status(404).json({ error: 'Nutzer ist kein Mitglied dieser Gruppe' });
     }
 
-    await db.query(
-      'UPDATE groups SET members_count = GREATEST(members_count - 1, 0) WHERE id = $1',
-      [id]
-    );
-
     res.json({ message: 'Member removed successfully' });
   } catch (err) {
     console.error('Error kicking member:', err);
@@ -722,14 +706,19 @@ export const cancelGroup = async (req, res) => {
       [id]
     );
 
-    // Create notification for each member
     const groupName = group.rows[0].name;
+    const io = req.app?.get('io');
+
     for (const member of members.rows) {
-      await db.query(
+      const notifResult = await db.query(
         `INSERT INTO notifications (user_id, sender_id, type, title, message, reference_type, reference_id)
-         VALUES ($1, $2, 'group_cancelled', $3, $4, 'group', $5)`,
+         VALUES ($1, $2, 'group_cancelled', $3, $4, 'group', $5)
+         RETURNING *`,
         [member.user_id, req.userId, `${groupName} wurde abgesagt`, reason || 'Das Event wurde vom Ersteller abgesagt.', id]
       );
+      if (io) {
+        io.to(`user_${member.user_id}`).emit('new_notification', notifResult.rows[0]);
+      }
     }
 
     res.json({ message: 'Group cancelled and members notified', notified: members.rows.length });
@@ -853,7 +842,7 @@ export const getUserWaitlistStatus = async (req, res) => {
 export const getGroupMemberAvatars = async (req, res) => {
   try {
     const { id } = req.params;
-    const limit = parseInt(req.query.limit, 10) || 4;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 4, 50);
     const result = await db.query(
       `SELECT u.id, u.avatar_url, u.name
        FROM group_members gm
@@ -897,11 +886,6 @@ export const inviteMember = async (req, res) => {
     await db.query(
       'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
       [id, friendId, 'member']
-    );
-
-    await db.query(
-      'UPDATE groups SET members_count = members_count + 1 WHERE id = $1',
-      [id]
     );
 
     await db.query(

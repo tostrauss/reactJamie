@@ -85,7 +85,6 @@ const CreateActionModal = ({ isOpen, onClose }) => {
         navigate('/home');
       }
     } catch (err) {
-      console.error(err);
       setError(
         err.response?.data?.error ||
           'Erstellen fehlgeschlagen. Bitte versuche es erneut.'

@@ -163,7 +163,7 @@
   font-size: 28px;
   font-weight: 900;
   font-style: italic;
-  font-family: 'Archivo', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: 'Archivo', -apple-system, sans-serif;
   color: var(--text-white);
   letter-spacing: 1px;
   line-height: 1;

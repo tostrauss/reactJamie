@@ -1,5 +1,4 @@
 import db from '../config/database.js';
-import { isUserPro } from './subscriptionController.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { sendPushToUser } from './pushController.js';
 
@@ -86,8 +85,8 @@ async function notifyDMReceived(fromUserId, toUserId) {
 export const getConversation = async (req, res) => {
   try {
     const { userId } = req.params;
-    const limit = parseInt(req.query.limit, 10) || 50;
-    const offset = parseInt(req.query.offset, 10) || 0;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
 
     // Verify friendship before allowing message history access
     const friendship = await db.query(

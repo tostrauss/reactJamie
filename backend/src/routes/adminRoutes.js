@@ -1,5 +1,6 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
+import crypto from 'crypto';
 import {
   getStats,
   getRecentUsers,
@@ -10,6 +11,9 @@ import {
 } from '../controllers/adminController.js';
 
 const router = express.Router();
+
+// Truncated hash of IP — enough for correlation without storing raw PII
+const hashIp = (ip) => crypto.createHash('sha256').update(ip || '').digest('hex').slice(0, 10);
 
 // Tight rate limit on admin routes: 30 requests/15min per IP
 const adminLimiter = rateLimit({
@@ -24,10 +28,10 @@ const adminLimiter = rateLimit({
 const adminAuth = (req, res, next) => {
   const secret = process.env.ADMIN_SECRET;
   if (!secret || req.headers['x-admin-secret'] !== secret) {
-    console.warn(`[admin] Unauthorized access attempt from ${req.ip} — ${req.method} ${req.path}`);
+    console.warn(`[admin] Unauthorized attempt ip=${hashIp(req.ip)} ${req.method} ${req.path}`);
     return res.status(403).json({ error: 'Forbidden' });
   }
-  console.log(`[admin] Access granted to ${req.ip} — ${req.method} ${req.path}`);
+  console.log(`[admin] Access granted ip=${hashIp(req.ip)} ${req.method} ${req.path}`);
   next();
 };
 

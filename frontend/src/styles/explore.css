@@ -875,3 +875,151 @@
     columns: 3;
   }
 }
+
+/* ================================================================
+   Für Dich — Pro Deals
+   ================================================================ */
+
+/* Section header Pro badge */
+.deals-pro-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  padding: 3px 10px;
+  border-radius: 100px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* Horizontal scroll row */
+.deals-row {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 4px 20px 8px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.deals-row::-webkit-scrollbar { display: none; }
+
+/* Individual deal card */
+.deal-card {
+  flex-shrink: 0;
+  width: 200px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #1e2235;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.18s ease;
+}
+.deal-card:active { transform: scale(0.96); }
+
+.deal-card-img-wrap {
+  position: relative;
+  height: 130px;
+  overflow: hidden;
+}
+.deal-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.deal-card-img-placeholder {
+  width: 100%;
+  height: 100%;
+  background: #2a2e4a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+}
+.deal-card-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: #FD7666;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 100px;
+  letter-spacing: 0.3px;
+}
+.deal-card-gradient {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 60px;
+  background: linear-gradient(to top, rgba(30,34,53,0.85), transparent);
+}
+
+.deal-card-body {
+  padding: 12px 14px 14px;
+}
+.deal-card-label {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #FD7666;
+  background: rgba(253,118,102,0.12);
+  padding: 3px 10px;
+  border-radius: 100px;
+  margin-bottom: 6px;
+}
+.deal-card-name {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.deal-card-addr {
+  color: rgba(255,255,255,0.4);
+  font-size: 12px;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Pro teaser (non-Pro users) */
+.deals-pro-teaser {
+  display: block;
+  width: calc(100% - 40px);
+  margin: 4px 20px 0;
+  background: linear-gradient(135deg, rgba(253,118,102,0.08) 0%, rgba(168,85,247,0.08) 100%);
+  border: 1px solid rgba(253,118,102,0.25);
+  border-radius: 18px;
+  padding: 18px 16px;
+  cursor: pointer;
+  text-align: left;
+  transition: opacity 0.15s;
+}
+.deals-pro-teaser:active { opacity: 0.75; }
+
+.deals-pro-teaser-inner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.deals-pro-lock {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+.deals-pro-teaser-title {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+.deals-pro-teaser-sub {
+  color: rgba(255,255,255,0.45);
+  font-size: 13px;
+  margin: 0;
+}

@@ -92,26 +92,22 @@ export const submitReview = async (req, res) => {
         [group_id, req.userId, user_id, was_present]
       );
 
-      // Update trusted_count and is_trusted_user for users marked present
-      if (was_present) {
-        const countRes = await db.query(
-          'SELECT COUNT(DISTINCT reviewer_id) AS c FROM event_reviews WHERE reviewed_user_id = $1 AND was_present = TRUE',
-          [user_id]
-        );
-        const count = parseInt(countRes.rows[0].c);
-        await db.query(
-          `UPDATE users SET trusted_count = $1,
-             is_trusted_user = CASE WHEN $1 >= $2 THEN TRUE ELSE is_trusted_user END
-           WHERE id = $3`,
-          [count, TRUST_THRESHOLD, user_id]
-        );
-      }
+      // Recompute trusted_count and badge for every reviewed user (present or absent)
+      const countRes = await db.query(
+        'SELECT COUNT(DISTINCT reviewer_id) AS c FROM event_reviews WHERE reviewed_user_id = $1 AND was_present = TRUE',
+        [user_id]
+      );
+      const count = parseInt(countRes.rows[0].c);
+      await db.query(
+        'UPDATE users SET trusted_count = $1, is_trusted_user = ($1 >= $2) WHERE id = $3',
+        [count, TRUST_THRESHOLD, user_id]
+      );
     }
 
     await db.query('COMMIT');
     res.json({ success: true });
   } catch (err) {
-    await db.query('ROLLBACK').catch(() => {});
+    await db.query('ROLLBACK').catch((rbErr) => console.error('ROLLBACK failed:', rbErr));
     console.error('submitReview error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }

@@ -23,7 +23,6 @@ export const Notifications = () => {
       setNotifs(res.data || []);
       await notifications.markRead();
     } catch (err) {
-      console.error(err);
       toast.error('Benachrichtigungen konnten nicht geladen werden');
     } finally {
       setLoading(false);

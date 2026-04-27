@@ -52,7 +52,6 @@ export const GroupCard = ({
         const res = await api.groups.getMemberAvatars(group.id, 4);
         setMemberAvatars(res.data);
       } catch (err) {
-        console.error('Failed to fetch avatars:', err);
       }
     };
 
@@ -62,7 +61,6 @@ export const GroupCard = ({
           const res = await api.groups.getWaitlistStatus(group.id);
           setWaitlistStatus(res.data);
         } catch (err) {
-          console.error('Failed to fetch waitlist:', err);
         }
       }
     };

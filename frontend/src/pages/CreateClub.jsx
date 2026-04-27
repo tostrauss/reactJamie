@@ -80,7 +80,6 @@ export const CreateClub = () => {
 
       navigate(`/group/${response.data.id}`);
     } catch (err) {
-      console.error('Error creating club:', err);
       const msg = err.response?.data?.error || 'Fehler beim Erstellen';
       setError(msg);
       toast.error(msg);

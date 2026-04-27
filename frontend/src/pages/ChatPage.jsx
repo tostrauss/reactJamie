@@ -65,7 +65,6 @@ export const ChatPage = () => {
         setPermissionMessage('Nur der Club-Gründer kann Nachrichten senden');
       }
     } catch (error) {
-      console.error('Error loading group:', error);
       toast.error('Gruppe konnte nicht geladen werden');
     } finally {
       setLoading(false);
@@ -80,7 +79,6 @@ export const ChatPage = () => {
       safeSetMessageList(msgs);
       setHasMore(Array.isArray(data) ? false : (data?.has_more ?? false));
     } catch (error) {
-      console.error('Error loading messages:', error);
       toast.error('Nachrichten konnten nicht geladen werden');
     }
   };
@@ -96,7 +94,6 @@ export const ChatPage = () => {
       setMessageList(prev => [...older, ...prev]);
       setHasMore(Array.isArray(data) ? false : (data?.has_more ?? false));
     } catch (error) {
-      console.error('Error loading earlier messages:', error);
       toast.error('Ältere Nachrichten konnten nicht geladen werden');
     } finally {
       setLoadingMore(false);
@@ -125,7 +122,6 @@ export const ChatPage = () => {
       }
     } catch (error) {
       setContent(sentContent);
-      console.error('Error sending message:', error);
       toast.error('Nachricht konnte nicht gesendet werden');
       if (error.response?.data?.isOwnerOnly) {
         setCanSendMessages(false);

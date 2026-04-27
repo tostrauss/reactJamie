@@ -170,7 +170,7 @@
 .gd-photo-name {
   font-size: 15px;
   font-weight: 900;
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: 'Archivo', -apple-system, sans-serif;
   color: white;
   letter-spacing: 0.5px;
   text-shadow: 0 1px 4px rgba(0,0,0,0.5);
@@ -245,7 +245,7 @@
 .gd-group-title {
   font-size: 28px;
   font-weight: 800;
-  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-family: 'Archivo', -apple-system, sans-serif;
   color: var(--accent-coral);
   margin: 0 0 14px;
   line-height: 1.1;

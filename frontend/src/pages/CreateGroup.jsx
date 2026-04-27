@@ -167,7 +167,6 @@ export const CreateGroup = () => {
       const response = await groups.create(payload);
       navigate(`/group/${response.data.id}`);
     } catch (err) {
-      console.error(err);
       const msg = err.response?.data?.error || err.message || 'Fehler beim Erstellen der Gruppe';
       setError(msg);
       toast.error(msg);

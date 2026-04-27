@@ -68,7 +68,6 @@ export const DirectMessagePage = () => {
       const res = await users.getById(otherUserId);
       setOtherUser(res.data);
     } catch (err) {
-      console.error('Error loading user info:', err);
     }
   };
 
@@ -78,7 +77,6 @@ export const DirectMessagePage = () => {
       setMessagesList(res.data || []);
       setLoading(false);
     } catch (err) {
-      console.error('Error loading messages:', err);
       if (err.response?.data?.requiresFriendship) {
         setError('Ihr müsst befreundet sein, um Nachrichten zu senden');
       } else {
@@ -131,7 +129,6 @@ export const DirectMessagePage = () => {
       setNewMessage('');
       stopTyping();
     } catch (err) {
-      console.error('Error sending message:', err);
       if (err.response?.data?.requiresFriendship) {
         setError('Ihr müsst befreundet sein, um Nachrichten zu senden');
       } else {

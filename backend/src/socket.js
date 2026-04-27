@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import db from './config/database.js';
 
 const socketHandler = (io) => {
   // Verify JWT on every connection attempt
@@ -37,9 +38,21 @@ const socketHandler = (io) => {
       if (socket.userId) socket.join(`user_${socket.userId}`);
     });
 
-    // Join a specific chat room (group)
-    socket.on('join_room', (groupId) => {
-      socket.join(groupId);
+    // Join a specific chat room — verify the user is actually a member
+    socket.on('join_room', async (groupId) => {
+      if (!groupId) return;
+      try {
+        const { rows } = await db.query(
+          'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2 LIMIT 1',
+          [groupId, socket.userId]
+        );
+        if (rows.length > 0) {
+          socket.join(groupId);
+        }
+        // Silently ignore unauthorized join attempts
+      } catch {
+        // Non-critical — don't crash the socket on a DB error
+      }
     });
 
     // Leave a room

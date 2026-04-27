@@ -48,7 +48,6 @@ export const ClubEdit = () => {
         category: clubData.category || ''
       });
     } catch (error) {
-      console.error('Error loading club:', error);
     } finally {
       setLoading(false);
     }

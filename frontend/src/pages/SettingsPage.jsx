@@ -1,7 +1,7 @@
 import { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { auth } from '../utils/api';
+import { auth, groups as groupsApi, clubs as clubsApi } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import {
   isPushSupported,
@@ -37,6 +37,22 @@ export const SettingsPage = () => {
   useEffect(() => { localStorage.setItem('notif_messages', notifMessages); }, [notifMessages]);
   useEffect(() => { localStorage.setItem('notif_requests', notifRequests); }, [notifRequests]);
   useEffect(() => { localStorage.setItem('notif_groups', notifGroups); }, [notifGroups]);
+
+  // Favorites
+  const [favTab, setFavTab] = useState('groups');
+  const [favGroups, setFavGroups] = useState([]);
+  const [favClubs, setFavClubs] = useState([]);
+  const [favLoading, setFavLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([groupsApi.getFavorites(), clubsApi.getFavorites()])
+      .then(([gRes, cRes]) => {
+        setFavGroups(gRes.data || []);
+        setFavClubs(cRes.data || []);
+      })
+      .catch(() => {})
+      .finally(() => setFavLoading(false));
+  }, []);
 
   // Push notification subscription state
   const [pushSupported] = useState(() => isPushSupported());
@@ -217,6 +233,79 @@ export const SettingsPage = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Favoriten */}
+      <div className="settings-section">
+        <h3 className="settings-section-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+          Favoriten
+        </h3>
+
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 0, margin: '4px 16px 12px', background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: 3 }}>
+          {['groups', 'clubs'].map(tab => (
+            <button
+              key={tab}
+              onClick={() => setFavTab(tab)}
+              style={{
+                flex: 1,
+                padding: '8px 0',
+                borderRadius: 8,
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: 14,
+                fontWeight: 600,
+                background: favTab === tab ? 'rgba(253,118,102,0.18)' : 'transparent',
+                color: favTab === tab ? '#FD7666' : 'rgba(255,255,255,0.45)',
+                transition: 'all 0.15s',
+              }}
+            >
+              {tab === 'groups' ? 'Gruppen' : 'Clubs'}
+            </button>
+          ))}
+        </div>
+
+        {favLoading ? (
+          <div style={{ padding: '16px 20px', color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Laden...</div>
+        ) : (() => {
+          const list = favTab === 'groups' ? favGroups : favClubs;
+          const path = favTab === 'groups' ? '/group/' : '/group/';
+          if (!list.length) {
+            return (
+              <div style={{ padding: '16px 20px', color: 'rgba(255,255,255,0.3)', fontSize: 14, textAlign: 'center' }}>
+                {favTab === 'groups' ? 'Keine Gruppen-Favoriten' : 'Keine Club-Favoriten'}
+              </div>
+            );
+          }
+          return list.map(item => (
+            <div
+              key={item.id}
+              className="settings-row"
+              onClick={() => navigate(`${path}${item.id}`)}
+            >
+              <div className="settings-row-left" style={{ gap: 12 }}>
+                <div style={{
+                  width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                  overflow: 'hidden', background: '#2a2e4a',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {item.image_url
+                    ? <img src={item.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <span style={{ fontSize: 18 }}>⭐</span>
+                  }
+                </div>
+                <div className="settings-row-stacked">
+                  <span>{item.name}</span>
+                  {item.location && <span className="settings-row-detail">{item.location}</span>}
+                </div>
+              </div>
+              {chevron}
+            </div>
+          ));
+        })()}
       </div>
 
       {/* Benachrichtigungen */}

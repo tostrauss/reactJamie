@@ -61,13 +61,15 @@ describe('authenticate middleware', () => {
     expect(req.isGuest).toBe(false);
   });
 
-  it('grants guest access in non-production env', () => {
+  it('grants guest access when ALLOW_GUEST_TOKEN is enabled', () => {
+    process.env.ALLOW_GUEST_TOKEN = 'true';
     const req = { headers: { authorization: 'Bearer guest_token' } };
     const res = makeRes();
     authenticate(req, res, next);
     expect(next).toHaveBeenCalled();
     expect(req.userId).toBe(0);
     expect(req.isGuest).toBe(true);
+    delete process.env.ALLOW_GUEST_TOKEN;
   });
 });
 

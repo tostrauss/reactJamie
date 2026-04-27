@@ -26,7 +26,6 @@ export const GroupRequests = () => {
         if (!cancelled) setRequests(res.data || []);
       } catch (err) {
         if (!cancelled) {
-          console.error('Failed to load requests:', err);
           const status = err.response?.status;
           if (status === 403) {
             toast.error('Keine Berechtigung – du bist nicht der Ersteller dieser Gruppe');
