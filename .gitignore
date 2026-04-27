@@ -11,6 +11,9 @@ twa/*.apk
 .env.local
 .env.*.local
 
+# DB reset script — destructive, never commit to shared branches
+backend/src/config/reset.sql
+
 # OS
 .DS_Store
 Thumbs.db
