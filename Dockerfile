@@ -4,6 +4,11 @@ WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
+
+# Vite env vars must be declared as build args to be available at build time
+ARG VITE_SENTRY_DSN
+ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN
+
 # .env.production sets VITE_API_URL=/api so API calls are same-origin
 RUN npm run build
 
