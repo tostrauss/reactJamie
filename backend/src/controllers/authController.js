@@ -1,6 +1,7 @@
 import db from '../config/database.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { generateToken } from '../middleware/auth.js';
 import { sendPasswordResetEmail, sendVerificationEmail, sendOTPEmail } from '../utils/email.js';
 
@@ -76,7 +77,7 @@ export const register = async (req, res) => {
       'INSERT INTO boost_credits (user_id) VALUES ($1) ON CONFLICT DO NOTHING',
       [newUserId]
     );
-    const refCode = 'JAMIE-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+    const refCode = 'JAMIE-' + crypto.randomBytes(3).toString('hex').toUpperCase();
     await db.query(
       'INSERT INTO referral_codes (user_id, code) VALUES ($1, $2) ON CONFLICT DO NOTHING',
       [newUserId, refCode]
@@ -347,27 +348,94 @@ export const deleteAccount = async (req, res) => {
   try {
     const { password } = req.body;
 
-    if (!password) {
-      return res.status(400).json({ error: 'Password required to delete account' });
-    }
-
-    const result = await db.query('SELECT password FROM users WHERE id = $1', [req.userId]);
+    const result = await db.query('SELECT password, auth_provider FROM users WHERE id = $1', [req.userId]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const valid = await bcrypt.compare(password, result.rows[0].password);
-    if (!valid) {
-      return res.status(401).json({ error: 'Password is incorrect' });
+    const user = result.rows[0];
+    const isGoogleOnly = user.auth_provider === 'google' && !user.password;
+
+    if (!isGoogleOnly) {
+      if (!password) {
+        return res.status(400).json({ error: 'Password required to delete account' });
+      }
+      const valid = await bcrypt.compare(password, user.password);
+      if (!valid) {
+        return res.status(401).json({ error: 'Password is incorrect' });
+      }
     }
 
-    // Delete user - cascades to all related data
+    // Delete user — cascades to all related data via FK ON DELETE CASCADE
     await db.query('DELETE FROM users WHERE id = $1', [req.userId]);
 
     res.json({ message: 'Account deleted successfully' });
   } catch (error) {
     console.error('DeleteAccount error:', error);
     res.status(500).json({ error: 'Failed to delete account' });
+  }
+};
+
+// ==========================================
+// GDPR DATA EXPORT (Art. 15 DSGVO)
+// ==========================================
+export const exportData = async (req, res) => {
+  try {
+    const [userRes, groupsRes, messagesRes, friendsRes] = await Promise.all([
+      db.query(
+        `SELECT id, email, name, username, gender, date_of_birth, bio, location,
+                avatar_url, photos, interests, favorite_song, pinterest_url,
+                onboarding_completed, is_verified, created_at
+         FROM users WHERE id = $1`,
+        [req.userId]
+      ),
+      db.query(
+        `SELECT g.id, g.name, g.type, g.category, g.date, g.location, gm.role, gm.joined_at
+         FROM groups g JOIN group_members gm ON gm.group_id = g.id
+         WHERE gm.user_id = $1 ORDER BY gm.joined_at DESC`,
+        [req.userId]
+      ),
+      db.query(
+        `SELECT content, created_at FROM messages WHERE sender_id = $1 ORDER BY created_at DESC LIMIT 500`,
+        [req.userId]
+      ),
+      db.query(
+        `SELECT u.name, u.email, f.status, f.created_at
+         FROM friendships f
+         JOIN users u ON u.id = CASE WHEN f.user_id = $1 THEN f.friend_id ELSE f.user_id END
+         WHERE f.user_id = $1 OR f.friend_id = $1`,
+        [req.userId]
+      ),
+    ]);
+
+    res.json({
+      exported_at: new Date().toISOString(),
+      profile: userRes.rows[0] || null,
+      groups: groupsRes.rows,
+      messages: messagesRes.rows,
+      friends: friendsRes.rows,
+    });
+  } catch (error) {
+    console.error('exportData error:', error);
+    res.status(500).json({ error: 'Failed to export data' });
+  }
+};
+
+// ==========================================
+// TOKEN REFRESH
+// Issues a fresh 7-day JWT for an authenticated user.
+// Call when token exp < 24h away to avoid silent logouts on mobile.
+// ==========================================
+export const refreshToken = async (req, res) => {
+  try {
+    const result = await db.query('SELECT id, is_active FROM users WHERE id = $1', [req.userId]);
+    if (!result.rows[0] || !result.rows[0].is_active) {
+      return res.status(401).json({ error: 'Account nicht gefunden oder deaktiviert' });
+    }
+    res.json({ token: generateToken(req.userId) });
+  } catch (error) {
+    console.error('refreshToken error:', error);
+    res.status(500).json({ error: 'Token refresh fehlgeschlagen' });
   }
 };
 
@@ -429,8 +497,20 @@ export const resetPassword = async (req, res) => {
       return res.status(400).json({ error: 'Token und neues Passwort erforderlich' });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: 'Passwort muss mindestens 6 Zeichen lang sein' });
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: 'Mindestens 6 Zeichen erforderlich' });
+    }
+    if (!/[A-Z]/.test(newPassword)) {
+      return res.status(400).json({ error: 'Mindestens 1 Großbuchstabe erforderlich' });
+    }
+    if (!/[a-z]/.test(newPassword)) {
+      return res.status(400).json({ error: 'Mindestens 1 Kleinbuchstabe erforderlich' });
+    }
+    if (!/[0-9]/.test(newPassword)) {
+      return res.status(400).json({ error: 'Mindestens 1 Zahl erforderlich' });
+    }
+    if (!/[^A-Za-z0-9]/.test(newPassword)) {
+      return res.status(400).json({ error: 'Mindestens 1 Sonderzeichen erforderlich' });
     }
 
     // Find valid token
@@ -610,15 +690,38 @@ export const verifyEmail = async (req, res) => {
 // ==========================================
 export const googleLogin = async (req, res) => {
   try {
-    const { credential } = req.body; // Google OAuth2 access token
+    const { credential } = req.body;
     if (!credential) return res.status(400).json({ error: 'Google credential fehlt' });
 
-    // Fetch user info using the access token
-    const googleRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-      headers: { Authorization: `Bearer ${credential}` },
-    });
-    if (!googleRes.ok) return res.status(401).json({ error: 'Google Token ungültig' });
-    const { email, name, picture, sub: googleId } = await googleRes.json();
+    let email, name, picture, googleId;
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+
+    if (clientId) {
+      // Preferred path: cryptographically verify the ID token (Google One Tap / Sign-In)
+      try {
+        const oauthClient = new OAuth2Client(clientId);
+        const ticket = await oauthClient.verifyIdToken({ idToken: credential, audience: clientId });
+        const payload = ticket.getPayload();
+        email    = payload.email;
+        name     = payload.name;
+        picture  = payload.picture;
+        googleId = payload.sub;
+      } catch {
+        return res.status(401).json({ error: 'Google Token ungültig' });
+      }
+    } else {
+      // Fallback: exchange token for user info via Google userinfo endpoint
+      // (used when GOOGLE_CLIENT_ID is not set — audience is not verified)
+      const googleRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${credential}` },
+      });
+      if (!googleRes.ok) return res.status(401).json({ error: 'Google Token ungültig' });
+      const data = await googleRes.json();
+      email    = data.email;
+      name     = data.name;
+      picture  = data.picture;
+      googleId = data.sub;
+    }
 
     if (!email) return res.status(400).json({ error: 'Kein E-Mail von Google' });
 
@@ -639,13 +742,12 @@ export const googleLogin = async (req, res) => {
         await db.query('UPDATE users SET avatar_url = $1 WHERE id = $2', [picture, userId]);
       }
     } else {
-      // New user — create account (no password, Google-only)
-      const dob = new Date();
-      dob.setFullYear(dob.getFullYear() - 25); // default age (will be updated in onboarding)
+      // New user — create account (no password, Google-only).
+      // date_of_birth is intentionally NULL; onboarding collects and validates it (18+ gate).
       const insert = await db.query(
-        `INSERT INTO users (email, name, avatar_url, google_id, date_of_birth, is_verified)
-         VALUES ($1, $2, $3, $4, $5, TRUE) RETURNING id`,
-        [email, name || email.split('@')[0], picture || null, googleId, dob.toISOString().split('T')[0]]
+        `INSERT INTO users (email, name, avatar_url, google_id, is_verified)
+         VALUES ($1, $2, $3, $4, TRUE) RETURNING id`,
+        [email, name || email.split('@')[0], picture || null, googleId]
       );
       userId = insert.rows[0].id;
 
@@ -654,7 +756,7 @@ export const googleLogin = async (req, res) => {
         'INSERT INTO boost_credits (user_id) VALUES ($1) ON CONFLICT DO NOTHING',
         [userId]
       );
-      const refCode = 'JAMIE-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+      const refCode = 'JAMIE-' + crypto.randomBytes(3).toString('hex').toUpperCase();
       await db.query(
         'INSERT INTO referral_codes (user_id, code) VALUES ($1, $2) ON CONFLICT DO NOTHING',
         [userId, refCode]

@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { sentryVitePlugin } from '@sentry/vite-plugin'
 
 export default defineConfig({
   test: {
@@ -21,7 +22,14 @@ export default defineConfig({
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}']
       }
-    })
+    }),
+    // Uploads source maps to Sentry during CI builds — no-op if auth token absent
+    ...(process.env.SENTRY_AUTH_TOKEN ? [sentryVitePlugin({
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      silent: true,
+    })] : []),
   ],
   server: {
     port: 3000,

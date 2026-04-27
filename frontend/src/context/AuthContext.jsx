@@ -1,5 +1,5 @@
 import React, { createContext, useState, useCallback, useEffect, useRef } from 'react';
-import { auth } from '../utils/api';
+import { auth, silentRefreshIfNeeded } from '../utils/api';
 
 export const AuthContext = createContext();
 
@@ -87,7 +87,6 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('jamie_user', JSON.stringify(response.data));
       return response.data;
     } catch (error) {
-      console.error('Profil konnte nicht aktualisiert werden:', error);
       return null;
     } finally {
       setLoading(false);
@@ -99,6 +98,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (didMountRef.current || !token || token === 'guest_token') return;
     didMountRef.current = true;
+    silentRefreshIfNeeded(); // Renew JWT before it expires (no-op if > 24h remaining)
     refreshProfile();
   }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 

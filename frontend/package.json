@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "dependencies": {
+    "@capacitor/android": "^8.3.1",
     "@capacitor/core": "^8.2.0",
     "@capacitor/ios": "^8.2.0",
     "@capacitor/push-notifications": "^8.0.2",
@@ -11,6 +12,8 @@
     "@capacitor/status-bar": "^8.0.1",
     "@paypal/react-paypal-js": "^9.0.1",
     "@react-oauth/google": "^0.13.5",
+    "@sentry/react": "^10.50.0",
+    "@sentry/vite-plugin": "^5.2.0",
     "@stripe/react-stripe-js": "^5.6.1",
     "@stripe/stripe-js": "^8.9.0",
     "axios": "^1.6.2",
@@ -49,6 +52,9 @@
     "test:coverage": "vitest run --coverage",
     "cap:sync": "vite build && npx cap sync",
     "cap:open:ios": "npx cap open ios",
-    "cap:build:ios": "vite build && npx cap sync ios"
+    "cap:build:ios": "vite build && npx cap sync ios",
+    "cap:add:android": "npx cap add android",
+    "cap:open:android": "npx cap open android",
+    "cap:build:android": "vite build && npx cap sync android"
   }
 }

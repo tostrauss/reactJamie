@@ -12,8 +12,11 @@ import db from './config/database.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import morgan from 'morgan';
+import pinoHttp from 'pino-http';
 import cron from 'node-cron';
+import { initSentry, Sentry } from './config/sentry.js';
+import { redisClient, redisSubscriber } from './config/redis.js';
+import { createAdapter } from '@socket.io/redis-adapter';
 import { generalLimiter, authLimiter } from './middleware/rateLimiter.js';
 import { sanitizeInputs } from './middleware/sanitize.js';
 
@@ -22,6 +25,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config();
+initSentry(); // Must run before Express setup to capture all errors
 
 // ── Production boot-time env var validation ───────────────────────────────
 if (process.env.NODE_ENV === 'production') {
@@ -37,8 +41,10 @@ if (process.env.NODE_ENV === 'production') {
     ['SIGHTENGINE_API_USER',   'image moderation (nudity/gore) will be DISABLED'],
     ['SIGHTENGINE_API_SECRET', 'image moderation (nudity/gore) will be DISABLED'],
     ['OPENAI_API_KEY',         'text moderation will be DISABLED — unsafe content may pass through'],
-    ['STRIPE_WEBHOOK_SECRET',  'Stripe webhook signature validation will FAIL'],
-    ['ADMIN_SECRET',           'admin dashboard will be inaccessible'],
+    ['STRIPE_WEBHOOK_SECRET',              'Stripe boost webhook signature validation will FAIL'],
+    ['STRIPE_SUBSCRIPTION_WEBHOOK_SECRET', 'Stripe subscription webhook signature validation will FAIL'],
+    ['ADMIN_SECRET',                       'admin dashboard will be inaccessible'],
+    ['GOOGLE_CLIENT_ID',                   'Google OAuth will use unverified userinfo endpoint (reduced security)'],
   ];
 
   let fatal = false;
@@ -48,6 +54,11 @@ if (process.env.NODE_ENV === 'production') {
       fatal = true;
     }
   }
+  if (process.env.DISABLE_RATE_LIMIT === 'true') {
+    console.error('FATAL: DISABLE_RATE_LIMIT must not be set in production');
+    fatal = true;
+  }
+
   if (fatal) process.exit(1);
 
   for (const [key, warn] of WARNED) {
@@ -87,6 +98,7 @@ import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import { subscriptionWebhook } from './controllers/subscriptionController.js';
 import mapRoutes from './routes/mapRoutes.js';
 import waitlistRoutes from './routes/waitlistRoutes.js';
+import dealRoutes from './routes/dealRoutes.js';
 import socketHandler from './socket.js';
 
 // ==========================================
@@ -162,8 +174,12 @@ app.use(cors({
 // Compression: gzip responses
 app.use(compression());
 
-// Request logging
-app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+// Request logging — structured JSON in production, human-readable in dev
+app.use(pinoHttp({
+  autoLogging: { ignore: req => req.url === '/api/health' },
+  redact: ['req.headers.authorization', 'req.headers.cookie'],
+  transport: process.env.NODE_ENV !== 'production' ? { target: 'pino-pretty' } : undefined,
+}));
 
 // ==========================================
 // FRONTEND STATIC SERVING — early, before session/body-parsing
@@ -204,7 +220,7 @@ app.use(session({
     pool: db.pool,
     tableName: 'session'
   }),
-  secret: process.env.SESSION_SECRET || 'jamie-secret-key-change-in-production',
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -239,10 +255,16 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/map', mapRoutes);
 app.use('/api/waitlist', waitlistRoutes);
+app.use('/api/deals', dealRoutes);
 
-// Health check
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Health check — verifies DB connectivity for Railway health probes
+app.get('/api/health', async (_req, res) => {
+  try {
+    await db.query('SELECT 1');
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  } catch {
+    res.status(503).json({ status: 'error', db: 'unavailable', timestamp: new Date().toISOString() });
+  }
 });
 
 // .well-known files (assetlinks.json + apple-app-site-association) are served
@@ -258,6 +280,12 @@ const io = new Server(server, {
     methods: ['GET', 'POST']
   }
 });
+
+// Redis adapter for horizontal scaling — no-op when REDIS_URL is absent
+if (redisClient && redisSubscriber) {
+  io.adapter(createAdapter(redisClient, redisSubscriber));
+  console.log('[Socket.IO] Redis adapter enabled');
+}
 
 // Initialize Socket logic
 socketHandler(io);
@@ -276,6 +304,8 @@ if (process.env.NODE_ENV === 'production') {
 // ==========================================
 // ERROR HANDLING
 // ==========================================
+Sentry.setupExpressErrorHandler(app);
+
 app.use((err, _req, res, _next) => {
   console.error('Server Error:', err.stack);
   res.status(500).json({ error: 'Etwas ist schiefgelaufen!' });
@@ -307,6 +337,16 @@ const gracefulShutdown = (signal) => {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Catch-all safety nets — prevent silent crashes from fire-and-forget async tasks
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Promise Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception — shutting down:', error);
+  gracefulShutdown('uncaughtException');
+});
 
 // ==========================================
 // START SERVER
@@ -384,6 +424,7 @@ const runStartupMigrations = async () => {
     await db.query(`CREATE TABLE IF NOT EXISTS country_votes (
       country VARCHAR(10) PRIMARY KEY, votes INTEGER NOT NULL DEFAULT 0)`);
     await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_pioneer BOOLEAN NOT NULL DEFAULT FALSE`);
+    await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE`);
     await db.query(`CREATE TABLE IF NOT EXISTS pioneer_claims (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -392,6 +433,26 @@ const runStartupMigrations = async () => {
       claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(lat_cell, lng_cell))`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_pioneer_claims_cell ON pioneer_claims(lat_cell, lng_cell)`);
+
+    // Für Dich — Pro-exclusive venue deals
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS deals (
+        id           SERIAL PRIMARY KEY,
+        name         VARCHAR(255) NOT NULL,
+        category     VARCHAR(100) NOT NULL DEFAULT 'Lokal',
+        deal_label   VARCHAR(100) NOT NULL,
+        description  TEXT,
+        address      VARCHAR(255),
+        lat          DOUBLE PRECISION,
+        lng          DOUBLE PRECISION,
+        photos       JSONB NOT NULL DEFAULT '[]',
+        is_active    BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_deals_active ON deals(is_active) WHERE is_active = TRUE`);
+    await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS booking_url TEXT`);
 
     console.log('✅ Startup migrations done');
   } catch (err) {

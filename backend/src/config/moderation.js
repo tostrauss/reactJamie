@@ -49,6 +49,10 @@ export const checkImageSafety = async (buffer, mimetype, originalname) => {
     return { safe: true, reason: null };
   }
 
+  // Fail-open: if the moderation API is unavailable, allow the upload.
+  // Blocking all uploads during an outage is worse than a brief gap in moderation.
+  const failResult = { safe: true, reason: null };
+
   try {
     const blob = new Blob([buffer], { type: mimetype });
     const form = new FormData();
@@ -61,14 +65,14 @@ export const checkImageSafety = async (buffer, mimetype, originalname) => {
 
     if (!response.ok) {
       console.error('Sightengine HTTP error:', response.status, await response.text());
-      return { safe: true, reason: null }; // fail-open
+      return failResult;
     }
 
     const data = await response.json();
 
     if (data.status !== 'success') {
       console.error('Sightengine API returned non-success:', data);
-      return { safe: true, reason: null }; // fail-open
+      return failResult;
     }
 
     // --- Nudity checks ---
@@ -95,9 +99,8 @@ export const checkImageSafety = async (buffer, mimetype, originalname) => {
 
     return { safe: true, reason: null };
   } catch (err) {
-    // Network error, timeout, parse failure — fail-open so uploads still work
-    console.error('Sightengine check failed (fail-open):', err);
-    return { safe: true, reason: null };
+    console.error('Sightengine check failed:', err);
+    return failResult;
   }
 };
 
@@ -140,6 +143,9 @@ export const checkTextSafety = async (text) => {
   if (!text || !text.trim()) return { safe: true, reason: null };
   if (!isTextModerationEnabled()) return { safe: true, reason: null };
 
+  // Fail-open: if OpenAI is unreachable, allow the message through.
+  const failResult = { safe: true, reason: null };
+
   try {
     const response = await fetch(OPENAI_MODERATION_URL, {
       method: 'POST',
@@ -152,7 +158,7 @@ export const checkTextSafety = async (text) => {
 
     if (!response.ok) {
       console.error('OpenAI Moderation HTTP error:', response.status, await response.text());
-      return { safe: true, reason: null }; // fail-open
+      return failResult;
     }
 
     const data = await response.json();
@@ -160,7 +166,7 @@ export const checkTextSafety = async (text) => {
 
     if (!result) {
       console.error('OpenAI Moderation unexpected response shape:', data);
-      return { safe: true, reason: null };
+      return failResult;
     }
 
     if (!result.flagged) {
@@ -175,7 +181,7 @@ export const checkTextSafety = async (text) => {
 
     return { safe: false, reason };
   } catch (err) {
-    console.error('OpenAI Moderation check failed (fail-open):', err);
-    return { safe: true, reason: null };
+    console.error('OpenAI Moderation check failed:', err);
+    return failResult;
   }
 };

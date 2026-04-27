@@ -1,5 +1,5 @@
 import express from 'express';
-import { register, login, getProfile, updateProfile, completeOnboarding, changePassword, deleteAccount, forgotPassword, resetPassword, sendVerification, verifyEmail, sendEmailCode, verifyEmailCode, googleLogin } from '../controllers/authController.js';
+import { register, login, getProfile, updateProfile, completeOnboarding, changePassword, deleteAccount, exportData, forgotPassword, resetPassword, sendVerification, verifyEmail, sendEmailCode, verifyEmailCode, googleLogin, refreshToken } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
 import { strictLimiter } from '../middleware/rateLimiter.js';
 
@@ -8,11 +8,13 @@ const router = express.Router();
 router.post('/register', register);
 router.post('/login', login);
 router.post('/google', strictLimiter, googleLogin);
+router.post('/refresh', authenticate, refreshToken);
 router.get('/profile', authenticate, getProfile);
 router.put('/profile', authenticate, updateProfile);
 router.put('/onboarding', authenticate, completeOnboarding);
 router.put('/password', authenticate, strictLimiter, changePassword);
 router.delete('/account', authenticate, strictLimiter, deleteAccount);
+router.get('/export', authenticate, exportData);
 
 // Password reset (public - no auth needed)
 router.post('/forgot-password', strictLimiter, forgotPassword);

@@ -117,7 +117,30 @@ export const auth = {
     axiosInstance.post('/auth/verify-email-code', { email, code }),
 
   googleLogin: (credential) =>
-    axiosInstance.post('/auth/google', { credential })
+    axiosInstance.post('/auth/google', { credential }),
+
+  refresh: () =>
+    axiosInstance.post('/auth/refresh', {}, { _isRefresh: true }),
+};
+
+/**
+ * Silently refresh JWT if it expires within the next 24 hours.
+ * Call once on app startup (e.g. from AuthContext).
+ */
+export const silentRefreshIfNeeded = async () => {
+  const token = localStorage.getItem('token');
+  if (!token || token === 'guest_token') return;
+  try {
+    const [, payload] = token.split('.');
+    const { exp } = JSON.parse(atob(payload));
+    const msLeft = exp * 1000 - Date.now();
+    if (msLeft > 0 && msLeft < 24 * 60 * 60 * 1000) {
+      const { data } = await auth.refresh();
+      localStorage.setItem('token', data.token);
+    }
+  } catch {
+    // Non-fatal — user stays logged in until token actually expires
+  }
 };
 
 // ==========================================
@@ -535,6 +558,14 @@ export const upload = {
 };
 
 // ==========================================
+// DEALS API  (Pro-exclusive)
+// ==========================================
+export const deals = {
+  getAll: ()    => axiosInstance.get('/deals'),
+  getOne: (id)  => axiosInstance.get(`/deals/${id}`),
+};
+
+// ==========================================
 // COMBINED API OBJECT
 // ==========================================
 
@@ -570,6 +601,7 @@ axiosInstance.boost = boost;
 axiosInstance.push = push;
 axiosInstance.map      = map;
 axiosInstance.waitlist = waitlist;
+axiosInstance.deals    = deals;
 
 // Export the instance as 'api'
 export const api = axiosInstance;
