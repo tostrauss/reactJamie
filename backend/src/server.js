@@ -4,8 +4,10 @@ import cors from 'cors';
 import http from 'http';
 import { Server } from 'socket.io';
 import dotenv from 'dotenv';
+import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import pgSession from 'connect-pg-simple';
+import { RedisStore } from 'connect-redis';
 import helmet from 'helmet';
 import compression from 'compression';
 import db from './config/database.js';
@@ -37,6 +39,15 @@ if (process.env.NODE_ENV === 'production') {
     ['BREVO_API_KEY',     'Brevo transactional email API key'],
     ['FRONTEND_URL',      'public frontend URL for email links'],
   ];
+
+  // Secrets must have sufficient entropy (min 32 chars)
+  for (const key of ['JWT_SECRET', 'SESSION_SECRET']) {
+    const val = process.env[key] || '';
+    if (val.length < 32) {
+      console.error(`FATAL: ${key} is too short (${val.length} chars) — use at least 32 random characters`);
+      fatal = true;
+    }
+  }
   const WARNED = [
     ['SIGHTENGINE_API_USER',   'image moderation (nudity/gore) will be DISABLED'],
     ['SIGHTENGINE_API_SECRET', 'image moderation (nudity/gore) will be DISABLED'],
@@ -199,6 +210,9 @@ app.post('/api/subscription/stripe/webhook', express.raw({ type: 'application/js
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Parse cookies (required for httpOnly auth_token cookie)
+app.use(cookieParser());
+
 // Sanitize all inputs (strip HTML tags from body, query, params)
 app.use(sanitizeInputs);
 
@@ -214,12 +228,13 @@ if (process.env.NODE_ENV !== 'production') {
   app.use('/uploads', express.static(uploadsDir));
 }
 
-// Session Management
+// Session Management — Redis store when available (sub-10ms), PG fallback
+const sessionStore = redisClient
+  ? new RedisStore({ client: redisClient, prefix: 'sess:' })
+  : new PGStore({ pool: db.pool, tableName: 'session' });
+
 app.use(session({
-  store: new PGStore({
-    pool: db.pool,
-    tableName: 'session'
-  }),
+  store: sessionStore,
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
@@ -434,6 +449,14 @@ const runStartupMigrations = async () => {
       UNIQUE(lat_cell, lng_cell))`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_pioneer_claims_cell ON pioneer_claims(lat_cell, lng_cell)`);
 
+    // Soft delete for groups (preserves messages/reviews; hard delete on cascade never fires)
+    await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_deleted_at ON groups(deleted_at) WHERE deleted_at IS NULL`);
+
+    // Friend request expiration — 30-day auto-reject
+    await db.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_friendships_expires ON friendships(expires_at) WHERE status = 'pending'`);
+
     // Für Dich — Pro-exclusive venue deals
     await db.query(`
       CREATE TABLE IF NOT EXISTS deals (
@@ -476,5 +499,20 @@ cron.schedule('0 3 * * *', async () => {
     console.log(`[cron] analytics_events purged: ${result.rowCount} rows deleted`);
   } catch (err) {
     console.error('[cron] analytics purge failed:', err.message);
+  }
+});
+
+// Friend request expiration: auto-reject pending requests older than 30 days, runs at 04:00
+cron.schedule('0 4 * * *', async () => {
+  try {
+    const result = await db.query(
+      `UPDATE friendships SET status = 'expired', updated_at = NOW()
+       WHERE status = 'pending' AND expires_at IS NOT NULL AND expires_at < NOW()`
+    );
+    if (result.rowCount > 0) {
+      console.log(`[cron] friendships expired: ${result.rowCount} requests auto-rejected`);
+    }
+  } catch (err) {
+    console.error('[cron] friendship expiry failed:', err.message);
   }
 });

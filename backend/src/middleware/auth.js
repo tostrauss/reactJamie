@@ -3,28 +3,23 @@ import jwt from 'jsonwebtoken';
 // Guest access only allowed when explicitly enabled via env var
 const isGuestAllowed = () => process.env.ALLOW_GUEST_TOKEN === 'true';
 
-/**
- * Required authentication middleware
- * Returns 401 if no valid token
- */
+const extractToken = (req) => {
+  // 1. httpOnly cookie (preferred — XSS-proof)
+  if (req.cookies?.auth_token) return req.cookies.auth_token;
+  // 2. Authorization header fallback (Capacitor native / API clients)
+  const auth = req.headers.authorization;
+  if (auth?.startsWith('Bearer ')) return auth.slice(7);
+  return null;
+};
+
 export const authenticate = (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
+    const token = extractToken(req);
 
-    if (!authHeader) {
-      return res.status(401).json({ error: 'No authorization header' });
-    }
-
-    const token = authHeader.split(' ')[1];
-
-    if (!token) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
+    if (!token) return res.status(401).json({ error: 'No authorization header' });
 
     if (token === 'guest_token') {
-      if (!isGuestAllowed()) {
-        return res.status(401).json({ error: 'Guest access is disabled' });
-      }
+      if (!isGuestAllowed()) return res.status(401).json({ error: 'Guest access is disabled' });
       req.userId = 0;
       req.isGuest = true;
       return next();
@@ -34,39 +29,20 @@ export const authenticate = (req, res, next) => {
     req.userId = decoded.id;
     req.isGuest = false;
     next();
-  } catch (error) {
+  } catch {
     res.status(401).json({ error: 'Invalid or expired token' });
   }
 };
 
-/**
- * Optional authentication middleware
- * Sets userId if valid token, but doesn't require it
- */
 export const optionalAuth = (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
+    const token = extractToken(req);
 
-    if (!authHeader) {
-      req.userId = null;
-      return next();
-    }
-
-    const token = authHeader.split(' ')[1];
-
-    if (!token) {
-      req.userId = null;
-      return next();
-    }
+    if (!token) { req.userId = null; return next(); }
 
     if (token === 'guest_token') {
-      if (isGuestAllowed()) {
-        req.userId = 0;
-        req.isGuest = true;
-      } else {
-        req.userId = null;
-        req.isGuest = false;
-      }
+      req.userId = isGuestAllowed() ? 0 : null;
+      req.isGuest = isGuestAllowed();
       return next();
     }
 
@@ -74,29 +50,40 @@ export const optionalAuth = (req, res, next) => {
     req.userId = decoded.id;
     req.isGuest = false;
     next();
-  } catch (error) {
+  } catch {
     req.userId = null;
     next();
   }
 };
 
-/**
- * Generate JWT token
- */
-export const generateToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
+export const generateToken = (userId) =>
+  jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
+
+// Set httpOnly auth cookie — call this after generating a token
+export const setAuthCookie = (res, token) => {
+  res.cookie('auth_token', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  });
+};
+
+// Clear auth cookie on logout
+export const clearAuthCookie = (res) => {
+  res.clearCookie('auth_token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+  });
 };
 
 export const requireAdmin = async (req, res, next) => {
-  if (!req.userId) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
+  if (!req.userId) return res.status(401).json({ error: 'Authentication required' });
   try {
     const { default: db } = await import('../config/database.js');
     const result = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);
-    if (!result.rows[0]?.is_admin) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
+    if (!result.rows[0]?.is_admin) return res.status(403).json({ error: 'Admin access required' });
     next();
   } catch (error) {
     console.error('Admin check error:', error);
@@ -104,28 +91,14 @@ export const requireAdmin = async (req, res, next) => {
   }
 };
 
-/**
- * Require completed profile middleware
- * User Story 1: "won't be able to request to join events until profile is fully set up"
- */
 export const requireCompleteProfile = async (req, res, next) => {
   try {
-    // Skip for guests
-    if (req.isGuest) {
-      return res
-        .status(403)
-        .json({ error: 'Guests cannot join groups. Please register.' });
-    }
+    if (req.isGuest) return res.status(403).json({ error: 'Guests cannot join groups. Please register.' });
 
     const { default: db } = await import('../config/database.js');
-    const result = await db.query(
-      'SELECT onboarding_completed FROM users WHERE id = $1',
-      [req.userId]
-    );
+    const result = await db.query('SELECT onboarding_completed FROM users WHERE id = $1', [req.userId]);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
     if (!result.rows[0].onboarding_completed) {
       return res.status(403).json({
@@ -133,7 +106,6 @@ export const requireCompleteProfile = async (req, res, next) => {
         code: 'PROFILE_INCOMPLETE'
       });
     }
-
     next();
   } catch (error) {
     console.error('Profile check error:', error);

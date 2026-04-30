@@ -1,12 +1,14 @@
 import express from 'express';
-import { register, login, getProfile, updateProfile, completeOnboarding, changePassword, deleteAccount, exportData, forgotPassword, resetPassword, sendVerification, verifyEmail, sendEmailCode, verifyEmailCode, googleLogin, refreshToken } from '../controllers/authController.js';
+import { register, login, logout, getProfile, updateProfile, completeOnboarding, changePassword, deleteAccount, exportData, forgotPassword, resetPassword, sendVerification, verifyEmail, sendEmailCode, verifyEmailCode, googleLogin, refreshToken } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
 import { strictLimiter } from '../middleware/rateLimiter.js';
+import { geofenceRegistration } from '../middleware/geofence.js';
 
 const router = express.Router();
 
-router.post('/register', register);
+router.post('/register', geofenceRegistration, register);
 router.post('/login', login);
+router.post('/logout', logout);
 router.post('/google', strictLimiter, googleLogin);
 router.post('/refresh', authenticate, refreshToken);
 router.get('/profile', authenticate, getProfile);

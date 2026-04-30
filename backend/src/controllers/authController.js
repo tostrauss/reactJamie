@@ -2,7 +2,7 @@ import db from '../config/database.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
-import { generateToken } from '../middleware/auth.js';
+import { generateToken, setAuthCookie, clearAuthCookie } from '../middleware/auth.js';
 import { sendPasswordResetEmail, sendVerificationEmail, sendOTPEmail } from '../utils/email.js';
 
 const parseUserJSONFields = (user) => {
@@ -122,6 +122,7 @@ export const register = async (req, res) => {
     delete user.password;
 
     parseUserJSONFields(user);
+    setAuthCookie(res, token);
     res.status(201).json({ user, token });
   } catch (error) {
     console.error('Register error:', error);
@@ -181,6 +182,7 @@ export const login = async (req, res) => {
     parseUserJSONFields(user);
     delete user.password;
 
+    setAuthCookie(res, token);
     res.json({ user, token });
   } catch (error) {
     console.error('Login error:', error);
@@ -436,7 +438,9 @@ export const refreshToken = async (req, res) => {
     if (!result.rows[0] || !result.rows[0].is_active) {
       return res.status(401).json({ error: 'Account nicht gefunden oder deaktiviert' });
     }
-    res.json({ token: generateToken(req.userId) });
+    const token = generateToken(req.userId);
+    setAuthCookie(res, token);
+    res.json({ token });
   } catch (error) {
     console.error('refreshToken error:', error);
     res.status(500).json({ error: 'Token refresh fehlgeschlagen' });
@@ -773,9 +777,18 @@ export const googleLogin = async (req, res) => {
     parseUserJSONFields(user);
 
     const token = generateToken(user.id);
+    setAuthCookie(res, token);
     res.json({ user, token });
   } catch (err) {
     console.error('Google login error:', err);
     res.status(500).json({ error: 'Google Login fehlgeschlagen' });
   }
+};
+
+// ==========================================
+// LOGOUT — clears the httpOnly auth cookie
+// ==========================================
+export const logout = (_req, res) => {
+  clearAuthCookie(res);
+  res.json({ message: 'Logged out successfully' });
 };

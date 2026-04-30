@@ -75,6 +75,15 @@ export const createGroup = async (req, res) => {
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
 
   try {
+    // Per-user daily limit: max 10 groups/clubs created in 24 hours
+    const dailyCount = await db.query(
+      `SELECT COUNT(*) FROM groups WHERE owner_id = $1 AND created_at > NOW() - INTERVAL '24 hours'`,
+      [userId]
+    );
+    if (parseInt(dailyCount.rows[0].count) >= 10) {
+      return res.status(429).json({ error: 'Du kannst maximal 10 Gruppen pro Tag erstellen.' });
+    }
+
     const textToCheck = [name, description].filter(Boolean).join('\n');
     const { safe, reason } = await checkTextSafety(textToCheck);
     if (!safe) {
@@ -151,7 +160,7 @@ export const getGroups = async (req, res) => {
              ) THEN TRUE ELSE FALSE END as is_boosted
       FROM groups g
       LEFT JOIN users u ON g.owner_id = u.id
-      WHERE g.is_active = TRUE
+      WHERE g.is_active = TRUE AND g.deleted_at IS NULL
     `;
     const params = [];
     let paramIndex = 1;
@@ -206,7 +215,7 @@ export const getGroupById = async (req, res) => {
       `SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar
        FROM groups g
        LEFT JOIN users u ON g.owner_id = u.id
-       WHERE g.id = $1`,
+       WHERE g.id = $1 AND g.deleted_at IS NULL`,
       [id]
     );
 
@@ -319,11 +328,12 @@ export const deleteGroup = async (req, res) => {
     const { id } = req.params;
 
     // Verify ownership
-    const group = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
+    const group = await db.query('SELECT owner_id FROM groups WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (group.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
     if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
 
-    await db.query('DELETE FROM groups WHERE id = $1', [id]);
+    // Soft delete — preserves messages, reviews, and member history
+    await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [id]);
     res.json({ message: 'Group deleted successfully' });
   } catch (err) {
     console.error('Error deleting group:', err);

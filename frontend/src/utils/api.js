@@ -11,18 +11,21 @@ const axiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json'
   },
-  timeout: 15000
+  timeout: 15000,
+  withCredentials: true, // send httpOnly auth cookie on every request
 });
 
-// Request Interceptor - Add auth token
+// In-memory token — set by AuthContext after login/refresh (never stored in localStorage)
+let _memToken = null;
+export const setMemToken = (t) => { _memToken = t; };
+export const clearMemToken = () => { _memToken = null; };
+
+// Request Interceptor — adds Authorization header for Socket.IO compat + Capacitor native fallback.
+// REST calls are also covered by the httpOnly auth_token cookie sent automatically.
 axiosInstance.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
-    if (token && token !== 'guest_token') {
-      config.headers.Authorization = `Bearer ${token}`;
-    } else if (token === 'guest_token') {
-      // Still send guest token for tracking
-      config.headers.Authorization = `Bearer ${token}`;
+    if (_memToken) {
+      config.headers.Authorization = `Bearer ${_memToken}`;
     }
     return config;
   },
@@ -59,10 +62,9 @@ axiosInstance.interceptors.response.use(
       return axiosInstance(config);
     }
 
-    // 401 handling - redirect to login
-    const token = localStorage.getItem('token');
-    if (error.response?.status === 401 && token !== 'guest_token') {
-      localStorage.removeItem('token');
+    // 401 handling — clear in-memory token and redirect to login
+    if (error.response?.status === 401 && _memToken !== 'guest_token') {
+      clearMemToken();
       const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
       if (!publicPaths.some(p => window.location.pathname.includes(p))) {
         window.location.href = '/login';
@@ -121,25 +123,21 @@ export const auth = {
 
   refresh: () =>
     axiosInstance.post('/auth/refresh', {}, { _isRefresh: true }),
+
+  logout: () =>
+    axiosInstance.post('/auth/logout'),
 };
 
 /**
- * Silently refresh JWT if it expires within the next 24 hours.
- * Call once on app startup (e.g. from AuthContext).
+ * Restore session on app startup using the httpOnly auth cookie.
+ * Returns a fresh token (for Socket.IO) or null if no session exists.
  */
-export const silentRefreshIfNeeded = async () => {
-  const token = localStorage.getItem('token');
-  if (!token || token === 'guest_token') return;
+export const restoreSession = async () => {
   try {
-    const [, payload] = token.split('.');
-    const { exp } = JSON.parse(atob(payload));
-    const msLeft = exp * 1000 - Date.now();
-    if (msLeft > 0 && msLeft < 24 * 60 * 60 * 1000) {
-      const { data } = await auth.refresh();
-      localStorage.setItem('token', data.token);
-    }
+    const { data } = await auth.refresh();
+    return data.token || null;
   } catch {
-    // Non-fatal — user stays logged in until token actually expires
+    return null;
   }
 };
 
@@ -510,18 +508,12 @@ export const analytics = {
 // ==========================================
 
 export const admin = {
-  getStats: (secret) =>
-    axiosInstance.get('/admin/stats', { headers: { 'x-admin-secret': secret } }),
-  getUsers: (secret, limit = 50) =>
-    axiosInstance.get('/admin/users', { headers: { 'x-admin-secret': secret }, params: { limit } }),
-  getScreenTime: (secret) =>
-    axiosInstance.get('/admin/screen-time', { headers: { 'x-admin-secret': secret } }),
-  exportUsers: (secret) =>
-    axiosInstance.get('/admin/export/users', { headers: { 'x-admin-secret': secret } }),
-  exportScreens: (secret) =>
-    axiosInstance.get('/admin/export/screens', { headers: { 'x-admin-secret': secret } }),
-  exportSuggestions: (secret) =>
-    axiosInstance.get('/admin/export/suggestions', { headers: { 'x-admin-secret': secret } }),
+  getStats: () => axiosInstance.get('/admin/stats'),
+  getUsers: (limit = 50) => axiosInstance.get('/admin/users', { params: { limit } }),
+  getScreenTime: () => axiosInstance.get('/admin/screen-time'),
+  exportUsers: () => axiosInstance.get('/admin/export/users'),
+  exportScreens: () => axiosInstance.get('/admin/export/screens'),
+  exportSuggestions: () => axiosInstance.get('/admin/export/suggestions'),
 };
 
 // ==========================================

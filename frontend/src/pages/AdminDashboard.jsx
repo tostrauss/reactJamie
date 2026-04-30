@@ -1,9 +1,6 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { admin } from '../utils/api';
-
-// sessionStorage: cleared when tab closes, never persisted to disk like localStorage
-const STORAGE_KEY = 'jamie_admin_secret';
-const adminStore = sessionStorage;
 
 const downloadCSV = (data, filename) => {
   if (!data?.length) return;
@@ -36,54 +33,49 @@ const KPICard = ({ label, value, sub }) => (
 );
 
 export const AdminDashboard = () => {
-  const [secret, setSecret] = useState(() => adminStore.getItem(STORAGE_KEY) || '');
-  const [authed, setAuthed] = useState(false);
+  const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [screens, setScreens] = useState([]);
   const [recentUsers, setRecentUsers] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [exportLoading, setExportLoading] = useState('');
 
-  const load = useCallback(async (s) => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const [statsRes, screensRes, usersRes] = await Promise.all([
-        admin.getStats(s),
-        admin.getScreenTime(s),
-        admin.getUsers(s, 20),
+        admin.getStats(),
+        admin.getScreenTime(),
+        admin.getUsers(20),
       ]);
       setStats(statsRes.data);
       setScreens(screensRes.data || []);
       setRecentUsers(usersRes.data || []);
-      setAuthed(true);
-      adminStore.setItem(STORAGE_KEY, s);
     } catch (err) {
-      if (err.response?.status === 403) {
-        setError('Falsches Admin-Passwort');
-        adminStore.removeItem(STORAGE_KEY);
+      if (err.response?.status === 401) {
+        navigate('/login');
+      } else if (err.response?.status === 403) {
+        setError('Kein Admin-Zugriff. Bitte melde dich mit einem Admin-Account an.');
       } else {
-        setError('Fehler beim Laden');
+        setError('Fehler beim Laden der Admin-Daten.');
       }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [navigate]);
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    if (secret.trim()) load(secret.trim());
-  };
+  useEffect(() => { load(); }, [load]);
 
   const handleExport = async (type) => {
     setExportLoading(type);
     try {
       let res;
-      if (type === 'users') res = await admin.exportUsers(secret);
-      else if (type === 'screens') res = await admin.exportScreens(secret);
-      else res = await admin.exportSuggestions(secret);
-      downloadCSV(res.data, `jamie_${type}_${new Date().toISOString().slice(0,10)}.csv`);
+      if (type === 'users') res = await admin.exportUsers();
+      else if (type === 'screens') res = await admin.exportScreens();
+      else res = await admin.exportSuggestions();
+      downloadCSV(res.data, `jamie_${type}_${new Date().toISOString().slice(0, 10)}.csv`);
     } catch {
       alert('Export fehlgeschlagen');
     } finally {
@@ -91,46 +83,21 @@ export const AdminDashboard = () => {
     }
   };
 
-  if (!authed) {
+  if (loading) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        background: '#1a1a2e',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-      }}>
-        <form onSubmit={handleLogin} style={{ width: '100%', maxWidth: 360 }}>
-          <h1 style={{ color: '#FD7666', fontSize: 28, fontWeight: 800, marginBottom: 8 }}>JAMIE Admin</h1>
-          <p style={{ color: 'rgba(255,255,255,0.5)', marginBottom: 24, fontSize: 14 }}>
-            Bitte Admin-Secret eingeben
-          </p>
-          <input
-            type="password"
-            placeholder="Admin-Code"
-            value={secret}
-            onChange={e => setSecret(e.target.value)}
-            style={{
-              width: '100%', padding: '14px 16px', borderRadius: 12,
-              background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
-              color: '#fff', fontSize: 16, marginBottom: 12, boxSizing: 'border-box',
-            }}
-          />
-          {error && <p style={{ color: '#f87171', fontSize: 13, marginBottom: 12 }}>{error}</p>}
-          <button
-            type="submit"
-            disabled={loading || !secret.trim()}
-            style={{
-              width: '100%', padding: 14, borderRadius: 12,
-              background: '#FD7666', color: '#fff', fontSize: 16,
-              fontWeight: 700, border: 'none', cursor: 'pointer',
-              opacity: loading ? 0.6 : 1,
-            }}
-          >
-            {loading ? 'Laden...' : 'Einloggen'}
-          </button>
-        </form>
+      <div style={{ minHeight: '100vh', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="loading-spinner" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#1a1a2e', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <p style={{ color: '#f87171', fontSize: 16, textAlign: 'center', marginBottom: 16 }}>{error}</p>
+        <button onClick={() => navigate('/')} style={{ color: '#FD7666', background: 'none', border: 'none', fontSize: 14, cursor: 'pointer' }}>
+          Zurück zur App
+        </button>
       </div>
     );
   }
@@ -142,18 +109,13 @@ export const AdminDashboard = () => {
     <div style={{ minHeight: '100vh', background: '#1a1a2e', padding: '24px 16px', paddingBottom: 60 }}>
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
 
-        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
           <h1 style={{ color: '#FD7666', fontSize: 24, fontWeight: 800 }}>JAMIE Analytics</h1>
-          <button
-            onClick={() => { setAuthed(false); adminStore.removeItem(STORAGE_KEY); }}
-            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 13 }}
-          >
-            Ausloggen
+          <button onClick={load} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 13 }}>
+            Aktualisieren
           </button>
         </div>
 
-        {/* KPI Cards */}
         <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
           Nutzer
         </h2>
@@ -174,7 +136,6 @@ export const AdminDashboard = () => {
           <KPICard label="Bewertungen" value={stats?.reviews} />
         </div>
 
-        {/* Top Screens */}
         {screens.length > 0 && (
           <div style={{ marginBottom: 32 }}>
             <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
@@ -205,7 +166,6 @@ export const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Category Suggestions */}
         {stats?.suggestions?.length > 0 && (
           <div style={{ marginBottom: 32 }}>
             <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
@@ -224,7 +184,6 @@ export const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Recent Users */}
         {recentUsers.length > 0 && (
           <div style={{ marginBottom: 32 }}>
             <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
@@ -239,8 +198,7 @@ export const AdminDashboard = () => {
                   <div style={{
                     width: 36, height: 36, borderRadius: '50%',
                     background: '#FD7666', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 14, fontWeight: 700, color: '#fff', flexShrink: 0,
-                    overflow: 'hidden',
+                    fontSize: 14, fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden',
                   }}>
                     {u.avatar_url
                       ? <img src={u.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -262,7 +220,6 @@ export const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Export Buttons */}
         <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
           CSV Export
         </h2>

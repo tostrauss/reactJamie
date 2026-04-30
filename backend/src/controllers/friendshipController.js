@@ -26,7 +26,8 @@ export const sendFriendRequest = async (req, res) => {
       if (f.status === 'rejected') {
         // Allow re-requesting after rejection
         await db.query(
-          `UPDATE friendships SET status = 'pending', requester_id = $1, addressee_id = $2, updated_at = CURRENT_TIMESTAMP
+          `UPDATE friendships SET status = 'pending', requester_id = $1, addressee_id = $2,
+           updated_at = CURRENT_TIMESTAMP, expires_at = NOW() + INTERVAL '30 days'
            WHERE id = $3`,
           [req.userId, userId, f.id]
         );
@@ -35,10 +36,10 @@ export const sendFriendRequest = async (req, res) => {
       }
     }
 
-    // Create new friend request
+    // Create new friend request — expires after 30 days
     const result = await db.query(
-      `INSERT INTO friendships (requester_id, addressee_id, status)
-       VALUES ($1, $2, 'pending')
+      `INSERT INTO friendships (requester_id, addressee_id, status, expires_at)
+       VALUES ($1, $2, 'pending', NOW() + INTERVAL '30 days')
        RETURNING *`,
       [req.userId, userId]
     );

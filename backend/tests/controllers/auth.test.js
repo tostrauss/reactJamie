@@ -28,6 +28,8 @@ const makeRes = () => {
   const res = {};
   res.status = vi.fn(() => res);
   res.json = vi.fn(() => res);
+  res.cookie = vi.fn(() => res);
+  res.clearCookie = vi.fn(() => res);
   return res;
 };
 

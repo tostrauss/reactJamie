@@ -1,6 +1,23 @@
 import jwt from 'jsonwebtoken';
 import db from './config/database.js';
 
+// Per-user DM rate limit: max 60 messages per minute
+const dmCounters = new Map(); // userId → { count, resetAt }
+const DM_LIMIT = 60;
+const DM_WINDOW_MS = 60_000;
+
+const isDmAllowed = (userId) => {
+  const now = Date.now();
+  const entry = dmCounters.get(userId);
+  if (!entry || now > entry.resetAt) {
+    dmCounters.set(userId, { count: 1, resetAt: now + DM_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= DM_LIMIT) return false;
+  entry.count++;
+  return true;
+};
+
 const socketHandler = (io) => {
   // Verify JWT on every connection attempt
   io.use((socket, next) => {
@@ -96,8 +113,13 @@ const socketHandler = (io) => {
       // Always use authenticated userId as senderId — never trust client-provided value
       const senderId = socket.userId;
       const { receiverId, message } = data;
-      const roomName = `dm_${Math.min(senderId, receiverId)}_${Math.max(senderId, receiverId)}`;
 
+      if (!isDmAllowed(senderId)) {
+        socket.emit('dm_rate_limited', { error: 'Zu viele Nachrichten. Bitte kurz warten.' });
+        return;
+      }
+
+      const roomName = `dm_${Math.min(senderId, receiverId)}_${Math.max(senderId, receiverId)}`;
       io.to(roomName).emit('receive_dm', { ...data, senderId });
       io.to(`user_${receiverId}`).emit('new_dm_notification', {
         senderId,
