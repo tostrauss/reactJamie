@@ -1,4 +1,4 @@
-﻿import db from '../config/database.js';
+import db from '../config/database.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
@@ -27,7 +27,7 @@ export const register = async (req, res) => {
     }
     const dob = new Date(date_of_birth);
     if (isNaN(dob.getTime())) {
-      return res.status(400).json({ error: 'UngÃ¼ltiges Geburtsdatum' });
+      return res.status(400).json({ error: 'Ungültiges Geburtsdatum' });
     }
     const ageCutoff = new Date();
     ageCutoff.setFullYear(ageCutoff.getFullYear() - 18);
@@ -40,7 +40,7 @@ export const register = async (req, res) => {
       return res.status(400).json({ error: 'Mindestens 6 Zeichen erforderlich' });
     }
     if (!/[A-Z]/.test(password)) {
-      return res.status(400).json({ error: 'Mindestens 1 GroÃŸbuchstabe erforderlich' });
+      return res.status(400).json({ error: 'Mindestens 1 Großbuchstabe erforderlich' });
     }
     if (!/[a-z]/.test(password)) {
       return res.status(400).json({ error: 'Mindestens 1 Kleinbuchstabe erforderlich' });
@@ -343,7 +343,7 @@ export const changePassword = async (req, res) => {
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
     console.error('ChangePassword error:', error);
-    res.status(500).json({ error: 'Passwort konnte nicht geÃ¤ndert werden' });
+    res.status(500).json({ error: 'Passwort konnte nicht geändert werden' });
   }
 };
 
@@ -372,7 +372,7 @@ export const deleteAccount = async (req, res) => {
       }
     }
 
-    // Delete user â€” cascades to all related data via FK ON DELETE CASCADE
+    // Delete user — cascades to all related data via FK ON DELETE CASCADE
     await db.query('DELETE FROM users WHERE id = $1', [req.userId]);
 
     res.json({ message: 'Account deleted successfully' });
@@ -459,7 +459,7 @@ export const forgotPassword = async (req, res) => {
     }
 
     // Always return success to prevent email enumeration
-    const successMsg = { message: 'Falls ein Konto mit dieser E-Mail existiert, wurde ein Link zum ZurÃ¼cksetzen gesendet.' };
+    const successMsg = { message: 'Falls ein Konto mit dieser E-Mail existiert, wurde ein Link zum Zurücksetzen gesendet.' };
 
     const result = await db.query('SELECT id, name FROM users WHERE email = $1', [email]);
     if (result.rows.length === 0) {
@@ -509,7 +509,7 @@ export const resetPassword = async (req, res) => {
       return res.status(400).json({ error: 'Mindestens 6 Zeichen erforderlich' });
     }
     if (!/[A-Z]/.test(newPassword)) {
-      return res.status(400).json({ error: 'Mindestens 1 GroÃŸbuchstabe erforderlich' });
+      return res.status(400).json({ error: 'Mindestens 1 Großbuchstabe erforderlich' });
     }
     if (!/[a-z]/.test(newPassword)) {
       return res.status(400).json({ error: 'Mindestens 1 Kleinbuchstabe erforderlich' });
@@ -528,7 +528,7 @@ export const resetPassword = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(400).json({ error: 'UngÃ¼ltiger oder abgelaufener Link. Bitte fordere einen neuen an.' });
+      return res.status(400).json({ error: 'Ungültiger oder abgelaufener Link. Bitte fordere einen neuen an.' });
     }
 
     const resetToken = result.rows[0];
@@ -540,7 +540,7 @@ export const resetPassword = async (req, res) => {
     // Mark token as used
     await db.query('UPDATE password_reset_tokens SET used = TRUE WHERE id = $1', [resetToken.id]);
 
-    res.json({ message: 'Passwort erfolgreich zurÃ¼ckgesetzt. Du kannst dich jetzt einloggen.' });
+    res.json({ message: 'Passwort erfolgreich zurückgesetzt. Du kannst dich jetzt einloggen.' });
   } catch (error) {
     console.error('ResetPassword error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -580,7 +580,7 @@ export const sendVerification = async (req, res) => {
       return res.status(500).json({ error: 'E-Mail konnte nicht gesendet werden' });
     }
 
-    res.json({ message: 'BestÃ¤tigungs-E-Mail gesendet' });
+    res.json({ message: 'Bestätigungs-E-Mail gesendet' });
   } catch (error) {
     console.error('SendVerification error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -646,7 +646,7 @@ export const verifyEmailCode = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(400).json({ error: 'UngÃ¼ltiger oder abgelaufener Code' });
+      return res.status(400).json({ error: 'Ungültiger oder abgelaufener Code' });
     }
 
     // Mark as used
@@ -676,7 +676,7 @@ export const verifyEmail = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(400).json({ error: 'UngÃ¼ltiger oder abgelaufener Link.' });
+      return res.status(400).json({ error: 'Ungültiger oder abgelaufener Link.' });
     }
 
     const resetToken = result.rows[0];
@@ -715,15 +715,15 @@ export const googleLogin = async (req, res) => {
         picture  = payload.picture;
         googleId = payload.sub;
       } catch {
-        return res.status(401).json({ error: 'Google Token ungÃ¼ltig' });
+        return res.status(401).json({ error: 'Google Token ungültig' });
       }
     } else {
       // Fallback: exchange token for user info via Google userinfo endpoint
-      // (used when GOOGLE_CLIENT_ID is not set â€” audience is not verified)
+      // (used when GOOGLE_CLIENT_ID is not set — audience is not verified)
       const googleRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { Authorization: `Bearer ${credential}` },
       });
-      if (!googleRes.ok) return res.status(401).json({ error: 'Google Token ungÃ¼ltig' });
+      if (!googleRes.ok) return res.status(401).json({ error: 'Google Token ungültig' });
       const data = await googleRes.json();
       email    = data.email;
       name     = data.name;
@@ -741,7 +741,7 @@ export const googleLogin = async (req, res) => {
 
     let userId;
     if (userResult.rows.length > 0) {
-      // Existing user â€” link google_id if not set
+      // Existing user — link google_id if not set
       userId = userResult.rows[0].id;
       if (!userResult.rows[0].google_id) {
         await db.query('UPDATE users SET google_id = $1, updated_at = NOW() WHERE id = $2', [googleId, userId]);
@@ -750,7 +750,7 @@ export const googleLogin = async (req, res) => {
         await db.query('UPDATE users SET avatar_url = $1 WHERE id = $2', [picture, userId]);
       }
     } else {
-      // New user â€” create account (no password, Google-only).
+      // New user — create account (no password, Google-only).
       // date_of_birth is intentionally NULL; onboarding collects and validates it (18+ gate).
       const insert = await db.query(
         `INSERT INTO users (email, name, avatar_url, google_id, is_verified)
@@ -786,10 +786,9 @@ export const googleLogin = async (req, res) => {
 };
 
 // ==========================================
-// LOGOUT â€” clears the httpOnly auth cookie
+// LOGOUT — clears the httpOnly auth cookie
 // ==========================================
 export const logout = (_req, res) => {
   clearAuthCookie(res);
   res.json({ message: 'Logged out successfully' });
 };
-

@@ -1,4 +1,4 @@
-﻿import db from '../config/database.js';
+import db from '../config/database.js';
 import { geocodeLocation } from '../utils/geocode.js';
 
 // Helper to ensure we always target clubs
@@ -347,7 +347,7 @@ export const leaveClub = async (req, res) => {
     );
     if (club.rows.length > 0 && club.rows[0].owner_id === req.userId) {
       return res.status(400).json({
-        error: 'Als Ersteller kannst du den Club nicht verlassen â€“ lÃ¶sche ihn stattdessen.'
+        error: 'Als Ersteller kannst du den Club nicht verlassen – lösche ihn stattdessen.'
       });
     }
 
@@ -665,5 +665,4 @@ export const cancelClub = async (req, res) => {
 
 // Reuse shared categories endpoint from groups
 export { getCategories } from './groupController.js';
-
 

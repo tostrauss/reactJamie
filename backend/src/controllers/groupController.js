@@ -1,4 +1,4 @@
-﻿import db from '../config/database.js';
+import db from '../config/database.js';
 import { geocodeLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { sendPushToUser } from './pushController.js';
@@ -31,11 +31,11 @@ async function checkAndAwardPioneer(userId, groupId, lat, lng) {
 
     if (parseInt(nearbyRes.rows[0].count) > 0) return; // not pioneer territory
 
-    // Grid cell: 0.5Â° â‰ˆ 40-55 km
+    // Grid cell: 0.5° ≈ 40-55 km
     const latCell = Math.floor(lat / 0.5) * 0.5;
     const lngCell = Math.floor(lng / 0.5) * 0.5;
 
-    // Race-safe insert â€” ON CONFLICT means someone else was faster
+    // Race-safe insert — ON CONFLICT means someone else was faster
     const claim = await db.query(
       `INSERT INTO pioneer_claims (user_id, group_id, lat_cell, lng_cell)
        VALUES ($1, $2, $3, $4)
@@ -59,7 +59,7 @@ async function checkAndAwardPioneer(userId, groupId, lat, lng) {
 
     console.log(`[pioneer] user ${userId} claimed cell (${latCell}, ${lngCell}) for group ${groupId}`);
   } catch (err) {
-    // Non-critical â€” must not fail group creation
+    // Non-critical — must not fail group creation
     console.error('[pioneer] check error:', err.message);
   }
 }
@@ -100,7 +100,7 @@ export const createGroup = async (req, res) => {
     if (dateTime && (type === 'group' || !type)) {
       const eventDate = new Date(dateTime);
       if (isNaN(eventDate.getTime())) {
-        return res.status(400).json({ error: 'UngÃ¼ltiges Datum' });
+        return res.status(400).json({ error: 'Ungültiges Datum' });
       }
       if (eventDate <= new Date()) {
         return res.status(400).json({ error: 'Das Event-Datum muss in der Zukunft liegen' });
@@ -131,7 +131,7 @@ export const createGroup = async (req, res) => {
       [newGroup.id, userId, 'owner']
     );
 
-    // Pioneer check (fire-and-forget â€” must not block the response)
+    // Pioneer check (fire-and-forget — must not block the response)
     if (coords?.lat && coords?.lng) {
       checkAndAwardPioneer(userId, newGroup.id, coords.lat, coords.lng);
     }
@@ -278,7 +278,7 @@ export const updateGroup = async (req, res) => {
     if (date !== undefined && date !== null) {
       const eventDate = new Date(date);
       if (isNaN(eventDate.getTime())) {
-        return res.status(400).json({ error: 'UngÃ¼ltiges Datum' });
+        return res.status(400).json({ error: 'Ungültiges Datum' });
       }
       if (eventDate <= new Date()) {
         return res.status(400).json({ error: 'Das Event-Datum muss in der Zukunft liegen' });
@@ -332,7 +332,7 @@ export const deleteGroup = async (req, res) => {
     if (group.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
     if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
 
-    // Soft delete â€” preserves messages, reviews, and member history
+    // Soft delete — preserves messages, reviews, and member history
     await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [id]);
     res.json({ message: 'Group deleted successfully' });
   } catch (err) {
@@ -366,7 +366,7 @@ export const joinGroup = async (req, res) => {
       return res.status(400).json({ error: 'Die Gruppe ist bereits voll' });
     }
 
-    // Private group â†’ create join request (or reset a previous rejection to pending)
+    // Private group → create join request (or reset a previous rejection to pending)
     if (g.is_private) {
       const existingReq = await db.query(
         `SELECT * FROM group_join_requests WHERE group_id = $1 AND user_id = $2`,
@@ -386,7 +386,7 @@ export const joinGroup = async (req, res) => {
       return res.json({ message: 'Join request sent', status: 'pending' });
     }
 
-    // Public group â†’ join directly
+    // Public group → join directly
     await db.query(
       'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
       [id, req.userId, 'member']
@@ -416,7 +416,7 @@ export const leaveGroup = async (req, res) => {
     // Prevent owner from leaving (they must delete the group)
     const group = await db.query('SELECT owner_id, members_count, max_members FROM groups WHERE id = $1', [id]);
     if (group.rows.length > 0 && group.rows[0].owner_id === req.userId) {
-      return res.status(400).json({ error: 'Als Ersteller kannst du die Gruppe nicht verlassen â€“ lÃ¶sche sie stattdessen.' });
+      return res.status(400).json({ error: 'Als Ersteller kannst du die Gruppe nicht verlassen – lösche sie stattdessen.' });
     }
 
     const result = await db.query(
@@ -650,7 +650,7 @@ export const handleJoinRequest = async (req, res) => {
       );
       res.json({ message: 'Request rejected', status: 'rejected' });
     } else {
-      res.status(400).json({ error: 'UngÃ¼ltige Aktion' });
+      res.status(400).json({ error: 'Ungültige Aktion' });
     }
   } catch (err) {
     console.error('Error handling join request:', err);
@@ -672,7 +672,7 @@ export const kickMember = async (req, res) => {
 
     // Cannot kick yourself (owner)
     if (parseInt(userId, 10) === req.userId) {
-      return res.status(400).json({ error: 'Du kannst dich nicht selbst entfernen â€“ lÃ¶sche die Gruppe stattdessen.' });
+      return res.status(400).json({ error: 'Du kannst dich nicht selbst entfernen – lösche die Gruppe stattdessen.' });
     }
 
     const result = await db.query(
@@ -692,7 +692,7 @@ export const kickMember = async (req, res) => {
 };
 
 // ==========================================
-// CANCEL GROUP/EVENT (owner only â€” notifies all members)
+// CANCEL GROUP/EVENT (owner only — notifies all members)
 // ==========================================
 export const cancelGroup = async (req, res) => {
   try {
@@ -911,7 +911,7 @@ export const inviteMember = async (req, res) => {
   }
 };
 
-// â”€â”€ Push helper (fire-and-forget) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Push helper (fire-and-forget) ───────────────────────────────────────────
 async function notifyGroupJoin(joinerUserId, ownerUserId, groupName) {
   try {
     const { rows } = await db.query('SELECT name FROM users WHERE id = $1', [joinerUserId]);
