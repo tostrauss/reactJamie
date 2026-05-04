@@ -49,9 +49,9 @@
   border-radius: var(--radius-full);
 }
 
-/* Custom top padding for chat tabs */
+/* Chat tabs sit inside home-sticky-header which already handles safe-area-inset-top */
 .chat-tabs-container {
-  padding-top: calc(env(safe-area-inset-top, 0px) + 36px) !important;
+  padding-top: 10px !important;
 }
 
 /* Chat Actions (Anfragen/Verwalten) */

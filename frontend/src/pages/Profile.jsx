@@ -1,7 +1,7 @@
 import { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { auth, subscription as subscriptionApi } from '../utils/api';
+import { auth, subscription as subscriptionApi, groups as groupsApi, clubs as clubsApi } from '../utils/api';
 import SpotifySongPicker from '../components/SpotifySongPicker';
 import { ProModal } from '../components/ProModal';
 import '../styles/home.css';
@@ -37,15 +37,33 @@ const translateInterest = (i) => INTEREST_DE[i] ?? i;
 export const Profile = () => {
   const { user, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('pinnwand');
   const [savingSong, setSavingSong] = useState(false);
   const [isPro, setIsPro] = useState(false);
   const [showProModal, setShowProModal] = useState(false);
+  const [pastEvents, setPastEvents] = useState([]);
+  const [hofLoading, setHofLoading] = useState(false);
 
   useEffect(() => {
     subscriptionApi.getStatus()
       .then(res => setIsPro(res.data?.is_pro || false))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'halloffame' || pastEvents.length > 0) return;
+    setHofLoading(true);
+    Promise.all([
+      groupsApi.getJoined().catch(() => ({ data: [] })),
+      clubsApi.getJoined().catch(() => ({ data: [] })),
+    ]).then(([gRes, cRes]) => {
+      const now = new Date();
+      const past = [...(gRes.data || []), ...(cRes.data || [])]
+        .filter(g => g.date && new Date(g.date) < now)
+        .sort((a, b) => new Date(b.date) - new Date(a.date));
+      setPastEvents(past);
+    }).finally(() => setHofLoading(false));
+  }, [activeTab]);
 
   const handleSongSelect = async (song) => {
     setSavingSong(true);
@@ -191,32 +209,89 @@ export const Profile = () => {
             </svg>
           </button>
 
-          {/* Pinnwand */}
-          <div className="profile-tab-content">
-            <div className="pinnwand-grid">
-              {profilePhotos.map((photo, i) => (
-                <div key={i} className={`pinnwand-item${i === 0 ? ' pinnwand-item--large' : ''}`}>
-                  <img src={photo} alt={`Foto ${i + 1}`} />
-                </div>
-              ))}
-              <button className="pinnwand-item add-photo" onClick={() => navigate('/profile/edit')}>
-                <span>+</span>
-                <p>Foto hinzufügen</p>
-              </button>
-            </div>
+          {/* Tabs */}
+          <div className="profile-tabs">
+            <button
+              className={`profile-tab ${activeTab === 'pinnwand' ? 'active' : ''}`}
+              onClick={() => setActiveTab('pinnwand')}
+            >
+              Pinnwand
+            </button>
+            <button
+              className={`profile-tab ${activeTab === 'halloffame' ? 'active' : ''}`}
+              onClick={() => setActiveTab('halloffame')}
+            >
+              Hall of Fame
+            </button>
+          </div>
 
-            {/* Lieblingssong below pinnwand */}
-            <div className="profile-song-section">
-              {savingSong ? (
-                <div className="empty-music"><p>Wird gespeichert…</p></div>
-              ) : (
-                <SpotifySongPicker
-                  currentSong={user?.favorite_song}
-                  onSelect={handleSongSelect}
-                  onRemove={handleSongRemove}
-                />
-              )}
-            </div>
+          {/* Tab content */}
+          <div className="profile-tab-content">
+            {activeTab === 'pinnwand' ? (
+              <>
+                <div className="pinnwand-grid">
+                  {profilePhotos.map((photo, i) => (
+                    <div key={i} className={`pinnwand-item${i === 0 ? ' pinnwand-item--large' : ''}`}>
+                      <img src={photo} alt={`Foto ${i + 1}`} />
+                    </div>
+                  ))}
+                  <button className="pinnwand-item add-photo" onClick={() => navigate('/profile/edit')}>
+                    <span>+</span>
+                    <p>Foto hinzufügen</p>
+                  </button>
+                </div>
+
+                {/* Lieblingssong below pinnwand */}
+                <div className="profile-song-section">
+                  {savingSong ? (
+                    <div className="empty-music"><p>Wird gespeichert…</p></div>
+                  ) : (
+                    <SpotifySongPicker
+                      currentSong={user?.favorite_song}
+                      onSelect={handleSongSelect}
+                      onRemove={handleSongRemove}
+                    />
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="halloffame-section">
+                {hofLoading ? (
+                  <div className="home-loading"><div className="home-spinner" /></div>
+                ) : pastEvents.length === 0 ? (
+                  <div className="halloffame-empty">
+                    <span className="halloffame-icon">🏆</span>
+                    <p>Deine Hall of Fame</p>
+                    <span>Tritt Events bei – sie erscheinen hier nach dem Datum</span>
+                  </div>
+                ) : (
+                  <div className="hof-grid">
+                    {pastEvents.map(event => (
+                      <button
+                        key={`${event.type || 'group'}-${event.id}`}
+                        className="hof-card"
+                        onClick={() => navigate(`/group/${event.id}`)}
+                      >
+                        <div className="hof-card-img">
+                          {event.image_url
+                            ? <img src={event.image_url} alt={event.name} />
+                            : <div className="hof-card-placeholder">🏆</div>
+                          }
+                          <div className="hof-card-overlay" />
+                        </div>
+                        <div className="hof-card-body">
+                          <p className="hof-card-name">{event.name || event.title}</p>
+                          <p className="hof-card-date">
+                            {new Date(event.date).toLocaleDateString('de-AT', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </p>
+                          {event.location && <p className="hof-card-loc">📍 {event.location}</p>}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
         </div>
