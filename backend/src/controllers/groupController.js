@@ -1,4 +1,4 @@
-import db from '../config/database.js';
+﻿import db from '../config/database.js';
 import { geocodeLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { sendPushToUser } from './pushController.js';
@@ -31,11 +31,11 @@ async function checkAndAwardPioneer(userId, groupId, lat, lng) {
 
     if (parseInt(nearbyRes.rows[0].count) > 0) return; // not pioneer territory
 
-    // Grid cell: 0.5° ≈ 40-55 km
+    // Grid cell: 0.5Â° â‰ˆ 40-55 km
     const latCell = Math.floor(lat / 0.5) * 0.5;
     const lngCell = Math.floor(lng / 0.5) * 0.5;
 
-    // Race-safe insert — ON CONFLICT means someone else was faster
+    // Race-safe insert â€” ON CONFLICT means someone else was faster
     const claim = await db.query(
       `INSERT INTO pioneer_claims (user_id, group_id, lat_cell, lng_cell)
        VALUES ($1, $2, $3, $4)
@@ -59,7 +59,7 @@ async function checkAndAwardPioneer(userId, groupId, lat, lng) {
 
     console.log(`[pioneer] user ${userId} claimed cell (${latCell}, ${lngCell}) for group ${groupId}`);
   } catch (err) {
-    // Non-critical — must not fail group creation
+    // Non-critical â€” must not fail group creation
     console.error('[pioneer] check error:', err.message);
   }
 }
@@ -100,7 +100,7 @@ export const createGroup = async (req, res) => {
     if (dateTime && (type === 'group' || !type)) {
       const eventDate = new Date(dateTime);
       if (isNaN(eventDate.getTime())) {
-        return res.status(400).json({ error: 'Ungültiges Datum' });
+        return res.status(400).json({ error: 'UngÃ¼ltiges Datum' });
       }
       if (eventDate <= new Date()) {
         return res.status(400).json({ error: 'Das Event-Datum muss in der Zukunft liegen' });
@@ -131,7 +131,7 @@ export const createGroup = async (req, res) => {
       [newGroup.id, userId, 'owner']
     );
 
-    // Pioneer check (fire-and-forget — must not block the response)
+    // Pioneer check (fire-and-forget â€” must not block the response)
     if (coords?.lat && coords?.lng) {
       checkAndAwardPioneer(userId, newGroup.id, coords.lat, coords.lng);
     }
@@ -139,7 +139,7 @@ export const createGroup = async (req, res) => {
     res.status(201).json(newGroup);
   } catch (err) {
     console.error('Error creating group:', err);
-    res.status(500).json({ error: 'Database creation failed' });
+    res.status(500).json({ error: 'Gruppe konnte nicht erstellt werden' });
   }
 };
 
@@ -201,7 +201,7 @@ export const getGroups = async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching groups:', err);
-    res.status(500).json({ error: 'Failed to fetch groups' });
+    res.status(500).json({ error: 'Gruppen konnten nicht geladen werden' });
   }
 };
 
@@ -249,7 +249,7 @@ export const getGroupById = async (req, res) => {
     res.json(group);
   } catch (err) {
     console.error('Error fetching group:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -278,7 +278,7 @@ export const updateGroup = async (req, res) => {
     if (date !== undefined && date !== null) {
       const eventDate = new Date(date);
       if (isNaN(eventDate.getTime())) {
-        return res.status(400).json({ error: 'Ungültiges Datum' });
+        return res.status(400).json({ error: 'UngÃ¼ltiges Datum' });
       }
       if (eventDate <= new Date()) {
         return res.status(400).json({ error: 'Das Event-Datum muss in der Zukunft liegen' });
@@ -316,7 +316,7 @@ export const updateGroup = async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating group:', err);
-    res.status(500).json({ error: 'Failed to update group' });
+    res.status(500).json({ error: 'Gruppe konnte nicht aktualisiert werden' });
   }
 };
 
@@ -332,12 +332,12 @@ export const deleteGroup = async (req, res) => {
     if (group.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
     if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
 
-    // Soft delete — preserves messages, reviews, and member history
+    // Soft delete â€” preserves messages, reviews, and member history
     await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [id]);
     res.json({ message: 'Group deleted successfully' });
   } catch (err) {
     console.error('Error deleting group:', err);
-    res.status(500).json({ error: 'Failed to delete group' });
+    res.status(500).json({ error: 'Gruppe konnte nicht gelöscht werden' });
   }
 };
 
@@ -366,7 +366,7 @@ export const joinGroup = async (req, res) => {
       return res.status(400).json({ error: 'Die Gruppe ist bereits voll' });
     }
 
-    // Private group → create join request (or reset a previous rejection to pending)
+    // Private group â†’ create join request (or reset a previous rejection to pending)
     if (g.is_private) {
       const existingReq = await db.query(
         `SELECT * FROM group_join_requests WHERE group_id = $1 AND user_id = $2`,
@@ -386,7 +386,7 @@ export const joinGroup = async (req, res) => {
       return res.json({ message: 'Join request sent', status: 'pending' });
     }
 
-    // Public group → join directly
+    // Public group â†’ join directly
     await db.query(
       'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
       [id, req.userId, 'member']
@@ -402,7 +402,7 @@ export const joinGroup = async (req, res) => {
     res.json({ message: 'Joined group successfully', status: 'joined' });
   } catch (err) {
     console.error('Error joining group:', err);
-    res.status(500).json({ error: 'Failed to join group' });
+    res.status(500).json({ error: 'Beitritt fehlgeschlagen' });
   }
 };
 
@@ -416,7 +416,7 @@ export const leaveGroup = async (req, res) => {
     // Prevent owner from leaving (they must delete the group)
     const group = await db.query('SELECT owner_id, members_count, max_members FROM groups WHERE id = $1', [id]);
     if (group.rows.length > 0 && group.rows[0].owner_id === req.userId) {
-      return res.status(400).json({ error: 'Als Ersteller kannst du die Gruppe nicht verlassen – lösche sie stattdessen.' });
+      return res.status(400).json({ error: 'Als Ersteller kannst du die Gruppe nicht verlassen â€“ lÃ¶sche sie stattdessen.' });
     }
 
     const result = await db.query(
@@ -464,7 +464,7 @@ export const leaveGroup = async (req, res) => {
     res.json({ message: 'Left group successfully' });
   } catch (err) {
     console.error('Error leaving group:', err);
-    res.status(500).json({ error: 'Failed to leave group' });
+    res.status(500).json({ error: 'Verlassen fehlgeschlagen' });
   }
 };
 
@@ -498,7 +498,7 @@ export const toggleFavorite = async (req, res) => {
     res.json({ favorited: true, message: 'Added to favorites' });
   } catch (err) {
     console.error('Error toggling favorite:', err);
-    res.status(500).json({ error: 'Failed to toggle favorite' });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -519,7 +519,7 @@ export const getUserFavorites = async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching favorites:', err);
-    res.status(500).json({ error: 'Failed to fetch favorites' });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -650,7 +650,7 @@ export const handleJoinRequest = async (req, res) => {
       );
       res.json({ message: 'Request rejected', status: 'rejected' });
     } else {
-      res.status(400).json({ error: 'Ungültige Aktion' });
+      res.status(400).json({ error: 'UngÃ¼ltige Aktion' });
     }
   } catch (err) {
     console.error('Error handling join request:', err);
@@ -672,7 +672,7 @@ export const kickMember = async (req, res) => {
 
     // Cannot kick yourself (owner)
     if (parseInt(userId, 10) === req.userId) {
-      return res.status(400).json({ error: 'Du kannst dich nicht selbst entfernen – lösche die Gruppe stattdessen.' });
+      return res.status(400).json({ error: 'Du kannst dich nicht selbst entfernen â€“ lÃ¶sche die Gruppe stattdessen.' });
     }
 
     const result = await db.query(
@@ -692,7 +692,7 @@ export const kickMember = async (req, res) => {
 };
 
 // ==========================================
-// CANCEL GROUP/EVENT (owner only — notifies all members)
+// CANCEL GROUP/EVENT (owner only â€” notifies all members)
 // ==========================================
 export const cancelGroup = async (req, res) => {
   try {
@@ -911,7 +911,7 @@ export const inviteMember = async (req, res) => {
   }
 };
 
-// ── Push helper (fire-and-forget) ───────────────────────────────────────────
+// â”€â”€ Push helper (fire-and-forget) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function notifyGroupJoin(joinerUserId, ownerUserId, groupName) {
   try {
     const { rows } = await db.query('SELECT name FROM users WHERE id = $1', [joinerUserId]);

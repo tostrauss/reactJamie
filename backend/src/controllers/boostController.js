@@ -1,4 +1,4 @@
-import db from '../config/database.js';
+﻿import db from '../config/database.js';
 import Stripe from 'stripe';
 import crypto from 'crypto';
 import { isUserPro } from './subscriptionController.js';
@@ -83,7 +83,7 @@ export const applyBoost = async (req, res) => {
       );
       const credits = balanceRes.rows[0]?.credits || 0;
       if (credits < 1) {
-        return res.status(402).json({ error: 'Nicht genug Boost-Credits. Kaufe Credits oder werde JAMIE Pro für kostenlose Boosts.' });
+        return res.status(402).json({ error: 'Nicht genug Boost-Credits. Kaufe Credits oder werde JAMIE Pro fÃ¼r kostenlose Boosts.' });
       }
     }
 
@@ -151,12 +151,12 @@ export const createStripeIntent = async (req, res) => {
     res.json({ client_secret: intent.client_secret, publishable_key: process.env.STRIPE_PUBLISHABLE_KEY });
   } catch (err) {
     console.error('createStripeIntent error:', err);
-    res.status(500).json({ error: 'Stripe error' });
+    res.status(500).json({ error: 'Zahlung fehlgeschlagen' });
   }
 };
 
 // ==========================================
-// STRIPE WEBHOOK — confirm payment & credit wallet
+// STRIPE WEBHOOK â€” confirm payment & credit wallet
 // ==========================================
 export const stripeWebhook = async (req, res) => {
   const stripe = getStripe();
@@ -184,7 +184,7 @@ export const stripeWebhook = async (req, res) => {
         await creditUser(userId, credits, 'stripe', intent.id);
       } catch (err) {
         console.error('creditUser failed in stripeWebhook:', err);
-        // Return 200 to prevent Stripe from retrying — log to monitor instead
+        // Return 200 to prevent Stripe from retrying â€” log to monitor instead
       }
     }
   }
@@ -245,7 +245,7 @@ export const createPaypalOrder = async (req, res) => {
     res.json({ order_id: order.id });
   } catch (err) {
     console.error('createPaypalOrder error:', err);
-    res.status(500).json({ error: 'PayPal error' });
+    res.status(500).json({ error: 'Zahlung fehlgeschlagen' });
   }
 };
 
@@ -290,7 +290,7 @@ export const capturePaypalOrder = async (req, res) => {
     }
   } catch (err) {
     console.error('capturePaypalOrder error:', err);
-    res.status(500).json({ error: 'PayPal capture error' });
+    res.status(500).json({ error: 'Zahlung fehlgeschlagen' });
   }
 };
 
@@ -361,14 +361,14 @@ export const redeemReferral = async (req, res) => {
     if (!codeRes.rows.length) return res.status(404).json({ error: 'Code nicht gefunden' });
 
     const ownerId = codeRes.rows[0].user_id;
-    if (ownerId === req.userId) return res.status(400).json({ error: 'Eigener Code nicht einlösbar' });
+    if (ownerId === req.userId) return res.status(400).json({ error: 'Eigener Code nicht einlÃ¶sbar' });
 
     // Check if already redeemed
     const alreadyRes = await db.query(
       `SELECT id FROM boost_transactions WHERE user_id = $1 AND payment_provider = 'referral'`,
       [req.userId]
     );
-    if (alreadyRes.rows.length) return res.status(400).json({ error: 'Bereits eingelöst' });
+    if (alreadyRes.rows.length) return res.status(400).json({ error: 'Bereits eingelÃ¶st' });
 
     await db.query('BEGIN');
     // Credit both users
@@ -381,10 +381,11 @@ export const redeemReferral = async (req, res) => {
     );
     await db.query('COMMIT');
 
-    res.json({ success: true, message: 'Code eingelöst! +1 Boost-Credit' });
+    res.json({ success: true, message: 'Code eingelÃ¶st! +1 Boost-Credit' });
   } catch (err) {
     await db.query('ROLLBACK').catch((rbErr) => console.error('ROLLBACK failed:', rbErr));
     console.error('redeemReferral error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+

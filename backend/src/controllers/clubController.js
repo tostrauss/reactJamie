@@ -1,4 +1,4 @@
-import db from '../config/database.js';
+﻿import db from '../config/database.js';
 import { geocodeLocation } from '../utils/geocode.js';
 
 // Helper to ensure we always target clubs
@@ -80,7 +80,7 @@ export const createClub = async (req, res) => {
     res.status(201).json(newClub);
   } catch (err) {
     console.error('Error creating club:', err);
-    res.status(500).json({ error: 'Database creation failed' });
+    res.status(500).json({ error: 'Club konnte nicht erstellt werden' });
   }
 };
 
@@ -133,7 +133,7 @@ export const getClubs = async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching clubs:', err);
-    res.status(500).json({ error: 'Failed to fetch clubs' });
+    res.status(500).json({ error: 'Clubs konnten nicht geladen werden' });
   }
 };
 
@@ -180,7 +180,7 @@ export const getClubById = async (req, res) => {
     res.json(club);
   } catch (err) {
     console.error('Error fetching club:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -254,7 +254,7 @@ export const updateClub = async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating club:', err);
-    res.status(500).json({ error: 'Failed to update club' });
+    res.status(500).json({ error: 'Club konnte nicht aktualisiert werden' });
   }
 };
 
@@ -276,7 +276,7 @@ export const deleteClub = async (req, res) => {
     res.json({ message: 'Club deleted successfully' });
   } catch (err) {
     console.error('Error deleting club:', err);
-    res.status(500).json({ error: 'Failed to delete club' });
+    res.status(500).json({ error: 'Club konnte nicht gelöscht werden' });
   }
 };
 
@@ -330,7 +330,7 @@ export const joinClub = async (req, res) => {
     res.json({ message: 'Joined club successfully', status: 'joined' });
   } catch (err) {
     console.error('Error joining club:', err);
-    res.status(500).json({ error: 'Failed to join club' });
+    res.status(500).json({ error: 'Beitritt fehlgeschlagen' });
   }
 };
 
@@ -347,7 +347,7 @@ export const leaveClub = async (req, res) => {
     );
     if (club.rows.length > 0 && club.rows[0].owner_id === req.userId) {
       return res.status(400).json({
-        error: 'Als Ersteller kannst du den Club nicht verlassen – lösche ihn stattdessen.'
+        error: 'Als Ersteller kannst du den Club nicht verlassen â€“ lÃ¶sche ihn stattdessen.'
       });
     }
 
@@ -363,7 +363,7 @@ export const leaveClub = async (req, res) => {
     res.json({ message: 'Left club successfully' });
   } catch (err) {
     console.error('Error leaving club:', err);
-    res.status(500).json({ error: 'Failed to leave club' });
+    res.status(500).json({ error: 'Verlassen fehlgeschlagen' });
   }
 };
 
@@ -403,7 +403,7 @@ export const toggleClubFavorite = async (req, res) => {
     res.json({ favorited: true, message: 'Added to favorites' });
   } catch (err) {
     console.error('Error toggling club favorite:', err);
-    res.status(500).json({ error: 'Failed to toggle favorite' });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -424,7 +424,7 @@ export const getUserFavoriteClubs = async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching favorite clubs:', err);
-    res.status(500).json({ error: 'Failed to fetch favorite clubs' });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -455,7 +455,7 @@ export const getClubMembers = async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching club members:', err);
-    res.status(500).json({ error: 'Failed to fetch members' });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -476,7 +476,7 @@ export const getUserClubs = async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching user clubs:', err);
-    res.status(500).json({ error: 'Failed to fetch user clubs' });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -506,7 +506,7 @@ export const getClubJoinRequests = async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching club join requests:', err);
-    res.status(500).json({ error: 'Failed to fetch join requests' });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -560,7 +560,7 @@ export const handleClubJoinRequest = async (req, res) => {
     }
   } catch (err) {
     console.error('Error handling club join request:', err);
-    res.status(500).json({ error: 'Failed to handle request' });
+    res.status(500).json({ error: 'Anfrage konnte nicht verarbeitet werden' });
   }
 };
 
@@ -596,7 +596,7 @@ export const kickClubMember = async (req, res) => {
     res.json({ message: 'Member removed successfully' });
   } catch (err) {
     console.error('Error kicking club member:', err);
-    res.status(500).json({ error: 'Failed to remove member' });
+    res.status(500).json({ error: 'Mitglied konnte nicht entfernt werden' });
   }
 };
 
@@ -659,10 +659,11 @@ export const cancelClub = async (req, res) => {
     res.json({ message: 'Club cancelled and members notified', notified: members.rows.length });
   } catch (err) {
     console.error('Error cancelling club:', err);
-    res.status(500).json({ error: 'Failed to cancel club' });
+    res.status(500).json({ error: 'Club konnte nicht deaktiviert werden' });
   }
 };
 
 // Reuse shared categories endpoint from groups
 export { getCategories } from './groupController.js';
+
 
