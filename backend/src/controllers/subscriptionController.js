@@ -45,7 +45,7 @@ export const createSubscription = async (req, res) => {
       'SELECT email, name FROM users WHERE id = $1',
       [req.userId]
     );
-    if (!userResult.rows.length) return res.status(404).json({ error: 'User not found' });
+    if (!userResult.rows.length) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
     const { email, name } = userResult.rows[0];
 
     // Check for existing active subscription

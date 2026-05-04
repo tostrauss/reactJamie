@@ -12,7 +12,7 @@ export const sendMessage = async (req, res) => {
       return res.status(400).json({ error: 'Message content is required' });
     }
     if (content.length > 5000) {
-      return res.status(400).json({ error: 'Message cannot exceed 5000 characters' });
+      return res.status(400).json({ error: 'Nachricht darf maximal 5.000 Zeichen lang sein' });
     }
 
     const { safe, reason } = await checkTextSafety(content);
@@ -35,7 +35,7 @@ export const sendMessage = async (req, res) => {
       [groupId]
     );
     if (groupInfo.rows.length === 0) {
-      return res.status(404).json({ error: 'Group not found' });
+      return res.status(404).json({ error: 'Gruppe nicht gefunden' });
     }
 
     const { type, owner_id } = groupInfo.rows[0];
@@ -68,7 +68,7 @@ export const sendMessage = async (req, res) => {
     });
   } catch (error) {
     console.error('Error sending message:', error);
-    res.status(500).json({ error: 'Failed to send message' });
+    res.status(500).json({ error: 'Nachricht konnte nicht gesendet werden' });
   }
 };
 
@@ -109,7 +109,7 @@ export const getMessages = async (req, res) => {
     res.json({ messages: rows.reverse(), has_more: hasMore });
   } catch (error) {
     console.error('Error fetching messages:', error);
-    res.status(500).json({ error: 'Failed to fetch messages' });
+    res.status(500).json({ error: 'Nachrichten konnten nicht geladen werden' });
   }
 };
 
@@ -129,13 +129,13 @@ export const deleteMessage = async (req, res) => {
       return res.status(404).json({ error: 'Message not found' });
     }
     if (message.rows[0].user_id !== req.userId) {
-      return res.status(403).json({ error: 'Not authorized to delete this message' });
+      return res.status(403).json({ error: 'Keine Berechtigung, diese Nachricht zu löschen' });
     }
 
     await db.query('DELETE FROM messages WHERE id = $1', [messageId]);
     res.json({ message: 'Message deleted' });
   } catch (error) {
     console.error('Error deleting message:', error);
-    res.status(500).json({ error: 'Failed to delete message' });
+    res.status(500).json({ error: 'Nachricht konnte nicht gelöscht werden' });
   }
 };

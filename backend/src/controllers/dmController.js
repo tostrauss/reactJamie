@@ -10,11 +10,11 @@ export const sendDM = async (req, res) => {
     const { receiverId, content } = req.body;
 
     if (!receiverId || !content) {
-      return res.status(400).json({ error: 'receiverId and content required' });
+      return res.status(400).json({ error: 'Empfänger und Inhalt erforderlich' });
     }
 
     if (content.length > 5000) {
-      return res.status(400).json({ error: 'Message cannot exceed 5000 characters' });
+      return res.status(400).json({ error: 'Nachricht darf maximal 5.000 Zeichen lang sein' });
     }
 
     const { safe, reason } = await checkTextSafety(content);
@@ -33,7 +33,7 @@ export const sendDM = async (req, res) => {
 
     if (friendship.rows.length === 0) {
       return res.status(403).json({
-        error: 'You must be friends to send direct messages',
+        error: 'Ihr müsst befreundet sein, um Direktnachrichten zu senden',
         requiresFriendship: true
       });
     }
@@ -98,7 +98,7 @@ export const getConversation = async (req, res) => {
     );
     if (friendship.rows.length === 0) {
       return res.status(403).json({
-        error: 'You must be friends to view this conversation',
+        error: 'Ihr müsst befreundet sein, um diese Konversation anzusehen',
         requiresFriendship: true
       });
     }

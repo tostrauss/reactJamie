@@ -71,7 +71,7 @@ export const createGroup = async (req, res) => {
   const { name, description, type, category, date, time, location, image_url, max_members, is_private, skill_level } = req.body;
   const userId = req.userId; // JWT auth (not session)
 
-  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
 
   try {
@@ -220,7 +220,7 @@ export const getGroupById = async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Group not found' });
+      return res.status(404).json({ error: 'Gruppe nicht gefunden' });
     }
 
     const group = result.rows[0];
@@ -263,8 +263,8 @@ export const updateGroup = async (req, res) => {
 
     // Verify ownership
     const group = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
-    if (group.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
-    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
+    if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     const textToCheck = [name, description].filter(Boolean).join('\n');
     if (textToCheck) {
@@ -329,8 +329,8 @@ export const deleteGroup = async (req, res) => {
 
     // Verify ownership
     const group = await db.query('SELECT owner_id FROM groups WHERE id = $1 AND deleted_at IS NULL', [id]);
-    if (group.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
-    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
+    if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     // Soft delete — preserves messages, reviews, and member history
     await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [id]);
@@ -351,7 +351,7 @@ export const joinGroup = async (req, res) => {
 
     // Check group exists
     const group = await db.query('SELECT * FROM groups WHERE id = $1', [id]);
-    if (group.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
+    if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
 
     // Check already member
     const existing = await db.query(
@@ -540,7 +540,7 @@ export const getGroupMembers = async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching members:', err);
-    res.status(500).json({ error: 'Failed to fetch members' });
+    res.status(500).json({ error: 'Mitglieder konnten nicht geladen werden' });
   }
 };
 
@@ -572,7 +572,7 @@ export const getUserGroups = async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching user groups:', err);
-    res.status(500).json({ error: 'Failed to fetch user groups' });
+    res.status(500).json({ error: 'Gruppen konnten nicht geladen werden' });
   }
 };
 
@@ -585,8 +585,8 @@ export const getJoinRequests = async (req, res) => {
 
     // Verify ownership
     const group = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
-    if (group.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
-    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
+    if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     const result = await db.query(
       `SELECT jr.*, u.name as user_name, u.avatar_url as user_avatar, u.bio as user_bio,
@@ -602,7 +602,7 @@ export const getJoinRequests = async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching join requests:', err);
-    res.status(500).json({ error: 'Failed to fetch join requests' });
+    res.status(500).json({ error: 'Anfragen konnten nicht geladen werden' });
   }
 };
 
@@ -616,8 +616,8 @@ export const handleJoinRequest = async (req, res) => {
 
     // Verify ownership
     const group = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
-    if (group.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
-    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
+    if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     // Get the request
     const request = await db.query(
@@ -654,7 +654,7 @@ export const handleJoinRequest = async (req, res) => {
     }
   } catch (err) {
     console.error('Error handling join request:', err);
-    res.status(500).json({ error: 'Failed to handle request' });
+    res.status(500).json({ error: 'Anfrage konnte nicht verarbeitet werden' });
   }
 };
 
@@ -667,8 +667,8 @@ export const kickMember = async (req, res) => {
 
     // Verify ownership
     const group = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
-    if (group.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
-    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
+    if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     // Cannot kick yourself (owner)
     if (parseInt(userId, 10) === req.userId) {
@@ -687,7 +687,7 @@ export const kickMember = async (req, res) => {
     res.json({ message: 'Member removed successfully' });
   } catch (err) {
     console.error('Error kicking member:', err);
-    res.status(500).json({ error: 'Failed to remove member' });
+    res.status(500).json({ error: 'Mitglied konnte nicht entfernt werden' });
   }
 };
 
@@ -701,8 +701,8 @@ export const cancelGroup = async (req, res) => {
 
     // Verify ownership
     const group = await db.query('SELECT * FROM groups WHERE id = $1', [id]);
-    if (group.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
-    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
+    if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     // Get all members for notification
     const members = await db.query(
@@ -734,7 +734,7 @@ export const cancelGroup = async (req, res) => {
     res.json({ message: 'Group cancelled and members notified', notified: members.rows.length });
   } catch (err) {
     console.error('Error cancelling group:', err);
-    res.status(500).json({ error: 'Failed to cancel group' });
+    res.status(500).json({ error: 'Gruppe konnte nicht deaktiviert werden' });
   }
 };
 
@@ -746,7 +746,7 @@ export const joinWaitlist = async (req, res) => {
     const { id } = req.params;
 
     const group = await db.query('SELECT * FROM groups WHERE id = $1', [id]);
-    if (group.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
+    if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
 
     const g = group.rows[0];
     if (g.members_count < g.max_members) {
@@ -777,7 +777,7 @@ export const joinWaitlist = async (req, res) => {
     res.json({ message: 'Added to waitlist', position: result.rows[0].position });
   } catch (err) {
     console.error('Error joining waitlist:', err);
-    res.status(500).json({ error: 'Failed to join waitlist' });
+    res.status(500).json({ error: 'Warteliste-Beitritt fehlgeschlagen' });
   }
 };
 
@@ -797,7 +797,7 @@ export const leaveWaitlist = async (req, res) => {
     res.json({ message: 'Removed from waitlist' });
   } catch (err) {
     console.error('Error leaving waitlist:', err);
-    res.status(500).json({ error: 'Failed to leave waitlist' });
+    res.status(500).json({ error: 'Warteliste verlassen fehlgeschlagen' });
   }
 };
 
@@ -818,7 +818,7 @@ export const getWaitlist = async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching waitlist:', err);
-    res.status(500).json({ error: 'Failed to fetch waitlist' });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -842,7 +842,7 @@ export const getUserWaitlistStatus = async (req, res) => {
     });
   } catch (err) {
     console.error('Error checking waitlist:', err);
-    res.status(500).json({ error: 'Failed to check waitlist' });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -865,7 +865,7 @@ export const getGroupMemberAvatars = async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching avatars:', err);
-    res.status(500).json({ error: 'Failed to fetch avatars' });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -877,8 +877,8 @@ export const inviteMember = async (req, res) => {
     const { id, friendId } = req.params;
 
     const group = await db.query('SELECT * FROM groups WHERE id = $1', [id]);
-    if (group.rows.length === 0) return res.status(404).json({ error: 'Group not found' });
-    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
+    if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     const g = group.rows[0];
 
@@ -907,7 +907,7 @@ export const inviteMember = async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('Error inviting member:', err);
-    res.status(500).json({ error: 'Failed to invite member' });
+    res.status(500).json({ error: 'Einladung fehlgeschlagen' });
   }
 };
 
@@ -931,6 +931,6 @@ export const getCategories = async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching categories:', err);
-    res.status(500).json({ error: 'Failed to fetch categories' });
+    res.status(500).json({ error: 'Kategorien konnten nicht geladen werden' });
   }
 };

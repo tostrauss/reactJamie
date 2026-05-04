@@ -22,7 +22,7 @@ export const createClub = async (req, res) => {
   } = req.body;
   const userId = req.userId;
 
-  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
 
   try {
@@ -207,7 +207,7 @@ export const updateClub = async (req, res) => {
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
+    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     // Re-geocode if location is being updated
     let latUpdate = null;
@@ -270,7 +270,7 @@ export const deleteClub = async (req, res) => {
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
+    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     await db.query('DELETE FROM groups WHERE id = $1 AND type = $2', [id, CLUB_TYPE]);
     res.json({ message: 'Club deleted successfully' });
@@ -492,7 +492,7 @@ export const getClubJoinRequests = async (req, res) => {
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
+    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     const result = await db.query(
       `SELECT jr.*, u.name as user_name, u.avatar_url as user_avatar, u.bio as user_bio
@@ -523,7 +523,7 @@ export const handleClubJoinRequest = async (req, res) => {
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
+    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     const request = await db.query(
       'SELECT * FROM group_join_requests WHERE id = $1 AND group_id = $2',
@@ -576,11 +576,11 @@ export const kickClubMember = async (req, res) => {
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
+    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     if (parseInt(userId, 10) === req.userId) {
       return res.status(400).json({
-        error: 'Cannot remove yourself. Delete the club instead.'
+        error: 'Du kannst dich nicht selbst entfernen. Lösche den Club stattdessen.'
       });
     }
 
@@ -613,7 +613,7 @@ export const cancelClub = async (req, res) => {
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Not authorized' });
+    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     const members = await db.query(
       'SELECT user_id FROM group_members WHERE group_id = $1 AND user_id != $2',

@@ -200,7 +200,7 @@ export const getProfile = async (req, res) => {
       [req.userId]
     );
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: 'Benutzer nicht gefunden' });
     }
 
     const user = result.rows[0];
@@ -356,7 +356,7 @@ export const deleteAccount = async (req, res) => {
 
     const result = await db.query('SELECT password, auth_provider FROM users WHERE id = $1', [req.userId]);
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: 'Benutzer nicht gefunden' });
     }
 
     const user = result.rows[0];
@@ -554,7 +554,7 @@ export const sendVerification = async (req, res) => {
   try {
     const result = await db.query('SELECT id, email, name, is_verified FROM users WHERE id = $1', [req.userId]);
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: 'Benutzer nicht gefunden' });
     }
 
     const user = result.rows[0];

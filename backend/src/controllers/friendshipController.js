@@ -9,7 +9,7 @@ export const sendFriendRequest = async (req, res) => {
     const { userId } = req.body;
 
     if (!userId) return res.status(400).json({ error: 'userId is required' });
-    if (userId === req.userId) return res.status(400).json({ error: 'Cannot send friend request to yourself' });
+    if (userId === req.userId) return res.status(400).json({ error: 'Du kannst dir selbst keine Freundschaftsanfrage schicken' });
 
     // Check if friendship already exists (in either direction)
     const existing = await db.query(

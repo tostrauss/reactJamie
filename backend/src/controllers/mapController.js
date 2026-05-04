@@ -41,6 +41,6 @@ export const getMapPins = async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching map pins:', err);
-    res.status(500).json({ error: 'Failed to fetch map data' });
+    res.status(500).json({ error: 'Kartendaten konnten nicht geladen werden' });
   }
 };
