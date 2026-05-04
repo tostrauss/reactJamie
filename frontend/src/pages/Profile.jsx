@@ -37,7 +37,6 @@ const translateInterest = (i) => INTEREST_DE[i] ?? i;
 export const Profile = () => {
   const { user, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('pinnwand');
   const [savingSong, setSavingSong] = useState(false);
   const [isPro, setIsPro] = useState(false);
   const [showProModal, setShowProModal] = useState(false);
@@ -130,7 +129,7 @@ export const Profile = () => {
             <div className="profile-progress-bar">
               <div className="profile-progress-fill" style={{ width: `${completion}%` }} />
             </div>
-            <span className="profile-progress-label">{completion}% Profil completed</span>
+            <span className="profile-progress-label">{completion}% Profil vollständig</span>
           </div>
         )}
 
@@ -192,60 +191,32 @@ export const Profile = () => {
             </svg>
           </button>
 
-          {/* Tabs */}
-          <div className="profile-tabs">
-            <button
-              className={`profile-tab ${activeTab === 'pinnwand' ? 'active' : ''}`}
-              onClick={() => setActiveTab('pinnwand')}
-            >
-              Pinnwand
-            </button>
-            <button
-              className={`profile-tab ${activeTab === 'halloffame' ? 'active' : ''}`}
-              onClick={() => setActiveTab('halloffame')}
-            >
-              Hall of Fame
-            </button>
-          </div>
-
-          {/* Tab content */}
+          {/* Pinnwand */}
           <div className="profile-tab-content">
-            {activeTab === 'pinnwand' ? (
-              <>
-                <div className="pinnwand-grid">
-                  {profilePhotos.map((photo, i) => (
-                    <div key={i} className={`pinnwand-item${i === 0 ? ' pinnwand-item--large' : ''}`}>
-                      <img src={photo} alt={`Foto ${i + 1}`} />
-                    </div>
-                  ))}
-                  <button className="pinnwand-item add-photo" onClick={() => navigate('/profile/edit')}>
-                    <span>+</span>
-                    <p>Foto hinzufügen</p>
-                  </button>
+            <div className="pinnwand-grid">
+              {profilePhotos.map((photo, i) => (
+                <div key={i} className={`pinnwand-item${i === 0 ? ' pinnwand-item--large' : ''}`}>
+                  <img src={photo} alt={`Foto ${i + 1}`} />
                 </div>
+              ))}
+              <button className="pinnwand-item add-photo" onClick={() => navigate('/profile/edit')}>
+                <span>+</span>
+                <p>Foto hinzufügen</p>
+              </button>
+            </div>
 
-                {/* Lieblingssong below pinnwand */}
-                <div className="profile-song-section">
-                  {savingSong ? (
-                    <div className="empty-music"><p>Wird gespeichert…</p></div>
-                  ) : (
-                    <SpotifySongPicker
-                      currentSong={user?.favorite_song}
-                      onSelect={handleSongSelect}
-                      onRemove={handleSongRemove}
-                    />
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="halloffame-section">
-                <div className="halloffame-empty">
-                  <span className="halloffame-icon">🏆</span>
-                  <p>Deine Hall of Fame</p>
-                  <span>Hier erscheinen bald deine besten Momente</span>
-                </div>
-              </div>
-            )}
+            {/* Lieblingssong below pinnwand */}
+            <div className="profile-song-section">
+              {savingSong ? (
+                <div className="empty-music"><p>Wird gespeichert…</p></div>
+              ) : (
+                <SpotifySongPicker
+                  currentSong={user?.favorite_song}
+                  onSelect={handleSongSelect}
+                  onRemove={handleSongRemove}
+                />
+              )}
+            </div>
           </div>
 
         </div>

@@ -41,7 +41,7 @@ export const Login = () => {
   };
 
   const handleSocialLogin = (provider) => {
-    alert(`${provider} Login kommt bald! Bitte nutze E-Mail Login.`);
+    setError(`${provider}-Login ist in Kürze verfügbar. Bitte nutze E-Mail-Login.`);
   };
 
 
@@ -51,7 +51,7 @@ export const Login = () => {
       <div className="auth-top">
         <h1 className="auth-wordmark">JAMIE</h1>
         <p className="auth-tagline">
-          Login ist nervig, aber wir versuchen es so kurz wie möglich zu halten. 
+          Finde Leute für Aktivitäten in deiner Nähe.
         </p>
       </div>
 

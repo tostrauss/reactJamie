@@ -31,18 +31,6 @@ const GENDER_OPTIONS = [
   { value: 'other', label: 'Divers' }
 ];
 
-async function fetchLocationSuggestions(query) {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1&countrycodes=at,de,ch&accept-language=de`;
-  const res = await fetch(url, { headers: { 'Accept-Language': 'de' } });
-  const data = await res.json();
-  return data.map(item => {
-    const a = item.address || {};
-    const place = a.city || a.town || a.village || a.municipality || item.name;
-    const country = a.country;
-    return place && country ? `${place}, ${country}` : item.display_name;
-  });
-}
-
 export const ProfileEdit = () => {
   const { user, setUser } = useContext(AuthContext);
   const navigate = useNavigate();

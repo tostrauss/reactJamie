@@ -57,7 +57,7 @@ export const DirectMessagePage = () => {
       socket.off('dm_user_typing');
       socket.off('dm_user_stop_typing');
     };
-  }, [user, socket, otherUserId]);
+  }, [user, socket, otherUserId, isPro]);
 
   useEffect(() => {
     scrollToBottom();
