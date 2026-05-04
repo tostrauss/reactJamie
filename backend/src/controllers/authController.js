@@ -126,7 +126,7 @@ export const register = async (req, res) => {
     res.status(201).json({ user, token });
   } catch (error) {
     console.error('Register error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Registrierung fehlgeschlagen' });
   }
 };
 
@@ -186,7 +186,7 @@ export const login = async (req, res) => {
     res.json({ user, token });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Login fehlgeschlagen' });
   }
 };
 
@@ -210,7 +210,7 @@ export const getProfile = async (req, res) => {
     res.json(user);
   } catch (error) {
     console.error('GetProfile error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Profil konnte nicht geladen werden' });
   }
 };
 
@@ -266,7 +266,7 @@ export const updateProfile = async (req, res) => {
     res.json(user);
   } catch (error) {
     console.error('UpdateProfile error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Profil konnte nicht gespeichert werden' });
   }
 };
 
@@ -308,7 +308,7 @@ export const completeOnboarding = async (req, res) => {
     res.json(user);
   } catch (error) {
     console.error('CompleteOnboarding error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Onboarding fehlgeschlagen' });
   }
 };
 
@@ -343,7 +343,7 @@ export const changePassword = async (req, res) => {
     res.json({ message: 'Password changed successfully' });
   } catch (error) {
     console.error('ChangePassword error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Passwort konnte nicht geändert werden' });
   }
 };
 

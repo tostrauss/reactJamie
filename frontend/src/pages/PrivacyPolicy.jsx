@@ -99,14 +99,31 @@ export default function PrivacyPolicy() {
         </p>
       </Section>
 
-      <Section title="9. Minderjährige">
+      <Section title="9. Zahlungsdienstleister">
         <p>
-          JAMIE richtet sich an Personen ab 16 Jahren. Wir erheben wissentlich keine Daten von
-          Kindern unter 16 Jahren.
+          Wenn du Boost-Credits oder ein Pro-Abonnement kaufst, werden Zahlungen verarbeitet
+          durch:
+        </p>
+        <ul>
+          <li><strong>Stripe, Inc.</strong> (USA) — Datenschutz: stripe.com/privacy</li>
+          <li><strong>PayPal Holdings, Inc.</strong> (USA) — Datenschutz: paypal.com/privacy</li>
+          <li><strong>Apple In-App Purchase</strong> (auf iOS) — apple.com/privacy</li>
+          <li><strong>Google Play Billing</strong> (auf Android) — policies.google.com/privacy</li>
+        </ul>
+        <p>
+          Wir speichern keine vollständigen Zahlungsdaten. Alle Transaktionen werden ausschließlich
+          von den jeweiligen Zahlungsdienstleistern verarbeitet.
         </p>
       </Section>
 
-      <Section title="10. Änderungen dieser Datenschutzerklärung">
+      <Section title="10. Minderjährige">
+        <p>
+          JAMIE richtet sich ausschließlich an Personen ab <strong>18 Jahren</strong>. Wir erheben
+          wissentlich keine Daten von Personen unter 18 Jahren.
+        </p>
+      </Section>
+
+      <Section title="11. Änderungen dieser Datenschutzerklärung">
         <p>
           Wir können diese Erklärung gelegentlich aktualisieren. Bei wesentlichen Änderungen
           informieren wir dich per E-Mail oder In-App-Benachrichtigung. Das Datum der letzten

@@ -16,7 +16,7 @@ router.put('/profile', authenticate, updateProfile);
 router.put('/onboarding', authenticate, completeOnboarding);
 router.put('/password', authenticate, strictLimiter, changePassword);
 router.delete('/account', authenticate, strictLimiter, deleteAccount);
-router.get('/export', authenticate, exportData);
+router.get('/export', authenticate, strictLimiter, exportData);
 
 // Password reset (public - no auth needed)
 router.post('/forgot-password', strictLimiter, forgotPassword);

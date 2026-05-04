@@ -1,9 +1,9 @@
-import React, { useContext, useState, useEffect, lazy, Suspense } from 'react';
+import React, { useContext, useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthContext, AuthProvider } from './context/AuthContext';
-import { SocketProvider } from './context/SocketContext';
+import { SocketContext, SocketProvider } from './context/SocketContext';
 import { ToastProvider } from './context/ToastContext';
 import { NetworkProvider } from './context/NetworkContext';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -42,6 +42,7 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const SpotifyCallback = lazy(() => import('./pages/SpotifyCallback'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const WelcomeIntro   = lazy(() => import('./pages/WelcomeIntro'));
 const OutOfRegion    = lazy(() => import('./pages/OutOfRegion'));
@@ -233,26 +234,48 @@ const CreateModal = ({ isOpen, onClose }) => {
 
 const Navigation = () => {
   const { user } = useContext(AuthContext);
+  const { socket } = useContext(SocketContext);
   const location = useLocation();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const unreadRef = useRef(0);
 
   const hideNavPaths = ['/login', '/register', '/onboarding', '/welcome'];
   const hideOnChat = location.pathname.startsWith('/chat/') || location.pathname.startsWith('/dm/');
 
+  // Fetch initial unread count once on mount / user change
   useEffect(() => {
     if (!user) return;
-    const fetchUnread = async () => {
-      try {
-        const res = await import('./utils/api').then(m => m.directMessages.getConversations());
-        const total = (res.data || []).reduce((sum, c) => sum + (c.unread_count || 0), 0);
-        setUnreadCount(total);
-      } catch {}
+    import('./utils/api').then(m =>
+      m.directMessages.getConversations()
+        .then(res => {
+          const total = (res.data || []).reduce((sum, c) => sum + (c.unread_count || 0), 0);
+          unreadRef.current = total;
+          setUnreadCount(total);
+        })
+        .catch(() => {})
+    );
+  }, [user?.id]);
+
+  // Clear badge when user opens the DM list (instead of on every path change)
+  useEffect(() => {
+    if (location.pathname === '/chats') {
+      unreadRef.current = 0;
+      setUnreadCount(0);
+    }
+  }, [location.pathname]);
+
+  // Increment badge on incoming DM via socket — no polling needed
+  useEffect(() => {
+    if (!socket) return;
+    const onNewDm = () => {
+      if (location.pathname === '/chats') return; // already visible, skip
+      unreadRef.current += 1;
+      setUnreadCount(unreadRef.current);
     };
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 15000);
-    return () => clearInterval(interval);
-  }, [user, location.pathname]);
+    socket.on('new_dm_notification', onNewDm);
+    return () => socket.off('new_dm_notification', onNewDm);
+  }, [socket, location.pathname]);
 
   if (!user || hideNavPaths.includes(location.pathname) || hideOnChat) return null;
 
@@ -478,6 +501,7 @@ function AppRoutes() {
 
           {/* Legal — public, no auth required */}
           <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<TermsOfService />} />
 
           {/* Redirects */}
           <Route path="/" element={<Navigate to={user ? "/home" : "/login"} replace />} />

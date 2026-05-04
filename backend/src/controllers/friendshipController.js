@@ -48,7 +48,7 @@ export const sendFriendRequest = async (req, res) => {
     res.status(201).json({ message: 'Friend request sent', friendship: result.rows[0] });
   } catch (error) {
     console.error('Error sending friend request:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -88,7 +88,7 @@ export const respondFriendRequest = async (req, res) => {
     res.json({ message: `Friend request ${newStatus}`, status: newStatus });
   } catch (error) {
     console.error('Error responding to friend request:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -109,7 +109,7 @@ export const getPendingRequests = async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching friend requests:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -129,7 +129,7 @@ export const getSentRequests = async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching sent requests:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -160,7 +160,7 @@ export const getFriends = async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching friends:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -186,7 +186,7 @@ export const removeFriend = async (req, res) => {
     res.json({ message: 'Friend removed successfully' });
   } catch (error) {
     console.error('Error removing friend:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -216,7 +216,7 @@ export const checkFriendship = async (req, res) => {
     });
   } catch (error) {
     console.error('Error checking friendship:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 

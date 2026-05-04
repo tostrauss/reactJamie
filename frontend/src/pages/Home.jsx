@@ -31,28 +31,33 @@ export const Home = () => {
     setLoading(true);
     try {
       if (activeTab === "gruppen") {
-        const [groupsRes, favGroupsRes] = await Promise.all([
+        const [groupsRes, favGroupsRes, joinedGroupsRes, joinedClubsRes] = await Promise.all([
           api.get("/groups", { params: { type: "group" } }),
-          groups.getFavorites().catch(() => ({ data: [] }))
+          groups.getFavorites().catch(() => ({ data: [] })),
+          groups.getJoined().catch(() => ({ data: [] })),
+          clubs.getJoined().catch(() => ({ data: [] })),
         ]);
         setGroupList(groupsRes.data || []);
         setFavorites(new Set((favGroupsRes.data || []).map(g => g.id)));
+        setJoined(new Set([
+          ...(joinedGroupsRes.data || []).map(g => g.id),
+          ...(joinedClubsRes.data || []).map(c => c.id),
+        ]));
       } else {
-        const [allClubsRes, myClubsRes, favClubsRes] = await Promise.all([
+        const [allClubsRes, myClubsRes, favClubsRes, joinedGroupsRes] = await Promise.all([
           clubs.getAll(),
           clubs.getJoined().catch(() => ({ data: [] })),
-          clubs.getFavorites().catch(() => ({ data: [] }))
+          clubs.getFavorites().catch(() => ({ data: [] })),
+          groups.getJoined().catch(() => ({ data: [] })),
         ]);
         setClubList(allClubsRes.data || []);
         setMyClubs(myClubsRes.data || []);
         setFavorites(new Set((favClubsRes.data || []).map(c => c.id)));
+        setJoined(new Set([
+          ...(joinedGroupsRes.data || []).map(g => g.id),
+          ...(myClubsRes.data || []).map(c => c.id),
+        ]));
       }
-      const joinedRes = await groups.getJoined().catch(() => ({ data: [] }));
-      const joinedClubsRes = await clubs.getJoined().catch(() => ({ data: [] }));
-      setJoined(new Set([
-        ...(joinedRes.data || []).map(g => g.id),
-        ...(joinedClubsRes.data || []).map(c => c.id)
-      ]));
     } catch (error) {
       if (!error.response) toast.error('Server nicht erreichbar');
     } finally {

@@ -9,7 +9,7 @@ const router = express.Router();
 const dmSendLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 10,
-  keyGenerator: (req) => `dm_send_${req.userId || req.ip}`,
+  keyGenerator: (req) => `dm_send_${req.userId}`,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Zu viele Nachrichten. Bitte warte eine Minute.' },

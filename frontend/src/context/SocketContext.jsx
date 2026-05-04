@@ -66,7 +66,7 @@ export const SocketProvider = ({ children }) => {
         setIsConnected(false);
       }
     }
-  }, [user, token]);
+  }, [user?.id, token]);
 
   return (
     <SocketContext.Provider value={{ socket, isConnected }}>

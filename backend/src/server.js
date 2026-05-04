@@ -40,6 +40,8 @@ if (process.env.NODE_ENV === 'production') {
     ['FRONTEND_URL',      'public frontend URL for email links'],
   ];
 
+  let fatal = false;
+
   // Secrets must have sufficient entropy (min 32 chars)
   for (const key of ['JWT_SECRET', 'SESSION_SECRET']) {
     const val = process.env[key] || '';
@@ -57,8 +59,6 @@ if (process.env.NODE_ENV === 'production') {
     ['ADMIN_SECRET',                       'admin dashboard will be inaccessible'],
     ['GOOGLE_CLIENT_ID',                   'Google OAuth will use unverified userinfo endpoint (reduced security)'],
   ];
-
-  let fatal = false;
   for (const [key, desc] of REQUIRED) {
     if (!process.env[key]) {
       console.error(`FATAL: Missing required env var ${key} — ${desc}`);
@@ -118,6 +118,11 @@ import socketHandler from './socket.js';
 
 // Helmet: security headers (XSS, clickjacking, MIME sniffing, etc.)
 const storageOrigin = process.env.STORAGE_PUBLIC_URL || null;
+// SOCKET_CSP_ORIGIN: backend public URL used for WebSocket (wss:) in CSP.
+// In monorepo deployments (frontend + backend same Railway service) this is the same as FRONTEND_URL.
+// Set this env var if Socket.IO connects to a different domain than the frontend.
+const socketOrigin = process.env.SOCKET_CSP_ORIGIN || null;
+
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
   contentSecurityPolicy: {
@@ -125,22 +130,27 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       connectSrc: [
         "'self'",
+        'wss:', 'ws:', // Socket.IO WebSocket — allow any wss: since backend URL varies by deployment
         'https://api.spotify.com',
+        'https://accounts.spotify.com',
         'https://api.stripe.com',
         'https://hooks.stripe.com',
         'https://www.paypal.com',
         'https://www.sandbox.paypal.com',
         'https://nominatim.openstreetmap.org',
+        'https://sentry.io', 'https://*.sentry.io', // Sentry error reporting
         ...(storageOrigin ? [storageOrigin] : []),
+        ...(socketOrigin ? [socketOrigin, socketOrigin.replace('https://', 'wss://')] : []),
       ],
       imgSrc: [
         "'self'",
         'data:',
         'blob:',
-        'https://i.scdn.co',         // Spotify album art
+        'https://i.scdn.co',
         'https://images.unsplash.com',
         'https://www.paypal.com',
-        'https://*.tile.openstreetmap.org',  // Leaflet map tiles
+        'https://*.tile.openstreetmap.org',
+        'https://lh3.googleusercontent.com', // Google profile pictures
         ...(storageOrigin ? [storageOrigin] : []),
       ],
       scriptSrc: [
@@ -159,9 +169,11 @@ app.use(helmet({
       ],
       styleSrc: ["'self'", "'unsafe-inline'"],
       fontSrc: ["'self'", 'data:'],
-      mediaSrc: ["'self'", 'https://p.scdn.co'], // Spotify audio previews
+      mediaSrc: ["'self'", 'blob:', 'https://p.scdn.co'],
+      workerSrc: ["'self'", 'blob:'], // Service worker + Workbox
       objectSrc: ["'none'"],
       frameAncestors: ["'none'"],
+      ...(process.env.NODE_ENV === 'production' ? { upgradeInsecureRequests: [] } : {}),
     },
   },
 }));

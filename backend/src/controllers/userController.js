@@ -31,7 +31,7 @@ export const getUserById = async (req, res) => {
     res.json(user);
   } catch (error) {
     console.error('Error fetching user:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 
@@ -48,7 +48,7 @@ export const searchUsers = async (req, res) => {
     const result = await db.query(
       `SELECT id, name, avatar_url, location, bio
        FROM users 
-       WHERE name ILIKE $1 OR email ILIKE $1
+       WHERE name ILIKE $1
        LIMIT 20`,
       [`%${q}%`]
     );
@@ -56,6 +56,6 @@ export const searchUsers = async (req, res) => {
     res.json(result.rows);
   } catch (error) {
     console.error('Error searching users:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };

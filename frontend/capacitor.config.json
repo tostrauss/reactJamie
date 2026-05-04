@@ -4,19 +4,22 @@
   "webDir": "dist",
   "server": {
     "androidScheme": "https",
-    "iosScheme": "capacitor"
+    "iosScheme": "https",
+    "hostname": "app.getjamie.app"
   },
   "ios": {
     "contentInset": "always",
     "backgroundColor": "#231B43",
     "limitsNavigationsToAppBoundDomains": true,
-    "scrollEnabled": false
+    "scrollEnabled": false,
+    "preferredContentMode": "mobile"
   },
   "android": {
     "backgroundColor": "#231B43",
     "allowMixedContent": false,
     "captureInput": true,
-    "webContentsDebuggingEnabled": false
+    "webContentsDebuggingEnabled": false,
+    "minWebViewVersion": 96
   },
   "plugins": {
     "StatusBar": {
@@ -28,12 +31,17 @@
       "launchShowDuration": 1500,
       "backgroundColor": "#231B43",
       "showSpinner": false,
-      "launchFadeOutDuration": 500
+      "launchFadeOutDuration": 500,
+      "splashFullScreen": true,
+      "splashImmersive": true
     },
     "Keyboard": {
       "resize": "body",
       "style": "DARK",
       "resizeOnFullScreen": true
+    },
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
     }
   }
 }

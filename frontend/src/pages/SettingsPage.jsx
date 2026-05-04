@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { auth, groups as groupsApi, clubs as clubsApi } from '../utils/api';
 import { useToast } from '../context/ToastContext';
@@ -431,6 +431,46 @@ export const SettingsPage = () => {
               <span>Version</span>
               <span className="settings-row-detail">1.0.0</span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Rechtliches */}
+      <div className="settings-section">
+        <h3 className="settings-section-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          Rechtliches
+        </h3>
+
+        <Link to="/privacy" className="settings-row" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="settings-row-left">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            </svg>
+            <span>Datenschutzerklärung</span>
+          </div>
+          {chevron}
+        </Link>
+
+        <Link to="/terms" className="settings-row" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="settings-row-left">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            <span>Nutzungsbedingungen</span>
+          </div>
+          {chevron}
+        </Link>
+
+        <div className="settings-row static">
+          <div className="settings-row-left" style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', gap: 6 }}>
+            <span>Bei Fragen: <a href="mailto:legal@getjamie.app" style={{ color: 'var(--coral)' }}>legal@getjamie.app</a></span>
           </div>
         </div>
       </div>

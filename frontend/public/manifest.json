@@ -14,12 +14,6 @@
   "categories": ["social", "lifestyle"],
   "icons": [
     {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    },
-    {
       "src": "/pwa-64x64.png",
       "sizes": "64x64",
       "type": "image/png"
@@ -27,7 +21,8 @@
     {
       "src": "/pwa-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/pwa-512x512.png",
@@ -40,6 +35,12 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    },
+    {
+      "src": "/apple-touch-icon-180x180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
   "shortcuts": [
@@ -56,5 +57,39 @@
       "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
     }
   ],
-  "screenshots": []
+  "screenshots": [
+    {
+      "src": "/screenshots/home.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "JAMIE Home – Gruppen entdecken"
+    },
+    {
+      "src": "/screenshots/explore.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "JAMIE Entdecken – Clubs & Events"
+    },
+    {
+      "src": "/screenshots/chat.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "JAMIE Chat – Mit Gruppen kommunizieren"
+    }
+  ],
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=jamie.app",
+      "id": "jamie.app"
+    },
+    {
+      "platform": "itunes",
+      "url": "https://apps.apple.com/app/jamie/id0000000000"
+    }
+  ],
+  "prefer_related_applications": false
 }

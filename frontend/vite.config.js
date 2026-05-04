@@ -31,6 +31,20 @@ export default defineConfig({
       silent: true,
     })] : []),
   ],
+  build: {
+    sourcemap: true, // needed by Sentry for correct stack traces
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-socket': ['socket.io-client'],
+          'vendor-stripe': ['@stripe/stripe-js', '@stripe/react-stripe-js'],
+          'vendor-map': ['leaflet', 'react-leaflet', 'react-leaflet-cluster'],
+          'vendor-paypal': ['@paypal/react-paypal-js'],
+        },
+      },
+    },
+  },
   server: {
     port: 3000,
     host: '127.0.0.1',
