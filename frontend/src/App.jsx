@@ -536,25 +536,29 @@ function AppRoutes() {
   );
 }
 
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
 function App() {
-  return (
-    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ''}>
-      <ErrorBoundary>
-        <BrowserRouter>
-          <NetworkProvider>
-            <ToastProvider>
-              <AuthProvider>
-                <SocketProvider>
-                  <AppRoutes />
-                  <ConsentBanner />
-                </SocketProvider>
-              </AuthProvider>
-            </ToastProvider>
-          </NetworkProvider>
-        </BrowserRouter>
-      </ErrorBoundary>
-    </GoogleOAuthProvider>
+  const inner = (
+    <ErrorBoundary>
+      <BrowserRouter>
+        <NetworkProvider>
+          <ToastProvider>
+            <AuthProvider>
+              <SocketProvider>
+                <AppRoutes />
+                <ConsentBanner />
+              </SocketProvider>
+            </AuthProvider>
+          </ToastProvider>
+        </NetworkProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
+
+  return GOOGLE_CLIENT_ID
+    ? <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>{inner}</GoogleOAuthProvider>
+    : inner;
 }
 
 export default App;
