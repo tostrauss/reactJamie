@@ -11,7 +11,7 @@ const axiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json'
   },
-  timeout: 15000,
+  timeout: 10000,
   withCredentials: true, // send httpOnly auth cookie on every request
 });
 
@@ -36,7 +36,12 @@ axiosInstance.interceptors.request.use(
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
 
+const SAFE_METHODS = new Set(['get', 'head', 'options']);
+
 const shouldRetry = (error) => {
+  // Never retry non-idempotent methods — prevents double billing, double messages, etc.
+  const method = error.config?.method?.toLowerCase();
+  if (!SAFE_METHODS.has(method)) return false;
   if (!error.response) return true; // Network error / timeout
   const status = error.response.status;
   return status === 408 || status === 429 || status >= 500;
@@ -50,7 +55,6 @@ axiosInstance.interceptors.response.use(
   async (error) => {
     const config = error.config;
 
-    // Retry logic for retryable errors
     if (shouldRetry(error) && config && !config._retryCount) {
       config._retryCount = 0;
     }
@@ -544,7 +548,8 @@ export const upload = {
     const formData = new FormData();
     formData.append('image', file);
     return axiosInstance.post('/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000, // uploads need more time than regular API calls
     });
   }
 };

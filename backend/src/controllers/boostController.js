@@ -3,6 +3,24 @@ import Stripe from 'stripe';
 import crypto from 'crypto';
 import { isUserPro } from './subscriptionController.js';
 
+// Execute a function inside a real DB transaction on a single dedicated connection.
+// This is required because db.query() pulls from a pool — consecutive calls may land
+// on different connections, making BEGIN/COMMIT on the pool object completely useless.
+async function withTransaction(fn) {
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 // Lazy-init Stripe (only when key is set)
 const getStripe = () => {
   if (!process.env.STRIPE_SECRET_KEY) return null;
@@ -72,22 +90,7 @@ export const applyBoost = async (req, res) => {
   }
 
   try {
-    // Check if user has active Pro subscription (free boosts)
-    const isPro = await isUserPro(req.userId);
-
-    if (!isPro) {
-      // Check credit balance
-      const balanceRes = await db.query(
-        'SELECT credits FROM boost_credits WHERE user_id = $1',
-        [req.userId]
-      );
-      const credits = balanceRes.rows[0]?.credits || 0;
-      if (credits < 1) {
-        return res.status(402).json({ error: 'Nicht genug Boost-Credits. Kaufe Credits oder werde JAMIE Pro für kostenlose Boosts.' });
-      }
-    }
-
-    // Verify ownership
+    // Verify ownership first (cheap check, no lock needed)
     const ownerRes = await db.query(
       `SELECT owner_id FROM groups WHERE id = $1 AND type = $2`,
       [target_id, target_type]
@@ -96,27 +99,39 @@ export const applyBoost = async (req, res) => {
       return res.status(403).json({ error: 'Du kannst nur deine eigenen Gruppen/Clubs boosten' });
     }
 
+    const isPro = await isUserPro(req.userId);
     const boostedUntil = new Date(Date.now() + hours * 60 * 60 * 1000);
 
-    await db.query('BEGIN');
-    if (!isPro) {
-      // Deduct credit (Pro users boost for free)
-      await db.query(
-        'UPDATE boost_credits SET credits = credits - 1 WHERE user_id = $1',
-        [req.userId]
+    await withTransaction(async (client) => {
+      if (!isPro) {
+        // Lock the row and re-check balance atomically — prevents race conditions
+        const balanceRes = await client.query(
+          'SELECT credits FROM boost_credits WHERE user_id = $1 FOR UPDATE',
+          [req.userId]
+        );
+        const credits = balanceRes.rows[0]?.credits || 0;
+        if (credits < 1) {
+          const err = new Error('INSUFFICIENT_CREDITS');
+          err.status = 402;
+          throw err;
+        }
+        await client.query(
+          'UPDATE boost_credits SET credits = credits - 1 WHERE user_id = $1',
+          [req.userId]
+        );
+      }
+      await client.query(
+        `INSERT INTO boosts (user_id, target_type, target_id, credits_spent, boosted_until)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [req.userId, target_type, target_id, isPro ? 0 : 1, boostedUntil]
       );
-    }
-    // Insert boost
-    await db.query(
-      `INSERT INTO boosts (user_id, target_type, target_id, credits_spent, boosted_until)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [req.userId, target_type, target_id, isPro ? 0 : 1, boostedUntil]
-    );
-    await db.query('COMMIT');
+    });
 
     res.json({ success: true, boosted_until: boostedUntil, pro_boost: isPro });
   } catch (err) {
-    await db.query('ROLLBACK').catch((rbErr) => console.error('ROLLBACK failed:', rbErr));
+    if (err.message === 'INSUFFICIENT_CREDITS') {
+      return res.status(402).json({ error: 'Nicht genug Boost-Credits. Kaufe Credits oder werde JAMIE Pro für kostenlose Boosts.' });
+    }
     console.error('applyBoost error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -279,11 +294,20 @@ export const capturePaypalOrder = async (req, res) => {
     const capture = await captureRes.json();
 
     if (capture.status === 'COMPLETED') {
-      const customId = capture.purchase_units?.[0]?.payments?.captures?.[0]?.custom_id || '';
-      const [userId, , creditsStr] = customId.split(':');
-      const credits = parseInt(creditsStr) || 0;
-
-      await creditUser(parseInt(userId), credits, 'paypal', order_id);
+      // Read user_id + credits from our own DB record — never trust user-controlled PayPal metadata
+      const txn = await db.query(
+        `SELECT user_id, credits FROM boost_transactions
+         WHERE payment_provider = 'paypal' AND payment_id = $1 AND status = 'pending'`,
+        [order_id]
+      );
+      if (txn.rows.length === 0) {
+        return res.status(404).json({ error: 'Transaktion nicht gefunden' });
+      }
+      if (txn.rows[0].user_id !== req.userId) {
+        return res.status(403).json({ error: 'Keine Berechtigung' });
+      }
+      const { user_id, credits } = txn.rows[0];
+      await creditUser(user_id, credits, 'paypal', order_id);
       res.json({ success: true, credits });
     } else {
       res.status(400).json({ error: 'Payment not completed', status: capture.status });
@@ -304,34 +328,33 @@ function paypalUrl(path) {
   return `${base}${path}`;
 }
 
+// Core wallet credit — must run on a dedicated transaction client
+async function _creditUserInTx(client, userId, credits, provider, paymentId) {
+  await client.query(
+    `INSERT INTO boost_credits (user_id, credits, total_earned)
+     VALUES ($1, $2, $2)
+     ON CONFLICT (user_id) DO UPDATE
+       SET credits = boost_credits.credits + $2,
+           total_earned = boost_credits.total_earned + $2`,
+    [userId, credits]
+  );
+  await client.query(
+    `UPDATE boost_transactions SET status = 'completed'
+     WHERE payment_provider = $1 AND payment_id = $2`,
+    [provider, paymentId]
+  );
+}
+
+// Public helper for callers that don't have an outer transaction
 async function creditUser(userId, credits, provider, paymentId) {
-  await db.query('BEGIN');
-  try {
-    await db.query(
-      `INSERT INTO boost_credits (user_id, credits, total_earned)
-       VALUES ($1, $2, $2)
-       ON CONFLICT (user_id) DO UPDATE
-         SET credits = boost_credits.credits + $2,
-             total_earned = boost_credits.total_earned + $2`,
-      [userId, credits]
-    );
-    await db.query(
-      `UPDATE boost_transactions SET status = 'completed'
-       WHERE payment_provider = $1 AND payment_id = $2`,
-      [provider, paymentId]
-    );
-    await db.query('COMMIT');
-  } catch (err) {
-    await db.query('ROLLBACK');
-    throw err;
-  }
+  return withTransaction((client) => _creditUserInTx(client, userId, credits, provider, paymentId));
 }
 
 async function generateUniqueCode(userId) {
   // Generate a short memorable code like JAMIE-X7K2
   let attempts = 0;
   while (attempts < 10) {
-    const code = 'JAMIE-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+    const code = 'JAMIE-' + crypto.randomBytes(4).toString('hex').toUpperCase();
     try {
       await db.query(
         'INSERT INTO referral_codes (user_id, code) VALUES ($1, $2)',
@@ -370,20 +393,32 @@ export const redeemReferral = async (req, res) => {
     );
     if (alreadyRes.rows.length) return res.status(400).json({ error: 'Bereits eingelöst' });
 
-    await db.query('BEGIN');
-    // Credit both users
-    await creditUser(req.userId, 1, 'referral', `ref_${ownerId}_to_${req.userId}`);
-    await creditUser(ownerId, 1, 'referral', `ref_${ownerId}_invited_${req.userId}`);
-    // Increment used_count
-    await db.query(
-      'UPDATE referral_codes SET used_count = used_count + 1 WHERE user_id = $1',
-      [ownerId]
-    );
-    await db.query('COMMIT');
+    await withTransaction(async (client) => {
+      // Insert pending transaction records first so the UNIQUE constraint on payment_id
+      // prevents double-crediting even under concurrent requests
+      await client.query(
+        `INSERT INTO boost_transactions (user_id, credits, amount_cents, payment_provider, payment_id, status)
+         VALUES ($1, 1, 0, 'referral', $2, 'pending')`,
+        [req.userId, `ref_${ownerId}_to_${req.userId}`]
+      );
+      await client.query(
+        `INSERT INTO boost_transactions (user_id, credits, amount_cents, payment_provider, payment_id, status)
+         VALUES ($1, 1, 0, 'referral', $2, 'pending')`,
+        [ownerId, `ref_${ownerId}_invited_${req.userId}`]
+      );
+      await _creditUserInTx(client, req.userId, 1, 'referral', `ref_${ownerId}_to_${req.userId}`);
+      await _creditUserInTx(client, ownerId, 1, 'referral', `ref_${ownerId}_invited_${req.userId}`);
+      await client.query(
+        'UPDATE referral_codes SET used_count = used_count + 1 WHERE user_id = $1',
+        [ownerId]
+      );
+    });
 
     res.json({ success: true, message: 'Code eingelöst! +1 Boost-Credit' });
   } catch (err) {
-    await db.query('ROLLBACK').catch((rbErr) => console.error('ROLLBACK failed:', rbErr));
+    if (err.code === '23505') { // unique_violation — already redeemed
+      return res.status(400).json({ error: 'Bereits eingelöst' });
+    }
     console.error('redeemReferral error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }

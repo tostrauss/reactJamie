@@ -1,12 +1,31 @@
 import jwt from 'jsonwebtoken';
 import db from './config/database.js';
+import { redisClient } from './config/redis.js';
 
-// Per-user DM rate limit: max 60 messages per minute
-const dmCounters = new Map(); // userId → { count, resetAt }
 const DM_LIMIT = 60;
 const DM_WINDOW_MS = 60_000;
 
-const isDmAllowed = (userId) => {
+// In-memory fallback (single-instance only) — used when Redis is absent
+const dmCounters = new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [userId, entry] of dmCounters) {
+    if (now > entry.resetAt) dmCounters.delete(userId);
+  }
+}, 5 * 60_000).unref();
+
+// Redis-backed when available (works across multiple instances), Map fallback otherwise
+const isDmAllowed = async (userId) => {
+  if (redisClient) {
+    try {
+      const key = `dm:rl:${userId}`;
+      const count = await redisClient.incr(key);
+      if (count === 1) await redisClient.pexpire(key, DM_WINDOW_MS);
+      return count <= DM_LIMIT;
+    } catch {
+      // Redis error — degrade gracefully to in-memory
+    }
+  }
   const now = Date.now();
   const entry = dmCounters.get(userId);
   if (!entry || now > entry.resetAt) {
@@ -109,12 +128,12 @@ const socketHandler = (io) => {
       socket.leave(roomName);
     });
 
-    socket.on('send_dm', (data) => {
+    socket.on('send_dm', async (data) => {
       // Always use authenticated userId as senderId — never trust client-provided value
       const senderId = socket.userId;
       const { receiverId, message } = data;
 
-      if (!isDmAllowed(senderId)) {
+      if (!await isDmAllowed(senderId)) {
         socket.emit('dm_rate_limited', { error: 'Zu viele Nachrichten. Bitte kurz warten.' });
         return;
       }

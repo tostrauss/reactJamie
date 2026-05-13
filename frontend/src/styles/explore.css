@@ -8,6 +8,7 @@
   height: 100vh;
   background: var(--bg-primary);
   display: flex;
+  position: relative;
   flex-direction: column;
   overflow: hidden;
 }
@@ -1022,4 +1023,77 @@
   color: rgba(255,255,255,0.45);
   font-size: 13px;
   margin: 0;
+}
+
+/* ── Pro full-page overlay ── */
+.explore-pro-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  background: rgba(15, 15, 35, 0.96);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+}
+
+.explore-pro-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+  max-width: 320px;
+}
+
+.explore-pro-icon {
+  font-size: 64px;
+  line-height: 1;
+}
+
+.explore-pro-title {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--accent-coral);
+  margin: 0;
+  font-family: 'Archivo', sans-serif;
+}
+
+.explore-pro-text {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.65);
+  margin: 0;
+  line-height: 1.6;
+}
+
+.explore-pro-btn {
+  width: 100%;
+  height: 52px;
+  background: var(--accent-coral);
+  color: white;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  box-shadow: 0 6px 24px rgba(253, 118, 102, 0.5);
+  transition: opacity 0.15s, transform 0.15s;
+}
+.explore-pro-btn:active { transform: scale(0.97); opacity: 0.9; }
+
+.explore-pro-skip {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 4px 8px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }

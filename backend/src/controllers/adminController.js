@@ -112,7 +112,7 @@ export const getScreenTime = async (req, res) => {
       FROM analytics_events
       WHERE event_type = 'screen_view'
         AND screen_name IS NOT NULL
-        AND created_at >= NOW() - ($1 || ' days')::INTERVAL
+        AND created_at >= NOW() - make_interval(days => $1::int)
       GROUP BY screen_name
       ORDER BY views DESC
     `, [days]);

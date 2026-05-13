@@ -1,10 +1,44 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { deals } from '../utils/api';
+import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
 
-const MapContainer   = lazy(() => import('react-leaflet').then(m => ({ default: m.MapContainer })));
-const TileLayer      = lazy(() => import('react-leaflet').then(m => ({ default: m.TileLayer })));
-const Marker         = lazy(() => import('react-leaflet').then(m => ({ default: m.Marker })));
+const LIBRARIES = [];
+const DEAL_MAP_STYLES = [
+  { elementType: 'geometry',           stylers: [{ color: '#1a1a2e' }] },
+  { elementType: 'labels.icon',        stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill',   stylers: [{ color: '#7b7b9a' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1a2e' }] },
+  { featureType: 'road',         elementType: 'geometry.fill', stylers: [{ color: '#2d2d4e' }] },
+  { featureType: 'road.highway', elementType: 'geometry',      stylers: [{ color: '#3d3d6b' }] },
+  { featureType: 'water',        elementType: 'geometry',      stylers: [{ color: '#0d1b2a' }] },
+  { featureType: 'poi.park',     elementType: 'geometry',      stylers: [{ color: '#162030' }] },
+];
+
+function DealMiniMap({ lat, lng }) {
+  const { isLoaded } = useLoadScript({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '',
+    libraries: LIBRARIES,
+  });
+  if (!isLoaded) return <div style={{ height: 200, background: '#1e2235', borderRadius: 20 }} />;
+  const pos = { lat, lng };
+  return (
+    <GoogleMap
+      mapContainerStyle={{ width: '100%', height: 200 }}
+      center={pos}
+      zoom={15}
+      options={{
+        styles: DEAL_MAP_STYLES,
+        disableDefaultUI: true,
+        gestureHandling: 'none',
+        zoomControl: false,
+        clickableIcons: false,
+      }}
+    >
+      <Marker position={pos} />
+    </GoogleMap>
+  );
+}
 
 export const DealDetail = () => {
   const { id } = useParams();
@@ -18,7 +52,7 @@ export const DealDetail = () => {
       .then(res => setDeal(res.data))
       .catch(() => navigate(-1))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, navigate]);
 
   if (loading) {
     return (
@@ -175,23 +209,8 @@ export const DealDetail = () => {
 
       {/* ── Map ──────────────────────────────────────────────────── */}
       {hasMap && (
-        <div style={{ margin: '16px 16px 0', borderRadius: 20, overflow: 'hidden', height: 200 }}>
-          <Suspense fallback={<div style={{ height: 200, background: '#1e2235', borderRadius: 20 }} />}>
-            <MapContainer
-              center={[deal.lat, deal.lng]}
-              zoom={15}
-              style={{ height: '100%', width: '100%' }}
-              zoomControl={false}
-              scrollWheelZoom={false}
-              dragging={false}
-            >
-              <TileLayer
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                attribution=""
-              />
-              <Marker position={[deal.lat, deal.lng]} />
-            </MapContainer>
-          </Suspense>
+        <div style={{ margin: '16px 16px 0', borderRadius: 20, overflow: 'hidden' }}>
+          <DealMiniMap lat={deal.lat} lng={deal.lng} />
         </div>
       )}
     </div>

@@ -13,8 +13,8 @@ export const sendFriendRequest = async (req, res) => {
 
     // Check if friendship already exists (in either direction)
     const existing = await db.query(
-      `SELECT * FROM friendships 
-       WHERE (requester_id = $1 AND addressee_id = $2) 
+      `SELECT id, status, requester_id FROM friendships
+       WHERE (requester_id = $1 AND addressee_id = $2)
           OR (requester_id = $2 AND addressee_id = $1)`,
       [req.userId, userId]
     );
@@ -31,21 +31,20 @@ export const sendFriendRequest = async (req, res) => {
            WHERE id = $3`,
           [req.userId, userId, f.id]
         );
-        notifyFriendRequest(req.userId, userId);
+        notifyFriendRequest(req.userId, userId).catch(() => {});
         return res.json({ message: 'Friend request sent', status: 'pending' });
       }
     }
 
     // Create new friend request — expires after 30 days
-    const result = await db.query(
+    await db.query(
       `INSERT INTO friendships (requester_id, addressee_id, status, expires_at)
-       VALUES ($1, $2, 'pending', NOW() + INTERVAL '30 days')
-       RETURNING *`,
+       VALUES ($1, $2, 'pending', NOW() + INTERVAL '30 days')`,
       [req.userId, userId]
     );
 
-    notifyFriendRequest(req.userId, userId);
-    res.status(201).json({ message: 'Friend request sent', friendship: result.rows[0] });
+    notifyFriendRequest(req.userId, userId).catch(() => {});
+    res.status(201).json({ message: 'Friend request sent' });
   } catch (error) {
     console.error('Error sending friend request:', error);
     res.status(500).json({ error: 'Interner Serverfehler' });
@@ -66,7 +65,7 @@ export const respondFriendRequest = async (req, res) => {
 
     // Get request (must be addressed to current user)
     const request = await db.query(
-      `SELECT * FROM friendships WHERE id = $1 AND addressee_id = $2 AND status = 'pending'`,
+      `SELECT id, requester_id FROM friendships WHERE id = $1 AND addressee_id = $2 AND status = 'pending'`,
       [requestId, req.userId]
     );
 
@@ -82,7 +81,7 @@ export const respondFriendRequest = async (req, res) => {
     );
 
     if (action === 'accept') {
-      notifyFriendAccepted(req.userId, request.rows[0].requester_id);
+      notifyFriendAccepted(req.userId, request.rows[0].requester_id).catch(() => {});
     }
 
     res.json({ message: `Friend request ${newStatus}`, status: newStatus });
@@ -103,7 +102,7 @@ export const getPendingRequests = async (req, res) => {
        FROM friendships f
        JOIN users u ON f.requester_id = u.id
        WHERE f.addressee_id = $1 AND f.status = 'pending'
-       ORDER BY f.created_at DESC`,
+       ORDER BY f.created_at DESC LIMIT 100`,
       [req.userId]
     );
     res.json(result.rows);
@@ -123,7 +122,7 @@ export const getSentRequests = async (req, res) => {
        FROM friendships f
        JOIN users u ON f.addressee_id = u.id
        WHERE f.requester_id = $1 AND f.status = 'pending'
-       ORDER BY f.created_at DESC`,
+       ORDER BY f.created_at DESC LIMIT 100`,
       [req.userId]
     );
     res.json(result.rows);
@@ -198,8 +197,8 @@ export const checkFriendship = async (req, res) => {
     const { userId } = req.params;
 
     const result = await db.query(
-      `SELECT * FROM friendships 
-       WHERE (requester_id = $1 AND addressee_id = $2) 
+      `SELECT id, status, requester_id FROM friendships
+       WHERE (requester_id = $1 AND addressee_id = $2)
           OR (requester_id = $2 AND addressee_id = $1)`,
       [req.userId, userId]
     );

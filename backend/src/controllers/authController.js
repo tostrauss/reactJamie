@@ -14,6 +14,15 @@ const parseUserJSONFields = (user) => {
   return user;
 };
 
+const SENSITIVE_FIELDS = [
+  'password', 'spotify_access_token', 'spotify_refresh_token',
+  'login_attempts', 'locked_until', 'google_id',
+];
+const sanitizeUserForClient = (user) => {
+  for (const f of SENSITIVE_FIELDS) delete user[f];
+  return user;
+};
+
 // ==========================================
 // REGISTER
 // ==========================================
@@ -62,7 +71,7 @@ export const register = async (req, res) => {
     }
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     // Insert new user with RETURNING
     const insertResult = await db.query(
@@ -77,36 +86,55 @@ export const register = async (req, res) => {
       'INSERT INTO boost_credits (user_id) VALUES ($1) ON CONFLICT DO NOTHING',
       [newUserId]
     );
-    const refCode = 'JAMIE-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+    const refCode = 'JAMIE-' + crypto.randomBytes(4).toString('hex').toUpperCase();
     await db.query(
       'INSERT INTO referral_codes (user_id, code) VALUES ($1, $2) ON CONFLICT DO NOTHING',
       [newUserId, refCode]
     );
 
-    // Redeem referral code if provided
+    // Redeem referral code if provided — record in boost_transactions so the standalone
+    // redeemReferral endpoint can't be used again for the same pair
     const { referral_code } = req.body;
     if (referral_code) {
-      const codeOwner = await db.query(
-        'SELECT user_id FROM referral_codes WHERE UPPER(code) = UPPER($1)',
-        [referral_code]
-      );
-      if (codeOwner.rows.length && codeOwner.rows[0].user_id !== newUserId) {
-        const ownerId = codeOwner.rows[0].user_id;
-        // Credit new user
-        await db.query(
-          `INSERT INTO boost_credits (user_id, credits, total_earned) VALUES ($1, 1, 1)
-           ON CONFLICT (user_id) DO UPDATE SET credits = boost_credits.credits + 1, total_earned = boost_credits.total_earned + 1`,
-          [newUserId]
+      try {
+        const codeOwner = await db.query(
+          'SELECT user_id FROM referral_codes WHERE UPPER(code) = UPPER($1)',
+          [referral_code]
         );
-        // Credit code owner
-        await db.query(
-          `UPDATE boost_credits SET credits = credits + 1, total_earned = total_earned + 1 WHERE user_id = $1`,
-          [ownerId]
-        );
-        await db.query(
-          'UPDATE referral_codes SET used_count = used_count + 1 WHERE user_id = $1',
-          [ownerId]
-        );
+        if (codeOwner.rows.length && codeOwner.rows[0].user_id !== newUserId) {
+          const ownerId = codeOwner.rows[0].user_id;
+          const refPaymentId = `ref_${ownerId}_to_${newUserId}`;
+          // Insert transaction records first — UNIQUE constraint prevents double-dipping
+          await db.query(
+            `INSERT INTO boost_transactions (user_id, credits, amount_cents, payment_provider, payment_id, status)
+             VALUES ($1, 1, 0, 'referral', $2, 'completed') ON CONFLICT DO NOTHING`,
+            [newUserId, refPaymentId]
+          );
+          const inserted = await db.query(
+            `INSERT INTO boost_transactions (user_id, credits, amount_cents, payment_provider, payment_id, status)
+             VALUES ($1, 1, 0, 'referral', $2, 'completed') ON CONFLICT DO NOTHING RETURNING id`,
+            [ownerId, `ref_${ownerId}_invited_${newUserId}`]
+          );
+          if (inserted.rowCount > 0) {
+            // Only credit if not already credited (idempotency)
+            await db.query(
+              `INSERT INTO boost_credits (user_id, credits, total_earned) VALUES ($1, 1, 1)
+               ON CONFLICT (user_id) DO UPDATE SET credits = boost_credits.credits + 1, total_earned = boost_credits.total_earned + 1`,
+              [newUserId]
+            );
+            await db.query(
+              `UPDATE boost_credits SET credits = credits + 1, total_earned = total_earned + 1 WHERE user_id = $1`,
+              [ownerId]
+            );
+            await db.query(
+              'UPDATE referral_codes SET used_count = used_count + 1 WHERE user_id = $1',
+              [ownerId]
+            );
+          }
+        }
+      } catch (refErr) {
+        // Referral errors must not block registration
+        console.error('[referral]', refErr.message);
       }
     }
 
@@ -119,7 +147,7 @@ export const register = async (req, res) => {
 
     // Generate token & clean response
     const token = generateToken(user.id);
-    delete user.password;
+    sanitizeUserForClient(user);
 
     parseUserJSONFields(user);
     setAuthCookie(res, token);
@@ -179,8 +207,8 @@ export const login = async (req, res) => {
 
     const token = generateToken(user.id);
 
+    sanitizeUserForClient(user);
     parseUserJSONFields(user);
-    delete user.password;
 
     setAuthCookie(res, token);
     res.json({ user, token });
@@ -204,8 +232,7 @@ export const getProfile = async (req, res) => {
     }
 
     const user = result.rows[0];
-    delete user.password;
-
+    sanitizeUserForClient(user);
     parseUserJSONFields(user);
     res.json(user);
   } catch (error) {
@@ -260,8 +287,7 @@ export const updateProfile = async (req, res) => {
       [req.userId]
     );
     const user = result.rows[0];
-    delete user.password;
-
+    sanitizeUserForClient(user);
     parseUserJSONFields(user);
     res.json(user);
   } catch (error) {
@@ -302,8 +328,7 @@ export const completeOnboarding = async (req, res) => {
       [req.userId]
     );
     const user = result.rows[0];
-    delete user.password;
-
+    sanitizeUserForClient(user);
     parseUserJSONFields(user);
     res.json(user);
   } catch (error) {
@@ -337,7 +362,7 @@ export const changePassword = async (req, res) => {
       return res.status(401).json({ error: 'Aktuelles Passwort ist falsch' });
     }
 
-    const hashed = await bcrypt.hash(newPassword, 10);
+    const hashed = await bcrypt.hash(newPassword, 12);
     await db.query('UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [hashed, req.userId]);
 
     res.json({ message: 'Password changed successfully' });
@@ -402,14 +427,18 @@ export const exportData = async (req, res) => {
         [req.userId]
       ),
       db.query(
-        `SELECT content, created_at FROM messages WHERE sender_id = $1 ORDER BY created_at DESC LIMIT 500`,
+        `SELECT content, created_at FROM messages WHERE user_id = $1 ORDER BY created_at DESC LIMIT 500`,
         [req.userId]
       ),
       db.query(
         `SELECT u.name, u.email, f.status, f.created_at
          FROM friendships f
-         JOIN users u ON u.id = CASE WHEN f.user_id = $1 THEN f.friend_id ELSE f.user_id END
-         WHERE f.user_id = $1 OR f.friend_id = $1`,
+         JOIN users u ON u.id = CASE
+           WHEN f.requester_id = $1 THEN f.addressee_id
+           ELSE f.requester_id
+         END
+         WHERE (f.requester_id = $1 OR f.addressee_id = $1)
+           AND f.status = 'accepted'`,
         [req.userId]
       ),
     ]);
@@ -471,8 +500,8 @@ export const forgotPassword = async (req, res) => {
     // Delete any existing tokens for this user
     await db.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user.id]);
 
-    // Generate secure token
-    const token = crypto.randomBytes(32).toString('hex');
+    // Prefix ensures password-reset tokens cannot be used as email-verification tokens
+    const token = 'pr_' + crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     await db.query(
@@ -521,9 +550,9 @@ export const resetPassword = async (req, res) => {
       return res.status(400).json({ error: 'Mindestens 1 Sonderzeichen erforderlich' });
     }
 
-    // Find valid token
+    // Only accept password-reset tokens (pr_ prefix) — not email-verification tokens
     const result = await db.query(
-      'SELECT * FROM password_reset_tokens WHERE token = $1 AND used = FALSE AND expires_at > NOW()',
+      "SELECT * FROM password_reset_tokens WHERE token = $1 AND token LIKE 'pr_%' AND used = FALSE AND expires_at > NOW()",
       [token]
     );
 
@@ -534,7 +563,7 @@ export const resetPassword = async (req, res) => {
     const resetToken = result.rows[0];
 
     // Hash new password and update
-    const hashed = await bcrypt.hash(newPassword, 10);
+    const hashed = await bcrypt.hash(newPassword, 12);
     await db.query('UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [hashed, resetToken.user_id]);
 
     // Mark token as used
@@ -565,7 +594,8 @@ export const sendVerification = async (req, res) => {
     // Delete old tokens, create new one
     await db.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user.id]);
 
-    const token = crypto.randomBytes(32).toString('hex');
+    // Prefix ensures email-verification tokens cannot be used as password-reset tokens
+    const token = 'ev_' + crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     await db.query(
@@ -604,8 +634,8 @@ export const sendEmailCode = async (req, res) => {
     // Delete any old codes for this email
     await db.query('DELETE FROM email_verification_codes WHERE email = $1', [email]);
 
-    // Generate 6-digit code
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    // crypto.randomInt is a CSPRNG — Math.random() is not safe for security codes
+    const code = String(crypto.randomInt(100000, 1000000));
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     await db.query(
@@ -670,8 +700,9 @@ export const verifyEmail = async (req, res) => {
       return res.status(400).json({ error: 'Token erforderlich' });
     }
 
+    // Only accept email-verification tokens (ev_ prefix) — not password-reset tokens
     const result = await db.query(
-      'SELECT * FROM password_reset_tokens WHERE token = $1 AND used = FALSE AND expires_at > NOW()',
+      "SELECT * FROM password_reset_tokens WHERE token = $1 AND token LIKE 'ev_%' AND used = FALSE AND expires_at > NOW()",
       [token]
     );
 
@@ -764,7 +795,7 @@ export const googleLogin = async (req, res) => {
         'INSERT INTO boost_credits (user_id) VALUES ($1) ON CONFLICT DO NOTHING',
         [userId]
       );
-      const refCode = 'JAMIE-' + crypto.randomBytes(3).toString('hex').toUpperCase();
+      const refCode = 'JAMIE-' + crypto.randomBytes(4).toString('hex').toUpperCase();
       await db.query(
         'INSERT INTO referral_codes (user_id, code) VALUES ($1, $2) ON CONFLICT DO NOTHING',
         [userId, refCode]
@@ -773,7 +804,7 @@ export const googleLogin = async (req, res) => {
 
     const fullUser = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
     const user = fullUser.rows[0];
-    delete user.password;
+    sanitizeUserForClient(user);
     parseUserJSONFields(user);
 
     const token = generateToken(user.id);

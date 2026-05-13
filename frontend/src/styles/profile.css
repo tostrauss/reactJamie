@@ -529,9 +529,11 @@
   content: '';
   position: absolute;
   bottom: -1px;
-  left: 0;
-  right: 0;
-  height: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
   background: var(--accent-coral);
 }
 
@@ -1345,6 +1347,23 @@
   color: var(--accent-coral);
 }
 
+/* Account löschen — kleiner Link */
+.settings-delete-link {
+  display: block;
+  width: 100%;
+  padding: 12px 0 32px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 13px;
+  text-align: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.settings-delete-link:active {
+  color: rgba(253, 118, 102, 0.6);
+}
+
 /* Danger Section */
 .danger-section .settings-section-title {
   color: var(--status-busy);
@@ -2129,6 +2148,102 @@
 
 .profile-friends-btn svg:first-child { color: var(--accent-coral); flex-shrink: 0; }
 .profile-friends-btn svg:last-child  { color: var(--text-muted); margin-left: auto; }
+
+/* ── Favoriten section ── */
+.profile-favs {
+  width: calc(100% - 40px);
+  margin: 0 20px 16px;
+  background: var(--bg-card);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 20px;
+  padding: 16px;
+}
+
+.profile-favs-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-white);
+  margin-bottom: 14px;
+}
+
+.profile-favs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.profile-fav-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform 0.15s;
+}
+
+.profile-fav-card:active { transform: scale(0.94); }
+
+.profile-fav-img-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.profile-fav-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.profile-fav-placeholder {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-input);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent-coral);
+}
+
+.profile-fav-type-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  background: rgba(253,118,102,0.85);
+  color: white;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.profile-fav-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  text-align: center;
+  width: 100%;
+}
 
 /* ── Photo grid (ProfileEdit) ── */
 .pe-photo-grid {

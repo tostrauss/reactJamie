@@ -2,6 +2,21 @@ import db from '../config/database.js';
 
 const TRUST_THRESHOLD = 3;
 
+async function withTransaction(fn) {
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 // ==========================================
 // GET PENDING REVIEWS
 // Returns groups that ended 6h+ ago where user was a member
@@ -75,39 +90,37 @@ export const submitReview = async (req, res) => {
     }
 
 
-    await db.query('BEGIN');
-
-    // Sentinel row — marks the event as "seen" so it never reappears, even on skip
-    await db.query(
-      `INSERT INTO event_reviews (group_id, reviewer_id, reviewed_user_id, was_present)
-       VALUES ($1, $2, $2, FALSE) ON CONFLICT DO NOTHING`,
-      [group_id, req.userId]
-    );
-
-    for (const { user_id, was_present } of attendances) {
-      if (user_id === req.userId) continue; // can't review yourself
-      await db.query(
+    await withTransaction(async (client) => {
+      // Sentinel row — marks the event as "seen" so it never reappears, even on skip
+      await client.query(
         `INSERT INTO event_reviews (group_id, reviewer_id, reviewed_user_id, was_present)
-         VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
-        [group_id, req.userId, user_id, was_present]
+         VALUES ($1, $2, $2, FALSE) ON CONFLICT DO NOTHING`,
+        [group_id, req.userId]
       );
 
-      // Recompute trusted_count and badge for every reviewed user (present or absent)
-      const countRes = await db.query(
-        'SELECT COUNT(DISTINCT reviewer_id) AS c FROM event_reviews WHERE reviewed_user_id = $1 AND was_present = TRUE',
-        [user_id]
-      );
-      const count = parseInt(countRes.rows[0].c);
-      await db.query(
-        'UPDATE users SET trusted_count = $1, is_trusted_user = ($1 >= $2) WHERE id = $3',
-        [count, TRUST_THRESHOLD, user_id]
-      );
-    }
+      for (const { user_id, was_present } of attendances) {
+        if (user_id === req.userId) continue; // can't review yourself
+        await client.query(
+          `INSERT INTO event_reviews (group_id, reviewer_id, reviewed_user_id, was_present)
+           VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
+          [group_id, req.userId, user_id, was_present]
+        );
 
-    await db.query('COMMIT');
+        // Recompute trusted_count and badge for every reviewed user (present or absent)
+        const countRes = await client.query(
+          'SELECT COUNT(DISTINCT reviewer_id) AS c FROM event_reviews WHERE reviewed_user_id = $1 AND was_present = TRUE',
+          [user_id]
+        );
+        const count = parseInt(countRes.rows[0].c);
+        await client.query(
+          'UPDATE users SET trusted_count = $1, is_trusted_user = ($1 >= $2) WHERE id = $3',
+          [count, TRUST_THRESHOLD, user_id]
+        );
+      }
+    });
+
     res.json({ success: true });
   } catch (err) {
-    await db.query('ROLLBACK').catch((rbErr) => console.error('ROLLBACK failed:', rbErr));
     console.error('submitReview error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }

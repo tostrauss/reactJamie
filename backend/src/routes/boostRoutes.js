@@ -16,7 +16,7 @@ const router = express.Router();
 // Wallet & packages
 router.get('/credits', authenticate, getCredits);
 router.get('/packages', getPackages);
-router.get('/paypal-client-id', (_req, res) => res.json({ client_id: process.env.PAYPAL_CLIENT_ID || null }));
+router.get('/paypal-client-id', authenticate, (_req, res) => res.json({ client_id: process.env.PAYPAL_CLIENT_ID || null }));
 
 // Apply boost (spend a credit)
 router.post('/apply', authenticate, applyBoost);

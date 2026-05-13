@@ -59,8 +59,8 @@ export const ChatPage = () => {
     try {
       const response = await groups.getById(groupId);
       setGroup(response.data);
-      // Check club permissions
-      if (response.data.type === 'club' && response.data.owner_id !== user?.id) {
+      // Check club chat permissions — only restrict if owner has enabled owner-only mode
+      if (response.data.type === 'club' && response.data.chat_only_owner && response.data.owner_id !== user?.id) {
         setCanSendMessages(false);
         setPermissionMessage('Nur der Club-Gründer kann Nachrichten senden');
       }

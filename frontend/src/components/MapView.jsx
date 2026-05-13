@@ -1,86 +1,101 @@
-import { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
-import MarkerClusterGroup from 'react-leaflet-cluster';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  GoogleMap,
+  Marker,
+  InfoWindow,
+  useLoadScript,
+} from '@react-google-maps/api';
 import { useNavigate } from 'react-router-dom';
 import { map as mapApi } from '../utils/api';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
 
-// Build a flat lookup: sub-category name → emoji
+// Must be a stable reference — recreating it triggers a full Maps reload
+const LIBRARIES = [];
+
+const WIEN = { lat: 48.2082, lng: 16.3738 };
+
+const DARK_MAP_STYLES = [
+  { elementType: 'geometry',            stylers: [{ color: '#1a1a2e' }] },
+  { elementType: 'labels.icon',         stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill',    stylers: [{ color: '#7b7b9a' }] },
+  { elementType: 'labels.text.stroke',  stylers: [{ color: '#1a1a2e' }] },
+  { featureType: 'administrative',          elementType: 'geometry',           stylers: [{ color: '#2d2d4e' }] },
+  { featureType: 'administrative.country',  elementType: 'labels.text.fill',  stylers: [{ color: '#9e9ec4' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill',  stylers: [{ color: '#c0c0e0' }] },
+  { featureType: 'poi',        elementType: 'labels.text.fill', stylers: [{ color: '#8b8bb0' }] },
+  { featureType: 'poi.park',   elementType: 'geometry',         stylers: [{ color: '#162030' }] },
+  { featureType: 'poi.park',   elementType: 'labels.text.fill', stylers: [{ color: '#3C7680' }] },
+  { featureType: 'road',          elementType: 'geometry.fill',    stylers: [{ color: '#2d2d4e' }] },
+  { featureType: 'road',          elementType: 'labels.text.fill', stylers: [{ color: '#6b6b8c' }] },
+  { featureType: 'road.arterial', elementType: 'geometry',         stylers: [{ color: '#32325a' }] },
+  { featureType: 'road.highway',  elementType: 'geometry',         stylers: [{ color: '#3d3d6b' }] },
+  { featureType: 'road.highway',  elementType: 'labels.text.fill', stylers: [{ color: '#8080a8' }] },
+  { featureType: 'road.local',    elementType: 'labels.text.fill', stylers: [{ color: '#5a5a7a' }] },
+  { featureType: 'transit.line',    elementType: 'geometry', stylers: [{ color: '#2d2d4e' }] },
+  { featureType: 'transit.station', elementType: 'geometry', stylers: [{ color: '#2d2d4e' }] },
+  { featureType: 'water', elementType: 'geometry',         stylers: [{ color: '#0d1b2a' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#364d6b' }] },
+];
+
+const MAP_OPTIONS = {
+  styles: DARK_MAP_STYLES,
+  disableDefaultUI: true,
+  gestureHandling: 'greedy',
+  clickableIcons: false,
+};
+
+// Build emoji lookup
 const CATEGORY_EMOJI = {};
 for (const cat of CATEGORY_HIERARCHY) {
+  CATEGORY_EMOJI[cat.id] = cat.icon;
+  CATEGORY_EMOJI[cat.label.toLowerCase()] = cat.icon;
   for (const sub of cat.subs) {
     CATEGORY_EMOJI[sub.name.toLowerCase()] = sub.icon;
   }
-  CATEGORY_EMOJI[cat.label.toLowerCase()] = cat.icon;
-  CATEGORY_EMOJI[cat.id] = cat.icon;
 }
-
-function getEmojiForCategory(category) {
+function getEmoji(category) {
   if (!category) return '✨';
   return CATEGORY_EMOJI[category.toLowerCase()] ?? '✨';
 }
 
-function makeEmojiIcon(emoji) {
-  return new L.DivIcon({
-    html: `<div style="
-      width:44px;height:44px;border-radius:50%;
-      background:#291C4B;
-      display:flex;align-items:center;justify-content:center;
-      font-size:20px;line-height:1;
-      font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;
-      box-shadow:0 2px 12px rgba(0,0,0,0.45);
-      border:2px solid #392B58;
-    ">${emoji ?? '✨'}</div>`,
-    iconSize: [44, 44],
-    iconAnchor: [22, 22],
-    popupAnchor: [0, -26],
-    className: '',
-  });
-}
-
-function LocateControl() {
-  const map = useMap();
-  useEffect(() => {
-    map.locate({ setView: true, maxZoom: 13 });
-  }, [map]);
-  return null;
-}
-
-// After pins load, zoom to fit all of them (max zoom 13 so we don't over-zoom 2 nearby pins).
-// If only 1 pin, just fly to it. If no pins, keep the Austria default.
-function FitBoundsControl({ pins }) {
-  const map = useMap();
-  useEffect(() => {
-    if (pins.length === 0) return;
-    if (pins.length === 1) {
-      map.flyTo([pins[0].lat, pins[0].lng], 13, { animate: true, duration: 1 });
-      return;
-    }
-    const bounds = L.latLngBounds(pins.map(p => [p.lat, p.lng]));
-    map.flyToBounds(bounds.pad(0.35), { maxZoom: 13, animate: true, duration: 1 });
-  }, [pins, map]);
-  return null;
+// Custom SVG marker — called only after Maps is loaded (window.google exists)
+function makeMarkerIcon(emoji, active = false) {
+  const bg     = active ? '#FD7666' : '#291C4B';
+  const stroke = active ? '#ff9f95' : '#392B58';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="56" viewBox="0 0 48 56">
+    <circle cx="24" cy="22" r="20" fill="${bg}" stroke="${stroke}" stroke-width="2.5"/>
+    <text x="24" y="30" text-anchor="middle" font-size="20"
+      font-family="Apple Color Emoji,Segoe UI Emoji,Noto Color Emoji,sans-serif">${emoji}</text>
+    <polygon points="16,40 32,40 24,54" fill="${bg}"/>
+  </svg>`;
+  return {
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+    scaledSize: new window.google.maps.Size(48, 56),
+    anchor:     new window.google.maps.Point(24, 56),
+  };
 }
 
 const SESSION_KEY = 'jamie_map_category';
 
 export default function MapView({ typeFilter }) {
   const navigate = useNavigate();
-  const [pins, setPins] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [locating, setLocating] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState(
-    () => sessionStorage.getItem(SESSION_KEY) || null
-  );
+  const mapRef = useRef(null);
 
-  const updateCategory = (cat) => {
-    setSelectedCategory(cat);
-    if (cat) sessionStorage.setItem(SESSION_KEY, cat);
-    else sessionStorage.removeItem(SESSION_KEY);
-  };
+  const [pins,             setPins]            = useState([]);
+  const [loading,          setLoading]         = useState(true);
+  const [selectedPin,      setSelectedPin]     = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(() => {
+    try { return sessionStorage.getItem(SESSION_KEY) || null; } catch { return null; }
+  });
 
+  const { isLoaded, loadError } = useLoadScript({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '',
+    libraries: LIBRARIES,
+    language: 'de',
+    region: 'AT',
+  });
+
+  // ── Fetch pins ────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -95,7 +110,7 @@ export default function MapView({ typeFilter }) {
         const res = await mapApi.getPins(params);
         if (!cancelled) setPins(res.data || []);
       } catch {
-        // silently fail — map shows empty
+        // silently fail — map still shows
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -104,10 +119,56 @@ export default function MapView({ typeFilter }) {
     return () => { cancelled = true; };
   }, [typeFilter, selectedCategory]);
 
-  const center = [48.2082, 16.3738]; // Wien
+  // ── Fit bounds when pins change ───────────────────────────────
+  useEffect(() => {
+    if (!mapRef.current || !window.google || pins.length === 0) return;
+    if (pins.length === 1) {
+      mapRef.current.panTo({ lat: pins[0].lat, lng: pins[0].lng });
+      mapRef.current.setZoom(13);
+      return;
+    }
+    const bounds = new window.google.maps.LatLngBounds();
+    pins.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
+    mapRef.current.fitBounds(bounds, 60);
+  }, [pins]);
+
+  const onMapLoad = useCallback((map) => { mapRef.current = map; }, []);
+
+  const updateCategory = (cat) => {
+    setSelectedCategory(cat);
+    setSelectedPin(null);
+    try {
+      if (cat) sessionStorage.setItem(SESSION_KEY, cat);
+      else sessionStorage.removeItem(SESSION_KEY);
+    } catch { /* private browsing */ }
+  };
+
+  const handleLocate = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        if (!mapRef.current) return;
+        mapRef.current.panTo({ lat: coords.latitude, lng: coords.longitude });
+        mapRef.current.setZoom(14);
+      },
+      () => {}
+    );
+  };
+
+  if (loadError) {
+    return (
+      <div className="map-container">
+        <div className="map-load-error">
+          <span>🗺️</span>
+          <p>Karte konnte nicht geladen werden.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="map-container">
+
       {/* Category filter strip */}
       <div className="map-category-strip">
         <button
@@ -127,94 +188,81 @@ export default function MapView({ typeFilter }) {
         ))}
       </div>
 
-      {loading && (
+      {(!isLoaded || loading) && (
         <div className="map-loading">
           <div className="home-spinner" />
         </div>
       )}
 
-      <MapContainer
-        center={center}
-        zoom={10}
-        className="map-leaflet"
-        zoomControl={false}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        {locating && <LocateControl />}
-        <FitBoundsControl pins={pins} />
-
-        <MarkerClusterGroup
-          chunkedLoading
-          iconCreateFunction={(cluster) => new L.DivIcon({
-            html: `<div style="
-              width:44px;height:44px;border-radius:50%;
-              background:#FD7666;
-              display:flex;align-items:center;justify-content:center;
-              font-size:15px;font-weight:800;color:#fff;
-              box-shadow:0 2px 12px rgba(253,118,102,0.55);
-              border:2px solid rgba(255,255,255,0.25);
-            ">${cluster.getChildCount()}</div>`,
-            iconSize: [44, 44],
-            iconAnchor: [22, 22],
-            className: '',
-          })}
+      {isLoaded && (
+        <GoogleMap
+          mapContainerClassName="map-leaflet"
+          center={WIEN}
+          zoom={10}
+          options={MAP_OPTIONS}
+          onLoad={onMapLoad}
+          onClick={() => setSelectedPin(null)}
         >
           {pins.map(pin => (
             <Marker
               key={pin.id}
-              position={[pin.lat, pin.lng]}
-              icon={makeEmojiIcon(getEmojiForCategory(pin.category))}
+              position={{ lat: pin.lat, lng: pin.lng }}
+              icon={makeMarkerIcon(getEmoji(pin.category), selectedPin?.id === pin.id)}
+              onClick={() => setSelectedPin(pin)}
+              zIndex={selectedPin?.id === pin.id ? 10 : 1}
+            />
+          ))}
+
+          {selectedPin && (
+            <InfoWindow
+              position={{ lat: selectedPin.lat, lng: selectedPin.lng }}
+              onCloseClick={() => setSelectedPin(null)}
+              options={{
+                disableAutoPan: false,
+                pixelOffset: new window.google.maps.Size(0, -58),
+                maxWidth: 240,
+              }}
             >
-              <Popup className="map-popup-wrapper">
-                <div className="map-popup" onClick={() => navigate(`/group/${pin.id}`)}>
-                  {pin.image_url && (
-                    <img src={pin.image_url} alt={pin.name} className="map-popup-img" />
-                  )}
-                  <div className="map-popup-body">
-                    <div className="map-popup-badges">
-                      <span className={`map-popup-type ${pin.type}`}>
-                        {pin.type === 'club' ? 'Club' : 'Gruppe'}
-                      </span>
-                      {pin.category && (
-                        <span className="map-popup-cat">{pin.category}</span>
-                      )}
-                    </div>
-                    <div className="map-popup-name">{pin.name}</div>
-                    {pin.location && (
-                      <div className="map-popup-loc">{pin.location}</div>
+              <div className="map-popup" onClick={() => navigate(`/group/${selectedPin.id}`)}>
+                {selectedPin.image_url && (
+                  <img src={selectedPin.image_url} alt={selectedPin.name} className="map-popup-img" />
+                )}
+                <div className="map-popup-body">
+                  <div className="map-popup-badges">
+                    <span className={`map-popup-type ${selectedPin.type}`}>
+                      {selectedPin.type === 'club' ? 'Club' : 'Gruppe'}
+                    </span>
+                    {selectedPin.category && (
+                      <span className="map-popup-cat">{selectedPin.category}</span>
                     )}
-                    <div className="map-popup-meta">
-                      {pin.members_count ?? 0} / {pin.max_members || '∞'} Mitglieder
-                    </div>
+                  </div>
+                  <div className="map-popup-name">{selectedPin.name}</div>
+                  {selectedPin.location && (
+                    <div className="map-popup-loc">{selectedPin.location}</div>
+                  )}
+                  <div className="map-popup-meta">
+                    {selectedPin.members_count ?? 0} / {selectedPin.max_members || '∞'} Mitglieder
                   </div>
                 </div>
-              </Popup>
-            </Marker>
-          ))}
-        </MarkerClusterGroup>
-      </MapContainer>
+              </div>
+            </InfoWindow>
+          )}
+        </GoogleMap>
+      )}
 
-      <button
-        className={`map-locate-btn${selectedCategory ? ' has-filter' : ''}`}
-        onClick={() => setLocating(v => !v)}
-        title="Meinen Standort anzeigen"
-      >
-        {selectedCategory
-          ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-          : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
-              <circle cx="12" cy="12" r="8" strokeOpacity="0.3"/>
-            </svg>
-        }
+      {/* Locate me */}
+      <button className="map-locate-btn" onClick={handleLocate} title="Meinen Standort anzeigen">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="3" fill="currentColor"/>
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+          <circle cx="12" cy="12" r="8" strokeOpacity="0.35"/>
+        </svg>
       </button>
 
-      {!loading && pins.length === 0 && (
+      {/* Pioneer CTA */}
+      {isLoaded && !loading && pins.length === 0 && (
         <div className="map-pioneer-cta">
-          <div className="map-pioneer-icon"></div>
+          <div className="map-pioneer-icon">🏆</div>
           <h2 className="map-pioneer-title">Trau dich, sei der Erste!</h2>
           <p className="map-pioneer-text">
             In deiner Region gibt es noch keine Gruppen. Erstelle die erste

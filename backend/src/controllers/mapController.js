@@ -28,7 +28,10 @@ export const getMapPins = async (req, res) => {
       params.push(type);
     }
     if (categories) {
-      const list = categories.split(',').map(c => c.trim()).filter(Boolean);
+      if (typeof categories !== 'string' || categories.length > 500) {
+        return res.status(400).json({ error: 'categories parameter invalid' });
+      }
+      const list = categories.split(',').map(c => c.trim()).filter(Boolean).slice(0, 20);
       if (list.length > 0) {
         query += ` AND g.category ILIKE ANY($${paramIndex++}::text[])`;
         params.push(list);

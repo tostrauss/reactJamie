@@ -20,52 +20,40 @@ export const sendMessage = async (req, res) => {
       return res.status(422).json({ error: reason });
     }
 
-    // Check membership
-    const member = await db.query(
-      'SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2',
+    // Single query: membership check + group info in one JOIN
+    const ctx = await db.query(
+      `SELECT g.type, g.owner_id, g.chat_only_owner, gm.id AS member_id
+       FROM groups g
+       LEFT JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = $2
+       WHERE g.id = $1`,
       [groupId, req.userId]
     );
-    if (member.rows.length === 0) {
-      return res.status(403).json({ error: 'Not a member of this group' });
-    }
-
-    // Check if group is a club and enforce owner-only rule
-    const groupInfo = await db.query(
-      'SELECT type, owner_id FROM groups WHERE id = $1',
-      [groupId]
-    );
-    if (groupInfo.rows.length === 0) {
+    if (ctx.rows.length === 0) {
       return res.status(404).json({ error: 'Gruppe nicht gefunden' });
     }
-
-    const { type, owner_id } = groupInfo.rows[0];
-    if (type === 'club' && owner_id !== req.userId) {
+    const { type, owner_id, chat_only_owner, member_id } = ctx.rows[0];
+    if (!member_id) {
+      return res.status(403).json({ error: 'Not a member of this group' });
+    }
+    if (type === 'club' && chat_only_owner && owner_id !== req.userId) {
       return res.status(403).json({
-        error: 'Only the club owner can send messages',
+        error: 'Nur der Club-Gründer kann Nachrichten senden',
         isOwnerOnly: true
       });
     }
 
-    // Insert message with RETURNING
+    // INSERT + fetch sender info in one CTE — eliminates a second round trip
     const result = await db.query(
-      'INSERT INTO messages (group_id, user_id, content) VALUES ($1, $2, $3) RETURNING *',
+      `WITH inserted AS (
+         INSERT INTO messages (group_id, user_id, content) VALUES ($1, $2, $3) RETURNING *
+       )
+       SELECT i.*, u.name AS user_name, u.avatar_url
+       FROM inserted i
+       JOIN users u ON u.id = i.user_id`,
       [groupId, req.userId, content]
     );
 
-    const newMessage = result.rows[0];
-
-    // Fetch sender info for realtime display
-    const userResult = await db.query(
-      'SELECT name, avatar_url FROM users WHERE id = $1',
-      [req.userId]
-    );
-    const sender = userResult.rows[0];
-
-    res.status(201).json({
-      ...newMessage,
-      user_name: sender?.name,
-      avatar_url: sender?.avatar_url
-    });
+    res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error sending message:', error);
     res.status(500).json({ error: 'Nachricht konnte nicht gesendet werden' });
@@ -92,7 +80,8 @@ export const getMessages = async (req, res) => {
     }
 
     const result = await db.query(
-      `SELECT m.*, u.name as user_name, u.avatar_url
+      `SELECT m.id, m.group_id, m.user_id, m.content, m.created_at,
+              u.name AS user_name, u.avatar_url
        FROM messages m
        LEFT JOIN users u ON m.user_id = u.id
        ${whereClause}

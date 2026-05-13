@@ -4,7 +4,6 @@ import { groups, clubs } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
-import { BoostModal } from '../components/BoostModal';
 import '../styles/group-detail.css';
 
 const formatHeaderDate = (dateStr) => {
@@ -40,9 +39,9 @@ export const GroupDetail = () => {
   const [waitlistLoading, setWaitlistLoading] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [showBoostModal, setShowBoostModal] = useState(false);
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchData = async () => {
       setLoading(true);
       try {
@@ -54,24 +53,28 @@ export const GroupDetail = () => {
           groupRes = await clubs.getById(id);
           membersRes = await clubs.getMembers(id).catch(() => ({ data: [] }));
         }
+        if (controller.signal.aborted) return;
         const entity = groupRes.data;
         const isClubType = entity.type === 'club';
         const favRes = await (isClubType ? clubs.getFavorites() : groups.getFavorites()).catch(() => ({ data: [] }));
+        if (controller.signal.aborted) return;
         setIsFavorited((favRes.data || []).some(f => f.id === parseInt(id, 10)));
         setGroup(entity);
-        // Use is_member and join_request_status from the API (set by getGroupById)
         setIsJoined(entity.is_member === true);
         setJoinRequestStatus(entity.join_request_status || null);
         setWaitlistStatus(entity.waitlist_status || null);
         setWaitlistPosition(entity.waitlist_position || null);
         setMembers(membersRes.data || []);
       } catch (error) {
-        toast.error('Gruppe konnte nicht geladen werden');
+        if (!controller.signal.aborted) {
+          toast.error('Gruppe konnte nicht geladen werden');
+        }
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
     fetchData();
+    return () => controller.abort();
   }, [id]);
 
   const handleFavoriteToggle = async () => {
@@ -169,25 +172,24 @@ export const GroupDetail = () => {
 
   return (
     <div className="gd-page">
-      {/* Top header */}
-      <div className="gd-top-bar">
-        <button className="gd-back-btn" onClick={() => navigate(-1)}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-        </button>
-        <h1 className="gd-top-title">{headerDate || (group.category || group.name)}</h1>
-        <button
-          className={`gd-fav-top${isFavorited ? ' active' : ''}`}
-          onClick={handleFavoriteToggle}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill={isFavorited ? '#FD7666' : 'none'} stroke={isFavorited ? '#FD7666' : 'currentColor'} strokeWidth="2">
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-          </svg>
-        </button>
-      </div>
-
       <div className="gd-scroll">
+        {/* Top header */}
+        <div className="gd-top-bar">
+          <button className="gd-back-btn" onClick={() => navigate(-1)}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+          </button>
+          <h1 className="gd-top-title">{headerDate || (group.category || group.name)}</h1>
+          <button
+            className={`gd-fav-top${isFavorited ? ' active' : ''}`}
+            onClick={handleFavoriteToggle}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill={isFavorited ? '#FD7666' : 'none'} stroke={isFavorited ? '#FD7666' : 'currentColor'} strokeWidth="2">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+            </svg>
+          </button>
+        </div>
         {/* Photo grid */}
         <div className="gd-photo-grid-wrapper">
           <div className="gd-photo-grid">
@@ -333,11 +335,6 @@ export const GroupDetail = () => {
                 ? <button className="gd-btn-leave" onClick={handleDelete}>{isClub ? 'Club löschen' : 'Gruppe löschen'}</button>
                 : <button className="gd-btn-leave" onClick={handleJoinToggle}>Verlassen</button>
               }
-              {isOwner && (
-                <button className="gd-boost-btn" onClick={() => setShowBoostModal(true)}>
-                  🚀 Boosten
-                </button>
-              )}
             </div>
           )}
 
@@ -346,7 +343,7 @@ export const GroupDetail = () => {
           </button>
           </div>{/* gd-content-card */}
 
-          {/* Share + Fav buttons */}
+          {/* Share button only — favorite is the heart top-right */}
           <div className="gd-bottom-actions">
             <button className="gd-action-pill" onClick={() => {
               if (navigator.share) {
@@ -361,11 +358,7 @@ export const GroupDetail = () => {
                 <polyline points="16 6 12 2 8 6"/>
                 <line x1="12" y1="2" x2="12" y2="15"/>
               </svg>
-            </button>
-            <button className={`gd-action-pill${isFavorited ? ' active' : ''}`} onClick={handleFavoriteToggle}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill={isFavorited ? '#FD7666' : 'none'} stroke={isFavorited ? '#FD7666' : 'currentColor'} strokeWidth="2">
-                <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
-              </svg>
+              Teilen
             </button>
           </div>
         </div>
@@ -377,14 +370,6 @@ export const GroupDetail = () => {
           id={parseInt(id)}
           name={group.name || group.title}
           onClose={() => setShowReportModal(false)}
-        />
-      )}
-      {showBoostModal && (
-        <BoostModal
-          targetType={group.type || 'group'}
-          targetId={parseInt(id)}
-          targetName={group.name || group.title}
-          onClose={() => setShowBoostModal(false)}
         />
       )}
     </div>

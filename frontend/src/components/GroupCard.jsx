@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 
-// Format ISO date → German readable string
 function formatDate(dateStr) {
   if (!dateStr) return null;
   try {
@@ -27,10 +27,9 @@ function getBadgeLabel(displayDate) {
     if (displayDate.startsWith('Heute')) return 'Heute';
     if (displayDate.startsWith('Morgen')) return 'Morgen';
     if (displayDate.startsWith('Gestern')) return 'Gestern';
-    // Extract just the date part (e.g. "12. Apr")
     return displayDate.split(' · ')[0];
   }
-  return 'Für Dich';
+  return null;
 }
 
 export const GroupCard = ({
@@ -43,40 +42,32 @@ export const GroupCard = ({
   onClick,
   onWaitlist
 }) => {
+  const navigate = useNavigate();
   const [memberAvatars, setMemberAvatars] = useState([]);
-  const [waitlistStatus, setWaitlistStatus] = useState(null);
+  const isClub = group.type === 'club';
 
   useEffect(() => {
+    if (isClub) return; // clubs show creator image, no member avatars needed
     const fetchAvatars = async () => {
       try {
         const res = await api.groups.getMemberAvatars(group.id, 4);
         setMemberAvatars(res.data);
-      } catch (err) {
-      }
+      } catch {}
     };
-
-    const fetchWaitlistStatus = async () => {
-      if (group.members_count >= (group.max_members || 10)) {
-        try {
-          const res = await api.groups.getWaitlistStatus(group.id);
-          setWaitlistStatus(res.data);
-        } catch (err) {
-        }
-      }
-    };
-
     fetchAvatars();
-    fetchWaitlistStatus();
-  }, [group.id, group.members_count, group.max_members]);
+  }, [group.id, isClub]);
 
-  const isFull      = group.members_count >= (group.max_members || 10);
   const maxMembers  = group.max_members || 10;
-  const emptySpots  = Math.max(0, 4 - memberAvatars.length);
+  const isFull      = group.members_count >= maxMembers;
+  const emptySpots  = isClub ? 0 : Math.max(0, 4 - memberAvatars.length);
   const displayDate = formatDate(group.date);
   const badgeLabel  = getBadgeLabel(displayDate);
 
   return (
-    <div className={`group-card ${isFull ? 'full' : ''}`} onClick={onClick}>
+    <div className={`group-card ${isFull ? 'full' : ''}${badgeLabel ? ' has-badge' : ''}`} onClick={onClick}>
+
+      {/* ── Date badge — absolute top-right corner ───────── */}
+      {badgeLabel && <span className="card-badge">{badgeLabel}</span>}
 
       {/* ── Top text section ─────────────────────────────── */}
       <div className="card-header">
@@ -85,39 +76,49 @@ export const GroupCard = ({
           <div className="card-subtitle-row">
             <span>{group.members_count}/{maxMembers} Members</span>
             {group.is_private && <span className="card-private-badge">🔒</span>}
-            {group.is_boosted && <span className="card-private-badge">🚀</span>}
             {isFull && <span className="card-private-badge">Voll</span>}
           </div>
         </div>
-
-        <span className="card-badge">{badgeLabel}</span>
       </div>
 
-      {/* ── Photo grid ───────────────────────────────────── */}
+      {/* ── Photo grid (bottom) ──────────────────────────── */}
       <div className="card-photo-grid">
-        {memberAvatars.map((member) => (
-          <div key={member.id} className="avatar-slot">
-            {member.avatar_url ? (
-              <img src={member.avatar_url} alt={member.name} />
+        {isClub ? (
+          <div className="avatar-slot card-club-full-image" style={{ gridColumn: '1 / -1', gridRow: '1 / -1', borderRadius: '12px' }}>
+            {group.image_url ? (
+              <img src={group.image_url} alt={group.name || group.title} />
             ) : (
-              <div className="avatar-placeholder">
-                {(member.name || '?')[0].toUpperCase()}
+              <div className="avatar-placeholder" style={{ fontSize: 48, fontWeight: 700 }}>
+                {(group.category || group.name || group.title || '?')[0].toUpperCase()}
               </div>
             )}
           </div>
-        ))}
-        {[...Array(emptySpots)].map((_, idx) => (
-          <div key={`empty-${idx}`} className="avatar-slot empty">
-            <button
-              className="avatar-gamble"
-              onClick={(e) => {
-                e.stopPropagation();
-                isJoined ? onChat?.(group.id) : onJoin?.(group.id);
-              }}
-            >+</button>
-          </div>
-        ))}
-
+        ) : (
+          <>
+            {memberAvatars.map((member) => (
+              <div key={member.id} className="avatar-slot">
+                {member.avatar_url ? (
+                  <img src={member.avatar_url} alt={member.name} />
+                ) : (
+                  <div className="avatar-placeholder">
+                    {(member.name || '?')[0].toUpperCase()}
+                  </div>
+                )}
+              </div>
+            ))}
+            {[...Array(emptySpots)].map((_, idx) => (
+              <div key={`empty-${idx}`} className="avatar-slot empty">
+                <button
+                  className="avatar-gamble"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/group/${group.id}`);
+                  }}
+                >+</button>
+              </div>
+            ))}
+          </>
+        )}
       </div>
 
     </div>

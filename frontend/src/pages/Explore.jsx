@@ -60,7 +60,6 @@ const FYCard = ({ item, navigate }) => {
         ) : (
           <div className="fy-img-placeholder"><span className="fy-ph-icon">{icon}</span></div>
         )}
-        {item.is_boosted && <span className="fy-boost-badge">⚡ Boost</span>}
         <div className="fy-img-gradient" />
         <div className="fy-overlay-meta">
           <span className="fy-members-pill">
@@ -204,61 +203,32 @@ const DealCard = ({ deal, navigate }) => (
   </button>
 );
 
-const ProDealsSection = ({ navigate }) => {
+const ProDealsSection = ({ navigate, onProRequired }) => {
   const [dealList, setDealList] = useState([]);
-  const [proError, setProError] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [showProModal, setShowProModal] = useState(false);
 
   useEffect(() => {
     deals.getAll()
       .then(res => setDealList(res.data || []))
       .catch(err => {
-        if (err.response?.data?.code === 'PRO_REQUIRED') setProError(true);
+        if (err.response?.data?.code === 'PRO_REQUIRED') onProRequired?.();
       })
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return null;
+  if (loading || dealList.length === 0) return null;
 
   return (
     <section className="explore-section">
       <div className="explore-section-header">
         <span className="explore-section-title">⭐ Für Dich</span>
-        {!proError && <span className="deals-pro-badge">Pro</span>}
+        <span className="deals-pro-badge">Pro</span>
       </div>
-
-      {proError ? (
-        <button className="deals-pro-teaser" onClick={() => setShowProModal(true)}>
-          <div className="deals-pro-teaser-inner">
-            <span className="deals-pro-lock">👑</span>
-            <div>
-              <p className="deals-pro-teaser-title">Exklusive Deals für Pro-Mitglieder</p>
-              <p className="deals-pro-teaser-sub">Erhalte 1+1 Deals, Rabatte und mehr in Wien</p>
-            </div>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2.5" strokeLinecap="round">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </div>
-          {showProModal && (
-            <Suspense fallback={null}>
-              <ProModal onClose={() => setShowProModal(false)} onSuccess={() => setShowProModal(false)} />
-            </Suspense>
-          )}
-        </button>
-      ) : dealList.length === 0 ? null : (
-        <div className="deals-row">
-          {dealList.map(deal => (
-            <DealCard key={deal.id} deal={deal} navigate={navigate} />
-          ))}
-        </div>
-      )}
-
-      {showProModal && !proError && (
-        <Suspense fallback={null}>
-          <ProModal onClose={() => setShowProModal(false)} onSuccess={() => setShowProModal(false)} />
-        </Suspense>
-      )}
+      <div className="deals-row">
+        {dealList.map(deal => (
+          <DealCard key={deal.id} deal={deal} navigate={navigate} />
+        ))}
+      </div>
     </section>
   );
 };
@@ -273,6 +243,8 @@ export const Explore = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [proRequired, setProRequired] = useState(false);
+  const [showProModal, setShowProModal] = useState(false);
 
   const [trendingItems, setTrendingItems] = useState([]);
   const [pastEvents, setPastEvents]       = useState([]);
@@ -474,7 +446,7 @@ export const Explore = () => {
                 )}
 
                 {/* ── Für Dich Deals (Pro) ────────────────────────────── */}
-                <ProDealsSection navigate={navigate} />
+                <ProDealsSection navigate={navigate} onProRequired={() => setProRequired(true)} />
 
                 {/* ── Gerade angesagt ─────────────────────────────────── */}
                 {trendingItems.length > 0 && (
@@ -514,6 +486,30 @@ export const Explore = () => {
           </>
         )}
       </div>
+
+      {/* ── Pro full-page overlay ─────────────────────────────────── */}
+      {proRequired && (
+        <div className="explore-pro-overlay">
+          <div className="explore-pro-inner">
+            <div className="explore-pro-icon">👑</div>
+            <h2 className="explore-pro-title">Entdecken ist Pro</h2>
+            <p className="explore-pro-text">
+              Exklusive Deals, Highlights und Empfehlungen — nur für Pro-Mitglieder.
+            </p>
+            <button className="explore-pro-btn" onClick={() => setShowProModal(true)}>
+              Pro werden — 5 € / Monat
+            </button>
+            <button className="explore-pro-skip" onClick={() => setProRequired(false)}>
+              Später
+            </button>
+          </div>
+          {showProModal && (
+            <Suspense fallback={null}>
+              <ProModal onClose={() => setShowProModal(false)} onSuccess={() => { setShowProModal(false); setProRequired(false); }} />
+            </Suspense>
+          )}
+        </div>
+      )}
     </div>
   );
 };

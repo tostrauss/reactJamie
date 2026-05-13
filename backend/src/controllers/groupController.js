@@ -49,15 +49,9 @@ async function checkAndAwardPioneer(userId, groupId, lat, lng) {
     // Award pioneer badge
     await db.query('UPDATE users SET is_pioneer = TRUE WHERE id = $1', [userId]);
 
-    // Free 7-day boost (credits_spent = 0 = gifted)
-    const until = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await db.query(
-      `INSERT INTO boosts (user_id, target_type, target_id, credits_spent, boosted_until)
-       VALUES ($1, 'group', $2, 0, $3)`,
-      [userId, groupId, until]
-    );
-
-    console.log(`[pioneer] user ${userId} claimed cell (${latCell}, ${lngCell}) for group ${groupId}`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[pioneer] user ${userId} claimed cell (${latCell}, ${lngCell}) for group ${groupId}`);
+    }
   } catch (err) {
     // Non-critical — must not fail group creation
     console.error('[pioneer] check error:', err.message);
@@ -68,11 +62,14 @@ async function checkAndAwardPioneer(userId, groupId, lat, lng) {
 // CREATE GROUP / CLUB
 // ==========================================
 export const createGroup = async (req, res) => {
-  const { name, description, type, category, date, time, location, image_url, max_members, is_private, skill_level } = req.body;
+  const { name, description, type, category, date, time, location, image_url, max_members, is_private, skill_level, chat_only_owner } = req.body;
   const userId = req.userId; // JWT auth (not session)
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
+  if (name.length > 100) return res.status(400).json({ error: 'Name darf maximal 100 Zeichen lang sein' });
+  if (description && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
+  if (location && location.length > 200) return res.status(400).json({ error: 'Ort darf maximal 200 Zeichen lang sein' });
 
   try {
     // Per-user daily limit: max 10 groups/clubs created in 24 hours
@@ -117,10 +114,10 @@ export const createGroup = async (req, res) => {
     const coords = await geocodeLocation(location);
 
     const result = await db.query(
-      `INSERT INTO groups (name, description, type, category, date, location, image_url, max_members, is_private, skill_level, owner_id, lat, lng)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `INSERT INTO groups (name, description, type, category, date, location, image_url, max_members, is_private, skill_level, owner_id, lat, lng, chat_only_owner)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
-      [name, description, type || 'group', category, dateTime, location, image_url, max_members || 10, is_private || false, skill_level, userId, coords?.lat ?? null, coords?.lng ?? null]
+      [name, description, type || 'group', category, dateTime, location, image_url, max_members || 10, is_private || false, skill_level, userId, coords?.lat ?? null, coords?.lng ?? null, chat_only_owner || false]
     );
 
     const newGroup = result.rows[0];
@@ -133,7 +130,7 @@ export const createGroup = async (req, res) => {
 
     // Pioneer check (fire-and-forget — must not block the response)
     if (coords?.lat && coords?.lng) {
-      checkAndAwardPioneer(userId, newGroup.id, coords.lat, coords.lng);
+      checkAndAwardPioneer(userId, newGroup.id, coords.lat, coords.lng).catch(() => {});
     }
 
     res.status(201).json(newGroup);
@@ -150,14 +147,11 @@ export const getGroups = async (req, res) => {
   try {
     const { type, search, category, location, upcoming, limit, offset } = req.query;
 
+    if (search && search.length > 100) return res.status(400).json({ error: 'Suchbegriff zu lang' });
+
     let query = `
       SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar,
-             CASE WHEN g.members_count >= g.max_members THEN 1 ELSE 0 END as is_full,
-             CASE WHEN EXISTS (
-               SELECT 1 FROM boosts b
-               WHERE b.target_id = g.id AND b.target_type = g.type
-                 AND b.boosted_until > CURRENT_TIMESTAMP
-             ) THEN TRUE ELSE FALSE END as is_boosted
+             CASE WHEN g.members_count >= g.max_members THEN 1 ELSE 0 END as is_full
       FROM groups g
       LEFT JOIN users u ON g.owner_id = u.id
       WHERE g.is_active = TRUE AND g.deleted_at IS NULL
@@ -186,15 +180,15 @@ export const getGroups = async (req, res) => {
       query += ` AND g.date >= CURRENT_TIMESTAMP`;
     }
 
-    query += ` ORDER BY is_boosted DESC, is_full ASC, g.created_at DESC`;
+    query += ` ORDER BY is_full ASC, g.created_at DESC`;
 
-    if (limit) {
-      query += ` LIMIT $${paramIndex++}`;
-      params.push(parseInt(limit, 10));
-    }
-    if (offset) {
+    const safeLimit = Math.min(parseInt(limit, 10) || 100, 100);
+    const safeOffset = Math.max(parseInt(offset, 10) || 0, 0);
+    query += ` LIMIT $${paramIndex++}`;
+    params.push(safeLimit);
+    if (safeOffset > 0) {
       query += ` OFFSET $${paramIndex++}`;
-      params.push(parseInt(offset, 10));
+      params.push(safeOffset);
     }
 
     const result = await db.query(query, params);
@@ -259,7 +253,11 @@ export const getGroupById = async (req, res) => {
 export const updateGroup = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, category, date, location, image_url, max_members, is_private, skill_level } = req.body;
+    const { name, description, category, date, location, image_url, max_members, is_private, skill_level, chat_only_owner } = req.body;
+
+    if (name !== undefined && name.length > 100) return res.status(400).json({ error: 'Name darf maximal 100 Zeichen lang sein' });
+    if (description !== undefined && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
+    if (location !== undefined && location.length > 200) return res.status(400).json({ error: 'Ort darf maximal 200 Zeichen lang sein' });
 
     // Verify ownership
     const group = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
@@ -305,12 +303,13 @@ export const updateGroup = async (req, res) => {
            max_members = COALESCE($7, max_members),
            is_private = COALESCE($8, is_private),
            skill_level = COALESCE($9, skill_level),
+           chat_only_owner = COALESCE($13, chat_only_owner),
            lat = CASE WHEN $5 IS NOT NULL THEN $11 ELSE lat END,
            lng = CASE WHEN $5 IS NOT NULL THEN $12 ELSE lng END,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $10
        RETURNING *`,
-      [name, description, category, date, location, image_url, max_members, is_private, skill_level, id, latUpdate, lngUpdate]
+      [name, description, category, date, location, image_url, max_members, is_private, skill_level, id, latUpdate, lngUpdate, chat_only_owner ?? null]
     );
 
     res.json(result.rows[0]);
@@ -349,19 +348,20 @@ export const joinGroup = async (req, res) => {
     const { id } = req.params;
     const { message } = req.body;
 
-    // Check group exists
-    const group = await db.query('SELECT * FROM groups WHERE id = $1', [id]);
-    if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
-
-    // Check already member
-    const existing = await db.query(
-      'SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2',
+    // Single query: group info + membership check via LEFT JOIN
+    const groupRes = await db.query(
+      `SELECT g.owner_id, g.name, g.members_count, g.max_members, g.is_private,
+              gm.user_id AS already_member
+       FROM groups g
+       LEFT JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = $2
+       WHERE g.id = $1`,
       [id, req.userId]
     );
-    if (existing.rows.length > 0) return res.status(400).json({ error: 'Already a member' });
+    if (groupRes.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    if (groupRes.rows[0].already_member) return res.status(400).json({ error: 'Already a member' });
 
     // Check capacity
-    const g = group.rows[0];
+    const g = groupRes.rows[0];
     if (g.members_count >= g.max_members) {
       return res.status(400).json({ error: 'Die Gruppe ist bereits voll' });
     }
@@ -369,7 +369,7 @@ export const joinGroup = async (req, res) => {
     // Private group → create join request (or reset a previous rejection to pending)
     if (g.is_private) {
       const existingReq = await db.query(
-        `SELECT * FROM group_join_requests WHERE group_id = $1 AND user_id = $2`,
+        `SELECT status FROM group_join_requests WHERE group_id = $1 AND user_id = $2`,
         [id, req.userId]
       );
       if (existingReq.rows.length > 0 && existingReq.rows[0].status === 'pending') {
@@ -396,7 +396,7 @@ export const joinGroup = async (req, res) => {
 
     // Notify group owner (fire-and-forget)
     if (g.owner_id && g.owner_id !== req.userId) {
-      notifyGroupJoin(req.userId, g.owner_id, g.name || g.title);
+      notifyGroupJoin(req.userId, g.owner_id, g.name || g.title).catch(() => {});
     }
 
     res.json({ message: 'Joined group successfully', status: 'joined' });
@@ -456,7 +456,8 @@ export const leaveGroup = async (req, res) => {
         );
 
         // Push notification
-        const grpName = (await db.query('SELECT name FROM groups WHERE id = $1', [id])).rows[0]?.name || '';
+        // group name already in `group.rows[0]` — no extra query needed
+        const grpName = group.rows[0]?.name || '';
         sendPushToUser(wUserId, 'Platz frei!', `Ein Platz in "${grpName}" ist frei geworden`, `/group/${id}`);
       }
     }
@@ -529,6 +530,11 @@ export const getUserFavorites = async (req, res) => {
 export const getGroupMembers = async (req, res) => {
   try {
     const { id } = req.params;
+    const member = await db.query(
+      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [id, req.userId]
+    );
+    if (member.rows.length === 0) return res.status(403).json({ error: 'Keine Berechtigung' });
     const result = await db.query(
       `SELECT u.id, u.name, u.avatar_url, u.bio, u.location, gm.role, gm.joined_at
        FROM group_members gm
@@ -614,19 +620,17 @@ export const handleJoinRequest = async (req, res) => {
     const { id, requestId } = req.params;
     const { action } = req.body; // 'accept' or 'reject'
 
-    // Verify ownership
-    const group = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
-    if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
-    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
-
-    // Get the request
-    const request = await db.query(
-      'SELECT * FROM group_join_requests WHERE id = $1 AND group_id = $2',
-      [requestId, id]
-    );
+    // Verify ownership + fetch group name in one query
+    const [groupRes, request] = await Promise.all([
+      db.query('SELECT owner_id, name FROM groups WHERE id = $1', [id]),
+      db.query('SELECT user_id, status FROM group_join_requests WHERE id = $1 AND group_id = $2', [requestId, id]),
+    ]);
+    if (groupRes.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    if (groupRes.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
     if (request.rows.length === 0) return res.status(404).json({ error: 'Request not found' });
 
     const joinReq = request.rows[0];
+    const gname = groupRes.rows[0].name;
 
     if (action === 'accept') {
       await db.query(
@@ -638,8 +642,6 @@ export const handleJoinRequest = async (req, res) => {
         [id, joinReq.user_id, 'member']
       );
 
-      // Notify the accepted user (group name already fetched above)
-      const gname = (await db.query('SELECT name FROM groups WHERE id = $1', [id])).rows[0]?.name || '';
       sendPushToUser(joinReq.user_id, 'Beitrittsanfrage akzeptiert', `Du bist jetzt Mitglied von "${gname}"`, `/group/${id}`);
 
       res.json({ message: 'Request accepted', status: 'accepted' });
@@ -699,16 +701,13 @@ export const cancelGroup = async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
 
-    // Verify ownership
-    const group = await db.query('SELECT * FROM groups WHERE id = $1', [id]);
-    if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
-    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
-
-    // Get all members for notification
-    const members = await db.query(
-      'SELECT user_id FROM group_members WHERE group_id = $1 AND user_id != $2',
-      [id, req.userId]
-    );
+    // Verify ownership + fetch members in parallel
+    const [groupRes, members] = await Promise.all([
+      db.query('SELECT owner_id, name FROM groups WHERE id = $1', [id]),
+      db.query('SELECT user_id FROM group_members WHERE group_id = $1 AND user_id != $2', [id, req.userId]),
+    ]);
+    if (groupRes.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    if (groupRes.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     // Mark group as inactive (soft delete)
     await db.query(
@@ -716,18 +715,25 @@ export const cancelGroup = async (req, res) => {
       [id]
     );
 
-    const groupName = group.rows[0].name;
+    const groupName = groupRes.rows[0].name;
     const io = req.app?.get('io');
 
-    for (const member of members.rows) {
+    if (members.rows.length > 0) {
+      const title = `${groupName} wurde abgesagt`;
+      const body = reason || 'Das Event wurde vom Ersteller abgesagt.';
+      const valuesClauses = members.rows.map(
+        (_, i) => `($${i * 5 + 1}, $${i * 5 + 2}, 'group_cancelled', $${i * 5 + 3}, $${i * 5 + 4}, 'group', $${i * 5 + 5})`
+      ).join(', ');
+      const params = members.rows.flatMap(m => [m.user_id, req.userId, title, body, id]);
       const notifResult = await db.query(
         `INSERT INTO notifications (user_id, sender_id, type, title, message, reference_type, reference_id)
-         VALUES ($1, $2, 'group_cancelled', $3, $4, 'group', $5)
-         RETURNING *`,
-        [member.user_id, req.userId, `${groupName} wurde abgesagt`, reason || 'Das Event wurde vom Ersteller abgesagt.', id]
+         VALUES ${valuesClauses} RETURNING *`,
+        params
       );
       if (io) {
-        io.to(`user_${member.user_id}`).emit('new_notification', notifResult.rows[0]);
+        for (const notif of notifResult.rows) {
+          io.to(`user_${notif.user_id}`).emit('new_notification', notif);
+        }
       }
     }
 
@@ -745,28 +751,21 @@ export const joinWaitlist = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const group = await db.query('SELECT * FROM groups WHERE id = $1', [id]);
-    if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
-
-    const g = group.rows[0];
-    if (g.members_count < g.max_members) {
-      return res.status(400).json({ error: 'Group not full. Join directly.' });
-    }
-
-    const existing = await db.query(
-      'SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2',
-      [id, req.userId]
-    );
-    if (existing.rows.length > 0) {
-      return res.status(400).json({ error: 'Already a member' });
-    }
-
-    const waitlistCheck = await db.query(
-      'SELECT * FROM group_waitlist WHERE group_id = $1 AND user_id = $2',
-      [id, req.userId]
-    );
+    // Three checks in parallel: group exists, already member, already on waitlist
+    const [groupRes, memberCheck, waitlistCheck] = await Promise.all([
+      db.query('SELECT members_count, max_members FROM groups WHERE id = $1', [id]),
+      db.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
+      db.query('SELECT position FROM group_waitlist WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
+    ]);
+    if (groupRes.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    if (memberCheck.rows.length > 0) return res.status(400).json({ error: 'Already a member' });
     if (waitlistCheck.rows.length > 0) {
       return res.json({ message: 'Already on waitlist', position: waitlistCheck.rows[0].position });
+    }
+
+    const g = groupRes.rows[0];
+    if (g.members_count < g.max_members) {
+      return res.status(400).json({ error: 'Group not full. Join directly.' });
     }
 
     const result = await db.query(
@@ -807,6 +806,9 @@ export const leaveWaitlist = async (req, res) => {
 export const getWaitlist = async (req, res) => {
   try {
     const { id } = req.params;
+    const group = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
+    if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
     const result = await db.query(
       `SELECT w.*, u.name, u.avatar_url, u.bio
        FROM group_waitlist w
@@ -853,6 +855,16 @@ export const getGroupMemberAvatars = async (req, res) => {
   try {
     const { id } = req.params;
     const limit = Math.min(parseInt(req.query.limit, 10) || 4, 50);
+    const group = await db.query('SELECT is_private FROM groups WHERE id = $1', [id]);
+    if (group.rows.length === 0) return res.json([]);
+    if (group.rows[0].is_private) {
+      if (!req.userId) return res.json([]);
+      const member = await db.query(
+        'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+        [id, req.userId]
+      );
+      if (member.rows.length === 0) return res.json([]);
+    }
     const result = await db.query(
       `SELECT u.id, u.avatar_url, u.name
        FROM group_members gm
@@ -876,11 +888,19 @@ export const inviteMember = async (req, res) => {
   try {
     const { id, friendId } = req.params;
 
-    const group = await db.query('SELECT * FROM groups WHERE id = $1', [id]);
+    const group = await db.query('SELECT owner_id, max_members FROM groups WHERE id = $1', [id]);
     if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
     if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     const g = group.rows[0];
+
+    const friendship = await db.query(
+      `SELECT 1 FROM friendships
+       WHERE ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))
+       AND status = 'accepted'`,
+      [req.userId, friendId]
+    );
+    if (friendship.rows.length === 0) return res.status(403).json({ error: 'Nur Freunde können eingeladen werden' });
 
     const memberCount = await db.query('SELECT COUNT(*) FROM group_members WHERE group_id = $1', [id]);
     if (g.max_members && parseInt(memberCount.rows[0].count) >= g.max_members) {

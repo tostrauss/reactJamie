@@ -41,9 +41,8 @@ export const getUserById = async (req, res) => {
 export const searchUsers = async (req, res) => {
   try {
     const { q } = req.query;
-    if (!q || q.length < 2) {
-      return res.json([]);
-    }
+    if (!q || q.length < 2) return res.json([]);
+    if (q.length > 100) return res.status(400).json({ error: 'Suchbegriff zu lang' });
 
     const result = await db.query(
       `SELECT id, name, avatar_url, location, bio

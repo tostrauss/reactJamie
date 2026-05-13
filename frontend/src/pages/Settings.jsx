@@ -19,7 +19,7 @@ export const Settings = () => {
         <button className="settings-back" onClick={() => navigate(-1)}>
           ←
         </button>
-        <h1 className="settings-title">Einstellungen ⚙️</h1>
+        <h1 className="settings-title">Einstellungen</h1>
       </div>
 
       {/* Account Section */}

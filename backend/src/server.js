@@ -35,18 +35,22 @@ if (process.env.NODE_ENV === 'production') {
     ['SESSION_SECRET',    'express-session signing key'],
     ['JWT_SECRET',        'JWT token signing key'],
     ['DATABASE_URL',      'PostgreSQL connection string'],
-    ['EMAIL_FROM',        'verified Brevo sender address (e.g. noreply@jamie.app)'],
-    ['BREVO_API_KEY',     'Brevo transactional email API key'],
+    ['EMAIL_FROM',        'verified sender address (e.g. noreply@jamie.app)'],
+    ['RESEND_API_KEY',    'Resend transactional email API key'],
     ['FRONTEND_URL',      'public frontend URL for email links'],
   ];
 
   let fatal = false;
 
-  // Secrets must have sufficient entropy (min 32 chars)
+  // Secrets must have sufficient entropy and must not be placeholder values
   for (const key of ['JWT_SECRET', 'SESSION_SECRET']) {
     const val = process.env[key] || '';
     if (val.length < 32) {
       console.error(`FATAL: ${key} is too short (${val.length} chars) — use at least 32 random characters`);
+      fatal = true;
+    }
+    if (val.includes('CHANGE_ME') || val.includes('change_me') || val.includes('your_secret')) {
+      console.error(`FATAL: ${key} is still a placeholder — generate a real secret`);
       fatal = true;
     }
   }
@@ -54,7 +58,6 @@ if (process.env.NODE_ENV === 'production') {
     ['SIGHTENGINE_API_USER',   'image moderation (nudity/gore) will be DISABLED'],
     ['SIGHTENGINE_API_SECRET', 'image moderation (nudity/gore) will be DISABLED'],
     ['OPENAI_API_KEY',         'text moderation will be DISABLED — unsafe content may pass through'],
-    ['STRIPE_WEBHOOK_SECRET',              'Stripe boost webhook signature validation will FAIL'],
     ['STRIPE_SUBSCRIPTION_WEBHOOK_SECRET', 'Stripe subscription webhook signature validation will FAIL'],
     ['ADMIN_SECRET',                       'admin dashboard will be inaccessible'],
     ['GOOGLE_CLIENT_ID',                   'Google OAuth will use unverified userinfo endpoint (reduced security)'],
@@ -83,6 +86,9 @@ if (process.env.NODE_ENV === 'production') {
 const app = express();
 app.set('trust proxy', 1); // Trust Railway's reverse proxy — use real client IP for rate limiting
 const server = http.createServer(app);
+// Protect against slow-client / Slowloris attacks
+server.keepAliveTimeout = 65_000; // 65s — must exceed Railway LB idle timeout (60s)
+server.headersTimeout  = 66_000; // 1s > keepAliveTimeout
 const PGStore = pgSession(session);
 
 // ==========================================
@@ -100,8 +106,6 @@ import spotifyRoutes from './routes/spotifyRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 import pushRoutes from './routes/pushRoutes.js';
-import boostRoutes from './routes/boostRoutes.js';
-import { stripeWebhook } from './controllers/boostController.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
@@ -211,16 +215,28 @@ app.use(pinoHttp({
 // ==========================================
 if (process.env.NODE_ENV === 'production') {
   const publicPath = path.resolve(__dirname, '../public');
-  app.use(express.static(publicPath, { maxAge: '1d' }));
+  app.use(express.static(publicPath, {
+    setHeaders(res, filePath) {
+      // Vite emits hashed filenames (e.g. index-BdEtbxXM.js) — safe to cache forever
+      if (/\.[a-f0-9]{8,}\.(js|css|woff2?)(\?.*)?$/.test(filePath)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else if (filePath.endsWith('index.html')) {
+        // Always revalidate the entry point so clients pick up new deployments immediately
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+      }
+    }
+  }));
 }
 
 // Stripe webhooks — must receive raw body BEFORE express.json() parses it
-app.post('/api/boost/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhook);
 app.post('/api/subscription/stripe/webhook', express.raw({ type: 'application/json' }), subscriptionWebhook);
 
-// Body parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+// Body parsing — keep small; largest legitimate payload is a JSON with a text message, not binary
+app.use(express.json({ limit: '2mb' }));
+// extended: false uses the built-in querystring parser — no prototype pollution via nested objects
+app.use(express.urlencoded({ extended: false }));
 
 // Parse cookies (required for httpOnly auth_token cookie)
 app.use(cookieParser());
@@ -228,8 +244,17 @@ app.use(cookieParser());
 // Sanitize all inputs (strip HTML tags from body, query, params)
 app.use(sanitizeInputs);
 
-// General rate limit on all API routes
-app.use('/api', generalLimiter);
+// General rate limit on all API routes — skip health check to avoid Redis overhead on every probe
+app.use('/api', (req, res, next) => {
+  if (req.path === '/health') return next();
+  return generalLimiter(req, res, next);
+});
+
+// Permissions-Policy: restrict browser features this app doesn't use
+app.use((_req, res, next) => {
+  res.setHeader('Permissions-Policy', 'microphone=(), camera=(), display-capture=(), usb=(), serial=(), battery=()');
+  next();
+});
 
 // Serve uploaded files statically — dev only (cloud storage is used in production)
 if (process.env.NODE_ENV !== 'production') {
@@ -241,8 +266,9 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Session Management — Redis store when available (sub-10ms), PG fallback
+const SESSION_TTL_SEC = 24 * 60 * 60; // 1 day — must match cookie maxAge
 const sessionStore = redisClient
-  ? new RedisStore({ client: redisClient, prefix: 'sess:' })
+  ? new RedisStore({ client: redisClient, prefix: 'sess:', ttl: SESSION_TTL_SEC })
   : new PGStore({ pool: db.pool, tableName: 'session' });
 
 app.use(session({
@@ -275,7 +301,6 @@ app.use('/api/spotify', spotifyRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/push', pushRoutes);
-app.use('/api/boost', boostRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reviews', reviewRoutes);
@@ -284,14 +309,26 @@ app.use('/api/map', mapRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/deals', dealRoutes);
 
-// Health check — verifies DB connectivity for Railway health probes
+// Health check — verifies DB + optional services for Railway health probes
 app.get('/api/health', async (_req, res) => {
+  const checks = { db: 'error', redis: 'skipped', timestamp: new Date().toISOString() };
+  let allOk = true;
   try {
     await db.query('SELECT 1');
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    checks.db = 'ok';
   } catch {
-    res.status(503).json({ status: 'error', db: 'unavailable', timestamp: new Date().toISOString() });
+    allOk = false;
   }
+  if (redisClient) {
+    try {
+      await redisClient.ping();
+      checks.redis = 'ok';
+    } catch {
+      checks.redis = 'error';
+      allOk = false;
+    }
+  }
+  res.status(allOk ? 200 : 503).json({ status: allOk ? 'ok' : 'degraded', ...checks });
 });
 
 // .well-known files (assetlinks.json + apple-app-site-association) are served
@@ -489,6 +526,40 @@ const runStartupMigrations = async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_deals_active ON deals(is_active) WHERE is_active = TRUE`);
     await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS booking_url TEXT`);
 
+    // Unique constraint on boost_transactions.payment_id prevents double-crediting under concurrent requests
+    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_boost_txn_payment_id ON boost_transactions(payment_id) WHERE payment_id IS NOT NULL`);
+
+    // Performance indexes — missing from original schema
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_is_active     ON groups(is_active) WHERE is_active = TRUE`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_notifications_user   ON notifications(user_id)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_group_members_user   ON group_members(user_id)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_group_members_group  ON group_members(group_id)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_messages_group       ON messages(group_id, created_at DESC)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_prt_token            ON password_reset_tokens(token)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_prt_expires          ON password_reset_tokens(expires_at) WHERE used = FALSE`);
+    await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS chat_only_owner BOOLEAN DEFAULT FALSE`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_chat_only_owner      ON groups(chat_only_owner) WHERE chat_only_owner = TRUE`);
+
+    // Full-text search indexes (trigram) for groups.name / description / location
+    await db.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_name_gin     ON groups USING gin(name gin_trgm_ops)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_desc_gin     ON groups USING gin(description gin_trgm_ops)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_location_gin ON groups USING gin(location gin_trgm_ops)`);
+
+    // DB-level CHECK constraints for enum-like columns
+    await db.query(`
+      DO $$ BEGIN
+        ALTER TABLE friendships ADD CONSTRAINT chk_friendship_status
+          CHECK (status IN ('pending','accepted','blocked'));
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$
+    `);
+    await db.query(`
+      DO $$ BEGIN
+        ALTER TABLE group_members ADD CONSTRAINT chk_gm_role
+          CHECK (role IN ('owner','admin','member'));
+      EXCEPTION WHEN duplicate_object THEN NULL; END $$
+    `);
+
     console.log('✅ Startup migrations done');
   } catch (err) {
     console.error('⚠️ Startup migration error:', err.message);
@@ -499,6 +570,8 @@ server.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`API: http://localhost:${PORT}/api`);
   console.log(`Socket.io ready`);
+  // Warm up DB pool — acquires one connection so the first real request isn't the cold-start
+  db.query('SELECT 1').catch(() => {});
   await runStartupMigrations();
 });
 

@@ -11,10 +11,17 @@ if (!process.env.DATABASE_URL && process.env.NODE_ENV === 'production' && !proce
   process.exit(1);
 }
 
+// DB_SSL_REJECT_UNAUTHORIZED=false is needed for Railway/Supabase self-signed certs.
+// Default: reject (secure). Explicitly set to 'false' only when the provider requires it.
+const sslConfig =
+  process.env.NODE_ENV === 'production'
+    ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' }
+    : false;
+
 const poolConfig = process.env.DATABASE_URL
   ? {
       connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+      ssl: sslConfig,
     }
   : {
       user: process.env.DB_USER || 'postgres',
@@ -27,9 +34,11 @@ const poolConfig = process.env.DATABASE_URL
 // Production-ready connection pool
 const pool = new Pool({
   ...poolConfig,
-  max: 20,
+  max: process.env.NODE_ENV === 'production' ? 20 : 5,
+  min: process.env.NODE_ENV === 'production' ? 2 : 0,  // keep 2 warm connections in prod
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
+  allowExitOnIdle: false,
 });
 
 pool.on('error', (err) => {

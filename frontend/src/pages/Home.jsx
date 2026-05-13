@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api, { groups, clubs } from "../utils/api";
 import { GroupCard } from "../components/GroupCard";
@@ -7,6 +7,60 @@ import { useToast } from "../context/ToastContext";
 import MapView from "../components/MapView";
 import "../styles/home.css";
 import { CATEGORY_HIERARCHY } from "../utils/categories";
+
+const AgeRangeSlider = ({ value, onChange }) => {
+  const MIN = 18, MAX = 70;
+  const [lo, hi] = value;
+  const trackRef = useRef(null);
+  const dragging = useRef(null);
+  const loRef = useRef(lo);
+  const hiRef = useRef(hi);
+  const onChangeRef = useRef(onChange);
+  loRef.current = lo;
+  hiRef.current = hi;
+  onChangeRef.current = onChange;
+
+  const loPercent = ((lo - MIN) / (MAX - MIN)) * 100;
+  const hiPercent = ((hi - MIN) / (MAX - MIN)) * 100;
+
+  const handlePointerDown = useCallback((e) => {
+    if (!trackRef.current) return;
+    e.preventDefault();
+    const rect = trackRef.current.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const v = Math.round(MIN + pct * (MAX - MIN));
+    dragging.current = Math.abs(v - loRef.current) <= Math.abs(v - hiRef.current) ? 'lo' : 'hi';
+
+    const onMove = (e2) => {
+      if (!trackRef.current || !dragging.current) return;
+      const r = trackRef.current.getBoundingClientRect();
+      const p = Math.max(0, Math.min(1, (e2.clientX - r.left) / r.width));
+      const val = Math.round(MIN + p * (MAX - MIN));
+      if (dragging.current === 'lo') {
+        onChangeRef.current([Math.min(val, hiRef.current - 1), hiRef.current]);
+      } else {
+        onChangeRef.current([loRef.current, Math.max(val, loRef.current + 1)]);
+      }
+    };
+    const onUp = () => {
+      dragging.current = null;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }, []);
+
+  return (
+    <div className="age-range-slider" ref={trackRef} onPointerDown={handlePointerDown}>
+      <div className="age-range-track">
+        <div className="age-range-fill" style={{ left: `${loPercent}%`, right: `${100 - hiPercent}%` }} />
+      </div>
+      <div className="age-range-thumb" style={{ left: `${loPercent}%` }} />
+      <div className="age-range-thumb" style={{ left: `${hiPercent}%` }} />
+    </div>
+  );
+};
 
 export const Home = () => {
   const [groupList, setGroupList] = useState([]);
@@ -19,9 +73,33 @@ export const Home = () => {
   const [favorites, setFavorites] = useState(new Set());
   const [joined, setJoined] = useState(new Set());
   const [loading, setLoading] = useState(true);
+
+  // Committed filters (actively applied to lists)
+  const [zeitFilter, setZeitFilter] = useState('alle');
+  const [zeitFrom, setZeitFrom] = useState('');
+  const [zeitTo, setZeitTo] = useState('');
+  const [alterFilter, setAlterFilter] = useState([18, 70]);
+  const [sichtFilter, setSichtFilter] = useState('alle');
+
+  // Staged filters (selected inside open panel, not yet applied)
+  const [showFilters, setShowFilters] = useState(false);
+  const [stagedZeit, setStagedZeit] = useState('alle');
+  const [stagedZeitFrom, setStagedZeitFrom] = useState('');
+  const [stagedZeitTo, setStagedZeitTo] = useState('');
+  const [stagedAlter, setStagedAlter] = useState([18, 70]);
+  const [stagedSicht, setStagedSicht] = useState('alle');
+  const [stagedCategory, setStagedCategory] = useState('all');
+
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const toast = useToast();
+
+  const activeFilterCount = [
+    zeitFilter !== 'alle',
+    alterFilter[0] !== 18 || alterFilter[1] !== 70,
+    sichtFilter !== 'alle',
+    selectedMain !== 'all',
+  ].filter(Boolean).length;
 
   useEffect(() => {
     loadData();
@@ -65,6 +143,138 @@ export const Home = () => {
     }
   };
 
+  // ── Filter helpers ───────────────────────────────────────────────
+  const matchesCategory = (item) => {
+    if (selectedMain === 'all') return true;
+    const mainCat = CATEGORY_HIERARCHY.find(c => c.id === selectedMain);
+    if (!mainCat) return true;
+    const itemCat = (item.category || '').toLowerCase();
+    if (selectedSub) return itemCat === selectedSub.toLowerCase();
+    // Match: main id, main label, or any of its sub-category names
+    return (
+      itemCat === mainCat.id ||
+      itemCat === mainCat.label.toLowerCase() ||
+      mainCat.subs.some(sub => itemCat === sub.name.toLowerCase())
+    );
+  };
+
+  const matchesZeit = (item) => {
+    if (zeitFilter === 'alle') return true;
+    if (!item.date) return true;
+    const d = new Date(item.date);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (zeitFilter === 'zeitraum') {
+      if (zeitFrom) {
+        const from = new Date(zeitFrom);
+        if (d < from) return false;
+      }
+      if (zeitTo) {
+        const to = new Date(zeitTo);
+        to.setHours(23, 59, 59, 999);
+        if (d > to) return false;
+      }
+      return true;
+    }
+    if (zeitFilter === 'heute') {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return d >= today && d < tomorrow;
+    }
+    if (zeitFilter === 'woche') {
+      const weekEnd = new Date(today);
+      weekEnd.setDate(weekEnd.getDate() + 7);
+      return d >= today && d < weekEnd;
+    }
+    if (zeitFilter === 'wochenende') {
+      const day = today.getDay();
+      let sat;
+      if (day === 6) sat = today;
+      else if (day === 0) { sat = new Date(today); sat.setDate(today.getDate() - 1); }
+      else { sat = new Date(today); sat.setDate(today.getDate() + (6 - day)); }
+      const monAfter = new Date(sat);
+      monAfter.setDate(sat.getDate() + 2);
+      return d >= sat && d < monAfter;
+    }
+    if (zeitFilter === 'monat') {
+      const monthEnd = new Date(today);
+      monthEnd.setMonth(monthEnd.getMonth() + 1);
+      return d >= today && d < monthEnd;
+    }
+    if (zeitFilter === 'ganztags') {
+      if (!item.date) return true;
+      return d.getHours() === 0 && d.getMinutes() === 0;
+    }
+    return true;
+  };
+
+  const matchesAlter = (item) => {
+    const [filterMin, filterMax] = alterFilter;
+    if (filterMin === 18 && filterMax === 70) return true;
+    if (!item.min_age && !item.max_age) return true;
+    const gMin = item.min_age || 0;
+    const gMax = item.max_age || 150;
+    return gMin <= filterMax && gMax >= filterMin;
+  };
+
+  const matchesSicht = (item) => {
+    if (sichtFilter === 'alle') return true;
+    if (sichtFilter === 'oeffentlich') return !item.is_private;
+    return !!item.is_private;
+  };
+
+  const filteredGroups = groupList.filter(g =>
+    (g.name || '').toLowerCase().includes(searchQuery.toLowerCase()) &&
+    matchesCategory(g) && matchesZeit(g) && matchesAlter(g) && matchesSicht(g)
+  );
+
+  const filteredClubs = clubList.filter(c =>
+    (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) &&
+    matchesCategory(c) && matchesAlter(c) && matchesSicht(c)
+  );
+
+  // ── Filter panel actions ─────────────────────────────────────────
+  const openFilters = () => {
+    setStagedZeit(zeitFilter);
+    setStagedZeitFrom(zeitFrom);
+    setStagedZeitTo(zeitTo);
+    setStagedAlter(alterFilter);
+    setStagedSicht(sichtFilter);
+    setStagedCategory(selectedMain);
+    setShowFilters(true);
+  };
+
+  const applyFilters = () => {
+    setZeitFilter(stagedZeit);
+    setZeitFrom(stagedZeitFrom);
+    setZeitTo(stagedZeitTo);
+    setAlterFilter(stagedAlter);
+    setSichtFilter(stagedSicht);
+    setSelectedMain(stagedCategory);
+    setSelectedSub(null);
+    setShowFilters(false);
+  };
+
+  const resetFilters = () => {
+    // Reset and immediately apply — no extra "Anwenden" click needed
+    setZeitFilter('alle');
+    setZeitFrom('');
+    setZeitTo('');
+    setAlterFilter([18, 70]);
+    setSichtFilter('alle');
+    setSelectedMain('all');
+    setSelectedSub(null);
+    setStagedZeit('alle');
+    setStagedZeitFrom('');
+    setStagedZeitTo('');
+    setStagedAlter([18, 70]);
+    setStagedSicht('alle');
+    setStagedCategory('all');
+    setShowFilters(false);
+  };
+
+  // ── Event handlers ───────────────────────────────────────────────
   const handleFavorite = async (groupId) => {
     const wasAlreadyFav = favorites.has(groupId);
     setFavorites(prev => {
@@ -115,23 +325,6 @@ export const Home = () => {
 
   const handleCardClick = (groupId) => navigate(`/group/${groupId}`);
 
-  const matchesCategory = (item) => {
-    if (selectedMain === 'all') return true;
-    const mainCat = CATEGORY_HIERARCHY.find(c => c.id === selectedMain);
-    if (!mainCat) return true;
-    const itemCat = (item.category || '').toLowerCase();
-    if (selectedSub) return itemCat === selectedSub.toLowerCase();
-    return mainCat.subs.some(sub => itemCat === sub.name.toLowerCase());
-  };
-
-  const filteredGroups = groupList.filter(g =>
-    (g.name || '').toLowerCase().includes(searchQuery.toLowerCase()) && matchesCategory(g)
-  );
-
-  const filteredClubs = clubList.filter(c =>
-    (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) && matchesCategory(c)
-  );
-
   const handleTabSwitch = (tab) => {
     setActiveTab(tab);
     setSelectedMain('all');
@@ -139,10 +332,20 @@ export const Home = () => {
     if (tab !== 'karte') setSearchQuery('');
   };
 
+  // ── Render helpers ───────────────────────────────────────────────
+  const FilterPill = ({ value, label, current, onSelect }) => (
+    <button
+      className={`filter-pill${current === value ? ' active' : ''}`}
+      onClick={() => onSelect(value)}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <div className="home-container">
 
-      {/* ── Sticky header (doesn't scroll) ─────────────────────────── */}
+      {/* ── Sticky header (logo + tabs + search + categories) ──────── */}
       <div className="home-sticky-header">
         <div className="home-header">
           <span className="logo-text">JAMIE</span>
@@ -168,8 +371,9 @@ export const Home = () => {
           </button>
         </div>
 
+        {/* Search + categories — sticky, only shown for non-map tabs */}
         {activeTab !== 'karte' && (
-          <>
+          <div className="home-search-area">
             <div className="search-container">
               <div className="search-input-wrapper">
                 <input
@@ -183,37 +387,58 @@ export const Home = () => {
                   autoCapitalize="off"
                   spellCheck="false"
                 />
-                <svg className="search-filter-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <line x1="4" y1="6" x2="20" y2="6"/>
-                  <line x1="8" y1="12" x2="16" y2="12"/>
-                  <line x1="12" y1="18" x2="12" y2="18" strokeWidth="3"/>
-                  <circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/>
-                  <circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/>
-                </svg>
+                <button
+                  className={`search-filter-btn${activeFilterCount > 0 ? ' has-active' : ''}`}
+                  onClick={openFilters}
+                  aria-label="Filter öffnen"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <line x1="4" y1="6" x2="20" y2="6"/>
+                    <line x1="8" y1="12" x2="16" y2="12"/>
+                    <line x1="12" y1="18" x2="12" y2="18" strokeWidth="3"/>
+                    <circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/>
+                    <circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/>
+                  </svg>
+                  {activeFilterCount > 0 && (
+                    <span className="filter-active-badge">{activeFilterCount}</span>
+                  )}
+                </button>
               </div>
             </div>
 
             <div className="categories-container">
-              <div className="categories-scroll">
-                <button
-                  className={`category-pill ${selectedMain === 'all' ? 'active' : ''}`}
-                  onClick={() => { setSelectedMain('all'); setSelectedSub(null); }}
-                >
-                  Alle
-                </button>
-                {CATEGORY_HIERARCHY.map(cat => (
+              {selectedMain === 'all' ? (
+                <div className="categories-scroll">
                   <button
-                    key={cat.id}
-                    className={`category-pill ${selectedMain === cat.id ? 'active' : ''}`}
-                    onClick={() => { setSelectedMain(cat.id); setSelectedSub(null); }}
+                    className="category-pill active"
+                    onClick={() => { setSelectedMain('all'); setSelectedSub(null); }}
                   >
-                    {cat.label}
+                    Alle
                   </button>
-                ))}
-              </div>
-
-              {selectedMain !== 'all' && (
+                  {CATEGORY_HIERARCHY.map(cat => (
+                    <button
+                      key={cat.id}
+                      className="category-pill"
+                      onClick={() => { setSelectedMain(cat.id); setSelectedSub(null); }}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
                 <div className="categories-scroll subcategories-scroll">
+                  {/* Parent category as first button — tap again to go back to all */}
+                  {(() => {
+                    const parentCat = CATEGORY_HIERARCHY.find(c => c.id === selectedMain);
+                    return (
+                      <button
+                        className="category-pill active"
+                        onClick={() => { setSelectedMain('all'); setSelectedSub(null); }}
+                      >
+                        {parentCat?.label || selectedMain}
+                      </button>
+                    );
+                  })()}
                   {CATEGORY_HIERARCHY.find(c => c.id === selectedMain)?.subs.map(sub => (
                     <button
                       key={sub.name}
@@ -226,11 +451,11 @@ export const Home = () => {
                 </div>
               )}
             </div>
-          </>
+          </div>
         )}
       </div>
 
-      {/* ── Scrollable content ──────────────────────────────────────── */}
+      {/* ── Scrollable content ─────────────────────────────────────── */}
       <div className={`home-content${activeTab === 'karte' ? ' home-content--map' : ''}`}>
 
         {user && user.onboarding_completed === false && (
@@ -317,49 +542,19 @@ export const Home = () => {
                   <div className="home-spinner" />
                 </div>
               ) : filteredClubs.length > 0 ? (
-                <div className="trend-clubs-list">
+                <div className="groups-grid clubs-grid">
                   {filteredClubs.map(club => (
-                    <div key={club.id} className="trend-club-card" onClick={() => handleCardClick(club.id)}>
-                      <div className="trend-club-image">
-                        {club.image_url
-                          ? <img src={club.image_url} alt={club.name || club.title} />
-                          : <div className="trend-club-placeholder"><span>{(club.category || 'C')[0]}</span></div>
-                        }
-                        <div className="trend-club-overlay">
-                          {club.category && <span className="trend-club-badge">{club.category}</span>}
-                        </div>
-                      </div>
-                      <div className="trend-club-content">
-                        <h3>{club.name || club.title}</h3>
-                        <div className="trend-club-meta">
-                          <span className="trend-club-members">👥 {club.member_count || club.members_count || 0} Mitglieder</span>
-                          {club.location && <span className="trend-club-location">📍 {club.location}</span>}
-                        </div>
-                        <div className="trend-club-actions">
-                          {joined.has(club.id) ? (
-                            <button className="trend-btn joined" onClick={(e) => { e.stopPropagation(); handleChat(club.id); }}>
-                              💬 Chat
-                            </button>
-                          ) : (
-                            <button className="trend-btn join" onClick={(e) => { e.stopPropagation(); handleJoin(club.id); }}>
-                              Beitreten
-                            </button>
-                          )}
-                          <button
-                            className={`trend-btn fav${favorites.has(club.id) ? ' fav-active' : ''}`}
-                            onClick={(e) => { e.stopPropagation(); handleFavorite(club.id); }}
-                            aria-label={favorites.has(club.id) ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24"
-                              fill={favorites.has(club.id) ? '#FD7666' : 'none'}
-                              stroke={favorites.has(club.id) ? '#FD7666' : 'rgba(255,255,255,0.7)'}
-                              strokeWidth="2">
-                              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+                    <GroupCard
+                      key={club.id}
+                      group={{ ...club, members_count: club.member_count || club.members_count || 0 }}
+                      isFavorite={favorites.has(club.id)}
+                      isJoined={joined.has(club.id)}
+                      onFavorite={handleFavorite}
+                      onJoin={handleJoin}
+                      onChat={handleChat}
+                      onWaitlist={handleWaitlist}
+                      onClick={() => handleCardClick(club.id)}
+                    />
                   ))}
                 </div>
               ) : (
@@ -379,6 +574,113 @@ export const Home = () => {
         {activeTab === 'karte' && <MapView />}
 
       </div>
+
+
+      {/* ── Filter bottom sheet ─────────────────────────────────────── */}
+      {showFilters && (
+        <div className="filter-overlay" onClick={() => setShowFilters(false)}>
+          <div className="filter-sheet" onClick={e => e.stopPropagation()}>
+
+            {/* Drag handle */}
+            <div className="filter-sheet-handle" />
+
+            {/* Scrollable header + sections */}
+            <div className="filter-sheet-scroll">
+              <div className="filter-sheet-header">
+                <h2 className="filter-sheet-title">Filter</h2>
+                <button className="filter-close-btn" onClick={() => setShowFilters(false)} aria-label="Schließen">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+
+              {/* Kategorie */}
+              <div className="filter-section">
+                <h3 className="filter-section-title">Kategorie</h3>
+                <div className="filter-pills">
+                  <FilterPill value="all" label="Alle" current={stagedCategory} onSelect={setStagedCategory} />
+                  {CATEGORY_HIERARCHY.map(cat => (
+                    <FilterPill key={cat.id} value={cat.id} label={cat.label} current={stagedCategory} onSelect={setStagedCategory} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Zeitraum — groups only */}
+              {activeTab === 'gruppen' && (
+                <div className="filter-section">
+                  <h3 className="filter-section-title">Zeitraum</h3>
+                  <div className="filter-pills">
+                    {[
+                      { value: 'alle', label: 'Alle' },
+                      { value: 'heute', label: 'Heute' },
+                      { value: 'woche', label: 'Diese Woche' },
+                      { value: 'wochenende', label: 'Wochenende' },
+                      { value: 'monat', label: 'Dieser Monat' },
+                      { value: 'ganztags', label: 'Ganztags' },
+                      { value: 'zeitraum', label: 'Zeitraum wählen' },
+                    ].map(opt => (
+                      <FilterPill key={opt.value} value={opt.value} label={opt.label} current={stagedZeit} onSelect={setStagedZeit} />
+                    ))}
+                  </div>
+                  {stagedZeit === 'zeitraum' && (
+                    <div className="filter-date-range">
+                      <div className="filter-date-field">
+                        <label>Von</label>
+                        <input type="date" value={stagedZeitFrom} onChange={e => setStagedZeitFrom(e.target.value)} className="filter-date-input" />
+                      </div>
+                      <div className="filter-date-field">
+                        <label>Bis</label>
+                        <input type="date" value={stagedZeitTo} onChange={e => setStagedZeitTo(e.target.value)} className="filter-date-input" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Alter — Regler */}
+              <div className="filter-section">
+                <div className="filter-section-title-row">
+                  <h3 className="filter-section-title">Alter</h3>
+                  <span className="filter-age-value">
+                    {stagedAlter[0] === 18 && stagedAlter[1] === 70
+                      ? 'Alle'
+                      : `${stagedAlter[0]} – ${stagedAlter[1] === 70 ? '70+' : stagedAlter[1]}`}
+                  </span>
+                </div>
+                <AgeRangeSlider value={stagedAlter} onChange={setStagedAlter} />
+              </div>
+
+              {/* Sichtbarkeit */}
+              <div className="filter-section">
+                <h3 className="filter-section-title">Sichtbarkeit</h3>
+                <div className="filter-pills">
+                  {[
+                    { value: 'alle', label: 'Alle' },
+                    { value: 'oeffentlich', label: 'Öffentlich' },
+                    { value: 'privat', label: 'Privat' },
+                  ].map(opt => (
+                    <FilterPill key={opt.value} value={opt.value} label={opt.label} current={stagedSicht} onSelect={setStagedSicht} />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Actions — sticky at bottom, always visible */}
+            <div className="filter-actions">
+              <button className="filter-reset-btn" onClick={resetFilters}>
+                Zurücksetzen
+              </button>
+              <button className="filter-apply-btn" onClick={applyFilters}>
+                Anwenden
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

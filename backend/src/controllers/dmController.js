@@ -62,7 +62,7 @@ export const sendDM = async (req, res) => {
     );
 
     // Notify receiver (fire-and-forget)
-    notifyDMReceived(req.userId, receiverId);
+    notifyDMReceived(req.userId, receiverId).catch(() => {});
 
     res.status(201).json(result.rows[0]);
   } catch (error) {

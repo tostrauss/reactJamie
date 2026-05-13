@@ -6,8 +6,10 @@
 const stripHtml = (str) => {
   if (typeof str !== 'string') return str;
   return str
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))  // decimal numeric entities
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))  // hex numeric entities
     .replace(/<[^>]*>/g, '')       // Remove HTML tags
-    .replace(/&lt;/g, '<')         // Decode common entities for re-strip
+    .replace(/&lt;/g, '<')         // Decode named entities for re-strip
     .replace(/&gt;/g, '>')
     .replace(/<[^>]*>/g, '')       // Re-strip after decode
     .trim();

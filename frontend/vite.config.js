@@ -32,14 +32,15 @@ export default defineConfig({
     })] : []),
   ],
   build: {
-    sourcemap: true, // needed by Sentry for correct stack traces
+    target: 'esnext',
+    sourcemap: 'hidden', // generates maps for Sentry upload but does NOT embed URL in bundle
     rollupOptions: {
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           'vendor-socket': ['socket.io-client'],
           'vendor-stripe': ['@stripe/stripe-js', '@stripe/react-stripe-js'],
-          'vendor-map': ['leaflet', 'react-leaflet', 'react-leaflet-cluster'],
+          'vendor-map': ['@react-google-maps/api'],
           'vendor-paypal': ['@paypal/react-paypal-js'],
         },
       },

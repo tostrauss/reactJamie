@@ -54,6 +54,10 @@
   margin: 0;
   text-align: center;
   flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 8px;
 }
 
 .gd-fav-top {
@@ -318,15 +322,19 @@
 }
 
 .gd-action-pill {
-  width: 100px;
-  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+  padding: 0 28px;
+  height: 48px;
   background: var(--bg-card);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-full);
   color: rgba(255,255,255,0.7);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;

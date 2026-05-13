@@ -116,13 +116,9 @@ export const handleCallback = async (req, res) => {
 
     const tokenData = await tokenRes.json();
 
-    let userId = req.userId;
-    if (state) {
-      try {
-        const parsed = JSON.parse(Buffer.from(state, 'base64').toString());
-        userId = parsed.userId || userId;
-      } catch (e) { /* use req.userId */ }
-    }
+    // Always use the JWT-authenticated userId — never trust the state parameter for identity.
+    // The state is an OAuth CSRF nonce, not an identity claim.
+    const userId = req.userId;
 
     // Store tokens in database
     await db.query(

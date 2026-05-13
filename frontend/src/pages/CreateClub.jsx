@@ -25,7 +25,8 @@ export const CreateClub = () => {
     requires_approval: false,
     meeting_frequency: 'weekly',
     rules: '',
-    image_url: null
+    image_url: null,
+    chat_only_owner: false
   });
 
   const [imagePreview, setImagePreview] = useState(null);
@@ -75,6 +76,7 @@ export const CreateClub = () => {
         max_members: formData.max_members,
         is_private: !formData.is_public, // Backend uses is_private, not is_public
         image_url: formData.image_url,
+        chat_only_owner: formData.chat_only_owner,
         type: 'club'
       });
 
@@ -283,6 +285,25 @@ export const CreateClub = () => {
               className="input textarea"
               rows={3}
             />
+          </div>
+
+          <div className="form-section" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '14px 16px' }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-white)', marginBottom: 2 }}>
+                Chat-Schreibrechte
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {formData.chat_only_owner ? 'Nur du kannst schreiben' : 'Alle Mitglieder können schreiben'}
+              </div>
+            </div>
+            <label className="settings-toggle">
+              <input
+                type="checkbox"
+                checked={formData.chat_only_owner}
+                onChange={(e) => setFormData(prev => ({ ...prev, chat_only_owner: e.target.checked }))}
+              />
+              <span className="settings-toggle-slider" />
+            </label>
           </div>
         </div>
       )}

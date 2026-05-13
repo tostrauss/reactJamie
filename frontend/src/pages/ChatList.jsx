@@ -116,7 +116,6 @@ export const ChatList = () => {
 
   const handleChatClick = (chat) => {
     if (chat.isDM) {
-      if (!isPro) { setShowProModal(true); return; }
       navigate(`/dm/${chat.id}`);
     } else {
       navigate(`/chat/${chat.id}`);
@@ -241,9 +240,9 @@ export const ChatList = () => {
             className={`tab ${activeTab === 'freunde' ? 'active' : ''}`}
             onClick={() => setActiveTab('freunde')}
           >
-            Deine Chats
-            {pendingRequests.length > 0 && (
-              <span className="tab-count">{pendingRequests.length}</span>
+            Chats
+            {(privateChats.length > 0 || pendingRequests.length > 0) && (
+              <span className="tab-count">{privateChats.length + pendingRequests.length}</span>
             )}
           </button>
         </div>
@@ -252,22 +251,9 @@ export const ChatList = () => {
       {/* ── Scrollable content ──────────────────────────────────────── */}
       <div className="home-content">
 
-        {/* ── Freunde tab ─────────────────────────────────────────── */}
+        {/* ── Chats (DM) tab ──────────────────────────────────────── */}
         {activeTab === 'freunde' && (
           <div className="chat-friends-section">
-
-            {!isPro && (
-              <div className="pro-banner">
-                <div className="pro-banner-icon">👑</div>
-                <div className="pro-banner-title">Pro-Mitgliedschaft erforderlich</div>
-                <p className="pro-banner-text">
-                  Freunde hinzufügen und Direktnachrichten senden ist exklusiv für Pro-Mitglieder.
-                </p>
-                <button className="pro-banner-btn" onClick={() => setShowProModal(true)}>
-                  👑 Pro aktivieren — 5 € / Monat
-                </button>
-              </div>
-            )}
 
             {pendingRequests.length > 0 && (
               <div className="pending-requests-section">
@@ -294,15 +280,41 @@ export const ChatList = () => {
               </div>
             )}
 
+            {/* Private DM conversations */}
+            {privateChats.length > 0 && (
+              <div className="chat-list">
+                {privateChats.map(chat => (
+                  <div key={chat.id} className="chat-item" onClick={() => navigate(`/dm/${chat.id}`)}>
+                    <div className="chat-avatar-wrapper">
+                      {chat.avatar
+                        ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" />
+                        : <div className="chat-avatar-placeholder">{(chat.name || '?')[0].toUpperCase()}</div>
+                      }
+                    </div>
+                    <div className="chat-info">
+                      <div className="chat-top-row">
+                        <span className="chat-name">{chat.name}</span>
+                        <span className="chat-time">{chat.time}</span>
+                      </div>
+                      <div className="chat-bottom-row">
+                        <p className="chat-last-message">{chat.lastMessage}</p>
+                        {chat.unread > 0 && <span className="unread-badge">{chat.unread}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="friends-list">
               {loading ? (
                 <div className="home-loading"><div className="home-spinner" /></div>
-              ) : !isPro ? null : friendsList.length === 0 ? (
+              ) : friendsList.length === 0 && privateChats.length === 0 ? (
                 <div className="empty-state">
-                  <div className="empty-icon">👥</div>
-                  <p>Noch keine Freunde</p>
+                  <div className="empty-icon">💬</div>
+                  <p>Noch keine Chats</p>
                   <button className="empty-hint" onClick={() => navigate('/home')}>
-                    Entdecke Gruppen und lerne Leute kennen!
+                    Tritt Gruppen bei und lerne Leute kennen!
                   </button>
                 </div>
               ) : (
@@ -319,8 +331,8 @@ export const ChatList = () => {
                     <div className="friend-actions">
                       <button
                         className="friend-action-btn"
-                        onClick={() => isPro ? navigate(`/dm/${friend.friend_id}`) : setShowProModal(true)}
-                        title={isPro ? 'Nachricht senden' : 'Pro erforderlich'}
+                        onClick={() => navigate(`/dm/${friend.friend_id}`)}
+                        title="Nachricht senden"
                       >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>

@@ -1,6 +1,26 @@
 import db from '../config/database.js';
 import { isUserPro } from './subscriptionController.js';
 
+function validateDealInputs({ lat, lng, booking_url }) {
+  if (lat !== null && lat !== undefined) {
+    const n = parseFloat(lat);
+    if (isNaN(n) || n < -90 || n > 90) return 'lat must be between -90 and 90';
+  }
+  if (lng !== null && lng !== undefined) {
+    const n = parseFloat(lng);
+    if (isNaN(n) || n < -180 || n > 180) return 'lng must be between -180 and 180';
+  }
+  if (booking_url) {
+    try {
+      const u = new URL(booking_url);
+      if (!['http:', 'https:'].includes(u.protocol)) return 'booking_url must use http or https';
+    } catch {
+      return 'booking_url is not a valid URL';
+    }
+  }
+  return null;
+}
+
 // ==========================================
 // LIST DEALS  (Pro-gated)
 // ==========================================
@@ -56,6 +76,8 @@ export const createDeal = async (req, res) => {
   if (!name || !deal_label) {
     return res.status(400).json({ error: 'name and deal_label are required' });
   }
+  const validationError = validateDealInputs({ lat, lng, booking_url });
+  if (validationError) return res.status(400).json({ error: validationError });
   try {
     const result = await db.query(
       `INSERT INTO deals (name, category, deal_label, description, address, lat, lng, photos, booking_url)
@@ -85,6 +107,8 @@ export const createDeal = async (req, res) => {
 export const updateDeal = async (req, res) => {
   const { id } = req.params;
   const { name, category, deal_label, description, address, lat, lng, photos, booking_url, is_active } = req.body;
+  const validationError = validateDealInputs({ lat, lng, booking_url });
+  if (validationError) return res.status(400).json({ error: validationError });
   try {
     const result = await db.query(
       `UPDATE deals

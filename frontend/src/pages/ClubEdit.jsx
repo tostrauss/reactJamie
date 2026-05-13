@@ -45,7 +45,8 @@ export const ClubEdit = () => {
         name: clubData.name || clubData.title || '',
         description: clubData.description || '',
         location: clubData.location || '',
-        category: clubData.category || ''
+        category: clubData.category || '',
+        chat_only_owner: clubData.chat_only_owner || false,
       });
     } catch (error) {
     } finally {
@@ -152,6 +153,25 @@ export const ClubEdit = () => {
               className="form-input"
               placeholder="z.B. Wien"
             />
+          </div>
+
+          <div className="form-section" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '14px 16px' }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-white)', marginBottom: 2 }}>
+                Chat-Schreibrechte
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {formData.chat_only_owner ? 'Nur du kannst schreiben' : 'Alle Mitglieder können schreiben'}
+              </div>
+            </div>
+            <label className="settings-toggle">
+              <input
+                type="checkbox"
+                checked={formData.chat_only_owner}
+                onChange={(e) => setFormData(prev => ({ ...prev, chat_only_owner: e.target.checked }))}
+              />
+              <span className="settings-toggle-slider" />
+            </label>
           </div>
         </div>
 

@@ -30,13 +30,15 @@ export const SettingsPage = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Notification prefs — persisted to localStorage
-  const [notifMessages, setNotifMessages] = useState(() => localStorage.getItem('notif_messages') !== 'false');
-  const [notifRequests, setNotifRequests] = useState(() => localStorage.getItem('notif_requests') !== 'false');
-  const [notifGroups, setNotifGroups] = useState(() => localStorage.getItem('notif_groups') !== 'false');
+  const lsGet = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
+  const lsSet = (key, val) => { try { localStorage.setItem(key, val); } catch { /* private browsing */ } };
+  const [notifMessages, setNotifMessages] = useState(() => lsGet('notif_messages') !== 'false');
+  const [notifRequests, setNotifRequests] = useState(() => lsGet('notif_requests') !== 'false');
+  const [notifGroups, setNotifGroups] = useState(() => lsGet('notif_groups') !== 'false');
 
-  useEffect(() => { localStorage.setItem('notif_messages', notifMessages); }, [notifMessages]);
-  useEffect(() => { localStorage.setItem('notif_requests', notifRequests); }, [notifRequests]);
-  useEffect(() => { localStorage.setItem('notif_groups', notifGroups); }, [notifGroups]);
+  useEffect(() => { lsSet('notif_messages', notifMessages); }, [notifMessages]);
+  useEffect(() => { lsSet('notif_requests', notifRequests); }, [notifRequests]);
+  useEffect(() => { lsSet('notif_groups', notifGroups); }, [notifGroups]);
 
   // Favorites
   const [favTab, setFavTab] = useState('groups');
@@ -294,7 +296,7 @@ export const SettingsPage = () => {
                 }}>
                   {item.image_url
                     ? <img src={item.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : <span style={{ fontSize: 18 }}>⭐</span>
+                    : <span style={{ fontSize: 18 }}>{favTab === 'clubs' ? '🏆' : '📅'}</span>
                   }
                 </div>
                 <div className="settings-row-stacked">
@@ -475,7 +477,7 @@ export const SettingsPage = () => {
         </div>
       </div>
 
-      {/* Logout - separate from danger zone */}
+      {/* Logout */}
       <button className="settings-logout-btn" onClick={handleLogout}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -485,8 +487,8 @@ export const SettingsPage = () => {
         Ausloggen
       </button>
 
-      {/* Gefahrenzone */}
-      <div className="settings-section danger-section">
+      {/* DISABLED_GEFAHRENZONE_START */}
+      <div className="settings-section danger-section" style={{ display: 'none' }}>
         <h3 className="settings-section-title">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
@@ -523,6 +525,31 @@ export const SettingsPage = () => {
           </div>
         )}
       </div>
+
+      {/* Account löschen — kleiner Link unter Logout */}
+      {!showDeleteConfirm ? (
+        <button className="settings-delete-link" onClick={() => setShowDeleteConfirm(true)}>
+          Account löschen
+        </button>
+      ) : (
+        <div className="settings-expand" style={{ margin: '0 16px 40px' }}>
+          <p className="delete-warning">
+            Diese Aktion kann nicht rückgängig gemacht werden. Alle deine Daten werden unwiderruflich gelöscht.
+          </p>
+          <form onSubmit={handleDeleteAccount} className="settings-form">
+            <input type="password" placeholder="Passwort zur Bestätigung" value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} className="settings-input" />
+            <div className="settings-form-actions">
+              <button type="submit" className="danger-btn" disabled={deleteLoading}>
+                {deleteLoading ? 'Laden...' : 'Endgültig löschen'}
+              </button>
+              <button type="button" className="settings-action-btn" onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); }}>
+                Abbrechen
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       </div>{/* settings-body */}
     </div>
   );
