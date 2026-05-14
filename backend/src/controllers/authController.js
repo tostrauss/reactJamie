@@ -192,6 +192,10 @@ export const login = async (req, res) => {
       });
     }
 
+    if (!user.password) {
+      return res.status(401).json({ error: 'Dieses Konto verwendet Google-Anmeldung. Bitte melde dich mit Google an.' });
+    }
+
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
       const attempts = (user.login_attempts || 0) + 1;

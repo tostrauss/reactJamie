@@ -171,8 +171,8 @@ app.use(helmet({
         'https://accounts.google.com',
         'https://appleid.apple.com',
       ],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      fontSrc: ["'self'", 'data:'],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
       mediaSrc: ["'self'", 'blob:', 'https://p.scdn.co'],
       workerSrc: ["'self'", 'blob:'], // Service worker + Workbox
       objectSrc: ["'none'"],
@@ -487,6 +487,8 @@ const runStartupMigrations = async () => {
     await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_trusted_user BOOLEAN NOT NULL DEFAULT FALSE`);
     await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trusted_count   INTEGER NOT NULL DEFAULT 0`);
   });
+  await migrate('users google_id col', () =>
+    db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT UNIQUE`));
   await migrate('groups lat/lng cols', async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION`);
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION`);
@@ -548,6 +550,21 @@ const runStartupMigrations = async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_deals_active ON deals(is_active) WHERE is_active = TRUE`);
     await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS booking_url TEXT`);
   });
+
+  // ── Subscriptions table (Stripe Pro) ─────────────────────────────────────────
+  await migrate('subscriptions', () => db.query(`
+    CREATE TABLE IF NOT EXISTS subscriptions (
+      id                     SERIAL PRIMARY KEY,
+      user_id                INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      stripe_customer_id     TEXT,
+      stripe_subscription_id TEXT UNIQUE,
+      status                 TEXT NOT NULL DEFAULT 'pending',
+      current_period_end     TIMESTAMPTZ,
+      created_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at             TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`));
+  await migrate('idx_subscriptions_user', () =>
+    db.query(`CREATE INDEX IF NOT EXISTS subscriptions_user_id_idx ON subscriptions(user_id)`));
 
   // ── Optional: boost_transactions index (table created by boost_migration.sql) ──
   await migrate('idx_boost_txn_payment_id', () =>
