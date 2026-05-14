@@ -27,7 +27,7 @@ export default defineConfig({
           'assets/vendor-react-*.js',
           'assets/index-*.js',
         ],
-        maximumFileSizeToCacheInBytes: 300 * 1024, // skip files >300 kB
+        maximumFileSizeToCacheInBytes: 500 * 1024, // skip files >500 kB (main bundle is ~360 kB)
       }
     }),
     // Uploads source maps to Sentry during CI builds — no-op if auth token absent
