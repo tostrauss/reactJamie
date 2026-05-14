@@ -170,7 +170,7 @@ export const getGroups = async (req, res) => {
              CASE WHEN g.members_count >= g.max_members THEN 1 ELSE 0 END as is_full
       FROM groups g
       LEFT JOIN users u ON g.owner_id = u.id
-      WHERE g.is_active = TRUE AND g.deleted_at IS NULL AND g.parent_club_id IS NULL
+      WHERE g.is_active = TRUE AND g.deleted_at IS NULL AND g.type IN ('group', 'club')
     `;
     const params = [];
     let paramIndex = 1;
