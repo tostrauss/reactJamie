@@ -428,6 +428,21 @@ const migrate = async (label, fn) => {
 };
 
 const runStartupMigrations = async () => {
+  // Wait up to 30s for DB to be reachable before running migrations.
+  for (let attempt = 1; attempt <= 6; attempt++) {
+    try {
+      await db.query('SELECT 1');
+      break;
+    } catch {
+      if (attempt === 6) {
+        console.error('⚠️ DB not reachable after 30s — startup migrations skipped');
+        return;
+      }
+      console.log(`[migrations] Waiting for DB... (${attempt}/6)`);
+      await new Promise(r => setTimeout(r, 5000));
+    }
+  }
+
   // Each block runs independently — a failing index never skips a critical table.
 
   // ── Critical app tables ────────────────────────────────────────────────────

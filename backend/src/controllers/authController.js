@@ -651,6 +651,12 @@ export const sendEmailCode = async (req, res) => {
       return res.status(400).json({ error: 'Diese E-Mail ist bereits registriert' });
     }
 
+    // Ensure table exists (guards against startup migration race on cold boot)
+    await db.query(`CREATE TABLE IF NOT EXISTS email_verification_codes (
+      id SERIAL PRIMARY KEY, email VARCHAR(255) NOT NULL,
+      code VARCHAR(6) NOT NULL, expires_at TIMESTAMPTZ NOT NULL,
+      used BOOLEAN DEFAULT FALSE, created_at TIMESTAMPTZ DEFAULT NOW())`);
+
     // Delete any old codes for this email
     await db.query('DELETE FROM email_verification_codes WHERE email = $1', [email]);
 
