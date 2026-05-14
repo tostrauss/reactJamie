@@ -673,8 +673,8 @@ export const sendEmailCode = async (req, res) => {
 
     res.json({ message: 'Code gesendet' });
   } catch (error) {
-    console.error('sendEmailCode error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('sendEmailCode error:', error.message, { code: error.code, detail: error.detail });
+    res.status(500).json({ error: 'Registrierung fehlgeschlagen. Bitte versuche es erneut.' });
   }
 };
 

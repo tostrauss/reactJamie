@@ -39,10 +39,12 @@ const sendEmail = async ({ to, subject, html }) => {
     }),
   });
 
-  const data = await res.json();
+  let data = {};
+  try { data = await res.json(); } catch { /* non-JSON response (CDN error, etc.) */ }
+
   if (!res.ok) {
-    console.error('[email] Resend error:', data);
-    throw new Error(data.message || 'Failed to send email');
+    console.error(`[email] Resend HTTP ${res.status}:`, JSON.stringify(data));
+    throw new Error(data.message || `E-Mail-Versand fehlgeschlagen (HTTP ${res.status})`);
   }
 
   console.log('[email] Sent to', to, '— id:', data.id);

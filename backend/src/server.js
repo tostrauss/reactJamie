@@ -418,119 +418,143 @@ process.on('uncaughtException', (error) => {
 // ==========================================
 const PORT = process.env.PORT || 3000;
 
-const runStartupMigrations = async () => {
+// Helper: run a single migration step, log and continue on error
+const migrate = async (label, fn) => {
   try {
-    // Email OTP verification
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS email_verification_codes (
-        id         SERIAL PRIMARY KEY,
-        email      VARCHAR(255) NOT NULL,
-        code       VARCHAR(6)   NOT NULL,
-        expires_at TIMESTAMPTZ  NOT NULL,
-        used       BOOLEAN      DEFAULT FALSE,
-        created_at TIMESTAMPTZ  DEFAULT NOW()
-      )
-    `);
-    await db.query(`CREATE INDEX IF NOT EXISTS idx_evc_email ON email_verification_codes(email)`);
+    await fn();
+  } catch (err) {
+    console.error(`⚠️ Migration "${label}" failed: ${err.message}`);
+  }
+};
 
-    // Analytics events
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS analytics_events (
-        id          BIGSERIAL PRIMARY KEY,
-        user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
-        event_type  VARCHAR(50)  NOT NULL,
-        screen_name VARCHAR(120),
-        duration_ms INTEGER,
-        metadata    JSONB,
-        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+const runStartupMigrations = async () => {
+  // Each block runs independently — a failing index never skips a critical table.
+
+  // ── Critical app tables ────────────────────────────────────────────────────
+  await migrate('email_verification_codes', () => db.query(`
+    CREATE TABLE IF NOT EXISTS email_verification_codes (
+      id         SERIAL PRIMARY KEY,
+      email      VARCHAR(255) NOT NULL,
+      code       VARCHAR(6)   NOT NULL,
+      expires_at TIMESTAMPTZ  NOT NULL,
+      used       BOOLEAN      DEFAULT FALSE,
+      created_at TIMESTAMPTZ  DEFAULT NOW()
+    )`));
+  await migrate('idx_evc_email', () =>
+    db.query(`CREATE INDEX IF NOT EXISTS idx_evc_email ON email_verification_codes(email)`));
+
+  await migrate('analytics_events', () => db.query(`
+    CREATE TABLE IF NOT EXISTS analytics_events (
+      id          BIGSERIAL PRIMARY KEY,
+      user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      event_type  VARCHAR(50)  NOT NULL,
+      screen_name VARCHAR(120),
+      duration_ms INTEGER,
+      metadata    JSONB,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`));
+  await migrate('idx_analytics_*', async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_analytics_user    ON analytics_events(user_id)`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_analytics_type    ON analytics_events(event_type)`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_analytics_screen  ON analytics_events(screen_name)`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics_events(created_at DESC)`);
+  });
 
-    // Category suggestions
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS category_suggestions (
-        id          SERIAL PRIMARY KEY,
-        user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
-        suggestion  TEXT NOT NULL,
-        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  await migrate('category_suggestions', () => db.query(`
+    CREATE TABLE IF NOT EXISTS category_suggestions (
+      id          SERIAL PRIMARY KEY,
+      user_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      suggestion  TEXT NOT NULL,
+      created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`));
 
-    // Event reviews + trusted user columns
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS event_reviews (
-        id               SERIAL PRIMARY KEY,
-        group_id         INTEGER NOT NULL REFERENCES groups(id)  ON DELETE CASCADE,
-        reviewer_id      INTEGER NOT NULL REFERENCES users(id)   ON DELETE CASCADE,
-        reviewed_user_id INTEGER NOT NULL REFERENCES users(id)   ON DELETE CASCADE,
-        was_present      BOOLEAN NOT NULL,
-        created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(group_id, reviewer_id, reviewed_user_id)
-      )
-    `);
+  await migrate('event_reviews', () => db.query(`
+    CREATE TABLE IF NOT EXISTS event_reviews (
+      id               SERIAL PRIMARY KEY,
+      group_id         INTEGER NOT NULL REFERENCES groups(id)  ON DELETE CASCADE,
+      reviewer_id      INTEGER NOT NULL REFERENCES users(id)   ON DELETE CASCADE,
+      reviewed_user_id INTEGER NOT NULL REFERENCES users(id)   ON DELETE CASCADE,
+      was_present      BOOLEAN NOT NULL,
+      created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(group_id, reviewer_id, reviewed_user_id)
+    )`));
+  await migrate('idx_event_reviews_*', async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_event_reviews_group    ON event_reviews(group_id)`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_event_reviews_reviewed ON event_reviews(reviewed_user_id)`);
+  });
+
+  await migrate('users trusted cols', async () => {
     await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_trusted_user BOOLEAN NOT NULL DEFAULT FALSE`);
     await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trusted_count   INTEGER NOT NULL DEFAULT 0`);
+  });
+  await migrate('groups lat/lng cols', async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION`);
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_lat_lng ON groups(lat, lng) WHERE lat IS NOT NULL AND lng IS NOT NULL`);
+  });
 
-    // Geofencing & pioneer system
-    await db.query(`CREATE TABLE IF NOT EXISTS waitlist (
+  // ── Geofencing & pioneer system ────────────────────────────────────────────
+  await migrate('waitlist', () => db.query(`
+    CREATE TABLE IF NOT EXISTS waitlist (
       id SERIAL PRIMARY KEY, email VARCHAR(255) NOT NULL UNIQUE,
       country VARCHAR(10), ip VARCHAR(50),
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
-    await db.query(`CREATE INDEX IF NOT EXISTS idx_waitlist_country ON waitlist(country)`);
-    await db.query(`CREATE TABLE IF NOT EXISTS country_votes (
-      country VARCHAR(10) PRIMARY KEY, votes INTEGER NOT NULL DEFAULT 0)`);
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`));
+  await migrate('idx_waitlist_country', () =>
+    db.query(`CREATE INDEX IF NOT EXISTS idx_waitlist_country ON waitlist(country)`));
+  await migrate('country_votes', () =>
+    db.query(`CREATE TABLE IF NOT EXISTS country_votes (country VARCHAR(10) PRIMARY KEY, votes INTEGER NOT NULL DEFAULT 0)`));
+  await migrate('users pioneer/admin cols', async () => {
     await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_pioneer BOOLEAN NOT NULL DEFAULT FALSE`);
-    await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE`);
-    await db.query(`CREATE TABLE IF NOT EXISTS pioneer_claims (
+    await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin   BOOLEAN NOT NULL DEFAULT FALSE`);
+  });
+  await migrate('pioneer_claims', () => db.query(`
+    CREATE TABLE IF NOT EXISTS pioneer_claims (
       id SERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       group_id INTEGER REFERENCES groups(id) ON DELETE SET NULL,
       lat_cell NUMERIC(6,2) NOT NULL, lng_cell NUMERIC(6,2) NOT NULL,
       claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(lat_cell, lng_cell))`);
-    await db.query(`CREATE INDEX IF NOT EXISTS idx_pioneer_claims_cell ON pioneer_claims(lat_cell, lng_cell)`);
+      UNIQUE(lat_cell, lng_cell))`));
+  await migrate('idx_pioneer_claims_cell', () =>
+    db.query(`CREATE INDEX IF NOT EXISTS idx_pioneer_claims_cell ON pioneer_claims(lat_cell, lng_cell)`));
 
-    // Soft delete for groups (preserves messages/reviews; hard delete on cascade never fires)
+  // ── Schema additions ───────────────────────────────────────────────────────
+  await migrate('groups.deleted_at', async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_deleted_at ON groups(deleted_at) WHERE deleted_at IS NULL`);
-
-    // Friend request expiration — 30-day auto-reject
+  });
+  await migrate('friendships.expires_at', async () => {
     await db.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_friendships_expires ON friendships(expires_at) WHERE status = 'pending'`);
+  });
 
-    // Für Dich — Pro-exclusive venue deals
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS deals (
-        id           SERIAL PRIMARY KEY,
-        name         VARCHAR(255) NOT NULL,
-        category     VARCHAR(100) NOT NULL DEFAULT 'Lokal',
-        deal_label   VARCHAR(100) NOT NULL,
-        description  TEXT,
-        address      VARCHAR(255),
-        lat          DOUBLE PRECISION,
-        lng          DOUBLE PRECISION,
-        photos       JSONB NOT NULL DEFAULT '[]',
-        is_active    BOOLEAN NOT NULL DEFAULT TRUE,
-        created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  // ── Deals table ────────────────────────────────────────────────────────────
+  await migrate('deals', () => db.query(`
+    CREATE TABLE IF NOT EXISTS deals (
+      id           SERIAL PRIMARY KEY,
+      name         VARCHAR(255) NOT NULL,
+      category     VARCHAR(100) NOT NULL DEFAULT 'Lokal',
+      deal_label   VARCHAR(100) NOT NULL,
+      description  TEXT,
+      address      VARCHAR(255),
+      lat          DOUBLE PRECISION,
+      lng          DOUBLE PRECISION,
+      photos       JSONB NOT NULL DEFAULT '[]',
+      is_active    BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`));
+  await migrate('deals indexes', async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_deals_active ON deals(is_active) WHERE is_active = TRUE`);
     await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS booking_url TEXT`);
+  });
 
-    // Unique constraint on boost_transactions.payment_id prevents double-crediting under concurrent requests
-    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_boost_txn_payment_id ON boost_transactions(payment_id) WHERE payment_id IS NOT NULL`);
+  // ── Optional: boost_transactions index (table created by boost_migration.sql) ──
+  await migrate('idx_boost_txn_payment_id', () =>
+    db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_boost_txn_payment_id ON boost_transactions(payment_id) WHERE payment_id IS NOT NULL`));
 
-    // Performance indexes — missing from original schema
+  // ── Performance indexes ────────────────────────────────────────────────────
+  await migrate('performance indexes', async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_is_active     ON groups(is_active) WHERE is_active = TRUE`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_notifications_user   ON notifications(user_id)`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_group_members_user   ON group_members(user_id)`);
@@ -538,42 +562,39 @@ const runStartupMigrations = async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_messages_group       ON messages(group_id, created_at DESC)`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_prt_token            ON password_reset_tokens(token)`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_prt_expires          ON password_reset_tokens(expires_at) WHERE used = FALSE`);
+  });
+  await migrate('groups.chat_only_owner', async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS chat_only_owner BOOLEAN DEFAULT FALSE`);
-    await db.query(`CREATE INDEX IF NOT EXISTS idx_chat_only_owner      ON groups(chat_only_owner) WHERE chat_only_owner = TRUE`);
-
-    // Case-insensitive category filter index (ILIKE 'Tennis' → lower(category) btree)
-    await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_category_lower ON groups(LOWER(category))`);
-
-    // Composite partial index for the home-page feed (is_active=TRUE, not deleted)
-    // Covers the WHERE clause and the created_at DESC ORDER BY in getGroups/getClubs
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_chat_only_owner ON groups(chat_only_owner) WHERE chat_only_owner = TRUE`);
+  });
+  await migrate('idx_groups_category_lower', () =>
+    db.query(`CREATE INDEX IF NOT EXISTS idx_groups_category_lower ON groups(LOWER(category))`));
+  await migrate('idx_groups_feed + map', async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_feed ON groups(type, created_at DESC) WHERE is_active = TRUE AND deleted_at IS NULL`);
-    // Map-pin index: fast lookup for geocoded, active, non-deleted groups
-    await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_map ON groups(type, category, created_at DESC) WHERE is_active = TRUE AND deleted_at IS NULL AND lat IS NOT NULL AND lng IS NOT NULL`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_map  ON groups(type, category, created_at DESC) WHERE is_active = TRUE AND deleted_at IS NULL AND lat IS NOT NULL AND lng IS NOT NULL`);
+  });
 
-    // Full-text search indexes (trigram) for groups.name / description / location
+  // ── Full-text search (requires pg_trgm extension) ─────────────────────────
+  await migrate('pg_trgm + gin indexes', async () => {
     await db.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_name_gin     ON groups USING gin(name gin_trgm_ops)`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_desc_gin     ON groups USING gin(description gin_trgm_ops)`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_location_gin ON groups USING gin(location gin_trgm_ops)`);
+  });
 
-    // DB-level CHECK constraints for enum-like columns
-    await db.query(`
-      DO $$ BEGIN
-        ALTER TABLE friendships ADD CONSTRAINT chk_friendship_status
-          CHECK (status IN ('pending','accepted','blocked'));
-      EXCEPTION WHEN duplicate_object THEN NULL; END $$
-    `);
-    await db.query(`
-      DO $$ BEGIN
-        ALTER TABLE group_members ADD CONSTRAINT chk_gm_role
-          CHECK (role IN ('owner','admin','member'));
-      EXCEPTION WHEN duplicate_object THEN NULL; END $$
-    `);
+  // ── DB-level CHECK constraints ─────────────────────────────────────────────
+  await migrate('chk_friendship_status', () => db.query(`
+    DO $$ BEGIN
+      ALTER TABLE friendships ADD CONSTRAINT chk_friendship_status
+        CHECK (status IN ('pending','accepted','blocked'));
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`));
+  await migrate('chk_gm_role', () => db.query(`
+    DO $$ BEGIN
+      ALTER TABLE group_members ADD CONSTRAINT chk_gm_role
+        CHECK (role IN ('owner','admin','member'));
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`));
 
-    console.log('✅ Startup migrations done');
-  } catch (err) {
-    console.error('⚠️ Startup migration error:', err.message);
-  }
+  console.log('✅ Startup migrations done');
 };
 
 server.listen(PORT, async () => {
