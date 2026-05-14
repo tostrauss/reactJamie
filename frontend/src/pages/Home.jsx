@@ -137,7 +137,11 @@ export const Home = () => {
         ]));
       }
     } catch (error) {
-      if (!error.response) toast.error('Server nicht erreichbar');
+      if (!error.response) {
+        toast.error('Server nicht erreichbar');
+      } else {
+        toast.error('Inhalte konnten nicht geladen werden. Bitte neu laden.');
+      }
     } finally {
       setLoading(false);
     }

@@ -81,6 +81,7 @@ CREATE TABLE groups (
   owner_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   is_active       BOOLEAN DEFAULT TRUE,
   is_featured     BOOLEAN DEFAULT FALSE,                 -- "Im Trend" section
+  deleted_at      TIMESTAMP,                             -- Soft delete (NULL = active)
   created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
