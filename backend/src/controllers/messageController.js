@@ -69,6 +69,17 @@ export const sendMessage = async (req, res) => {
 export const getMessages = async (req, res) => {
   try {
     const { groupId } = req.params;
+
+    // Verify the requesting user is a member of this group before returning messages.
+    // Without this check any authenticated user can read messages from private groups.
+    const memberCheck = await db.query(
+      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2 LIMIT 1',
+      [groupId, req.userId]
+    );
+    if (memberCheck.rows.length === 0) {
+      return res.status(403).json({ error: 'Keine Berechtigung' });
+    }
+
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
     const before = req.query.before ? parseInt(req.query.before, 10) : null;
 
@@ -109,15 +120,23 @@ export const deleteMessage = async (req, res) => {
   try {
     const { messageId } = req.params;
 
-    // Check message exists & ownership
-    const message = await db.query(
-      'SELECT * FROM messages WHERE id = $1',
+    // Fetch message + group owner in one query so we can check both permissions
+    const result = await db.query(
+      `SELECT m.user_id AS author_id, g.owner_id AS group_owner_id
+       FROM messages m
+       JOIN groups g ON g.id = m.group_id
+       WHERE m.id = $1`,
       [messageId]
     );
-    if (message.rows.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Message not found' });
     }
-    if (message.rows[0].user_id !== req.userId) {
+
+    const { author_id, group_owner_id } = result.rows[0];
+    const isAuthor      = author_id      === req.userId;
+    const isGroupOwner  = group_owner_id === req.userId;
+
+    if (!isAuthor && !isGroupOwner) {
       return res.status(403).json({ error: 'Keine Berechtigung, diese Nachricht zu löschen' });
     }
 

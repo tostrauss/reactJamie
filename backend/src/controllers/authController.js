@@ -153,6 +153,10 @@ export const register = async (req, res) => {
     setAuthCookie(res, token);
     res.status(201).json({ user, token });
   } catch (error) {
+    // Unique constraint violation — concurrent registration with the same email
+    if (error.code === '23505' && error.constraint?.includes('email')) {
+      return res.status(400).json({ error: 'Diese E-Mail-Adresse ist bereits registriert' });
+    }
     console.error('Register error:', error);
     res.status(500).json({ error: 'Registrierung fehlgeschlagen' });
   }
@@ -349,7 +353,19 @@ export const changePassword = async (req, res) => {
     }
 
     if (newPassword.length < 6) {
-      return res.status(400).json({ error: 'Neues Passwort muss mindestens 6 Zeichen haben' });
+      return res.status(400).json({ error: 'Mindestens 6 Zeichen erforderlich' });
+    }
+    if (!/[A-Z]/.test(newPassword)) {
+      return res.status(400).json({ error: 'Mindestens 1 Großbuchstabe erforderlich' });
+    }
+    if (!/[a-z]/.test(newPassword)) {
+      return res.status(400).json({ error: 'Mindestens 1 Kleinbuchstabe erforderlich' });
+    }
+    if (!/[0-9]/.test(newPassword)) {
+      return res.status(400).json({ error: 'Mindestens 1 Zahl erforderlich' });
+    }
+    if (!/[^A-Za-z0-9]/.test(newPassword)) {
+      return res.status(400).json({ error: 'Mindestens 1 Sonderzeichen erforderlich' });
     }
 
     const result = await db.query('SELECT password FROM users WHERE id = $1', [req.userId]);

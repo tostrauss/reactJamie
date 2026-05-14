@@ -20,7 +20,14 @@ export default defineConfig({
       includeAssets: ['icon.svg', 'favicon.ico', 'pwa-64x64.png', 'pwa-192x192.png', 'pwa-512x512.png', 'maskable-icon-512x512.png', 'apple-touch-icon-180x180.png'],
       manifest: false, // Use our custom manifest.json in public/
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}']
+        // Only precache the shell: HTML + CSS + React core + main entry
+        // All page chunks are lazy-loaded on-demand — no need to prefetch 900 kB upfront
+        globPatterns: [
+          '**/*.{html,css}',
+          'assets/vendor-react-*.js',
+          'assets/index-*.js',
+        ],
+        maximumFileSizeToCacheInBytes: 300 * 1024, // skip files >300 kB
       }
     }),
     // Uploads source maps to Sentry during CI builds — no-op if auth token absent

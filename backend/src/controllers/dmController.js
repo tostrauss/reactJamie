@@ -136,7 +136,8 @@ export const getConversations = async (req, res) => {
        JOIN users u ON dc.other_user_id = u.id
        LEFT JOIN direct_messages dm ON dc.last_message_id = dm.id
        WHERE dc.user_id = $1
-       ORDER BY dc.updated_at DESC`,
+       ORDER BY dc.updated_at DESC
+       LIMIT 100`,
       [req.userId]
     );
 
@@ -154,17 +155,17 @@ export const markDMRead = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    await db.query(
-      `UPDATE dm_conversations SET unread_count = 0 WHERE user_id = $1 AND other_user_id = $2`,
-      [req.userId, userId]
-    );
-
-    // Also mark messages as read
-    await db.query(
-      `UPDATE direct_messages SET is_read = TRUE 
-       WHERE sender_id = $1 AND receiver_id = $2 AND is_read = FALSE`,
-      [userId, req.userId]
-    );
+    await Promise.all([
+      db.query(
+        `UPDATE dm_conversations SET unread_count = 0 WHERE user_id = $1 AND other_user_id = $2`,
+        [req.userId, userId]
+      ),
+      db.query(
+        `UPDATE direct_messages SET is_read = TRUE
+         WHERE sender_id = $1 AND receiver_id = $2 AND is_read = FALSE`,
+        [userId, req.userId]
+      ),
+    ]);
 
     res.json({ success: true });
   } catch (error) {

@@ -2,6 +2,10 @@ import db from '../config/database.js';
 import { geocodeLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { sendPushToUser } from './pushController.js';
+import { getCached, setCached, invalidatePrefix } from '../utils/cache.js';
+
+const GROUPS_TTL  = 30_000;  // 30 s — acceptable staleness for list views
+const AVATARS_TTL = 60_000;  // 60 s — avatars change only on join/leave
 
 // ==========================================
 // PIONEER HELPER
@@ -133,6 +137,8 @@ export const createGroup = async (req, res) => {
       checkAndAwardPioneer(userId, newGroup.id, coords.lat, coords.lng).catch(() => {});
     }
 
+    invalidatePrefix('groups:');
+    invalidatePrefix('map:');
     res.status(201).json(newGroup);
   } catch (err) {
     console.error('Error creating group:', err);
@@ -148,6 +154,16 @@ export const getGroups = async (req, res) => {
     const { type, search, category, location, upcoming, limit, offset } = req.query;
 
     if (search && search.length > 100) return res.status(400).json({ error: 'Suchbegriff zu lang' });
+
+    // Cache only filter combinations that don't involve free-text search or location
+    // (those are low-frequency, high-variability and not worth the memory)
+    const cacheKey = !search && !location
+      ? `groups:${type || ''}:${category || ''}:${upcoming || ''}:${limit || ''}:${offset || ''}`
+      : null;
+    if (cacheKey) {
+      const cached = getCached(cacheKey);
+      if (cached) return res.json(cached);
+    }
 
     let query = `
       SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar,
@@ -192,6 +208,7 @@ export const getGroups = async (req, res) => {
     }
 
     const result = await db.query(query, params);
+    if (cacheKey) setCached(cacheKey, result.rows, GROUPS_TTL);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching groups:', err);
@@ -292,6 +309,9 @@ export const updateGroup = async (req, res) => {
       lngUpdate = coords?.lng ?? null;
     }
 
+    invalidatePrefix('groups:');
+    if (location !== undefined) invalidatePrefix('map:');
+
     const result = await db.query(
       `UPDATE groups
        SET name = COALESCE($1, name),
@@ -333,6 +353,8 @@ export const deleteGroup = async (req, res) => {
 
     // Soft delete — preserves messages, reviews, and member history
     await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [id]);
+    invalidatePrefix('groups:');
+    invalidatePrefix('map:');
     res.json({ message: 'Group deleted successfully' });
   } catch (err) {
     console.error('Error deleting group:', err);
@@ -514,6 +536,7 @@ export const getUserFavorites = async (req, res) => {
        JOIN groups g ON gf.group_id = g.id
        LEFT JOIN users u ON g.owner_id = u.id
        WHERE gf.user_id = $1
+         AND g.deleted_at IS NULL
        ORDER BY gf.created_at DESC`,
       [req.userId]
     );
@@ -572,6 +595,7 @@ export const getUserGroups = async (req, res) => {
        ) lm ON TRUE
        LEFT JOIN users lm_user ON lm.user_id = lm_user.id
        WHERE gm.user_id = $1
+         AND g.deleted_at IS NULL
        ORDER BY lm.created_at DESC NULLS LAST, gm.joined_at DESC`,
       [req.userId]
     );
@@ -714,6 +738,8 @@ export const cancelGroup = async (req, res) => {
       'UPDATE groups SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
       [id]
     );
+    invalidatePrefix('groups:');
+    invalidatePrefix('map:');
 
     const groupName = groupRes.rows[0].name;
     const io = req.app?.get('io');
@@ -855,16 +881,37 @@ export const getGroupMemberAvatars = async (req, res) => {
   try {
     const { id } = req.params;
     const limit = Math.min(parseInt(req.query.limit, 10) || 4, 50);
+
     const group = await db.query('SELECT is_private FROM groups WHERE id = $1', [id]);
     if (group.rows.length === 0) return res.json([]);
+
     if (group.rows[0].is_private) {
+      // Private groups: auth-dependent, no shared cache
       if (!req.userId) return res.json([]);
       const member = await db.query(
         'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
         [id, req.userId]
       );
       if (member.rows.length === 0) return res.json([]);
+    } else {
+      // Public groups: all users see the same avatars — cache aggressively
+      const cacheKey = `avatars:${id}:${limit}`;
+      const cached = getCached(cacheKey);
+      if (cached) return res.json(cached);
+
+      const result = await db.query(
+        `SELECT u.id, u.avatar_url, u.name
+         FROM group_members gm
+         JOIN users u ON gm.user_id = u.id
+         WHERE gm.group_id = $1
+         ORDER BY gm.joined_at ASC
+         LIMIT $2`,
+        [id, limit]
+      );
+      setCached(cacheKey, result.rows, AVATARS_TTL);
+      return res.json(result.rows);
     }
+
     const result = await db.query(
       `SELECT u.id, u.avatar_url, u.name
        FROM group_members gm
@@ -941,13 +988,19 @@ async function notifyGroupJoin(joinerUserId, ownerUserId, groupName) {
 }
 
 // ==========================================
-// GET CATEGORIES
+// GET CATEGORIES — 1-hour in-memory cache (categories change rarely)
 // ==========================================
-export const getCategories = async (req, res) => {
+let _categoriesCache = null;
+let _categoriesCacheExp = 0;
+
+export const getCategories = async (_req, res) => {
   try {
-    const result = await db.query(
-      'SELECT * FROM categories ORDER BY name ASC'
-    );
+    if (_categoriesCache && Date.now() < _categoriesCacheExp) {
+      return res.json(_categoriesCache);
+    }
+    const result = await db.query('SELECT * FROM categories ORDER BY name ASC');
+    _categoriesCache = result.rows;
+    _categoriesCacheExp = Date.now() + 60 * 60 * 1000;
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching categories:', err);

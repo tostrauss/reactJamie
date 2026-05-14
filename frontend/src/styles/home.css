@@ -4,8 +4,8 @@
 
 .home-container {
   /* Fill the full dynamic viewport — no inner page scroll */
+  height: 100vh; /* fallback for browsers without dvh support */
   height: 100dvh;
-  height: 100vh; /* fallback */
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
@@ -32,7 +32,7 @@
   -webkit-overflow-scrolling: touch; /* iOS momentum scroll */
   overscroll-behavior-y: contain;   /* bounce stays inside, doesn't propagate */
   /* Clear the fixed bottom nav + home indicator */
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
 }
 
 /* Map tab: remove padding and scrolling so map fills exactly */

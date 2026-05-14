@@ -357,14 +357,6 @@ socketHandler(io);
 // Make io accessible to controllers (for realtime notifications)
 app.set('io', io);
 
-// SPA fallback — serves index.html for all non-API GET routes (React Router)
-if (process.env.NODE_ENV === 'production') {
-  const publicPath = path.resolve(__dirname, '../public');
-  app.get('*', (_req, res) => {
-    res.sendFile(path.join(publicPath, 'index.html'));
-  });
-}
-
 // ==========================================
 // ERROR HANDLING
 // ==========================================
@@ -375,10 +367,19 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Etwas ist schiefgelaufen!' });
 });
 
-// API 404 — only fires for unmatched /api/* routes
+// API 404 — fires for all unmatched /api/* routes (must be before the SPA fallback)
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
+
+// SPA fallback — serves index.html for all non-API GET routes (React Router).
+// Placed AFTER the API 404 handler so unknown API GETs return JSON, not HTML.
+if (process.env.NODE_ENV === 'production') {
+  const publicPath = path.resolve(__dirname, '../public');
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(publicPath, 'index.html'));
+  });
+}
 
 // ==========================================
 // GRACEFUL SHUTDOWN
@@ -540,6 +541,15 @@ const runStartupMigrations = async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS chat_only_owner BOOLEAN DEFAULT FALSE`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_chat_only_owner      ON groups(chat_only_owner) WHERE chat_only_owner = TRUE`);
 
+    // Case-insensitive category filter index (ILIKE 'Tennis' → lower(category) btree)
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_category_lower ON groups(LOWER(category))`);
+
+    // Composite partial index for the home-page feed (is_active=TRUE, not deleted)
+    // Covers the WHERE clause and the created_at DESC ORDER BY in getGroups/getClubs
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_feed ON groups(type, created_at DESC) WHERE is_active = TRUE AND deleted_at IS NULL`);
+    // Map-pin index: fast lookup for geocoded, active, non-deleted groups
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_map ON groups(type, category, created_at DESC) WHERE is_active = TRUE AND deleted_at IS NULL AND lat IS NOT NULL AND lng IS NOT NULL`);
+
     // Full-text search indexes (trigram) for groups.name / description / location
     await db.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_name_gin     ON groups USING gin(name gin_trgm_ops)`);
@@ -574,6 +584,19 @@ server.listen(PORT, async () => {
   db.query('SELECT 1').catch(() => {});
   await runStartupMigrations();
 });
+
+// Self-ping every 14 minutes — prevents Railway from sleeping the container
+// (Railway free tier idles after ~30 min without traffic)
+if (process.env.NODE_ENV === 'production' && process.env.FRONTEND_URL) {
+  const selfUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/health`
+    : null;
+  if (selfUrl) {
+    cron.schedule('*/14 * * * *', () => {
+      fetch(selfUrl).catch(() => {});
+    });
+  }
+}
 
 // Analytics retention: purge events older than 90 days, runs every day at 03:00
 cron.schedule('0 3 * * *', async () => {

@@ -4,8 +4,8 @@
 
 
 .create-page {
+  min-height: 100vh; /* fallback */
   min-height: 100dvh;
-  min-height: 100vh;
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
@@ -328,6 +328,7 @@
   border-radius: 50%;
   background: rgba(0,0,0,0.65);
   backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   border: none;
   color: white;
   font-size: 18px;

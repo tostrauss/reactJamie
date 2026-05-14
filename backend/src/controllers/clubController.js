@@ -1,5 +1,9 @@
 import db from '../config/database.js';
 import { geocodeLocation } from '../utils/geocode.js';
+import { checkTextSafety } from '../config/moderation.js';
+import { getCached, setCached, invalidatePrefix } from '../utils/cache.js';
+
+const CLUBS_TTL = 30_000; // 30 s
 
 // Helper to ensure we always target clubs
 const CLUB_TYPE = 'club';
@@ -24,8 +28,14 @@ export const createClub = async (req, res) => {
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+  if (name.length > 100) return res.status(400).json({ error: 'Name darf maximal 100 Zeichen lang sein' });
+  if (description && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
 
   try {
+    const textToCheck = [name, description].filter(Boolean).join('\n');
+    const { safe, reason } = await checkTextSafety(textToCheck);
+    if (!safe) return res.status(422).json({ error: reason });
+
     // Optional: allow a "next meetup" date for clubs
     let dateTime = date || null;
     if (date && time) {
@@ -77,6 +87,8 @@ export const createClub = async (req, res) => {
       [newClub.id, userId, 'owner']
     );
 
+    invalidatePrefix('clubs:');
+    invalidatePrefix('map:');
     res.status(201).json(newClub);
   } catch (err) {
     console.error('Error creating club:', err);
@@ -90,6 +102,14 @@ export const createClub = async (req, res) => {
 export const getClubs = async (req, res) => {
   try {
     const { search, category, location, featured, limit, offset } = req.query;
+
+    const cacheKey = !search && !location
+      ? `clubs:${category || ''}:${featured || ''}:${limit || ''}:${offset || ''}`
+      : null;
+    if (cacheKey) {
+      const cached = getCached(cacheKey);
+      if (cached) return res.json(cached);
+    }
 
     let query = `
       SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar
@@ -120,16 +140,17 @@ export const getClubs = async (req, res) => {
 
     query += ` ORDER BY g.created_at DESC`;
 
-    if (limit) {
-      query += ` LIMIT $${paramIndex++}`;
-      params.push(parseInt(limit, 10));
-    }
+    const safeLimit = Math.min(parseInt(limit, 10) || 20, 100);
+    query += ` LIMIT $${paramIndex++}`;
+    params.push(safeLimit);
     if (offset) {
+      const safeOffset = Math.max(parseInt(offset, 10) || 0, 0);
       query += ` OFFSET $${paramIndex++}`;
-      params.push(parseInt(offset, 10));
+      params.push(safeOffset);
     }
 
     const result = await db.query(query, params);
+    if (cacheKey) setCached(cacheKey, result.rows, CLUBS_TTL);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching clubs:', err);
@@ -202,12 +223,21 @@ export const updateClub = async (req, res) => {
       skill_level
     } = req.body;
 
+    if (name !== undefined && name.length > 100) return res.status(400).json({ error: 'Name darf maximal 100 Zeichen lang sein' });
+    if (description !== undefined && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
+
     const club = await db.query(
       'SELECT owner_id FROM groups WHERE id = $1 AND type = $2',
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
     if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
+
+    const textToCheck = [name, description].filter(Boolean).join('\n');
+    if (textToCheck) {
+      const { safe, reason } = await checkTextSafety(textToCheck);
+      if (!safe) return res.status(422).json({ error: reason });
+    }
 
     // Re-geocode if location is being updated
     let latUpdate = null;
@@ -251,6 +281,8 @@ export const updateClub = async (req, res) => {
       ]
     );
 
+    invalidatePrefix('clubs:');
+    if (location !== undefined) invalidatePrefix('map:');
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating club:', err);
@@ -273,6 +305,8 @@ export const deleteClub = async (req, res) => {
     if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     await db.query('DELETE FROM groups WHERE id = $1 AND type = $2', [id, CLUB_TYPE]);
+    invalidatePrefix('clubs:');
+    invalidatePrefix('map:');
     res.json({ message: 'Club deleted successfully' });
   } catch (err) {
     console.error('Error deleting club:', err);
@@ -608,51 +642,40 @@ export const cancelClub = async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
 
-    const club = await db.query(
-      'SELECT * FROM groups WHERE id = $1 AND type = $2',
-      [id, CLUB_TYPE]
-    );
+    // Fetch club info + members in parallel
+    const [club, members] = await Promise.all([
+      db.query('SELECT owner_id, name FROM groups WHERE id = $1 AND type = $2', [id, CLUB_TYPE]),
+      db.query('SELECT user_id FROM group_members WHERE group_id = $1 AND user_id != $2', [id, req.userId]),
+    ]);
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
     if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
-
-    const members = await db.query(
-      'SELECT user_id FROM group_members WHERE group_id = $1 AND user_id != $2',
-      [id, req.userId]
-    );
 
     await db.query(
       'UPDATE groups SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
       [id]
     );
+    invalidatePrefix('clubs:');
+    invalidatePrefix('map:');
 
     const clubName = club.rows[0].name;
     const io = req.app?.get('io');
 
-    for (const member of members.rows) {
+    if (members.rows.length > 0) {
+      const title = `${clubName} wurde geschlossen`;
+      const body = reason || 'Der Club wurde vom Ersteller geschlossen.';
+      const valuesClauses = members.rows.map(
+        (_, i) => `($${i * 5 + 1}, $${i * 5 + 2}, 'club_cancelled', $${i * 5 + 3}, $${i * 5 + 4}, 'club', $${i * 5 + 5})`
+      ).join(', ');
+      const params = members.rows.flatMap(m => [m.user_id, req.userId, title, body, id]);
       const notifResult = await db.query(
-        `INSERT INTO notifications (
-          user_id,
-          sender_id,
-          type,
-          title,
-          message,
-          reference_type,
-          reference_id
-        ) 
-         VALUES ($1, $2, 'club_cancelled', $3, $4, 'club', $5)
-         RETURNING *`,
-        [
-          member.user_id,
-          req.userId,
-          `${clubName} wurde geschlossen`,
-          reason || 'Der Club wurde vom Ersteller geschlossen.',
-          id
-        ]
+        `INSERT INTO notifications (user_id, sender_id, type, title, message, reference_type, reference_id)
+         VALUES ${valuesClauses} RETURNING *`,
+        params
       );
-
-      const notification = notifResult.rows[0];
       if (io) {
-        io.to(`user_${member.user_id}`).emit('new_notification', notification);
+        for (const notif of notifResult.rows) {
+          io.to(`user_${notif.user_id}`).emit('new_notification', notif);
+        }
       }
     }
 

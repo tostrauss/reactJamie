@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { GroupCard } from '../components/GroupCard';
 
 // Mock the API module so no real network calls are made
@@ -29,48 +30,48 @@ describe('GroupCard', () => {
   });
 
   it('renders the category as the card title', async () => {
-    render(<GroupCard group={baseGroup} />);
+    render(<MemoryRouter><GroupCard group={baseGroup} /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('Sport')).toBeInTheDocument());
   });
 
   it('shows the member count with Members suffix', async () => {
-    render(<GroupCard group={baseGroup} />);
+    render(<MemoryRouter><GroupCard group={baseGroup} /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('3/8 Members')).toBeInTheDocument());
   });
 
   it('shows the lock emoji for private groups', async () => {
     const privateGroup = { ...baseGroup, is_private: true };
-    render(<GroupCard group={privateGroup} />);
+    render(<MemoryRouter><GroupCard group={privateGroup} /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('🔒')).toBeInTheDocument());
   });
 
   it('shows the Voll badge when the group is full', async () => {
     const fullGroup = { ...baseGroup, members_count: 8 };
-    render(<GroupCard group={fullGroup} />);
+    render(<MemoryRouter><GroupCard group={fullGroup} /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('Voll')).toBeInTheDocument());
   });
 
   it('shows + join buttons for empty avatar slots', async () => {
-    render(<GroupCard group={baseGroup} isJoined={false} />);
+    render(<MemoryRouter><GroupCard group={baseGroup} isJoined={false} /></MemoryRouter>);
     // 0 member avatars loaded (mock returns []) → 4 empty slots → 4 join buttons
     await waitFor(() => expect(screen.getAllByText('+')).toHaveLength(4));
   });
 
   it('calls onClick when the card is clicked', async () => {
     const onClick = vi.fn();
-    const { container } = render(<GroupCard group={baseGroup} onClick={onClick} />);
+    const { container } = render(<MemoryRouter><GroupCard group={baseGroup} onClick={onClick} /></MemoryRouter>);
     await act(async () => { fireEvent.click(container.firstChild); });
     expect(onClick).toHaveBeenCalled();
   });
 
   it('does not show Voll badge when group is not full', async () => {
-    render(<GroupCard group={baseGroup} />);
+    render(<MemoryRouter><GroupCard group={baseGroup} /></MemoryRouter>);
     await waitFor(() => expect(screen.queryByText('Voll')).not.toBeInTheDocument());
   });
 
   it('shows boost badge for boosted groups', async () => {
     const boostedGroup = { ...baseGroup, is_boosted: true };
-    render(<GroupCard group={boostedGroup} />);
+    render(<MemoryRouter><GroupCard group={boostedGroup} /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('🚀')).toBeInTheDocument());
   });
 });

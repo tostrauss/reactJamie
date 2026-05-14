@@ -31,11 +31,14 @@ const poolConfig = process.env.DATABASE_URL
       database: process.env.DB_NAME || 'jamie_db',
     };
 
-// Production-ready connection pool
+// Production-ready connection pool.
+// DB_POOL_MAX can be set per-environment (Railway allows up to ~100 connections
+// on most plans). 50 lets us serve 1 000 concurrent users comfortably while
+// leaving headroom for admin connections and Railway's internal processes.
 const pool = new Pool({
   ...poolConfig,
-  max: process.env.NODE_ENV === 'production' ? 20 : 5,
-  min: process.env.NODE_ENV === 'production' ? 2 : 0,  // keep 2 warm connections in prod
+  max: parseInt(process.env.DB_POOL_MAX, 10) || (process.env.NODE_ENV === 'production' ? 50 : 5),
+  min: process.env.NODE_ENV === 'production' ? 5 : 0,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
   allowExitOnIdle: false,
@@ -43,6 +46,13 @@ const pool = new Pool({
 
 pool.on('error', (err) => {
   console.error('❌ Unexpected error on idle client', err);
+});
+
+// Log when the pool is exhausted — signals need to raise DB_POOL_MAX or add caching
+pool.on('connect', () => {
+  if (pool.totalCount >= pool.options.max) {
+    console.warn(`[db-pool] At max capacity: ${pool.totalCount}/${pool.options.max} connections`);
+  }
 });
 
 // Prevent runaway queries from hanging the server

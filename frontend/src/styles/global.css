@@ -471,6 +471,7 @@ input:focus, textarea:focus, select:focus {
   bottom: 0;
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -654,7 +655,7 @@ input:focus, textarea:focus, select:focus {
   flex: 1;
   padding: 20px;
   padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
   max-width: 600px;
   margin: 0 auto;
   width: 100%;
@@ -725,7 +726,7 @@ input:focus, textarea:focus, select:focus {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 100px);
+  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 80px);
   min-height: 100%;
 }
 
@@ -861,6 +862,7 @@ input:focus, textarea:focus, select:focus {
   animation: toastIn 0.3s ease;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 @keyframes toastIn {
@@ -1074,6 +1076,25 @@ input:focus, textarea:focus, select:focus {
   color: rgba(255,255,255,0.2);
   line-height: 1;
   padding-bottom: 14px;
+}
+
+/* ========================================
+   Accessibility & Performance
+   ======================================== */
+
+/* Disable expensive animations/transitions for users who prefer reduced motion
+   or on devices that flag performance constraints */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* On devices that cannot run backdrop-filter efficiently, fall back to solid bg */
+@supports not (backdrop-filter: blur(1px)) {
+  .modal-overlay { background: rgba(0, 0, 0, 0.85); }
 }
 
 /* Form */

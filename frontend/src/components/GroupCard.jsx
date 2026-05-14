@@ -77,6 +77,7 @@ export const GroupCard = ({
             <span>{group.members_count}/{maxMembers} Members</span>
             {group.is_private && <span className="card-private-badge">🔒</span>}
             {isFull && <span className="card-private-badge">Voll</span>}
+            {group.is_boosted && <span className="card-private-badge">🚀</span>}
           </div>
         </div>
       </div>
@@ -86,7 +87,7 @@ export const GroupCard = ({
         {isClub ? (
           <div className="avatar-slot card-club-full-image" style={{ gridColumn: '1 / -1', gridRow: '1 / -1', borderRadius: '12px' }}>
             {group.image_url ? (
-              <img src={group.image_url} alt={group.name || group.title} />
+              <img src={group.image_url} alt={group.name || group.title} loading="lazy" />
             ) : (
               <div className="avatar-placeholder" style={{ fontSize: 48, fontWeight: 700 }}>
                 {(group.category || group.name || group.title || '?')[0].toUpperCase()}
@@ -98,7 +99,7 @@ export const GroupCard = ({
             {memberAvatars.map((member) => (
               <div key={member.id} className="avatar-slot">
                 {member.avatar_url ? (
-                  <img src={member.avatar_url} alt={member.name} />
+                  <img src={member.avatar_url} alt={member.name} loading="lazy" />
                 ) : (
                   <div className="avatar-placeholder">
                     {(member.name || '?')[0].toUpperCase()}

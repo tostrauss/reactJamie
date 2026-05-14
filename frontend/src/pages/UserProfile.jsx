@@ -167,7 +167,7 @@ export const UserProfile = () => {
       {/* ── Hero image ── */}
       <div className="up-hero">
         {heroImg
-          ? <img src={heroImg} alt={profile.name} className="up-hero-img" />
+          ? <img src={heroImg} alt={profile.name} className="up-hero-img" loading="lazy" />
           : <div className="up-hero-placeholder">
               <span>{profile.name?.[0]?.toUpperCase()}</span>
             </div>
@@ -241,7 +241,7 @@ export const UserProfile = () => {
           {extraPhotos.length > 0 ? (
             extraPhotos.map((photo, i) => (
               <div key={i} className="up-photo-cell">
-                <img src={photo} alt="" />
+                <img src={photo} alt="" loading="lazy" />
               </div>
             ))
           ) : (

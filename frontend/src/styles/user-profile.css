@@ -3,8 +3,8 @@
    ============================================ */
 
 .up-page {
+  height: 100vh; /* fallback */
   height: 100dvh;
-  height: 100vh;
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;

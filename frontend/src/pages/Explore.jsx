@@ -40,7 +40,7 @@ const StoryCircle = ({ item, navigate }) => {
     <button className="story-circle" onClick={() => navigate(`/group/${item.id}`)}>
       <div className="story-ring">
         {item.image_url ? (
-          <img src={item.image_url} alt={item.name} className="story-img" />
+          <img src={item.image_url} alt={item.name} className="story-img" loading="lazy" />
         ) : (
           <div className="story-placeholder">{icon}</div>
         )}
@@ -56,7 +56,7 @@ const FYCard = ({ item, navigate }) => {
     <button className="fy-card" onClick={() => navigate(`/group/${item.id}`)}>
       <div className="fy-img-wrap">
         {item.image_url ? (
-          <img src={item.image_url} alt={item.name} className="fy-img" />
+          <img src={item.image_url} alt={item.name} className="fy-img" loading="lazy" />
         ) : (
           <div className="fy-img-placeholder"><span className="fy-ph-icon">{icon}</span></div>
         )}
@@ -85,7 +85,7 @@ const TrendingCard = ({ item, rank, navigate }) => {
     <button className="tc-card" onClick={() => navigate(`/group/${item.id}`)}>
       <div className="tc-img-wrap">
         {item.image_url ? (
-          <img src={item.image_url} alt={item.name} className="tc-img" />
+          <img src={item.image_url} alt={item.name} className="tc-img" loading="lazy" />
         ) : (
           <div className="tc-img-placeholder"><span>{icon}</span></div>
         )}
@@ -123,7 +123,7 @@ const PastEventCard = ({ item, tall, navigate }) => {
       onClick={() => navigate(`/group/${item.id}`)}
     >
       {item.image_url ? (
-        <img src={item.image_url} alt={item.name} className="pe-img" />
+        <img src={item.image_url} alt={item.name} className="pe-img" loading="lazy" />
       ) : (
         <div className="pe-placeholder"><span className="pe-ph-icon">{icon}</span></div>
       )}
@@ -162,7 +162,7 @@ const SearchResults = ({ results, loading, navigate }) => {
           <button key={`${item._type}-${item.id}`} className="sr-item" onClick={() => navigate(`/group/${item.id}`)}>
             <div className="sr-thumb">
               {item.image_url
-                ? <img src={item.image_url} alt={item.name} />
+                ? <img src={item.image_url} alt={item.name} loading="lazy" />
                 : <span>{icon}</span>}
             </div>
             <div className="sr-body">
@@ -188,7 +188,7 @@ const DealCard = ({ deal, navigate }) => (
   <button className="deal-card" onClick={() => navigate(`/deal/${deal.id}`)}>
     <div className="deal-card-img-wrap">
       {deal.photos?.[0] ? (
-        <img src={deal.photos[0]} alt={deal.name} className="deal-card-img" />
+        <img src={deal.photos[0]} alt={deal.name} className="deal-card-img" loading="lazy" />
       ) : (
         <div className="deal-card-img-placeholder">🍵</div>
       )}

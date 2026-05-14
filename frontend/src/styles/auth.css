@@ -8,8 +8,8 @@
 /* ── Full-screen shell ── */
 .auth-screen {
   /* Use dynamic viewport height so iOS Safari bottom bar doesn't cut content */
+  min-height: 100vh; /* fallback for browsers without dvh support */
   min-height: 100dvh;
-  min-height: 100vh; /* fallback */
   display: flex;
   flex-direction: column;
   background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 60%);
@@ -304,8 +304,8 @@
 
 /* Keep old .auth-container for Register / ForgotPassword / etc. */
 .auth-container {
+  min-height: 100vh; /* fallback */
   min-height: 100dvh;
-  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -414,8 +414,8 @@
    ONBOARDING
    ══════════════════════════════════════════ */
 .onboarding-container {
+  min-height: 100vh; /* fallback */
   min-height: 100dvh;
-  min-height: 100vh;
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);

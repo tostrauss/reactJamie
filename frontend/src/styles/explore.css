@@ -4,8 +4,8 @@
 
 /* ── Container / layout ──────────────────────────────────────── */
 .explore-container {
+  height: 100vh; /* fallback */
   height: 100dvh;
-  height: 100vh;
   background: var(--bg-primary);
   display: flex;
   position: relative;
@@ -471,6 +471,7 @@
   color: #fff;
   border-radius: 999px;
   backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .fy-overlay-meta {
@@ -485,6 +486,7 @@
   color: rgba(255,255,255,0.9);
   background: rgba(0,0,0,0.45);
   backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   padding: 3px 8px;
   border-radius: 999px;
 }

@@ -3,10 +3,10 @@
    ======================================== */
 
 .profile-page {
-  min-height: 100dvh;
   min-height: 100vh; /* fallback */
+  min-height: 100dvh;
   background: var(--bg-primary);
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
 }
 
 /* Profile Header Image */

@@ -28,7 +28,7 @@ export const getNotifications = async (req, res) => {
 export const markRead = async (req, res) => {
   try {
     await db.query(
-      'UPDATE notifications SET is_read = TRUE WHERE user_id = $1',
+      'UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE',
       [req.userId]
     );
     res.json({ success: true });

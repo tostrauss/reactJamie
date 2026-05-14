@@ -98,25 +98,36 @@ export const submitReview = async (req, res) => {
         [group_id, req.userId]
       );
 
-      for (const { user_id, was_present } of attendances) {
-        if (user_id === req.userId) continue; // can't review yourself
-        await client.query(
-          `INSERT INTO event_reviews (group_id, reviewer_id, reviewed_user_id, was_present)
-           VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
-          [group_id, req.userId, user_id, was_present]
-        );
+      const filtered = attendances.filter(a => a.user_id !== req.userId);
+      if (filtered.length === 0) return;
 
-        // Recompute trusted_count and badge for every reviewed user (present or absent)
-        const countRes = await client.query(
-          'SELECT COUNT(DISTINCT reviewer_id) AS c FROM event_reviews WHERE reviewed_user_id = $1 AND was_present = TRUE',
-          [user_id]
-        );
-        const count = parseInt(countRes.rows[0].c);
-        await client.query(
-          'UPDATE users SET trusted_count = $1, is_trusted_user = ($1 >= $2) WHERE id = $3',
-          [count, TRUST_THRESHOLD, user_id]
-        );
-      }
+      // Bulk INSERT — one round trip instead of N
+      const valuesClauses = filtered.map(
+        (_, i) => `($${i * 4 + 1}, $${i * 4 + 2}, $${i * 4 + 3}, $${i * 4 + 4})`
+      ).join(', ');
+      const insertParams = filtered.flatMap(a => [group_id, req.userId, a.user_id, a.was_present]);
+      await client.query(
+        `INSERT INTO event_reviews (group_id, reviewer_id, reviewed_user_id, was_present)
+         VALUES ${valuesClauses} ON CONFLICT DO NOTHING`,
+        insertParams
+      );
+
+      // Bulk UPDATE trusted_count — one round trip for all reviewed users
+      const userIds = filtered.map(a => a.user_id);
+      await client.query(
+        `UPDATE users u
+         SET trusted_count  = COALESCE(sub.c, 0),
+             is_trusted_user = COALESCE(sub.c, 0) >= $2
+         FROM (
+           SELECT reviewed_user_id,
+                  COUNT(DISTINCT reviewer_id) AS c
+           FROM event_reviews
+           WHERE reviewed_user_id = ANY($1) AND was_present = TRUE
+           GROUP BY reviewed_user_id
+         ) sub
+         WHERE u.id = sub.reviewed_user_id`,
+        [userIds, TRUST_THRESHOLD]
+      );
     });
 
     res.json({ success: true });

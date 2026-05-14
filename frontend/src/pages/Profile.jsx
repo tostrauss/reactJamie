@@ -121,7 +121,7 @@ export const Profile = () => {
 
         {/* ── Cover image ───────────────────────────────────────────── */}
         <div className="profile-header-image">
-          <img src={coverPhoto} alt={user?.name} className="profile-cover" />
+          <img src={coverPhoto} alt={user?.name} className="profile-cover" loading="lazy" />
           <div className="profile-cover-gradient" />
           <div className="profile-cover-top-gradient" />
 
@@ -239,7 +239,7 @@ export const Profile = () => {
                   >
                     <div className="profile-fav-img-wrap">
                       {item.image_url
-                        ? <img src={item.image_url} alt={item.name || item.title} className="profile-fav-img" />
+                        ? <img src={item.image_url} alt={item.name || item.title} className="profile-fav-img" loading="lazy" />
                         : <div className="profile-fav-placeholder">{(item.category || item.name || '?')[0]}</div>
                       }
                       {item.type === 'club' && <span className="profile-fav-type-badge">Club</span>}
@@ -274,7 +274,7 @@ export const Profile = () => {
                 <div className="pinnwand-grid">
                   {profilePhotos.map((photo, i) => (
                     <div key={i} className={`pinnwand-item${i === 0 ? ' pinnwand-item--large' : ''}`}>
-                      <img src={photo} alt={`Foto ${i + 1}`} />
+                      <img src={photo} alt={`Foto ${i + 1}`} loading="lazy" />
                     </div>
                   ))}
                   <button className="pinnwand-item add-photo" onClick={() => navigate('/profile/edit')}>
@@ -316,7 +316,7 @@ export const Profile = () => {
                       >
                         <div className="hof-card-img">
                           {event.image_url
-                            ? <img src={event.image_url} alt={event.name} />
+                            ? <img src={event.image_url} alt={event.name} loading="lazy" />
                             : <div className="hof-card-placeholder">🏆</div>
                           }
                           <div className="hof-card-overlay" />

@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { getCached, setCached } from '../utils/cache.js';
 
 /**
  * GET /api/map/pins
@@ -9,6 +10,10 @@ export const getMapPins = async (req, res) => {
   try {
     const { type, categories } = req.query;
 
+    const cacheKey = `map:${type || ''}:${categories || ''}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
     let query = `
       SELECT g.id, g.name, g.type, g.category, g.location,
              g.lat, g.lng, g.members_count, g.max_members,
@@ -17,6 +22,7 @@ export const getMapPins = async (req, res) => {
       FROM groups g
       LEFT JOIN users u ON g.owner_id = u.id
       WHERE g.is_active = TRUE
+        AND g.deleted_at IS NULL
         AND g.lat IS NOT NULL
         AND g.lng IS NOT NULL
     `;
@@ -41,6 +47,7 @@ export const getMapPins = async (req, res) => {
     query += ` ORDER BY g.created_at DESC LIMIT 500`;
 
     const result = await db.query(query, params);
+    setCached(cacheKey, result.rows, 30_000);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching map pins:', err);

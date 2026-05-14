@@ -2,6 +2,32 @@ import jwt from 'jsonwebtoken';
 import db from './config/database.js';
 import { redisClient } from './config/redis.js';
 
+// 1-minute in-process membership cache for join_room.
+// At 1 000 concurrent users each joining 3-5 group rooms, this prevents
+// thousands of identical SELECT 1 queries hitting the DB on every app open.
+const _memberCache = new Map();
+const MEMBER_CACHE_TTL = 60_000;
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of _memberCache) {
+    if (now > v.exp) _memberCache.delete(k);
+  }
+}, 60_000).unref();
+
+async function checkMembership(groupId, userId) {
+  const key = `${groupId}:${userId}`;
+  const cached = _memberCache.get(key);
+  if (cached !== undefined && Date.now() < cached.exp) return cached.result;
+  const { rows } = await db.query(
+    'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2 LIMIT 1',
+    [groupId, userId]
+  );
+  const result = rows.length > 0;
+  _memberCache.set(key, { result, exp: Date.now() + MEMBER_CACHE_TTL });
+  return result;
+}
+
 const DM_LIMIT = 60;
 const DM_WINDOW_MS = 60_000;
 
@@ -74,18 +100,13 @@ const socketHandler = (io) => {
       if (socket.userId) socket.join(`user_${socket.userId}`);
     });
 
-    // Join a specific chat room — verify the user is actually a member
+    // Join a specific chat room — verify membership (cached for 1 min)
     socket.on('join_room', async (groupId) => {
       if (!groupId) return;
       try {
-        const { rows } = await db.query(
-          'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2 LIMIT 1',
-          [groupId, socket.userId]
-        );
-        if (rows.length > 0) {
+        if (await checkMembership(groupId, socket.userId)) {
           socket.join(groupId);
         }
-        // Silently ignore unauthorized join attempts
       } catch {
         // Non-critical — don't crash the socket on a DB error
       }
@@ -133,14 +154,30 @@ const socketHandler = (io) => {
       const senderId = socket.userId;
       const { receiverId, message } = data;
 
+      // Basic input validation — drop malformed events silently
+      const receiverIdInt = parseInt(receiverId, 10);
+      if (isNaN(receiverIdInt) || receiverIdInt === senderId) return;
+      if (typeof message !== 'string' || !message.trim() || message.length > 5000) return;
+
       if (!await isDmAllowed(senderId)) {
         socket.emit('dm_rate_limited', { error: 'Zu viele Nachrichten. Bitte kurz warten.' });
         return;
       }
 
-      const roomName = `dm_${Math.min(senderId, receiverId)}_${Math.max(senderId, receiverId)}`;
+      // Friendship gate — prevents socket DM spam to arbitrary user IDs
+      try {
+        const { rows } = await db.query(
+          `SELECT 1 FROM friendships WHERE status = 'accepted'
+           AND ((requester_id = $1 AND addressee_id = $2)
+             OR (requester_id = $2 AND addressee_id = $1))`,
+          [senderId, receiverIdInt]
+        );
+        if (!rows.length) return; // silently drop — not friends
+      } catch { /* non-critical — degrade gracefully */ }
+
+      const roomName = `dm_${Math.min(senderId, receiverIdInt)}_${Math.max(senderId, receiverIdInt)}`;
       io.to(roomName).emit('receive_dm', { ...data, senderId });
-      io.to(`user_${receiverId}`).emit('new_dm_notification', {
+      io.to(`user_${receiverIdInt}`).emit('new_dm_notification', {
         senderId,
         message,
         timestamp: new Date()

@@ -264,7 +264,7 @@ export const ChatList = () => {
                 {pendingRequests.map(req => (
                   <div key={req.id} className="friend-request-item">
                     {req.requester_avatar
-                      ? <img src={req.requester_avatar} alt={req.requester_name} className="friend-avatar" />
+                      ? <img src={req.requester_avatar} alt={req.requester_name} className="friend-avatar" loading="lazy" />
                       : <div className="friend-avatar-placeholder">{(req.requester_name || '?')[0].toUpperCase()}</div>
                     }
                     <div className="friend-info" onClick={() => navigate(`/user/${req.requester_id}`)}>
@@ -287,7 +287,7 @@ export const ChatList = () => {
                   <div key={chat.id} className="chat-item" onClick={() => navigate(`/dm/${chat.id}`)}>
                     <div className="chat-avatar-wrapper">
                       {chat.avatar
-                        ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" />
+                        ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" loading="lazy" />
                         : <div className="chat-avatar-placeholder">{(chat.name || '?')[0].toUpperCase()}</div>
                       }
                     </div>
@@ -321,7 +321,7 @@ export const ChatList = () => {
                 friendsList.map(friend => (
                   <div key={friend.friend_id} className="friend-item">
                     {friend.avatar_url
-                      ? <img src={friend.avatar_url} alt={friend.name} className="friend-avatar" />
+                      ? <img src={friend.avatar_url} alt={friend.name} className="friend-avatar" loading="lazy" />
                       : <div className="friend-avatar-placeholder">{(friend.name || '?')[0].toUpperCase()}</div>
                     }
                     <div className="friend-info" onClick={() => navigate(`/user/${friend.friend_id}`)}>
@@ -384,7 +384,7 @@ export const ChatList = () => {
                               <div className="chat-item-main" onClick={() => handleChatClick(chat)}>
                                 <div className="chat-avatar-wrapper">
                                   {chat.avatar
-                                    ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" />
+                                    ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" loading="lazy" />
                                     : <div className="chat-avatar-placeholder">{(chat.name || '?')[0].toUpperCase()}</div>
                                   }
                                 </div>
@@ -427,7 +427,7 @@ export const ChatList = () => {
                             <div key={chat.id} className="chat-item" onClick={() => handleChatClick(chat)}>
                               <div className="chat-avatar-wrapper">
                                 {chat.avatar
-                                  ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" />
+                                  ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" loading="lazy" />
                                   : <div className="chat-avatar-placeholder">{(chat.name || '?')[0].toUpperCase()}</div>
                                 }
                                 {chat.isOnline && <span className="online-indicator" />}
@@ -534,7 +534,7 @@ export const ChatList = () => {
                       <div className="request-card">
                         <div className="request-image-container request-image-tall">
                           {req.user_avatar
-                            ? <img src={req.user_avatar} alt={req.user_name} className="request-user-image" />
+                            ? <img src={req.user_avatar} alt={req.user_name} className="request-user-image" loading="lazy" />
                             : <div className="request-avatar-placeholder">{(req.user_name || '?')[0].toUpperCase()}</div>
                           }
                           {req.user_trusted && (
