@@ -540,6 +540,10 @@ const runStartupMigrations = async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_deleted_at ON groups(deleted_at) WHERE deleted_at IS NULL`);
   });
+  await migrate('groups.parent_club_id', async () => {
+    await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS parent_club_id INTEGER REFERENCES groups(id) ON DELETE CASCADE`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_parent_club ON groups(parent_club_id) WHERE parent_club_id IS NOT NULL`);
+  });
   await migrate('friendships.expires_at', async () => {
     await db.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_friendships_expires ON friendships(expires_at) WHERE status = 'pending'`);

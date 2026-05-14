@@ -23,6 +23,25 @@ const formatShortDate = (dateStr) => {
   return `${d.getDate()}.${d.getMonth() + 1}.`;
 };
 
+const formatEventDate = (dateStr) => {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (isNaN(d)) return null;
+  const day = d.getDate();
+  const month = d.toLocaleDateString('de-AT', { month: 'short' });
+  const time = d.toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
+  return { day, month, time };
+};
+
+const today = () => {
+  const d = new Date();
+  return d.toISOString().split('T')[0];
+};
+const nowTime = () => {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
 export const GroupDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -33,12 +52,20 @@ export const GroupDetail = () => {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isJoined, setIsJoined] = useState(false);
-  const [joinRequestStatus, setJoinRequestStatus] = useState(null); // 'pending' | 'rejected' | null
-  const [waitlistStatus, setWaitlistStatus] = useState(null);   // 'waiting' | 'notified' | null
+  const [joinRequestStatus, setJoinRequestStatus] = useState(null);
+  const [waitlistStatus, setWaitlistStatus] = useState(null);
   const [waitlistPosition, setWaitlistPosition] = useState(null);
   const [waitlistLoading, setWaitlistLoading] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+
+  // Club events state
+  const [events, setEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [showCreateEvent, setShowCreateEvent] = useState(false);
+  const [eventForm, setEventForm] = useState({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20 });
+  const [eventSubmitting, setEventSubmitting] = useState(false);
+  const [joiningEventId, setJoiningEventId] = useState(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -65,6 +92,14 @@ export const GroupDetail = () => {
         setWaitlistStatus(entity.waitlist_status || null);
         setWaitlistPosition(entity.waitlist_position || null);
         setMembers(membersRes.data || []);
+
+        if (isClubType) {
+          setEventsLoading(true);
+          clubs.getEvents(id)
+            .then(r => { if (!controller.signal.aborted) setEvents(r.data || []); })
+            .catch(() => {})
+            .finally(() => { if (!controller.signal.aborted) setEventsLoading(false); });
+        }
       } catch (error) {
         if (!controller.signal.aborted) {
           toast.error('Gruppe konnte nicht geladen werden');
@@ -101,11 +136,9 @@ export const GroupDetail = () => {
       } else {
         const res = isClub ? await clubs.join(id) : await groups.join(id);
         if (res.data?.status === 'pending') {
-          // Private group — request is waiting for owner approval
           setJoinRequestStatus('pending');
           toast.success('Beitrittsanfrage gesendet');
         } else {
-          // Public group — joined immediately
           setIsJoined(true);
           setMembers(prev => [...prev, { id: user.id, name: user.name, avatar_url: user.avatar_url }]);
           const response = isClub ? await clubs.getById(id) : await groups.getById(id);
@@ -159,11 +192,90 @@ export const GroupDetail = () => {
     }
   };
 
+  const handleJoinEvent = async (eventId) => {
+    if (!user) { navigate('/login'); return; }
+    setJoiningEventId(eventId);
+    try {
+      const res = await groups.join(eventId);
+      if (res.data?.status === 'pending') {
+        toast.success('Anfrage gesendet');
+      } else {
+        toast.success('Erfolgreich beigetreten!');
+        setEvents(prev => prev.map(e =>
+          e.id === eventId
+            ? { ...e, is_member: true, members_count: (e.members_count || 0) + 1 }
+            : e
+        ));
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Fehler beim Beitreten');
+    } finally {
+      setJoiningEventId(null);
+    }
+  };
+
+  const handleLeaveEvent = async (eventId) => {
+    setJoiningEventId(eventId);
+    try {
+      await groups.leave(eventId);
+      setEvents(prev => prev.map(e =>
+        e.id === eventId
+          ? { ...e, is_member: false, members_count: Math.max(0, (e.members_count || 1) - 1) }
+          : e
+      ));
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Fehler beim Verlassen');
+    } finally {
+      setJoiningEventId(null);
+    }
+  };
+
+  const handleCreateEvent = async (e) => {
+    e.preventDefault();
+    if (!eventForm.name.trim()) { toast.error('Name ist erforderlich'); return; }
+    if (!eventForm.date) { toast.error('Datum ist erforderlich'); return; }
+    setEventSubmitting(true);
+    try {
+      const res = await clubs.createEvent(id, {
+        name: eventForm.name.trim(),
+        description: eventForm.description.trim() || undefined,
+        date: eventForm.date,
+        time: eventForm.time || undefined,
+        location: eventForm.location.trim() || undefined,
+        max_members: parseInt(eventForm.max_members, 10) || 20,
+      });
+      const newEvent = res.data;
+      newEvent.is_member = true;
+      setEvents(prev => [newEvent, ...prev].sort((a, b) => new Date(a.date) - new Date(b.date)));
+      setShowCreateEvent(false);
+      setEventForm({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20 });
+      toast.success('Veranstaltung erstellt!');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Fehler beim Erstellen');
+    } finally {
+      setEventSubmitting(false);
+    }
+  };
+
+  const handleDeleteEvent = async (eventId) => {
+    if (!window.confirm('Veranstaltung wirklich löschen?')) return;
+    try {
+      await clubs.deleteEvent(id, eventId);
+      setEvents(prev => prev.filter(e => e.id !== eventId));
+      toast.success('Veranstaltung gelöscht');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Fehler beim Löschen');
+    }
+  };
+
   if (loading) return <div className="gd-loading">Laden...</div>;
   if (!group) return <div className="gd-loading">Gruppe nicht gefunden</div>;
 
   const isClub = group.type === 'club';
+  const isEvent = group.type === 'event';
   const isOwner = user && group.owner_id === user.id;
+  const isMember = isJoined;
+  const canCreateEvent = isClub && user && isMember;
   const maxSlots = Math.min(group.max_members || 4, 4);
   const filledSlots = members.slice(0, maxSlots);
   const emptySlots = Math.max(0, maxSlots - filledSlots.length);
@@ -180,7 +292,12 @@ export const GroupDetail = () => {
               <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
           </button>
-          <h1 className="gd-top-title">{headerDate || (group.category || group.name)}</h1>
+          <h1 className="gd-top-title">
+            {isEvent
+              ? (group.name || group.category)
+              : (headerDate || (group.category || group.name))
+            }
+          </h1>
           <button
             className={`gd-fav-top${isFavorited ? ' active' : ''}`}
             onClick={handleFavoriteToggle}
@@ -190,34 +307,54 @@ export const GroupDetail = () => {
             </svg>
           </button>
         </div>
+
+        {/* "Part of club" chip — shown only for events */}
+        {isEvent && group.parent_club_id && (
+          <button
+            className="gd-club-back-chip"
+            onClick={() => navigate(`/group/${group.parent_club_id}`)}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Zum Club
+          </button>
+        )}
+
         {/* Photo grid */}
         <div className="gd-photo-grid-wrapper">
-          <div className="gd-photo-grid">
-            {filledSlots.map((member) => (
-              <div
-                key={member.id}
-                className="gd-photo-slot filled"
-                onClick={() => navigate(`/user/${member.id}`)}
-              >
-                {member.avatar_url
-                  ? <img src={member.avatar_url} alt={member.name} />
-                  : <div className="gd-photo-placeholder">{(member.name || '?')[0].toUpperCase()}</div>
-                }
-                {member.age && <span className="gd-photo-age">{member.age}</span>}
-                <div className="gd-photo-bottom">
-                  <span className="gd-photo-name">{(member.name || '').toUpperCase()}</span>
-                  {member.is_trusted_user && (
-                    <span className="gd-photo-check">✓</span>
-                  )}
+          {isClub && group.image_url ? (
+            <div className="gd-club-cover">
+              <img src={group.image_url} alt={group.name} loading="lazy" />
+            </div>
+          ) : (
+            <div className="gd-photo-grid">
+              {filledSlots.map((member) => (
+                <div
+                  key={member.id}
+                  className="gd-photo-slot filled"
+                  onClick={() => navigate(`/user/${member.id}`)}
+                >
+                  {member.avatar_url
+                    ? <img src={member.avatar_url} alt={member.name} loading="lazy" />
+                    : <div className="gd-photo-placeholder">{(member.name || '?')[0].toUpperCase()}</div>
+                  }
+                  {member.age && <span className="gd-photo-age">{member.age}</span>}
+                  <div className="gd-photo-bottom">
+                    <span className="gd-photo-name">{(member.name || '').toUpperCase()}</span>
+                    {member.is_trusted_user && (
+                      <span className="gd-photo-check">✓</span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-            {[...Array(emptySlots)].map((_, i) => (
-              <div key={`empty-${i}`} className="gd-photo-slot empty">
-                <span className="gd-photo-plus">+</span>
-              </div>
-            ))}
-          </div>
+              ))}
+              {[...Array(emptySlots)].map((_, i) => (
+                <div key={`empty-${i}`} className="gd-photo-slot empty">
+                  <span className="gd-photo-plus">+</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Anfragen / Chat / Waitlist button */}
@@ -247,11 +384,7 @@ export const GroupDetail = () => {
                 <button className="gd-anfragen-btn" onClick={handleJoinToggle}>
                   🎉 Platz frei – Jetzt beitreten!
                 </button>
-                <button
-                  onClick={handleLeaveWaitlist}
-                  disabled={waitlistLoading}
-                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '12px', cursor: 'pointer', padding: '4px' }}
-                >
+                <button onClick={handleLeaveWaitlist} disabled={waitlistLoading} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '12px', cursor: 'pointer', padding: '4px' }}>
                   Von Warteliste entfernen
                 </button>
               </div>
@@ -263,11 +396,7 @@ export const GroupDetail = () => {
                 <button className="gd-anfragen-btn" disabled style={{ opacity: 0.6, cursor: 'default' }}>
                   Warteliste{waitlistPosition ? ` · Position ${waitlistPosition}` : ''}
                 </button>
-                <button
-                  onClick={handleLeaveWaitlist}
-                  disabled={waitlistLoading}
-                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '12px', cursor: 'pointer', padding: '4px' }}
-                >
+                <button onClick={handleLeaveWaitlist} disabled={waitlistLoading} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '12px', cursor: 'pointer', padding: '4px' }}>
                   {waitlistLoading ? 'Laden…' : 'Von Warteliste entfernen'}
                 </button>
               </div>
@@ -276,11 +405,7 @@ export const GroupDetail = () => {
           if (isFull) {
             return (
               <div className="gd-anfragen-row">
-                <button
-                  className="gd-anfragen-btn"
-                  onClick={handleJoinWaitlist}
-                  disabled={waitlistLoading}
-                >
+                <button className="gd-anfragen-btn" onClick={handleJoinWaitlist} disabled={waitlistLoading}>
                   {waitlistLoading ? 'Laden…' : 'Warteliste beitreten'}
                 </button>
               </div>
@@ -297,53 +422,190 @@ export const GroupDetail = () => {
 
         <div className="gd-body">
           <div className="gd-content-card">
-          {/* Info row */}
-          <div className="gd-info-row">
-            {group.skill_level && group.skill_level !== 'Alle Levels' && (
+            {/* Info row */}
+            <div className="gd-info-row">
+              {group.skill_level && group.skill_level !== 'Alle Levels' && (
+                <span className="gd-info-item">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="#FD7666" stroke="none">
+                    <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
+                  </svg>
+                  Level: {group.skill_level}
+                </span>
+              )}
+              {shortDate && (
+                <span className="gd-info-item">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
+                  Wann: {shortDate}
+                </span>
+              )}
               <span className="gd-info-item">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="#FD7666" stroke="none">
-                  <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
-                </svg>
-                Level: {group.skill_level}
+                Teilnehmer: {group.members_count ?? members.length}/{group.max_members || '∞'}
               </span>
+            </div>
+
+            {/* Group title */}
+            <h2 className="gd-group-title">{group.category || group.name || group.title}</h2>
+
+            {/* Description */}
+            {group.description && (
+              <p className="gd-description">{group.description}</p>
             )}
-            {shortDate && (
-              <span className="gd-info-item">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                </svg>
-                Wann: {shortDate}
-              </span>
+
+            {/* Owner actions */}
+            {isJoined && (
+              <div className="gd-owner-actions">
+                {isOwner
+                  ? <button className="gd-btn-leave" onClick={handleDelete}>{isClub ? 'Club löschen' : isEvent ? 'Veranstaltung löschen' : 'Gruppe löschen'}</button>
+                  : <button className="gd-btn-leave" onClick={handleJoinToggle}>Verlassen</button>
+                }
+              </div>
             )}
-            <span className="gd-info-item">
-              Teilnehmer: {group.members_count ?? members.length}/{group.max_members || '∞'}
-            </span>
+
+            <button className="gd-report-btn" onClick={() => setShowReportModal(true)}>
+              {isClub ? 'Club melden' : 'Gruppe melden'}
+            </button>
           </div>
 
-          {/* Group title */}
-          <h2 className="gd-group-title">{group.category || group.name || group.title}</h2>
+          {/* ── Club Events Section ─────────────────────────────────── */}
+          {isClub && (
+            <div className="gd-events-section">
+              <div className="gd-events-header">
+                <h3 className="gd-events-title">Veranstaltungen</h3>
+                {canCreateEvent && (
+                  <button
+                    className="gd-events-add-btn"
+                    onClick={() => setShowCreateEvent(v => !v)}
+                  >
+                    {showCreateEvent ? '✕' : '+'}
+                  </button>
+                )}
+              </div>
 
-          {/* Description */}
-          {group.description && (
-            <p className="gd-description">{group.description}</p>
-          )}
+              {/* Create event form */}
+              {showCreateEvent && (
+                <form className="gd-event-form" onSubmit={handleCreateEvent}>
+                  <input
+                    className="gd-event-input"
+                    type="text"
+                    placeholder="Name der Veranstaltung *"
+                    value={eventForm.name}
+                    onChange={e => setEventForm(f => ({ ...f, name: e.target.value }))}
+                    required
+                  />
+                  <textarea
+                    className="gd-event-input gd-event-textarea"
+                    placeholder="Beschreibung (optional)"
+                    value={eventForm.description}
+                    onChange={e => setEventForm(f => ({ ...f, description: e.target.value }))}
+                    rows={2}
+                  />
+                  <div className="gd-event-row">
+                    <input
+                      className="gd-event-input"
+                      type="date"
+                      value={eventForm.date}
+                      onChange={e => setEventForm(f => ({ ...f, date: e.target.value }))}
+                      required
+                    />
+                    <input
+                      className="gd-event-input"
+                      type="time"
+                      value={eventForm.time}
+                      onChange={e => setEventForm(f => ({ ...f, time: e.target.value }))}
+                    />
+                  </div>
+                  <div className="gd-event-row">
+                    <input
+                      className="gd-event-input"
+                      type="text"
+                      placeholder="Ort (optional)"
+                      value={eventForm.location}
+                      onChange={e => setEventForm(f => ({ ...f, location: e.target.value }))}
+                    />
+                    <input
+                      className="gd-event-input gd-event-input--sm"
+                      type="number"
+                      min={2}
+                      max={500}
+                      placeholder="Max"
+                      value={eventForm.max_members}
+                      onChange={e => setEventForm(f => ({ ...f, max_members: e.target.value }))}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="gd-event-submit-btn"
+                    disabled={eventSubmitting}
+                  >
+                    {eventSubmitting ? 'Wird erstellt…' : 'Veranstaltung erstellen'}
+                  </button>
+                </form>
+              )}
 
-          {/* Owner actions */}
-          {isJoined && (
-            <div className="gd-owner-actions">
-              {isOwner
-                ? <button className="gd-btn-leave" onClick={handleDelete}>{isClub ? 'Club löschen' : 'Gruppe löschen'}</button>
-                : <button className="gd-btn-leave" onClick={handleJoinToggle}>Verlassen</button>
-              }
+              {/* Event list */}
+              {eventsLoading ? (
+                <p className="gd-events-empty">Laden…</p>
+              ) : events.length === 0 ? (
+                <p className="gd-events-empty">Noch keine Veranstaltungen</p>
+              ) : (
+                <div className="gd-events-list">
+                  {events.map(ev => {
+                    const dateParts = formatEventDate(ev.date);
+                    const evIsOwner = user && ev.owner_id === user.id;
+                    return (
+                      <div key={ev.id} className="gd-event-card" onClick={() => navigate(`/group/${ev.id}`)}>
+                        {dateParts ? (
+                          <div className="gd-event-date-badge">
+                            <span className="gd-event-date-day">{dateParts.day}</span>
+                            <span className="gd-event-date-month">{dateParts.month}</span>
+                          </div>
+                        ) : (
+                          <div className="gd-event-date-badge gd-event-date-badge--empty">
+                            <span className="gd-event-date-day">?</span>
+                          </div>
+                        )}
+                        <div className="gd-event-info">
+                          <p className="gd-event-name">{ev.name}</p>
+                          {dateParts?.time && <p className="gd-event-time">{dateParts.time} Uhr{ev.location ? ` · ${ev.location}` : ''}</p>}
+                          <p className="gd-event-meta">{ev.members_count || 0} / {ev.max_members} Teilnehmer</p>
+                        </div>
+                        <div className="gd-event-actions" onClick={e => e.stopPropagation()}>
+                          {evIsOwner ? (
+                            <button
+                              className="gd-event-join-btn gd-event-join-btn--danger"
+                              onClick={() => handleDeleteEvent(ev.id)}
+                            >
+                              Löschen
+                            </button>
+                          ) : ev.is_member ? (
+                            <button
+                              className="gd-event-join-btn gd-event-join-btn--joined"
+                              disabled={joiningEventId === ev.id}
+                              onClick={() => handleLeaveEvent(ev.id)}
+                            >
+                              Dabei
+                            </button>
+                          ) : (
+                            <button
+                              className="gd-event-join-btn"
+                              disabled={joiningEventId === ev.id}
+                              onClick={() => handleJoinEvent(ev.id)}
+                            >
+                              {joiningEventId === ev.id ? '…' : 'Mitmachen'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
-          <button className="gd-report-btn" onClick={() => setShowReportModal(true)}>
-            {isClub ? 'Club melden' : 'Gruppe melden'}
-          </button>
-          </div>{/* gd-content-card */}
-
-          {/* Share button only — favorite is the heart top-right */}
+          {/* Share button */}
           <div className="gd-bottom-actions">
             <button className="gd-action-pill" onClick={() => {
               if (navigator.share) {

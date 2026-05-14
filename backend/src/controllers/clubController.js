@@ -686,6 +686,150 @@ export const cancelClub = async (req, res) => {
   }
 };
 
+// ==========================================
+// GET EVENTS FOR A CLUB
+// ==========================================
+export const getClubEvents = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { past } = req.query;
+
+    const club = await db.query('SELECT id FROM groups WHERE id = $1 AND type = $2', [id, CLUB_TYPE]);
+    if (club.rows.length === 0) return res.status(404).json({ error: 'Club nicht gefunden' });
+
+    const now = new Date().toISOString();
+    const result = await db.query(
+      `SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar
+       FROM groups g
+       LEFT JOIN users u ON g.owner_id = u.id
+       WHERE g.parent_club_id = $1
+         AND g.is_active = TRUE
+         AND g.deleted_at IS NULL
+         ${past === 'true' ? `AND g.date < '${now}'` : `AND (g.date IS NULL OR g.date >= '${now}')`}
+       ORDER BY g.date ASC NULLS LAST`,
+      [id]
+    );
+
+    // Attach is_member for authenticated users
+    if (req.userId && result.rows.length > 0) {
+      const eventIds = result.rows.map(e => e.id);
+      const memberRows = await db.query(
+        `SELECT group_id FROM group_members WHERE user_id = $1 AND group_id = ANY($2)`,
+        [req.userId, eventIds]
+      );
+      const memberSet = new Set(memberRows.rows.map(r => r.group_id));
+      for (const event of result.rows) {
+        event.is_member = memberSet.has(event.id);
+      }
+    }
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching club events:', err);
+    res.status(500).json({ error: 'Veranstaltungen konnten nicht geladen werden' });
+  }
+};
+
+// ==========================================
+// CREATE EVENT UNDER A CLUB (members only)
+// ==========================================
+export const createClubEvent = async (req, res) => {
+  const { id } = req.params;
+  const { name, description, date, time, location, max_members } = req.body;
+  const userId = req.userId;
+
+  if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
+  if (!date) return res.status(400).json({ error: 'Datum ist erforderlich' });
+
+  try {
+    const club = await db.query(
+      'SELECT id, name, category, owner_id FROM groups WHERE id = $1 AND type = $2',
+      [id, CLUB_TYPE]
+    );
+    if (club.rows.length === 0) return res.status(404).json({ error: 'Club nicht gefunden' });
+
+    const membership = await db.query(
+      'SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [id, userId]
+    );
+    if (membership.rows.length === 0) {
+      return res.status(403).json({ error: 'Nur Mitglieder können Veranstaltungen erstellen' });
+    }
+
+    const { safe, reason } = await checkTextSafety([name, description].filter(Boolean).join('\n'));
+    if (!safe) return res.status(422).json({ error: reason });
+
+    const dateTime = date && time ? `${date}T${time}` : date;
+    const coords = await geocodeLocation(location || club.rows[0].location || null);
+
+    const result = await db.query(
+      `INSERT INTO groups
+         (name, description, type, category, date, location, max_members, owner_id,
+          parent_club_id, is_private, lat, lng)
+       VALUES ($1, $2, 'event', $3, $4, $5, $6, $7, $8, FALSE, $9, $10)
+       RETURNING *`,
+      [
+        name.trim(),
+        description || null,
+        club.rows[0].category || null,
+        dateTime,
+        location || null,
+        max_members || 20,
+        userId,
+        parseInt(id, 10),
+        coords?.lat ?? null,
+        coords?.lng ?? null,
+      ]
+    );
+
+    const event = result.rows[0];
+    await db.query(
+      'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
+      [event.id, userId, 'owner']
+    );
+
+    invalidatePrefix('clubs:');
+    res.status(201).json(event);
+  } catch (err) {
+    console.error('Error creating club event:', err);
+    res.status(500).json({ error: 'Veranstaltung konnte nicht erstellt werden' });
+  }
+};
+
+// ==========================================
+// DELETE CLUB EVENT (club owner or event owner)
+// ==========================================
+export const deleteClubEvent = async (req, res) => {
+  try {
+    const { id, eventId } = req.params;
+
+    const event = await db.query(
+      'SELECT owner_id, parent_club_id FROM groups WHERE id = $1 AND parent_club_id = $2',
+      [eventId, id]
+    );
+    if (event.rows.length === 0) return res.status(404).json({ error: 'Veranstaltung nicht gefunden' });
+
+    const club = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
+    const isClubOwner = club.rows[0]?.owner_id === req.userId;
+    const isEventOwner = event.rows[0].owner_id === req.userId;
+
+    if (!isClubOwner && !isEventOwner) {
+      return res.status(403).json({ error: 'Keine Berechtigung' });
+    }
+
+    await db.query(
+      'UPDATE groups SET is_active = FALSE, deleted_at = CURRENT_TIMESTAMP WHERE id = $1',
+      [eventId]
+    );
+
+    res.json({ message: 'Veranstaltung gelöscht' });
+  } catch (err) {
+    console.error('Error deleting club event:', err);
+    res.status(500).json({ error: 'Veranstaltung konnte nicht gelöscht werden' });
+  }
+};
+
 // Reuse shared categories endpoint from groups
 export { getCategories } from './groupController.js';
 

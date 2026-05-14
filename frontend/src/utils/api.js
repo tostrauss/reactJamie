@@ -343,7 +343,15 @@ export const clubs = {
 
   // Get member avatars for card display
   getMemberAvatars: (id, limit = 4) =>
-    axiosInstance.get(`/clubs/${id}/members/avatars`, { params: { limit } })
+    axiosInstance.get(`/clubs/${id}/members/avatars`, { params: { limit } }),
+
+  // Club events
+  getEvents: (clubId, past = false) =>
+    axiosInstance.get(`/clubs/${clubId}/events`, { params: past ? { past: 'true' } : {} }),
+  createEvent: (clubId, data) =>
+    axiosInstance.post(`/clubs/${clubId}/events`, data),
+  deleteEvent: (clubId, eventId) =>
+    axiosInstance.delete(`/clubs/${clubId}/events/${eventId}`),
 };
 
 // ==========================================

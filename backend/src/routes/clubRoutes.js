@@ -15,7 +15,10 @@ import {
   deleteClub,
   kickClubMember,
   cancelClub,
-  getCategories
+  getCategories,
+  getClubEvents,
+  createClubEvent,
+  deleteClubEvent,
 } from '../controllers/clubController.js';
 import {
   joinWaitlist,
@@ -74,6 +77,13 @@ router.get('/:id/waitlist/status', authenticate, getUserWaitlistStatus);
 // MEMBER AVATARS (for card display)
 // ==========================================
 router.get('/:id/members/avatars', optionalAuth, getGroupMemberAvatars);
+
+// ==========================================
+// CLUB EVENTS
+// ==========================================
+router.get('/:id/events', optionalAuth, getClubEvents);
+router.post('/:id/events', authenticate, requireCompleteProfile, createClubEvent);
+router.delete('/:id/events/:eventId', authenticate, deleteClubEvent);
 
 // ==========================================
 // ADMIN ACTIONS (owner only)

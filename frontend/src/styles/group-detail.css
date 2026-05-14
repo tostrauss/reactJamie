@@ -343,6 +343,250 @@
 .gd-action-pill:active { background: var(--bg-hover); transform: scale(0.96); }
 .gd-action-pill.active { color: var(--accent-coral); }
 
+/* Club cover image (replaces photo grid for clubs that have image_url) */
+.gd-club-cover {
+  border-radius: 20px;
+  overflow: hidden;
+  margin: 0 24px;
+  aspect-ratio: 16/9;
+}
+.gd-club-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* "Back to club" chip shown on event pages */
+.gd-club-back-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 20px 12px;
+  padding: 6px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  color: var(--accent-coral);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.15s;
+}
+.gd-club-back-chip:active { background: var(--bg-hover); }
+
+/* ── Events Section ── */
+.gd-events-section {
+  margin-top: 8px;
+  margin-bottom: 16px;
+}
+
+.gd-events-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.gd-events-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-white);
+  margin: 0;
+}
+
+.gd-events-add-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--accent-coral);
+  border: none;
+  color: white;
+  font-size: 22px;
+  font-weight: 300;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.gd-events-add-btn:active { transform: scale(0.92); background: #e5574a; }
+
+.gd-events-empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 24px 0;
+  margin: 0;
+}
+
+/* Create event form */
+.gd-event-form {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gd-event-input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--text-white);
+  font-size: 14px;
+  font-family: inherit;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+}
+.gd-event-input:focus { outline: none; border-color: var(--accent-coral); }
+.gd-event-input::placeholder { color: var(--text-muted); }
+.gd-event-textarea { resize: none; }
+.gd-event-input--sm { max-width: 90px; flex-shrink: 0; }
+
+.gd-event-row {
+  display: flex;
+  gap: 8px;
+}
+.gd-event-row .gd-event-input { flex: 1; }
+
+.gd-event-submit-btn {
+  width: 100%;
+  min-height: 44px;
+  background: var(--accent-coral);
+  border: none;
+  border-radius: 12px;
+  color: white;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: opacity 0.15s;
+}
+.gd-event-submit-btn:disabled { opacity: 0.6; cursor: default; }
+.gd-event-submit-btn:active:not(:disabled) { opacity: 0.85; }
+
+/* Event cards list */
+.gd-events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gd-event-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  padding: 12px 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.15s;
+}
+.gd-event-card:active { background: var(--bg-hover); }
+
+.gd-event-date-badge {
+  width: 44px;
+  min-width: 44px;
+  height: 50px;
+  background: var(--accent-coral);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+.gd-event-date-badge--empty { background: var(--bg-input); }
+
+.gd-event-date-day {
+  font-size: 20px;
+  font-weight: 800;
+  color: white;
+  line-height: 1;
+}
+.gd-event-date-month {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.85);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.gd-event-info {
+  flex: 1;
+  min-width: 0;
+}
+.gd-event-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-white);
+  margin: 0 0 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gd-event-time {
+  font-size: 12px;
+  color: var(--accent-coral);
+  margin: 0 0 2px;
+  font-weight: 600;
+}
+.gd-event-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.gd-event-actions {
+  flex-shrink: 0;
+}
+.gd-event-join-btn {
+  padding: 8px 14px;
+  min-height: 36px;
+  background: var(--accent-coral);
+  border: none;
+  border-radius: var(--radius-full);
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+.gd-event-join-btn:disabled { opacity: 0.5; cursor: default; }
+.gd-event-join-btn:active:not(:disabled) { opacity: 0.8; }
+.gd-event-join-btn--joined {
+  background: transparent;
+  border: 1.5px solid #4ade80;
+  color: #4ade80;
+}
+.gd-event-join-btn--danger {
+  background: transparent;
+  border: 1.5px solid rgba(248,113,113,0.4);
+  color: #f87171;
+}
+
 /* Report */
 .gd-report-btn {
   display: block;
