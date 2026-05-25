@@ -214,11 +214,13 @@ export const login = async (req, res) => {
       return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
     }
 
-    // Reset lockout and update last_seen on successful login
+    // Reset lockout on successful login
     await db.query(
-      'UPDATE users SET login_attempts = 0, locked_until = NULL, last_seen = NOW() WHERE id = $1',
+      'UPDATE users SET login_attempts = 0, locked_until = NULL WHERE id = $1',
       [user.id]
     );
+    // Update last_seen non-fatally (column may not exist on older DBs yet)
+    db.query('UPDATE users SET last_seen = NOW() WHERE id = $1', [user.id]).catch(() => {});
 
     const token = generateToken(user.id);
 
