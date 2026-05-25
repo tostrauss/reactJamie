@@ -10,8 +10,13 @@ const makeStore = (prefix) =>
     ? new RedisStore({ prefix, sendCommand: (...args) => redisClient.call(...args) })
     : undefined; // undefined = in-memory store (single instance only)
 
+// If Redis goes down mid-flight the store throws — degrade gracefully by
+// passing the request through instead of returning 500.
+const SHARED = { passOnStoreError: true };
+
 // General API rate limit: 500 req/15min
 export const generalLimiter = rateLimit({
+  ...SHARED,
   windowMs: 15 * 60 * 1000,
   max: disabled ? 10000 : 500,
   standardHeaders: true,
@@ -22,6 +27,7 @@ export const generalLimiter = rateLimit({
 
 // Auth rate limit: 20 attempts/15min
 export const authLimiter = rateLimit({
+  ...SHARED,
   windowMs: 15 * 60 * 1000,
   max: disabled ? 10000 : 20,
   standardHeaders: true,
@@ -32,6 +38,7 @@ export const authLimiter = rateLimit({
 
 // Strict rate limit: 5 attempts/hour (password reset, account deletion, etc.)
 export const strictLimiter = rateLimit({
+  ...SHARED,
   windowMs: 60 * 60 * 1000,
   max: disabled ? 10000 : 5,
   standardHeaders: true,
@@ -41,9 +48,8 @@ export const strictLimiter = rateLimit({
 });
 
 // Registration flow: 20 attempts/hour — separate counter from strictLimiter.
-// A full registration uses 3 requests (send OTP → verify OTP → register),
-// plus retries if the user mistyped the code, so 5/hour would block legitimate signups.
 export const registrationLimiter = rateLimit({
+  ...SHARED,
   windowMs: 60 * 60 * 1000,
   max: disabled ? 10000 : 20,
   standardHeaders: true,
@@ -53,8 +59,8 @@ export const registrationLimiter = rateLimit({
 });
 
 // Chat message rate limit: 60 messages/minute per authenticated user.
-// Keyed on userId (not IP) so mobile users on shared IPs aren't affected by others.
 export const messageLimiter = rateLimit({
+  ...SHARED,
   windowMs: 60 * 1000,
   max: disabled ? 10000 : 60,
   standardHeaders: true,
