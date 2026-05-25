@@ -417,17 +417,18 @@ const migrate = async (label, fn) => {
 };
 
 const runStartupMigrations = async () => {
-  // Wait up to 30s for DB to be reachable before running migrations.
-  for (let attempt = 1; attempt <= 6; attempt++) {
+  // Wait up to 90s for DB to be reachable before running migrations.
+  // Railway Postgres can take 60-75s to accept connections on a cold start.
+  for (let attempt = 1; attempt <= 18; attempt++) {
     try {
       await db.query('SELECT 1');
       break;
     } catch {
-      if (attempt === 6) {
-        console.error('⚠️ DB not reachable after 30s — startup migrations skipped');
+      if (attempt === 18) {
+        console.error('⚠️ DB not reachable after 90s — startup migrations skipped');
         return;
       }
-      console.log(`[migrations] Waiting for DB... (${attempt}/6)`);
+      console.log(`[migrations] Waiting for DB... (${attempt}/18)`);
       await new Promise(r => setTimeout(r, 5000));
     }
   }
