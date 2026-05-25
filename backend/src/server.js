@@ -524,6 +524,8 @@ const runStartupMigrations = async () => {
     db.query(`CREATE INDEX IF NOT EXISTS idx_pioneer_claims_cell ON pioneer_claims(lat_cell, lng_cell)`));
 
   // ── Schema additions ───────────────────────────────────────────────────────
+  await migrate('users.last_seen col', () =>
+    db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMPTZ`));
   await migrate('groups.deleted_at', async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_deleted_at ON groups(deleted_at) WHERE deleted_at IS NULL`);
