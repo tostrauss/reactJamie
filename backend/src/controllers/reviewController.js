@@ -69,6 +69,9 @@ export const submitReview = async (req, res) => {
   if (!group_id || !Array.isArray(attendances)) {
     return res.status(400).json({ error: 'group_id and attendances[] required' });
   }
+  if (attendances.length > 100) {
+    return res.status(400).json({ error: 'Zu viele Teilnehmer in einer Anfrage' });
+  }
 
   try {
     // Verify reviewer was a member

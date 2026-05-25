@@ -6,7 +6,7 @@ import { redisClient } from './config/redis.js';
 // At 1 000 concurrent users each joining 3-5 group rooms, this prevents
 // thousands of identical SELECT 1 queries hitting the DB on every app open.
 const _memberCache = new Map();
-const MEMBER_CACHE_TTL = 60_000;
+const MEMBER_CACHE_TTL = 10_000;
 
 setInterval(() => {
   const now = Date.now();
@@ -119,20 +119,24 @@ const socketHandler = (io) => {
 
     // Handle new message
     socket.on('send_message', (data) => {
-      // Broadcast to all room members except the sender (sender adds it optimistically)
-      socket.to(data.group_id || data.groupId).emit('receive_message', data);
+      const roomId = String(data.group_id || data.groupId || '');
+      // Only broadcast if this socket has actually joined the room (join_room verifies DB membership)
+      if (!roomId || !socket.rooms.has(roomId)) return;
+      socket.to(roomId).emit('receive_message', data);
     });
 
     // Handle typing indicator
     socket.on('typing', (data) => {
-      socket.to(data.groupId).emit('user_typing', {
+      if (!data?.groupId || !socket.rooms.has(String(data.groupId))) return;
+      socket.to(String(data.groupId)).emit('user_typing', {
         userId: socket.userId,
         userName: data.userName
       });
     });
 
     socket.on('stop_typing', (data) => {
-      socket.to(data.groupId).emit('user_stop_typing', {
+      if (!data?.groupId || !socket.rooms.has(String(data.groupId))) return;
+      socket.to(String(data.groupId)).emit('user_stop_typing', {
         userId: socket.userId
       });
     });

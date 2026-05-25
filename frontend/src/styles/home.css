@@ -3,42 +3,42 @@
    ======================================== */
 
 .home-container {
-  /* Fill the full dynamic viewport — no inner page scroll */
-  height: 100vh; /* fallback for browsers without dvh support */
-  height: 100dvh;
+  min-height: 100vh; /* fallback */
+  min-height: 100dvh;
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
+}
+
+/* Map tab: locked height so the map fills exactly the remaining space */
+.home-container--map {
+  height: 100vh; /* fallback */
+  height: 100dvh;
   overflow: hidden;
 }
 
-/* ── Sticky header zone (logo + tabs only) ── */
+/* ── Header scrolls with the page ── */
 .home-sticky-header {
-  flex-shrink: 0;
   background: var(--bg-primary);
   padding-top: env(safe-area-inset-top, 0px);
   z-index: 100;
 }
 
-/* ── Search + categories (scroll with content) ── */
+/* ── Search + categories ── */
 .home-search-area {
   background: var(--bg-primary);
 }
 
-/* ── Scrollable content zone ── */
+/* ── Content: normal page flow, clears fixed bottom nav ── */
 .home-content {
-  flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch; /* iOS momentum scroll */
-  overscroll-behavior-y: contain;   /* bounce stays inside, doesn't propagate */
-  /* Clear the fixed bottom nav + home indicator */
   padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
 }
 
-/* Map tab: remove padding and scrolling so map fills exactly */
+/* Map tab: fill remaining flex space, no scroll, no padding */
 .home-content--map {
-  padding-bottom: 0;
+  flex: 1;
   overflow: hidden;
+  padding-bottom: 0;
 }
 
 /* ── Loading spinner ── */
@@ -1005,14 +1005,14 @@
   min-height: 100vh;
   background: var(--bg-primary);
   color: white;
-  padding-bottom: 100px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
 }
 
 .club-edit-page .edit-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) 20px 16px;
   background: rgba(0, 0, 0, 0.2);
   position: sticky;
   top: 0;
@@ -1336,14 +1336,14 @@
   min-height: 100vh;
   background: var(--bg-primary);
   color: white;
-  padding-bottom: 80px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
 }
 
 .edit-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px;
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px 16px;
   background: rgba(0, 0, 0, 0.2);
   position: sticky;
   top: 0;

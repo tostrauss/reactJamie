@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   GoogleMap,
   Marker,
@@ -94,6 +94,17 @@ export default function MapView({ typeFilter }) {
     language: 'de',
     region: 'AT',
   });
+
+  // One icon object per (emoji, active) pair — avoids re-encoding SVG data-URLs on every render.
+  // Cache is local to this component instance and cleared when the map unmounts.
+  const iconCache = useRef({});
+  const getCachedIcon = useCallback((emoji, active) => {
+    const key = `${emoji}:${active}`;
+    if (!iconCache.current[key]) {
+      iconCache.current[key] = makeMarkerIcon(emoji, active);
+    }
+    return iconCache.current[key];
+  }, []);
 
   // ── Fetch pins ────────────────────────────────────────────────
   useEffect(() => {
@@ -203,15 +214,18 @@ export default function MapView({ typeFilter }) {
           onLoad={onMapLoad}
           onClick={() => setSelectedPin(null)}
         >
-          {pins.map(pin => (
-            <Marker
-              key={pin.id}
-              position={{ lat: pin.lat, lng: pin.lng }}
-              icon={makeMarkerIcon(getEmoji(pin.category), selectedPin?.id === pin.id)}
-              onClick={() => setSelectedPin(pin)}
-              zIndex={selectedPin?.id === pin.id ? 10 : 1}
-            />
-          ))}
+          {pins.map(pin => {
+            const active = selectedPin?.id === pin.id;
+            return (
+              <Marker
+                key={pin.id}
+                position={{ lat: pin.lat, lng: pin.lng }}
+                icon={getCachedIcon(getEmoji(pin.category), active)}
+                onClick={() => setSelectedPin(pin)}
+                zIndex={active ? 10 : 1}
+              />
+            );
+          })}
 
           {selectedPin && (
             <InfoWindow

@@ -1,12 +1,12 @@
 import express from 'express';
 import { register, login, logout, getProfile, updateProfile, completeOnboarding, changePassword, deleteAccount, exportData, forgotPassword, resetPassword, sendVerification, verifyEmail, sendEmailCode, verifyEmailCode, googleLogin, refreshToken } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
-import { strictLimiter, authLimiter } from '../middleware/rateLimiter.js';
+import { strictLimiter, authLimiter, registrationLimiter } from '../middleware/rateLimiter.js';
 import { geofenceRegistration } from '../middleware/geofence.js';
 
 const router = express.Router();
 
-router.post('/register', geofenceRegistration, strictLimiter, register);
+router.post('/register', geofenceRegistration, registrationLimiter, register);
 router.post('/login', authLimiter, login);
 router.post('/logout', logout);
 router.post('/google', strictLimiter, googleLogin);
@@ -23,8 +23,8 @@ router.post('/forgot-password', strictLimiter, forgotPassword);
 router.post('/reset-password', strictLimiter, resetPassword);
 
 // Registration OTP (public - no auth needed)
-router.post('/send-email-code', strictLimiter, sendEmailCode);
-router.post('/verify-email-code', strictLimiter, verifyEmailCode);
+router.post('/send-email-code', registrationLimiter, sendEmailCode);
+router.post('/verify-email-code', registrationLimiter, verifyEmailCode);
 
 // Email verification (requires auth)
 router.post('/send-verification', authenticate, sendVerification);

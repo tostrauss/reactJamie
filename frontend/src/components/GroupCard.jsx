@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 
@@ -32,7 +32,7 @@ function getBadgeLabel(displayDate) {
   return null;
 }
 
-export const GroupCard = ({
+export const GroupCard = memo(({
   group,
   isFavorite,
   isJoined,
@@ -51,7 +51,7 @@ export const GroupCard = ({
     const fetchAvatars = async () => {
       try {
         const res = await api.groups.getMemberAvatars(group.id, 4);
-        setMemberAvatars(res.data);
+        setMemberAvatars(Array.isArray(res.data) ? res.data : []);
       } catch {}
     };
     fetchAvatars();
@@ -124,6 +124,6 @@ export const GroupCard = ({
 
     </div>
   );
-};
+});
 
 export default GroupCard;

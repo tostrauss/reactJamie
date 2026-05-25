@@ -12,7 +12,8 @@ export const geofenceRegistration = (req, res, next) => {
 
   const ip = req.ip;
   // Loopback / private ranges → allow (dev/staging behind a proxy)
-  if (!ip || ip === '::1' || ip.startsWith('127.') || ip.startsWith('10.') || ip.startsWith('192.168.')) {
+  if (!ip || ip === '::1' || ip.startsWith('127.') || ip.startsWith('10.') || ip.startsWith('192.168.') ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(ip)) {
     return next();
   }
 

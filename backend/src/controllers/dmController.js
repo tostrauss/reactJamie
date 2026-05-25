@@ -7,9 +7,13 @@ import { sendPushToUser } from './pushController.js';
 // ==========================================
 export const sendDM = async (req, res) => {
   try {
-    const { receiverId, content } = req.body;
+    const receiverId = parseInt(req.body.receiverId, 10);
+    const { content } = req.body;
 
-    if (!receiverId || !content) {
+    if (isNaN(receiverId) || receiverId <= 0) {
+      return res.status(400).json({ error: 'Ungültiger Empfänger' });
+    }
+    if (!content) {
       return res.status(400).json({ error: 'Empfänger und Inhalt erforderlich' });
     }
 
@@ -44,22 +48,32 @@ export const sendDM = async (req, res) => {
       [req.userId, receiverId, content]
     );
 
-    // Update or create conversation tracker
-    await db.query(
-      `INSERT INTO dm_conversations (user_id, other_user_id, last_message_id, unread_count)
-       VALUES ($1, $2, $3, 0)
-       ON CONFLICT (user_id, other_user_id) 
-       DO UPDATE SET last_message_id = $3, updated_at = CURRENT_TIMESTAMP`,
-      [req.userId, receiverId, result.rows[0].id]
-    );
-
-    await db.query(
-      `INSERT INTO dm_conversations (user_id, other_user_id, last_message_id, unread_count)
-       VALUES ($1, $2, $3, 1)
-       ON CONFLICT (user_id, other_user_id) 
-       DO UPDATE SET last_message_id = $3, unread_count = dm_conversations.unread_count + 1, updated_at = CURRENT_TIMESTAMP`,
-      [receiverId, req.userId, result.rows[0].id]
-    );
+    // Update or create conversation trackers atomically
+    const msgId = result.rows[0].id;
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `INSERT INTO dm_conversations (user_id, other_user_id, last_message_id, unread_count)
+         VALUES ($1, $2, $3, 0)
+         ON CONFLICT (user_id, other_user_id)
+         DO UPDATE SET last_message_id = $3, updated_at = CURRENT_TIMESTAMP`,
+        [req.userId, receiverId, msgId]
+      );
+      await client.query(
+        `INSERT INTO dm_conversations (user_id, other_user_id, last_message_id, unread_count)
+         VALUES ($1, $2, $3, 1)
+         ON CONFLICT (user_id, other_user_id)
+         DO UPDATE SET last_message_id = $3, unread_count = dm_conversations.unread_count + 1, updated_at = CURRENT_TIMESTAMP`,
+        [receiverId, req.userId, msgId]
+      );
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
 
     // Notify receiver (fire-and-forget)
     notifyDMReceived(req.userId, receiverId).catch(() => {});
@@ -84,7 +98,10 @@ async function notifyDMReceived(fromUserId, toUserId) {
 // ==========================================
 export const getConversation = async (req, res) => {
   try {
-    const { userId } = req.params;
+    const userId = parseInt(req.params.userId, 10);
+    if (isNaN(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'Ungültige Nutzer-ID' });
+    }
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
 
@@ -104,14 +121,15 @@ export const getConversation = async (req, res) => {
     }
 
     const result = await db.query(
-      `SELECT dm.*, 
+      `SELECT dm.id, dm.sender_id, dm.receiver_id, dm.content, dm.message_type,
+              dm.is_read, dm.is_deleted_sender, dm.is_deleted_receiver, dm.created_at,
               s.name as sender_name, s.avatar_url as sender_avatar,
               r.name as receiver_name, r.avatar_url as receiver_avatar
        FROM direct_messages dm
        LEFT JOIN users s ON dm.sender_id = s.id
        LEFT JOIN users r ON dm.receiver_id = r.id
-       WHERE (dm.sender_id = $1 AND dm.receiver_id = $2) 
-          OR (dm.sender_id = $2 AND dm.receiver_id = $1)
+       WHERE LEAST(dm.sender_id, dm.receiver_id)    = LEAST($1, $2)
+         AND GREATEST(dm.sender_id, dm.receiver_id) = GREATEST($1, $2)
        ORDER BY dm.created_at ASC
        LIMIT $3 OFFSET $4`,
       [req.userId, userId, limit, offset]
@@ -153,7 +171,10 @@ export const getConversations = async (req, res) => {
 // ==========================================
 export const markDMRead = async (req, res) => {
   try {
-    const { userId } = req.params;
+    const userId = parseInt(req.params.userId, 10);
+    if (isNaN(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'Ungültige Nutzer-ID' });
+    }
 
     await Promise.all([
       db.query(

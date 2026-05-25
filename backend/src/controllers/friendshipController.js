@@ -151,9 +151,9 @@ export const getFriends = async (req, res) => {
          WHEN f.requester_id = $1 THEN f.addressee_id 
          ELSE f.requester_id 
        END
-       WHERE (f.requester_id = $1 OR f.addressee_id = $1) 
+       WHERE (f.requester_id = $1 OR f.addressee_id = $1)
          AND f.status = 'accepted'
-       ORDER BY u.name ASC`,
+       ORDER BY u.name ASC LIMIT 500`,
       [req.userId]
     );
     res.json(result.rows);

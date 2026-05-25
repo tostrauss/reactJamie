@@ -87,7 +87,7 @@ export const GroupDetail = () => {
         if (controller.signal.aborted) return;
         setIsFavorited((favRes.data || []).some(f => f.id === parseInt(id, 10)));
         setGroup(entity);
-        setIsJoined(entity.is_member === true);
+        setIsJoined(!!entity.is_member);
         setJoinRequestStatus(entity.join_request_status || null);
         setWaitlistStatus(entity.waitlist_status || null);
         setWaitlistPosition(entity.waitlist_position || null);
@@ -234,6 +234,8 @@ export const GroupDetail = () => {
     e.preventDefault();
     if (!eventForm.name.trim()) { toast.error('Name ist erforderlich'); return; }
     if (!eventForm.date) { toast.error('Datum ist erforderlich'); return; }
+    const eventDateTime = new Date(`${eventForm.date}T${eventForm.time || '00:00'}`);
+    if (eventDateTime <= new Date()) { toast.error('Das Datum muss in der Zukunft liegen'); return; }
     setEventSubmitting(true);
     try {
       const res = await clubs.createEvent(id, {

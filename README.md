@@ -64,7 +64,7 @@ jamie/
 | **Inhaltsmeldungen** | Nutzer/Gruppen melden; Admin erhält E-Mail-Benachrichtigung (`ADMIN_EMAIL`) |
 | **Boost-System** | Kredit-basierte Boosts; Stripe (Apple Pay) + PayPal Checkout |
 | **Empfehlungscodes** | Kredite durch Einladung anderer Nutzer verdienen |
-| **Admin-Dashboard** | `/admin` geschützt durch `ADMIN_SECRET`; CSV-Export; Nutzer-/Gruppenstatistiken |
+| **Admin-Dashboard** | `/admin` – JWT-basierter Zugang; `UPDATE users SET is_admin=true WHERE email='...'`; CSV-Export |
 | **Event-Bewertungen** | `EventReviewModal` wird nach dem Login automatisch ausgelöst, wenn vergangene Events vorhanden sind |
 | **Onboarding** | 3-Slide `AppIntro` beim ersten Start |
 | **Telemetrie** | `useAnalytics`-Hook; Events: `screen_view`, `screen_leave`, `app_open`, `app_close` |
@@ -134,8 +134,9 @@ VAPID_PUBLIC_KEY=...
 VAPID_PRIVATE_KEY=...
 VAPID_SUBJECT=mailto:admin@example.com
 
-# Admin-Dashboard
-ADMIN_SECRET=dein_admin_secret
+# Admin-Zugang (kein Env-Var nötig — JWT-basiertes RBAC)
+# Führe einmalig aus: UPDATE users SET is_admin=true WHERE email='deine@email.com';
+ADMIN_EMAIL=admin@yourdomain.com
 
 # Stripe (Boosts)
 STRIPE_SECRET_KEY=sk_live_...
@@ -289,7 +290,7 @@ cd frontend && npm test  # 10 Vitest + RTL-Tests
 ### Admin
 | Methode | Pfad | Hinweis |
 |---|---|---|
-| GET | `/api/admin/stats` | `ADMIN_SECRET`-Header |
+| GET | `/api/admin/stats` | JWT + `is_admin=true` in DB erforderlich |
 | GET | `/api/admin/export/users` | CSV |
 | GET | `/api/admin/export/groups` | CSV |
 

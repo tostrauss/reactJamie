@@ -61,7 +61,7 @@ export const checkImageSafety = async (buffer, mimetype, originalname) => {
     form.append('api_user',   process.env.SIGHTENGINE_API_USER);
     form.append('api_secret', process.env.SIGHTENGINE_API_SECRET);
 
-    const response = await fetch(SIGHTENGINE_URL, { method: 'POST', body: form });
+    const response = await fetch(SIGHTENGINE_URL, { method: 'POST', body: form, signal: AbortSignal.timeout(5000) });
 
     if (!response.ok) {
       console.error('Sightengine HTTP error:', response.status, await response.text());
@@ -154,6 +154,7 @@ export const checkTextSafety = async (text) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ input: text }),
+      signal: AbortSignal.timeout(5000),
     });
 
     if (!response.ok) {

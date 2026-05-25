@@ -127,6 +127,11 @@ export const CreateGroup = () => {
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('Das Bild ist zu groß (max. 10 MB)');
+        e.target.value = '';
+        return;
+      }
       if (imageBlobRef.current) URL.revokeObjectURL(imageBlobRef.current);
       const blobUrl = URL.createObjectURL(file);
       imageBlobRef.current = blobUrl;
@@ -147,6 +152,7 @@ export const CreateGroup = () => {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         imageUrl = uploadRes.data.url;
+        if (!imageUrl) throw new Error('Bild-Upload fehlgeschlagen');
       }
 
       // Step 2: create group as JSON
@@ -177,7 +183,8 @@ export const CreateGroup = () => {
 
   const isDateInFuture = () => {
     if (!formData.date) return true;
-    const dt = formData.time ? new Date(`${formData.date}T${formData.time}`) : new Date(formData.date);
+    // Use local midnight when no time set — avoids UTC-parse shifting the date
+    const dt = new Date(`${formData.date}T${formData.time || '00:00'}`);
     return dt > new Date();
   };
 

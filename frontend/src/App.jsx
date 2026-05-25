@@ -43,6 +43,7 @@ const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const SpotifyCallback = lazy(() => import('./pages/SpotifyCallback'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
+const Impressum = lazy(() => import('./pages/Impressum'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const WelcomeIntro   = lazy(() => import('./pages/WelcomeIntro'));
 const OutOfRegion    = lazy(() => import('./pages/OutOfRegion'));
@@ -337,20 +338,28 @@ const AuthRoute = ({ children }) => {
 };
 
 // ==========================================
-// GEOFENCING — block non-Austrian users
+// GEOFENCING — block users outside DACH (Austria, Germany, Switzerland)
 // ==========================================
-const AUSTRIA = { latMin: 46.37, latMax: 49.02, lngMin: 9.53, lngMax: 17.16 };
+const DACH_REGIONS = [
+  { latMin: 46.37, latMax: 49.02, lngMin: 9.53,  lngMax: 17.16 }, // Austria
+  { latMin: 47.27, latMax: 55.06, lngMin: 5.87,  lngMax: 15.04 }, // Germany
+  { latMin: 45.82, latMax: 47.81, lngMin: 5.96,  lngMax: 10.49 }, // Switzerland
+];
 
-function isInAustria(lat, lng) {
-  return lat >= AUSTRIA.latMin && lat <= AUSTRIA.latMax
-      && lng >= AUSTRIA.lngMin && lng <= AUSTRIA.lngMax;
+function isInRegion(lat, lng) {
+  return DACH_REGIONS.some(r =>
+    lat >= r.latMin && lat <= r.latMax && lng >= r.lngMin && lng <= r.lngMax
+  );
 }
 
-// Returns 'austria' | 'outside' | 'unknown'
+// Returns 'allowed' | 'outside' | 'unknown'
 function useGeoFence() {
   const [region, setRegion] = useState(() => {
     // Re-use result within the same browser session
-    return sessionStorage.getItem('jamie_region') || 'unknown';
+    const cached = sessionStorage.getItem('jamie_region');
+    // Migrate old 'austria' value to 'allowed'
+    if (cached === 'austria') return 'allowed';
+    return cached || 'unknown';
   });
 
   useEffect(() => {
@@ -359,7 +368,7 @@ function useGeoFence() {
 
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
-        const r = isInAustria(coords.latitude, coords.longitude) ? 'austria' : 'outside';
+        const r = isInRegion(coords.latitude, coords.longitude) ? 'allowed' : 'outside';
         sessionStorage.setItem('jamie_region', r);
         setRegion(r);
       },
@@ -436,7 +445,7 @@ function AppRoutes() {
 
   if (showIntro) return <AppIntro onDone={() => setShowIntro(false)} />;
 
-  // Block non-Austrian users (only when we have a confirmed location)
+  // Block users outside DACH (only when we have a confirmed location)
   if (region === 'outside') {
     return (
       <Suspense fallback={<PageLoader />}>
@@ -449,6 +458,7 @@ function AppRoutes() {
     <>
       {!isNative() && <UpdateBanner />}
       {!isNative() && <InstallBanner />}
+      <ErrorBoundary>
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Auth */}
@@ -502,6 +512,7 @@ function AppRoutes() {
           {/* Legal — public, no auth required */}
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<TermsOfService />} />
+          <Route path="/impressum" element={<Impressum />} />
 
           {/* Redirects */}
           <Route path="/" element={<Navigate to={user ? "/home" : "/login"} replace />} />
@@ -517,6 +528,7 @@ function AppRoutes() {
           } />
         </Routes>
       </Suspense>
+      </ErrorBoundary>
       <Navigation />
       {pendingReviews && (
         <EventReviewModal

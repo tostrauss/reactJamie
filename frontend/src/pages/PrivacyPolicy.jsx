@@ -11,7 +11,7 @@ export default function PrivacyPolicy() {
 
       <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Datenschutzerklärung</h1>
       <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 32 }}>
-        Zuletzt aktualisiert: März 2026
+        Zuletzt aktualisiert: Mai 2026
       </p>
 
       <Section title="1. Verantwortlicher">
@@ -51,13 +51,48 @@ export default function PrivacyPolicy() {
         <ul>
           <li><strong>Spotify:</strong> Wenn du Spotify verbindest, werden OAuth-Tokens sicher
             gespeichert und nur für deine Spotify-Anfragen verwendet.</li>
+          <li><strong>Sightengine (Frankreich):</strong> Hochgeladene Bilder werden zur
+            automatischen Prüfung auf unzulässige Inhalte (Moderation) an Sightengine übermittelt.
+            Datenschutz: sightengine.com/privacy</li>
+          <li><strong>OpenAI, Inc. (USA):</strong> Textnachrichten werden zur automatischen
+            Inhaltsmoderation an die OpenAI Moderation API übermittelt. Es werden keine
+            Nachrichten gespeichert oder für das Training von Modellen verwendet.
+            Datenschutz: openai.com/privacy</li>
           <li><strong>Hosting-Anbieter:</strong> Unsere Server laufen bei Railway (USA). Die
             Datenübertragung erfolgt nach Art. 46 DSGVO mit Standardvertragsklauseln.</li>
           <li><strong>Gesetzliche Pflichten:</strong> Bei berechtigten behördlichen Anfragen.</li>
         </ul>
       </Section>
 
-      <Section title="5. Speicherdauer">
+      <Section title="5. Einsatz von KI und automatisierte Entscheidungen">
+        <p>
+          JAMIE setzt KI-gestützte Systeme zur Inhaltsmoderation ein (Risikoklasse „minimales
+          Risiko" gemäß EU AI Act, Verordnung (EU) 2024/1689):
+        </p>
+        <ul>
+          <li>
+            <strong>Bildmoderation (Sightengine):</strong> Jedes hochgeladene Bild wird
+            automatisch auf Nacktheit und Gewaltdarstellungen geprüft. Auffällige Bilder
+            werden abgelehnt, bevor sie gespeichert werden.
+          </li>
+          <li>
+            <strong>Textmoderation (OpenAI Moderation API):</strong> Nachrichten im
+            Gruppen-Chat und bei Direktnachrichten werden automatisch auf Hassrede,
+            Belästigung, bedrohende oder sexuelle Inhalte geprüft. Auffällige Nachrichten
+            werden blockiert.
+          </li>
+        </ul>
+        <p>
+          Diese Prüfungen laufen vollautomatisch. Wenn du der Meinung bist, dass ein Inhalt
+          zu Unrecht blockiert wurde, kannst du dich jederzeit an{' '}
+          <a href="mailto:privacy@getjamie.app" style={{ color: 'var(--coral)' }}>
+            privacy@getjamie.app
+          </a>{' '}
+          wenden (Widerspruchsrecht gem. Art. 22 DSGVO).
+        </p>
+      </Section>
+
+      <Section title="6. Speicherdauer">
         <p>
           Deine Daten werden gespeichert, solange dein Konto aktiv ist. Du kannst dein Konto
           jederzeit in <strong>Einstellungen → Konto löschen</strong> dauerhaft löschen. Dabei
@@ -65,7 +100,7 @@ export default function PrivacyPolicy() {
         </p>
       </Section>
 
-      <Section title="6. Deine Rechte">
+      <Section title="7. Deine Rechte">
         <ul>
           <li><strong>Auskunft</strong> über gespeicherte Daten (Art. 15 DSGVO)</li>
           <li><strong>Berichtigung</strong> falscher Daten (Art. 16 DSGVO)</li>
@@ -83,7 +118,7 @@ export default function PrivacyPolicy() {
         </p>
       </Section>
 
-      <Section title="7. Sicherheit">
+      <Section title="8. Sicherheit">
         <p>
           Wir verwenden HTTPS-Verschlüsselung, bcrypt-Passwort-Hashing, JWT-Authentifizierung
           und Rate-Limiting zum Schutz deiner Daten. Passwörter werden niemals im Klartext
@@ -91,7 +126,7 @@ export default function PrivacyPolicy() {
         </p>
       </Section>
 
-      <Section title="8. Cookies und lokaler Speicher">
+      <Section title="9. Cookies und lokaler Speicher">
         <p>
           Wir verwenden keine Werbe-Cookies. Wir verwenden <code>localStorage</code> ausschließlich
           für dein Authentifizierungs-Token und App-Einstellungen (z. B. ob du das
@@ -99,7 +134,7 @@ export default function PrivacyPolicy() {
         </p>
       </Section>
 
-      <Section title="9. Zahlungsdienstleister">
+      <Section title="10. Zahlungsdienstleister">
         <p>
           Wenn du Boost-Credits oder ein Pro-Abonnement kaufst, werden Zahlungen verarbeitet
           durch:
@@ -116,14 +151,14 @@ export default function PrivacyPolicy() {
         </p>
       </Section>
 
-      <Section title="10. Minderjährige">
+      <Section title="11. Minderjährige">
         <p>
           JAMIE richtet sich ausschließlich an Personen ab <strong>18 Jahren</strong>. Wir erheben
           wissentlich keine Daten von Personen unter 18 Jahren.
         </p>
       </Section>
 
-      <Section title="11. Änderungen dieser Datenschutzerklärung">
+      <Section title="12. Änderungen dieser Datenschutzerklärung">
         <p>
           Wir können diese Erklärung gelegentlich aktualisieren. Bei wesentlichen Änderungen
           informieren wir dich per E-Mail oder In-App-Benachrichtigung. Das Datum der letzten

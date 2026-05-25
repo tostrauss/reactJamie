@@ -1,12 +1,13 @@
-import { useState, useEffect, useContext, useRef, useCallback } from "react";
+import { useState, useEffect, useContext, useRef, useCallback, useMemo, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import api, { groups, clubs } from "../utils/api";
 import { GroupCard } from "../components/GroupCard";
 import { AuthContext } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
-import MapView from "../components/MapView";
 import "../styles/home.css";
 import { CATEGORY_HIERARCHY } from "../utils/categories";
+
+const MapView = lazy(() => import("../components/MapView"));
 
 const AgeRangeSlider = ({ value, onChange }) => {
   const MIN = 18, MAX = 70;
@@ -228,15 +229,17 @@ export const Home = () => {
     return !!item.is_private;
   };
 
-  const filteredGroups = groupList.filter(g =>
+  const filteredGroups = useMemo(() => groupList.filter(g =>
     (g.name || '').toLowerCase().includes(searchQuery.toLowerCase()) &&
     matchesCategory(g) && matchesZeit(g) && matchesAlter(g) && matchesSicht(g)
-  );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [groupList, searchQuery, selectedMain, selectedSub, zeitFilter, zeitFrom, zeitTo, alterFilter, sichtFilter]);
 
-  const filteredClubs = clubList.filter(c =>
+  const filteredClubs = useMemo(() => clubList.filter(c =>
     (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) &&
     matchesCategory(c) && matchesAlter(c) && matchesSicht(c)
-  );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [clubList, searchQuery, selectedMain, selectedSub, alterFilter, sichtFilter]);
 
   // ── Filter panel actions ─────────────────────────────────────────
   const openFilters = () => {
@@ -304,7 +307,6 @@ export const Home = () => {
       if (activeTab === 'clubs') await clubs.join(groupId);
       else await groups.join(groupId);
       setJoined(prev => new Set(prev).add(groupId));
-      loadData();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Fehler beim Beitreten');
     }
@@ -347,7 +349,7 @@ export const Home = () => {
   );
 
   return (
-    <div className="home-container">
+    <div className={`home-container${activeTab === 'karte' ? ' home-container--map' : ''}`}>
 
       {/* ── Sticky header (logo + tabs + search + categories) ──────── */}
       <div className="home-sticky-header">
@@ -575,7 +577,11 @@ export const Home = () => {
         )}
 
         {/* KARTE */}
-        {activeTab === 'karte' && <MapView />}
+        {activeTab === 'karte' && (
+          <Suspense fallback={<div className="home-loading"><div className="home-spinner" /></div>}>
+            <MapView />
+          </Suspense>
+        )}
 
       </div>
 

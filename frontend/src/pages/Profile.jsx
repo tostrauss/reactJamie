@@ -273,7 +273,7 @@ export const Profile = () => {
               <>
                 <div className="pinnwand-grid">
                   {profilePhotos.map((photo, i) => (
-                    <div key={i} className={`pinnwand-item${i === 0 ? ' pinnwand-item--large' : ''}`}>
+                    <div key={photo} className={`pinnwand-item${i === 0 ? ' pinnwand-item--large' : ''}`}>
                       <img src={photo} alt={`Foto ${i + 1}`} loading="lazy" />
                     </div>
                   ))}

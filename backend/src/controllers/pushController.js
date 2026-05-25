@@ -93,7 +93,7 @@ export const sendPushToUser = async (userId, title, body, url = '/notifications'
   let subs;
   try {
     const result = await db.query(
-      `SELECT * FROM push_subscriptions WHERE user_id = $1`,
+      `SELECT id, platform, endpoint, p256dh, auth_key FROM push_subscriptions WHERE user_id = $1`,
       [userId]
     );
     subs = result.rows;

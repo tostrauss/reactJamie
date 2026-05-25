@@ -5,9 +5,6 @@ import http from 'http';
 import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
-import session from 'express-session';
-import pgSession from 'connect-pg-simple';
-import { RedisStore } from 'connect-redis';
 import helmet from 'helmet';
 import compression from 'compression';
 import db from './config/database.js';
@@ -32,7 +29,6 @@ initSentry(); // Must run before Express setup to capture all errors
 // ── Production boot-time env var validation ───────────────────────────────
 if (process.env.NODE_ENV === 'production') {
   const REQUIRED = [
-    ['SESSION_SECRET',    'express-session signing key'],
     ['JWT_SECRET',        'JWT token signing key'],
     ['DATABASE_URL',      'PostgreSQL connection string'],
     ['EMAIL_FROM',        'verified sender address (e.g. noreply@jamie.app)'],
@@ -43,7 +39,7 @@ if (process.env.NODE_ENV === 'production') {
   let fatal = false;
 
   // Secrets must have sufficient entropy and must not be placeholder values
-  for (const key of ['JWT_SECRET', 'SESSION_SECRET']) {
+  for (const key of ['JWT_SECRET']) {
     const val = process.env[key] || '';
     if (val.length < 32) {
       console.error(`FATAL: ${key} is too short (${val.length} chars) — use at least 32 random characters`);
@@ -59,7 +55,6 @@ if (process.env.NODE_ENV === 'production') {
     ['SIGHTENGINE_API_SECRET', 'image moderation (nudity/gore) will be DISABLED'],
     ['OPENAI_API_KEY',         'text moderation will be DISABLED — unsafe content may pass through'],
     ['STRIPE_SUBSCRIPTION_WEBHOOK_SECRET', 'Stripe subscription webhook signature validation will FAIL'],
-    ['ADMIN_SECRET',                       'admin dashboard will be inaccessible'],
     ['GOOGLE_CLIENT_ID',                   'Google OAuth will use unverified userinfo endpoint (reduced security)'],
   ];
   for (const [key, desc] of REQUIRED) {
@@ -89,7 +84,6 @@ const server = http.createServer(app);
 // Protect against slow-client / Slowloris attacks
 server.keepAliveTimeout = 65_000; // 65s — must exceed Railway LB idle timeout (60s)
 server.headersTimeout  = 66_000; // 1s > keepAliveTimeout
-const PGStore = pgSession(session);
 
 // ==========================================
 // ROUTE IMPORTS
@@ -142,6 +136,7 @@ app.use(helmet({
         'https://www.paypal.com',
         'https://www.sandbox.paypal.com',
         'https://nominatim.openstreetmap.org',
+        'https://maps.googleapis.com',
         'https://sentry.io', 'https://*.sentry.io', // Sentry error reporting
         ...(storageOrigin ? [storageOrigin] : []),
         ...(socketOrigin ? [socketOrigin, socketOrigin.replace('https://', 'wss://')] : []),
@@ -155,6 +150,8 @@ app.use(helmet({
         'https://www.paypal.com',
         'https://*.tile.openstreetmap.org',
         'https://lh3.googleusercontent.com', // Google profile pictures
+        'https://maps.gstatic.com',
+        'https://maps.googleapis.com',
         ...(storageOrigin ? [storageOrigin] : []),
       ],
       scriptSrc: [
@@ -164,6 +161,8 @@ app.use(helmet({
         'https://www.sandbox.paypal.com',
         'https://accounts.google.com',
         'https://appleid.cdn-apple.com',
+        'https://maps.googleapis.com',
+        'https://maps.gstatic.com',
       ],
       frameSrc: [
         'https://js.stripe.com',
@@ -198,8 +197,8 @@ app.use(cors({
   credentials: true
 }));
 
-// Compression: gzip responses
-app.use(compression());
+// Compression: gzip responses. Level 3 gives ~80% of level-6 savings at ~40% of the CPU cost.
+app.use(compression({ level: 3, threshold: 1024 }));
 
 // Request logging — structured JSON in production, human-readable in dev
 app.use(pinoHttp({
@@ -233,8 +232,9 @@ if (process.env.NODE_ENV === 'production') {
 // Stripe webhooks — must receive raw body BEFORE express.json() parses it
 app.post('/api/subscription/stripe/webhook', express.raw({ type: 'application/json' }), subscriptionWebhook);
 
-// Body parsing — keep small; largest legitimate payload is a JSON with a text message, not binary
-app.use(express.json({ limit: '2mb' }));
+// Body parsing — text/JSON only; image uploads use multipart (multer). 50 kB covers the largest
+// legitimate payload (full profile update with photo URLs + interests array = ~10 kB).
+app.use(express.json({ limit: '50kb' }));
 // extended: false uses the built-in querystring parser — no prototype pollution via nested objects
 app.use(express.urlencoded({ extended: false }));
 
@@ -264,25 +264,6 @@ if (process.env.NODE_ENV !== 'production') {
   }
   app.use('/uploads', express.static(uploadsDir));
 }
-
-// Session Management — Redis store when available (sub-10ms), PG fallback
-const SESSION_TTL_SEC = 24 * 60 * 60; // 1 day — must match cookie maxAge
-const sessionStore = redisClient
-  ? new RedisStore({ client: redisClient, prefix: 'sess:', ttl: SESSION_TTL_SEC })
-  : new PGStore({ pool: db.pool, tableName: 'session' });
-
-app.use(session({
-  store: sessionStore,
-  secret: process.env.SESSION_SECRET,
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    sameSite: 'lax',
-    maxAge: 1000 * 60 * 60 * 24 // 1 day
-  }
-}));
 
 // ==========================================
 // API ROUTES — ALL MOUNTED
@@ -342,7 +323,14 @@ const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
     methods: ['GET', 'POST']
-  }
+  },
+  // Detect dead mobile connections faster: default pingInterval=25s, pingTimeout=20s means
+  // a dropped connection occupies a server slot for up to 45s. These values cut that to 15s.
+  pingInterval: 10000,
+  pingTimeout: 5000,
+  // Limit message size — prevents a single client from sending a large payload and
+  // hogging memory. 100 kB is more than enough for any chat message or event payload.
+  maxHttpBufferSize: 1e5,
 });
 
 // Redis adapter for horizontal scaling — no-op when REDIS_URL is absent
@@ -598,6 +586,22 @@ const runStartupMigrations = async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_messages_group       ON messages(group_id, created_at DESC)`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_prt_token            ON password_reset_tokens(token)`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_prt_expires          ON password_reset_tokens(expires_at) WHERE used = FALSE`);
+  });
+  // ── Hot-path join/favorites/waitlist indexes ──────────────────────────────
+  // Every group detail page fires 3+ lookups against these tables. Without
+  // composite indexes they are sequential scans even on small tables.
+  await migrate('idx_hot_path_tables', async () => {
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_gjr_group_user   ON group_join_requests(group_id, user_id)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_gjr_pending       ON group_join_requests(group_id, status) WHERE status = 'pending'`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_gfav_group_user  ON group_favorites(group_id, user_id)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_gwl_group_user   ON group_waitlist(group_id, user_id)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_gwl_waiting       ON group_waitlist(group_id, position) WHERE status = 'waiting'`);
+  });
+  // ── Friendship query indexes ───────────────────────────────────────────────
+  // OR-condition friend lookups (requester OR addressee) use these independently.
+  await migrate('idx_friendships_directional', async () => {
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_fs_requester_status  ON friendships(requester_id, status)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_fs_addressee_status  ON friendships(addressee_id, status)`);
   });
   await migrate('groups.chat_only_owner', async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS chat_only_owner BOOLEAN DEFAULT FALSE`);

@@ -27,7 +27,7 @@ export const createClub = async (req, res) => {
   const userId = req.userId;
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
-  if (!name || !name.trim()) return res.status(400).json({ error: 'Name is required' });
+  if (!name || !name.trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
   if (name.length > 100) return res.status(400).json({ error: 'Name darf maximal 100 Zeichen lang sein' });
   if (description && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
 
@@ -697,7 +697,7 @@ export const getClubEvents = async (req, res) => {
     const club = await db.query('SELECT id FROM groups WHERE id = $1 AND type = $2', [id, CLUB_TYPE]);
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club nicht gefunden' });
 
-    const now = new Date().toISOString();
+    const isPast = past === 'true';
     const result = await db.query(
       `SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar
        FROM groups g
@@ -705,9 +705,10 @@ export const getClubEvents = async (req, res) => {
        WHERE g.parent_club_id = $1
          AND g.is_active = TRUE
          AND g.deleted_at IS NULL
-         ${past === 'true' ? `AND g.date < '${now}'` : `AND (g.date IS NULL OR g.date >= '${now}')`}
+         AND ($2 = TRUE  AND g.date < NOW()
+              OR $2 = FALSE AND (g.date IS NULL OR g.date >= NOW()))
        ORDER BY g.date ASC NULLS LAST`,
-      [id]
+      [id, isPast]
     );
 
     // Attach is_member for authenticated users

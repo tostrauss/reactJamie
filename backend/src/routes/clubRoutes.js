@@ -28,6 +28,7 @@ import {
   getGroupMemberAvatars
 } from '../controllers/groupController.js';
 import { authenticate, optionalAuth, requireCompleteProfile } from '../middleware/auth.js';
+import { generalLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
@@ -35,7 +36,7 @@ const router = express.Router();
 // PUBLIC ROUTES (with optional auth for personalization)
 // ==========================================
 router.get('/', optionalAuth, getClubs);
-router.get('/categories', getCategories);
+router.get('/categories', generalLimiter, getCategories);
 
 // ==========================================
 // USER-SPECIFIC ROUTES (require auth)

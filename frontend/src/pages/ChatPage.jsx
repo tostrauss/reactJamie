@@ -40,7 +40,6 @@ export const ChatPage = () => {
 
     const handleReceiveMessage = (data) => {
       setMessageList((prev) => [...prev, data]);
-      scrollToBottom();
     };
 
     socket.on('receive_message', handleReceiveMessage);

@@ -39,7 +39,7 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 | `PAYPAL_CLIENT_SECRET` | 💳 | PayPal live secret |
 | `VAPID_PUBLIC_KEY` | 🔔 | Generate: `npx web-push generate-vapid-keys` |
 | `VAPID_PRIVATE_KEY` | 🔔 | From same command |
-| `ADMIN_SECRET` | 🔒 | Random string for `/admin` dashboard access |
+| `ADMIN_EMAIL` | 🔒 | Email address to receive report notifications |
 | `REDIS_URL` | ⚙️ | Optional — for rate-limit persistence and socket scaling |
 | `GOOGLE_CLIENT_ID` | 🔑 | Google OAuth 2.0 client ID |
 | `GOOGLE_CLIENT_SECRET` | 🔑 | Google OAuth 2.0 client secret |
@@ -296,6 +296,6 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 # VAPID keys
 npx web-push generate-vapid-keys
 
-# ADMIN_SECRET
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# Admin access — no secret needed, use DB:
+# psql $DATABASE_URL -c "UPDATE users SET is_admin=true WHERE email='you@example.com';"
 ```

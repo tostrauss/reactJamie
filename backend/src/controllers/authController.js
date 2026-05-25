@@ -23,6 +23,16 @@ const sanitizeUserForClient = (user) => {
   return user;
 };
 
+// Columns safe to send to the client — excludes password, tokens, lockout fields.
+// Used where we don't need sensitive fields (getProfile, post-register, post-Google-login).
+const SAFE_USER_COLS = `
+  id, email, auth_provider, auth_provider_id, name, username, gender,
+  date_of_birth, bio, location, avatar_url, photos, interests, favorite_song,
+  pinterest_url, spotify_token_expiry, spotify_connected, onboarding_completed,
+  onboarding_step, profile_completion, is_verified, is_active, last_seen,
+  is_admin, created_at, updated_at, is_pioneer, is_trusted_user, trusted_count
+`;
+
 // ==========================================
 // REGISTER
 // ==========================================
@@ -138,17 +148,14 @@ export const register = async (req, res) => {
       }
     }
 
-    // Fetch full user object
+    // Fetch user for response (safe columns only — no password/tokens)
     const userResult = await db.query(
-      'SELECT * FROM users WHERE id = $1',
+      `SELECT ${SAFE_USER_COLS} FROM users WHERE id = $1`,
       [newUserId]
     );
     const user = userResult.rows[0];
 
-    // Generate token & clean response
     const token = generateToken(user.id);
-    sanitizeUserForClient(user);
-
     parseUserJSONFields(user);
     setAuthCookie(res, token);
     res.status(201).json({ user, token });
@@ -207,9 +214,9 @@ export const login = async (req, res) => {
       return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
     }
 
-    // Reset lockout on successful login
+    // Reset lockout and update last_seen on successful login
     await db.query(
-      'UPDATE users SET login_attempts = 0, locked_until = NULL WHERE id = $1',
+      'UPDATE users SET login_attempts = 0, locked_until = NULL, last_seen = NOW() WHERE id = $1',
       [user.id]
     );
 
@@ -232,7 +239,7 @@ export const login = async (req, res) => {
 export const getProfile = async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT * FROM users WHERE id = $1',
+      `SELECT ${SAFE_USER_COLS} FROM users WHERE id = $1`,
       [req.userId]
     );
     if (result.rows.length === 0) {
@@ -240,7 +247,6 @@ export const getProfile = async (req, res) => {
     }
 
     const user = result.rows[0];
-    sanitizeUserForClient(user);
     parseUserJSONFields(user);
     res.json(user);
   } catch (error) {
@@ -291,11 +297,10 @@ export const updateProfile = async (req, res) => {
 
     // Return updated profile
     const result = await db.query(
-      'SELECT * FROM users WHERE id = $1',
+      `SELECT ${SAFE_USER_COLS} FROM users WHERE id = $1`,
       [req.userId]
     );
     const user = result.rows[0];
-    sanitizeUserForClient(user);
     parseUserJSONFields(user);
     res.json(user);
   } catch (error) {
@@ -332,11 +337,10 @@ export const completeOnboarding = async (req, res) => {
 
     // Return updated user
     const result = await db.query(
-      'SELECT * FROM users WHERE id = $1',
+      `SELECT ${SAFE_USER_COLS} FROM users WHERE id = $1`,
       [req.userId]
     );
     const user = result.rows[0];
-    sanitizeUserForClient(user);
     parseUserJSONFields(user);
     res.json(user);
   } catch (error) {
@@ -420,6 +424,7 @@ export const deleteAccount = async (req, res) => {
     // Delete user — cascades to all related data via FK ON DELETE CASCADE
     await db.query('DELETE FROM users WHERE id = $1', [req.userId]);
 
+    clearAuthCookie(res);
     res.json({ message: 'Account deleted successfully' });
   } catch (error) {
     console.error('DeleteAccount error:', error);
@@ -677,8 +682,10 @@ export const sendEmailCode = async (req, res) => {
     try {
       await sendOTPEmail(email, code, name || '');
     } catch (emailErr) {
-      console.error('Failed to send OTP email:', emailErr);
-      return res.status(500).json({ error: 'E-Mail konnte nicht gesendet werden' });
+      console.error('Failed to send OTP email:', emailErr.message);
+      // Delete the stored code so it can't be guessed without the email being delivered
+      await db.query('DELETE FROM email_verification_codes WHERE email = $1', [email]).catch(() => {});
+      return res.status(500).json({ error: 'E-Mail konnte nicht gesendet werden. Bitte versuche es erneut oder kontaktiere den Support.' });
     }
 
     res.json({ message: 'Code gesendet' });
@@ -761,8 +768,13 @@ export const googleLogin = async (req, res) => {
     let email, name, picture, googleId;
     const clientId = process.env.GOOGLE_CLIENT_ID;
 
-    if (clientId) {
-      // Preferred path: cryptographically verify the ID token (Google One Tap / Sign-In)
+    // Detect token type: ID tokens are 3-part JWTs; access tokens are opaque strings.
+    // useGoogleLogin (implicit flow) gives an access_token; GoogleLogin component gives an id_token.
+    // We support both so the frontend can use either approach.
+    const isIdToken = credential.split('.').length === 3;
+
+    if (clientId && isIdToken) {
+      // Preferred path: verify ID token audience against our client ID (most secure)
       try {
         const oauthClient = new OAuth2Client(clientId);
         const ticket = await oauthClient.verifyIdToken({ idToken: credential, audience: clientId });
@@ -775,13 +787,15 @@ export const googleLogin = async (req, res) => {
         return res.status(401).json({ error: 'Google Token ungültig' });
       }
     } else {
-      // Fallback: exchange token for user info via Google userinfo endpoint
-      // (used when GOOGLE_CLIENT_ID is not set — audience is not verified)
+      // Access token path: exchange for user info via Google userinfo endpoint.
+      // Used when frontend sends an OAuth2 access_token (useGoogleLogin implicit flow)
+      // or when GOOGLE_CLIENT_ID is not configured.
       const googleRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { Authorization: `Bearer ${credential}` },
       });
       if (!googleRes.ok) return res.status(401).json({ error: 'Google Token ungültig' });
       const data = await googleRes.json();
+      if (!data.email) return res.status(401).json({ error: 'Google Token ungültig' });
       email    = data.email;
       name     = data.name;
       picture  = data.picture;
@@ -792,7 +806,7 @@ export const googleLogin = async (req, res) => {
 
     // Find or create user
     let userResult = await db.query(
-      'SELECT * FROM users WHERE email = $1 OR google_id = $2',
+      'SELECT id, google_id, avatar_url FROM users WHERE email = $1 OR google_id = $2',
       [email, googleId]
     );
 
@@ -828,9 +842,8 @@ export const googleLogin = async (req, res) => {
       );
     }
 
-    const fullUser = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+    const fullUser = await db.query(`SELECT ${SAFE_USER_COLS} FROM users WHERE id = $1`, [userId]);
     const user = fullUser.rows[0];
-    sanitizeUserForClient(user);
     parseUserJSONFields(user);
 
     const token = generateToken(user.id);

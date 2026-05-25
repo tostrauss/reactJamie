@@ -45,6 +45,12 @@ export const CreateClub = () => {
     const file = e.target.files[0];
     if (!file) return;
 
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Das Bild ist zu groß (max. 10 MB)');
+      e.target.value = '';
+      return;
+    }
+
     if (imageBlobRef.current) URL.revokeObjectURL(imageBlobRef.current);
     const blobUrl = URL.createObjectURL(file);
     imageBlobRef.current = blobUrl;
@@ -74,7 +80,8 @@ export const CreateClub = () => {
         category: formData.category,
         location: formData.location,
         max_members: formData.max_members,
-        is_private: !formData.is_public, // Backend uses is_private, not is_public
+        is_private: !formData.is_public,
+        meeting_frequency: formData.meeting_frequency,
         image_url: formData.image_url,
         chat_only_owner: formData.chat_only_owner,
         type: 'club'
@@ -92,7 +99,7 @@ export const CreateClub = () => {
 
   const canProceed = () => {
     switch(step) {
-      case 1: return formData.title.trim() && formData.mainCategory && formData.category;
+      case 1: return formData.title.trim() && formData.mainCategory && formData.category && !uploading;
       case 2: return formData.location.trim();
       case 3: return true;
       default: return false;

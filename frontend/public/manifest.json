@@ -78,6 +78,13 @@
       "type": "image/png",
       "form_factor": "narrow",
       "label": "JAMIE Chat – Mit Gruppen kommunizieren"
+    },
+    {
+      "src": "/screenshots/home-wide.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "JAMIE – Desktop & Tablet Ansicht"
     }
   ],
   "related_applications": [

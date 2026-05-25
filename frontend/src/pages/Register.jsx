@@ -32,6 +32,7 @@ export const Register = () => {
   const [password, setPassword]               = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [referralCode, setReferralCode]       = useState('');
+  const [consentGiven, setConsentGiven]       = useState(false);
   const [error, setError]                     = useState('');
 
   const { register, loading } = useContext(AuthContext);
@@ -459,11 +460,34 @@ export const Register = () => {
                   autoComplete="off"
                 />
               </div>
+              <label style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10,
+                fontSize: 13, color: 'rgba(255,255,255,0.65)',
+                lineHeight: 1.5, cursor: 'pointer', marginTop: 4,
+              }}>
+                <input
+                  type="checkbox"
+                  checked={consentGiven}
+                  onChange={(e) => setConsentGiven(e.target.checked)}
+                  style={{ marginTop: 2, flexShrink: 0, accentColor: 'var(--coral)' }}
+                />
+                <span>
+                  Ich habe die{' '}
+                  <Link to="/privacy" target="_blank" style={{ color: 'var(--coral)' }}>
+                    Datenschutzerklärung
+                  </Link>{' '}
+                  und die{' '}
+                  <Link to="/terms" target="_blank" style={{ color: 'var(--coral)' }}>
+                    Nutzungsbedingungen
+                  </Link>{' '}
+                  gelesen und stimme ihnen zu.
+                </span>
+              </label>
               {error && <p className="error-message">{error}</p>}
               <button
                 type="submit"
                 className="auth-btn auth-btn-primary"
-                disabled={loading || !password || !confirmPassword}
+                disabled={loading || !password || !confirmPassword || !consentGiven}
               >
                 {loading ? 'Wird erstellt…' : 'Konto erstellen'}
               </button>

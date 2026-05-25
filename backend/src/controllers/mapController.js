@@ -25,6 +25,7 @@ export const getMapPins = async (req, res) => {
         AND g.deleted_at IS NULL
         AND g.lat IS NOT NULL
         AND g.lng IS NOT NULL
+        AND (g.date IS NULL OR (g.date >= NOW() AND g.date <= NOW() + INTERVAL '7 days'))
     `;
     const params = [];
     let paramIndex = 1;

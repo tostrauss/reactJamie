@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { sendAdminReportEmail } from '../utils/email.js';
 
 const VALID_TYPES   = ['user', 'group', 'message'];
 const VALID_REASONS = ['spam', 'inappropriate', 'harassment', 'fake', 'other'];
@@ -16,6 +17,9 @@ export const createReport = async (req, res) => {
   }
   if (!reported_id || isNaN(parseInt(reported_id))) {
     return res.status(400).json({ error: 'Ungültige ID' });
+  }
+  if (details && details.length > 5000) {
+    return res.status(400).json({ error: 'Beschreibung darf maximal 5.000 Zeichen lang sein' });
   }
 
   const targetId = parseInt(reported_id);
@@ -40,7 +44,7 @@ export const createReport = async (req, res) => {
     }
 
     // Best-effort admin email notification (non-blocking)
-    sendAdminNotification(reporterId, reported_type, targetId, reason).catch(
+    sendAdminReportEmail(reporterId, reported_type, targetId, reason).catch(
       (err) => console.error('Report email failed:', err)
     );
 
@@ -76,29 +80,3 @@ export const getReports = async (req, res) => {
   }
 };
 
-// ---- helpers ----
-
-async function sendAdminNotification(reporterId, type, targetId, reason) {
-  const adminEmail = process.env.ADMIN_EMAIL || process.env.SMTP_USER;
-  if (!adminEmail) return;
-
-  const { default: nodemailer } = await import('nodemailer');
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  const smtpHost = process.env.SMTP_HOST;
-  if (!smtpHost || !smtpUser || !smtpPass) return;
-
-  const transport = nodemailer.createTransport({
-    host: smtpHost,
-    port: parseInt(process.env.SMTP_PORT, 10) || 587,
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: { user: smtpUser, pass: smtpPass },
-  });
-
-  await transport.sendMail({
-    from: process.env.EMAIL_FROM || 'JAMIE <noreply@jamie-app.com>',
-    to: adminEmail,
-    subject: `[JAMIE] Neue Meldung: ${type} #${targetId}`,
-    text: `Neue Meldung\n\nTyp: ${type}\nID: ${targetId}\nGrund: ${reason}\nGemeldet von User #${reporterId}\n`,
-  });
-}

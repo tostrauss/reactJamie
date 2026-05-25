@@ -70,7 +70,7 @@ axiosInstance.interceptors.response.use(
     if (error.response?.status === 401 && _memToken !== 'guest_token') {
       clearMemToken();
       const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
-      if (!publicPaths.some(p => window.location.pathname.includes(p))) {
+      if (!publicPaths.some(p => window.location.pathname === p || window.location.pathname.startsWith(p + '/'))) {
         window.location.href = '/login';
       }
     }
@@ -103,6 +103,9 @@ export const auth = {
 
   deleteAccount: (password) =>
     axiosInstance.delete('/auth/account', { data: { password } }),
+
+  exportData: () =>
+    axiosInstance.get('/auth/export'),
 
   forgotPassword: (email) =>
     axiosInstance.post('/auth/forgot-password', { email }),

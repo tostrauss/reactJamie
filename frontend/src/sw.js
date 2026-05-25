@@ -2,8 +2,8 @@
 // vite-plugin-pwa injects self.__WB_MANIFEST (the precache manifest) at build time.
 
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
-import { registerRoute } from 'workbox-routing';
-import { CacheFirst, NetworkFirst } from 'workbox-strategies';
+import { registerRoute, setCatchHandler } from 'workbox-routing';
+import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 
 // Precache all build assets (manifest injected by vite-plugin-pwa)
@@ -19,15 +19,43 @@ registerRoute(
   })
 );
 
-// Runtime: API — network-first, 5-min cache fallback
+// Runtime: groups/map/deals feed — stale-while-revalidate makes the home page feel instant.
+// Serve cached version immediately, refresh in background. Only cache GET requests.
 registerRoute(
-  ({ url }) => url.pathname.startsWith('/api/'),
+  ({ url, request }) =>
+    request.method === 'GET' &&
+    (url.pathname.startsWith('/api/groups') ||
+     url.pathname.startsWith('/api/map') ||
+     url.pathname.startsWith('/api/deals')),
+  new StaleWhileRevalidate({
+    cacheName: 'feed-cache',
+    plugins: [new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 60 * 2 })]
+  })
+);
+
+// Runtime: other read-only API endpoints — network-first with 5-min offline fallback.
+// IMPORTANT: only cache GET — never cache POST/PUT/DELETE (mutations must reach the server).
+registerRoute(
+  ({ url, request }) => request.method === 'GET' && url.pathname.startsWith('/api/'),
   new NetworkFirst({
     cacheName: 'api-cache',
-    networkTimeoutSeconds: 10,
+    networkTimeoutSeconds: 8,
     plugins: [new ExpirationPlugin({ maxEntries: 100, maxAgeSeconds: 60 * 5 })]
   })
 );
+
+// ==========================================
+// OFFLINE FALLBACK
+// ==========================================
+// When a navigation request (page load) fails because we're offline,
+// serve the cached index.html so the React app can render an offline state
+// instead of the browser's "no internet" error page.
+setCatchHandler(async ({ event }) => {
+  if (event.request.destination === 'document') {
+    return caches.match('/index.html') ?? Response.error();
+  }
+  return Response.error();
+});
 
 // ==========================================
 // PUSH NOTIFICATIONS
@@ -44,6 +72,10 @@ self.addEventListener('push', (event) => {
 
   const { title = 'JAMIE', body = '', url = '/notifications' } = data;
 
+  // Use the target URL as the tag so each distinct destination gets its own
+  // notification slot — DMs to different users don't replace each other.
+  const tag = `jamie-${url.replace(/\//g, '-').replace(/^-/, '')}` || 'jamie-notification';
+
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
@@ -52,7 +84,7 @@ self.addEventListener('push', (event) => {
       data: { url },
       vibrate: [200, 100, 200],
       renotify: true,
-      tag: 'jamie-notification',
+      tag,
     })
   );
 });

@@ -408,19 +408,38 @@ export const joinGroup = async (req, res) => {
       return res.json({ message: 'Join request sent', status: 'pending' });
     }
 
-    // Public group → join directly
-    await db.query(
-      'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
-      [id, req.userId, 'member']
-    );
-    // Clean up any leftover waitlist entry for this user
-    await db.query('DELETE FROM group_waitlist WHERE group_id = $1 AND user_id = $2', [id, req.userId]);
+    // Public group → join inside a transaction with FOR UPDATE to prevent TOCTOU race
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Re-check capacity under lock so concurrent requests can't both sneak in
+      const locked = await client.query(
+        'SELECT members_count, max_members FROM groups WHERE id = $1 FOR UPDATE',
+        [id]
+      );
+      if (locked.rows[0].members_count >= locked.rows[0].max_members) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Die Gruppe ist bereits voll' });
+      }
+      await client.query(
+        'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
+        [id, req.userId, 'member']
+      );
+      await client.query('DELETE FROM group_waitlist WHERE group_id = $1 AND user_id = $2', [id, req.userId]);
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
 
     // Notify group owner (fire-and-forget)
     if (g.owner_id && g.owner_id !== req.userId) {
       notifyGroupJoin(req.userId, g.owner_id, g.name || g.title).catch(() => {});
     }
 
+    invalidatePrefix(`user_groups:${req.userId}`);
     res.json({ message: 'Joined group successfully', status: 'joined' });
   } catch (err) {
     console.error('Error joining group:', err);
@@ -484,6 +503,7 @@ export const leaveGroup = async (req, res) => {
       }
     }
 
+    invalidatePrefix(`user_groups:${req.userId}`);
     res.json({ message: 'Left group successfully' });
   } catch (err) {
     console.error('Error leaving group:', err);
@@ -578,8 +598,15 @@ export const getGroupMembers = async (req, res) => {
 // ==========================================
 export const getUserGroups = async (req, res) => {
   try {
+    const cacheKey = `user_groups:${req.userId}`;
+    const cached = getCached(cacheKey);
+    if (cached) return res.json(cached);
+
     const result = await db.query(
-      `SELECT g.*, u.name as owner_name, gm.role,
+      `SELECT g.id, g.name, g.type, g.category, g.image_url, g.is_private,
+              g.max_members, g.members_count, g.location, g.date, g.deleted_at,
+              g.chat_only_owner, g.parent_club_id,
+              u.name as owner_name, gm.role,
               lm.content as last_message,
               lm.created_at as last_message_time,
               lm_user.name as last_message_sender
@@ -599,6 +626,7 @@ export const getUserGroups = async (req, res) => {
        ORDER BY lm.created_at DESC NULLS LAST, gm.joined_at DESC`,
       [req.userId]
     );
+    setCached(cacheKey, result.rows, 15_000);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching user groups:', err);
@@ -625,7 +653,8 @@ export const getJoinRequests = async (req, res) => {
        FROM group_join_requests jr
        JOIN users u ON jr.user_id = u.id
        WHERE jr.group_id = $1 AND jr.status = 'pending'
-       ORDER BY jr.created_at DESC`,
+       ORDER BY jr.created_at DESC
+       LIMIT 100`,
       [id]
     );
 
@@ -941,23 +970,20 @@ export const inviteMember = async (req, res) => {
 
     const g = group.rows[0];
 
-    const friendship = await db.query(
-      `SELECT 1 FROM friendships
-       WHERE ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))
-       AND status = 'accepted'`,
-      [req.userId, friendId]
-    );
+    const [friendship, memberCount, existing] = await Promise.all([
+      db.query(
+        `SELECT 1 FROM friendships
+         WHERE ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))
+         AND status = 'accepted'`,
+        [req.userId, friendId]
+      ),
+      db.query('SELECT COUNT(*) FROM group_members WHERE group_id = $1', [id]),
+      db.query('SELECT id FROM group_members WHERE group_id = $1 AND user_id = $2', [id, friendId]),
+    ]);
     if (friendship.rows.length === 0) return res.status(403).json({ error: 'Nur Freunde können eingeladen werden' });
-
-    const memberCount = await db.query('SELECT COUNT(*) FROM group_members WHERE group_id = $1', [id]);
     if (g.max_members && parseInt(memberCount.rows[0].count) >= g.max_members) {
       return res.status(400).json({ error: 'Group is full' });
     }
-
-    const existing = await db.query(
-      'SELECT id FROM group_members WHERE group_id = $1 AND user_id = $2',
-      [id, friendId]
-    );
     if (existing.rows.length) return res.status(400).json({ error: 'Already a member' });
 
     await db.query(

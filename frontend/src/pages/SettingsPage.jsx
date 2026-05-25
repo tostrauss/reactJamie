@@ -29,6 +29,9 @@ export const SettingsPage = () => {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // Data export (DSGVO Art. 15/20)
+  const [exportLoading, setExportLoading] = useState(false);
+
   // Notification prefs — persisted to localStorage
   const lsGet = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
   const lsSet = (key, val) => { try { localStorage.setItem(key, val); } catch { /* private browsing */ } };
@@ -116,6 +119,25 @@ export const SettingsPage = () => {
       toast.error(err.response?.data?.error || 'Fehler beim \u00c4ndern');
     } finally {
       setPasswordLoading(false);
+    }
+  };
+
+  const handleExportData = async () => {
+    setExportLoading(true);
+    try {
+      const { data } = await auth.exportData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `jamie-daten-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Daten erfolgreich heruntergeladen');
+    } catch {
+      toast.error('Export fehlgeschlagen. Bitte erneut versuchen.');
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -470,9 +492,53 @@ export const SettingsPage = () => {
           {chevron}
         </Link>
 
+        <Link to="/impressum" className="settings-row" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="settings-row-left">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="16" x2="12" y2="12"/>
+              <line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            <span>Impressum</span>
+          </div>
+          {chevron}
+        </Link>
+
+        <div className="settings-row" onClick={handleExportData} style={{ opacity: exportLoading ? 0.6 : 1 }}>
+          <div className="settings-row-left">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <div className="settings-row-stacked">
+              <span>Meine Daten herunterladen</span>
+              <span className="settings-row-detail">DSGVO Art. 15 – Auskunftsrecht</span>
+            </div>
+          </div>
+          {exportLoading
+            ? <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Laden…</span>
+            : chevron}
+        </div>
+
+        <a href="mailto:support@getjamie.app" className="settings-row" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="settings-row-left">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <div className="settings-row-stacked">
+              <span>Hilfe & Support</span>
+              <span className="settings-row-detail">support@getjamie.app</span>
+            </div>
+          </div>
+          {chevron}
+        </a>
+
         <div className="settings-row static">
           <div className="settings-row-left" style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', gap: 6 }}>
-            <span>Bei Fragen: <a href="mailto:legal@getjamie.app" style={{ color: 'var(--coral)' }}>legal@getjamie.app</a></span>
+            <span>Rechtliche Fragen: <a href="mailto:legal@getjamie.app" style={{ color: 'var(--coral)' }}>legal@getjamie.app</a></span>
           </div>
         </div>
       </div>
@@ -487,46 +553,8 @@ export const SettingsPage = () => {
         Ausloggen
       </button>
 
-      {/* DISABLED_GEFAHRENZONE_START */}
-      <div className="settings-section danger-section" style={{ display: 'none' }}>
-        <h3 className="settings-section-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-            <line x1="12" y1="9" x2="12" y2="13"/>
-            <line x1="12" y1="17" x2="12.01" y2="17"/>
-          </svg>
-          Gefahrenzone
-        </h3>
+      {/* Account löschen — Apple-Pflicht: muss erreichbar sein */}
 
-        {!showDeleteConfirm ? (
-          <button className="danger-btn" onClick={() => setShowDeleteConfirm(true)}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-            </svg>
-            Account löschen
-          </button>
-        ) : (
-          <div className="settings-expand">
-            <p className="delete-warning">
-              Diese Aktion kann nicht r\u00fcckg\u00e4ngig gemacht werden. Alle deine Daten, Gruppen und Nachrichten werden unwiderruflich gel\u00f6scht.
-            </p>
-            <form onSubmit={handleDeleteAccount} className="settings-form">
-              <input type="password" placeholder="Passwort zur Best\u00e4tigung" value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} className="settings-input" />
-              <div className="settings-form-actions">
-                <button type="submit" className="danger-btn" disabled={deleteLoading}>
-                  {deleteLoading ? 'Laden...' : 'Endg\u00fcltig l\u00f6schen'}
-                </button>
-                <button type="button" className="settings-action-btn" onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); }}>
-                  Abbrechen
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-      </div>
-
-      {/* Account löschen — kleiner Link unter Logout */}
       {!showDeleteConfirm ? (
         <button className="settings-delete-link" onClick={() => setShowDeleteConfirm(true)}>
           Account löschen

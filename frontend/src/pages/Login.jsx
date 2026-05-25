@@ -94,12 +94,14 @@ export const Login = () => {
 
             <button
               className="auth-btn auth-btn-secondary"
-              onClick={() => handleSocialLogin('Apple')}
+              disabled
+              style={{ opacity: 0.4, cursor: 'not-allowed' }}
+              title="Demnächst verfügbar"
             >
               <svg className="auth-btn-icon" width="17" height="20" viewBox="0 0 814 1000" fill="currentColor">
                 <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-37.5-155.5-127.4C46 790.7 0 663 0 541.8c0-207.9 135.5-317.9 269-317.9 70.9 0 130 46.4 174.4 46.4 42.7 0 109.2-49 192.5-49 33.5.2 124.6 4.8 185 57zM549.8 0c1 0 2.1 0 3.1.1v.1c0 30.1-11.2 67.1-33.5 97.5-23.8 33.1-62.5 57.2-104.8 53.8-1.2-3.4-1.8-7.1-1.8-10.8 0-28.7 12.4-60.7 34.2-89.5C468.5 20.9 511 0 549.8 0z"/>
               </svg>
-              Apple
+              Apple <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 4 }}>(Demnächst)</span>
             </button>
 
             {GOOGLE_CLIENT_ID && <GoogleLoginButton onError={setError} />}

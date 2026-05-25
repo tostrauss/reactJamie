@@ -39,7 +39,9 @@ export default defineConfig({
     })] : []),
   ],
   build: {
-    target: 'esnext',
+    // Target browsers from ~2020: covers iOS 14+, Android Chrome 87+, Firefox 78 (ESR).
+    // Avoids the esnext default which breaks on older WebViews (Android 8/9, iOS 13).
+    target: ['chrome87', 'firefox78', 'safari14', 'edge88'],
     sourcemap: 'hidden', // generates maps for Sentry upload but does NOT embed URL in bundle
     rollupOptions: {
       output: {
@@ -49,6 +51,7 @@ export default defineConfig({
           'vendor-stripe': ['@stripe/stripe-js', '@stripe/react-stripe-js'],
           'vendor-map': ['@react-google-maps/api'],
           'vendor-paypal': ['@paypal/react-paypal-js'],
+          'vendor-sentry': ['@sentry/react'],
         },
       },
     },

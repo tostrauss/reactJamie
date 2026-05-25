@@ -101,6 +101,22 @@ export const sendVerificationEmail = async (email, token, userName) => {
   });
 };
 
+export const sendAdminReportEmail = async (reporterId, type, targetId, reason) => {
+  const adminEmail = process.env.ADMIN_EMAIL;
+  if (!adminEmail) return;
+  return sendEmail({
+    to: adminEmail,
+    subject: `[JAMIE] Neue Meldung: ${type} #${targetId}`,
+    html: `<p>Neue Meldung eingegangen.</p>
+           <ul>
+             <li><strong>Typ:</strong> ${escapeHtml(type)}</li>
+             <li><strong>ID:</strong> ${targetId}</li>
+             <li><strong>Grund:</strong> ${escapeHtml(reason)}</li>
+             <li><strong>Gemeldet von User #:</strong> ${reporterId}</li>
+           </ul>`,
+  });
+};
+
 export const sendOTPEmail = async (email, code, userName) => {
   return sendEmail({
     to: email,

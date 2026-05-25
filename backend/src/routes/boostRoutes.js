@@ -10,12 +10,13 @@ import {
   redeemReferral,
 } from '../controllers/boostController.js';
 import { authenticate } from '../middleware/auth.js';
+import { generalLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
 // Wallet & packages
 router.get('/credits', authenticate, getCredits);
-router.get('/packages', getPackages);
+router.get('/packages', generalLimiter, getPackages);
 router.get('/paypal-client-id', authenticate, (_req, res) => res.json({ client_id: process.env.PAYPAL_CLIENT_ID || null }));
 
 // Apply boost (spend a credit)
