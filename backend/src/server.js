@@ -579,6 +579,17 @@ const runStartupMigrations = async () => {
   await migrate('idx_boost_txn_payment_id', () =>
     db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_boost_txn_payment_id ON boost_transactions(payment_id) WHERE payment_id IS NOT NULL`));
 
+  // ── Password reset tokens table ───────────────────────────────────────────
+  await migrate('password_reset_tokens', () => db.query(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id         SERIAL PRIMARY KEY,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token      VARCHAR(255) UNIQUE NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      used       BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`));
+
   // ── Performance indexes ────────────────────────────────────────────────────
   await migrate('performance indexes', async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_is_active     ON groups(is_active) WHERE is_active = TRUE`);
