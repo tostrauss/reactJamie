@@ -156,6 +156,7 @@ app.use(helmet({
       ],
       scriptSrc: [
         "'self'",
+        "'unsafe-eval'", // required by Vite-built vendor chunk (used by Leaflet + React DevTools)
         'https://js.stripe.com',
         'https://www.paypal.com',
         'https://www.sandbox.paypal.com',
