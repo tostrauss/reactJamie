@@ -288,37 +288,39 @@ const Navigation = () => {
   return (
     <>
       <nav className="bottom-nav">
-        <Link to="/home" className={`nav-item ${isActive('/home') ? 'active' : ''}`}>
-          <div className="nav-icon"><HomeIcon active={isActive('/home')} /></div>
-          <span className="nav-label">Home</span>
-        </Link>
+        <div className="bottom-nav-items">
+          <Link to="/home" className={`nav-item ${isActive('/home') ? 'active' : ''}`}>
+            <div className="nav-icon"><HomeIcon active={isActive('/home')} /></div>
+            <span className="nav-label">Home</span>
+          </Link>
 
-        <Link to="/explore" className={`nav-item ${isActive('/explore') ? 'active' : ''}`}>
-          <div className="nav-icon"><ExploreIcon active={isActive('/explore')} /></div>
-          <span className="nav-label">Entdecken</span>
-        </Link>
+          <Link to="/explore" className={`nav-item ${isActive('/explore') ? 'active' : ''}`}>
+            <div className="nav-icon"><ExploreIcon active={isActive('/explore')} /></div>
+            <span className="nav-label">Entdecken</span>
+          </Link>
 
-        <button className="nav-add-button" onClick={() => setShowCreateModal(true)}>
-          <span className="plus-icon">+</span>
-        </button>
+          <button className="nav-add-button" onClick={() => setShowCreateModal(true)}>
+            <span className="plus-icon">+</span>
+          </button>
 
-        <Link to="/chats" className={`nav-item ${isActive('/chats') ? 'active' : ''}`} style={{ position: 'relative' }}>
-          <div className="nav-icon">
-            <ChatIcon active={isActive('/chats')} />
-            {unreadCount > 0 && <span className="nav-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
-          </div>
-          <span className="nav-label">Chats</span>
-        </Link>
+          <Link to="/chats" className={`nav-item ${isActive('/chats') ? 'active' : ''}`} style={{ position: 'relative' }}>
+            <div className="nav-icon">
+              <ChatIcon active={isActive('/chats')} />
+              {unreadCount > 0 && <span className="nav-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+            </div>
+            <span className="nav-label">Chats</span>
+          </Link>
 
-        <Link to="/profile" className={`nav-item ${isActive('/profile') ? 'active' : ''}`}>
-          <div className="nav-icon">
-            {user.avatar_url
-              ? <img src={user.avatar_url} alt="Profil" className="nav-avatar" />
-              : <ProfileIcon active={isActive('/profile')} />
-            }
-          </div>
-          <span className="nav-label">Profil</span>
-        </Link>
+          <Link to="/profile" className={`nav-item ${isActive('/profile') ? 'active' : ''}`}>
+            <div className="nav-icon">
+              {user.avatar_url
+                ? <img src={user.avatar_url} alt="Profil" className="nav-avatar" />
+                : <ProfileIcon active={isActive('/profile')} />
+              }
+            </div>
+            <span className="nav-label">Profil</span>
+          </Link>
+        </div>
       </nav>
 
       <CreateModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} />

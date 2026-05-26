@@ -339,31 +339,22 @@ input:focus, textarea:focus, select:focus {
    ======================================== */
 .bottom-nav {
   position: fixed;
-  /* Sit above the home-indicator / gesture bar rather than behind it */
-  bottom: env(safe-area-inset-bottom, 0px);
+  bottom: 0;
   left: 0;
   right: 0;
-  height: 80px;
+  height: calc(80px + env(safe-area-inset-bottom, 0px));
   background: var(--bg-secondary);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  /* Landscape notch */
-  padding-left: max(10px, env(safe-area-inset-left, 10px));
-  padding-right: max(10px, env(safe-area-inset-right, 10px));
   z-index: 1000;
 }
 
-/* Fill the safe-area strip below the nav with the same background */
-.bottom-nav::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  height: env(safe-area-inset-bottom, 0px);
-  background: var(--bg-secondary);
+.bottom-nav-items {
+  height: 80px;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding-left: max(10px, env(safe-area-inset-left, 10px));
+  padding-right: max(10px, env(safe-area-inset-right, 10px));
 }
 
 .nav-item {
