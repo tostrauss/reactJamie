@@ -1,3 +1,5 @@
+import nodemailer from 'nodemailer';
+
 const escapeHtml = (str) => String(str || '')
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
@@ -6,11 +8,9 @@ const escapeHtml = (str) => String(str || '')
   .replace(/'/g, '&#x27;');
 
 const FROM_NAME = 'JAMIE';
-// EMAIL_FROM may be "Name <email>" or just "email@domain.com"
-// Must be set in production — Brevo only sends from verified sender domains
 const _rawFrom = process.env.EMAIL_FROM;
 if (!_rawFrom && process.env.NODE_ENV === 'production') {
-  console.error('FATAL: EMAIL_FROM environment variable must be set in production (e.g. noreply@jamie.app)');
+  console.error('FATAL: EMAIL_FROM environment variable must be set in production');
   process.exit(1);
 }
 const _effectiveFrom = _rawFrom || 'noreply@jamie.app';
@@ -18,37 +18,39 @@ const _match = _effectiveFrom.match(/<(.+)>/);
 const FROM_EMAIL = _match ? _match[1] : _effectiveFrom;
 const FRONTEND_URL = () => process.env.FRONTEND_URL || 'http://localhost:5173';
 
+// Lazy-initialised transporter — only created on first send so missing SMTP
+// vars don't crash the server on startup (they just fail at send time).
+let _transporter = null;
+const getTransporter = () => {
+  if (_transporter) return _transporter;
+  _transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
+    port: parseInt(process.env.SMTP_PORT, 10) || 587,
+    secure: false, // STARTTLS on port 587
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+  return _transporter;
+};
+
 const sendEmail = async ({ to, subject, html }) => {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.warn('[email] RESEND_API_KEY not set — skipping email to', to);
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.warn('[email] SMTP_USER / SMTP_PASS not set — skipping email to', to);
     return;
   }
 
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: `${FROM_NAME} <${FROM_EMAIL}>`,
-      to: [to],
-      subject,
-      html,
-    }),
+  const transporter = getTransporter();
+  const info = await transporter.sendMail({
+    from: `${FROM_NAME} <${FROM_EMAIL}>`,
+    to,
+    subject,
+    html,
   });
 
-  let data = {};
-  try { data = await res.json(); } catch { /* non-JSON response (CDN error, etc.) */ }
-
-  if (!res.ok) {
-    console.error(`[email] Resend HTTP ${res.status}:`, JSON.stringify(data));
-    throw new Error(data.message || `E-Mail-Versand fehlgeschlagen (HTTP ${res.status})`);
-  }
-
-  console.log('[email] Sent to', to, '— id:', data.id);
-  return data;
+  console.log('[email] Sent to', to, '— messageId:', info.messageId);
+  return info;
 };
 
 export const sendPasswordResetEmail = async (email, token, userName) => {
