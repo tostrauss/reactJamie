@@ -138,6 +138,7 @@ app.use(helmet({
         'https://www.sandbox.paypal.com',
         'https://nominatim.openstreetmap.org',
         'https://maps.googleapis.com',
+        'https://images.unsplash.com',
         'https://sentry.io', 'https://*.sentry.io', // Sentry error reporting
         ...(storageOrigin ? [storageOrigin] : []),
         ...(socketOrigin ? [socketOrigin, socketOrigin.replace('https://', 'wss://')] : []),
