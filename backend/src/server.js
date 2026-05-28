@@ -157,7 +157,7 @@ app.use(helmet({
       ],
       scriptSrc: [
         "'self'",
-        ...(process.env.NODE_ENV !== 'production' ? ["'unsafe-eval'"] : []), // React DevTools (dev only)
+        "'unsafe-eval'", // required by Google OAuth GSI script
         'https://js.stripe.com',
         'https://www.paypal.com',
         'https://www.sandbox.paypal.com',
