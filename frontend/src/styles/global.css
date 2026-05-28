@@ -936,12 +936,10 @@ input:focus, textarea:focus, select:focus {
    ======================================== */
 @media (min-width: 768px) {
   .bottom-nav {
-    max-width: 500px;
-    left: 50%;
-    transform: translateX(-50%);
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    /* full-width on desktop so card content never bleeds past the nav bar edges */
+    max-width: 100%;
+    left: 0;
+    transform: none;
   }
   
   .modal-content {
