@@ -4,7 +4,7 @@ import { useGoogleLogin } from '@react-oauth/google';
 import { AuthContext } from '../context/AuthContext';
 import '../styles/auth.css';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '154096703629-0e84iqkd832vr2f68fv5phfhlqqfn474.apps.googleusercontent.com';
 
 const GoogleLoginButton = ({ onError }) => {
   const { loginWithGoogle } = useContext(AuthContext);
