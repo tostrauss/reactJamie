@@ -7,9 +7,14 @@ COPY frontend/ ./
 
 # Vite env vars must be declared as build args to be available at build time
 ARG VITE_SENTRY_DSN
+ARG VITE_GOOGLE_CLIENT_ID
+ARG VITE_GOOGLE_MAPS_API_KEY
+ARG VITE_VAPID_PUBLIC_KEY
 ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
+ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
+ENV VITE_VAPID_PUBLIC_KEY=$VITE_VAPID_PUBLIC_KEY
 
-# .env.production sets VITE_API_URL=/api so API calls are same-origin
 RUN npm run build
 
 # ─── Stage 2: Backend + bundled frontend ───────────────────────────
