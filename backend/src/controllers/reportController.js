@@ -56,24 +56,34 @@ export const createReport = async (req, res) => {
 };
 
 // GET /api/reports  (simple admin view — no admin role system yet)
+const VALID_STATUSES = ['pending', 'reviewed', 'dismissed'];
+
 export const getReports = async (req, res) => {
   try {
     const { status = 'pending', limit = 50, offset = 0 } = req.query;
+
+    if (!VALID_STATUSES.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status filter' });
+    }
+    const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
+    const safeOffset = Math.max(parseInt(offset, 10) || 0, 0);
 
     const result = await db.query(
       `SELECT
          r.id, r.reported_type, r.reported_id, r.reason, r.details, r.status,
          r.created_at,
-         u.name AS reporter_name, u.email AS reporter_email
+         u.name AS reporter_name, u.email AS reporter_email,
+         COUNT(*) OVER() AS total_count
        FROM reports r
        JOIN users u ON u.id = r.reporter_id
        WHERE r.status = $1
        ORDER BY r.created_at DESC
        LIMIT $2 OFFSET $3`,
-      [status, parseInt(limit), parseInt(offset)]
+      [status, safeLimit, safeOffset]
     );
 
-    res.json({ reports: result.rows, total: result.rowCount });
+    const total = parseInt(result.rows[0]?.total_count ?? 0, 10);
+    res.json({ reports: result.rows, total });
   } catch (error) {
     console.error('Get reports error:', error);
     res.status(500).json({ error: 'Meldungen konnten nicht geladen werden' });

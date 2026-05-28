@@ -342,10 +342,12 @@ input:focus, textarea:focus, select:focus {
   bottom: 0;
   left: 0;
   right: 0;
-  height: calc(80px + env(safe-area-inset-bottom, 0px));
   background: var(--bg-secondary);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 1000;
+  /* padding-bottom extends the background into the home-indicator safe area.
+     This is more reliable than height:calc() on iOS Safari PWA mode. */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .bottom-nav-items {

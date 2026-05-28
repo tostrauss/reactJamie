@@ -106,8 +106,14 @@ export const createSubscription = async (req, res) => {
       [req.userId, customerId, subscription.id]
     );
 
+    const clientSecret = subscription.latest_invoice?.payment_intent?.client_secret ?? null;
+    if (!clientSecret) {
+      console.error('createSubscription: missing client_secret on Stripe response', subscription.id);
+      return res.status(500).json({ error: 'Stripe returned an incomplete payment intent' });
+    }
+
     res.json({
-      client_secret: subscription.latest_invoice.payment_intent.client_secret,
+      client_secret: clientSecret,
       subscription_id: subscription.id,
       publishable_key: process.env.STRIPE_PUBLISHABLE_KEY,
     });

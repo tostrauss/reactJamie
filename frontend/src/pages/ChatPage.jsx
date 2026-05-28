@@ -29,8 +29,43 @@ export const ChatPage = () => {
   };
 
   useEffect(() => {
-    loadGroup();
-    loadMessages();
+    let cancelled = false;
+
+    const fetchGroup = async () => {
+      try {
+        const response = await groups.getById(groupId);
+        if (cancelled) return;
+        setGroup(response.data);
+        if (response.data.type === 'club' && response.data.chat_only_owner && response.data.owner_id !== user?.id) {
+          setCanSendMessages(false);
+          setPermissionMessage('Nur der Club-Gründer kann Nachrichten senden');
+        }
+      } catch (error) {
+        if (cancelled) return;
+        toast.error('Gruppe konnte nicht geladen werden');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    const fetchMessages = async () => {
+      try {
+        const response = await messages.get(groupId);
+        if (cancelled) return;
+        const data = response.data;
+        const msgs = Array.isArray(data) ? data : (data?.messages ?? []);
+        safeSetMessageList(msgs);
+        setHasMore(Array.isArray(data) ? false : (data?.has_more ?? false));
+      } catch (error) {
+        if (cancelled) return;
+        toast.error('Nachrichten konnten nicht geladen werden');
+      }
+    };
+
+    fetchGroup();
+    fetchMessages();
+
+    return () => { cancelled = true; };
   }, [groupId]);
 
   useEffect(() => {
@@ -53,34 +88,6 @@ export const ChatPage = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messageList]);
-
-  const loadGroup = async () => {
-    try {
-      const response = await groups.getById(groupId);
-      setGroup(response.data);
-      // Check club chat permissions — only restrict if owner has enabled owner-only mode
-      if (response.data.type === 'club' && response.data.chat_only_owner && response.data.owner_id !== user?.id) {
-        setCanSendMessages(false);
-        setPermissionMessage('Nur der Club-Gründer kann Nachrichten senden');
-      }
-    } catch (error) {
-      toast.error('Gruppe konnte nicht geladen werden');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadMessages = async () => {
-    try {
-      const response = await messages.get(groupId);
-      const data = response.data;
-      const msgs = Array.isArray(data) ? data : (data?.messages ?? []);
-      safeSetMessageList(msgs);
-      setHasMore(Array.isArray(data) ? false : (data?.has_more ?? false));
-    } catch (error) {
-      toast.error('Nachrichten konnten nicht geladen werden');
-    }
-  };
 
   const loadEarlier = async () => {
     if (!hasMore || loadingMore || messageList.length === 0) return;

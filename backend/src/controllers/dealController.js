@@ -25,12 +25,11 @@ function validateDealInputs({ lat, lng, booking_url }) {
 // LIST DEALS  (Pro-gated)
 // ==========================================
 export const getDeals = async (req, res) => {
-  const pro = await isUserPro(req.userId);
-  if (!pro) {
-    return res.status(403).json({ error: 'Pro subscription required', code: 'PRO_REQUIRED' });
-  }
-
   try {
+    const pro = await isUserPro(req.userId);
+    if (!pro) {
+      return res.status(403).json({ error: 'Pro subscription required', code: 'PRO_REQUIRED' });
+    }
     const result = await db.query(
       `SELECT id, name, category, deal_label, description, address, lat, lng, photos, booking_url, created_at
        FROM deals
@@ -48,12 +47,11 @@ export const getDeals = async (req, res) => {
 // SINGLE DEAL  (Pro-gated)
 // ==========================================
 export const getDeal = async (req, res) => {
-  const pro = await isUserPro(req.userId);
-  if (!pro) {
-    return res.status(403).json({ error: 'Pro subscription required', code: 'PRO_REQUIRED' });
-  }
-
   try {
+    const pro = await isUserPro(req.userId);
+    if (!pro) {
+      return res.status(403).json({ error: 'Pro subscription required', code: 'PRO_REQUIRED' });
+    }
     const { id } = req.params;
     const result = await db.query(
       `SELECT id, name, category, deal_label, description, address, lat, lng, photos, booking_url, created_at

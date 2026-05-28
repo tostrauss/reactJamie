@@ -383,6 +383,10 @@ export const changePassword = async (req, res) => {
       return res.status(404).json({ error: 'Nutzer nicht gefunden' });
     }
 
+    if (!result.rows[0].password) {
+      return res.status(400).json({ error: 'Dieses Konto verwendet Google-Anmeldung. Passwort kann nicht geändert werden.' });
+    }
+
     const valid = await bcrypt.compare(currentPassword, result.rows[0].password);
     if (!valid) {
       return res.status(401).json({ error: 'Aktuelles Passwort ist falsch' });
@@ -618,8 +622,8 @@ export const sendVerification = async (req, res) => {
       return res.json({ message: 'E-Mail ist bereits verifiziert' });
     }
 
-    // Delete old tokens, create new one
-    await db.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user.id]);
+    // Delete only existing email-verification tokens, leave password-reset tokens intact
+    await db.query("DELETE FROM password_reset_tokens WHERE user_id = $1 AND token LIKE 'ev_%'", [user.id]);
 
     // Prefix ensures email-verification tokens cannot be used as password-reset tokens
     const token = 'ev_' + crypto.randomBytes(32).toString('hex');

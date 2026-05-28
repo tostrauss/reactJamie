@@ -272,6 +272,9 @@ export const capturePaypalOrder = async (req, res) => {
   if (!order_id) return res.status(400).json({ error: 'order_id required' });
 
   const { PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET } = process.env;
+  if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
+    return res.status(503).json({ error: 'PayPal not configured' });
+  }
 
   try {
     const tokenRes = await fetch(paypalUrl('/v1/oauth2/token'), {

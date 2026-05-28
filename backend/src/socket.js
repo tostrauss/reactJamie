@@ -143,13 +143,16 @@ const socketHandler = (io) => {
 
     // Direct Message Handlers
     socket.on('join_dm_room', ({ otherUserId }) => {
-      // Use authenticated userId, not client-provided one
-      const roomName = `dm_${Math.min(socket.userId, otherUserId)}_${Math.max(socket.userId, otherUserId)}`;
+      const other = parseInt(otherUserId, 10);
+      if (!other || other <= 0 || other === socket.userId) return;
+      const roomName = `dm_${Math.min(socket.userId, other)}_${Math.max(socket.userId, other)}`;
       socket.join(roomName);
     });
 
     socket.on('leave_dm_room', ({ otherUserId }) => {
-      const roomName = `dm_${Math.min(socket.userId, otherUserId)}_${Math.max(socket.userId, otherUserId)}`;
+      const other = parseInt(otherUserId, 10);
+      if (!other || other <= 0) return;
+      const roomName = `dm_${Math.min(socket.userId, other)}_${Math.max(socket.userId, other)}`;
       socket.leave(roomName);
     });
 
@@ -189,12 +192,16 @@ const socketHandler = (io) => {
     });
 
     socket.on('dm_typing', ({ receiverId }) => {
-      const roomName = `dm_${Math.min(socket.userId, receiverId)}_${Math.max(socket.userId, receiverId)}`;
+      const recv = parseInt(receiverId, 10);
+      if (!recv || recv <= 0) return;
+      const roomName = `dm_${Math.min(socket.userId, recv)}_${Math.max(socket.userId, recv)}`;
       socket.to(roomName).emit('dm_user_typing', { userId: socket.userId });
     });
 
     socket.on('dm_stop_typing', ({ receiverId }) => {
-      const roomName = `dm_${Math.min(socket.userId, receiverId)}_${Math.max(socket.userId, receiverId)}`;
+      const recv = parseInt(receiverId, 10);
+      if (!recv || recv <= 0) return;
+      const roomName = `dm_${Math.min(socket.userId, recv)}_${Math.max(socket.userId, recv)}`;
       socket.to(roomName).emit('dm_user_stop_typing', { userId: socket.userId });
     });
 

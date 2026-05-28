@@ -41,7 +41,7 @@ const ForgotPassword = () => {
             <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '24px' }}>
               Bitte überprüfe auch deinen Spam-Ordner.
             </p>
-            <Link to="/login" className="auth-btn auth-btn-primary" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>
+            <Link to="/login" className="auth-btn auth-btn-primary" style={{ textDecoration: 'none' }}>
               Zurück zum Login
             </Link>
           </div>

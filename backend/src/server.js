@@ -105,6 +105,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import { subscriptionWebhook } from './controllers/subscriptionController.js';
+import { stripeWebhook as boostStripeWebhook } from './controllers/boostController.js';
 import mapRoutes from './routes/mapRoutes.js';
 import waitlistRoutes from './routes/waitlistRoutes.js';
 import dealRoutes from './routes/dealRoutes.js';
@@ -156,7 +157,7 @@ app.use(helmet({
       ],
       scriptSrc: [
         "'self'",
-        "'unsafe-eval'", // required by Vite-built vendor chunk (used by Leaflet + React DevTools)
+        ...(process.env.NODE_ENV !== 'production' ? ["'unsafe-eval'"] : []), // React DevTools (dev only)
         'https://js.stripe.com',
         'https://www.paypal.com',
         'https://www.sandbox.paypal.com',
@@ -232,6 +233,7 @@ if (process.env.NODE_ENV === 'production') {
 
 // Stripe webhooks — must receive raw body BEFORE express.json() parses it
 app.post('/api/subscription/stripe/webhook', express.raw({ type: 'application/json' }), subscriptionWebhook);
+app.post('/api/boost/stripe/webhook', express.raw({ type: 'application/json' }), boostStripeWebhook);
 
 // Body parsing — text/JSON only; image uploads use multipart (multer). 50 kB covers the largest
 // legitimate payload (full profile update with photo URLs + interests array = ~10 kB).
@@ -375,8 +377,14 @@ if (process.env.NODE_ENV === 'production') {
 // ==========================================
 const gracefulShutdown = (signal) => {
   console.log(`\n${signal} received. Shutting down gracefully...`);
-  server.close(() => {
+  server.close(async () => {
     console.log('HTTP server closed.');
+    try {
+      await Promise.all([
+        redisClient?.quit().catch(() => {}),
+        redisSubscriber?.quit().catch(() => {}),
+      ]);
+    } catch { /* ignore */ }
     db.pool.end(() => {
       console.log('Database pool closed.');
       process.exit(0);
@@ -405,7 +413,7 @@ process.on('uncaughtException', (error) => {
 // ==========================================
 // START SERVER
 // ==========================================
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000; // 5000 in dev so Vite dev server can use 3000 (see vite.config.js proxy)
 
 // Helper: run a single migration step, log and continue on error
 const migrate = async (label, fn) => {
@@ -643,6 +651,13 @@ const runStartupMigrations = async () => {
       ALTER TABLE friendships ADD CONSTRAINT chk_friendship_status
         CHECK (status IN ('pending','accepted','blocked'));
     EXCEPTION WHEN duplicate_object THEN NULL; END $$`));
+  // Fix: original constraint was missing 'rejected' and 'expired', breaking respondFriendRequest and the nightly cron
+  await migrate('chk_friendship_status_v2', () => db.query(`
+    DO $$ BEGIN
+      ALTER TABLE friendships DROP CONSTRAINT IF EXISTS chk_friendship_status;
+      ALTER TABLE friendships ADD CONSTRAINT chk_friendship_status
+        CHECK (status IN ('pending','accepted','blocked','rejected','expired'));
+    END $$`));
   await migrate('chk_gm_role', () => db.query(`
     DO $$ BEGIN
       ALTER TABLE group_members ADD CONSTRAINT chk_gm_role

@@ -330,12 +330,14 @@ const Navigation = () => {
 
 // Protected Route
 const ProtectedRoute = ({ children }) => {
-  const { user } = useContext(AuthContext);
+  const { user, loading } = useContext(AuthContext);
+  if (loading) return <PageLoader />;
   return user ? children : <Navigate to="/login" replace />;
 };
 
 const AuthRoute = ({ children }) => {
-  const { user } = useContext(AuthContext);
+  const { user, loading } = useContext(AuthContext);
+  if (loading) return <PageLoader />;
   return user ? <Navigate to="/home" replace /> : children;
 };
 
@@ -417,13 +419,13 @@ function AppRoutes() {
   const { user } = useContext(AuthContext);
   useNativePush(user);
   useAnalytics();
-  const [showIntro, setShowIntro] = useState(() => !!user && shouldShowIntro());
+  const [showIntro, setShowIntro] = useState(() => !!user && !user?.isGuest && shouldShowIntro());
   const [showProModal, setShowProModal] = useState(false);
   const [pendingReviews, setPendingReviews] = useState(null);
 
   // Show intro when user first logs in
   useEffect(() => {
-    if (user && shouldShowIntro()) setShowIntro(true);
+    if (user && !user.isGuest && shouldShowIntro()) setShowIntro(true);
   }, [user]);
 
   // Check for pending post-event reviews once after login
@@ -468,8 +470,8 @@ function AppRoutes() {
           <Route path="/register" element={<AuthRoute><Register /></AuthRoute>} />
           <Route path="/welcome" element={<ProtectedRoute><WelcomeIntro /></ProtectedRoute>} />
           <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
-          <Route path="/forgot-password" element={<AuthRoute><ForgotPassword /></AuthRoute>} />
-          <Route path="/reset-password" element={<AuthRoute><ResetPassword /></AuthRoute>} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
 
           {/* Main */}

@@ -300,6 +300,19 @@ export const updateGroup = async (req, res) => {
       }
     }
 
+    // Validate max_members is not set below current member count
+    if (max_members !== undefined) {
+      const parsedMax = parseInt(max_members, 10);
+      if (isNaN(parsedMax) || parsedMax < 2 || parsedMax > 500) {
+        return res.status(400).json({ error: 'Maximale Teilnehmerzahl muss zwischen 2 und 500 liegen' });
+      }
+      const countRes = await db.query('SELECT COUNT(*) AS cnt FROM group_members WHERE group_id = $1', [id]);
+      const currentCount = parseInt(countRes.rows[0]?.cnt ?? 0, 10);
+      if (parsedMax < currentCount) {
+        return res.status(400).json({ error: `Gruppe hat bereits ${currentCount} Mitglieder. Maximale Teilnehmerzahl darf nicht darunter liegen.` });
+      }
+    }
+
     // Re-geocode if location is being updated
     let latUpdate = null;
     let lngUpdate = null;
@@ -436,7 +449,7 @@ export const joinGroup = async (req, res) => {
 
     // Notify group owner (fire-and-forget)
     if (g.owner_id && g.owner_id !== req.userId) {
-      notifyGroupJoin(req.userId, g.owner_id, g.name || g.title).catch(() => {});
+      notifyGroupJoin(req.userId, g.owner_id, g.name || '').catch(() => {});
     }
 
     invalidatePrefix(`user_groups:${req.userId}`);
@@ -776,18 +789,23 @@ export const cancelGroup = async (req, res) => {
     if (members.rows.length > 0) {
       const title = `${groupName} wurde abgesagt`;
       const body = reason || 'Das Event wurde vom Ersteller abgesagt.';
-      const valuesClauses = members.rows.map(
-        (_, i) => `($${i * 5 + 1}, $${i * 5 + 2}, 'group_cancelled', $${i * 5 + 3}, $${i * 5 + 4}, 'group', $${i * 5 + 5})`
-      ).join(', ');
-      const params = members.rows.flatMap(m => [m.user_id, req.userId, title, body, id]);
-      const notifResult = await db.query(
-        `INSERT INTO notifications (user_id, sender_id, type, title, message, reference_type, reference_id)
-         VALUES ${valuesClauses} RETURNING *`,
-        params
-      );
-      if (io) {
-        for (const notif of notifResult.rows) {
-          io.to(`user_${notif.user_id}`).emit('new_notification', notif);
+      // Batch into chunks of 1000 to avoid PostgreSQL's 65535 bind-parameter limit (5 params × 1000 = 5000)
+      const CHUNK = 1000;
+      for (let start = 0; start < members.rows.length; start += CHUNK) {
+        const chunk = members.rows.slice(start, start + CHUNK);
+        const valuesClauses = chunk.map(
+          (_, i) => `($${i * 5 + 1}, $${i * 5 + 2}, 'group_cancelled', $${i * 5 + 3}, $${i * 5 + 4}, 'group', $${i * 5 + 5})`
+        ).join(', ');
+        const params = chunk.flatMap(m => [m.user_id, req.userId, title, body, id]);
+        const notifResult = await db.query(
+          `INSERT INTO notifications (user_id, sender_id, type, title, message, reference_type, reference_id)
+           VALUES ${valuesClauses} RETURNING *`,
+          params
+        );
+        if (io) {
+          for (const notif of notifResult.rows) {
+            io.to(`user_${notif.user_id}`).emit('new_notification', notif);
+          }
         }
       }
     }

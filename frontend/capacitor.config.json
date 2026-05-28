@@ -8,7 +8,7 @@
     "hostname": "app.getjamie.app"
   },
   "ios": {
-    "contentInset": "always",
+    "contentInset": "never",
     "backgroundColor": "#231B43",
     "limitsNavigationsToAppBoundDomains": true,
     "scrollEnabled": false,

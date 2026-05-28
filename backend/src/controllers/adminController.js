@@ -131,7 +131,7 @@ export const exportUsers = async (_req, res) => {
     const result = await db.query(`
       SELECT id, name, email, location, created_at, is_trusted_user, trusted_count,
              onboarding_completed
-      FROM users ORDER BY created_at DESC
+      FROM users ORDER BY created_at DESC LIMIT 10000
     `);
     const masked = result.rows.map(u => ({
       ...u,

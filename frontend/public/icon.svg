@@ -6,5 +6,7 @@
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="96" fill="url(#bg)"/>
-  <text x="256" y="340" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="800" font-size="220" fill="white" letter-spacing="-8">J</text>
+  <g transform="translate(256, 256) skewX(-12) translate(-256, -256)">
+    <text x="256" y="345" text-anchor="middle" font-family="'Arial Black', 'Arial Bold', Impact, Gadget, sans-serif" font-weight="900" font-size="240" fill="white">J</text>
+  </g>
 </svg>
