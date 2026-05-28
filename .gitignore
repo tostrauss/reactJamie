@@ -11,8 +11,8 @@ twa/*.apk
 .env.local
 .env.*.local
 frontend/.env
-frontend/.env.production
-frontend/.env.*
+frontend/.env.local
+frontend/.env.*.local
 
 # DB reset script — destructive, never commit to shared branches
 backend/src/config/reset.sql
