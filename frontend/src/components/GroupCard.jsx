@@ -1,6 +1,5 @@
-import React, { memo, useEffect, useState } from 'react';
+import React, { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../utils/api';
 
 function formatDate(dateStr) {
   if (!dateStr) return null;
@@ -43,19 +42,10 @@ export const GroupCard = memo(({
   onWaitlist
 }) => {
   const navigate = useNavigate();
-  const [memberAvatars, setMemberAvatars] = useState([]);
   const isClub = group.type === 'club';
 
-  useEffect(() => {
-    if (isClub) return; // clubs show creator image, no member avatars needed
-    const fetchAvatars = async () => {
-      try {
-        const res = await api.groups.getMemberAvatars(group.id, 4);
-        setMemberAvatars(Array.isArray(res.data) ? res.data : []);
-      } catch {}
-    };
-    fetchAvatars();
-  }, [group.id, isClub]);
+  // member_previews is embedded by the backend — no extra fetch needed
+  const memberAvatars = Array.isArray(group.member_previews) ? group.member_previews : [];
 
   const maxMembers  = group.max_members || 10;
   const isFull      = group.members_count >= maxMembers;
@@ -66,10 +56,10 @@ export const GroupCard = memo(({
   return (
     <div className={`group-card ${isFull ? 'full' : ''}${badgeLabel ? ' has-badge' : ''}`} onClick={onClick}>
 
-      {/* ── Date badge — absolute top-right corner ───────── */}
+      {/* ── Date badge ── */}
       {badgeLabel && <span className="card-badge">{badgeLabel}</span>}
 
-      {/* ── Top text section ─────────────────────────────── */}
+      {/* ── Top text section ── */}
       <div className="card-header">
         <div className="card-text-area">
           <h3 className="card-title">{group.category || group.title || group.name}</h3>
@@ -82,12 +72,12 @@ export const GroupCard = memo(({
         </div>
       </div>
 
-      {/* ── Photo grid (bottom) ──────────────────────────── */}
+      {/* ── Photo grid ── */}
       <div className="card-photo-grid">
         {isClub ? (
           <div className="avatar-slot card-club-full-image" style={{ gridColumn: '1 / -1', gridRow: '1 / -1', borderRadius: '12px' }}>
             {group.image_url ? (
-              <img src={group.image_url} alt={group.name || group.title} loading="lazy" />
+              <img src={group.image_url} alt={group.name || group.title} loading="lazy" decoding="async" className="card-img-fade" onLoad={e => e.currentTarget.classList.add('loaded')} />
             ) : (
               <div className="avatar-placeholder" style={{ fontSize: 48, fontWeight: 700 }}>
                 {(group.category || group.name || group.title || '?')[0].toUpperCase()}
@@ -99,7 +89,7 @@ export const GroupCard = memo(({
             {memberAvatars.map((member) => (
               <div key={member.id} className="avatar-slot">
                 {member.avatar_url ? (
-                  <img src={member.avatar_url} alt={member.name} loading="lazy" />
+                  <img src={member.avatar_url} alt={member.name} loading="lazy" decoding="async" className="card-img-fade" onLoad={e => e.currentTarget.classList.add('loaded')} />
                 ) : (
                   <div className="avatar-placeholder">
                     {(member.name || '?')[0].toUpperCase()}

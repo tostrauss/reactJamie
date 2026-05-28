@@ -167,7 +167,18 @@ export const getGroups = async (req, res) => {
 
     let query = `
       SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar,
-             CASE WHEN g.members_count >= g.max_members THEN 1 ELSE 0 END as is_full
+             CASE WHEN g.members_count >= g.max_members THEN 1 ELSE 0 END as is_full,
+             (
+               SELECT COALESCE(json_agg(sub), '[]'::json)
+               FROM (
+                 SELECT u2.id, u2.name, u2.avatar_url
+                 FROM group_members gm
+                 JOIN users u2 ON gm.user_id = u2.id
+                 WHERE gm.group_id = g.id
+                 ORDER BY gm.joined_at ASC
+                 LIMIT 4
+               ) sub
+             ) AS member_previews
       FROM groups g
       LEFT JOIN users u ON g.owner_id = u.id
       WHERE g.is_active = TRUE AND g.deleted_at IS NULL AND g.type IN ('group', 'club')

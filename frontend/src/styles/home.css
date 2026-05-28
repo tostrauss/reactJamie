@@ -1217,6 +1217,14 @@
   object-fit: cover;
 }
 
+.card-img-fade {
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.card-img-fade.loaded {
+  opacity: 1;
+}
+
 .avatar-slot.empty {
   background: rgba(255, 255, 255, 0.04);
   border: none;
