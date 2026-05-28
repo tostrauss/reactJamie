@@ -1236,16 +1236,14 @@
   color: var(--text-muted);
   background: none;
   border: none;
-  border-bottom: 2px solid transparent;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  transition: color 0.18s, border-color 0.18s;
+  transition: color 0.18s;
 }
 
 .ef-tab.active {
-  color: var(--text-white);
-  border-bottom-color: var(--accent-coral);
+  color: var(--accent-coral);
 }
 
 /* ── Feed container ─────────────────────────────────────────────── */
