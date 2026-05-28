@@ -5,7 +5,6 @@ import { GroupCard } from "../components/GroupCard";
 import { AuthContext } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import "../styles/home.css";
-import { CATEGORY_HIERARCHY } from "../utils/categories";
 
 const MapView = lazy(() => import("../components/MapView"));
 
@@ -68,8 +67,6 @@ export const Home = () => {
   const [clubList, setClubList] = useState([]);
   const [myClubs, setMyClubs] = useState([]);
   const [activeTab, setActiveTab] = useState("gruppen");
-  const [selectedMain, setSelectedMain] = useState("all");
-  const [selectedSub, setSelectedSub] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [favorites, setFavorites] = useState(new Set());
   const [joined, setJoined] = useState(new Set());
@@ -89,8 +86,6 @@ export const Home = () => {
   const [stagedZeitTo, setStagedZeitTo] = useState('');
   const [stagedAlter, setStagedAlter] = useState([18, 70]);
   const [stagedSicht, setStagedSicht] = useState('alle');
-  const [stagedCategory, setStagedCategory] = useState('all');
-
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const toast = useToast();
@@ -99,7 +94,6 @@ export const Home = () => {
     zeitFilter !== 'alle',
     alterFilter[0] !== 18 || alterFilter[1] !== 70,
     sichtFilter !== 'alle',
-    selectedMain !== 'all',
   ].filter(Boolean).length;
 
   useEffect(() => {
@@ -149,20 +143,6 @@ export const Home = () => {
   };
 
   // ── Filter helpers ───────────────────────────────────────────────
-  const matchesCategory = (item) => {
-    if (selectedMain === 'all') return true;
-    const mainCat = CATEGORY_HIERARCHY.find(c => c.id === selectedMain);
-    if (!mainCat) return true;
-    const itemCat = (item.category || '').toLowerCase();
-    if (selectedSub) return itemCat === selectedSub.toLowerCase();
-    // Match: main id, main label, or any of its sub-category names
-    return (
-      itemCat === mainCat.id ||
-      itemCat === mainCat.label.toLowerCase() ||
-      mainCat.subs.some(sub => itemCat === sub.name.toLowerCase())
-    );
-  };
-
   const matchesZeit = (item) => {
     if (zeitFilter === 'alle') return true;
     if (!item.date) return true;
@@ -231,15 +211,15 @@ export const Home = () => {
 
   const filteredGroups = useMemo(() => groupList.filter(g =>
     (g.name || '').toLowerCase().includes(searchQuery.toLowerCase()) &&
-    matchesCategory(g) && matchesZeit(g) && matchesAlter(g) && matchesSicht(g)
+    matchesZeit(g) && matchesAlter(g) && matchesSicht(g)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [groupList, searchQuery, selectedMain, selectedSub, zeitFilter, zeitFrom, zeitTo, alterFilter, sichtFilter]);
+  ), [groupList, searchQuery, zeitFilter, zeitFrom, zeitTo, alterFilter, sichtFilter]);
 
   const filteredClubs = useMemo(() => clubList.filter(c =>
     (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) &&
-    matchesCategory(c) && matchesAlter(c) && matchesSicht(c)
+    matchesAlter(c) && matchesSicht(c)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [clubList, searchQuery, selectedMain, selectedSub, alterFilter, sichtFilter]);
+  ), [clubList, searchQuery, alterFilter, sichtFilter]);
 
   // ── Filter panel actions ─────────────────────────────────────────
   const openFilters = () => {
@@ -248,7 +228,6 @@ export const Home = () => {
     setStagedZeitTo(zeitTo);
     setStagedAlter(alterFilter);
     setStagedSicht(sichtFilter);
-    setStagedCategory(selectedMain);
     setShowFilters(true);
   };
 
@@ -258,8 +237,6 @@ export const Home = () => {
     setZeitTo(stagedZeitTo);
     setAlterFilter(stagedAlter);
     setSichtFilter(stagedSicht);
-    setSelectedMain(stagedCategory);
-    setSelectedSub(null);
     setShowFilters(false);
   };
 
@@ -270,14 +247,11 @@ export const Home = () => {
     setZeitTo('');
     setAlterFilter([18, 70]);
     setSichtFilter('alle');
-    setSelectedMain('all');
-    setSelectedSub(null);
     setStagedZeit('alle');
     setStagedZeitFrom('');
     setStagedZeitTo('');
     setStagedAlter([18, 70]);
     setStagedSicht('alle');
-    setStagedCategory('all');
     setShowFilters(false);
   };
 
@@ -412,51 +386,6 @@ export const Home = () => {
               </div>
             </div>
 
-            <div className="categories-container">
-              {selectedMain === 'all' ? (
-                <div className="categories-scroll">
-                  <button
-                    className="category-pill active"
-                    onClick={() => { setSelectedMain('all'); setSelectedSub(null); }}
-                  >
-                    Alle
-                  </button>
-                  {CATEGORY_HIERARCHY.map(cat => (
-                    <button
-                      key={cat.id}
-                      className="category-pill"
-                      onClick={() => { setSelectedMain(cat.id); setSelectedSub(null); }}
-                    >
-                      {cat.label}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="categories-scroll subcategories-scroll">
-                  {/* Parent category as first button — tap again to go back to all */}
-                  {(() => {
-                    const parentCat = CATEGORY_HIERARCHY.find(c => c.id === selectedMain);
-                    return (
-                      <button
-                        className="category-pill active"
-                        onClick={() => { setSelectedMain('all'); setSelectedSub(null); }}
-                      >
-                        {parentCat?.label || selectedMain}
-                      </button>
-                    );
-                  })()}
-                  {CATEGORY_HIERARCHY.find(c => c.id === selectedMain)?.subs.map(sub => (
-                    <button
-                      key={sub.name}
-                      className={`category-pill sub ${selectedSub === sub.name ? 'active' : ''}`}
-                      onClick={() => setSelectedSub(prev => prev === sub.name ? null : sub.name)}
-                    >
-                      {sub.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         )}
       </div>
@@ -604,17 +533,6 @@ export const Home = () => {
                     <line x1="6" y1="6" x2="18" y2="18"/>
                   </svg>
                 </button>
-              </div>
-
-              {/* Kategorie */}
-              <div className="filter-section">
-                <h3 className="filter-section-title">Kategorie</h3>
-                <div className="filter-pills">
-                  <FilterPill value="all" label="Alle" current={stagedCategory} onSelect={setStagedCategory} />
-                  {CATEGORY_HIERARCHY.map(cat => (
-                    <FilterPill key={cat.id} value={cat.id} label={cat.label} current={stagedCategory} onSelect={setStagedCategory} />
-                  ))}
-                </div>
               </div>
 
               {/* Zeitraum — groups only */}
