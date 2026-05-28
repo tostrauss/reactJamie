@@ -84,6 +84,7 @@ export default function MapView({ typeFilter }) {
   const [pins,             setPins]            = useState([]);
   const [loading,          setLoading]         = useState(true);
   const [selectedPin,      setSelectedPin]     = useState(null);
+  const [selectedDate,     setSelectedDate]    = useState(null); // null | 'heute' | 'morgen'
   const [selectedCategory, setSelectedCategory] = useState(() => {
     try { return sessionStorage.getItem(SESSION_KEY) || null; } catch { return null; }
   });
@@ -118,6 +119,7 @@ export default function MapView({ typeFilter }) {
           const cat = CATEGORY_HIERARCHY.find(c => c.id === selectedCategory);
           if (cat) params.categories = cat.subs.map(s => s.name).join(',');
         }
+        if (selectedDate) params.dateFilter = selectedDate;
         const res = await mapApi.getPins(params);
         if (!cancelled) setPins(res.data || []);
       } catch {
@@ -128,7 +130,7 @@ export default function MapView({ typeFilter }) {
     };
     load();
     return () => { cancelled = true; };
-  }, [typeFilter, selectedCategory]);
+  }, [typeFilter, selectedCategory, selectedDate]);
 
   // ── Fit bounds when pins change ───────────────────────────────
   useEffect(() => {
@@ -180,23 +182,42 @@ export default function MapView({ typeFilter }) {
   return (
     <div className="map-container">
 
-      {/* Category filter strip */}
-      <div className="map-category-strip">
-        <button
-          className={`map-cat-pill${!selectedCategory ? ' active' : ''}`}
-          onClick={() => updateCategory(null)}
-        >
-          Alle
-        </button>
-        {CATEGORY_HIERARCHY.map(cat => (
+      {/* Filter strips */}
+      <div className="map-filters">
+        {/* Date filter */}
+        <div className="map-category-strip">
           <button
-            key={cat.id}
-            className={`map-cat-pill${selectedCategory === cat.id ? ' active' : ''}`}
-            onClick={() => updateCategory(selectedCategory === cat.id ? null : cat.id)}
+            className={`map-cat-pill${!selectedDate ? ' active' : ''}`}
+            onClick={() => { setSelectedDate(null); setSelectedPin(null); }}
           >
-            {cat.label}
+            Alle
           </button>
-        ))}
+          {['heute', 'morgen'].map(d => (
+            <button
+              key={d}
+              className={`map-cat-pill${selectedDate === d ? ' active' : ''}`}
+              onClick={() => { setSelectedDate(selectedDate === d ? null : d); setSelectedPin(null); }}
+            >
+              {d === 'heute' ? '📅 Heute' : '📅 Morgen'}
+            </button>
+          ))}
+          <div className="map-filter-divider" />
+          <button
+            className={`map-cat-pill${!selectedCategory ? ' active' : ''}`}
+            onClick={() => updateCategory(null)}
+          >
+            Alle Kategorien
+          </button>
+          {CATEGORY_HIERARCHY.map(cat => (
+            <button
+              key={cat.id}
+              className={`map-cat-pill${selectedCategory === cat.id ? ' active' : ''}`}
+              onClick={() => updateCategory(selectedCategory === cat.id ? null : cat.id)}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {(!isLoaded || loading) && (

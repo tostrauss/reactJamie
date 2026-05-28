@@ -8,11 +8,25 @@ import { getCached, setCached } from '../utils/cache.js';
  */
 export const getMapPins = async (req, res) => {
   try {
-    const { type, categories } = req.query;
+    const { type, categories, dateFilter } = req.query;
 
-    const cacheKey = `map:${type || ''}:${categories || ''}`;
+    if (dateFilter && !['heute', 'morgen'].includes(dateFilter)) {
+      return res.status(400).json({ error: 'dateFilter must be heute or morgen' });
+    }
+
+    const cacheKey = `map:${type || ''}:${categories || ''}:${dateFilter || ''}`;
     const cached = getCached(cacheKey);
     if (cached) return res.json(cached);
+
+    // Build date condition based on filter
+    let dateCondition;
+    if (dateFilter === 'heute') {
+      dateCondition = `g.date >= CURRENT_DATE AND g.date < CURRENT_DATE + INTERVAL '1 day'`;
+    } else if (dateFilter === 'morgen') {
+      dateCondition = `g.date >= CURRENT_DATE + INTERVAL '1 day' AND g.date < CURRENT_DATE + INTERVAL '2 days'`;
+    } else {
+      dateCondition = `g.date IS NULL OR (g.date >= NOW() AND g.date <= NOW() + INTERVAL '7 days')`;
+    }
 
     let query = `
       SELECT g.id, g.name, g.type, g.category, g.location,
@@ -25,7 +39,7 @@ export const getMapPins = async (req, res) => {
         AND g.deleted_at IS NULL
         AND g.lat IS NOT NULL
         AND g.lng IS NOT NULL
-        AND (g.date IS NULL OR (g.date >= NOW() AND g.date <= NOW() + INTERVAL '7 days'))
+        AND (${dateCondition})
     `;
     const params = [];
     let paramIndex = 1;
