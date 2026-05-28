@@ -187,10 +187,10 @@ export const Friends = () => {
                 <div className="fr-list">
                   {pending.map(r => (
                     <div key={r.id} className="fr-row fr-row-request">
-                      <div className="fr-row-left" onClick={() => navigate(`/user/${r.sender_id || r.from_user_id}`)}>
-                        <Avatar src={r.avatar_url || r.sender_avatar} name={r.name || r.sender_name} />
+                      <div className="fr-row-left" onClick={() => navigate(`/user/${r.requester_id}`)}>
+                        <Avatar src={r.requester_avatar} name={r.requester_name} />
                         <div className="fr-row-info">
-                          <p className="fr-row-name">{r.name || r.sender_name}</p>
+                          <p className="fr-row-name">{r.requester_name}</p>
                           {r.location && <p className="fr-row-sub">{r.location}</p>}
                         </div>
                       </div>
@@ -227,10 +227,10 @@ export const Friends = () => {
                 <div className="fr-list">
                   {sent.map(r => (
                     <div key={r.id} className="fr-row">
-                      <div className="fr-row-left" onClick={() => navigate(`/user/${r.receiver_id || r.to_user_id}`)}>
-                        <Avatar src={r.avatar_url || r.receiver_avatar} name={r.name || r.receiver_name} />
+                      <div className="fr-row-left" onClick={() => navigate(`/user/${r.addressee_id}`)}>
+                        <Avatar src={r.addressee_avatar} name={r.addressee_name} />
                         <div className="fr-row-info">
-                          <p className="fr-row-name">{r.name || r.receiver_name}</p>
+                          <p className="fr-row-name">{r.addressee_name}</p>
                           <p className="fr-row-sub">Ausstehend</p>
                         </div>
                       </div>
