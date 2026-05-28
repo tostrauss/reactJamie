@@ -696,7 +696,7 @@
    ======================================== */
 .profile-edit-page {
   padding: 20px;
-  padding-bottom: 120px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
 }
 
 /* Header */
@@ -1046,7 +1046,7 @@
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   padding: 20px;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 48px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
 }
 
 .settings-back {

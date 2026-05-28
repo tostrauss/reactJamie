@@ -1445,9 +1445,10 @@
    ======================================== */
 .settings-page {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg-primary);
   color: white;
-  padding-bottom: 80px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
 }
 
 .settings-header {
