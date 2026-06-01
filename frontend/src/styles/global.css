@@ -126,12 +126,34 @@ button, [role="button"] {
   user-select: none;
 }
 
+/* Visible keyboard-only focus ring — required for App Store accessibility review.
+   :focus-visible only applies when navigating via keyboard, not on mouse/tap. */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent-coral);
+  outline-offset: 2px;
+}
+
+/* Reduce motion for users who request it (iOS Settings → Accessibility → Reduce Motion) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* ==========================================
    PWA UPDATE BANNER
    ========================================== */
 .update-banner {
   position: fixed;
-  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   background: var(--bg-card);
@@ -167,7 +189,7 @@ button, [role="button"] {
    ========================================== */
 .install-banner {
   position: fixed;
-  bottom: calc(80px + env(safe-area-inset-bottom, 0px) + 8px);
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 8px);
   left: 12px;
   right: 12px;
   background: var(--bg-card);
@@ -351,7 +373,7 @@ input:focus, textarea:focus, select:focus {
 }
 
 .bottom-nav-items {
-  height: 80px;
+  height: 64px;
   display: flex;
   justify-content: space-around;
   align-items: center;
@@ -657,7 +679,7 @@ input:focus, textarea:focus, select:focus {
   flex: 1;
   padding: 20px;
   padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
   max-width: 600px;
   margin: 0 auto;
   width: 100%;
@@ -728,7 +750,7 @@ input:focus, textarea:focus, select:focus {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 80px);
+  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 64px);
   min-height: 100%;
 }
 

@@ -57,45 +57,11 @@
       "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
     }
   ],
-  "screenshots": [
-    {
-      "src": "/screenshots/home.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "JAMIE Home – Gruppen entdecken"
-    },
-    {
-      "src": "/screenshots/explore.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "JAMIE Entdecken – Clubs & Events"
-    },
-    {
-      "src": "/screenshots/chat.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "JAMIE Chat – Mit Gruppen kommunizieren"
-    },
-    {
-      "src": "/screenshots/home-wide.png",
-      "sizes": "1280x800",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "JAMIE – Desktop & Tablet Ansicht"
-    }
-  ],
   "related_applications": [
     {
       "platform": "play",
       "url": "https://play.google.com/store/apps/details?id=jamie.app",
       "id": "jamie.app"
-    },
-    {
-      "platform": "itunes",
-      "url": "https://apps.apple.com/app/jamie/id0000000000"
     }
   ],
   "prefer_related_applications": false

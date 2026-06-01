@@ -126,7 +126,7 @@
   flex: 1;
   overflow-y: auto;
   padding: 0 18px;
-  padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 90px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 74px);
 }
 
 /* ── Section ── */

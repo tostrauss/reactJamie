@@ -317,7 +317,7 @@
 /* ── Footer ── */
 .up-footer {
   flex-shrink: 0;
-  padding: 14px 20px calc(env(safe-area-inset-bottom, 0px) + 94px);
+  padding: 14px 20px calc(env(safe-area-inset-bottom, 0px) + 78px);
   background: var(--bg-primary);
   border-top: 1px solid rgba(255,255,255,0.06);
   display: flex;
