@@ -5,15 +5,18 @@ COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
 
-# Vite env vars must be declared as build args to be available at build time
+# Vite env vars: prefer build args (set via Railway/CI), fall back to .env.production
+# values committed in the repo. Without this, an empty ARG would BLANK OUT the
+# .env.production value (process.env overrides .env.* files in Vite), silently
+# disabling the Google Maps key in production.
 ARG VITE_SENTRY_DSN
 ARG VITE_GOOGLE_CLIENT_ID
 ARG VITE_GOOGLE_MAPS_API_KEY
 ARG VITE_VAPID_PUBLIC_KEY
-ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN
-ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
-ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
-ENV VITE_VAPID_PUBLIC_KEY=$VITE_VAPID_PUBLIC_KEY
+RUN if [ -n "$VITE_SENTRY_DSN" ];          then echo "VITE_SENTRY_DSN=$VITE_SENTRY_DSN"                   >> .env.production; fi && \
+    if [ -n "$VITE_GOOGLE_CLIENT_ID" ];    then echo "VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID"       >> .env.production; fi && \
+    if [ -n "$VITE_GOOGLE_MAPS_API_KEY" ]; then echo "VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY" >> .env.production; fi && \
+    if [ -n "$VITE_VAPID_PUBLIC_KEY" ];    then echo "VITE_VAPID_PUBLIC_KEY=$VITE_VAPID_PUBLIC_KEY"       >> .env.production; fi
 
 RUN npm run build
 
