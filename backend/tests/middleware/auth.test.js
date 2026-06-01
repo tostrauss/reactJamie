@@ -25,6 +25,45 @@ describe('generateToken', () => {
     const decoded = jwt.verify(token, 'test-secret-key');
     expect(decoded.id).toBe(42);
   });
+
+  it('signs with iss=jamie-api + aud=jamie-app + alg=HS256', () => {
+    const token = generateToken(42);
+    const decoded = jwt.decode(token, { complete: true });
+    expect(decoded.header.alg).toBe('HS256');
+    expect(decoded.payload.iss).toBe('jamie-api');
+    expect(decoded.payload.aud).toBe('jamie-app');
+  });
+});
+
+describe('authenticate alg-confusion protection', () => {
+  it('rejects an alg:none token even if signed with the secret', () => {
+    // Hand-craft an alg:none token claiming user id 1 — the dangerous
+    // jsonwebtoken vulnerability before alg pinning.
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({ id: 1, iss: 'jamie-api', aud: 'jamie-app' })).toString('base64url');
+    const noneToken = `${header}.${payload}.`;
+    const req = { headers: { authorization: `Bearer ${noneToken}` } };
+    const res = makeRes();
+    authenticate(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('rejects a token with wrong audience', () => {
+    const evilToken = jwt.sign({ id: 99 }, 'test-secret-key', { algorithm: 'HS256', issuer: 'jamie-api', audience: 'other-app' });
+    const req = { headers: { authorization: `Bearer ${evilToken}` } };
+    const res = makeRes();
+    authenticate(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  it('rejects a token with wrong issuer', () => {
+    const evilToken = jwt.sign({ id: 99 }, 'test-secret-key', { algorithm: 'HS256', issuer: 'evil', audience: 'jamie-app' });
+    const req = { headers: { authorization: `Bearer ${evilToken}` } };
+    const res = makeRes();
+    authenticate(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
 });
 
 describe('authenticate middleware', () => {

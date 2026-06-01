@@ -64,4 +64,36 @@ describe('sanitizeInputs middleware', () => {
     sanitizeInputs(req, makeRes(), next);
     expect(req.body.name).toBe('Jamie');
   });
+
+  // Regression — sanitizing the `password` field strips < > chars and
+  // breaks login for users whose password legitimately contains them.
+  it('does NOT touch the password field', () => {
+    const req = makeReq({ body: { password: 'MyPass<x>1!' } });
+    sanitizeInputs(req, makeRes(), next);
+    expect(req.body.password).toBe('MyPass<x>1!');
+  });
+
+  it('does NOT touch token/code/credential fields', () => {
+    const req = makeReq({ body: {
+      token: 'pr_<abc>',
+      code: '12<34>56',
+      credential: 'g0o.gle<>token',
+      currentPassword: 'old<P>1!',
+      newPassword: 'new<P>1!',
+    } });
+    sanitizeInputs(req, makeRes(), next);
+    expect(req.body.token).toBe('pr_<abc>');
+    expect(req.body.code).toBe('12<34>56');
+    expect(req.body.credential).toBe('g0o.gle<>token');
+    expect(req.body.currentPassword).toBe('old<P>1!');
+    expect(req.body.newPassword).toBe('new<P>1!');
+  });
+
+  it('does NOT touch push-subscription crypto fields', () => {
+    const req = makeReq({ body: { endpoint: 'https://fcm.googleapis.com/x<y>', auth: 'a<b>', p256dh: 'p<q>' } });
+    sanitizeInputs(req, makeRes(), next);
+    expect(req.body.endpoint).toBe('https://fcm.googleapis.com/x<y>');
+    expect(req.body.auth).toBe('a<b>');
+    expect(req.body.p256dh).toBe('p<q>');
+  });
 });

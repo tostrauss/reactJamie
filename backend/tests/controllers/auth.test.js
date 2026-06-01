@@ -128,6 +128,42 @@ describe('login', () => {
     await login({ body: { email: 'a@b.com', password: 'Test1!abc' } }, res, vi.fn());
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ token: expect.any(String) }));
   });
+
+  // Regression — email lookup must be case-insensitive so "User@x.com"
+  // and "user@x.com" hit the same account.
+  it('normalizes email to lowercase before lookup', async () => {
+    const hash = await bcrypt.hash('Test1!abc', 10);
+    db.query
+      .mockResolvedValueOnce({ rows: [{ id: 5, password: hash, login_attempts: 0, locked_until: null, is_active: true }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 5, email: 'mixed@x.com', name: 'A', onboarding_completed: true }] });
+    const res = makeRes();
+    await login({ body: { email: 'MiXeD@X.COM', password: 'Test1!abc' } }, res, vi.fn());
+    // First query param must be the lowercased form
+    expect(db.query.mock.calls[0][1]).toEqual(['mixed@x.com']);
+    expect(db.query.mock.calls[0][0]).toContain('LOWER(email)');
+  });
+
+  // Regression — unknown emails must run a dummy bcrypt compare so the
+  // response time matches a real password-mismatch path. Without this an
+  // attacker can sweep email lists by timing.
+  it('runs a dummy bcrypt compare on missing user (timing constant)', async () => {
+    db.query.mockResolvedValueOnce({ rows: [] }); // user not found
+    const t0 = Date.now();
+    const res = makeRes();
+    await login({ body: { email: 'unknown@x.com', password: 'Test1!abc' } }, res, vi.fn());
+    const elapsed = Date.now() - t0;
+    expect(res.status).toHaveBeenCalledWith(401);
+    // Dummy bcrypt at cost 12 takes 50ms+ even on fast CI hardware.
+    // If this drops to a few ms, the timing-attack mitigation was reverted.
+    expect(elapsed).toBeGreaterThan(20);
+  });
+
+  it('caps password length to block bcrypt DoS', async () => {
+    const res = makeRes();
+    await login({ body: { email: 'a@x.com', password: 'A'.repeat(10000) } }, res, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
 });
 
 // ── refreshToken ───────────────────────────────────────────────────────────
