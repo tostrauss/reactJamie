@@ -53,6 +53,8 @@ export const uploadToCloud = async (buffer, mimetype, originalname) => {
       Key: key,
       Body: buffer,
       ContentType: mimetype,
+      // Each object has a UUID name and is never overwritten — safe to mark immutable for a year
+      CacheControl: 'public, max-age=31536000, immutable',
     })
   );
 

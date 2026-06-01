@@ -5,8 +5,10 @@ import { fileURLToPath } from 'url';
 import { writeFile, mkdir } from 'fs/promises';
 import crypto from 'crypto';
 import { authenticate } from '../middleware/auth.js';
+import { uploadLimiter } from '../middleware/rateLimiter.js';
 import { uploadToCloud, isCloudStorageEnabled } from '../config/storage.js';
 import { checkImageSafety } from '../config/moderation.js';
+import { processImage, generateThumbnail } from '../config/imageProcessor.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -47,7 +49,7 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
 });
 
-router.post('/', authenticate, upload.single('image'), async (req, res) => {
+router.post('/', authenticate, uploadLimiter, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -62,7 +64,7 @@ router.post('/', authenticate, upload.single('image'), async (req, res) => {
     const safeExt = MIME_TO_EXT[detectedMime];
     const safeOriginalname = `upload${safeExt}`;
 
-    // Moderation check — runs before anything is saved (cloud or disk)
+    // Moderation check — runs on the original buffer before processing
     const { safe, reason } = await checkImageSafety(
       req.file.buffer,
       detectedMime,
@@ -72,22 +74,38 @@ router.post('/', authenticate, upload.single('image'), async (req, res) => {
       return res.status(422).json({ error: reason });
     }
 
+    // Resize + re-encode to WebP. Phone uploads are typically 3-10 MB; this
+    // brings them down to ~80-200 KB with no visible quality loss.
+    const processed = await processImage(req.file.buffer, detectedMime);
+    const processedName = `upload${processed.extension}`;
+
+    // Optional thumbnail for cards/lists. Failure here is non-fatal.
+    let thumbUrl = null;
+    const thumbnail = await generateThumbnail(req.file.buffer, detectedMime).catch(() => null);
+
     let imageUrl;
 
     if (isCloudStorageEnabled()) {
-      // Production: stream to Cloudflare R2 / AWS S3
-      imageUrl = await uploadToCloud(req.file.buffer, detectedMime, safeOriginalname);
+      imageUrl = await uploadToCloud(processed.buffer, processed.mimetype, processedName);
+      if (thumbnail) {
+        thumbUrl = await uploadToCloud(thumbnail.buffer, thumbnail.mimetype, `thumb${thumbnail.extension}`).catch(() => null);
+      }
     } else {
       // Development fallback: write to local /uploads directory
       const uploadsDir = path.join(__dirname, '../../uploads');
       await mkdir(uploadsDir, { recursive: true });
       const uniqueSuffix = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
-      const filename = `image-${uniqueSuffix}${safeExt}`;
-      await writeFile(path.join(uploadsDir, filename), req.file.buffer);
+      const filename = `image-${uniqueSuffix}${processed.extension}`;
+      await writeFile(path.join(uploadsDir, filename), processed.buffer);
       imageUrl = `/uploads/${filename}`;
+      if (thumbnail) {
+        const thumbFilename = `thumb-${uniqueSuffix}${thumbnail.extension}`;
+        await writeFile(path.join(uploadsDir, thumbFilename), thumbnail.buffer);
+        thumbUrl = `/uploads/${thumbFilename}`;
+      }
     }
 
-    res.json({ url: imageUrl });
+    res.json({ url: imageUrl, thumbnail: thumbUrl });
   } catch (error) {
     console.error('Upload error:', error);
     res.status(500).json({ error: 'Upload failed' });
