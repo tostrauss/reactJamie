@@ -710,14 +710,33 @@ export const handleJoinRequest = async (req, res) => {
     const gname = groupRes.rows[0].name;
 
     if (action === 'accept') {
-      await db.query(
-        `UPDATE group_join_requests SET status = 'accepted', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-        [requestId]
-      );
-      await db.query(
-        'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-        [id, joinReq.user_id, 'member']
-      );
+      // Enforce capacity inside a transaction to prevent race with concurrent accepts
+      const client = await db.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const cap = await client.query(
+          'SELECT members_count, max_members FROM groups WHERE id = $1 FOR UPDATE',
+          [id]
+        );
+        if (cap.rows[0].members_count >= cap.rows[0].max_members) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'Gruppe ist bereits voll. Anfrage kann nicht angenommen werden.' });
+        }
+        await client.query(
+          `UPDATE group_join_requests SET status = 'accepted', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+          [requestId]
+        );
+        await client.query(
+          'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+          [id, joinReq.user_id, 'member']
+        );
+        await client.query('COMMIT');
+      } catch (txErr) {
+        await client.query('ROLLBACK');
+        throw txErr;
+      } finally {
+        client.release();
+      }
 
       sendPushToUser(joinReq.user_id, 'Beitrittsanfrage akzeptiert', `Du bist jetzt Mitglied von "${gname}"`, `/group/${id}`);
 
@@ -993,7 +1012,7 @@ export const inviteMember = async (req, res) => {
   try {
     const { id, friendId } = req.params;
 
-    const group = await db.query('SELECT owner_id, max_members FROM groups WHERE id = $1', [id]);
+    const group = await db.query('SELECT owner_id, name, max_members FROM groups WHERE id = $1', [id]);
     if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
     if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 

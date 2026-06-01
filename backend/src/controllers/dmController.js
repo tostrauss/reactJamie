@@ -13,7 +13,7 @@ export const sendDM = async (req, res) => {
     if (isNaN(receiverId) || receiverId <= 0) {
       return res.status(400).json({ error: 'Ungültiger Empfänger' });
     }
-    if (!content) {
+    if (!content || !content.trim()) {
       return res.status(400).json({ error: 'Empfänger und Inhalt erforderlich' });
     }
 

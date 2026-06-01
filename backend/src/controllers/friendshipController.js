@@ -6,9 +6,9 @@ import { sendPushToUser } from './pushController.js';
 // ==========================================
 export const sendFriendRequest = async (req, res) => {
   try {
-    const { userId } = req.body;
+    const userId = parseInt(req.body.userId, 10);
 
-    if (!userId) return res.status(400).json({ error: 'userId is required' });
+    if (!userId || isNaN(userId) || userId <= 0) return res.status(400).json({ error: 'Ungültige Nutzer-ID' });
     if (userId === req.userId) return res.status(400).json({ error: 'Du kannst dir selbst keine Freundschaftsanfrage schicken' });
 
     // Check if friendship already exists (in either direction)

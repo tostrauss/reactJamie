@@ -70,3 +70,31 @@ export const messageLimiter = rateLimit({
   store: makeStore('rl:msg:'),
   message: { error: 'Du sendest zu schnell. Bitte warte einen Moment.' }
 });
+
+// Image upload: 30 uploads/hour per user. Each upload spawns sharp + R2 PUT,
+// so unthrottled it's an easy way to burn through Cloudflare egress and CPU.
+export const uploadLimiter = rateLimit({
+  ...SHARED,
+  windowMs: 60 * 60 * 1000,
+  max: disabled ? 10000 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `upload:${req.userId}`,
+  validate: { keyGeneratorIpFallback: false },
+  store: makeStore('rl:upload:'),
+  message: { error: 'Zu viele Uploads. Bitte versuche es in einer Stunde erneut.' }
+});
+
+// Report submission: 10/hour per user. Without this, a malicious user can flood
+// admin queues by submitting reports against many target IDs in rapid succession.
+export const reportLimiter = rateLimit({
+  ...SHARED,
+  windowMs: 60 * 60 * 1000,
+  max: disabled ? 10000 : 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `report:${req.userId}`,
+  validate: { keyGeneratorIpFallback: false },
+  store: makeStore('rl:report:'),
+  message: { error: 'Zu viele Meldungen. Bitte versuche es in einer Stunde erneut.' }
+});

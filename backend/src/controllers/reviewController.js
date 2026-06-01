@@ -101,14 +101,29 @@ export const submitReview = async (req, res) => {
         [group_id, req.userId]
       );
 
-      const filtered = attendances.filter(a => a.user_id !== req.userId);
+      const filtered = attendances.filter(a =>
+        a && Number.isInteger(a.user_id) && a.user_id !== req.userId && typeof a.was_present === 'boolean'
+      );
       if (filtered.length === 0) return;
 
+      // Verify each reviewed user was actually a member of this group. Without
+      // this check, a reviewer can fabricate "was_present" entries for any
+      // user_id and inflate their trusted_count (3 distinct fake reviewers
+      // grant the trusted badge).
+      const candidateIds = [...new Set(filtered.map(a => a.user_id))];
+      const realMembersRes = await client.query(
+        'SELECT user_id FROM group_members WHERE group_id = $1 AND user_id = ANY($2::int[])',
+        [group_id, candidateIds]
+      );
+      const realMemberSet = new Set(realMembersRes.rows.map(r => r.user_id));
+      const verified = filtered.filter(a => realMemberSet.has(a.user_id));
+      if (verified.length === 0) return;
+
       // Bulk INSERT — one round trip instead of N
-      const valuesClauses = filtered.map(
+      const valuesClauses = verified.map(
         (_, i) => `($${i * 4 + 1}, $${i * 4 + 2}, $${i * 4 + 3}, $${i * 4 + 4})`
       ).join(', ');
-      const insertParams = filtered.flatMap(a => [group_id, req.userId, a.user_id, a.was_present]);
+      const insertParams = verified.flatMap(a => [group_id, req.userId, a.user_id, a.was_present]);
       await client.query(
         `INSERT INTO event_reviews (group_id, reviewer_id, reviewed_user_id, was_present)
          VALUES ${valuesClauses} ON CONFLICT DO NOTHING`,
@@ -116,7 +131,7 @@ export const submitReview = async (req, res) => {
       );
 
       // Bulk UPDATE trusted_count — one round trip for all reviewed users
-      const userIds = filtered.map(a => a.user_id);
+      const userIds = verified.map(a => a.user_id);
       await client.query(
         `UPDATE users u
          SET trusted_count  = COALESCE(sub.c, 0),

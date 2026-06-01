@@ -8,6 +8,19 @@ export const joinWaitlist = async (req, res) => {
     return res.status(400).json({ error: 'Ungültige E-Mail-Adresse' });
   }
 
+  // Whitelist country format — 2-3 char ISO codes (or null).
+  if (country !== undefined && country !== null) {
+    if (typeof country !== 'string' || !/^[A-Z]{2,3}$/i.test(country)) {
+      return res.status(400).json({ error: 'Ungültiger Ländercode' });
+    }
+  }
+
+  if (email.length > 254) {
+    return res.status(400).json({ error: 'E-Mail zu lang' });
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const normalizedCountry = country ? country.toUpperCase() : null;
   const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip;
 
   try {
@@ -18,17 +31,27 @@ export const joinWaitlist = async (req, res) => {
        ON CONFLICT (email) DO UPDATE
          SET country = EXCLUDED.country,
              ip      = EXCLUDED.ip`,
-      [email.toLowerCase().trim(), country || null, ip]
+      [normalizedEmail, normalizedCountry, ip]
     );
 
-    // Increment country vote tally (only when country is provided)
-    if (country) {
-      await db.query(
-        `INSERT INTO country_votes (country, votes) VALUES ($1, 1)
-         ON CONFLICT (country) DO UPDATE
-           SET votes = country_votes.votes + 1`,
-        [country]
+    // Increment country vote tally — but only on the FIRST (email, country)
+    // pairing. Without the ledger, every re-submission inflates the count.
+    if (normalizedCountry) {
+      const claim = await db.query(
+        `INSERT INTO waitlist_votes (email, country)
+         VALUES ($1, $2)
+         ON CONFLICT (email, country) DO NOTHING
+         RETURNING 1`,
+        [normalizedEmail, normalizedCountry]
       );
+      if (claim.rowCount > 0) {
+        await db.query(
+          `INSERT INTO country_votes (country, votes) VALUES ($1, 1)
+           ON CONFLICT (country) DO UPDATE
+             SET votes = country_votes.votes + 1`,
+          [normalizedCountry]
+        );
+      }
     }
 
     res.json({ success: true });

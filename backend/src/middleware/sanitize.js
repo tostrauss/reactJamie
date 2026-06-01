@@ -15,12 +15,25 @@ const stripHtml = (str) => {
     .trim();
 };
 
-const sanitizeValue = (value) => {
+// Fields that must NEVER be HTML-stripped:
+//  - password fields: stripping <, > characters silently breaks login + register
+//    for users whose passwords contain those characters
+//  - tokens / codes / credentials: must be passed through byte-for-byte
+//  - signature/webhook payloads: tampering invalidates HMAC verification
+const SKIP_KEYS = new Set([
+  'password', 'newPassword', 'currentPassword',
+  'token', 'code', 'credential', 'refresh_token', 'access_token',
+  'p256dh', 'auth', 'endpoint',
+  'stripe-signature',
+]);
+
+const sanitizeValue = (value, key) => {
+  if (key && SKIP_KEYS.has(key)) return value;
   if (typeof value === 'string') {
     return stripHtml(value);
   }
   if (Array.isArray(value)) {
-    return value.map(sanitizeValue);
+    return value.map(v => sanitizeValue(v));
   }
   if (value && typeof value === 'object') {
     return sanitizeObject(value);
@@ -31,7 +44,7 @@ const sanitizeValue = (value) => {
 const sanitizeObject = (obj) => {
   const sanitized = {};
   for (const [key, value] of Object.entries(obj)) {
-    sanitized[key] = sanitizeValue(value);
+    sanitized[key] = sanitizeValue(value, key);
   }
   return sanitized;
 };

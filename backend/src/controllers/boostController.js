@@ -331,21 +331,40 @@ function paypalUrl(path) {
   return `${base}${path}`;
 }
 
-// Core wallet credit — must run on a dedicated transaction client
+// Core wallet credit — must run on a dedicated transaction client.
+// Idempotent: only credits if the transaction is still in 'pending' state.
+// Stripe retries webhooks on any 5xx/timeout, so without this guard a single
+// payment could credit the wallet multiple times.
 async function _creditUserInTx(client, userId, credits, provider, paymentId) {
+  // Atomically flip pending → completed; UPDATE only succeeds on the first call.
+  const claim = await client.query(
+    `UPDATE boost_transactions SET status = 'completed'
+     WHERE payment_provider = $1 AND payment_id = $2 AND status = 'pending'
+     RETURNING user_id, credits`,
+    [provider, paymentId]
+  );
+  if (claim.rowCount === 0) {
+    // Already credited (replay) — no-op, return silently.
+    return { credited: false };
+  }
+  // Use the txn's recorded user_id/credits — never trust caller-supplied values
+  // for the actual credit amount. Protects against metadata tampering even
+  // though we generated it ourselves.
+  const txnUserId  = claim.rows[0].user_id;
+  const txnCredits = claim.rows[0].credits;
+  if (txnUserId !== userId) {
+    // user_id mismatch — refuse to credit. Caller's user_id should match the txn.
+    throw new Error('PAYMENT_USER_MISMATCH');
+  }
   await client.query(
     `INSERT INTO boost_credits (user_id, credits, total_earned)
      VALUES ($1, $2, $2)
      ON CONFLICT (user_id) DO UPDATE
        SET credits = boost_credits.credits + $2,
            total_earned = boost_credits.total_earned + $2`,
-    [userId, credits]
+    [txnUserId, txnCredits]
   );
-  await client.query(
-    `UPDATE boost_transactions SET status = 'completed'
-     WHERE payment_provider = $1 AND payment_id = $2`,
-    [provider, paymentId]
-  );
+  return { credited: true };
 }
 
 // Public helper for callers that don't have an outer transaction

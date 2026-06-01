@@ -124,6 +124,18 @@ const socketOrigin = process.env.SOCKET_CSP_ORIGIN || null;
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
+  // HSTS: tell browsers to ONLY connect via HTTPS for the next year.
+  // Only active when NODE_ENV=production so localhost stays usable on http.
+  // Without this an attacker on the same network can SSL-strip cookie/JWT.
+  hsts: process.env.NODE_ENV === 'production'
+    ? { maxAge: 31536000, includeSubDomains: true, preload: true }
+    : false,
+  // X-Frame-Options: prevent the app from being iframed (clickjacking).
+  // CSP frame-ancestors is also set below as the modern replacement.
+  frameguard: { action: 'deny' },
+  // Referrer-Policy: don't send the full URL (which may contain ?token=...)
+  // to other origins on cross-origin navigations.
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
@@ -137,7 +149,11 @@ app.use(helmet({
         'https://www.paypal.com',
         'https://www.sandbox.paypal.com',
         'https://nominatim.openstreetmap.org',
-        'https://maps.googleapis.com',
+        // Google Maps JS API serves modules + XHR tiles from multiple subdomains
+        // (khms*.googleapis.com, maps.googleapis.com, etc.) — wildcard required.
+        'https://*.googleapis.com',
+        'https://*.gstatic.com',
+        'https://*.ggpht.com', // Street View imagery
         'https://images.unsplash.com',
         'https://sentry.io', 'https://*.sentry.io', // Sentry error reporting
         ...(storageOrigin ? [storageOrigin] : []),
@@ -152,20 +168,23 @@ app.use(helmet({
         'https://www.paypal.com',
         'https://*.tile.openstreetmap.org',
         'https://lh3.googleusercontent.com', // Google profile pictures
-        'https://maps.gstatic.com',
-        'https://maps.googleapis.com',
+        // Map tiles + raster panes come from sharded subdomains
+        // (khms*.googleapis.com, mts*.googleapis.com, etc.) — wildcard required.
+        'https://*.googleapis.com',
+        'https://*.gstatic.com',
+        'https://*.ggpht.com',
         ...(storageOrigin ? [storageOrigin] : []),
       ],
       scriptSrc: [
         "'self'",
-        "'unsafe-eval'", // required by Google OAuth GSI script
+        "'unsafe-eval'", // required by Google OAuth GSI script + Google Maps internals
         'https://js.stripe.com',
         'https://www.paypal.com',
         'https://www.sandbox.paypal.com',
         'https://accounts.google.com',
         'https://appleid.cdn-apple.com',
-        'https://maps.googleapis.com',
-        'https://maps.gstatic.com',
+        'https://*.googleapis.com',
+        'https://*.gstatic.com',
       ],
       frameSrc: [
         'https://js.stripe.com',
@@ -294,9 +313,11 @@ app.use('/api/map', mapRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/deals', dealRoutes);
 
-// Health check — verifies DB + optional services for Railway health probes
+// Health check — verifies DB + optional services for Railway health probes.
+// In production we return ONLY {status} so an attacker can't fingerprint
+// our infra topology (which subsystem failed) from a public endpoint.
 app.get('/api/health', async (_req, res) => {
-  const checks = { db: 'error', redis: 'skipped', timestamp: new Date().toISOString() };
+  const checks = { db: 'error', redis: 'skipped' };
   let allOk = true;
   try {
     await db.query('SELECT 1');
@@ -313,7 +334,16 @@ app.get('/api/health', async (_req, res) => {
       allOk = false;
     }
   }
-  res.status(allOk ? 200 : 503).json({ status: allOk ? 'ok' : 'degraded', ...checks });
+  const status = allOk ? 'ok' : 'degraded';
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(allOk ? 200 : 503).json({ status });
+  }
+  res.status(allOk ? 200 : 503).json({ status, ...checks, timestamp: new Date().toISOString() });
+});
+// HEAD /api/health — for cheap uptime monitors that only care about status code
+app.head('/api/health', async (_req, res) => {
+  try { await db.query('SELECT 1'); res.status(200).end(); }
+  catch { res.status(503).end(); }
 });
 
 // .well-known files (assetlinks.json + apple-app-site-association) are served
@@ -456,6 +486,74 @@ const runStartupMigrations = async () => {
     )`));
   await migrate('idx_evc_email', () =>
     db.query(`CREATE INDEX IF NOT EXISTS idx_evc_email ON email_verification_codes(email)`));
+  await migrate('email_verification_codes attempts col', () =>
+    db.query(`ALTER TABLE email_verification_codes ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0`));
+
+  // Case-insensitive email uniqueness. The base schema has UNIQUE(email)
+  // which is case-sensitive — so "User@x.com" and "user@x.com" could
+  // create separate accounts. This expression index enforces normalization
+  // at the DB layer regardless of code path.
+  await migrate('users LOWER(email) unique', () =>
+    db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email))`));
+
+  // Pin name length at the DB layer too — the base schema declared
+  // VARCHAR with no limit (unbounded), so a single user could push
+  // a megabyte-long name through that bypassed app-layer validation.
+  await migrate('users name length cap', () =>
+    db.query(`ALTER TABLE users ALTER COLUMN name TYPE VARCHAR(100)`).catch(() => null));
+
+  // CHECK constraint on groups.type so the enum can't be bypassed.
+  await migrate('chk_groups_type', () => db.query(`
+    DO $$ BEGIN
+      ALTER TABLE groups ADD CONSTRAINT chk_groups_type
+        CHECK (type IN ('group','club','event'));
+    EXCEPTION WHEN duplicate_object THEN NULL;
+              WHEN check_violation THEN NULL;
+    END $$`));
+
+  // Lat/lng must be within valid earth bounds. Without this, app-layer
+  // validation can be bypassed by any insert path that forgets to call
+  // the validator, and a row with lat=999 silently breaks Haversine.
+  await migrate('chk_groups_lat_lng', () => db.query(`
+    DO $$ BEGIN
+      ALTER TABLE groups ADD CONSTRAINT chk_groups_lat_range
+        CHECK (lat IS NULL OR (lat BETWEEN -90 AND 90));
+    EXCEPTION WHEN duplicate_object THEN NULL;
+              WHEN check_violation THEN NULL;
+    END $$`).then(() => db.query(`
+    DO $$ BEGIN
+      ALTER TABLE groups ADD CONSTRAINT chk_groups_lng_range
+        CHECK (lng IS NULL OR (lng BETWEEN -180 AND 180));
+    EXCEPTION WHEN duplicate_object THEN NULL;
+              WHEN check_violation THEN NULL;
+    END $$`)));
+
+  // max_members must be sane. A group of 0 or negative members is broken;
+  // 10_000 is more than any real social meetup.
+  await migrate('chk_groups_max_members', () => db.query(`
+    DO $$ BEGIN
+      ALTER TABLE groups ADD CONSTRAINT chk_groups_max_members
+        CHECK (max_members IS NULL OR (max_members BETWEEN 1 AND 10000));
+    EXCEPTION WHEN duplicate_object THEN NULL;
+              WHEN check_violation THEN NULL;
+    END $$`));
+
+  // Each user owns exactly one referral code. Without this unique index
+  // an ON CONFLICT DO NOTHING insert path can silently produce multiple
+  // codes per user, splitting their referral count across rows.
+  await migrate('referral_codes user_id unique', () =>
+    db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_referral_codes_user_unique ON referral_codes(user_id)`));
+
+  // Country votes ledger so we can deduplicate per (email, country).
+  // Without this, joinWaitlist double-counts on every re-submission.
+  await migrate('waitlist_votes ledger', async () => {
+    await db.query(`CREATE TABLE IF NOT EXISTS waitlist_votes (
+      email   VARCHAR(255) NOT NULL,
+      country VARCHAR(10)  NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (email, country)
+    )`);
+  });
 
   await migrate('analytics_events', () => db.query(`
     CREATE TABLE IF NOT EXISTS analytics_events (

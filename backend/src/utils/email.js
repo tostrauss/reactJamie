@@ -23,13 +23,25 @@ const FRONTEND_URL = () => process.env.FRONTEND_URL || 'http://localhost:5173';
 let _transporter = null;
 const getTransporter = () => {
   if (_transporter) return _transporter;
+  const port = parseInt(process.env.SMTP_PORT, 10) || 587;
   _transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
-    port: parseInt(process.env.SMTP_PORT, 10) || 587,
-    secure: false, // STARTTLS on port 587
+    port,
+    // 465 = implicit TLS, anything else = STARTTLS via requireTLS.
+    secure: port === 465,
+    // Force STARTTLS upgrade. Without this nodemailer will silently fall
+    // back to plaintext if the server doesn't advertise STARTTLS — which
+    // means our SMTP_PASS goes over the wire in cleartext.
+    requireTLS: port !== 465,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
+    },
+    tls: {
+      // Refuse to connect if the SMTP cert doesn't validate. Default is
+      // permissive — flipping this off catches MITM on the SMTP route.
+      rejectUnauthorized: true,
+      minVersion: 'TLSv1.2',
     },
   });
   return _transporter;

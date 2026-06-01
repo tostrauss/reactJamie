@@ -1,9 +1,37 @@
 // Spotify Controller - Authorization Code Flow + Client Credentials for search
 import db from '../config/database.js';
+import crypto from 'crypto';
 
 const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
 const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
+
+// Default timeout for outbound Spotify calls so a hung Spotify endpoint can't
+// pin a Node thread for the duration of the express request timeout.
+const FETCH_TIMEOUT_MS = 8000;
+const timedFetch = (url, opts = {}) =>
+  fetch(url, { ...opts, signal: opts.signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+
+// OAuth CSRF state — short-lived (10 min) and single-use. Stored in memory
+// since this is a 1-instance flow; if we horizontally scale, move to Redis.
+const _pendingStates = new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [s, v] of _pendingStates) if (now > v.exp) _pendingStates.delete(s);
+}, 5 * 60_000).unref();
+const issueState = (userId) => {
+  const state = crypto.randomBytes(24).toString('hex');
+  _pendingStates.set(state, { userId, exp: Date.now() + 10 * 60_000 });
+  return state;
+};
+const consumeState = (state, userId) => {
+  if (!state || typeof state !== 'string') return false;
+  const entry = _pendingStates.get(state);
+  if (!entry || Date.now() > entry.exp) return false;
+  if (entry.userId !== userId) return false;
+  _pendingStates.delete(state);
+  return true;
+};
 
 const SCOPES = [
   'user-read-private',
@@ -31,7 +59,7 @@ const getClientToken = async () => {
   }
 
   try {
-    const res = await fetch(SPOTIFY_TOKEN_URL, {
+    const res = await timedFetch(SPOTIFY_TOKEN_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -68,7 +96,10 @@ export const getAuthUrl = (req, res) => {
     return res.status(500).json({ error: 'Spotify nicht konfiguriert' });
   }
 
-  const state = Buffer.from(JSON.stringify({ userId: req.userId })).toString('base64');
+  // Cryptographically random state pinned to the issuing user — verified in
+  // handleCallback. Without this, an attacker can craft an auth URL that
+  // links *their* Spotify account to *another* user's JAMIE account.
+  const state = issueState(req.userId);
 
   const params = new URLSearchParams({
     response_type: 'code',
@@ -90,12 +121,18 @@ export const handleCallback = async (req, res) => {
     return res.status(400).json({ error: 'Autorisierungscode fehlt' });
   }
 
+  // Verify the CSRF state — must match a token issued to THIS userId.
+  // Reject any callback that wasn't initiated by getAuthUrl on this user.
+  if (!consumeState(state, req.userId)) {
+    return res.status(400).json({ error: 'Ungültiger oder abgelaufener State-Parameter' });
+  }
+
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
   const redirectUri = process.env.SPOTIFY_REDIRECT_URI || `${process.env.FRONTEND_URL}/spotify/callback`;
 
   try {
-    const tokenRes = await fetch(SPOTIFY_TOKEN_URL, {
+    const tokenRes = await timedFetch(SPOTIFY_TOKEN_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -140,7 +177,7 @@ export const handleCallback = async (req, res) => {
     // Fetch Spotify profile
     let spotifyProfile = null;
     try {
-      const profileRes = await fetch(`${SPOTIFY_API_BASE}/me`, {
+      const profileRes = await timedFetch(`${SPOTIFY_API_BASE}/me`, {
         headers: { Authorization: `Bearer ${tokenData.access_token}` }
       });
       if (profileRes.ok) {
@@ -176,7 +213,7 @@ const refreshUserToken = async (userId) => {
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
 
   try {
-    const tokenRes = await fetch(SPOTIFY_TOKEN_URL, {
+    const tokenRes = await timedFetch(SPOTIFY_TOKEN_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -244,14 +281,17 @@ export const searchTracks = async (req, res) => {
   try {
     const { query } = req.query;
 
-    if (!query || query.trim().length < 2) {
+    if (!query || typeof query !== 'string' || query.trim().length < 2) {
       return res.status(400).json({ error: 'Suchbegriff muss mindestens 2 Zeichen lang sein' });
+    }
+    if (query.length > 200) {
+      return res.status(400).json({ error: 'Suchbegriff zu lang' });
     }
 
     const token = await getClientToken();
 
     if (token) {
-      const spotifyRes = await fetch(
+      const spotifyRes = await timedFetch(
         `${SPOTIFY_API_BASE}/search?q=${encodeURIComponent(query)}&type=track&limit=10&market=AT`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -283,7 +323,7 @@ export const getTopTracks = async (req, res) => {
     const timeRange = req.query.time_range || 'medium_term';
     const limit = Math.min(parseInt(req.query.limit) || 10, 50);
 
-    const spotifyRes = await fetch(
+    const spotifyRes = await timedFetch(
       `${SPOTIFY_API_BASE}/me/top/tracks?time_range=${timeRange}&limit=${limit}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
@@ -292,7 +332,7 @@ export const getTopTracks = async (req, res) => {
       if (spotifyRes.status === 401) {
         const newToken = await refreshUserToken(req.userId);
         if (newToken) {
-          const retryRes = await fetch(
+          const retryRes = await timedFetch(
             `${SPOTIFY_API_BASE}/me/top/tracks?time_range=${timeRange}&limit=${limit}`,
             { headers: { Authorization: `Bearer ${newToken}` } }
           );
@@ -325,7 +365,7 @@ export const getRecentlyPlayed = async (req, res) => {
 
     const limit = Math.min(parseInt(req.query.limit) || 10, 50);
 
-    const spotifyRes = await fetch(
+    const spotifyRes = await timedFetch(
       `${SPOTIFY_API_BASE}/me/player/recently-played?limit=${limit}`,
       { headers: { Authorization: `Bearer ${token}` } }
     );

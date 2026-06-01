@@ -24,11 +24,24 @@ export const getVapidKey = (_req, res) => {
 // ==========================================
 export const subscribe = async (req, res) => {
   const { endpoint, keys } = req.body;
-  if (!endpoint || !keys?.p256dh || !keys?.auth) {
+  if (!endpoint || typeof endpoint !== 'string' || !keys?.p256dh || !keys?.auth) {
     return res.status(400).json({ error: 'Invalid subscription object' });
+  }
+  // Real VAPID-protocol values: endpoint ~150B, p256dh ~88 chars, auth ~24 chars.
+  // Reject anything wildly oversized so no one can flood the DB.
+  if (endpoint.length > 1024 || keys.p256dh.length > 256 || keys.auth.length > 128) {
+    return res.status(400).json({ error: 'Subscription object too large' });
   }
 
   try {
+    // Cap subscriptions per user — one device should never produce >10 active ones
+    const count = await db.query(
+      `SELECT COUNT(*)::int AS n FROM push_subscriptions WHERE user_id = $1 AND platform = 'web'`,
+      [req.userId]
+    );
+    if ((count.rows[0]?.n ?? 0) >= 25) {
+      return res.status(429).json({ error: 'Zu viele Push-Subscriptions. Lösche alte zuerst.' });
+    }
     await db.query(
       `INSERT INTO push_subscriptions (user_id, platform, endpoint, p256dh, auth_key)
        VALUES ($1, 'web', $2, $3, $4)

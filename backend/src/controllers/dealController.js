@@ -1,7 +1,7 @@
 import db from '../config/database.js';
 import { isUserPro } from './subscriptionController.js';
 
-function validateDealInputs({ lat, lng, booking_url }) {
+function validateDealInputs({ lat, lng, booking_url, photos, name, deal_label, description, address }) {
   if (lat !== null && lat !== undefined) {
     const n = parseFloat(lat);
     if (isNaN(n) || n < -90 || n > 90) return 'lat must be between -90 and 90';
@@ -16,6 +16,23 @@ function validateDealInputs({ lat, lng, booking_url }) {
       if (!['http:', 'https:'].includes(u.protocol)) return 'booking_url must use http or https';
     } catch {
       return 'booking_url is not a valid URL';
+    }
+  }
+  if (name !== undefined && (typeof name !== 'string' || name.length > 255)) return 'name invalid';
+  if (deal_label !== undefined && (typeof deal_label !== 'string' || deal_label.length > 100)) return 'deal_label invalid';
+  if (description !== undefined && description !== null && (typeof description !== 'string' || description.length > 2000)) return 'description invalid';
+  if (address !== undefined && address !== null && (typeof address !== 'string' || address.length > 500)) return 'address invalid';
+  if (photos !== undefined && photos !== null) {
+    if (!Array.isArray(photos) || photos.length > 12) return 'photos must be an array of <=12 URLs';
+    for (const p of photos) {
+      if (typeof p !== 'string' || p.length > 1024) return 'photo URL invalid';
+      // Each photo must be a parseable http(s) URL — blocks javascript:, data:, etc.
+      try {
+        const u = new URL(p);
+        if (!['http:', 'https:'].includes(u.protocol)) return 'photo URL must be http(s)';
+      } catch {
+        return 'photo URL is not a valid URL';
+      }
     }
   }
   return null;
@@ -74,7 +91,7 @@ export const createDeal = async (req, res) => {
   if (!name || !deal_label) {
     return res.status(400).json({ error: 'name and deal_label are required' });
   }
-  const validationError = validateDealInputs({ lat, lng, booking_url });
+  const validationError = validateDealInputs({ lat, lng, booking_url, photos, name, deal_label, description, address });
   if (validationError) return res.status(400).json({ error: validationError });
   try {
     const result = await db.query(
@@ -105,7 +122,7 @@ export const createDeal = async (req, res) => {
 export const updateDeal = async (req, res) => {
   const { id } = req.params;
   const { name, category, deal_label, description, address, lat, lng, photos, booking_url, is_active } = req.body;
-  const validationError = validateDealInputs({ lat, lng, booking_url });
+  const validationError = validateDealInputs({ lat, lng, booking_url, photos, name, deal_label, description, address });
   if (validationError) return res.status(400).json({ error: validationError });
   try {
     const result = await db.query(

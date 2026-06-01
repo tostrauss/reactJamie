@@ -314,7 +314,7 @@ const Navigation = () => {
           <Link to="/profile" className={`nav-item ${isActive('/profile') ? 'active' : ''}`}>
             <div className="nav-icon">
               {user.avatar_url
-                ? <img src={user.avatar_url} alt="Profil" className="nav-avatar" />
+                ? <img src={user.avatar_url} alt="Profil" className="nav-avatar" decoding="async" fetchpriority="high" />
                 : <ProfileIcon active={isActive('/profile')} />
               }
             </div>
@@ -510,8 +510,8 @@ function AppRoutes() {
           {/* Spotify */}
           <Route path="/spotify/callback" element={<ProtectedRoute><SpotifyCallback /></ProtectedRoute>} />
 
-          {/* Admin — public but protected by secret header */}
-          <Route path="/admin" element={<AdminDashboard />} />
+          {/* Admin — requires login + is_admin flag in DB */}
+          <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
 
           {/* Legal — public, no auth required */}
           <Route path="/privacy" element={<PrivacyPolicy />} />
@@ -552,7 +552,7 @@ function AppRoutes() {
   );
 }
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '154096703629-0e84iqkd832vr2f68fv5phfhlqqfn474.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 function App() {
   const inner = (

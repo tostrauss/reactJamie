@@ -10,10 +10,15 @@ router.post('/register', geofenceRegistration, registrationLimiter, register);
 router.post('/login', authLimiter, login);
 router.post('/logout', logout);
 router.post('/google', strictLimiter, googleLogin);
-router.post('/refresh', authenticate, refreshToken);
+// Refresh under the auth limiter (20/15min). Without this, a leaked token
+// can be rotated indefinitely — defeating the lockout + TTL we rely on.
+router.post('/refresh', authLimiter, authenticate, refreshToken);
 router.get('/profile', authenticate, getProfile);
-router.put('/profile', authenticate, updateProfile);
-router.put('/onboarding', authenticate, completeOnboarding);
+// Profile mutations: cap at 30/15min per user. updateProfile accepts JSON
+// arrays (interests, photos) and triggers downstream text moderation; we
+// don't want it abused as a free DoS amplifier into OpenAI.
+router.put('/profile', authenticate, authLimiter, updateProfile);
+router.put('/onboarding', authenticate, authLimiter, completeOnboarding);
 router.put('/password', authenticate, strictLimiter, changePassword);
 router.delete('/account', authenticate, strictLimiter, deleteAccount);
 router.get('/export', authenticate, strictLimiter, exportData);

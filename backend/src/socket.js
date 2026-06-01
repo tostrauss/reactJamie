@@ -2,9 +2,10 @@ import jwt from 'jsonwebtoken';
 import db from './config/database.js';
 import { redisClient } from './config/redis.js';
 
-// 1-minute in-process membership cache for join_room.
+// 10-second in-process membership cache for join_room.
 // At 1 000 concurrent users each joining 3-5 group rooms, this prevents
 // thousands of identical SELECT 1 queries hitting the DB on every app open.
+// Short TTL keeps kicked-member latency low (max ~10s in stale state).
 const _memberCache = new Map();
 const MEMBER_CACHE_TTL = 10_000;
 
@@ -80,7 +81,14 @@ const socketHandler = (io) => {
       return next(new Error('Guest access is disabled'));
     }
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      // Verifier options must match middleware/auth.js exactly — otherwise
+      // a token valid for HTTP could be rejected on the socket or vice
+      // versa. Pinning iss/aud blocks cross-service token replay.
+      const decoded = jwt.verify(token, process.env.JWT_SECRET, {
+        algorithms: ['HS256'],
+        issuer: 'jamie-api',
+        audience: 'jamie-app',
+      });
       socket.userId = decoded.id;
       socket.isGuest = false;
       next();
@@ -117,12 +125,28 @@ const socketHandler = (io) => {
       socket.leave(groupId);
     });
 
-    // Handle new message
+    // Handle new message. The HTTP /api/messages endpoint is the source of
+    // truth for persistence + moderation; this socket event only fans the
+    // already-persisted message out to other room members. We pick a fixed
+    // shape so a malicious client cannot inject arbitrary fields, and we
+    // override identity fields from the authenticated socket — without this,
+    // any room member can impersonate any other user in real time.
     socket.on('send_message', (data) => {
+      if (!data || typeof data !== 'object') return;
       const roomId = String(data.group_id || data.groupId || '');
-      // Only broadcast if this socket has actually joined the room (join_room verifies DB membership)
       if (!roomId || !socket.rooms.has(roomId)) return;
-      socket.to(roomId).emit('receive_message', data);
+      // Whitelist fields — everything else from the client is dropped
+      const safeMessage = {
+        id:         data.id,
+        group_id:   data.group_id ?? data.groupId,
+        content:    typeof data.content === 'string' ? data.content.slice(0, 5000) : '',
+        created_at: data.created_at,
+        // user_id is authoritative — cannot be spoofed
+        user_id:    socket.userId,
+        user_name:  typeof data.user_name === 'string' ? data.user_name.slice(0, 100) : undefined,
+        avatar_url: typeof data.avatar_url === 'string' ? data.avatar_url.slice(0, 1024) : undefined,
+      };
+      socket.to(roomId).emit('receive_message', safeMessage);
     });
 
     // Handle typing indicator
@@ -130,7 +154,7 @@ const socketHandler = (io) => {
       if (!data?.groupId || !socket.rooms.has(String(data.groupId))) return;
       socket.to(String(data.groupId)).emit('user_typing', {
         userId: socket.userId,
-        userName: data.userName
+        userName: typeof data.userName === 'string' ? data.userName.slice(0, 100) : undefined,
       });
     });
 
@@ -182,12 +206,22 @@ const socketHandler = (io) => {
         if (!rows.length) return; // silently drop — not friends
       } catch { /* non-critical — degrade gracefully */ }
 
+      // Whitelist fields broadcast to the DM room — never spread raw client data.
+      // The HTTP /api/dm endpoint runs moderation + persistence; this socket
+      // event only fans the live message out for typing-indicator-style UX.
+      const safeDm = {
+        senderId,
+        receiverId: receiverIdInt,
+        message: message.slice(0, 5000),
+        timestamp: new Date(),
+      };
       const roomName = `dm_${Math.min(senderId, receiverIdInt)}_${Math.max(senderId, receiverIdInt)}`;
-      io.to(roomName).emit('receive_dm', { ...data, senderId });
+      io.to(roomName).emit('receive_dm', safeDm);
       io.to(`user_${receiverIdInt}`).emit('new_dm_notification', {
         senderId,
-        message,
-        timestamp: new Date()
+        // Notification preview — truncate so a single payload can't push 5 KB to every receiver's socket
+        message: message.slice(0, 200),
+        timestamp: safeDm.timestamp,
       });
     });
 

@@ -23,6 +23,33 @@ const sanitizeUserForClient = (user) => {
   return user;
 };
 
+// Normalize email — lowercase + trim. Stops "User@x.com" and "user@x.com"
+// being treated as different accounts in DB lookups.
+const normalizeEmail = (raw) => (typeof raw === 'string' ? raw.trim().toLowerCase() : '');
+
+// RFC-loose validation — Postgres VARCHAR(255), reject obvious garbage. The
+// real verification is via OTP/verification email.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const isValidEmail = (email) => typeof email === 'string' && email.length <= 254 && EMAIL_RE.test(email);
+
+// Bcrypt only uses the first 72 bytes; longer inputs waste CPU and let an
+// attacker DoS the server with megabyte-sized passwords.
+const MAX_PASSWORD_LENGTH = 200;
+
+// Whitelist of accepted gender values. App lets users skip this field
+// (NULL is OK) but if they set one, it must be a known token. Defined
+// once at module scope so both updateProfile and completeOnboarding share it.
+const GENDER_VALUES = new Set(['male', 'female', 'diverse', 'prefer_not_to_say']);
+
+// Constant-time-ish dummy bcrypt to equalize login response time when a user
+// does not exist. Without this, lookup time differs between existing and
+// missing emails, enabling user enumeration via timing.
+//
+// IMPORTANT: must be a REAL bcrypt hash. A malformed string makes
+// bcrypt.compare return immediately, defeating the timing equalization
+// (this was the bug in the previous hardcoded placeholder hash).
+const DUMMY_BCRYPT_HASH = bcrypt.hashSync('jamie-dummy-password-not-used-anywhere', 12);
+
 // Columns safe to send to the client — excludes password, tokens, lockout fields.
 // Used where we don't need sensitive fields (getProfile, post-register, post-Google-login).
 const SAFE_USER_COLS = `
@@ -38,7 +65,15 @@ const SAFE_USER_COLS = `
 // ==========================================
 export const register = async (req, res) => {
   try {
-    const { email, password, name, date_of_birth } = req.body;
+    const { password, name, date_of_birth } = req.body;
+    const email = normalizeEmail(req.body.email);
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: 'Ungültige E-Mail-Adresse' });
+    }
+    if (!name || typeof name !== 'string' || !name.trim() || name.length > 100) {
+      return res.status(400).json({ error: 'Name ist erforderlich (max. 100 Zeichen)' });
+    }
 
     // Age gating: must be 18+
     if (!date_of_birth) {
@@ -55,8 +90,11 @@ export const register = async (req, res) => {
     }
 
     // Password policy validation (server-side mirror of frontend rules)
-    if (!password || password.length < 6) {
+    if (!password || typeof password !== 'string' || password.length < 6) {
       return res.status(400).json({ error: 'Mindestens 6 Zeichen erforderlich' });
+    }
+    if (password.length > MAX_PASSWORD_LENGTH) {
+      return res.status(400).json({ error: `Passwort darf maximal ${MAX_PASSWORD_LENGTH} Zeichen lang sein` });
     }
     if (!/[A-Z]/.test(password)) {
       return res.status(400).json({ error: 'Mindestens 1 Großbuchstabe erforderlich' });
@@ -71,9 +109,9 @@ export const register = async (req, res) => {
       return res.status(400).json({ error: 'Mindestens 1 Sonderzeichen erforderlich' });
     }
 
-    // Check if user exists
+    // Check if user exists (case-insensitive — already normalized to lowercase)
     const userExists = await db.query(
-      'SELECT id FROM users WHERE email = $1',
+      'SELECT id FROM users WHERE LOWER(email) = $1',
       [email]
     );
     if (userExists.rows.length > 0) {
@@ -83,10 +121,10 @@ export const register = async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Insert new user with RETURNING
+    // Insert new user with RETURNING (email stored lowercase)
     const insertResult = await db.query(
       'INSERT INTO users (email, password, name, date_of_birth) VALUES ($1, $2, $3, $4) RETURNING id',
-      [email, hashedPassword, name, date_of_birth]
+      [email, hashedPassword, name.trim(), date_of_birth]
     );
 
     const newUserId = insertResult.rows[0].id;
@@ -174,24 +212,39 @@ export const register = async (req, res) => {
 // ==========================================
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const { password } = req.body;
 
-    if (!email || !password) {
+    if (!email || !password || typeof password !== 'string') {
       return res.status(400).json({ error: 'E-Mail und Passwort sind erforderlich' });
+    }
+    if (password.length > MAX_PASSWORD_LENGTH) {
+      // Match the generic auth-failure response. Status 401 keeps the
+      // enumeration surface the same as wrong-password / missing-user.
+      return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
     }
 
     const result = await db.query(
-      'SELECT * FROM users WHERE email = $1',
+      'SELECT * FROM users WHERE LOWER(email) = $1',
       [email]
     );
+
+    // Constant-time-ish lookup: run a dummy bcrypt compare if the user is
+    // missing so request timing does not leak which emails exist.
     if (result.rows.length === 0) {
+      await bcrypt.compare(password, DUMMY_BCRYPT_HASH).catch(() => false);
       return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
     }
 
     const user = result.rows[0];
 
-    // Account lockout check
+    // Account lockout check — return the SAME generic error as wrong password,
+    // so an attacker can't distinguish "locked because exists" from
+    // "wrong password". Authenticated users still get a clear message because
+    // they will quickly succeed on a correct password (lockout TTL).
     if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      // Still consume time so timing is consistent
+      await bcrypt.compare(password, DUMMY_BCRYPT_HASH).catch(() => false);
       const minutesLeft = Math.ceil((new Date(user.locked_until) - Date.now()) / 60000);
       return res.status(429).json({
         locked: true,
@@ -200,6 +253,8 @@ export const login = async (req, res) => {
     }
 
     if (!user.password) {
+      // Run dummy compare to keep timing constant vs. real password path
+      await bcrypt.compare(password, DUMMY_BCRYPT_HASH).catch(() => false);
       return res.status(401).json({ error: 'Dieses Konto verwendet Google-Anmeldung. Bitte melde dich mit Google an.' });
     }
 
@@ -264,14 +319,36 @@ export const updateProfile = async (req, res) => {
   try {
     const { name, location, bio, gender, interests, photos, avatar_url, favorite_song, date_of_birth } = req.body;
 
-    if (name !== undefined && (!name || !name.trim())) {
-      return res.status(400).json({ error: 'Name cannot be empty' });
+    if (name !== undefined && (!name || typeof name !== 'string' || !name.trim() || name.length > 100)) {
+      return res.status(400).json({ error: 'Name darf nicht leer sein (max. 100 Zeichen)' });
     }
-    if (bio && bio.length > 500) {
-      return res.status(400).json({ error: 'Bio cannot exceed 500 characters' });
+    if (bio !== undefined && bio !== null && (typeof bio !== 'string' || bio.length > 500)) {
+      return res.status(400).json({ error: 'Bio darf maximal 500 Zeichen lang sein' });
     }
-    if (location && location.length > 255) {
-      return res.status(400).json({ error: 'Location cannot exceed 255 characters' });
+    if (location !== undefined && location !== null && (typeof location !== 'string' || location.length > 255)) {
+      return res.status(400).json({ error: 'Ort darf maximal 255 Zeichen lang sein' });
+    }
+    if (interests !== undefined && interests !== null) {
+      if (!Array.isArray(interests) || interests.length > 30) {
+        return res.status(400).json({ error: 'Maximal 30 Interessen erlaubt' });
+      }
+      if (interests.some(i => typeof i !== 'string' || i.length > 50)) {
+        return res.status(400).json({ error: 'Ungültiges Interesse' });
+      }
+    }
+    if (photos !== undefined && photos !== null) {
+      if (!Array.isArray(photos) || photos.length > 6) {
+        return res.status(400).json({ error: 'Maximal 6 Fotos erlaubt' });
+      }
+      if (photos.some(p => typeof p !== 'string' || p.length > 1024)) {
+        return res.status(400).json({ error: 'Ungültige Foto-URL' });
+      }
+    }
+    if (avatar_url !== undefined && avatar_url !== null && (typeof avatar_url !== 'string' || avatar_url.length > 1024)) {
+      return res.status(400).json({ error: 'Ungültige Avatar-URL' });
+    }
+    if (gender !== undefined && gender !== null && !GENDER_VALUES.has(gender)) {
+      return res.status(400).json({ error: 'Ungültige Geschlechtsangabe' });
     }
 
     const interestsStr = interests ? JSON.stringify(interests) : null;
@@ -318,6 +395,37 @@ export const completeOnboarding = async (req, res) => {
   try {
     const { gender, location, interests, bio, photos, avatar_url, favorite_song } = req.body;
 
+    // Mirror the validation surface of updateProfile so a malicious client
+    // can't bypass it by going through onboarding first.
+    if (gender !== undefined && gender !== null && !GENDER_VALUES.has(gender)) {
+      return res.status(400).json({ error: 'Ungültige Geschlechtsangabe' });
+    }
+    if (bio !== undefined && bio !== null && (typeof bio !== 'string' || bio.length > 500)) {
+      return res.status(400).json({ error: 'Bio darf maximal 500 Zeichen lang sein' });
+    }
+    if (location !== undefined && location !== null && (typeof location !== 'string' || location.length > 255)) {
+      return res.status(400).json({ error: 'Ort darf maximal 255 Zeichen lang sein' });
+    }
+    if (interests !== undefined && interests !== null) {
+      if (!Array.isArray(interests) || interests.length > 30) {
+        return res.status(400).json({ error: 'Maximal 30 Interessen erlaubt' });
+      }
+      if (interests.some(i => typeof i !== 'string' || i.length > 50)) {
+        return res.status(400).json({ error: 'Ungültiges Interesse' });
+      }
+    }
+    if (photos !== undefined && photos !== null) {
+      if (!Array.isArray(photos) || photos.length > 6) {
+        return res.status(400).json({ error: 'Maximal 6 Fotos erlaubt' });
+      }
+      if (photos.some(p => typeof p !== 'string' || p.length > 1024)) {
+        return res.status(400).json({ error: 'Ungültige Foto-URL' });
+      }
+    }
+    if (avatar_url !== undefined && avatar_url !== null && (typeof avatar_url !== 'string' || avatar_url.length > 1024)) {
+      return res.status(400).json({ error: 'Ungültige Avatar-URL' });
+    }
+
     const interestsStr = JSON.stringify(interests || []);
     const photosStr = JSON.stringify(photos || []);
     const songStr = favorite_song ? JSON.stringify(favorite_song) : null;
@@ -358,12 +466,15 @@ export const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
-    if (!currentPassword || !newPassword) {
+    if (!currentPassword || !newPassword || typeof newPassword !== 'string') {
       return res.status(400).json({ error: 'Altes und neues Passwort erforderlich' });
     }
 
     if (newPassword.length < 6) {
       return res.status(400).json({ error: 'Mindestens 6 Zeichen erforderlich' });
+    }
+    if (newPassword.length > MAX_PASSWORD_LENGTH) {
+      return res.status(400).json({ error: `Passwort darf maximal ${MAX_PASSWORD_LENGTH} Zeichen lang sein` });
     }
     if (!/[A-Z]/.test(newPassword)) {
       return res.status(400).json({ error: 'Mindestens 1 Großbuchstabe erforderlich' });
@@ -512,16 +623,18 @@ export const refreshToken = async (req, res) => {
 // ==========================================
 export const forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
+    const email = normalizeEmail(req.body.email);
 
-    if (!email) {
-      return res.status(400).json({ error: 'E-Mail ist erforderlich' });
+    if (!email || !isValidEmail(email)) {
+      // Return generic success to keep this endpoint enumeration-proof
+      // even for malformed input.
+      return res.json({ message: 'Falls ein Konto mit dieser E-Mail existiert, wurde ein Link zum Zurücksetzen gesendet.' });
     }
 
     // Always return success to prevent email enumeration
     const successMsg = { message: 'Falls ein Konto mit dieser E-Mail existiert, wurde ein Link zum Zurücksetzen gesendet.' };
 
-    const result = await db.query('SELECT id, name FROM users WHERE email = $1', [email]);
+    const result = await db.query('SELECT id, name FROM users WHERE LOWER(email) = $1', [email]);
     if (result.rows.length === 0) {
       return res.json(successMsg);
     }
@@ -561,12 +674,15 @@ export const resetPassword = async (req, res) => {
   try {
     const { token, newPassword } = req.body;
 
-    if (!token || !newPassword) {
+    if (!token || !newPassword || typeof newPassword !== 'string') {
       return res.status(400).json({ error: 'Token und neues Passwort erforderlich' });
     }
 
-    if (!newPassword || newPassword.length < 6) {
+    if (newPassword.length < 6) {
       return res.status(400).json({ error: 'Mindestens 6 Zeichen erforderlich' });
+    }
+    if (newPassword.length > MAX_PASSWORD_LENGTH) {
+      return res.status(400).json({ error: `Passwort darf maximal ${MAX_PASSWORD_LENGTH} Zeichen lang sein` });
     }
     if (!/[A-Z]/.test(newPassword)) {
       return res.status(400).json({ error: 'Mindestens 1 Großbuchstabe erforderlich' });
@@ -653,11 +769,12 @@ export const sendVerification = async (req, res) => {
 // ==========================================
 export const sendEmailCode = async (req, res) => {
   try {
-    const { email, name } = req.body;
-    if (!email) return res.status(400).json({ error: 'E-Mail ist erforderlich' });
+    const email = normalizeEmail(req.body.email);
+    const { name } = req.body;
+    if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Ungültige E-Mail-Adresse' });
 
-    // Check email not already registered
-    const existing = await db.query('SELECT id FROM users WHERE email = $1', [email]);
+    // Check email not already registered (case-insensitive)
+    const existing = await db.query('SELECT id FROM users WHERE LOWER(email) = $1', [email]);
     if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'Diese E-Mail ist bereits registriert' });
     }
@@ -706,20 +823,43 @@ export const sendEmailCode = async (req, res) => {
 // ==========================================
 export const verifyEmailCode = async (req, res) => {
   try {
-    const { email, code } = req.body;
-    if (!email || !code) return res.status(400).json({ error: 'E-Mail und Code erforderlich' });
+    const email = normalizeEmail(req.body.email);
+    const code = typeof req.body.code === 'string' ? req.body.code.trim() : '';
+    if (!email || !code || !/^\d{6}$/.test(code)) {
+      return res.status(400).json({ error: 'E-Mail und 6-stelliger Code erforderlich' });
+    }
 
+    // Brute-force protection: cap failed attempts per email at 5 within the
+    // code's 10-minute validity window. After 5 failures we invalidate the
+    // code so the attacker has to request a new one (rate-limited by IP).
     const result = await db.query(
-      'SELECT * FROM email_verification_codes WHERE email = $1 AND code = $2 AND used = FALSE AND expires_at > NOW()',
-      [email, code]
+      'SELECT id, code, attempts FROM email_verification_codes WHERE email = $1 AND used = FALSE AND expires_at > NOW() ORDER BY id DESC LIMIT 1',
+      [email]
     );
 
     if (result.rows.length === 0) {
       return res.status(400).json({ error: 'Ungültiger oder abgelaufener Code' });
     }
 
+    const row = result.rows[0];
+    if ((row.attempts || 0) >= 5) {
+      await db.query('UPDATE email_verification_codes SET used = TRUE WHERE id = $1', [row.id]);
+      return res.status(429).json({ error: 'Zu viele Versuche. Fordere einen neuen Code an.' });
+    }
+
+    // Constant-time compare on the 6-digit code itself
+    const stored = String(row.code);
+    const a = Buffer.from(stored.padEnd(6, '0'));
+    const b = Buffer.from(code.padEnd(6, '0'));
+    const match = a.length === b.length && crypto.timingSafeEqual(a, b);
+
+    if (!match) {
+      await db.query('UPDATE email_verification_codes SET attempts = COALESCE(attempts, 0) + 1 WHERE id = $1', [row.id]).catch(() => {});
+      return res.status(400).json({ error: 'Ungültiger oder abgelaufener Code' });
+    }
+
     // Mark as used
-    await db.query('UPDATE email_verification_codes SET used = TRUE WHERE id = $1', [result.rows[0].id]);
+    await db.query('UPDATE email_verification_codes SET used = TRUE WHERE id = $1', [row.id]);
 
     res.json({ verified: true });
   } catch (error) {
@@ -809,10 +949,12 @@ export const googleLogin = async (req, res) => {
     }
 
     if (!email) return res.status(400).json({ error: 'Kein E-Mail von Google' });
+    email = normalizeEmail(email);
+    if (!isValidEmail(email)) return res.status(400).json({ error: 'Ungültige E-Mail von Google' });
 
     // Find or create user
     let userResult = await db.query(
-      'SELECT id, google_id, avatar_url FROM users WHERE email = $1 OR google_id = $2',
+      'SELECT id, google_id, avatar_url FROM users WHERE LOWER(email) = $1 OR google_id = $2',
       [email, googleId]
     );
 

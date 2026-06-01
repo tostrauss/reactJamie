@@ -3,6 +3,18 @@ import jwt from 'jsonwebtoken';
 // Guest access only allowed when explicitly enabled via env var
 const isGuestAllowed = () => process.env.ALLOW_GUEST_TOKEN === 'true';
 
+// JWT issuer + audience claims. Even though we sign with our own secret,
+// pinning iss/aud means a token leaked from this app cannot be replayed
+// against a future sibling service that shares the same key — and vice
+// versa. Verifier rejects mismatches outright.
+const JWT_ISSUER   = 'jamie-api';
+const JWT_AUDIENCE = 'jamie-app';
+const JWT_VERIFY_OPTS = {
+  algorithms: ['HS256'],
+  issuer: JWT_ISSUER,
+  audience: JWT_AUDIENCE,
+};
+
 const extractToken = (req) => {
   // 1. httpOnly cookie (preferred — XSS-proof)
   if (req.cookies?.auth_token) return req.cookies.auth_token;
@@ -25,7 +37,11 @@ export const authenticate = (req, res, next) => {
       return next();
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Pin algorithm to HS256 explicitly. Without this, jsonwebtoken accepts
+    // any algorithm listed in the header — an attacker could supply
+    // alg: 'none' or trick the verifier into using an asymmetric public
+    // key as an HMAC secret. iss/aud bind tokens to this service.
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, JWT_VERIFY_OPTS);
     req.userId = decoded.id;
     req.isGuest = false;
     next();
@@ -46,7 +62,7 @@ export const optionalAuth = (req, res, next) => {
       return next();
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, JWT_VERIFY_OPTS);
     req.userId = decoded.id;
     req.isGuest = false;
     next();
@@ -57,7 +73,12 @@ export const optionalAuth = (req, res, next) => {
 };
 
 export const generateToken = (userId) =>
-  jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+    algorithm: 'HS256',
+    expiresIn: '7d',
+    issuer: JWT_ISSUER,
+    audience: JWT_AUDIENCE,
+  });
 
 // Set httpOnly auth cookie — call this after generating a token
 export const setAuthCookie = (res, token) => {

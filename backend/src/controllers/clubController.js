@@ -298,13 +298,15 @@ export const deleteClub = async (req, res) => {
     const { id } = req.params;
 
     const club = await db.query(
-      'SELECT owner_id FROM groups WHERE id = $1 AND type = $2',
+      'SELECT owner_id FROM groups WHERE id = $1 AND type = $2 AND deleted_at IS NULL',
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
     if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
 
-    await db.query('DELETE FROM groups WHERE id = $1 AND type = $2', [id, CLUB_TYPE]);
+    // Soft delete — preserves messages, reviews, and member history.
+    // Mirrors deleteGroup behaviour so audit trails are recoverable.
+    await db.query('UPDATE groups SET deleted_at = NOW(), is_active = FALSE WHERE id = $1', [id]);
     invalidatePrefix('clubs:');
     invalidatePrefix('map:');
     res.json({ message: 'Club deleted successfully' });
@@ -322,26 +324,27 @@ export const joinClub = async (req, res) => {
     const { id } = req.params;
     const { message } = req.body;
 
+    // Reject messages from non-members early
+    if (message && (typeof message !== 'string' || message.length > 500)) {
+      return res.status(400).json({ error: 'Nachricht darf maximal 500 Zeichen lang sein' });
+    }
+
     const clubResult = await db.query(
-      'SELECT * FROM groups WHERE id = $1 AND type = $2',
+      'SELECT id, is_private FROM groups WHERE id = $1 AND type = $2 AND deleted_at IS NULL',
       [id, CLUB_TYPE]
     );
     if (clubResult.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
+    const isPrivate = clubResult.rows[0].is_private;
 
     const existing = await db.query(
-      'SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2',
+      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
       [id, req.userId]
     );
     if (existing.rows.length > 0) return res.status(400).json({ error: 'Already a member' });
 
-    const c = clubResult.rows[0];
-    if (c.max_members && c.members_count >= c.max_members) {
-      return res.status(400).json({ error: 'Club is full' });
-    }
-
-    if (c.is_private) {
+    if (isPrivate) {
       const existingReq = await db.query(
-        `SELECT * FROM group_join_requests 
+        `SELECT 1 FROM group_join_requests
          WHERE group_id = $1 AND user_id = $2 AND status = 'pending'`,
         [id, req.userId]
       );
@@ -356,10 +359,30 @@ export const joinClub = async (req, res) => {
       return res.json({ message: 'Join request sent', status: 'pending' });
     }
 
-    await db.query(
-      'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
-      [id, req.userId, 'member']
-    );
+    // Public join — enforce capacity inside a transaction so concurrent joins
+    // can never both pass the members_count check and exceed max_members.
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const cap = await client.query(
+        'SELECT members_count, max_members FROM groups WHERE id = $1 FOR UPDATE',
+        [id]
+      );
+      if (cap.rows[0].max_members && cap.rows[0].members_count >= cap.rows[0].max_members) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Club is full' });
+      }
+      await client.query(
+        'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+        [id, req.userId, 'member']
+      );
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
 
     res.json({ message: 'Joined club successfully', status: 'joined' });
   } catch (err) {
@@ -568,17 +591,37 @@ export const handleClubJoinRequest = async (req, res) => {
     const joinReq = request.rows[0];
 
     if (action === 'accept') {
-      await db.query(
-        `UPDATE group_join_requests 
-         SET status = 'accepted', updated_at = CURRENT_TIMESTAMP 
-         WHERE id = $1`,
-        [requestId]
-      );
-
-      await db.query(
-        'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-        [id, joinReq.user_id, 'member']
-      );
+      // Enforce capacity inside a transaction so two concurrent accepts
+      // can't both push the club over max_members. Mirror of the same
+      // fix in groupController.handleJoinRequest.
+      const client = await db.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const cap = await client.query(
+          'SELECT members_count, max_members FROM groups WHERE id = $1 FOR UPDATE',
+          [id]
+        );
+        if (cap.rows[0].members_count >= cap.rows[0].max_members) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: 'Club ist bereits voll. Anfrage kann nicht angenommen werden.' });
+        }
+        await client.query(
+          `UPDATE group_join_requests
+           SET status = 'accepted', updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1`,
+          [requestId]
+        );
+        await client.query(
+          'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+          [id, joinReq.user_id, 'member']
+        );
+        await client.query('COMMIT');
+      } catch (txErr) {
+        await client.query('ROLLBACK');
+        throw txErr;
+      } finally {
+        client.release();
+      }
 
       res.json({ message: 'Request accepted', status: 'accepted' });
     } else if (action === 'reject') {
