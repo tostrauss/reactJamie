@@ -116,7 +116,7 @@ export const GroupEdit = () => {
       {/* ── Cover + Header ── */}
       <div className="ge-cover">
         {group?.image_url
-          ? <img src={group.image_url} alt="" className="ge-cover-img" />
+          ? <img src={group.image_url} alt="" className="ge-cover-img" decoding="async" fetchpriority="high" />
           : <div className="ge-cover-placeholder" />
         }
         <div className="ge-cover-overlay" />
@@ -156,7 +156,7 @@ export const GroupEdit = () => {
                     onClick={() => !isSelf && navigate(`/user/${mid}`)}
                   >
                     {member.avatar_url
-                      ? <img src={member.avatar_url} alt={member.name} />
+                      ? <img src={member.avatar_url} alt={member.name} loading="lazy" decoding="async" />
                       : <span>{(member.name || '?')[0].toUpperCase()}</span>
                     }
                   </div>
@@ -210,7 +210,7 @@ export const GroupEdit = () => {
                 >
                   <div className="ge-avatar ge-avatar-lg">
                     {friend.avatar_url
-                      ? <img src={friend.avatar_url} alt={friend.name} />
+                      ? <img src={friend.avatar_url} alt={friend.name} loading="lazy" decoding="async" />
                       : <span>{(friend.name || '?')[0].toUpperCase()}</span>
                     }
                   </div>

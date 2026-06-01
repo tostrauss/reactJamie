@@ -120,7 +120,7 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
                   fontSize: 16, fontWeight: 700, color: '#fff',
                 }}>
                   {member.avatar_url
-                    ? <img src={member.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ? <img src={member.avatar_url} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     : member.name?.[0]?.toUpperCase()}
                 </div>
 

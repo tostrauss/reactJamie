@@ -63,7 +63,7 @@ const SpotifySongPicker = ({ currentSong, onSelect, onRemove }) => {
           <div className="song-picker-current">
             <div className="favorite-song">
               {currentSong.cover && (
-                <img src={currentSong.cover} alt={currentSong.title} className="song-cover" />
+                <img src={currentSong.cover} alt={currentSong.title} className="song-cover" loading="lazy" decoding="async" />
               )}
               <div className="song-info">
                 <span className="song-title">{currentSong.title}</span>
@@ -127,7 +127,7 @@ const SpotifySongPicker = ({ currentSong, onSelect, onRemove }) => {
             onClick={() => handleSelect(song)}
           >
             {song.cover ? (
-              <img src={song.cover} alt={song.title} className="song-result-cover" />
+              <img src={song.cover} alt={song.title} className="song-result-cover" loading="lazy" decoding="async" />
             ) : (
               <div className="song-result-cover placeholder">🎵</div>
             )}

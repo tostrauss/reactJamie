@@ -83,7 +83,7 @@ export const Friends = () => {
   const Avatar = ({ src, name, size = 48 }) => (
     <div className="fr-avatar" style={{ width: size, height: size, fontSize: size * 0.4 }}>
       {src
-        ? <img src={src} alt={name} />
+        ? <img src={src} alt={name} loading="lazy" decoding="async" />
         : <span>{(name || '?')[0].toUpperCase()}</span>
       }
     </div>

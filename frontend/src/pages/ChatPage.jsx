@@ -158,7 +158,7 @@ export const ChatPage = () => {
           </div>
         </div>
         {group.image_url && (
-          <img src={group.image_url} alt={group.name || group.title} className="chat-page-avatar" onClick={() => navigate(`/group/${groupId}`)} style={{ cursor: 'pointer' }} />
+          <img src={group.image_url} alt={group.name || group.title} className="chat-page-avatar" onClick={() => navigate(`/group/${groupId}`)} style={{ cursor: 'pointer' }} decoding="async" fetchpriority="high" />
         )}
       </div>
 

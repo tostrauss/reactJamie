@@ -260,7 +260,7 @@ export default function MapView({ typeFilter }) {
             >
               <div className="map-popup" onClick={() => navigate(`/group/${selectedPin.id}`)}>
                 {selectedPin.image_url && (
-                  <img src={selectedPin.image_url} alt={selectedPin.name} className="map-popup-img" />
+                  <img src={selectedPin.image_url} alt={selectedPin.name} className="map-popup-img" loading="lazy" decoding="async" />
                 )}
                 <div className="map-popup-body">
                   <div className="map-popup-badges">

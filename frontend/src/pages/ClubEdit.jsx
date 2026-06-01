@@ -186,7 +186,7 @@ export const ClubEdit = () => {
               <div key={member.id || member.user_id} className="member-row">
                 <div className="member-avatar">
                   {member.avatar_url ? (
-                    <img src={member.avatar_url} alt={member.name} />
+                    <img src={member.avatar_url} alt={member.name} loading="lazy" decoding="async" />
                   ) : (
                     <div className="avatar-initial">
                       {(member.name || '?')[0].toUpperCase()}
@@ -223,7 +223,7 @@ export const ClubEdit = () => {
                 <div key={friend.id} className="member-row">
                   <div className="member-avatar">
                     {friend.avatar_url ? (
-                      <img src={friend.avatar_url} alt={friend.name} />
+                      <img src={friend.avatar_url} alt={friend.name} loading="lazy" decoding="async" />
                     ) : (
                       <div className="avatar-initial">
                         {(friend.name || '?')[0].toUpperCase()}

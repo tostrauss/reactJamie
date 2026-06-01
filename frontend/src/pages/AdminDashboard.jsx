@@ -201,7 +201,7 @@ export const AdminDashboard = () => {
                     fontSize: 14, fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden',
                   }}>
                     {u.avatar_url
-                      ? <img src={u.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ? <img src={u.avatar_url} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : u.name?.[0]?.toUpperCase()}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>

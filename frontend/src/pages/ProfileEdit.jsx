@@ -242,7 +242,7 @@ export const ProfileEdit = () => {
         <div className="pe-avatar-wrapper">
           <div className="pe-avatar">
             {avatarPreview ? (
-              <img src={avatarPreview} alt="Avatar" />
+              <img src={avatarPreview} alt="Avatar" decoding="async" />
             ) : (
               <span>{(user?.name || '?')[0].toUpperCase()}</span>
             )}
@@ -512,7 +512,7 @@ export const ProfileEdit = () => {
           <div className="pe-photo-grid">
             {(formData.photos || []).map((url, i) => (
               <div key={i} className="pe-photo-cell">
-                <img src={url} alt="" />
+                <img src={url} alt="" loading="lazy" decoding="async" />
                 <button
                   type="button"
                   className="pe-photo-remove"

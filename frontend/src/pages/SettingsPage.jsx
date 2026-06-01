@@ -183,7 +183,7 @@ export const SettingsPage = () => {
       <div className="settings-user-card" onClick={() => navigate('/profile')}>
         <div className="settings-user-avatar">
           {user?.avatar_url ? (
-            <img src={user.avatar_url} alt={user.name} />
+            <img src={user.avatar_url} alt={user.name} decoding="async" />
           ) : (
             <span>{(user?.name || '?')[0].toUpperCase()}</span>
           )}
@@ -317,7 +317,7 @@ export const SettingsPage = () => {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   {item.image_url
-                    ? <img src={item.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ? <img src={item.image_url} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     : <span style={{ fontSize: 18 }}>{favTab === 'clubs' ? '🏆' : '📅'}</span>
                   }
                 </div>

@@ -322,7 +322,7 @@ export const CreateGroup = () => {
             <div className="image-upload-area">
               {formData.imagePreview ? (
                 <div className="image-preview">
-                  <img src={formData.imagePreview} alt="Vorschau" />
+                  <img src={formData.imagePreview} alt="Vorschau" decoding="async" />
                   <button
                     className="remove-image"
                     onClick={() => {
@@ -532,7 +532,7 @@ export const CreateGroup = () => {
           <p className="preview-intro">So sieht deine Gruppe aus 👀</p>
           <div className="preview-card">
             {formData.imagePreview ? (
-              <img src={formData.imagePreview} alt="Vorschau" className="preview-image" />
+              <img src={formData.imagePreview} alt="Vorschau" className="preview-image" decoding="async" />
             ) : (
               <div className="preview-image-placeholder">🏃</div>
             )}

@@ -105,7 +105,7 @@ export const DealDetail = () => {
             fontSize: 48,
           }}>🍵</div>
         ) : photos.length === 1 ? (
-          <img src={photos[0]} alt={deal.name} style={{ width: '100%', height: 280, objectFit: 'cover', display: 'block' }} />
+          <img src={photos[0]} alt={deal.name} style={{ width: '100%', height: 280, objectFit: 'cover', display: 'block' }} decoding="async" fetchpriority="high" />
         ) : (
           <div style={{
             display: 'grid',

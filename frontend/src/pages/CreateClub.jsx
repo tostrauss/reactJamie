@@ -194,7 +194,7 @@ export const CreateClub = () => {
             <div className="image-upload-area">
               {imagePreview ? (
                 <div className="image-preview">
-                  <img src={imagePreview} alt="Vorschau" />
+                  <img src={imagePreview} alt="Vorschau" decoding="async" />
                   <button className="remove-image" onClick={() => { if (imageBlobRef.current) { URL.revokeObjectURL(imageBlobRef.current); imageBlobRef.current = null; } setImagePreview(null); setFormData(prev => ({ ...prev, image_url: null })); }}>×</button>
                 </div>
               ) : (
@@ -322,7 +322,7 @@ export const CreateClub = () => {
           
           <div className="preview-card">
             {imagePreview ? (
-              <img src={imagePreview} alt="Vorschau" className="preview-image" />
+              <img src={imagePreview} alt="Vorschau" className="preview-image" decoding="async" />
             ) : (
               <div className="preview-image-placeholder"><span>🏆</span></div>
             )}

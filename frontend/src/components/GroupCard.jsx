@@ -1,5 +1,31 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+// Renders an avatar image with graceful fallback. If the URL is missing, fails
+// to load, or returns a non-image response (e.g. SPA index.html for a stale path),
+// we drop the <img> entirely and show the initial-letter placeholder instead.
+const AvatarImage = memo(({ src, alt, fallbackChar, placeholderStyle }) => {
+  const [broken, setBroken] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  if (!src || broken) {
+    return (
+      <div className="avatar-placeholder" style={placeholderStyle}>
+        {(fallbackChar || '?').slice(0, 1).toUpperCase()}
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      className={`card-img-fade${loaded ? ' loaded' : ''}`}
+      onLoad={() => setLoaded(true)}
+      onError={() => setBroken(true)}
+    />
+  );
+});
 
 function formatDate(dateStr) {
   if (!dateStr) return null;
@@ -76,25 +102,22 @@ export const GroupCard = memo(({
       <div className="card-photo-grid">
         {isClub ? (
           <div className="avatar-slot card-club-full-image" style={{ gridColumn: '1 / -1', gridRow: '1 / -1', borderRadius: '12px' }}>
-            {group.image_url ? (
-              <img src={group.image_url} alt={group.name || group.title} loading="lazy" decoding="async" className="card-img-fade" onLoad={e => e.currentTarget.classList.add('loaded')} />
-            ) : (
-              <div className="avatar-placeholder" style={{ fontSize: 48, fontWeight: 700 }}>
-                {(group.category || group.name || group.title || '?')[0].toUpperCase()}
-              </div>
-            )}
+            <AvatarImage
+              src={group.image_url}
+              alt={group.name || group.title || ''}
+              fallbackChar={group.category || group.name || group.title}
+              placeholderStyle={{ fontSize: 48, fontWeight: 700 }}
+            />
           </div>
         ) : (
           <>
             {memberAvatars.map((member) => (
               <div key={member.id} className="avatar-slot">
-                {member.avatar_url ? (
-                  <img src={member.avatar_url} alt={member.name} loading="lazy" decoding="async" className="card-img-fade" onLoad={e => e.currentTarget.classList.add('loaded')} />
-                ) : (
-                  <div className="avatar-placeholder">
-                    {(member.name || '?')[0].toUpperCase()}
-                  </div>
-                )}
+                <AvatarImage
+                  src={member.avatar_url}
+                  alt={member.name || ''}
+                  fallbackChar={member.name}
+                />
               </div>
             ))}
             {[...Array(emptySpots)].map((_, idx) => (

@@ -74,7 +74,7 @@ const FeedCard = memo(({ item, hallOfFame, navigate }) => {
           <div className="ef-av" style={{ background: seedColor(item.id, 3) }} />
           <div className="ef-av ef-av--front">
             {item.owner_avatar
-              ? <img src={item.owner_avatar} alt="" />
+              ? <img src={item.owner_avatar} alt="" loading="lazy" decoding="async" />
               : (item.owner_name || '?')[0].toUpperCase()}
           </div>
         </div>
@@ -85,7 +85,7 @@ const FeedCard = memo(({ item, hallOfFame, navigate }) => {
         <div className="ef-user">
           <div className="ef-user-av">
             {item.owner_avatar
-              ? <img src={item.owner_avatar} alt={item.owner_name} />
+              ? <img src={item.owner_avatar} alt={item.owner_name} loading="lazy" decoding="async" />
               : <span style={{ background: seedColor(item.id) }}>{(item.owner_name || '?')[0].toUpperCase()}</span>}
           </div>
           <div className="ef-user-meta">

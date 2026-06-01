@@ -4,7 +4,10 @@ import { useGoogleLogin } from '@react-oauth/google';
 import { AuthContext } from '../context/AuthContext';
 import '../styles/auth.css';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '154096703629-0e84iqkd832vr2f68fv5phfhlqqfn474.apps.googleusercontent.com';
+// Read from env only. App.jsx skips wrapping in GoogleOAuthProvider when this
+// is absent, so we must skip the button here too — otherwise useGoogleLogin
+// throws when invoked outside the provider.
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 const GoogleLoginButton = ({ onError }) => {
   const { loginWithGoogle } = useContext(AuthContext);

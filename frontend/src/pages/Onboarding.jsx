@@ -321,7 +321,7 @@ export const Onboarding = () => {
               >
                 {formData.photos[index] ? (
                   <>
-                    <img src={formData.photos[index]} alt={`Foto ${index + 1}`} />
+                    <img src={formData.photos[index]} alt={`Foto ${index + 1}`} decoding="async" />
                     {formData.photos[index] === formData.avatar_url && (
                       <div className="main-badge">Profilbild</div>
                     )}
@@ -358,7 +358,7 @@ export const Onboarding = () => {
           <div className="profile-preview-card">
             <div className="preview-avatar">
               {formData.avatar_url ? (
-                <img src={formData.avatar_url} alt="Profil" />
+                <img src={formData.avatar_url} alt="Profil" decoding="async" />
               ) : (
                 <span>👤</span>
               )}

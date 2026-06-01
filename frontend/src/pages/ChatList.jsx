@@ -564,7 +564,7 @@ export const ChatList = () => {
                       {nextReq && (
                         <div className="next-card-preview">
                           {nextReq.user_avatar
-                            ? <img src={nextReq.user_avatar} alt="" />
+                            ? <img src={nextReq.user_avatar} alt="" loading="lazy" decoding="async" />
                             : <div style={{ width: '100%', height: '100%', background: 'var(--bg-input)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: 'var(--accent-coral)' }}>
                                 {(nextReq.user_name || '?')[0].toUpperCase()}
                               </div>

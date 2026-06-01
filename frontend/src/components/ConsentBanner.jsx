@@ -20,7 +20,7 @@ export function ConsentBanner() {
   return (
     <div style={{
       position: 'fixed',
-      bottom: 'calc(80px + env(safe-area-inset-bottom, 0px))',
+      bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))',
       left: 0, right: 0,
       zIndex: 9000,
       background: 'rgba(18,12,34,0.97)',

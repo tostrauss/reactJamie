@@ -454,7 +454,7 @@ export const Home = () => {
                     <div key={club.id} className="my-club-card" onClick={() => handleCardClick(club.id)}>
                       <div className="my-club-image">
                         {club.image_url
-                          ? <img src={club.image_url} alt={club.name || club.title} />
+                          ? <img src={club.image_url} alt={club.name || club.title} loading="lazy" decoding="async" />
                           : <div className="my-club-placeholder"><span>{(club.name || club.title || 'C')[0]}</span></div>
                         }
                       </div>

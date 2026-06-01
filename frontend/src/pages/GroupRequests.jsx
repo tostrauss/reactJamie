@@ -161,7 +161,7 @@ export const GroupRequests = () => {
             <div className="request-card">
               <div className="request-image-container">
                 {currentRequest.user_avatar ? (
-                  <img src={currentRequest.user_avatar} alt={currentRequest.user_name} className="request-user-image" />
+                  <img src={currentRequest.user_avatar} alt={currentRequest.user_name} className="request-user-image" decoding="async" fetchpriority="high" />
                 ) : (
                   <div className="request-avatar-placeholder">
                     {(currentRequest.user_name || '?')[0].toUpperCase()}
@@ -191,7 +191,7 @@ export const GroupRequests = () => {
             {currentIndex < requests.length - 1 && (
               <div className="next-card-preview">
                 {requests[currentIndex + 1].user_avatar ? (
-                  <img src={requests[currentIndex + 1].user_avatar} alt="Nächste" />
+                  <img src={requests[currentIndex + 1].user_avatar} alt="Nächste" loading="lazy" decoding="async" />
                 ) : (
                   <div style={{ width: '100%', height: '100%', background: 'var(--bg-input)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, color: 'var(--coral)' }}>
                     {(requests[currentIndex + 1].user_name || '?')[0].toUpperCase()}

@@ -62,11 +62,11 @@ export const ImageUpload = ({ onUpload, label = "Bild hochladen" }) => {
             {label}
           </>
         )}
-        <input 
-          type="file" 
-          accept="image/jpeg,image/png,image/webp" 
-          onChange={handleFile} 
-          style={{ display: 'none' }} 
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          onChange={handleFile}
+          style={{ display: 'none' }}
           disabled={uploading}
         />
       </label>
