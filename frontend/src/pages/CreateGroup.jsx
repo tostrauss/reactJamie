@@ -30,7 +30,7 @@ export const CreateGroup = () => {
     timeHour: '',
     timeMinute: '00',
     location: '',
-    maxMembers: 4,
+    maxMembers: 20,
     level: 'Alle Levels',
     isPublic: true,
     image: null,

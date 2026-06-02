@@ -39,11 +39,20 @@ export const SocketProvider = ({ children }) => {
         wasConnectedRef.current = true;
       });
 
+      // Delay the warning toast by 3s so brief network glitches that
+      // socket.io recovers from automatically don't surface to the user.
+      let disconnectTimer = null;
       newSocket.on('disconnect', (reason) => {
         setIsConnected(false);
         if (reason !== 'io client disconnect') {
-          toast.warning('Verbindung unterbrochen – Wiederverbindung...');
+          if (disconnectTimer) clearTimeout(disconnectTimer);
+          disconnectTimer = setTimeout(() => {
+            toast.warning('Verbindung unterbrochen – Wiederverbindung...');
+          }, 3000);
         }
+      });
+      newSocket.on('connect', () => {
+        if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
       });
 
       newSocket.on('connect_error', () => {

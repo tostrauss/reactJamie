@@ -23,6 +23,14 @@ export const ChatPage = () => {
   const { socket, isConnected } = useContext(SocketContext);
   const toast = useToast();
   const messagesEndRef = useRef(null);
+  // Banner only appears after 3s of sustained disconnection — avoids
+  // scary flashes during routine network blips that socket.io recovers from.
+  const [showReconnectBanner, setShowReconnectBanner] = useState(false);
+  useEffect(() => {
+    if (isConnected) { setShowReconnectBanner(false); return; }
+    const t = setTimeout(() => setShowReconnectBanner(true), 3000);
+    return () => clearTimeout(t);
+  }, [isConnected]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -162,8 +170,8 @@ export const ChatPage = () => {
         )}
       </div>
 
-      {/* Reconnection Banner */}
-      {!isConnected && (
+      {/* Reconnection Banner — only after 3s sustained disconnect */}
+      {showReconnectBanner && (
         <div className="reconnect-banner">
           Verbindung unterbrochen – Wiederverbindung...
         </div>

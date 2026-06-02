@@ -220,7 +220,20 @@
   box-shadow: 0 2px 12px rgba(0,0,0,0.3);
 }
 .gd-anfragen-btn:active { background: var(--bg-hover); transform: scale(0.97); }
-.gd-anfragen-btn.joined { color: #4ade80; }
+/* "Chat öffnen" — user is already a member, so keep it subtle. Grey reads as
+   "settled / done" instead of green which screamed action-needed. */
+.gd-anfragen-btn.joined { color: rgba(255, 255, 255, 0.6); }
+
+/* One-time pulse on the join CTA so it draws the eye when you first land on
+   a group page you haven't joined yet. Runs ~3 cycles then stops. */
+.gd-anfragen-btn.cta-pulse {
+  animation: gdJoinPulse 1.6s ease-out 3;
+}
+@keyframes gdJoinPulse {
+  0%   { box-shadow: 0 2px 12px rgba(0,0,0,0.3), 0 0 0 0 rgba(253, 118, 102, 0.55); }
+  70%  { box-shadow: 0 2px 12px rgba(0,0,0,0.3), 0 0 0 14px rgba(253, 118, 102, 0); }
+  100% { box-shadow: 0 2px 12px rgba(0,0,0,0.3), 0 0 0 0 rgba(253, 118, 102, 0); }
+}
 
 /* ── Body ── */
 .gd-body {
