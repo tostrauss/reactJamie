@@ -3,6 +3,7 @@ import { geocodeLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { sendPushToUser } from './pushController.js';
 import { getCached, setCached, invalidatePrefix } from '../utils/cache.js';
+import { postSystemMessage } from '../utils/systemMessage.js';
 
 const GROUPS_TTL  = 30_000;  // 30 s — acceptable staleness for list views
 const AVATARS_TTL = 60_000;  // 60 s — avatars change only on join/leave
@@ -136,6 +137,13 @@ export const createGroup = async (req, res) => {
     if (coords?.lat && coords?.lng) {
       checkAndAwardPioneer(userId, newGroup.id, coords.lat, coords.lng).catch(() => {});
     }
+
+    // Welcome system message (fire-and-forget, no live broadcast — nobody is
+    // in the chat yet anyway).
+    const welcomeText = (type || 'group') === 'club'
+      ? `Willkommen bei ${newGroup.name}! Stell euch kurz vor 👋`
+      : `Willkommen bei ${newGroup.name}! Stell dich kurz vor 👋`;
+    postSystemMessage(newGroup.id, welcomeText).catch(() => {});
 
     invalidatePrefix('groups:');
     invalidatePrefix('map:');
@@ -463,6 +471,15 @@ export const joinGroup = async (req, res) => {
       notifyGroupJoin(req.userId, g.owner_id, g.name || '').catch(() => {});
     }
 
+    // Post a "X ist beigetreten 🎉" system message, broadcast live to anyone
+    // currently in the chat room. Fire-and-forget — never let it break the join.
+    db.query('SELECT name FROM users WHERE id = $1', [req.userId])
+      .then(r => {
+        const name = r.rows[0]?.name || 'Jemand';
+        postSystemMessage(id, `${name} ist der Gruppe beigetreten 🎉`, req.app.get('io')).catch(() => {});
+      })
+      .catch(() => {});
+
     invalidatePrefix(`user_groups:${req.userId}`);
     res.json({ message: 'Joined group successfully', status: 'joined' });
   } catch (err) {
@@ -753,6 +770,14 @@ export const handleJoinRequest = async (req, res) => {
       }
 
       sendPushToUser(joinReq.user_id, 'Beitrittsanfrage akzeptiert', `Du bist jetzt Mitglied von "${gname}"`, `/group/${id}`);
+
+      // Post "X ist beigetreten 🎉" so existing members see it. Fire-and-forget.
+      db.query('SELECT name FROM users WHERE id = $1', [joinReq.user_id])
+        .then(r => {
+          const name = r.rows[0]?.name || 'Jemand';
+          postSystemMessage(id, `${name} ist der Gruppe beigetreten 🎉`, req.app.get('io')).catch(() => {});
+        })
+        .catch(() => {});
 
       res.json({ message: 'Request accepted', status: 'accepted' });
     } else if (action === 'reject') {

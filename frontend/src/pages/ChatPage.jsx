@@ -197,17 +197,29 @@ export const ChatPage = () => {
             </button>
           </div>
         )}
-        {(Array.isArray(messageList) ? messageList : []).map((msg, index) => (
-          <div key={msg.id || index} className={`message ${msg.user_id === user?.id ? 'sent' : 'received'}`}>
-            {msg.user_id !== user?.id && (
-              <div className="message-sender">{msg.user_name}</div>
-            )}
-            <div className="message-content">{msg.content}</div>
-            <div className="message-time">
-              {new Date(msg.created_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+        {(Array.isArray(messageList) ? messageList : []).map((msg, index) => {
+          // System messages (welcome, join announcements) render as a centered
+          // pill instead of a sender bubble. Backend marks them with
+          // message_type='system' and a null user_id.
+          if (msg.message_type === 'system') {
+            return (
+              <div key={msg.id || index} className="message-system">
+                {msg.content}
+              </div>
+            );
+          }
+          return (
+            <div key={msg.id || index} className={`message ${msg.user_id === user?.id ? 'sent' : 'received'}`}>
+              {msg.user_id !== user?.id && (
+                <div className="message-sender">{msg.user_name}</div>
+              )}
+              <div className="message-content">{msg.content}</div>
+              <div className="message-time">
+                {new Date(msg.created_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div ref={messagesEndRef} />
       </div>
 

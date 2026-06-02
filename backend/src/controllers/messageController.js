@@ -91,7 +91,7 @@ export const getMessages = async (req, res) => {
     }
 
     const result = await db.query(
-      `SELECT m.id, m.group_id, m.user_id, m.content, m.created_at,
+      `SELECT m.id, m.group_id, m.user_id, m.content, m.message_type, m.created_at,
               u.name AS user_name, u.avatar_url
        FROM messages m
        LEFT JOIN users u ON m.user_id = u.id

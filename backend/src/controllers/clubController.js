@@ -2,6 +2,7 @@ import db from '../config/database.js';
 import { geocodeLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { getCached, setCached, invalidatePrefix } from '../utils/cache.js';
+import { postSystemMessage } from '../utils/systemMessage.js';
 
 const CLUBS_TTL = 30_000; // 30 s
 
@@ -86,6 +87,9 @@ export const createClub = async (req, res) => {
       'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
       [newClub.id, userId, 'owner']
     );
+
+    // Welcome system message — no live broadcast (chat is empty on creation).
+    postSystemMessage(newClub.id, `Willkommen bei ${newClub.name}! Stell euch kurz vor 👋`).catch(() => {});
 
     invalidatePrefix('clubs:');
     invalidatePrefix('map:');
@@ -384,6 +388,14 @@ export const joinClub = async (req, res) => {
       client.release();
     }
 
+    // "X ist beigetreten 🎉" — live to the chat room.
+    db.query('SELECT name FROM users WHERE id = $1', [req.userId])
+      .then(r => {
+        const name = r.rows[0]?.name || 'Jemand';
+        postSystemMessage(id, `${name} ist dem Club beigetreten 🎉`, req.app.get('io')).catch(() => {});
+      })
+      .catch(() => {});
+
     res.json({ message: 'Joined club successfully', status: 'joined' });
   } catch (err) {
     console.error('Error joining club:', err);
@@ -633,6 +645,14 @@ export const handleClubJoinRequest = async (req, res) => {
       } finally {
         client.release();
       }
+
+      // "X ist beigetreten 🎉" — fire-and-forget, live to chat room.
+      db.query('SELECT name FROM users WHERE id = $1', [joinReq.user_id])
+        .then(r => {
+          const name = r.rows[0]?.name || 'Jemand';
+          postSystemMessage(id, `${name} ist dem Club beigetreten 🎉`, req.app.get('io')).catch(() => {});
+        })
+        .catch(() => {});
 
       res.json({ message: 'Request accepted', status: 'accepted' });
     } else if (action === 'reject') {
