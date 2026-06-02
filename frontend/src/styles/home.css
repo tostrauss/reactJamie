@@ -300,13 +300,23 @@
 
 .groups-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 24px;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+/* Single-column on mobile → switch group cards to a 4:3 landscape banner
+   so the title gets enough room and one whole card fits in view. */
+.groups-grid .group-card {
+  aspect-ratio: 4 / 3;
 }
 
 @media (min-width: 768px) {
   .groups-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
+  }
+  /* On wider screens the 2-col layout makes 3:4 portrait fit naturally. */
+  .groups-grid .group-card {
+    aspect-ratio: 3 / 4;
   }
 }
 
@@ -357,7 +367,7 @@
 }
 
 .card-title {
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 700;
   font-family: 'Archivo', -apple-system, sans-serif;
   color: var(--accent-coral);
