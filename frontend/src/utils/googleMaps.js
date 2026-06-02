@@ -1,0 +1,57 @@
+/**
+ * Lazy loader for the Google Maps JS API with the `places` library.
+ *
+ * Used by location-input pages (CreateGroup, CreateClub) that need
+ * google.maps.places.Autocomplete. The MapView component goes through
+ * @react-google-maps/api separately because react-google-maps and a
+ * hand-rolled <script> can coexist as long as both reference the same
+ * key and the script is only injected once.
+ *
+ * Idempotent: multiple callers can call loadGoogleMaps() in any order;
+ * the script is injected once, and any pending onGoogleMapsReady
+ * callbacks fire as soon as the SDK signals ready (via a global
+ * callback name).
+ */
+
+let loading = false;
+let loaded  = false;
+const pending = [];
+
+const GLOBAL_CB = '__jamieGoogleMapsReady';
+
+export function loadGoogleMaps(apiKey) {
+  if (loaded) {
+    flush();
+    return;
+  }
+  if (loading) return;
+  if (!apiKey) return;
+  loading = true;
+
+  window[GLOBAL_CB] = () => {
+    loaded = true;
+    loading = false;
+    flush();
+  };
+
+  const s = document.createElement('script');
+  s.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=de&callback=${GLOBAL_CB}`;
+  s.async = true;
+  s.defer = true;
+  document.head.appendChild(s);
+}
+
+export function onGoogleMapsReady(cb) {
+  if (loaded) {
+    cb();
+    return;
+  }
+  pending.push(cb);
+}
+
+function flush() {
+  while (pending.length) {
+    const cb = pending.shift();
+    try { cb(); } catch (err) { console.error('[googleMaps] callback error:', err); }
+  }
+}

@@ -3,32 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { groups, api as axiosInstance } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
+import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
 import '../styles/create.css';
-
-// ── Google Places loader (runs once per page) ─────────────────────────────────
-let googleMapsLoading = false;
-let googleMapsLoaded  = false;
-const mapsCallbacks   = [];
-function loadGoogleMaps(apiKey) {
-  if (googleMapsLoaded) { mapsCallbacks.forEach(cb => cb()); mapsCallbacks.length = 0; return; }
-  if (googleMapsLoading) return;
-  googleMapsLoading = true;
-  window.__googleMapsReady = () => {
-    googleMapsLoaded = true;
-    googleMapsLoading = false;
-    mapsCallbacks.forEach(cb => cb());
-    mapsCallbacks.length = 0;
-  };
-  const s = document.createElement('script');
-  s.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=de&callback=__googleMapsReady`;
-  s.async = true;
-  document.head.appendChild(s);
-}
-function onGoogleMapsReady(cb) {
-  if (googleMapsLoaded) { cb(); return; }
-  mapsCallbacks.push(cb);
-}
-// ─────────────────────────────────────────────────────────────────────────────
 
 export const CreateGroup = () => {
   const navigate = useNavigate();

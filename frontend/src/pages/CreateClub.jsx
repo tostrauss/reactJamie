@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { clubs, upload } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
+import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
 import '../styles/create.css';
 
 export const CreateClub = () => {
@@ -13,7 +14,10 @@ export const CreateClub = () => {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
-  
+
+  const locationRef     = useRef(null);
+  const autocompleteRef = useRef(null);
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -35,6 +39,36 @@ export const CreateClub = () => {
   useEffect(() => {
     return () => { if (imageBlobRef.current) URL.revokeObjectURL(imageBlobRef.current); };
   }, []);
+
+  // Start loading the Google Maps script (with places library) on mount so
+  // it's ready by the time the user reaches the Standort field on step 2.
+  useEffect(() => {
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    if (apiKey) loadGoogleMaps(apiKey);
+  }, []);
+
+  // Attach Places Autocomplete to the Standort input once it renders.
+  // Restricted to AT/DE/CH to match the app's geofence.
+  useEffect(() => {
+    if (step !== 2) return;
+    const attach = () => {
+      if (!window.google?.maps?.places) return;
+      if (autocompleteRef.current) return;
+      if (!locationRef.current) return;
+      const ac = new window.google.maps.places.Autocomplete(locationRef.current, {
+        componentRestrictions: { country: ['at', 'de', 'ch'] },
+        fields: ['formatted_address', 'name'],
+      });
+      ac.addListener('place_changed', () => {
+        const place = ac.getPlace();
+        const val = place.formatted_address || place.name || '';
+        if (val) setFormData(prev => ({ ...prev, location: val }));
+      });
+      autocompleteRef.current = ac;
+    };
+    const timer = setTimeout(() => onGoogleMapsReady(attach), 50);
+    return () => clearTimeout(timer);
+  }, [step]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -215,12 +249,14 @@ export const CreateClub = () => {
           <div className="form-section">
             <label className="form-label">Standort *</label>
             <input
+              ref={locationRef}
               type="text"
               name="location"
               value={formData.location}
               onChange={handleInputChange}
               placeholder="z.B. Wien"
               className="input"
+              autoComplete="off"
             />
           </div>
 
