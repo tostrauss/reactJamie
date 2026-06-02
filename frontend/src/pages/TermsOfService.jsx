@@ -27,7 +27,7 @@ export default function TermsOfService() {
         <p>
           Der Dienst wird betrieben von:<br />
           <strong>JAMIE</strong><br />
-          Kontakt: <a href="mailto:legal@getjamie.app" style={{ color: 'var(--coral)' }}>legal@getjamie.app</a>
+          Kontakt: <a href="mailto:legal@jamie-app.com" style={{ color: 'var(--coral)' }}>legal@jamie-app.com</a>
         </p>
       </Section>
 
@@ -164,8 +164,8 @@ export default function TermsOfService() {
       <Section title="14. Kontakt">
         <p>
           Bei Fragen zu diesen Nutzungsbedingungen wende dich an:{' '}
-          <a href="mailto:legal@getjamie.app" style={{ color: 'var(--coral)' }}>
-            legal@getjamie.app
+          <a href="mailto:legal@jamie-app.com" style={{ color: 'var(--coral)' }}>
+            legal@jamie-app.com
           </a>
         </p>
       </Section>

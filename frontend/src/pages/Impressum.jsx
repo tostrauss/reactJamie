@@ -27,8 +27,8 @@ export default function Impressum() {
       <Section title="Kontakt">
         <p>
           E-Mail:{' '}
-          <a href="mailto:legal@getjamie.app" style={{ color: 'var(--coral)' }}>
-            legal@getjamie.app
+          <a href="mailto:legal@jamie-app.com" style={{ color: 'var(--coral)' }}>
+            legal@jamie-app.com
           </a>
         </p>
       </Section>

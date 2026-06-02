@@ -521,7 +521,7 @@ export const SettingsPage = () => {
             : chevron}
         </div>
 
-        <a href="mailto:support@getjamie.app" className="settings-row" style={{ textDecoration: 'none', color: 'inherit' }}>
+        <a href="mailto:support@jamie-app.com" className="settings-row" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="settings-row-left">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10"/>
@@ -530,7 +530,7 @@ export const SettingsPage = () => {
             </svg>
             <div className="settings-row-stacked">
               <span>Hilfe & Support</span>
-              <span className="settings-row-detail">support@getjamie.app</span>
+              <span className="settings-row-detail">support@jamie-app.com</span>
             </div>
           </div>
           {chevron}
@@ -538,7 +538,7 @@ export const SettingsPage = () => {
 
         <div className="settings-row static">
           <div className="settings-row-left" style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', gap: 6 }}>
-            <span>Rechtliche Fragen: <a href="mailto:legal@getjamie.app" style={{ color: 'var(--coral)' }}>legal@getjamie.app</a></span>
+            <span>Rechtliche Fragen: <a href="mailto:legal@jamie-app.com" style={{ color: 'var(--coral)' }}>legal@jamie-app.com</a></span>
           </div>
         </div>
       </div>

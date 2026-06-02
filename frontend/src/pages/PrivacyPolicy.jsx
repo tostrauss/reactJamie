@@ -18,8 +18,8 @@ export default function PrivacyPolicy() {
         <p>
           Verantwortlich für die Verarbeitung deiner personenbezogenen Daten im Sinne der DSGVO ist
           der Betreiber der JAMIE-App. Bei Fragen wende dich an:{' '}
-          <a href="mailto:privacy@getjamie.app" style={{ color: 'var(--coral)' }}>
-            privacy@getjamie.app
+          <a href="mailto:privacy@jamie-app.com" style={{ color: 'var(--coral)' }}>
+            privacy@jamie-app.com
           </a>
         </p>
       </Section>
@@ -85,8 +85,8 @@ export default function PrivacyPolicy() {
         <p>
           Diese Prüfungen laufen vollautomatisch. Wenn du der Meinung bist, dass ein Inhalt
           zu Unrecht blockiert wurde, kannst du dich jederzeit an{' '}
-          <a href="mailto:privacy@getjamie.app" style={{ color: 'var(--coral)' }}>
-            privacy@getjamie.app
+          <a href="mailto:privacy@jamie-app.com" style={{ color: 'var(--coral)' }}>
+            privacy@jamie-app.com
           </a>{' '}
           wenden (Widerspruchsrecht gem. Art. 22 DSGVO).
         </p>
@@ -111,8 +111,8 @@ export default function PrivacyPolicy() {
         </ul>
         <p>
           Zur Ausübung deiner Rechte wende dich an{' '}
-          <a href="mailto:privacy@getjamie.app" style={{ color: 'var(--coral)' }}>
-            privacy@getjamie.app
+          <a href="mailto:privacy@jamie-app.com" style={{ color: 'var(--coral)' }}>
+            privacy@jamie-app.com
           </a>
           . Du hast außerdem das Recht, dich bei der zuständigen Datenschutzbehörde zu beschweren.
         </p>

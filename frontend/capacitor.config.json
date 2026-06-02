@@ -5,7 +5,7 @@
   "server": {
     "androidScheme": "https",
     "iosScheme": "https",
-    "hostname": "app.getjamie.app"
+    "hostname": "app.jamie-app.com"
   },
   "ios": {
     "contentInset": "never",

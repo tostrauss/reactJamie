@@ -46,7 +46,7 @@ async function _fetchNominatim(location) {
     const timeout = setTimeout(() => controller.abort(), 5000);
 
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'JAMIE-App/1.0 (contact@jamie.app)' },
+      headers: { 'User-Agent': 'JAMIE-App/1.0 (contact@jamie-app.com)' },
       signal: controller.signal,
     });
 

@@ -24,9 +24,9 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 | `DATABASE_URL` | ✅ | Railway Postgres connection string |
 | `JWT_SECRET` | ✅ | Min 64 random chars |
 | `SESSION_SECRET` | ✅ | Min 64 random chars |
-| `FRONTEND_URL` | ✅ | e.g. `https://app.getjamie.app` |
-| `EMAIL_FROM` | ✅ | e.g. `JAMIE <noreply@getjamie.app>` |
-| `RESEND_API_KEY` | ✅ | From resend.com dashboard |
+| `FRONTEND_URL` | ✅ | e.g. `https://app.jamie-app.com` (comma-separate for multiple origins) |
+| `EMAIL_FROM` | ✅ | e.g. `JAMIE <noreply@jamie-app.com>` — must be a verified Resend domain |
+| `RESEND_API_KEY` | ✅ | From resend.com → API Keys. Used by `utils/email.js` via the Resend HTTP API. |
 | `DB_SSL_REJECT_UNAUTHORIZED` | ⚠️ | Set `false` for Railway Postgres (self-signed cert) |
 | `STORAGE_ENDPOINT` | ✅ prod | Cloudflare R2: `https://<id>.r2.cloudflarestorage.com` |
 | `STORAGE_ACCESS_KEY` | ✅ prod | R2 Access Key ID |
@@ -50,7 +50,7 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 
 | Variable | Notes |
 |---|---|
-| `VITE_API_URL` | e.g. `https://api.getjamie.app` |
+| `VITE_API_URL` | Monorepo deploy: leave unset (uses `/api` via same origin). Split deploy: `https://api.jamie-app.com`. |
 | `VITE_VAPID_PUBLIC_KEY` | Same as backend `VAPID_PUBLIC_KEY` |
 | `VITE_GOOGLE_CLIENT_ID` | Same as `GOOGLE_CLIENT_ID` |
 | `VITE_SENTRY_DSN` | Optional — Sentry error tracking |
@@ -173,7 +173,7 @@ npx cap open ios
 - [ ] App description in German (primary) + English
 - [ ] Age rating questionnaire
 - [ ] IDFA / ATT dialog if tracking (not required if no ad tracking)
-- [ ] `apple-app-site-association` file served at `https://app.getjamie.app/.well-known/apple-app-site-association`
+- [ ] `apple-app-site-association` file served at `https://app.jamie-app.com/.well-known/apple-app-site-association` (Content-Type: application/json)
 
 ### Push notifications (APNs)
 
@@ -233,7 +233,7 @@ bash 4-verify-assetlinks.sh   # Verifies digital asset links
 ### Digital Asset Links (required for TWA)
 
 `frontend/public/.well-known/assetlinks.json` must be served at:
-`https://getjamie.app/.well-known/assetlinks.json`
+`https://app.jamie-app.com/.well-known/assetlinks.json`
 
 Verify with:
 ```bash
@@ -245,9 +245,13 @@ bash twa/4-verify-assetlinks.sh
 ## 7. Domain & HTTPS Setup
 
 ```
-app.getjamie.app    → Frontend (Vercel / static host)
-api.getjamie.app    → Backend (Railway)
-getjamie.app        → Redirect or landing page (must serve assetlinks.json + AASA)
+# Monorepo deploy (CURRENT — uses root Dockerfile + railway.toml)
+app.jamie-app.com   → Railway (frontend + backend on one origin)
+                      Serves assetlinks.json + AASA from /.well-known/
+
+# (Split-deploy alternative — kept here for reference, not active)
+# app.jamie-app.com → Frontend (Vercel / static host)
+# api.jamie-app.com → Backend (Railway)
 ```
 
 All must have valid TLS certificates (Let's Encrypt via Railway/Vercel auto-configures this).
