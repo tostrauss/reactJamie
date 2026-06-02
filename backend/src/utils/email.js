@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import { Sentry } from '../config/sentry.js';
 
 const escapeHtml = (str) => String(str || '')
   .replace(/&/g, '&amp;')
@@ -13,56 +13,59 @@ if (!_rawFrom && process.env.NODE_ENV === 'production') {
   console.error('FATAL: EMAIL_FROM environment variable must be set in production');
   process.exit(1);
 }
-const _effectiveFrom = _rawFrom || 'noreply@jamie.app';
-const _match = _effectiveFrom.match(/<(.+)>/);
-const FROM_EMAIL = _match ? _match[1] : _effectiveFrom;
-const FRONTEND_URL = () => process.env.FRONTEND_URL || 'http://localhost:5173';
+const _effectiveFrom = _rawFrom || 'noreply@jamie-app.com';
+// Accept either "JAMIE <noreply@x>" or bare "noreply@x" — Resend expects the
+// header form, so we always rebuild it from the parsed parts below.
+const _addrMatch = _effectiveFrom.match(/<(.+)>/);
+const FROM_EMAIL = _addrMatch ? _addrMatch[1] : _effectiveFrom;
+const FROM_HEADER = `${FROM_NAME} <${FROM_EMAIL}>`;
 
-// Lazy-initialised transporter — only created on first send so missing SMTP
-// vars don't crash the server on startup (they just fail at send time).
-let _transporter = null;
-const getTransporter = () => {
-  if (_transporter) return _transporter;
-  const port = parseInt(process.env.SMTP_PORT, 10) || 587;
-  _transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp-relay.brevo.com',
-    port,
-    // 465 = implicit TLS, anything else = STARTTLS via requireTLS.
-    secure: port === 465,
-    // Force STARTTLS upgrade. Without this nodemailer will silently fall
-    // back to plaintext if the server doesn't advertise STARTTLS — which
-    // means our SMTP_PASS goes over the wire in cleartext.
-    requireTLS: port !== 465,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-    tls: {
-      // Refuse to connect if the SMTP cert doesn't validate. Default is
-      // permissive — flipping this off catches MITM on the SMTP route.
-      rejectUnauthorized: true,
-      minVersion: 'TLSv1.2',
-    },
-  });
-  return _transporter;
-};
+const FRONTEND_URL = () => process.env.FRONTEND_URL?.split(',')[0]?.trim() || 'http://localhost:5173';
+
+const RESEND_URL = 'https://api.resend.com/emails';
 
 const sendEmail = async ({ to, subject, html }) => {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.warn('[email] SMTP_USER / SMTP_PASS not set — skipping email to', to);
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn('[email] RESEND_API_KEY not set — skipping email to', to);
     return;
   }
 
-  const transporter = getTransporter();
-  const info = await transporter.sendMail({
-    from: `${FROM_NAME} <${FROM_EMAIL}>`,
-    to,
-    subject,
-    html,
-  });
+  // Hard timeout: SMTP would block the request handler indefinitely on a
+  // dead provider. Resend usually responds in <500ms; 8s is generous.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
 
-  console.log('[email] Sent to', to, '— messageId:', info.messageId);
-  return info;
+  try {
+    const response = await fetch(RESEND_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from: FROM_HEADER, to, subject, html }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      // Read the body for diagnostics but DO NOT include the request payload —
+      // it contains the OTP / reset URL. Resend's error body is just a message.
+      const errBody = await response.text().catch(() => '');
+      const msg = `Resend ${response.status}: ${errBody.slice(0, 300)}`;
+      console.error('[email] send failed:', msg);
+      Sentry.captureMessage?.(`Email send failed: ${response.status}`, {
+        level: 'error',
+        extra: { to, subject, status: response.status },
+      });
+      throw new Error(msg);
+    }
+
+    const data = await response.json().catch(() => ({}));
+    console.log('[email] Sent to', to, '— id:', data.id);
+    return data;
+  } finally {
+    clearTimeout(timeout);
+  }
 };
 
 export const sendPasswordResetEmail = async (email, token, userName) => {

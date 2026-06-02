@@ -31,8 +31,8 @@ if (process.env.NODE_ENV === 'production') {
   const REQUIRED = [
     ['JWT_SECRET',        'JWT token signing key'],
     ['DATABASE_URL',      'PostgreSQL connection string'],
-    ['EMAIL_FROM',        'verified sender address (e.g. noreply@jamie.app)'],
-    ['RESEND_API_KEY',    'Resend transactional email API key'],
+    ['EMAIL_FROM',        'verified sender address (e.g. noreply@jamie-app.com)'],
+    ['RESEND_API_KEY',    'Resend transactional email API key (used by utils/email.js via api.resend.com)'],
     ['FRONTEND_URL',      'public frontend URL for email links'],
   ];
 
@@ -236,6 +236,23 @@ app.use(pinoHttp({
 // ==========================================
 if (process.env.NODE_ENV === 'production') {
   const publicPath = path.resolve(__dirname, '../public');
+
+  // Explicit handlers for the two .well-known files used for app deep links.
+  // express.static guesses Content-Type from extension — apple-app-site-association
+  // has no extension, so it gets served as application/octet-stream and Apple's
+  // CDN rejects it. assetlinks.json has the right extension but Google requires
+  // utf-8 application/json with no transformation.
+  app.get('/.well-known/apple-app-site-association', (_req, res) => {
+    res.type('application/json');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.sendFile(path.join(publicPath, '.well-known', 'apple-app-site-association'));
+  });
+  app.get('/.well-known/assetlinks.json', (_req, res) => {
+    res.type('application/json');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.sendFile(path.join(publicPath, '.well-known', 'assetlinks.json'));
+  });
+
   app.use(express.static(publicPath, {
     setHeaders(res, filePath) {
       // Vite emits hashed filenames (e.g. index-BdEtbxXM.js) — safe to cache forever

@@ -1,3 +1,7 @@
+# Local-dev only — used by docker-compose.yml for the monorepo simulation
+# where the frontend runs as a separate `node:20-alpine` container.
+# Production deploys to Railway use the root Dockerfile (monorepo bundle).
+
 FROM node:20-alpine
 
 WORKDIR /app
@@ -13,7 +17,6 @@ COPY . .
 # files uploaded by users won't survive redeploys. See DEPLOYMENT.md)
 RUN mkdir -p uploads
 
-# Railway injects PORT at runtime; default matches local dev
 ENV PORT=5000
 ENV NODE_ENV=production
 

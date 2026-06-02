@@ -479,28 +479,5 @@ CREATE TRIGGER trg_waitlist_reorder
 
 
 -- Seed data lives in backend/src/config/seed.sql (dev only, not applied automatically).
-
-INSERT INTO friendships (requester_id, addressee_id, status) VALUES
-    (1, 2, 'accepted'),
-    (1, 3, 'accepted'),
-    (3, 4, 'accepted'),
-    (6, 1, 'pending'),
-    (5, 1, 'pending')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO messages (group_id, user_id, content) VALUES
-    (2, 2, 'Hey where do we meet?'),
-    (3, 4, 'Hey guys!!'),
-    (4, 5, 'Great idea!'),
-    (1, 1, 'Freue mich auf die Wanderung!'),
-    (1, 3, 'Ich auch! Wird super!'),
-    (2, 3, 'Bin dabei, bis Samstag!'),
-    (5, 2, 'Willkommen im Club alle zusammen!')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO notifications (user_id, sender_id, type, title, message, reference_type, reference_id) VALUES
-    (2, 6, 'join_request', 'Neue Anfrage', 'Max möchte Volleyball beitreten', 'group', 2),
-    (1, 2, 'new_message', 'Neue Nachricht', 'Mats hat in Wandern geschrieben', 'group', 1),
-    (1, 6, 'friend_request', 'Freundschaftsanfrage', 'Max möchte dein Freund sein', 'user', 6),
-    (1, 5, 'friend_request', 'Freundschaftsanfrage', 'Chantal möchte dein Freund sein', 'user', 5)
-ON CONFLICT DO NOTHING;
+-- Do NOT add INSERTs that reference user IDs here — on a fresh production DB
+-- they will trip foreign-key constraints because no users exist yet.
