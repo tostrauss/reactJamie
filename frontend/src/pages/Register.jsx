@@ -462,6 +462,7 @@ export const Register = () => {
               </div>
               <label style={{
                 display: 'flex', alignItems: 'flex-start', gap: 10,
+                width: '100%', textAlign: 'left',
                 fontSize: 13, color: 'rgba(255,255,255,0.65)',
                 lineHeight: 1.5, cursor: 'pointer', marginTop: 4,
               }}>
@@ -471,7 +472,7 @@ export const Register = () => {
                   onChange={(e) => setConsentGiven(e.target.checked)}
                   style={{ marginTop: 2, flexShrink: 0, accentColor: 'var(--coral)' }}
                 />
-                <span>
+                <span style={{ flex: 1, minWidth: 0 }}>
                   Ich habe die{' '}
                   <Link to="/privacy" target="_blank" style={{ color: 'var(--coral)' }}>
                     Datenschutzerklärung
