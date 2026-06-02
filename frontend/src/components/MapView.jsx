@@ -133,15 +133,28 @@ export default function MapView({ typeFilter }) {
   }, [typeFilter, selectedCategory, selectedDate]);
 
   // ── Fit bounds when pins change ───────────────────────────────
+  // Outlier guard: ignore pins outside the DACH/Europe-wide bounding box when
+  // computing the viewport. Without it, a single bad-data pin (e.g. a typo'd
+  // location that Nominatim resolves to Papua New Guinea) zooms the map out
+  // to global scale and hides every real pin clustered around Wien.
+  const isPlausibleEuropePin = (p) =>
+    p.lat > 35 && p.lat < 60 && p.lng > -10 && p.lng < 30;
+
   useEffect(() => {
     if (!mapRef.current || !window.google || pins.length === 0) return;
-    if (pins.length === 1) {
-      mapRef.current.panTo({ lat: pins[0].lat, lng: pins[0].lng });
+    const usable = pins.filter(isPlausibleEuropePin);
+    if (usable.length === 0) {
+      mapRef.current.panTo(WIEN);
+      mapRef.current.setZoom(11);
+      return;
+    }
+    if (usable.length === 1) {
+      mapRef.current.panTo({ lat: usable[0].lat, lng: usable[0].lng });
       mapRef.current.setZoom(13);
       return;
     }
     const bounds = new window.google.maps.LatLngBounds();
-    pins.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
+    usable.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
     mapRef.current.fitBounds(bounds, 60);
   }, [pins]);
 
