@@ -2013,6 +2013,14 @@ input:checked + .slider:before {
   grid-template-columns: 1fr;
 }
 
+/* Clubs render the same GroupCard component as groups, but the default
+   3:4 portrait ratio combined with full-width 1-col makes a single card
+   taller than an iPhone viewport. Use a 4:3 landscape banner for clubs
+   instead — distinct from groups, and you can see a whole one on screen. */
+.clubs-grid .group-card {
+  aspect-ratio: 4 / 3;
+}
+
 /* ========================================
    FILTER BOTTOM SHEET
    ======================================== */
