@@ -307,8 +307,6 @@ export const Home = () => {
 
   const handleTabSwitch = (tab) => {
     setActiveTab(tab);
-    setSelectedMain('all');
-    setSelectedSub(null);
     if (tab !== 'karte') setSearchQuery('');
   };
 
