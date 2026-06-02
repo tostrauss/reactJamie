@@ -334,8 +334,12 @@ a:hover {
   color: var(--accent-coral);
 }
 
-/* Input Fields */
-input, textarea, select {
+/* Input Fields — exclude checkbox/radio so they keep their native rendering.
+   Without :not(), a bare `input { width:100%; padding:16px 20px }` rule turns
+   every consent checkbox into a ~150px black square. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+textarea,
+select {
   width: 100%;
   padding: 16px 20px;
   font-size: 16px;
@@ -347,11 +351,14 @@ input, textarea, select {
   transition: all var(--transition-fast);
 }
 
-input::placeholder, textarea::placeholder {
+input:not([type="checkbox"]):not([type="radio"])::placeholder,
+textarea::placeholder {
   color: var(--text-muted);
 }
 
-input:focus, textarea:focus, select:focus {
+input:not([type="checkbox"]):not([type="radio"]):focus,
+textarea:focus,
+select:focus {
   border-color: var(--accent-coral);
   background: var(--bg-hover);
 }

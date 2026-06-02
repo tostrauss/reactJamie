@@ -13,10 +13,12 @@ const INTEREST_OPTIONS = [
 
 const STEPS = ['Geschlecht', 'Profil', 'Interessen', 'Fotos', 'Fertig'];
 
+// value: backend enum (en) \u2014 must match GENDER_VALUES in authController.js
+// label: user-facing German text
 const GENDER_OPTIONS = [
-  { value: 'm\u00e4nnlich', label: 'M\u00e4nnlich', icon: '\u2642' },
-  { value: 'weiblich', label: 'Weiblich', icon: '\u2640' },
-  { value: 'divers', label: 'Divers', icon: '\u26A7' }
+  { value: 'male',    label: 'M\u00e4nnlich', icon: '\u2642' },
+  { value: 'female',  label: 'Weiblich',      icon: '\u2640' },
+  { value: 'diverse', label: 'Divers',        icon: '\u26A7' }
 ];
 
 export const Onboarding = () => {

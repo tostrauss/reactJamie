@@ -25,10 +25,11 @@ const AVAILABLE_INTERESTS = [
   { name: 'Schwimmen', icon: '\u{1F3CA}' }
 ];
 
+// value: backend enum (en) \u2014 must match GENDER_VALUES in authController.js
 const GENDER_OPTIONS = [
-  { value: 'male', label: 'M\u00e4nnlich' },
-  { value: 'female', label: 'Weiblich' },
-  { value: 'other', label: 'Divers' }
+  { value: 'male',    label: 'M\u00e4nnlich' },
+  { value: 'female',  label: 'Weiblich' },
+  { value: 'diverse', label: 'Divers' }
 ];
 
 export const ProfileEdit = () => {
