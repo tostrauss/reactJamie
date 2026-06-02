@@ -28,6 +28,10 @@ export const getMapPins = async (req, res) => {
       dateCondition = `AND g.date >= CURRENT_DATE + INTERVAL '1 day' AND g.date < CURRENT_DATE + INTERVAL '2 days'`;
     }
 
+    // Approval gate: pending/rejected clubs never appear on the public map.
+    // Groups (type='group') are unaffected — they keep their default
+    // 'approved' status from the migration. Owners can still see their own
+    // pending clubs via /api/clubs (list endpoint), just not on the map.
     let query = `
       SELECT g.id, g.name, g.type, g.category, g.location,
              g.lat, g.lng, g.members_count, g.max_members,
@@ -39,6 +43,7 @@ export const getMapPins = async (req, res) => {
         AND g.deleted_at IS NULL
         AND g.lat IS NOT NULL
         AND g.lng IS NOT NULL
+        AND g.approval_status = 'approved'
         ${dateCondition}
     `;
     const params = [];

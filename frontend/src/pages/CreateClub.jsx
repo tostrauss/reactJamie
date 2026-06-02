@@ -121,7 +121,17 @@ export const CreateClub = () => {
         type: 'club'
       });
 
-      navigate(`/group/${response.data.id}`);
+      // Backend stamps approval_status='pending' for non-admin owners.
+      // Route them home with an explanatory toast instead of into the
+      // newly-created (but invisible to everyone else) club detail page.
+      if (response.data?.approval_status === 'pending') {
+        toast.success(
+          'Dein Club wartet auf Freischaltung. Wir prüfen ihn innerhalb von 24 Stunden — du bekommst Bescheid, sobald er live ist.'
+        );
+        navigate('/home');
+      } else {
+        navigate(`/group/${response.data.id}`);
+      }
     } catch (err) {
       const msg = err.response?.data?.error || 'Fehler beim Erstellen';
       setError(msg);

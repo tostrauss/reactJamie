@@ -529,6 +529,10 @@ export const admin = {
   exportUsers: () => axiosInstance.get('/admin/export/users'),
   exportScreens: () => axiosInstance.get('/admin/export/screens'),
   exportSuggestions: () => axiosInstance.get('/admin/export/suggestions'),
+  // Club approval queue (#14)
+  getPendingClubs: () => axiosInstance.get('/admin/clubs/pending'),
+  approveClub: (id) => axiosInstance.post(`/admin/clubs/${id}/approve`),
+  rejectClub: (id) => axiosInstance.post(`/admin/clubs/${id}/reject`),
 };
 
 // ==========================================

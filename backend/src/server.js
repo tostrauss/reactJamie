@@ -660,6 +660,20 @@ const runStartupMigrations = async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS parent_club_id INTEGER REFERENCES groups(id) ON DELETE CASCADE`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_parent_club ON groups(parent_club_id) WHERE parent_club_id IS NOT NULL`);
   });
+  // Approval workflow for user-created clubs.
+  // Default 'approved' so existing rows + Admin/seed creates stay visible.
+  // createClub flips to 'pending' for non-admin owners; admins can then
+  // approve/reject via /api/admin/clubs/*.
+  await migrate('groups.approval_status', async () => {
+    await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) NOT NULL DEFAULT 'approved'`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_approval_status ON groups(approval_status) WHERE type = 'club'`);
+    await db.query(`DO $$ BEGIN
+      ALTER TABLE groups ADD CONSTRAINT chk_groups_approval_status
+        CHECK (approval_status IN ('approved','pending','rejected'));
+    EXCEPTION WHEN duplicate_object THEN NULL;
+              WHEN check_violation THEN NULL;
+    END $$`);
+  });
   await migrate('friendships.expires_at', async () => {
     await db.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_friendships_expires ON friendships(expires_at) WHERE status = 'pending'`);

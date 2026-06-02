@@ -171,6 +171,75 @@ export const exportScreens = async (_req, res) => {
 };
 
 // ==========================================
+// PENDING CLUBS (admin approval queue)
+// ==========================================
+export const getPendingClubs = async (_req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT g.id, g.name, g.description, g.category, g.location,
+             g.image_url, g.created_at,
+             u.id AS owner_id, u.name AS owner_name, u.email AS owner_email
+      FROM groups g
+      LEFT JOIN users u ON g.owner_id = u.id
+      WHERE g.type = 'club'
+        AND g.approval_status = 'pending'
+        AND g.deleted_at IS NULL
+      ORDER BY g.created_at ASC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('getPendingClubs error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const approveClub = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(
+      `UPDATE groups
+       SET approval_status = 'approved', updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND type = 'club' AND approval_status = 'pending'
+       RETURNING id, name`,
+      [id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Pending club not found' });
+    }
+    // Bust caches so the club appears in public listings immediately.
+    try {
+      const { invalidatePrefix } = await import('../utils/cache.js');
+      invalidatePrefix('clubs:');
+      invalidatePrefix('map:');
+    } catch { /* non-fatal */ }
+    res.json({ success: true, club: result.rows[0] });
+  } catch (err) {
+    console.error('approveClub error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const rejectClub = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(
+      `UPDATE groups
+       SET approval_status = 'rejected', is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND type = 'club' AND approval_status = 'pending'
+       RETURNING id, name`,
+      [id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Pending club not found' });
+    }
+    res.json({ success: true, club: result.rows[0] });
+  } catch (err) {
+    console.error('rejectClub error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
 // EXPORT: category suggestions
 // ==========================================
 export const exportSuggestions = async (_req, res) => {

@@ -37,22 +37,26 @@ export const AdminDashboard = () => {
   const [stats, setStats] = useState(null);
   const [screens, setScreens] = useState([]);
   const [recentUsers, setRecentUsers] = useState([]);
+  const [pendingClubs, setPendingClubs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [exportLoading, setExportLoading] = useState('');
+  const [clubActionId, setClubActionId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const [statsRes, screensRes, usersRes] = await Promise.all([
+      const [statsRes, screensRes, usersRes, clubsRes] = await Promise.all([
         admin.getStats(),
         admin.getScreenTime(),
         admin.getUsers(20),
+        admin.getPendingClubs().catch(() => ({ data: [] })),
       ]);
       setStats(statsRes.data);
       setScreens(screensRes.data || []);
       setRecentUsers(usersRes.data || []);
+      setPendingClubs(clubsRes.data || []);
     } catch (err) {
       if (err.response?.status === 401) {
         navigate('/login');
@@ -134,6 +138,91 @@ export const AdminDashboard = () => {
           <KPICard label="Gruppen (Events)" value={g.total_groups} />
           <KPICard label="Clubs" value={g.total_clubs} />
           <KPICard label="Bewertungen" value={stats?.reviews} />
+        </div>
+
+        {/* Approval queue for user-created clubs (#14) */}
+        <div id="clubs-pending" style={{ marginBottom: 32 }}>
+          <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
+            Clubs warten auf Freischaltung ({pendingClubs.length})
+          </h2>
+          {pendingClubs.length === 0 ? (
+            <div style={{ background: 'var(--bg-card, #1e2235)', borderRadius: 16, padding: 20, fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
+              Keine offenen Anfragen.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {pendingClubs.map(club => (
+                <div key={club.id} style={{ background: 'var(--bg-card, #1e2235)', borderRadius: 16, padding: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: '#FD7666' }}>{club.name}</div>
+                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>
+                        {club.category || 'ohne Kategorie'} · {club.location || '–'} · {new Date(club.created_at).toLocaleDateString('de-DE')}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>
+                        Erstellt von: <strong style={{ color: 'rgba(255,255,255,0.7)' }}>{club.owner_name || '–'}</strong> ({club.owner_email || '–'})
+                      </div>
+                    </div>
+                    {club.image_url && (
+                      <img src={club.image_url} alt="" style={{ width: 64, height: 64, borderRadius: 8, objectFit: 'cover' }} />
+                    )}
+                  </div>
+                  {club.description && (
+                    <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', margin: '8px 0', lineHeight: 1.5 }}>
+                      {club.description}
+                    </p>
+                  )}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <button
+                      disabled={clubActionId === club.id}
+                      onClick={async () => {
+                        setClubActionId(club.id);
+                        try {
+                          await admin.approveClub(club.id);
+                          setPendingClubs(prev => prev.filter(c => c.id !== club.id));
+                        } catch {
+                          alert('Freigabe fehlgeschlagen');
+                        } finally {
+                          setClubActionId(null);
+                        }
+                      }}
+                      style={{
+                        flex: 1, padding: '10px 16px', borderRadius: 10,
+                        border: 'none', background: '#4ade80', color: '#0a0a0a',
+                        fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                        opacity: clubActionId === club.id ? 0.6 : 1,
+                      }}
+                    >
+                      {clubActionId === club.id ? 'Laden…' : 'Freigeben'}
+                    </button>
+                    <button
+                      disabled={clubActionId === club.id}
+                      onClick={async () => {
+                        if (!window.confirm(`Club "${club.name}" wirklich ablehnen?`)) return;
+                        setClubActionId(club.id);
+                        try {
+                          await admin.rejectClub(club.id);
+                          setPendingClubs(prev => prev.filter(c => c.id !== club.id));
+                        } catch {
+                          alert('Ablehnung fehlgeschlagen');
+                        } finally {
+                          setClubActionId(null);
+                        }
+                      }}
+                      style={{
+                        flex: 1, padding: '10px 16px', borderRadius: 10,
+                        border: '1px solid rgba(248, 113, 113, 0.5)', background: 'transparent',
+                        color: '#f87171', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                        opacity: clubActionId === club.id ? 0.6 : 1,
+                      }}
+                    >
+                      Ablehnen
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {screens.length > 0 && (

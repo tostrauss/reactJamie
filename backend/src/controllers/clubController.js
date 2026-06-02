@@ -46,6 +46,12 @@ export const createClub = async (req, res) => {
     // Geocode location (non-blocking on failure)
     const coords = await geocodeLocation(location);
 
+    // Approval workflow: clubs created by admins are auto-approved.
+    // Everyone else lands in the moderation queue until a human approves.
+    const adminCheck = await db.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
+    const isAdminOwner = !!adminCheck.rows[0]?.is_admin;
+    const approval = isAdminOwner ? 'approved' : 'pending';
+
     const result = await db.query(
       `INSERT INTO groups (
         name,
@@ -60,9 +66,10 @@ export const createClub = async (req, res) => {
         skill_level,
         owner_id,
         lat,
-        lng
+        lng,
+        approval_status
       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [
         name,
@@ -77,7 +84,8 @@ export const createClub = async (req, res) => {
         skill_level,
         userId,
         coords?.lat ?? null,
-        coords?.lng ?? null
+        coords?.lng ?? null,
+        approval
       ]
     );
 
@@ -90,6 +98,13 @@ export const createClub = async (req, res) => {
 
     // Welcome system message — no live broadcast (chat is empty on creation).
     postSystemMessage(newClub.id, `Willkommen bei ${newClub.name}! Stell euch kurz vor 👋`).catch(() => {});
+
+    // Notify admin that a new club is waiting for review (fire-and-forget).
+    if (approval === 'pending') {
+      import('../utils/email.js')
+        .then(({ sendAdminClubPendingEmail }) => sendAdminClubPendingEmail?.(newClub, req.userId))
+        .catch(() => {});
+    }
 
     invalidatePrefix('clubs:');
     invalidatePrefix('map:');
@@ -107,13 +122,24 @@ export const getClubs = async (req, res) => {
   try {
     const { search, category, location, featured, limit, offset } = req.query;
 
+    // Cache key now includes caller identity so users only see their own pending
+    // clubs in their cached row; admins get the full set.
+    const cacheCallerKey = req.userId || 'anon';
     const cacheKey = !search && !location
-      ? `clubs:${category || ''}:${featured || ''}:${limit || ''}:${offset || ''}`
+      ? `clubs:${category || ''}:${featured || ''}:${limit || ''}:${offset || ''}:${cacheCallerKey}`
       : null;
     if (cacheKey) {
       const cached = getCached(cacheKey);
       if (cached) return res.json(cached);
     }
+
+    // Approval gate: non-admin callers only see approved clubs (or their own).
+    // A separate /api/admin/clubs/pending lists everything pending for the
+    // moderation queue.
+    const callerId = req.userId || 0;
+    const callerIsAdmin = await db.query('SELECT is_admin FROM users WHERE id = $1', [callerId])
+      .then(r => !!r.rows[0]?.is_admin)
+      .catch(() => false);
 
     let query = `
       SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar
@@ -121,6 +147,7 @@ export const getClubs = async (req, res) => {
       LEFT JOIN users u ON g.owner_id = u.id
       WHERE g.is_active = TRUE
         AND g.type = $1
+        AND (g.approval_status = 'approved'${callerIsAdmin ? '' : ` OR g.owner_id = ${parseInt(callerId, 10)}`})
     `;
     const params = [CLUB_TYPE];
     let paramIndex = 2;

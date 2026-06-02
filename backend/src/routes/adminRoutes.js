@@ -7,6 +7,9 @@ import {
   exportUsers,
   exportScreens,
   exportSuggestions,
+  getPendingClubs,
+  approveClub,
+  rejectClub,
 } from '../controllers/adminController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 
@@ -30,5 +33,10 @@ router.get('/screen-time', getScreenTime);
 router.get('/export/users',       exportUsers);
 router.get('/export/screens',     exportScreens);
 router.get('/export/suggestions', exportSuggestions);
+
+// Club approval queue
+router.get('/clubs/pending',         getPendingClubs);
+router.post('/clubs/:id/approve',    approveClub);
+router.post('/clubs/:id/reject',     rejectClub);
 
 export default router;

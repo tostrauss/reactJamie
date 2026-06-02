@@ -134,6 +134,34 @@ export const sendAdminReportEmail = async (reporterId, type, targetId, reason) =
   });
 };
 
+export const sendAdminClubPendingEmail = async (club, ownerUserId) => {
+  const adminEmail = process.env.ADMIN_EMAIL;
+  if (!adminEmail || !club) return;
+  const adminUrl = `${FRONTEND_URL()}/admin#clubs-pending`;
+  return sendEmail({
+    to: adminEmail,
+    subject: `[JAMIE] Neuer Club wartet auf Freischaltung: ${club.name || '#' + club.id}`,
+    html: `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:32px 20px;">
+        <h2 style="color:#FD7666;margin:0 0 8px;">Neuer Club wartet auf Freischaltung</h2>
+        <p style="color:#555;line-height:1.55;">
+          Ein User hat einen Club erstellt. Bitte prüfen und freigeben oder ablehnen.
+        </p>
+        <table style="border-collapse:collapse;margin:18px 0;">
+          <tr><td style="padding:4px 8px;color:#888;">Name:</td><td style="padding:4px 8px;font-weight:600;">${escapeHtml(club.name || '')}</td></tr>
+          <tr><td style="padding:4px 8px;color:#888;">Kategorie:</td><td style="padding:4px 8px;">${escapeHtml(club.category || '–')}</td></tr>
+          <tr><td style="padding:4px 8px;color:#888;">Ort:</td><td style="padding:4px 8px;">${escapeHtml(club.location || '–')}</td></tr>
+          <tr><td style="padding:4px 8px;color:#888;">Erstellt von User #:</td><td style="padding:4px 8px;">${ownerUserId}</td></tr>
+          <tr><td style="padding:4px 8px;color:#888;vertical-align:top;">Beschreibung:</td><td style="padding:4px 8px;color:#555;">${escapeHtml((club.description || '').slice(0, 400))}</td></tr>
+        </table>
+        <a href="${adminUrl}" style="display:inline-block;background:#FD7666;color:#fff;padding:12px 28px;border-radius:12px;text-decoration:none;font-weight:600;">
+          Im Admin-Dashboard öffnen
+        </a>
+      </div>
+    `
+  });
+};
+
 export const sendOTPEmail = async (email, code, userName) => {
   return sendEmail({
     to: email,
