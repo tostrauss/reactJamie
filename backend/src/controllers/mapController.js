@@ -18,14 +18,14 @@ export const getMapPins = async (req, res) => {
     const cached = getCached(cacheKey);
     if (cached) return res.json(cached);
 
-    // Build date condition based on filter
-    let dateCondition;
+    // Date filter is only applied when the UI explicitly asks for Heute/Morgen.
+    // Default (no filter) returns every active pin so the "Alle" view actually
+    // shows clubs AND groups regardless of their event date.
+    let dateCondition = '';
     if (dateFilter === 'heute') {
-      dateCondition = `g.date >= CURRENT_DATE AND g.date < CURRENT_DATE + INTERVAL '1 day'`;
+      dateCondition = `AND g.date >= CURRENT_DATE AND g.date < CURRENT_DATE + INTERVAL '1 day'`;
     } else if (dateFilter === 'morgen') {
-      dateCondition = `g.date >= CURRENT_DATE + INTERVAL '1 day' AND g.date < CURRENT_DATE + INTERVAL '2 days'`;
-    } else {
-      dateCondition = `g.date IS NULL OR (g.date >= NOW() AND g.date <= NOW() + INTERVAL '7 days')`;
+      dateCondition = `AND g.date >= CURRENT_DATE + INTERVAL '1 day' AND g.date < CURRENT_DATE + INTERVAL '2 days'`;
     }
 
     let query = `
@@ -39,7 +39,7 @@ export const getMapPins = async (req, res) => {
         AND g.deleted_at IS NULL
         AND g.lat IS NOT NULL
         AND g.lng IS NOT NULL
-        AND (${dateCondition})
+        ${dateCondition}
     `;
     const params = [];
     let paramIndex = 1;
