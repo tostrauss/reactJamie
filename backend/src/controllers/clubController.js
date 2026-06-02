@@ -492,13 +492,24 @@ export const getClubMembers = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Ensure this is a club
+    // Ensure this is a club AND read is_private together — saves a round trip.
     const club = await db.query(
-      'SELECT id FROM groups WHERE id = $1 AND type = $2',
+      'SELECT id, is_private FROM groups WHERE id = $1 AND type = $2 AND deleted_at IS NULL',
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) {
       return res.status(404).json({ error: 'Club not found' });
+    }
+
+    // Privacy gate: roster of a private club is hidden from non-members.
+    // Public clubs (the default) let any authenticated user see the roster
+    // so the ClubDetail page works while browsing before joining.
+    if (club.rows[0].is_private) {
+      const member = await db.query(
+        'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+        [id, req.userId]
+      );
+      if (member.rows.length === 0) return res.status(403).json({ error: 'Keine Berechtigung' });
     }
 
     const result = await db.query(

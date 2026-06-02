@@ -597,11 +597,25 @@ export const getUserFavorites = async (req, res) => {
 export const getGroupMembers = async (req, res) => {
   try {
     const { id } = req.params;
-    const member = await db.query(
-      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
-      [id, req.userId]
+
+    // Privacy gate: members of a private group are hidden from non-members.
+    // Public groups (the default) let any authenticated user see the roster
+    // so the GroupDetail page works while browsing before joining.
+    const groupRes = await db.query(
+      'SELECT is_private FROM groups WHERE id = $1 AND deleted_at IS NULL',
+      [id]
     );
-    if (member.rows.length === 0) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (groupRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    }
+    if (groupRes.rows[0].is_private) {
+      const member = await db.query(
+        'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+        [id, req.userId]
+      );
+      if (member.rows.length === 0) return res.status(403).json({ error: 'Keine Berechtigung' });
+    }
+
     const result = await db.query(
       `SELECT u.id, u.name, u.avatar_url, u.bio, u.location, gm.role, gm.joined_at
        FROM group_members gm
