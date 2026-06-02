@@ -374,11 +374,11 @@ select:focus {
   background: var(--bg-secondary);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 1000;
-  /* Trim about half of the iOS home-indicator inset so the tab icons sit closer
-     to the bottom edge — matches native iOS tab bar aesthetic and removes the
-     "floating" gap reported on iPhone. Floor at 8px so we never end up flush
-     under the gesture area. */
-  padding-bottom: max(8px, calc(env(safe-area-inset-bottom, 0px) - 14px));
+  /* Explicit user request: zero gap to the screen bottom. Icons sit flush
+     against the edge. Note: this puts tap targets inside the iOS home-
+     indicator swipe-up area; if accidental "swipe to home" gestures become
+     a problem, raise this back to a small buffer (e.g. 4-8px). */
+  padding-bottom: 0;
   /* Extend background colour below viewport edge (covers Android gesture bar + iOS overscroll) */
   box-shadow: 0 100px 0 100px var(--bg-secondary);
 }
