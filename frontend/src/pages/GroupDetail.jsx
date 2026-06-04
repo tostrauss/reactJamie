@@ -1,11 +1,63 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
 import { groups, clubs } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
 import { isNativeIOS } from '../utils/platform';
 import '../styles/group-detail.css';
+
+// Lazy-load: pulls Stripe + PayPal SDKs only when the owner opens the modal.
+const BoostModal = lazy(() => import('../components/BoostModal').then(m => ({ default: m.BoostModal })));
+
+// Stable empty libraries array — recreating this triggers a Google Maps reload
+const MAP_LIBRARIES = [];
+
+// Returns "{min}-{max}" with 60+ cap, or null if either bound is missing.
+function formatAgeRange(min, max) {
+  if (min == null || max == null) return null;
+  const capped = max >= 60 ? '60+' : String(max);
+  return min === max ? String(min) : `${Math.max(18, min)}-${capped}`;
+}
+
+const GROUP_MAP_STYLES = [
+  { elementType: 'geometry',           stylers: [{ color: '#1a1a2e' }] },
+  { elementType: 'labels.icon',        stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.text.fill',   stylers: [{ color: '#7b7b9a' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1a2e' }] },
+  { featureType: 'road',         elementType: 'geometry.fill', stylers: [{ color: '#2d2d4e' }] },
+  { featureType: 'road.highway', elementType: 'geometry',      stylers: [{ color: '#3d3d6b' }] },
+  { featureType: 'water',        elementType: 'geometry',      stylers: [{ color: '#0d1b2a' }] },
+  { featureType: 'poi.park',     elementType: 'geometry',      stylers: [{ color: '#162030' }] },
+];
+
+function GroupMiniMap({ lat, lng }) {
+  const { isLoaded } = useLoadScript({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '',
+    libraries: MAP_LIBRARIES,
+  });
+  if (!isLoaded) return <div className="gd-mini-map gd-mini-map--loading" />;
+  const pos = { lat, lng };
+  return (
+    <div className="gd-mini-map">
+      <GoogleMap
+        mapContainerClassName="gd-mini-map-canvas"
+        center={pos}
+        zoom={14}
+        options={{
+          styles: GROUP_MAP_STYLES,
+          disableDefaultUI: true,
+          gestureHandling: 'cooperative',
+          clickableIcons: false,
+        }}
+      >
+        <Marker position={pos} />
+      </GoogleMap>
+    </div>
+  );
+}
 
 // Format a JS Date to the iCal/Google Calendar compact format: YYYYMMDDTHHmmssZ
 const toCalDate = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
@@ -64,11 +116,11 @@ const openCalendar = (group) => {
   }
 };
 
-const formatHeaderDate = (dateStr) => {
+const formatHeaderDate = (dateStr, locale) => {
   if (!dateStr) return null;
   const d = new Date(dateStr);
   if (isNaN(d)) return null;
-  const weekday = d.toLocaleDateString('de-AT', { weekday: 'long' });
+  const weekday = d.toLocaleDateString(locale, { weekday: 'long' });
   const day = d.getDate();
   const month = d.getMonth() + 1;
   return `${weekday} - ${day}.${month}.`;
@@ -81,13 +133,13 @@ const formatShortDate = (dateStr) => {
   return `${d.getDate()}.${d.getMonth() + 1}.`;
 };
 
-const formatEventDate = (dateStr) => {
+const formatEventDate = (dateStr, locale) => {
   if (!dateStr) return null;
   const d = new Date(dateStr);
   if (isNaN(d)) return null;
   const day = d.getDate();
-  const month = d.toLocaleDateString('de-AT', { month: 'short' });
-  const time = d.toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
+  const month = d.toLocaleDateString(locale, { month: 'short' });
+  const time = d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   return { day, month, time };
 };
 
@@ -105,6 +157,8 @@ export const GroupDetail = () => {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const toast = useToast();
+  const { t, i18n } = useTranslation();
+  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-AT';
 
   const [group, setGroup] = useState(null);
   const [members, setMembers] = useState([]);
@@ -116,6 +170,7 @@ export const GroupDetail = () => {
   const [waitlistLoading, setWaitlistLoading] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showBoostModal, setShowBoostModal] = useState(false);
 
   // Club events state
   const [events, setEvents] = useState([]);
@@ -149,7 +204,10 @@ export const GroupDetail = () => {
         setJoinRequestStatus(entity.join_request_status || null);
         setWaitlistStatus(entity.waitlist_status || null);
         setWaitlistPosition(entity.waitlist_position || null);
-        setMembers(membersRes.data || []);
+        // Groups endpoint returns { members, total_count, gated } for Pro-gating;
+        // clubs endpoint still returns a flat array. Normalize to an array.
+        const memberData = membersRes.data;
+        setMembers(Array.isArray(memberData) ? memberData : (memberData?.members || []));
 
         if (isClubType) {
           setEventsLoading(true);
@@ -160,7 +218,7 @@ export const GroupDetail = () => {
         }
       } catch (error) {
         if (!controller.signal.aborted) {
-          toast.error('Gruppe konnte nicht geladen werden');
+          toast.error(t('groups.detail.toast.loadError'));
         }
       } finally {
         if (!controller.signal.aborted) setLoading(false);
@@ -177,7 +235,7 @@ export const GroupDetail = () => {
       group?.type === 'club' ? await clubs.toggleFavorite(id) : await groups.toggleFavorite(id);
     } catch {
       setIsFavorited(wasFav);
-      toast.error('Favorit konnte nicht gespeichert werden');
+      toast.error(t('groups.detail.toast.favError'));
     }
   };
 
@@ -195,7 +253,7 @@ export const GroupDetail = () => {
         const res = isClub ? await clubs.join(id) : await groups.join(id);
         if (res.data?.status === 'pending') {
           setJoinRequestStatus('pending');
-          toast.success('Beitrittsanfrage gesendet');
+          toast.success(t('groups.detail.toast.requestSent'));
         } else {
           setIsJoined(true);
           setMembers(prev => [...prev, { id: user.id, name: user.name, avatar_url: user.avatar_url }]);
@@ -204,7 +262,7 @@ export const GroupDetail = () => {
         }
       }
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Fehler beim Beitreten/Verlassen');
+      toast.error(error.response?.data?.error || t('groups.detail.toast.joinLeaveError'));
     }
   };
 
@@ -215,9 +273,12 @@ export const GroupDetail = () => {
       const res = isClub ? await clubs.joinWaitlist(id) : await groups.joinWaitlist(id);
       setWaitlistStatus('waiting');
       setWaitlistPosition(res.data?.position || null);
-      toast.success(`Du stehst auf der Warteliste${res.data?.position ? ` (Position ${res.data.position})` : ''}`);
+      toast.success(res.data?.position
+        ? t('groups.detail.toast.waitlistJoinedPos', { position: res.data.position })
+        : t('groups.detail.toast.waitlistJoined')
+      );
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Fehler bei der Warteliste');
+      toast.error(err.response?.data?.error || t('groups.detail.toast.waitlistError'));
     } finally {
       setWaitlistLoading(false);
     }
@@ -230,23 +291,24 @@ export const GroupDetail = () => {
       isClub ? await clubs.leaveWaitlist(id) : await groups.leaveWaitlist(id);
       setWaitlistStatus(null);
       setWaitlistPosition(null);
-      toast.success('Von der Warteliste entfernt');
+      toast.success(t('groups.detail.toast.waitlistLeft'));
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Fehler beim Entfernen');
+      toast.error(err.response?.data?.error || t('groups.detail.toast.waitlistLeaveError'));
     } finally {
       setWaitlistLoading(false);
     }
   };
 
   const handleDelete = async () => {
-    const label = group?.type === 'club' ? 'Club' : 'Gruppe';
-    if (!window.confirm(`${label} wirklich löschen?`)) return;
+    const isClubType = group?.type === 'club';
+    const confirmMsg = isClubType ? t('groups.detail.delete.confirmClub') : t('groups.detail.delete.confirmGroup');
+    if (!window.confirm(confirmMsg)) return;
     try {
-      group?.type === 'club' ? await clubs.delete(id) : await groups.delete(id);
-      toast.success(`${label} wurde gelöscht.`);
+      isClubType ? await clubs.delete(id) : await groups.delete(id);
+      toast.success(isClubType ? t('groups.detail.delete.deletedClub') : t('groups.detail.delete.deletedGroup'));
       navigate('/home');
     } catch (error) {
-      toast.error(error.response?.data?.error || `${label} konnte nicht gelöscht werden.`);
+      toast.error(error.response?.data?.error || (isClubType ? t('groups.detail.delete.errorClub') : t('groups.detail.delete.errorGroup')));
     }
   };
 
@@ -256,9 +318,9 @@ export const GroupDetail = () => {
     try {
       const res = await groups.join(eventId);
       if (res.data?.status === 'pending') {
-        toast.success('Anfrage gesendet');
+        toast.success(t('groups.detail.events.requestSent'));
       } else {
-        toast.success('Erfolgreich beigetreten!');
+        toast.success(t('groups.detail.events.joinedToast'));
         setEvents(prev => prev.map(e =>
           e.id === eventId
             ? { ...e, is_member: true, members_count: (e.members_count || 0) + 1 }
@@ -266,7 +328,7 @@ export const GroupDetail = () => {
         ));
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Fehler beim Beitreten');
+      toast.error(err.response?.data?.error || t('groups.detail.events.joinError'));
     } finally {
       setJoiningEventId(null);
     }
@@ -282,7 +344,7 @@ export const GroupDetail = () => {
           : e
       ));
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Fehler beim Verlassen');
+      toast.error(err.response?.data?.error || t('groups.detail.events.leaveError'));
     } finally {
       setJoiningEventId(null);
     }
@@ -290,10 +352,10 @@ export const GroupDetail = () => {
 
   const handleCreateEvent = async (e) => {
     e.preventDefault();
-    if (!eventForm.name.trim()) { toast.error('Name ist erforderlich'); return; }
-    if (!eventForm.date) { toast.error('Datum ist erforderlich'); return; }
+    if (!eventForm.name.trim()) { toast.error(t('groups.detail.events.errorNameRequired')); return; }
+    if (!eventForm.date) { toast.error(t('groups.detail.events.errorDateRequired')); return; }
     const eventDateTime = new Date(`${eventForm.date}T${eventForm.time || '00:00'}`);
-    if (eventDateTime <= new Date()) { toast.error('Das Datum muss in der Zukunft liegen'); return; }
+    if (eventDateTime <= new Date()) { toast.error(t('groups.detail.events.errorDateFuture')); return; }
     setEventSubmitting(true);
     try {
       const res = await clubs.createEvent(id, {
@@ -309,27 +371,27 @@ export const GroupDetail = () => {
       setEvents(prev => [newEvent, ...prev].sort((a, b) => new Date(a.date) - new Date(b.date)));
       setShowCreateEvent(false);
       setEventForm({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20 });
-      toast.success('Veranstaltung erstellt!');
+      toast.success(t('groups.detail.events.createdToast'));
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Fehler beim Erstellen');
+      toast.error(err.response?.data?.error || t('groups.detail.events.createError'));
     } finally {
       setEventSubmitting(false);
     }
   };
 
   const handleDeleteEvent = async (eventId) => {
-    if (!window.confirm('Veranstaltung wirklich löschen?')) return;
+    if (!window.confirm(t('groups.detail.events.confirmDelete'))) return;
     try {
       await clubs.deleteEvent(id, eventId);
       setEvents(prev => prev.filter(e => e.id !== eventId));
-      toast.success('Veranstaltung gelöscht');
+      toast.success(t('groups.detail.events.deletedToast'));
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Fehler beim Löschen');
+      toast.error(err.response?.data?.error || t('groups.detail.events.deleteError'));
     }
   };
 
-  if (loading) return <div className="gd-loading">Laden...</div>;
-  if (!group) return <div className="gd-loading">Gruppe nicht gefunden</div>;
+  if (loading) return <div className="gd-loading">{t('groups.detail.loading')}</div>;
+  if (!group) return <div className="gd-loading">{t('groups.detail.notFound')}</div>;
 
   const isClub = group.type === 'club';
   const isEvent = group.type === 'event';
@@ -339,7 +401,7 @@ export const GroupDetail = () => {
   const maxSlots = Math.min(group.max_members || 4, 4);
   const filledSlots = members.slice(0, maxSlots);
   const emptySlots = Math.max(0, maxSlots - filledSlots.length);
-  const headerDate = formatHeaderDate(group.date);
+  const headerDate = formatHeaderDate(group.date, dateLocale);
   const shortDate = formatShortDate(group.date);
 
   return (
@@ -377,7 +439,7 @@ export const GroupDetail = () => {
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
-            Zum Club
+            {t('groups.detail.events.backToClub')}
           </button>
         )}
 
@@ -424,7 +486,7 @@ export const GroupDetail = () => {
             return (
               <div className="gd-anfragen-row">
                 <button className="gd-anfragen-btn joined" onClick={() => navigate(`/chat/${group.id}`)}>
-                  Chat öffnen
+                  {t('groups.detail.actions.openChat')}
                 </button>
               </div>
             );
@@ -433,7 +495,7 @@ export const GroupDetail = () => {
             return (
               <div className="gd-anfragen-row">
                 <button className="gd-anfragen-btn" disabled style={{ opacity: 0.6, cursor: 'default' }}>
-                  Anfrage ausstehend…
+                  {t('groups.detail.actions.requestPending')}
                 </button>
               </div>
             );
@@ -442,10 +504,10 @@ export const GroupDetail = () => {
             return (
               <div className="gd-anfragen-row" style={{ flexDirection: 'column', gap: '8px' }}>
                 <button className="gd-anfragen-btn" onClick={handleJoinToggle}>
-                  🎉 Platz frei – Jetzt beitreten!
+                  {t('groups.detail.actions.spotFreeJoin')}
                 </button>
                 <button onClick={handleLeaveWaitlist} disabled={waitlistLoading} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '12px', cursor: 'pointer', padding: '4px' }}>
-                  Von Warteliste entfernen
+                  {t('groups.detail.actions.leaveWaitlist')}
                 </button>
               </div>
             );
@@ -454,10 +516,12 @@ export const GroupDetail = () => {
             return (
               <div className="gd-anfragen-row" style={{ flexDirection: 'column', gap: '8px' }}>
                 <button className="gd-anfragen-btn" disabled style={{ opacity: 0.6, cursor: 'default' }}>
-                  Warteliste{waitlistPosition ? ` · Position ${waitlistPosition}` : ''}
+                  {waitlistPosition
+                    ? t('groups.detail.actions.waitlistPositionFmt', { position: waitlistPosition })
+                    : t('groups.detail.actions.waitlistGeneric')}
                 </button>
                 <button onClick={handleLeaveWaitlist} disabled={waitlistLoading} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '12px', cursor: 'pointer', padding: '4px' }}>
-                  {waitlistLoading ? 'Laden…' : 'Von Warteliste entfernen'}
+                  {waitlistLoading ? t('groups.detail.actions.loadingShort') : t('groups.detail.actions.leaveWaitlist')}
                 </button>
               </div>
             );
@@ -466,7 +530,7 @@ export const GroupDetail = () => {
             return (
               <div className="gd-anfragen-row">
                 <button className="gd-anfragen-btn" onClick={handleJoinWaitlist} disabled={waitlistLoading}>
-                  {waitlistLoading ? 'Laden…' : 'Warteliste beitreten'}
+                  {waitlistLoading ? t('groups.detail.actions.loadingShort') : t('groups.detail.actions.joinWaitlist')}
                 </button>
               </div>
             );
@@ -474,7 +538,7 @@ export const GroupDetail = () => {
           return (
             <div className="gd-anfragen-row">
               <button className="gd-anfragen-btn cta-pulse" onClick={handleJoinToggle}>
-                {group.is_private ? 'Beitritt anfragen' : 'Beitreten'}
+                {group.is_private ? t('groups.detail.actions.joinPrivate') : t('groups.detail.actions.joinPublic')}
               </button>
             </div>
           );
@@ -489,7 +553,7 @@ export const GroupDetail = () => {
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="#FD7666" stroke="none">
                     <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
                   </svg>
-                  Level: {group.skill_level}
+                  {t('groups.detail.info.level', { level: group.skill_level })}
                 </span>
               )}
               {shortDate && (
@@ -497,12 +561,22 @@ export const GroupDetail = () => {
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                   </svg>
-                  Wann: {shortDate}
+                  {t('groups.detail.info.when', { when: shortDate })}
                 </span>
               )}
               <span className="gd-info-item">
-                Teilnehmer: {group.members_count ?? members.length}/{group.max_members || '∞'}
+                {group.max_members
+                  ? t('groups.detail.info.participants', { current: group.members_count ?? members.length, max: group.max_members })
+                  : t('groups.detail.info.participantsUnlimited', { current: group.members_count ?? members.length })}
               </span>
+              {(() => {
+                const ageRange = formatAgeRange(group.age_min, group.age_max);
+                return ageRange ? (
+                  <span className="gd-info-item">
+                    🎂 {t('groups.detail.info.age', { range: ageRange })}
+                  </span>
+                ) : null;
+              })()}
             </div>
 
             {/* Group title */}
@@ -513,18 +587,30 @@ export const GroupDetail = () => {
               <p className="gd-description">{group.description}</p>
             )}
 
+            {/* Location mini-map */}
+            {group.lat != null && group.lng != null && (
+              <div className="gd-map-section">
+                <GroupMiniMap lat={Number(group.lat)} lng={Number(group.lng)} />
+              </div>
+            )}
+
             {/* Owner actions */}
             {isJoined && (
               <div className="gd-owner-actions">
+                {isOwner && !isEvent && (
+                  <button className="gd-boost-btn" onClick={() => setShowBoostModal(true)}>
+                    {t('groups.detail.actions.boost')}
+                  </button>
+                )}
                 {isOwner
-                  ? <button className="gd-btn-leave" onClick={handleDelete}>{isClub ? 'Club löschen' : isEvent ? 'Veranstaltung löschen' : 'Gruppe löschen'}</button>
-                  : <button className="gd-btn-leave" onClick={handleJoinToggle}>Verlassen</button>
+                  ? <button className="gd-btn-leave" onClick={handleDelete}>{isClub ? t('groups.detail.delete.club') : isEvent ? t('groups.detail.delete.event') : t('groups.detail.delete.group')}</button>
+                  : <button className="gd-btn-leave" onClick={handleJoinToggle}>{t('groups.detail.delete.leave')}</button>
                 }
               </div>
             )}
 
             <button className="gd-report-btn" onClick={() => setShowReportModal(true)}>
-              {isClub ? 'Club melden' : 'Gruppe melden'}
+              {isClub ? t('groups.detail.report.club') : t('groups.detail.report.group')}
             </button>
           </div>
 
@@ -532,7 +618,7 @@ export const GroupDetail = () => {
           {isClub && (
             <div className="gd-events-section">
               <div className="gd-events-header">
-                <h3 className="gd-events-title">Veranstaltungen</h3>
+                <h3 className="gd-events-title">{t('groups.detail.events.title')}</h3>
                 {canCreateEvent && (
                   <button
                     className="gd-events-add-btn"
@@ -549,14 +635,14 @@ export const GroupDetail = () => {
                   <input
                     className="gd-event-input"
                     type="text"
-                    placeholder="Name der Veranstaltung *"
+                    placeholder={t('groups.detail.events.formNamePlaceholder')}
                     value={eventForm.name}
                     onChange={e => setEventForm(f => ({ ...f, name: e.target.value }))}
                     required
                   />
                   <textarea
                     className="gd-event-input gd-event-textarea"
-                    placeholder="Beschreibung (optional)"
+                    placeholder={t('groups.detail.events.formDescPlaceholder')}
                     value={eventForm.description}
                     onChange={e => setEventForm(f => ({ ...f, description: e.target.value }))}
                     rows={2}
@@ -580,7 +666,7 @@ export const GroupDetail = () => {
                     <input
                       className="gd-event-input"
                       type="text"
-                      placeholder="Ort (optional)"
+                      placeholder={t('groups.detail.events.formLocationPlaceholder')}
                       value={eventForm.location}
                       onChange={e => setEventForm(f => ({ ...f, location: e.target.value }))}
                     />
@@ -589,7 +675,7 @@ export const GroupDetail = () => {
                       type="number"
                       min={2}
                       max={500}
-                      placeholder="Max"
+                      placeholder={t('groups.detail.events.formMaxPlaceholder')}
                       value={eventForm.max_members}
                       onChange={e => setEventForm(f => ({ ...f, max_members: e.target.value }))}
                     />
@@ -599,20 +685,20 @@ export const GroupDetail = () => {
                     className="gd-event-submit-btn"
                     disabled={eventSubmitting}
                   >
-                    {eventSubmitting ? 'Wird erstellt…' : 'Veranstaltung erstellen'}
+                    {eventSubmitting ? t('groups.detail.events.creating') : t('groups.detail.events.create')}
                   </button>
                 </form>
               )}
 
               {/* Event list */}
               {eventsLoading ? (
-                <p className="gd-events-empty">Laden…</p>
+                <p className="gd-events-empty">{t('groups.detail.events.loading')}</p>
               ) : events.length === 0 ? (
-                <p className="gd-events-empty">Noch keine Veranstaltungen</p>
+                <p className="gd-events-empty">{t('groups.detail.events.empty')}</p>
               ) : (
                 <div className="gd-events-list">
                   {events.map(ev => {
-                    const dateParts = formatEventDate(ev.date);
+                    const dateParts = formatEventDate(ev.date, dateLocale);
                     const evIsOwner = user && ev.owner_id === user.id;
                     return (
                       <div key={ev.id} className="gd-event-card" onClick={() => navigate(`/group/${ev.id}`)}>
@@ -628,14 +714,18 @@ export const GroupDetail = () => {
                         )}
                         <div className="gd-event-info">
                           <p className="gd-event-name">{ev.name}</p>
-                          {dateParts?.time && <p className="gd-event-time">{dateParts.time} Uhr{ev.location ? ` · ${ev.location}` : ''}</p>}
-                          <p className="gd-event-meta">{ev.members_count || 0} / {ev.max_members} Teilnehmer</p>
+                          {dateParts?.time && (
+                            <p className="gd-event-time">
+                              {dateParts.time}{t('groups.detail.events.uhr') ? ` ${t('groups.detail.events.uhr')}` : ''}{ev.location ? ` · ${ev.location}` : ''}
+                            </p>
+                          )}
+                          <p className="gd-event-meta">{t('groups.detail.events.participants', { current: ev.members_count || 0, max: ev.max_members })}</p>
                         </div>
                         <div className="gd-event-actions" onClick={e => e.stopPropagation()}>
                           {ev.date && (
                             <button
                               className="gd-event-cal-btn"
-                              title="Zum Kalender hinzufügen"
+                              title={t('groups.detail.events.calendarAdd')}
                               onClick={() => openCalendar(ev)}
                             >
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -651,7 +741,7 @@ export const GroupDetail = () => {
                               className="gd-event-join-btn gd-event-join-btn--danger"
                               onClick={() => handleDeleteEvent(ev.id)}
                             >
-                              Löschen
+                              {t('groups.detail.events.delete')}
                             </button>
                           ) : ev.is_member ? (
                             <button
@@ -659,7 +749,7 @@ export const GroupDetail = () => {
                               disabled={joiningEventId === ev.id}
                               onClick={() => handleLeaveEvent(ev.id)}
                             >
-                              Dabei
+                              {t('groups.detail.events.joined')}
                             </button>
                           ) : (
                             <button
@@ -667,7 +757,7 @@ export const GroupDetail = () => {
                               disabled={joiningEventId === ev.id}
                               onClick={() => handleJoinEvent(ev.id)}
                             >
-                              {joiningEventId === ev.id ? '…' : 'Mitmachen'}
+                              {joiningEventId === ev.id ? '…' : t('groups.detail.events.join')}
                             </button>
                           )}
                         </div>
@@ -686,7 +776,7 @@ export const GroupDetail = () => {
                 navigator.share({ title: group.category || group.name, url: window.location.href });
               } else {
                 navigator.clipboard.writeText(window.location.href);
-                toast.success('Link kopiert!');
+                toast.success(t('groups.detail.shareLinkCopied'));
               }
             }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -694,7 +784,7 @@ export const GroupDetail = () => {
                 <polyline points="16 6 12 2 8 6"/>
                 <line x1="12" y1="2" x2="12" y2="15"/>
               </svg>
-              Teilen
+              {t('groups.detail.share')}
             </button>
 
             {group.date && isJoined && (
@@ -705,7 +795,7 @@ export const GroupDetail = () => {
                   <line x1="8" y1="2" x2="8" y2="6"/>
                   <line x1="3" y1="10" x2="21" y2="10"/>
                 </svg>
-                Kalender
+                {t('groups.detail.calendar')}
               </button>
             )}
           </div>
@@ -719,6 +809,17 @@ export const GroupDetail = () => {
           name={group.name || group.title}
           onClose={() => setShowReportModal(false)}
         />
+      )}
+
+      {showBoostModal && (
+        <Suspense fallback={null}>
+          <BoostModal
+            targetType={isClub ? 'club' : 'group'}
+            targetId={parseInt(id)}
+            targetName={group.name || group.category || ''}
+            onClose={() => setShowBoostModal(false)}
+          />
+        </Suspense>
       )}
     </div>
   );

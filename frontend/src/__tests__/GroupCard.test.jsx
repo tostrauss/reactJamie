@@ -34,9 +34,9 @@ describe('GroupCard', () => {
     await waitFor(() => expect(screen.getByText('Sport')).toBeInTheDocument());
   });
 
-  it('shows the member count with Members suffix', async () => {
+  it('shows the member count with Mitglieder suffix', async () => {
     render(<MemoryRouter><GroupCard group={baseGroup} /></MemoryRouter>);
-    await waitFor(() => expect(screen.getByText('3/8 Members')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('3/8 Mitglieder')).toBeInTheDocument());
   });
 
   it('shows the lock emoji for private groups', async () => {
@@ -51,10 +51,11 @@ describe('GroupCard', () => {
     await waitFor(() => expect(screen.getByText('Voll')).toBeInTheDocument());
   });
 
-  it('shows + join buttons for empty avatar slots', async () => {
+  it('shows join buttons for empty + pro-gate avatar slots', async () => {
     render(<MemoryRouter><GroupCard group={baseGroup} isJoined={false} /></MemoryRouter>);
-    // 0 member avatars loaded (mock returns []) → 4 empty slots → 4 join buttons
-    await waitFor(() => expect(screen.getAllByText('+')).toHaveLength(4));
+    // baseGroup has members_count 3 with no member_previews → 1 pro-gate + 3 empty slots,
+    // each rendering a button with an SVG plus icon.
+    await waitFor(() => expect(screen.getAllByRole('button')).toHaveLength(4));
   });
 
   it('calls onClick when the card is clicked', async () => {

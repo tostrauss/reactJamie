@@ -314,7 +314,7 @@
    Group Card
    ======================================== */
 .group-card {
-  border-radius: 28px;
+  border-radius: 20px;
   overflow: hidden;
   cursor: pointer;
   display: flex;
@@ -326,7 +326,7 @@
   /* Inner border slightly lighter than the outer #392B58 */
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
   background: var(--bg-card);
-  aspect-ratio: 3/4;
+  aspect-ratio: 4 / 5.4;
   position: relative;
 }
 
@@ -385,6 +385,15 @@
   color: rgba(255, 255, 255, 0.7);
 }
 
+.card-age-chip {
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(253, 118, 102, 0.12);
+  border-radius: var(--radius-full);
+  padding: 1px 7px;
+  color: var(--accent-coral);
+}
+
 .card-header-right {
   display: flex;
   flex-direction: column;
@@ -400,20 +409,20 @@
   z-index: 10;
   font-size: 11px;
   font-weight: 700;
-  padding: 5px 10px;
+  padding: 4px 9px;
   background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border-radius: var(--radius-full) 0 0 var(--radius-full);
+  border-radius: 0 19px 0 var(--radius-full);
   color: #fff;
   white-space: nowrap;
   pointer-events: none;
 }
 
-/* When a date badge is present, fade the title earlier to avoid overlap */
-.group-card.has-badge .card-title {
-  -webkit-mask-image: linear-gradient(to right, black 50%, transparent 78%);
-  mask-image: linear-gradient(to right, black 50%, transparent 78%);
+/* When a date badge is present, reserve room on the right so the title
+   never tucks under the badge — replaces the older mask-image fade hack. */
+.group-card.has-badge .card-text-area {
+  padding-right: 64px;
 }
 
 /* ── Photo grid (bottom portion) ───────────────────────── */
@@ -425,8 +434,10 @@
   grid-template-rows: 1fr 1fr;
   gap: 0;
   min-height: 0;
-  margin: 0;
-  border-radius: 0 0 18px 18px;
+  /* Inner "box" around photos: gap to card edge + thin border */
+  margin: 0 12px 12px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
   overflow: hidden;
 }
 
@@ -1214,11 +1225,12 @@
   max-height: 100%;
 }
 
-/* Round corner slots individually */
-.card-photo-grid .avatar-slot:nth-child(1) { border-radius: 12px 0 0 0; }
-.card-photo-grid .avatar-slot:nth-child(2) { border-radius: 0 12px 0 0; }
-.card-photo-grid .avatar-slot:nth-child(3) { border-radius: 0 0 0 12px; }
-.card-photo-grid .avatar-slot:nth-child(4) { border-radius: 0 0 12px 0; }
+/* Round corner slots individually — slightly less than the grid container's
+   10px to nest cleanly inside the 1px border. */
+.card-photo-grid .avatar-slot:nth-child(1) { border-radius: 9px 0 0 0; }
+.card-photo-grid .avatar-slot:nth-child(2) { border-radius: 0 9px 0 0; }
+.card-photo-grid .avatar-slot:nth-child(3) { border-radius: 0 0 0 9px; }
+.card-photo-grid .avatar-slot:nth-child(4) { border-radius: 0 0 9px 0; }
 
 .avatar-slot img {
   width: 100%;
@@ -1244,20 +1256,18 @@
 }
 
 .avatar-gamble {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
   border: 1.5px solid rgba(255, 255, 255, 0.18);
   background: rgba(255, 255, 255, 0.06);
   padding: 0;
   margin: 0;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
-  font-weight: 300;
   color: rgba(255, 255, 255, 0.55);
-  line-height: 1;
+  line-height: 0;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
@@ -1273,6 +1283,49 @@
 
 .avatar-gamble:active {
   transform: scale(0.93);
+}
+
+/* ── Pro-gate blurry 4th slot ─────────────────────────────────────────
+   Non-Pro users see 3 real avatars + this slot when the group has 4+
+   members. The blur layer mimics a heavily blurred portrait without
+   leaking the real avatar URL. */
+.avatar-slot.pro-gate {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.avatar-pro-gate-blur {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 38%, #d8b094 0%, #a3744f 26%, transparent 52%),
+    radial-gradient(ellipse at 50% 18%, #2c1d18 0%, transparent 48%),
+    linear-gradient(180deg, #3a2a55 0%, #1f1438 100%);
+  filter: blur(14px);
+  transform: scale(1.25);
+  pointer-events: none;
+}
+
+.avatar-gamble.pro-gate-plus {
+  position: relative;
+  z-index: 1;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  color: #fff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.55));
+}
+
+.avatar-gamble.pro-gate-plus:hover {
+  background: transparent;
+  border: none;
+  color: #fff;
+  transform: scale(1.08);
 }
 
 .avatar-placeholder {

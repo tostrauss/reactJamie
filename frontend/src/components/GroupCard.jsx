@@ -1,5 +1,7 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { AuthContext } from '../context/AuthContext';
 
 // Renders an avatar image with graceful fallback. If the URL is missing, fails
 // to load, or returns a non-image response (e.g. SPA index.html for a stale path),
@@ -27,7 +29,18 @@ const AvatarImage = memo(({ src, alt, fallbackChar, placeholderStyle }) => {
   );
 });
 
-function formatDate(dateStr) {
+// Returns "{min}-{max}" with 60+ cap, or null if either bound is missing.
+function formatAgeRange(min, max) {
+  if (min == null || max == null) return null;
+  const capped = max >= 60 ? '60+' : String(max);
+  return min === max ? String(min) : `${Math.max(18, min)}-${capped}`;
+}
+
+// Parse a date string into a locale-agnostic descriptor. Returns one of:
+//   { kind: 'today'|'tomorrow'|'yesterday', time }
+//   { kind: 'date', date, time }
+// Locale-specific text composition happens in the component using t().
+function parseDateDescriptor(dateStr, locale) {
   if (!dateStr) return null;
   try {
     const d = new Date(dateStr);
@@ -36,25 +49,18 @@ function formatDate(dateStr) {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const day   = new Date(d.getFullYear(), d.getMonth(), d.getDate());
     const diff  = Math.round((day - today) / 86400000);
-    const time  = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-    if (diff === 0) return `Heute · ${time} Uhr`;
-    if (diff === 1) return `Morgen · ${time} Uhr`;
-    if (diff === -1) return `Gestern · ${time} Uhr`;
-    const date  = d.toLocaleDateString('de-DE', { day: '2-digit', month: 'short' });
-    return `${date} · ${time} Uhr`;
+    const time  = d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+    if (diff === 0)  return { kind: 'today',     time };
+    if (diff === 1)  return { kind: 'tomorrow',  time };
+    if (diff === -1) return { kind: 'yesterday', time };
+    return {
+      kind: 'date',
+      date: d.toLocaleDateString(locale, { day: '2-digit', month: 'short' }),
+      time,
+    };
   } catch {
     return null;
   }
-}
-
-function getBadgeLabel(displayDate) {
-  if (displayDate) {
-    if (displayDate.startsWith('Heute')) return 'Heute';
-    if (displayDate.startsWith('Morgen')) return 'Morgen';
-    if (displayDate.startsWith('Gestern')) return 'Gestern';
-    return displayDate.split(' · ')[0];
-  }
-  return null;
 }
 
 export const GroupCard = memo(({
@@ -68,16 +74,34 @@ export const GroupCard = memo(({
   onWaitlist
 }) => {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
+  const { isPro } = useContext(AuthContext) || {};
   const isClub = group.type === 'club';
 
-  // member_previews is embedded by the backend — no extra fetch needed
+  // member_previews is embedded by the backend — non-Pro callers get 3 entries,
+  // Pro callers get 4. We render a Pro-gated blurry 4th slot whenever the group
+  // has more members than the caller is allowed to preview.
   const memberAvatars = Array.isArray(group.member_previews) ? group.member_previews : [];
 
   const maxMembers  = group.max_members || 10;
   const isFull      = group.members_count >= maxMembers;
-  const emptySpots  = isClub ? 0 : Math.max(0, 4 - memberAvatars.length);
-  const displayDate = formatDate(group.date);
-  const badgeLabel  = getBadgeLabel(displayDate);
+  const hiddenCount = Math.max(0, (group.members_count || 0) - memberAvatars.length);
+  const showProGate = !isClub && !isPro && hiddenCount > 0;
+  const emptySpots  = isClub ? 0 : Math.max(0, 4 - memberAvatars.length - (showProGate ? 1 : 0));
+
+  const locale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-DE';
+  const descriptor = parseDateDescriptor(group.date, locale);
+  // Badge sits in the corner of the card and shows just the "when" — Heute,
+  // Morgen, Gestern, or a short month/day chip for other dates.
+  let badgeLabel = null;
+  if (descriptor) {
+    if (descriptor.kind === 'today')     badgeLabel = t('groups.card.dateHeute');
+    else if (descriptor.kind === 'tomorrow')  badgeLabel = t('groups.card.dateMorgen');
+    else if (descriptor.kind === 'yesterday') badgeLabel = t('groups.card.dateGestern');
+    else                                      badgeLabel = descriptor.date;
+  }
+
+  const ageRange = formatAgeRange(group.age_min, group.age_max);
 
   return (
     <div className={`group-card ${isFull ? 'full' : ''}${badgeLabel ? ' has-badge' : ''}`} onClick={onClick}>
@@ -90,9 +114,10 @@ export const GroupCard = memo(({
         <div className="card-text-area">
           <h3 className="card-title">{group.category || group.title || group.name}</h3>
           <div className="card-subtitle-row">
-            <span>{group.members_count}/{maxMembers} Members</span>
+            <span>{group.members_count}/{maxMembers} {t('groups.card.members')}</span>
+            {ageRange && <span className="card-age-chip">🎂 {ageRange}</span>}
             {group.is_private && <span className="card-private-badge">🔒</span>}
-            {isFull && <span className="card-private-badge">Voll</span>}
+            {isFull && <span className="card-private-badge">{t('groups.card.full')}</span>}
             {group.is_boosted && <span className="card-private-badge">🚀</span>}
           </div>
         </div>
@@ -101,7 +126,7 @@ export const GroupCard = memo(({
       {/* ── Photo grid ── */}
       <div className="card-photo-grid">
         {isClub ? (
-          <div className="avatar-slot card-club-full-image" style={{ gridColumn: '1 / -1', gridRow: '1 / -1', borderRadius: '12px' }}>
+          <div className="avatar-slot card-club-full-image" style={{ gridColumn: '1 / -1', gridRow: '1 / -1', borderRadius: '9px' }}>
             <AvatarImage
               src={group.image_url}
               alt={group.name || group.title || ''}
@@ -120,6 +145,23 @@ export const GroupCard = memo(({
                 />
               </div>
             ))}
+            {showProGate && (
+              <div className="avatar-slot pro-gate">
+                <div className="avatar-pro-gate-blur" aria-hidden="true" />
+                <button
+                  className="avatar-gamble pro-gate-plus"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/group/${group.id}`);
+                  }}
+                  aria-label={t('groups.card.proGateAria')}
+                >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                    <path d="M12 5v14M5 12h14"/>
+                  </svg>
+                </button>
+              </div>
+            )}
             {[...Array(emptySpots)].map((_, idx) => (
               <div key={`empty-${idx}`} className="avatar-slot empty">
                 <button
@@ -128,7 +170,12 @@ export const GroupCard = memo(({
                     e.stopPropagation();
                     navigate(`/group/${group.id}`);
                   }}
-                >+</button>
+                  aria-label={t('groups.card.joinAria')}
+                >
+                  <svg width="11" height="11" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+                    <path d="M5 1v8M1 5h8"/>
+                  </svg>
+                </button>
               </div>
             ))}
           </>

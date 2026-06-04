@@ -1,5 +1,5 @@
 import React, { createContext, useState, useCallback, useEffect, useRef } from 'react';
-import { auth, restoreSession, setMemToken, clearMemToken } from '../utils/api';
+import { auth, restoreSession, setMemToken, clearMemToken, subscription as subscriptionApi } from '../utils/api';
 
 export const AuthContext = createContext();
 
@@ -13,6 +13,19 @@ export const AuthProvider = ({ children }) => {
   // Token lives in memory only — never written to localStorage
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(false);
+  // Pro flag — fetched once after authenticated session restore. Anything
+  // that needs to gate features (#1 member preview, future paywalls) reads
+  // this directly from AuthContext rather than firing its own getStatus call.
+  const [isPro, setIsPro] = useState(false);
+
+  const refreshProStatus = useCallback(async () => {
+    try {
+      const { data } = await subscriptionApi.getStatus();
+      setIsPro(!!data?.is_pro);
+    } catch {
+      setIsPro(false);
+    }
+  }, []);
 
   const storeAuth = (userData, tok) => {
     setUser(userData);
@@ -108,12 +121,20 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('jamie_user', JSON.stringify(data));
           })
           .catch(() => {});
+        // Same for Pro flag — silent best-effort.
+        refreshProStatus();
       } else {
         // Cookie expired → clear stale cache
         clearAuth();
       }
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Whenever we log in fresh, fetch Pro status.
+  useEffect(() => {
+    if (user && token && token !== 'guest_token') refreshProStatus();
+    else setIsPro(false);
+  }, [user?.id, token, refreshProStatus]);
 
   return (
     <AuthContext.Provider
@@ -122,6 +143,8 @@ export const AuthProvider = ({ children }) => {
         setUser,
         token,
         loading,
+        isPro,
+        refreshProStatus,
         login,
         register,
         loginWithGoogle,

@@ -276,6 +276,44 @@
   margin-bottom: 24px;
 }
 
+/* Location mini-map */
+.gd-map-section {
+  margin-bottom: 20px;
+}
+
+.gd-map-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-light);
+  margin-bottom: 8px;
+  opacity: 0.85;
+}
+
+.gd-mini-map {
+  width: 100%;
+  height: 180px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #1e2235;
+  border: 1px solid var(--border-default);
+}
+
+.gd-mini-map-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.gd-mini-map--loading {
+  width: 100%;
+  height: 180px;
+  border-radius: 14px;
+  background: #1e2235;
+  border: 1px solid var(--border-default);
+}
+
 /* Owner actions */
 .gd-owner-actions {
   display: flex;

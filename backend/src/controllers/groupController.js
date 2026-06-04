@@ -4,6 +4,7 @@ import { checkTextSafety } from '../config/moderation.js';
 import { sendPushToUser } from './pushController.js';
 import { getCached, setCached, invalidatePrefix } from '../utils/cache.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
+import { isUserPro } from './subscriptionController.js';
 
 const GROUPS_TTL  = 30_000;  // 30 s — acceptable staleness for list views
 const AVATARS_TTL = 60_000;  // 60 s — avatars change only on join/leave
@@ -163,10 +164,17 @@ export const getGroups = async (req, res) => {
 
     if (search && search.length > 100) return res.status(400).json({ error: 'Suchbegriff zu lang' });
 
+    // #1 Pro gate: non-Pro callers see only 3 member previews per group on the
+    // browse feed; Pro users see up to 4. The frontend pads the 4th slot with
+    // a blurred "unlock with Pro" tile when members_count > previews.length.
+    const callerIsPro = req.userId ? await isUserPro(req.userId) : false;
+    const previewLimit = callerIsPro ? 4 : 3;
+
     // Cache only filter combinations that don't involve free-text search or location
-    // (those are low-frequency, high-variability and not worth the memory)
+    // (those are low-frequency, high-variability and not worth the memory).
+    // Pro flag is part of the key so non-Pro and Pro users never share a cache row.
     const cacheKey = !search && !location
-      ? `groups:${type || ''}:${category || ''}:${upcoming || ''}:${limit || ''}:${offset || ''}`
+      ? `groups:${type || ''}:${category || ''}:${upcoming || ''}:${limit || ''}:${offset || ''}:p${callerIsPro ? 1 : 0}`
       : null;
     if (cacheKey) {
       const cached = getCached(cacheKey);
@@ -184,9 +192,21 @@ export const getGroups = async (req, res) => {
                  JOIN users u2 ON gm.user_id = u2.id
                  WHERE gm.group_id = g.id
                  ORDER BY gm.joined_at ASC
-                 LIMIT 4
+                 LIMIT ${previewLimit}
                ) sub
-             ) AS member_previews
+             ) AS member_previews,
+             (
+               SELECT MIN(EXTRACT(YEAR FROM AGE(u3.date_of_birth))::int)
+               FROM group_members gm2
+               JOIN users u3 ON gm2.user_id = u3.id
+               WHERE gm2.group_id = g.id AND u3.date_of_birth IS NOT NULL
+             ) AS age_min,
+             (
+               SELECT MAX(EXTRACT(YEAR FROM AGE(u4.date_of_birth))::int)
+               FROM group_members gm3
+               JOIN users u4 ON gm3.user_id = u4.id
+               WHERE gm3.group_id = g.id AND u4.date_of_birth IS NOT NULL
+             ) AS age_max
       FROM groups g
       LEFT JOIN users u ON g.owner_id = u.id
       WHERE g.is_active = TRUE AND g.deleted_at IS NULL AND g.type IN ('group', 'club')
@@ -242,7 +262,19 @@ export const getGroupById = async (req, res) => {
   try {
     const { id } = req.params;
     const result = await db.query(
-      `SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar
+      `SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar,
+              (
+                SELECT MIN(EXTRACT(YEAR FROM AGE(u2.date_of_birth))::int)
+                FROM group_members gm
+                JOIN users u2 ON gm.user_id = u2.id
+                WHERE gm.group_id = g.id AND u2.date_of_birth IS NOT NULL
+              ) AS age_min,
+              (
+                SELECT MAX(EXTRACT(YEAR FROM AGE(u3.date_of_birth))::int)
+                FROM group_members gm2
+                JOIN users u3 ON gm2.user_id = u3.id
+                WHERE gm2.group_id = g.id AND u3.date_of_birth IS NOT NULL
+              ) AS age_max
        FROM groups g
        LEFT JOIN users u ON g.owner_id = u.id
        WHERE g.id = $1 AND g.deleted_at IS NULL`,
@@ -437,6 +469,10 @@ export const joinGroup = async (req, res) => {
          DO UPDATE SET status = 'pending', message = $3, updated_at = CURRENT_TIMESTAMP`,
         [id, req.userId, message || null]
       );
+      // Notify owner about the new join request (fire-and-forget)
+      if (g.owner_id && g.owner_id !== req.userId) {
+        notifyJoinRequest(req.userId, g.owner_id, g.name || '', id).catch(() => {});
+      }
       return res.json({ message: 'Join request sent', status: 'pending' });
     }
 
@@ -625,15 +661,17 @@ export const getGroupMembers = async (req, res) => {
     if (groupRes.rows.length === 0) {
       return res.status(404).json({ error: 'Gruppe nicht gefunden' });
     }
-    if (groupRes.rows[0].is_private) {
-      const member = await db.query(
-        'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
-        [id, req.userId]
-      );
-      if (member.rows.length === 0) return res.status(403).json({ error: 'Keine Berechtigung' });
+
+    const isCallerMember = (await db.query(
+      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [id, req.userId]
+    )).rows.length > 0;
+
+    if (groupRes.rows[0].is_private && !isCallerMember) {
+      return res.status(403).json({ error: 'Keine Berechtigung' });
     }
 
-    const result = await db.query(
+    const fullList = await db.query(
       `SELECT u.id, u.name, u.avatar_url, u.bio, u.location, gm.role, gm.joined_at
        FROM group_members gm
        JOIN users u ON gm.user_id = u.id
@@ -641,7 +679,25 @@ export const getGroupMembers = async (req, res) => {
        ORDER BY gm.joined_at ASC`,
       [id]
     );
-    res.json(result.rows);
+    const total = fullList.rows.length;
+
+    // #1 Pro gate: members of the group always see the whole roster (they're
+    // already in the group). Non-members who are NOT Pro see only the first
+    // 3 entries; the frontend renders remaining slots as blurred placeholders
+    // with a ProModal CTA. Pro users always see everyone.
+    const callerIsPro = req.userId ? await isUserPro(req.userId) : false;
+    if (!isCallerMember && !callerIsPro) {
+      return res.json({
+        members: fullList.rows.slice(0, 3),
+        total_count: total,
+        gated: true,
+      });
+    }
+    return res.json({
+      members: fullList.rows,
+      total_count: total,
+      gated: false,
+    });
   } catch (err) {
     console.error('Error fetching members:', err);
     res.status(500).json({ error: 'Mitglieder konnten nicht geladen werden' });
@@ -1057,26 +1113,46 @@ export const inviteMember = async (req, res) => {
 
     const g = group.rows[0];
 
-    const [friendship, memberCount, existing] = await Promise.all([
+    // Friendship + existing-member check can race-safely run outside the txn —
+    // friendship status doesn't change between checks, and the (group_id,user_id)
+    // PK on group_members blocks duplicates regardless.
+    const [friendship, existing] = await Promise.all([
       db.query(
         `SELECT 1 FROM friendships
          WHERE ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))
          AND status = 'accepted'`,
         [req.userId, friendId]
       ),
-      db.query('SELECT COUNT(*) FROM group_members WHERE group_id = $1', [id]),
       db.query('SELECT id FROM group_members WHERE group_id = $1 AND user_id = $2', [id, friendId]),
     ]);
     if (friendship.rows.length === 0) return res.status(403).json({ error: 'Nur Freunde können eingeladen werden' });
-    if (g.max_members && parseInt(memberCount.rows[0].count) >= g.max_members) {
-      return res.status(400).json({ error: 'Group is full' });
-    }
     if (existing.rows.length) return res.status(400).json({ error: 'Already a member' });
 
-    await db.query(
-      'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
-      [id, friendId, 'member']
-    );
+    // Capacity check + insert inside a transaction with FOR UPDATE so two
+    // concurrent invites cannot both pass the count check and both insert,
+    // pushing the group over max_members. Mirrors joinGroup / handleJoinRequest.
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const locked = await client.query(
+        'SELECT members_count, max_members FROM groups WHERE id = $1 FOR UPDATE',
+        [id]
+      );
+      if (locked.rows[0].max_members && locked.rows[0].members_count >= locked.rows[0].max_members) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Group is full' });
+      }
+      await client.query(
+        'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+        [id, friendId, 'member']
+      );
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
 
     await db.query(
       `INSERT INTO notifications (user_id, sender_id, type, title, message, reference_type, reference_id)
@@ -1091,7 +1167,21 @@ export const inviteMember = async (req, res) => {
   }
 };
 
-// ── Push helper (fire-and-forget) ───────────────────────────────────────────
+// ── Push helpers (fire-and-forget) ──────────────────────────────────────────
+export async function notifyJoinRequest(requesterUserId, ownerUserId, groupName, groupId) {
+  try {
+    const { rows } = await db.query('SELECT name FROM users WHERE id = $1', [requesterUserId]);
+    const name = rows[0]?.name || 'Jemand';
+    const target = groupName ? `"${groupName}"` : 'deiner Gruppe';
+    sendPushToUser(
+      ownerUserId,
+      'Neue Beitrittsanfrage',
+      `${name} möchte ${target} beitreten`,
+      `/group/${groupId}/requests`
+    );
+  } catch { /* non-critical */ }
+}
+
 async function notifyGroupJoin(joinerUserId, ownerUserId, groupName) {
   try {
     const { rows } = await db.query('SELECT name FROM users WHERE id = $1', [joinerUserId]);
