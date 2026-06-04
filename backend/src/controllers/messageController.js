@@ -20,9 +20,11 @@ export const sendMessage = async (req, res) => {
       return res.status(422).json({ error: reason });
     }
 
-    // Single query: membership check + group info in one JOIN
+    // Single query: membership check + group info in one JOIN.
+    // group_members has a composite PK (group_id, user_id) — no `id` column —
+    // so we use gm.user_id as the existence marker.
     const ctx = await db.query(
-      `SELECT g.type, g.owner_id, g.chat_only_owner, gm.id AS member_id
+      `SELECT g.type, g.owner_id, g.chat_only_owner, gm.user_id AS member_user_id
        FROM groups g
        LEFT JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = $2
        WHERE g.id = $1`,
@@ -31,8 +33,8 @@ export const sendMessage = async (req, res) => {
     if (ctx.rows.length === 0) {
       return res.status(404).json({ error: 'Gruppe nicht gefunden' });
     }
-    const { type, owner_id, chat_only_owner, member_id } = ctx.rows[0];
-    if (!member_id) {
+    const { type, owner_id, chat_only_owner, member_user_id } = ctx.rows[0];
+    if (member_user_id == null) {
       return res.status(403).json({ error: 'Not a member of this group' });
     }
     if (type === 'club' && chat_only_owner && owner_id !== req.userId) {
