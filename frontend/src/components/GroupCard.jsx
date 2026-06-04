@@ -29,13 +29,6 @@ const AvatarImage = memo(({ src, alt, fallbackChar, placeholderStyle }) => {
   );
 });
 
-// Returns "{min}-{max}" with 60+ cap, or null if either bound is missing.
-function formatAgeRange(min, max) {
-  if (min == null || max == null) return null;
-  const capped = max >= 60 ? '60+' : String(max);
-  return min === max ? String(min) : `${Math.max(18, min)}-${capped}`;
-}
-
 // Parse a date string into a locale-agnostic descriptor. Returns one of:
 //   { kind: 'today'|'tomorrow'|'yesterday', time }
 //   { kind: 'date', date, time }
@@ -101,8 +94,6 @@ export const GroupCard = memo(({
     else                                      badgeLabel = descriptor.date;
   }
 
-  const ageRange = formatAgeRange(group.age_min, group.age_max);
-
   return (
     <div className={`group-card ${isFull ? 'full' : ''}${badgeLabel ? ' has-badge' : ''}`} onClick={onClick}>
 
@@ -115,7 +106,6 @@ export const GroupCard = memo(({
           <h3 className="card-title">{group.category || group.title || group.name}</h3>
           <div className="card-subtitle-row">
             <span>{group.members_count}/{maxMembers} {t('groups.card.members')}</span>
-            {ageRange && <span className="card-age-chip">🎂 {ageRange}</span>}
             {group.is_private && <span className="card-private-badge">🔒</span>}
             {isFull && <span className="card-private-badge">{t('groups.card.full')}</span>}
             {group.is_boosted && <span className="card-private-badge">🚀</span>}
