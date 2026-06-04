@@ -14,6 +14,6 @@ RESEND_API_KEY + verified domain → emails actually reach users
 VITE_GOOGLE_MAPS_API_KEY → location input works
 VAPID keys → push notifications (self-generated, free)
 STORAGE_* → profile pictures / group images persist in production
-STRIPE_* / PAYPAL_* → only needed if you want the boost/payment feature live
+STRIPE_* → only needed if you want the boost/payment feature live
 
 Read checkmarks

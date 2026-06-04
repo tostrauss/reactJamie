@@ -35,8 +35,6 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 | `STORAGE_PUBLIC_URL` | ✅ prod | e.g. `https://pub-xxx.r2.dev` (must be HTTPS) |
 | `STRIPE_SECRET_KEY` | 💳 | Stripe live secret key |
 | `STRIPE_WEBHOOK_SECRET` | 💳 | From Stripe dashboard → webhooks |
-| `PAYPAL_CLIENT_ID` | 💳 | PayPal live client ID |
-| `PAYPAL_CLIENT_SECRET` | 💳 | PayPal live secret |
 | `VAPID_PUBLIC_KEY` | 🔔 | Generate: `npx web-push generate-vapid-keys` |
 | `VAPID_PRIVATE_KEY` | 🔔 | From same command |
 | `ADMIN_EMAIL` | 🔒 | Email address to receive report notifications |
@@ -261,7 +259,6 @@ All must have valid TLS certificates (Let's Encrypt via Railway/Vercel auto-conf
 ## 8. Post-Launch Checklist
 
 - [ ] Stripe live mode enabled (not test mode)
-- [ ] PayPal live mode (`PAYPAL_ENV=live`)
 - [ ] SENTRY_DSN set in both frontend and backend
 - [ ] VAPID keys configured for push notifications
 - [ ] Railway auto-deploy enabled from `main` branch

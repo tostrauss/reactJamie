@@ -865,8 +865,7 @@
       "applePay": "🍎 Apple Pay / Card",
       "stripeError": "Could not start Stripe",
       "creditsAddedToast": "+{{count}} boost credits added!",
-      "paymentError": "Payment could not be completed",
-      "paypalError": "PayPal error. Please try again."
+      "paymentError": "Payment could not be completed"
     },
     "stripe": {
       "back": "Back",

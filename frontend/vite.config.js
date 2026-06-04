@@ -50,7 +50,6 @@ export default defineConfig({
           'vendor-socket': ['socket.io-client'],
           'vendor-stripe': ['@stripe/stripe-js', '@stripe/react-stripe-js'],
           'vendor-map': ['@react-google-maps/api'],
-          'vendor-paypal': ['@paypal/react-paypal-js'],
           'vendor-sentry': ['@sentry/react'],
         },
       },

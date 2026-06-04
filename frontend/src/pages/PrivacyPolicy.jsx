@@ -141,7 +141,6 @@ export default function PrivacyPolicy() {
         </p>
         <ul>
           <li><strong>Stripe, Inc.</strong> (USA) — Datenschutz: stripe.com/privacy</li>
-          <li><strong>PayPal Holdings, Inc.</strong> (USA) — Datenschutz: paypal.com/privacy</li>
           <li><strong>Apple In-App Purchase</strong> (auf iOS) — apple.com/privacy</li>
           <li><strong>Google Play Billing</strong> (auf Android) — policies.google.com/privacy</li>
         </ul>

@@ -69,7 +69,7 @@ psql "$DATABASE_URL" -f backend/src/config/boost_migration.sql
 ```
 
 Creates `referral_codes`, `boost_transactions`, `boost_credits` tables.  
-Required for the Boost feature (Stripe + PayPal payments, credit balance).
+Required for the Boost feature (Stripe payments, credit balance).
 
 ---
 

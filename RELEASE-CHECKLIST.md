@@ -32,9 +32,6 @@ STRIPE_SECRET_KEY           sk_live_...
 STRIPE_PUBLISHABLE_KEY      pk_live_...
 STRIPE_WEBHOOK_SECRET       whsec_... (boost endpoint)
 STRIPE_SUBSCRIPTION_WEBHOOK_SECRET whsec_... (subscription endpoint)
-PAYPAL_CLIENT_ID
-PAYPAL_CLIENT_SECRET
-PAYPAL_ENV                  live
 VAPID_PUBLIC_KEY            from `npx web-push generate-vapid-keys`
 VAPID_PRIVATE_KEY           from same command
 VAPID_SUBJECT               mailto:admin@jamie-app.com
@@ -174,7 +171,6 @@ curl -I https://app.jamie-app.com/.well-known/apple-app-site-association
 - [ ] Password reset → email arrives, link works, lands in app
 - [ ] Create a group → image upload succeeds (R2 URL in response)
 - [ ] Stripe test charge in live mode (€0.50 to your own card) → webhook fires → credit added
-- [ ] PayPal sandbox order → capture → credit added
 - [ ] Push notification: subscribe → fire from another account's chat → receive on device
 - [ ] Admin dashboard at `/admin` loads with your is_admin user
 - [ ] Open the TWA on Android — verify no URL bar (asset links working)

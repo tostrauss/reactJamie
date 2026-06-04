@@ -17,6 +17,9 @@ frontend/.env.*.local
 # DB reset script — destructive, never commit to shared branches
 backend/src/config/reset.sql
 
+# Personal scratchpad — may contain secrets, never commit
+to-do.md
+
 # OS
 .DS_Store
 Thumbs.db

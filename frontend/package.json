@@ -14,7 +14,6 @@
     "@capacitor/push-notifications": "^8.0.2",
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.1",
-    "@paypal/react-paypal-js": "^9.0.1",
     "@react-google-maps/api": "^2.20.8",
     "@react-oauth/google": "^0.13.5",
     "@sentry/react": "^10.50.0",

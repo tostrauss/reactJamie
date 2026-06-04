@@ -9,7 +9,7 @@ import { ReportModal } from '../components/ReportModal';
 import { isNativeIOS } from '../utils/platform';
 import '../styles/group-detail.css';
 
-// Lazy-load: pulls Stripe + PayPal SDKs only when the owner opens the modal.
+// Lazy-load: pulls Stripe SDK only when the owner opens the modal.
 const BoostModal = lazy(() => import('../components/BoostModal').then(m => ({ default: m.BoostModal })));
 
 // Stable empty libraries array — recreating this triggers a Google Maps reload

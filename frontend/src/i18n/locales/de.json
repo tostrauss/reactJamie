@@ -865,8 +865,7 @@
       "applePay": "🍎 Apple Pay / Karte",
       "stripeError": "Stripe konnte nicht gestartet werden",
       "creditsAddedToast": "+{{count}} Boost-Credits gutgeschrieben!",
-      "paymentError": "Zahlung konnte nicht abgeschlossen werden",
-      "paypalError": "PayPal-Fehler. Bitte erneut versuchen."
+      "paymentError": "Zahlung konnte nicht abgeschlossen werden"
     },
     "stripe": {
       "back": "Zurück",

@@ -121,6 +121,6 @@ Add these credentials in App Store Connect → App Review Information.
 | Does your app collect user data? | Yes |
 | Location data | Approximate (for map features) |
 | Personal info | Name, email, photos |
-| In-app purchases | Yes (Stripe / PayPal boost credits) |
+| In-app purchases | Yes (Stripe boost credits) |
 | Data encrypted in transit | Yes |
 | Users can request deletion | Yes (Settings → Konto löschen) |

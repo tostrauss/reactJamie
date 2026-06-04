@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
 import { boost as boostApi } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 
@@ -77,10 +76,9 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
   const [referralCode, setReferralCode] = useState('');
   const [referralUsed, setReferralUsed] = useState(0);
   const [selectedPkg, setSelectedPkg] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState(null); // 'stripe' | 'paypal'
+  const [paymentMethod, setPaymentMethod] = useState(null); // 'stripe'
   const [stripeClientSecret, setStripeClientSecret] = useState(null);
   const [stripePromise, setStripePromise] = useState(null);
-  const [paypalClientId, setPaypalClientId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [redeemCode, setRedeemCode] = useState('');
 
@@ -89,11 +87,6 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
       setCredits(res.data.credits);
       setReferralCode(res.data.referral_code || '');
       setReferralUsed(res.data.referral_used || 0);
-    }).catch(() => {});
-
-    // Load PayPal client ID from backend if needed
-    boostApi.getPaypalClientId().then(res => {
-      if (res.data?.client_id) setPaypalClientId(res.data.client_id);
     }).catch(() => {});
   }, []);
 
@@ -303,30 +296,6 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
                         {t('boost.buy.applePay')}
                       </button>
                     </div>
-
-                    {/* PayPal button */}
-                    {paypalClientId && (
-                      <PayPalScriptProvider options={{ 'client-id': paypalClientId, currency: 'EUR' }}>
-                        <PayPalButtons
-                          style={{ layout: 'horizontal', color: 'gold', shape: 'rect', label: 'pay', height: 48 }}
-                          createOrder={() =>
-                            boostApi.createPaypalOrder(selectedPkg.id).then(r => r.data.order_id)
-                          }
-                          onApprove={async (data) => {
-                            try {
-                              await boostApi.capturePaypalOrder(data.orderID);
-                              toast.success(t('boost.buy.creditsAddedToast', { count: selectedPkg.credits }));
-                              setCredits(c => c + selectedPkg.credits);
-                              setSelectedPkg(null);
-                              setTab('apply');
-                            } catch {
-                              toast.error(t('boost.buy.paymentError'));
-                            }
-                          }}
-                          onError={() => toast.error(t('boost.buy.paypalError'))}
-                        />
-                      </PayPalScriptProvider>
-                    )}
                   </div>
                 )}
               </>

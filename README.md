@@ -62,7 +62,7 @@ jamie/
 | **Karte** | Leaflet-Karten-Tab, Nominatim-Geocoding, Kategorie-Filter-Pills mit Emojis, Wien als Standard-Zentrum |
 | **Push-Benachrichtigungen** | VAPID Web-Push (Browser) + APNs via Capacitor (iOS/Android) |
 | **Inhaltsmeldungen** | Nutzer/Gruppen melden; Admin erhält E-Mail-Benachrichtigung (`ADMIN_EMAIL`) |
-| **Boost-System** | Kredit-basierte Boosts; Stripe (Apple Pay) + PayPal Checkout |
+| **Boost-System** | Kredit-basierte Boosts; Stripe (Apple Pay / Karte) |
 | **Empfehlungscodes** | Kredite durch Einladung anderer Nutzer verdienen |
 | **Admin-Dashboard** | `/admin` – JWT-basierter Zugang; `UPDATE users SET is_admin=true WHERE email='...'`; CSV-Export |
 | **Event-Bewertungen** | `EventReviewModal` wird nach dem Login automatisch ausgelöst, wenn vergangene Events vorhanden sind |
@@ -84,8 +84,8 @@ jamie/
 - Multer (Memory-Storage) + `@aws-sdk/client-s3` (Cloudflare R2 / AWS S3)
 - `web-push` (VAPID Push-Benachrichtigungen)
 - Nodemailer (E-Mail-OTP + Admin-Alerts)
-- Stripe SDK + PayPal REST API (Boost-Zahlungen)
-- Helmet (CSP aktiviert — Stripe, PayPal, R2-Domains whitelisted)
+- Stripe SDK (Boost-Zahlungen)
+- Helmet (CSP aktiviert — Stripe, R2-Domains whitelisted)
 
 ### Frontend
 - React 18 + Vite
@@ -141,10 +141,6 @@ ADMIN_EMAIL=admin@yourdomain.com
 # Stripe (Boosts)
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-
-# PayPal (Boosts)
-PAYPAL_CLIENT_ID=...
-PAYPAL_CLIENT_SECRET=...
 ```
 
 ### Cloud-Storage (Produktion — Cloudflare R2 oder AWS S3)
@@ -282,8 +278,6 @@ cd frontend && npm test  # 10 Vitest + RTL-Tests
 |---|---|---|
 | GET | `/api/boosts/credits` | auth |
 | POST | `/api/boosts/stripe/create-intent` | auth |
-| POST | `/api/boosts/paypal/create-order` | auth |
-| POST | `/api/boosts/paypal/capture` | auth |
 | POST | `/api/boosts/activate` | auth |
 | POST | `/api/boosts/referral` | auth |
 

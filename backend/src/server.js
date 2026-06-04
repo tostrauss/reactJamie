@@ -146,8 +146,6 @@ app.use(helmet({
         'https://accounts.spotify.com',
         'https://api.stripe.com',
         'https://hooks.stripe.com',
-        'https://www.paypal.com',
-        'https://www.sandbox.paypal.com',
         'https://nominatim.openstreetmap.org',
         // Google Maps JS API serves modules + XHR tiles from multiple subdomains
         // (khms*.googleapis.com, maps.googleapis.com, etc.) — wildcard required.
@@ -165,7 +163,6 @@ app.use(helmet({
         'blob:',
         'https://i.scdn.co',
         'https://images.unsplash.com',
-        'https://www.paypal.com',
         'https://*.tile.openstreetmap.org',
         'https://lh3.googleusercontent.com', // Google profile pictures
         // Map tiles + raster panes come from sharded subdomains
@@ -179,8 +176,6 @@ app.use(helmet({
         "'self'",
         "'unsafe-eval'", // required by Google OAuth GSI script + Google Maps internals
         'https://js.stripe.com',
-        'https://www.paypal.com',
-        'https://www.sandbox.paypal.com',
         'https://accounts.google.com',
         'https://appleid.cdn-apple.com',
         'https://*.googleapis.com',

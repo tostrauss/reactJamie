@@ -483,15 +483,10 @@ export const reports = {
 export const boost = {
   getCredits: () => axiosInstance.get('/boost/credits'),
   getPackages: () => axiosInstance.get('/boost/packages'),
-  getPaypalClientId: () => axiosInstance.get('/boost/paypal-client-id'),
   apply: (target_type, target_id, hours = 24) =>
     axiosInstance.post('/boost/apply', { target_type, target_id, hours }),
   createStripeIntent: (package_id) =>
     axiosInstance.post('/boost/stripe/create-intent', { package_id }),
-  createPaypalOrder: (package_id) =>
-    axiosInstance.post('/boost/paypal/create-order', { package_id }),
-  capturePaypalOrder: (order_id) =>
-    axiosInstance.post('/boost/paypal/capture-order', { order_id }),
   redeemReferral: (code) =>
     axiosInstance.post('/boost/redeem-referral', { code }),
 };

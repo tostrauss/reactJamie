@@ -90,7 +90,7 @@ export default function TermsOfService() {
         <ul>
           <li>Käufe sind endgültig und werden nicht erstattet, sofern gesetzlich nichts anderes vorgeschrieben ist.</li>
           <li>Credits verfallen nicht, sind aber nicht übertragbar.</li>
-          <li>Zahlungen werden über Stripe oder PayPal abgewickelt; es gelten deren Nutzungsbedingungen.</li>
+          <li>Zahlungen werden über Stripe abgewickelt; es gelten deren Nutzungsbedingungen.</li>
           <li>Auf iOS werden Käufe über das Apple In-App-Purchase-System (StoreKit) abgewickelt.</li>
           <li>Auf Android werden Käufe über Google Play Billing abgewickelt.</li>
           <li>Widerrufsrecht: Gemäß EU-Verbraucherrecht hast du ein 14-tägiges Widerrufsrecht, sofern du die Nutzung der Credits noch nicht begonnen hast.</li>
