@@ -1,5 +1,51 @@
 import db from '../config/database.js';
 import { isUserPro } from './subscriptionController.js';
+import { sendPushToUser } from './pushController.js';
+
+// Try to extract the city from a free-form address. Most DACH addresses end in
+// "PLZ City" (e.g. "Hauptstraße 1, 1010 Wien"). We take the last comma-separated
+// segment, strip a leading postal code, and trim. Returns null on failure.
+function cityFromAddress(addr) {
+  if (!addr || typeof addr !== 'string') return null;
+  const parts = addr.split(',').map(p => p.trim()).filter(Boolean);
+  if (parts.length === 0) return null;
+  const last = parts[parts.length - 1];
+  const cleaned = last.replace(/^\d{3,6}\s+/, '').trim();
+  return cleaned.length >= 2 ? cleaned : null;
+}
+
+// Fire-and-forget: push a "Neues Angebot" to Pro users whose location contains
+// the deal's city. Only users with an active web push subscription are queried.
+// Capped at 500 recipients per deal to bound the worst-case fan-out cost.
+async function notifyNearbyUsersAboutDeal(deal) {
+  if (!deal?.id) return;
+  const city = cityFromAddress(deal.address);
+  if (!city) return; // unknown city — skip rather than spam everyone
+  try {
+    const result = await db.query(
+      `SELECT DISTINCT u.id
+       FROM users u
+       JOIN subscriptions s ON s.user_id = u.id
+         AND s.status IN ('active','canceling')
+         AND s.current_period_end > NOW()
+       JOIN push_subscriptions ps ON ps.user_id = u.id
+       WHERE u.is_active = TRUE
+         AND u.location ILIKE $1
+       LIMIT 500`,
+      [`%${city}%`]
+    );
+    for (const row of result.rows) {
+      sendPushToUser(
+        row.id,
+        `Neues Angebot in ${city}`,
+        `${deal.name} — ${deal.deal_label}`,
+        `/deal/${deal.id}`
+      );
+    }
+  } catch (err) {
+    console.error('[deals] notifyNearbyUsersAboutDeal failed:', err.message);
+  }
+}
 
 function validateDealInputs({ lat, lng, booking_url, photos, name, deal_label, description, address }) {
   if (lat !== null && lat !== undefined) {
@@ -109,7 +155,11 @@ export const createDeal = async (req, res) => {
         booking_url || null,
       ]
     );
-    res.status(201).json(result.rows[0]);
+    const newDeal = result.rows[0];
+    // Fan out push notifications to nearby Pro users — must never block or
+    // fail the create response, so fire-and-forget with its own try/catch.
+    notifyNearbyUsersAboutDeal(newDeal).catch(() => {});
+    res.status(201).json(newDeal);
   } catch (err) {
     console.error('createDeal error:', err);
     res.status(500).json({ error: 'Internal server error' });

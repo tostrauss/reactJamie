@@ -3,6 +3,7 @@ import { geocodeLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { getCached, setCached, invalidatePrefix } from '../utils/cache.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
+import { notifyJoinRequest } from './groupController.js';
 
 const CLUBS_TTL = 30_000; // 30 s
 
@@ -361,11 +362,12 @@ export const joinClub = async (req, res) => {
     }
 
     const clubResult = await db.query(
-      'SELECT id, is_private FROM groups WHERE id = $1 AND type = $2 AND deleted_at IS NULL',
+      'SELECT id, is_private, owner_id, name FROM groups WHERE id = $1 AND type = $2 AND deleted_at IS NULL',
       [id, CLUB_TYPE]
     );
     if (clubResult.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    const isPrivate = clubResult.rows[0].is_private;
+    const clubRow = clubResult.rows[0];
+    const isPrivate = clubRow.is_private;
 
     const existing = await db.query(
       'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
@@ -387,6 +389,10 @@ export const joinClub = async (req, res) => {
         'INSERT INTO group_join_requests (group_id, user_id, message) VALUES ($1, $2, $3)',
         [id, req.userId, message || null]
       );
+      // Notify the club owner about the new request (fire-and-forget)
+      if (clubRow.owner_id && clubRow.owner_id !== req.userId) {
+        notifyJoinRequest(req.userId, clubRow.owner_id, clubRow.name || '', id).catch(() => {});
+      }
       return res.json({ message: 'Join request sent', status: 'pending' });
     }
 
