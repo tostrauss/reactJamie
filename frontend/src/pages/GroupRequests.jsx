@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { groups } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 
@@ -7,6 +8,8 @@ export const GroupRequests = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
+  const { t, i18n } = useTranslation();
+  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-DE';
 
   const [requests, setRequests] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -28,9 +31,9 @@ export const GroupRequests = () => {
         if (!cancelled) {
           const status = err.response?.status;
           if (status === 403) {
-            toast.error('Keine Berechtigung – du bist nicht der Ersteller dieser Gruppe');
+            toast.error(t('groupRequests.errorPermission'));
           } else {
-            toast.error('Anfragen konnten nicht geladen werden');
+            toast.error(t('groupRequests.errorLoad'));
           }
         }
       } finally {
@@ -66,12 +69,12 @@ export const GroupRequests = () => {
     setProcessing(true);
     try {
       await groups.handleRequest(id, request.id, 'accept');
-      toast.success(`${request.user_name} wurde angenommen!`);
+      toast.success(t('groupRequests.acceptedToast', { name: request.user_name }));
       setSwipeDirection('right');
       setOffsetX(300);
       setTimeout(() => { goToNext(); setProcessing(false); }, 300);
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Fehler beim Annehmen');
+      toast.error(err.response?.data?.error || t('groupRequests.acceptError'));
       setOffsetX(0); setSwipeDirection(null); setProcessing(false);
     }
   };
@@ -82,12 +85,12 @@ export const GroupRequests = () => {
     setProcessing(true);
     try {
       await groups.handleRequest(id, request.id, 'reject');
-      toast.info(`${request.user_name} wurde abgelehnt`);
+      toast.info(t('groupRequests.declinedToast', { name: request.user_name }));
       setSwipeDirection('left');
       setOffsetX(-300);
       setTimeout(() => { goToNext(); setProcessing(false); }, 300);
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Fehler beim Ablehnen');
+      toast.error(err.response?.data?.error || t('groupRequests.declineError'));
       setOffsetX(0); setSwipeDirection(null); setProcessing(false);
     }
   };
@@ -105,7 +108,7 @@ export const GroupRequests = () => {
       <div className="page">
         <div className="loading-container">
           <div className="loading-spinner" />
-          <p>Lade Anfragen...</p>
+          <p>{t('groupRequests.loading')}</p>
         </div>
       </div>
     );
@@ -121,8 +124,8 @@ export const GroupRequests = () => {
         </button>
         <h1 className="requests-title">
           {requests.length - currentIndex > 0
-            ? `${requests.length - currentIndex} Anfragen`
-            : 'Keine Anfragen'}
+            ? t('groupRequests.countFmt', { count: requests.length - currentIndex })
+            : t('groupRequests.empty')}
         </h1>
         <div style={{ width: 40 }} />
       </div>
@@ -131,10 +134,10 @@ export const GroupRequests = () => {
         {currentIndex >= requests.length ? (
           <div className="empty-state">
             <div className="empty-state-icon">✅</div>
-            <h2 className="empty-state-title">Alle Anfragen bearbeitet!</h2>
-            <p className="empty-state-text">Du hast alle Beitrittsanfragen durchgesehen.</p>
+            <h2 className="empty-state-title">{t('groupRequests.allDoneTitle')}</h2>
+            <p className="empty-state-text">{t('groupRequests.allDoneText')}</p>
             <button className="btn btn-primary" onClick={() => navigate(-1)}>
-              Zurück zur Gruppe
+              {t('groupRequests.backToGroup')}
             </button>
           </div>
         ) : currentRequest ? (
@@ -151,11 +154,11 @@ export const GroupRequests = () => {
           >
             <div className={`swipe-indicator swipe-accept ${swipeDirection === 'right' ? 'visible' : ''}`}>
               <span>✓</span>
-              <span>Annehmen</span>
+              <span>{t('groupRequests.accept')}</span>
             </div>
             <div className={`swipe-indicator swipe-decline ${swipeDirection === 'left' ? 'visible' : ''}`}>
               <span>✕</span>
-              <span>Ablehnen</span>
+              <span>{t('groupRequests.decline')}</span>
             </div>
 
             <div className="request-card">
@@ -183,7 +186,7 @@ export const GroupRequests = () => {
                 )}
 
                 <p className="request-date">
-                  Angefragt {new Date(currentRequest.created_at).toLocaleDateString('de-DE')}
+                  {t('groupRequests.requestedOnFmt', { date: new Date(currentRequest.created_at).toLocaleDateString(dateLocale) })}
                 </p>
               </div>
             </div>
@@ -191,7 +194,7 @@ export const GroupRequests = () => {
             {currentIndex < requests.length - 1 && (
               <div className="next-card-preview">
                 {requests[currentIndex + 1].user_avatar ? (
-                  <img src={requests[currentIndex + 1].user_avatar} alt="Nächste" loading="lazy" decoding="async" />
+                  <img src={requests[currentIndex + 1].user_avatar} alt="" loading="lazy" decoding="async" />
                 ) : (
                   <div style={{ width: '100%', height: '100%', background: 'var(--bg-input)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, color: 'var(--coral)' }}>
                     {(requests[currentIndex + 1].user_name || '?')[0].toUpperCase()}

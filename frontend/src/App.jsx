@@ -2,6 +2,7 @@ import React, { useContext, useState, useEffect, useRef, lazy, Suspense } from '
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { AuthContext, AuthProvider } from './context/AuthContext';
 import { SocketContext, SocketProvider } from './context/SocketContext';
 import { ToastProvider } from './context/ToastContext';
@@ -105,13 +106,14 @@ const ProfileIcon = ({ active }) => (
 // ==========================================
 const UpdateBanner = () => {
   const { needRefresh: [needRefresh], updateServiceWorker } = useRegisterSW();
+  const { t } = useTranslation();
 
   if (!needRefresh) return null;
 
   return (
     <div className="update-banner">
-      <span>Neue Version verfügbar</span>
-      <button onClick={() => updateServiceWorker(true)}>Aktualisieren</button>
+      <span>{t('app.updateAvailable')}</span>
+      <button onClick={() => updateServiceWorker(true)}>{t('app.updateBtn')}</button>
     </div>
   );
 };
@@ -125,6 +127,7 @@ const isInStandaloneMode = () =>
   window.navigator.standalone === true;
 
 const InstallBanner = () => {
+  const { t } = useTranslation();
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showBanner, setShowBanner] = useState(false);
   const [iosMode, setIosMode] = useState(false);
@@ -172,16 +175,16 @@ const InstallBanner = () => {
       <div className="install-banner-content">
         <div className="install-banner-icon">J</div>
         <div className="install-banner-text">
-          <strong>JAMIE installieren</strong>
+          <strong>{t('app.install.title')}</strong>
           {iosMode
-            ? <span>Tippe auf <strong>Teilen</strong> → <strong>Zum Home-Bildschirm</strong></span>
-            : <span>App für schnellen Zugriff installieren</span>
+            ? <span>{t('app.install.iosHintPrefix')} <strong>{t('app.install.iosShare')}</strong> {t('app.install.iosHintArrow')} <strong>{t('app.install.iosHomeScreen')}</strong></span>
+            : <span>{t('app.install.defaultText')}</span>
           }
         </div>
       </div>
       <div className="install-banner-actions">
         {!iosMode && (
-          <button className="install-btn" onClick={handleInstall}>Installieren</button>
+          <button className="install-btn" onClick={handleInstall}>{t('app.install.btn')}</button>
         )}
         <button className="install-dismiss" onClick={handleDismiss}>✕</button>
       </div>
@@ -191,6 +194,7 @@ const InstallBanner = () => {
 
 const CreateModal = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   if (!isOpen) return null;
 
@@ -203,14 +207,14 @@ const CreateModal = ({ isOpen, onClose }) => {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <div className="modal-handle" />
-        <h2 className="modal-title">Was möchtest du erstellen?</h2>
+        <h2 className="modal-title">{t('app.createModal.title')}</h2>
 
         <div className="modal-options">
           <button className="modal-option" onClick={() => handleOption('/create-group')}>
             <div className="modal-option-icon">👥</div>
             <div className="modal-option-text">
-              <h3>Gruppe erstellen</h3>
-              <p>Plane eine Aktivität mit 3-10 Leuten</p>
+              <h3>{t('app.createModal.groupTitle')}</h3>
+              <p>{t('app.createModal.groupDesc')}</p>
             </div>
             <div className="modal-option-arrow">→</div>
           </button>
@@ -218,15 +222,15 @@ const CreateModal = ({ isOpen, onClose }) => {
           <button className="modal-option" onClick={() => handleOption('/create-club')}>
             <div className="modal-option-icon">🏆</div>
             <div className="modal-option-text">
-              <h3>Club gründen</h3>
-              <p>Starte eine dauerhafte Community</p>
+              <h3>{t('app.createModal.clubTitle')}</h3>
+              <p>{t('app.createModal.clubDesc')}</p>
             </div>
             <div className="modal-option-arrow">→</div>
           </button>
         </div>
 
         <button className="modal-close-btn" onClick={onClose}>
-          Abbrechen
+          {t('app.createModal.cancel')}
         </button>
       </div>
     </div>
@@ -237,6 +241,7 @@ const Navigation = () => {
   const { user } = useContext(AuthContext);
   const { socket } = useContext(SocketContext);
   const location = useLocation();
+  const { t } = useTranslation();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const unreadRef = useRef(0);
@@ -291,12 +296,12 @@ const Navigation = () => {
         <div className="bottom-nav-items">
           <Link to="/home" className={`nav-item ${isActive('/home') ? 'active' : ''}`}>
             <div className="nav-icon"><HomeIcon active={isActive('/home')} /></div>
-            <span className="nav-label">Home</span>
+            <span className="nav-label">{t('app.nav.home')}</span>
           </Link>
 
           <Link to="/explore" className={`nav-item ${isActive('/explore') ? 'active' : ''}`}>
             <div className="nav-icon"><ExploreIcon active={isActive('/explore')} /></div>
-            <span className="nav-label">Entdecken</span>
+            <span className="nav-label">{t('app.nav.explore')}</span>
           </Link>
 
           <button className="nav-add-button" onClick={() => setShowCreateModal(true)}>
@@ -308,17 +313,17 @@ const Navigation = () => {
               <ChatIcon active={isActive('/chats')} />
               {unreadCount > 0 && <span className="nav-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
             </div>
-            <span className="nav-label">Chats</span>
+            <span className="nav-label">{t('app.nav.chats')}</span>
           </Link>
 
           <Link to="/profile" className={`nav-item ${isActive('/profile') ? 'active' : ''}`}>
             <div className="nav-icon">
               {user.avatar_url
-                ? <img src={user.avatar_url} alt="Profil" className="nav-avatar" decoding="async" fetchpriority="high" />
+                ? <img src={user.avatar_url} alt={t('app.nav.profileAlt')} className="nav-avatar" decoding="async" fetchpriority="high" />
                 : <ProfileIcon active={isActive('/profile')} />
               }
             </div>
-            <span className="nav-label">Profil</span>
+            <span className="nav-label">{t('app.nav.profile')}</span>
           </Link>
         </div>
       </nav>
@@ -417,6 +422,7 @@ function useNativePush(user) {
 // Main App Routes
 function AppRoutes() {
   const { user } = useContext(AuthContext);
+  const { t } = useTranslation();
   useNativePush(user);
   useAnalytics();
   const [showIntro, setShowIntro] = useState(() => !!user && !user?.isGuest && shouldShowIntro());
@@ -525,9 +531,9 @@ function AppRoutes() {
           <Route path="*" element={
             <div className="page not-found-page">
               <div className="not-found-icon">🤔</div>
-              <h1>Seite nicht gefunden</h1>
-              <p>Die Seite existiert nicht.</p>
-              <Link to="/" className="btn btn-primary">Zur Startseite</Link>
+              <h1>{t('app.notFound.title')}</h1>
+              <p>{t('app.notFound.text')}</p>
+              <Link to="/" className="btn btn-primary">{t('app.notFound.btn')}</Link>
             </div>
           } />
         </Routes>

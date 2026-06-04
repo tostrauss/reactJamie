@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { notifications } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 
@@ -12,6 +13,8 @@ export const Notifications = () => {
   const [notifs, setNotifs] = useState([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
+  const { t, i18n } = useTranslation();
+  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-AT';
 
   useEffect(() => {
     loadNotifications();
@@ -23,7 +26,7 @@ export const Notifications = () => {
       setNotifs(res.data || []);
       await notifications.markRead();
     } catch (err) {
-      toast.error('Benachrichtigungen konnten nicht geladen werden');
+      toast.error(t('notifications.loadError'));
     } finally {
       setLoading(false);
     }
@@ -33,7 +36,7 @@ export const Notifications = () => {
     return (
       <div className="notif-page">
         <div className="notif-header">
-          <h1 className="notif-title">Benachrichtigungen</h1>
+          <h1 className="notif-title">{t('notifications.title')}</h1>
         </div>
         <div className="notif-scroll">
           <div className="notif-loading"><div className="home-spinner" /></div>
@@ -45,14 +48,14 @@ export const Notifications = () => {
   return (
     <div className="notif-page">
       <div className="notif-header">
-        <h1 className="notif-title">Benachrichtigungen</h1>
+        <h1 className="notif-title">{t('notifications.title')}</h1>
       </div>
       <div className="notif-scroll">
         {notifs.length === 0 ? (
           <div className="notif-empty">
             <div className="notif-empty-icon">🔕</div>
-            <h2 className="notif-empty-title">Keine Benachrichtigungen</h2>
-            <p className="notif-empty-sub">Du bist auf dem neuesten Stand!</p>
+            <h2 className="notif-empty-title">{t('notifications.emptyTitle')}</h2>
+            <p className="notif-empty-sub">{t('notifications.emptySub')}</p>
           </div>
         ) : (
           <div className="notif-list">
@@ -63,7 +66,7 @@ export const Notifications = () => {
                   <h4 className="notif-item-title">{n.title}</h4>
                   <p className="notif-item-msg">{n.message}</p>
                   <span className="notif-item-time">
-                    {new Date(n.created_at).toLocaleString('de-AT')}
+                    {new Date(n.created_at).toLocaleString(dateLocale)}
                   </span>
                 </div>
               </div>

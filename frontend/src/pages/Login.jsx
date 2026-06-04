@@ -1,6 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useGoogleLogin } from '@react-oauth/google';
+import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import '../styles/auth.css';
 
@@ -10,6 +11,7 @@ import '../styles/auth.css';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 const GoogleLoginButton = ({ onError }) => {
+  const { t } = useTranslation();
   const { loginWithGoogle } = useContext(AuthContext);
   const navigate = useNavigate();
 
@@ -19,10 +21,10 @@ const GoogleLoginButton = ({ onError }) => {
         await loginWithGoogle(tokenResponse.access_token);
         navigate('/home');
       } catch {
-        onError('Google Login fehlgeschlagen');
+        onError(t('auth.login.errorGoogle'));
       }
     },
-    onError: () => onError('Google Login fehlgeschlagen'),
+    onError: () => onError(t('auth.login.errorGoogle')),
   });
 
   return (
@@ -42,6 +44,7 @@ const GoogleLoginButton = ({ onError }) => {
 };
 
 export const Login = () => {
+  const { t } = useTranslation();
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -56,7 +59,7 @@ export const Login = () => {
       await login(email, password);
       navigate('/home');
     } catch (err) {
-      setError(err.response?.data?.error || 'Login fehlgeschlagen');
+      setError(err.response?.data?.error || t('auth.login.errorGeneric'));
     }
   };
 
@@ -65,18 +68,14 @@ export const Login = () => {
     navigate('/home');
   };
 
-  const handleSocialLogin = (provider) => {
-    setError(`${provider}-Login ist in Kürze verfügbar. Bitte nutze E-Mail-Login.`);
-  };
-
 
   return (
     <div className="auth-screen">
       {/* Top — logo + tagline */}
       <div className="auth-top">
-        <h1 className="auth-wordmark">JAMIE</h1>
+        <h1 className="auth-wordmark">{t('auth.appName')}</h1>
         <p className="auth-tagline">
-          Finde Leute für Aktivitäten in deiner Nähe.
+          {t('auth.tagline')}
         </p>
       </div>
 
@@ -92,30 +91,30 @@ export const Login = () => {
                 <rect x="2" y="4" width="20" height="16" rx="3"/>
                 <path d="m22 7-10 7L2 7"/>
               </svg>
-              Mit E-Mail fortfahren
+              {t('auth.login.continueWithEmail')}
             </button>
 
             <button
               className="auth-btn auth-btn-secondary"
               disabled
               style={{ opacity: 0.4, cursor: 'not-allowed' }}
-              title="Demnächst verfügbar"
+              title={t('auth.login.appleSoon')}
             >
               <svg className="auth-btn-icon" width="17" height="20" viewBox="0 0 814 1000" fill="currentColor">
                 <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-37.5-155.5-127.4C46 790.7 0 663 0 541.8c0-207.9 135.5-317.9 269-317.9 70.9 0 130 46.4 174.4 46.4 42.7 0 109.2-49 192.5-49 33.5.2 124.6 4.8 185 57zM549.8 0c1 0 2.1 0 3.1.1v.1c0 30.1-11.2 67.1-33.5 97.5-23.8 33.1-62.5 57.2-104.8 53.8-1.2-3.4-1.8-7.1-1.8-10.8 0-28.7 12.4-60.7 34.2-89.5C468.5 20.9 511 0 549.8 0z"/>
               </svg>
-              Apple <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 4 }}>(Demnächst)</span>
+              Apple <span style={{ fontSize: 10, opacity: 0.7, marginLeft: 4 }}>{t('auth.login.appleSoon')}</span>
             </button>
 
             {GOOGLE_CLIENT_ID && <GoogleLoginButton onError={setError} />}
 
-            <div className="auth-divider"><span>oder</span></div>
+            <div className="auth-divider"><span>{t('common.or')}</span></div>
 
             <button
               className="auth-btn auth-btn-ghost"
               onClick={handleGuestLogin}
             >
-              🚀 Demo-Modus (Ohne Login)
+              {t('auth.login.demoMode')}
             </button>
           </div>
         ) : (
@@ -128,14 +127,14 @@ export const Login = () => {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M19 12H5M12 19l-7-7 7-7"/>
               </svg>
-              Zurück
+              {t('common.back')}
             </button>
 
             <div className="form-group">
-              <label>E-Mail</label>
+              <label>{t('auth.login.emailLabel')}</label>
               <input
                 type="email"
-                placeholder="deine@email.com"
+                placeholder={t('auth.login.emailPlaceholder')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -144,10 +143,10 @@ export const Login = () => {
             </div>
 
             <div className="form-group">
-              <label>Passwort</label>
+              <label>{t('auth.login.passwordLabel')}</label>
               <input
                 type="password"
-                placeholder="••••••••"
+                placeholder={t('auth.login.passwordPlaceholder')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -158,11 +157,11 @@ export const Login = () => {
             {error && <p className="error-message">{error}</p>}
 
             <button type="submit" className="auth-btn auth-btn-primary" disabled={loading}>
-              {loading ? 'Laden...' : 'Einloggen'}
+              {loading ? t('common.loading') : t('auth.login.signIn')}
             </button>
 
             <Link to="/forgot-password" className="forgot-link">
-              Passwort vergessen?
+              {t('auth.login.forgotPassword')}
             </Link>
           </form>
         )}
@@ -171,9 +170,9 @@ export const Login = () => {
       {/* Bottom — register */}
       <div className="auth-bottom">
         <p>
-          Noch kein Konto?{' '}
+          {t('auth.login.noAccount')}{' '}
           <Link to="/register" className="auth-link">
-            Jetzt registrieren
+            {t('auth.login.signUp')}
           </Link>
         </p>
       </div>

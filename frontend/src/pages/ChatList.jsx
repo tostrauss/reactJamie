@@ -1,5 +1,6 @@
 import { useState, useEffect, useContext, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { groups, directMessages, friends, subscription as subscriptionApi } from '../utils/api';
 import { SocketContext } from '../context/SocketContext';
 import { ProModal } from '../components/ProModal';
@@ -29,6 +30,8 @@ export const ChatList = () => {
   const navigate = useNavigate();
   const { socket } = useContext(SocketContext);
   const toast = useToast();
+  const { t, i18n } = useTranslation();
+  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-DE';
 
   useEffect(() => {
     loadData();
@@ -92,10 +95,10 @@ export const ChatList = () => {
     const date = new Date(dateStr);
     const now = new Date();
     const diffDays = Math.floor((now - date) / 86400000);
-    if (diffDays === 0) return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-    if (diffDays === 1) return 'Gestern';
-    if (diffDays < 7)  return date.toLocaleDateString('de-DE', { weekday: 'short' });
-    return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    if (diffDays === 0) return date.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' });
+    if (diffDays === 1) return t('chat.list.dateYesterday');
+    if (diffDays < 7)  return date.toLocaleDateString(dateLocale, { weekday: 'short' });
+    return date.toLocaleDateString(dateLocale, { day: '2-digit', month: '2-digit' });
   };
 
   const handleNewGroupMessage = (data) => {
@@ -150,7 +153,7 @@ export const ChatList = () => {
       const res = await groups.getRequests(groupId);
       setModalRequests(res.data || []);
     } catch (err) {
-      toast.error('Anfragen konnten nicht geladen werden');
+      toast.error(t('chat.list.toast.requestsLoadError'));
       setRequestsModal(null);
     } finally {
       setModalLoading(false);
@@ -181,11 +184,11 @@ export const ChatList = () => {
     setModalProcessing(true);
     try {
       await groups.handleRequest(requestsModal.groupId, req.id, 'accept');
-      toast.success(`${req.user_name} wurde angenommen!`);
+      toast.success(t('chat.list.toast.requestAccepted', { name: req.user_name }));
       setModalSwipeDir('right'); setModalOffsetX(300);
       setTimeout(() => { modalGoNext(); setModalProcessing(false); }, 300);
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Fehler beim Annehmen');
+      toast.error(err.response?.data?.error || t('chat.list.toast.requestAcceptError'));
       setModalOffsetX(0); setModalSwipeDir(null); setModalProcessing(false);
     }
   };
@@ -195,11 +198,11 @@ export const ChatList = () => {
     setModalProcessing(true);
     try {
       await groups.handleRequest(requestsModal.groupId, req.id, 'reject');
-      toast.info(`${req.user_name} wurde abgelehnt`);
+      toast.info(t('chat.list.toast.requestDeclined', { name: req.user_name }));
       setModalSwipeDir('left'); setModalOffsetX(-300);
       setTimeout(() => { modalGoNext(); setModalProcessing(false); }, 300);
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Fehler beim Ablehnen');
+      toast.error(err.response?.data?.error || t('chat.list.toast.requestDeclineError'));
       setModalOffsetX(0); setModalSwipeDir(null); setModalProcessing(false);
     }
   };
@@ -226,21 +229,21 @@ export const ChatList = () => {
             className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`}
             onClick={() => setActiveTab('gruppen')}
           >
-            Gruppen
+            {t('chat.list.tabs.groups')}
             {onlyGroups.length > 0 && <span className="tab-count">{onlyGroups.length}</span>}
           </button>
           <button
             className={`tab ${activeTab === 'clubs' ? 'active' : ''}`}
             onClick={() => setActiveTab('clubs')}
           >
-            Clubs
+            {t('chat.list.tabs.clubs')}
             {onlyClubs.length > 0 && <span className="tab-count">{onlyClubs.length}</span>}
           </button>
           <button
             className={`tab ${activeTab === 'freunde' ? 'active' : ''}`}
             onClick={() => setActiveTab('freunde')}
           >
-            Chats
+            {t('chat.list.tabs.chats')}
             {(privateChats.length > 0 || pendingRequests.length > 0) && (
               <span className="tab-count">{privateChats.length + pendingRequests.length}</span>
             )}
@@ -258,7 +261,7 @@ export const ChatList = () => {
             {pendingRequests.length > 0 && (
               <div className="pending-requests-section">
                 <div className="pending-requests-header">
-                  <span className="pending-requests-title">Freundschaftsanfragen</span>
+                  <span className="pending-requests-title">{t('chat.list.sections.friendRequests')}</span>
                   <span className="pending-count">{pendingRequests.length}</span>
                 </div>
                 {pendingRequests.map(req => (
@@ -269,7 +272,7 @@ export const ChatList = () => {
                     }
                     <div className="friend-info" onClick={() => navigate(`/user/${req.requester_id}`)}>
                       <div className="friend-name">{req.requester_name}</div>
-                      <div className="friend-location">{req.requester_location || 'Kein Standort'}</div>
+                      <div className="friend-location">{req.requester_location || t('chat.list.friend.noLocation')}</div>
                     </div>
                     <div className="friend-request-actions">
                       <button className="friend-request-btn accept" onClick={() => handleAcceptFriendRequest(req.id)}>✓</button>
@@ -312,9 +315,9 @@ export const ChatList = () => {
               ) : friendsList.length === 0 && privateChats.length === 0 ? (
                 <div className="empty-state">
                   <div className="empty-icon">💬</div>
-                  <p>Noch keine Chats</p>
+                  <p>{t('chat.list.empty.noChats')}</p>
                   <button className="empty-hint" onClick={() => navigate('/home')}>
-                    Tritt Gruppen bei und lerne Leute kennen!
+                    {t('chat.list.empty.noChatsHint')}
                   </button>
                 </div>
               ) : (
@@ -326,13 +329,13 @@ export const ChatList = () => {
                     }
                     <div className="friend-info" onClick={() => navigate(`/user/${friend.friend_id}`)}>
                       <div className="friend-name">{friend.name}</div>
-                      <div className="friend-location">{friend.location || 'Kein Standort'}</div>
+                      <div className="friend-location">{friend.location || t('chat.list.friend.noLocation')}</div>
                     </div>
                     <div className="friend-actions">
                       <button
                         className="friend-action-btn"
                         onClick={() => navigate(`/dm/${friend.friend_id}`)}
-                        title="Nachricht senden"
+                        title={t('chat.list.friend.messageTitle')}
                       >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
@@ -341,7 +344,7 @@ export const ChatList = () => {
                       <button
                         className="friend-action-btn"
                         onClick={() => navigate(`/user/${friend.friend_id}`)}
-                        title="Profil anzeigen"
+                        title={t('chat.list.friend.profileTitle')}
                       >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -364,9 +367,9 @@ export const ChatList = () => {
             ) : currentChats.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">{activeTab === 'clubs' ? '🏆' : '💬'}</div>
-                <p>Noch keine {activeTab === 'clubs' ? 'Club-Chats' : 'Gruppen-Chats'}</p>
+                <p>{activeTab === 'clubs' ? t('chat.list.empty.noClubChats') : t('chat.list.empty.noGroupChats')}</p>
                 <button className="empty-hint" onClick={() => navigate('/home')}>
-                  {activeTab === 'clubs' ? 'Entdecke Clubs!' : 'Tritt einer Gruppe bei!'}
+                  {activeTab === 'clubs' ? t('chat.list.empty.discoverClubsHint') : t('chat.list.empty.joinGroupHint')}
                 </button>
               </div>
             ) : (
@@ -378,7 +381,7 @@ export const ChatList = () => {
                     <>
                       {owned.length > 0 && (
                         <>
-                          <div className="chat-section-label">Von dir Erstellt</div>
+                          <div className="chat-section-label">{t('chat.list.sections.createdByYou')}</div>
                           {owned.map(chat => (
                             <div key={chat.id} className="chat-item chat-item--owner">
                               <div className="chat-item-main" onClick={() => handleChatClick(chat)}>
@@ -407,13 +410,13 @@ export const ChatList = () => {
                                   className="chat-owner-btn chat-owner-btn--requests"
                                   onClick={(e) => { e.stopPropagation(); openRequestsModal(chat.id, chat.name); }}
                                 >
-                                  Anfragen
+                                  {t('chat.list.ownerActions.requests')}
                                 </button>
                                 <button
                                   className="chat-owner-btn chat-owner-btn--manage"
                                   onClick={(e) => { e.stopPropagation(); navigate(`/group/${chat.id}/edit`); }}
                                 >
-                                  Verwalten
+                                  {t('chat.list.ownerActions.manage')}
                                 </button>
                               </div>
                             </div>
@@ -422,7 +425,7 @@ export const ChatList = () => {
                       )}
                       {others.length > 0 && (
                         <>
-                          {owned.length > 0 && <div className="chat-section-label">Andere</div>}
+                          {owned.length > 0 && <div className="chat-section-label">{t('chat.list.sections.others')}</div>}
                           {others.map(chat => (
                             <div key={chat.id} className="chat-item" onClick={() => handleChatClick(chat)}>
                               <div className="chat-avatar-wrapper">
@@ -454,7 +457,7 @@ export const ChatList = () => {
                 })()}
 
                 <button className="hidden-chats-toggle" onClick={() => setShowHidden(!showHidden)}>
-                  <span>Ausgeblendet</span>
+                  <span>{t('chat.list.sections.hidden')}</span>
                   <svg
                     width="16" height="16" viewBox="0 0 24 24"
                     fill="none" stroke="currentColor" strokeWidth="2"
@@ -465,7 +468,7 @@ export const ChatList = () => {
                 </button>
                 {showHidden && (
                   <div className="hidden-chats-content">
-                    <p className="hidden-empty-text">Keine ausgeblendeten Chats</p>
+                    <p className="hidden-empty-text">{t('chat.list.empty.noHidden')}</p>
                   </div>
                 )}
               </>
@@ -485,9 +488,11 @@ export const ChatList = () => {
           <div className="requests-modal" onClick={e => e.stopPropagation()}>
             <div className="requests-modal-header">
               <span className="requests-modal-title">
-                {modalLoading ? 'Lade…' : modalIndex < modalRequests.length
-                  ? `${modalRequests.length - modalIndex} Anfragen`
-                  : 'Keine Anfragen'}
+                {modalLoading
+                  ? t('chat.list.requestsModal.loading')
+                  : modalIndex < modalRequests.length
+                    ? t('chat.list.requestsModal.count', { count: modalRequests.length - modalIndex })
+                    : t('chat.list.requestsModal.empty')}
               </span>
               <button className="requests-modal-close" onClick={() => setRequestsModal(null)}>✕</button>
             </div>
@@ -498,7 +503,7 @@ export const ChatList = () => {
               ) : modalIndex >= modalRequests.length ? (
                 <div className="empty-state" style={{ padding: '40px 20px' }}>
                   <div className="empty-icon">✅</div>
-                  <p>Alle Anfragen bearbeitet!</p>
+                  <p>{t('chat.list.requestsModal.allDone')}</p>
                 </div>
               ) : (() => {
                 const req = modalRequests[modalIndex];
@@ -526,10 +531,10 @@ export const ChatList = () => {
                       }}
                     >
                       <div className={`swipe-indicator swipe-accept ${modalSwipeDir === 'right' ? 'visible' : ''}`}>
-                        <span>✓</span><span>Annehmen</span>
+                        <span>✓</span><span>{t('chat.list.requestsModal.accept')}</span>
                       </div>
                       <div className={`swipe-indicator swipe-decline ${modalSwipeDir === 'left' ? 'visible' : ''}`}>
-                        <span>✕</span><span>Ablehnen</span>
+                        <span>✕</span><span>{t('chat.list.requestsModal.decline')}</span>
                       </div>
                       <div className="request-card">
                         <div className="request-image-container request-image-tall">

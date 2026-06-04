@@ -1,14 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { clubs, upload } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
 import '../styles/create.css';
 
+const FREQUENCIES = [
+  { value: 'daily',    key: 'daily' },
+  { value: 'weekly',   key: 'weekly' },
+  { value: 'monthly',  key: 'monthly' },
+  { value: 'flexible', key: 'flexible' },
+];
+
 export const CreateClub = () => {
   const navigate = useNavigate();
   const toast = useToast();
+  const { t } = useTranslation();
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -80,7 +89,7 @@ export const CreateClub = () => {
     if (!file) return;
 
     if (file.size > 10 * 1024 * 1024) {
-      toast.error('Das Bild ist zu groß (max. 10 MB)');
+      toast.error(t('createClub.imageTooLarge'));
       e.target.value = '';
       return;
     }
@@ -95,8 +104,8 @@ export const CreateClub = () => {
       const res = await upload.image(file);
       setFormData(prev => ({ ...prev, image_url: res.data.url }));
     } catch (err) {
-      setError('Bild konnte nicht hochgeladen werden');
-      toast.error('Bild konnte nicht hochgeladen werden');
+      setError(t('createClub.imageUploadError'));
+      toast.error(t('createClub.imageUploadError'));
     } finally {
       setUploading(false);
     }
@@ -125,15 +134,13 @@ export const CreateClub = () => {
       // Route them home with an explanatory toast instead of into the
       // newly-created (but invisible to everyone else) club detail page.
       if (response.data?.approval_status === 'pending') {
-        toast.success(
-          'Dein Club wartet auf Freischaltung. Wir prüfen ihn innerhalb von 24 Stunden — du bekommst Bescheid, sobald er live ist.'
-        );
+        toast.success(t('createClub.pendingToast'));
         navigate('/home');
       } else {
         navigate(`/group/${response.data.id}`);
       }
     } catch (err) {
-      const msg = err.response?.data?.error || 'Fehler beim Erstellen';
+      const msg = err.response?.data?.error || t('createClub.createError');
       setError(msg);
       toast.error(msg);
     } finally {
@@ -159,8 +166,8 @@ export const CreateClub = () => {
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
         </button>
-        <h1 className="create-title">Club gründen</h1>
-        <div className="step-indicator">{step}/3</div>
+        <h1 className="create-title">{t('createClub.title')}</h1>
+        <div className="step-indicator">{t('createClub.stepFmt', { current: step })}</div>
       </div>
 
       <div className="progress-bar">
@@ -173,20 +180,20 @@ export const CreateClub = () => {
       {step === 1 && (
         <div className="create-content">
           <div className="form-section">
-            <label className="form-label">Club-Name *</label>
+            <label className="form-label">{t('createClub.step1.nameLabel')}</label>
             <input
               type="text"
               name="title"
               value={formData.title}
               onChange={handleInputChange}
-              placeholder="z.B. Wiener Wanderfreunde"
+              placeholder={t('createClub.step1.namePlaceholder')}
               className="input"
               maxLength={100}
             />
           </div>
 
           <div className="form-section">
-            <label className="form-label">Kategorie *</label>
+            <label className="form-label">{t('createClub.step1.categoryLabel')}</label>
             <div className="main-category-grid">
               {CATEGORY_HIERARCHY.map(cat => (
                 <button
@@ -204,7 +211,7 @@ export const CreateClub = () => {
 
           {formData.mainCategory && (
             <div className="form-section">
-              <label className="form-label">Unterkategorie *</label>
+              <label className="form-label">{t('createClub.step1.subCategoryLabel')}</label>
               <div className="category-grid">
                 {CATEGORY_HIERARCHY.find(c => c.id === formData.mainCategory)?.subs.map(sub => (
                   <button
@@ -222,30 +229,30 @@ export const CreateClub = () => {
           )}
 
           <div className="form-section">
-            <label className="form-label">Beschreibung</label>
+            <label className="form-label">{t('createClub.step1.descLabel')}</label>
             <textarea
               name="description"
               value={formData.description}
               onChange={handleInputChange}
-              placeholder="Worum geht es in deinem Club?"
+              placeholder={t('createClub.step1.descPlaceholder')}
               className="input textarea"
               rows={4}
             />
           </div>
 
           <div className="form-section">
-            <label className="form-label">Club Bild</label>
+            <label className="form-label">{t('createClub.step1.imageLabel')}</label>
             <div className="image-upload-area">
               {imagePreview ? (
                 <div className="image-preview">
-                  <img src={imagePreview} alt="Vorschau" decoding="async" />
+                  <img src={imagePreview} alt="" decoding="async" />
                   <button className="remove-image" onClick={() => { if (imageBlobRef.current) { URL.revokeObjectURL(imageBlobRef.current); imageBlobRef.current = null; } setImagePreview(null); setFormData(prev => ({ ...prev, image_url: null })); }}>×</button>
                 </div>
               ) : (
                 <label className="upload-placeholder">
                   <input type="file" accept="image/*" onChange={handleImageUpload} hidden disabled={uploading} />
                   <span className="upload-icon">🏆</span>
-                  <span>{uploading ? 'Lädt...' : 'Bild hinzufügen'}</span>
+                  <span>{uploading ? t('createClub.step1.uploading') : t('createClub.step1.addImage')}</span>
                 </label>
               )}
             </div>
@@ -257,21 +264,21 @@ export const CreateClub = () => {
       {step === 2 && (
         <div className="create-content">
           <div className="form-section">
-            <label className="form-label">Standort *</label>
+            <label className="form-label">{t('createClub.step2.locationLabel')}</label>
             <input
               ref={locationRef}
               type="text"
               name="location"
               value={formData.location}
               onChange={handleInputChange}
-              placeholder="z.B. Wien"
+              placeholder={t('createClub.step2.locationPlaceholder')}
               className="input"
               autoComplete="off"
             />
           </div>
 
           <div className="form-section">
-            <label className="form-label">Maximale Mitglieder</label>
+            <label className="form-label">{t('createClub.step2.maxLabel')}</label>
             <div className="counter-input">
               <button type="button" className="counter-btn" onClick={() => setFormData(prev => ({ ...prev, max_members: Math.max(5, prev.max_members - 5) }))}>−</button>
               <span className="counter-value">{formData.max_members}</span>
@@ -280,28 +287,23 @@ export const CreateClub = () => {
           </div>
 
           <div className="form-section">
-            <label className="form-label">Treffhäufigkeit</label>
+            <label className="form-label">{t('createClub.step2.frequencyLabel')}</label>
             <div className="level-options">
-              {[
-                { value: 'daily', label: 'Täglich' },
-                { value: 'weekly', label: 'Wöchentlich' },
-                { value: 'monthly', label: 'Monatlich' },
-                { value: 'flexible', label: 'Flexibel' }
-              ].map(({ value, label }) => (
+              {FREQUENCIES.map(({ value, key }) => (
                 <button
                   key={value}
                   type="button"
                   className={`level-chip ${formData.meeting_frequency === value ? 'active' : ''}`}
                   onClick={() => setFormData(prev => ({ ...prev, meeting_frequency: value }))}
                 >
-                  <span className="level-label">{label}</span>
+                  <span className="level-label">{t(`createClub.step2.frequency.${key}`)}</span>
                 </button>
               ))}
             </div>
           </div>
 
           <div className="form-section">
-            <label className="form-label">Sichtbarkeit</label>
+            <label className="form-label">{t('createClub.step2.visibilityLabel')}</label>
             <div className="visibility-toggle">
               <button
                 type="button"
@@ -310,8 +312,8 @@ export const CreateClub = () => {
               >
                 <span className="visibility-icon">🌍</span>
                 <div className="visibility-text">
-                  <span className="visibility-title">Öffentlich</span>
-                  <span className="visibility-desc">Jeder kann beitreten</span>
+                  <span className="visibility-title">{t('createClub.step2.public')}</span>
+                  <span className="visibility-desc">{t('createClub.step2.publicDesc')}</span>
                 </div>
               </button>
               <button
@@ -321,20 +323,20 @@ export const CreateClub = () => {
               >
                 <span className="visibility-icon">🔒</span>
                 <div className="visibility-text">
-                  <span className="visibility-title">Privat</span>
-                  <span className="visibility-desc">Nur mit Einladung</span>
+                  <span className="visibility-title">{t('createClub.step2.private')}</span>
+                  <span className="visibility-desc">{t('createClub.step2.privateDesc')}</span>
                 </div>
               </button>
             </div>
           </div>
 
           <div className="form-section">
-            <label className="form-label">Club Regeln (optional)</label>
+            <label className="form-label">{t('createClub.step2.rulesLabel')}</label>
             <textarea
               name="rules"
               value={formData.rules}
               onChange={handleInputChange}
-              placeholder="Regeln für deine Mitglieder..."
+              placeholder={t('createClub.step2.rulesPlaceholder')}
               className="input textarea"
               rows={3}
             />
@@ -343,10 +345,10 @@ export const CreateClub = () => {
           <div className="form-section" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '14px 16px' }}>
             <div>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-white)', marginBottom: 2 }}>
-                Chat-Schreibrechte
+                {t('createClub.step2.chatTitle')}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                {formData.chat_only_owner ? 'Nur du kannst schreiben' : 'Alle Mitglieder können schreiben'}
+                {formData.chat_only_owner ? t('createClub.step2.chatOwnerOnly') : t('createClub.step2.chatAll')}
               </div>
             </div>
             <label className="settings-toggle">
@@ -364,32 +366,32 @@ export const CreateClub = () => {
       {/* Step 3: Preview */}
       {step === 3 && (
         <div className="create-content">
-          <h2 className="preview-title">Vorschau</h2>
-          
+          <h2 className="preview-title">{t('createClub.step3.title')}</h2>
+
           <div className="preview-card">
             {imagePreview ? (
-              <img src={imagePreview} alt="Vorschau" className="preview-image" decoding="async" />
+              <img src={imagePreview} alt="" className="preview-image" decoding="async" />
             ) : (
               <div className="preview-image-placeholder"><span>🏆</span></div>
             )}
-            
+
             <div className="preview-content">
               <div className="preview-badges">
-                <span className="preview-badge type">Club</span>
+                <span className="preview-badge type">{t('createClub.step3.clubBadge')}</span>
                 {formData.category && <span className="preview-badge category">{formData.category}</span>}
-                {!formData.is_public && <span className="preview-badge private">🔒 Privat</span>}
+                {!formData.is_public && <span className="preview-badge private">{t('createClub.step3.privateBadge')}</span>}
               </div>
-              
-              <h3 className="preview-name">{formData.title || 'Club Name'}</h3>
-              
+
+              <h3 className="preview-name">{formData.title || t('createClub.step3.fallbackName')}</h3>
+
               <div className="preview-details">
                 <div className="preview-detail">
                   <span className="detail-icon">📍</span>
-                  <span>{formData.location || 'Ort'}</span>
+                  <span>{formData.location || t('createClub.step3.fallbackLocation')}</span>
                 </div>
                 <div className="preview-detail">
                   <span className="detail-icon">👥</span>
-                  <span>Max. {formData.max_members} Mitglieder</span>
+                  <span>{t('createClub.step3.membersMaxFmt', { count: formData.max_members })}</span>
                 </div>
               </div>
             </div>
@@ -401,11 +403,11 @@ export const CreateClub = () => {
       <div className="create-footer">
         {step < 3 ? (
           <button className="btn btn-primary btn-block" onClick={() => setStep(step + 1)} disabled={!canProceed()}>
-            Weiter
+            {t('createClub.next')}
           </button>
         ) : (
           <button className="btn btn-primary btn-block" onClick={handleSubmit} disabled={loading}>
-            {loading ? 'Erstelle...' : 'Club gründen'}
+            {loading ? t('createClub.submitting') : t('createClub.submit')}
           </button>
         )}
       </div>

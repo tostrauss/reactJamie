@@ -1,29 +1,36 @@
 import React, { useState, useContext, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { api } from '../utils/api';
 import { ImageUpload } from '../components/ImageUpload';
 import '../styles/auth.css';
 
+// Interest values are stored canonically in German on the user row — translating
+// them would break category matching. Display as-is; later phases can add a
+// parallel display-name map per locale.
 const INTEREST_OPTIONS = [
   'Sport', 'Musik', 'Technik', 'Kunst', 'Soziales', 'Gaming',
   'Fitness', 'Reisen', 'Essen', 'Filme', 'Lesen', 'Fotografie',
   'Wandern', 'Yoga', 'Tanzen', 'Kochen', 'Mode', 'Natur', 'Clubbing'
 ];
 
-const STEPS = ['Geschlecht', 'Profil', 'Interessen', 'Fotos', 'Fertig'];
+// 5 steps total — used for the progress counter only; visible labels come
+// from i18n at render time.
+const TOTAL_STEPS = 5;
 
-// value: backend enum (en) \u2014 must match GENDER_VALUES in authController.js
-// label: user-facing German text
-const GENDER_OPTIONS = [
-  { value: 'male',    label: 'M\u00e4nnlich', icon: '\u2642' },
-  { value: 'female',  label: 'Weiblich',      icon: '\u2640' },
-  { value: 'diverse', label: 'Divers',        icon: '\u26A7' }
+// value: backend enum (en) — must match GENDER_VALUES in authController.js.
+// labelKey: i18n key for the user-facing label.
+const GENDER_OPTION_KEYS = [
+  { value: 'male',    labelKey: 'onboarding.gender.male',    icon: '♂' },
+  { value: 'female',  labelKey: 'onboarding.gender.female',  icon: '♀' },
+  { value: 'diverse', labelKey: 'onboarding.gender.diverse', icon: '⚧' },
 ];
 
 export const Onboarding = () => {
   const navigate = useNavigate();
   const { user, refreshProfile } = useContext(AuthContext);
+  const { t } = useTranslation();
   const [currentStep, setCurrentStep] = useState(0);
   const [locationSuggestions, setLocationSuggestions] = useState([]);
   const locationDebounceRef = useRef(null);
@@ -58,7 +65,7 @@ export const Onboarding = () => {
   }, []);
 
   const handleNext = () => {
-    if (currentStep < STEPS.length - 1) setCurrentStep(prev => prev + 1);
+    if (currentStep < TOTAL_STEPS - 1) setCurrentStep(prev => prev + 1);
   };
 
   const handleBack = () => {
@@ -129,20 +136,21 @@ export const Onboarding = () => {
       if (typeof refreshProfile === 'function') await refreshProfile();
       navigate('/home');
     } catch (err) {
-      setError(err.response?.data?.error || 'Profil konnte nicht gespeichert werden');
+      setError(err.response?.data?.error || t('onboarding.error'));
     } finally {
       setLoading(false);
     }
   };
 
-  const progress = ((currentStep + 1) / STEPS.length) * 100;
+  const progress = ((currentStep + 1) / TOTAL_STEPS) * 100;
+  const interestsNeeded = Math.max(0, 3 - formData.interests.length);
 
   return (
     <div className="onboarding-container">
       {/* Progress */}
       <div className="onboarding-header">
         {currentStep > 0 && (
-          <button className="onboarding-back" onClick={handleBack}>
+          <button className="onboarding-back" onClick={handleBack} aria-label={t('common.back')}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
@@ -150,7 +158,7 @@ export const Onboarding = () => {
         )}
         <div style={{ flex: 1 }} />
         <span className="onboarding-step-text">
-          {currentStep + 1} / {STEPS.length}
+          {t('onboarding.stepCounter', { current: currentStep + 1, total: TOTAL_STEPS })}
         </span>
       </div>
       <div className="onboarding-progress">
@@ -160,19 +168,21 @@ export const Onboarding = () => {
       {/* Step 0: Gender Selection */}
       {currentStep === 0 && (
         <div className="onboarding-content">
-          <h1 className="onboarding-title">W&auml;hle dein<br/>Geschlecht</h1>
+          <h1 className="onboarding-title">
+            {t('onboarding.gender.titleLine1')}<br/>{t('onboarding.gender.titleLine2')}
+          </h1>
           <p className="onboarding-subtitle">
-            Damit wir dir passendere Gruppen vorschlagen k&ouml;nnen
+            {t('onboarding.gender.subtitle')}
           </p>
           <div className="onboarding-options">
-            {GENDER_OPTIONS.map(({ value, label, icon }) => (
+            {GENDER_OPTION_KEYS.map(({ value, labelKey, icon }) => (
               <button
                 key={value}
                 className={`onboarding-option ${formData.gender === value ? 'selected' : ''}`}
                 onClick={() => setFormData(prev => ({ ...prev, gender: value }))}
               >
                 <span className="option-icon">{icon}</span>
-                <span className="option-label">{label}</span>
+                <span className="option-label">{t(labelKey)}</span>
               </button>
             ))}
           </div>
@@ -182,16 +192,18 @@ export const Onboarding = () => {
       {/* Step 1: Basic Profile */}
       {currentStep === 1 && (
         <div className="onboarding-content" style={{ justifyContent: 'flex-start', paddingTop: '20px' }}>
-          <h1 className="onboarding-title">Erzähl uns<br/>etwas über dich</h1>
+          <h1 className="onboarding-title">
+            {t('onboarding.profile.titleLine1')}<br/>{t('onboarding.profile.titleLine2')}
+          </h1>
           <p className="onboarding-subtitle">
-            Damit schlagen wir dir später passendere Gruppen vor
+            {t('onboarding.profile.subtitle')}
           </p>
           <div className="onboarding-form">
             <div className="onboarding-field" style={{ position: 'relative' }}>
-              <label>📍 Wohnort</label>
+              <label>{t('onboarding.profile.locationLabel')}</label>
               <input
                 type="text"
-                placeholder="z.B. Wien, Österreich"
+                placeholder={t('onboarding.profile.locationPlaceholder')}
                 value={formData.location}
                 onChange={(e) => {
                   setFormData(prev => ({ ...prev, location: e.target.value }));
@@ -230,9 +242,9 @@ export const Onboarding = () => {
               )}
             </div>
             <div className="onboarding-field">
-              <label>✍️ Kurzbeschreibung (optional)</label>
+              <label>{t('onboarding.profile.bioLabel')}</label>
               <textarea
-                placeholder="Erzähl kurz, wer du bist und worauf du Lust hast..."
+                placeholder={t('onboarding.profile.bioPlaceholder')}
                 value={formData.bio}
                 onChange={(e) => setFormData(prev => ({ ...prev, bio: e.target.value }))}
                 rows={4}
@@ -245,15 +257,17 @@ export const Onboarding = () => {
       {/* Step 2: Interests */}
       {currentStep === 2 && (
         <div className="onboarding-content" style={{ justifyContent: 'flex-start', paddingTop: '20px' }}>
-          <h1 className="onboarding-title">Worauf hast<br/>du Lust?</h1>
+          <h1 className="onboarding-title">
+            {t('onboarding.interests.titleLine1')}<br/>{t('onboarding.interests.titleLine2')}
+          </h1>
           <p className="onboarding-subtitle">
-            Wähle mindestens 3 Interessen
+            {t('onboarding.interests.subtitle')}
           </p>
           <div className="onboarding-field" style={{ marginBottom: '16px', width: '100%', maxWidth: '400px' }}>
             <div style={{ display: 'flex', gap: '10px' }}>
               <input
                 type="text"
-                placeholder="Eigenes Interesse..."
+                placeholder={t('onboarding.interests.customPlaceholder')}
                 value={customInterest}
                 onChange={(e) => setCustomInterest(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addCustomInterest(e)}
@@ -273,22 +287,22 @@ export const Onboarding = () => {
             ))}
           </div>
           <p className="interest-counter">
-            {formData.interests.length} ausgewählt
-            {formData.interests.length < 3 && ` (noch ${3 - formData.interests.length} nötig)`}
+            {t('onboarding.interests.counter', { count: formData.interests.length })}
+            {interestsNeeded > 0 && ` ${t('onboarding.interests.needMore', { count: interestsNeeded })}`}
           </p>
 
           {/* Category suggestion */}
           <div style={{ width: '100%', maxWidth: '400px', marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '16px' }}>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
-              Dein Vorschlag für eine neue Kategorie:
+              {t('onboarding.interests.suggestPrompt')}
             </p>
             {suggestionSent ? (
-              <p style={{ fontSize: '13px', color: '#4ade80' }}>✓ Danke für deinen Vorschlag!</p>
+              <p style={{ fontSize: '13px', color: '#4ade80' }}>{t('onboarding.interests.suggestThanks')}</p>
             ) : (
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
                   type="text"
-                  placeholder="z.B. Volleyball, Fotografie…"
+                  placeholder={t('onboarding.interests.suggestPlaceholder')}
                   value={categorySuggestion}
                   onChange={(e) => setCategorySuggestion(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && sendCategorySuggestion(e)}
@@ -299,7 +313,7 @@ export const Onboarding = () => {
                   disabled={!categorySuggestion.trim()}
                   className="onboarding-add-btn"
                 >
-                  Senden
+                  {t('onboarding.interests.suggestSubmit')}
                 </button>
               </div>
             )}
@@ -310,9 +324,11 @@ export const Onboarding = () => {
       {/* Step 3: Photos */}
       {currentStep === 3 && (
         <div className="onboarding-content" style={{ justifyContent: 'flex-start', paddingTop: '20px' }}>
-          <h1 className="onboarding-title">Füge Fotos<br/>hinzu</h1>
+          <h1 className="onboarding-title">
+            {t('onboarding.photos.titleLine1')}<br/>{t('onboarding.photos.titleLine2')}
+          </h1>
           <p className="onboarding-subtitle">
-            Tippe auf ein Foto, um es als Profilbild zu setzen
+            {t('onboarding.photos.subtitle')}
           </p>
           <div className="photos-grid">
             {[...Array(6)].map((_, index) => (
@@ -323,9 +339,9 @@ export const Onboarding = () => {
               >
                 {formData.photos[index] ? (
                   <>
-                    <img src={formData.photos[index]} alt={`Foto ${index + 1}`} decoding="async" />
+                    <img src={formData.photos[index]} alt="" decoding="async" />
                     {formData.photos[index] === formData.avatar_url && (
-                      <div className="main-badge">Profilbild</div>
+                      <div className="main-badge">{t('onboarding.photos.mainBadge')}</div>
                     )}
                     <button
                       className="photo-remove"
@@ -343,7 +359,7 @@ export const Onboarding = () => {
           <div style={{ marginTop: '20px' }}>
             <ImageUpload
               onUpload={handlePhotoUpload}
-              label={`Foto hinzufügen (${formData.photos.length}/6)`}
+              label={t('onboarding.photos.addPhoto', { current: formData.photos.length, total: 6 })}
             />
           </div>
         </div>
@@ -353,14 +369,14 @@ export const Onboarding = () => {
       {currentStep === 4 && (
         <div className="onboarding-content">
           <div className="complete-icon">🎊</div>
-          <h1 className="onboarding-title">Du bist bereit!</h1>
+          <h1 className="onboarding-title">{t('onboarding.done.title')}</h1>
           <p className="onboarding-subtitle">
-            Dein Profil ist fertig. Du kannst jetzt Gruppen beitreten und mit anderen schreiben.
+            {t('onboarding.done.subtitle')}
           </p>
           <div className="profile-preview-card">
             <div className="preview-avatar">
               {formData.avatar_url ? (
-                <img src={formData.avatar_url} alt="Profil" decoding="async" />
+                <img src={formData.avatar_url} alt="" decoding="async" />
               ) : (
                 <span>👤</span>
               )}
@@ -392,7 +408,7 @@ export const Onboarding = () => {
             onClick={handleNext}
             disabled={!formData.gender}
           >
-            Bestätigen
+            {t('onboarding.confirm')}
           </button>
         ) : currentStep < 4 ? (
           <button
@@ -400,7 +416,7 @@ export const Onboarding = () => {
             onClick={handleNext}
             disabled={currentStep === 2 && formData.interests.length < 3}
           >
-            Weiter
+            {t('onboarding.next')}
           </button>
         ) : (
           <button
@@ -408,7 +424,7 @@ export const Onboarding = () => {
             onClick={handleComplete}
             disabled={loading}
           >
-            {loading ? 'Speichere...' : "Los geht's! 🚀"}
+            {loading ? t('onboarding.save') : t('onboarding.finish')}
           </button>
         )}
       </div>

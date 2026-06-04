@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { admin } from '../utils/api';
 
 const downloadCSV = (data, filename) => {
@@ -34,6 +35,8 @@ const KPICard = ({ label, value, sub }) => (
 
 export const AdminDashboard = () => {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
+  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-DE';
   const [stats, setStats] = useState(null);
   const [screens, setScreens] = useState([]);
   const [recentUsers, setRecentUsers] = useState([]);
@@ -61,9 +64,9 @@ export const AdminDashboard = () => {
       if (err.response?.status === 401) {
         navigate('/login');
       } else if (err.response?.status === 403) {
-        setError('Kein Admin-Zugriff. Bitte melde dich mit einem Admin-Account an.');
+        setError(t('admin.errorAccess'));
       } else {
-        setError('Fehler beim Laden der Admin-Daten.');
+        setError(t('admin.errorLoad'));
       }
     } finally {
       setLoading(false);
@@ -81,7 +84,7 @@ export const AdminDashboard = () => {
       else res = await admin.exportSuggestions();
       downloadCSV(res.data, `jamie_${type}_${new Date().toISOString().slice(0, 10)}.csv`);
     } catch {
-      alert('Export fehlgeschlagen');
+      alert(t('admin.export.error'));
     } finally {
       setExportLoading('');
     }
@@ -100,7 +103,7 @@ export const AdminDashboard = () => {
       <div style={{ minHeight: '100vh', background: '#1a1a2e', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <p style={{ color: '#f87171', fontSize: 16, textAlign: 'center', marginBottom: 16 }}>{error}</p>
         <button onClick={() => navigate('/')} style={{ color: '#FD7666', background: 'none', border: 'none', fontSize: 14, cursor: 'pointer' }}>
-          Zurück zur App
+          {t('admin.backToApp')}
         </button>
       </div>
     );
@@ -114,40 +117,40 @@ export const AdminDashboard = () => {
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-          <h1 style={{ color: '#FD7666', fontSize: 24, fontWeight: 800 }}>JAMIE Analytics</h1>
+          <h1 style={{ color: '#FD7666', fontSize: 24, fontWeight: 800 }}>{t('admin.title')}</h1>
           <button onClick={load} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 13 }}>
-            Aktualisieren
+            {t('admin.refresh')}
           </button>
         </div>
 
         <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
-          Nutzer
+          {t('admin.sections.users')}
         </h2>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
-          <KPICard label="Gesamt" value={u.total} />
-          <KPICard label="Heute" value={u.today} />
-          <KPICard label="Diese Woche" value={u.this_week} />
-          <KPICard label="Diesen Monat" value={u.this_month} />
-          <KPICard label="Vertrauenswürdig" value={u.trusted} />
+          <KPICard label={t('admin.kpis.total')} value={u.total} />
+          <KPICard label={t('admin.kpis.today')} value={u.today} />
+          <KPICard label={t('admin.kpis.thisWeek')} value={u.this_week} />
+          <KPICard label={t('admin.kpis.thisMonth')} value={u.this_month} />
+          <KPICard label={t('admin.kpis.trusted')} value={u.trusted} />
         </div>
 
         <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
-          Gruppen & Events
+          {t('admin.sections.groupsEvents')}
         </h2>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 32 }}>
-          <KPICard label="Gruppen (Events)" value={g.total_groups} />
-          <KPICard label="Clubs" value={g.total_clubs} />
-          <KPICard label="Bewertungen" value={stats?.reviews} />
+          <KPICard label={t('admin.kpis.groups')} value={g.total_groups} />
+          <KPICard label={t('admin.kpis.clubs')} value={g.total_clubs} />
+          <KPICard label={t('admin.kpis.reviews')} value={stats?.reviews} />
         </div>
 
         {/* Approval queue for user-created clubs (#14) */}
         <div id="clubs-pending" style={{ marginBottom: 32 }}>
           <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
-            Clubs warten auf Freischaltung ({pendingClubs.length})
+            {t('admin.sections.pendingClubsFmt', { count: pendingClubs.length })}
           </h2>
           {pendingClubs.length === 0 ? (
             <div style={{ background: 'var(--bg-card, #1e2235)', borderRadius: 16, padding: 20, fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
-              Keine offenen Anfragen.
+              {t('admin.pendingClubs.empty')}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -157,10 +160,10 @@ export const AdminDashboard = () => {
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: 16, fontWeight: 700, color: '#FD7666' }}>{club.name}</div>
                       <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>
-                        {club.category || 'ohne Kategorie'} · {club.location || '–'} · {new Date(club.created_at).toLocaleDateString('de-DE')}
+                        {club.category || t('admin.pendingClubs.noCategory')} · {club.location || t('admin.pendingClubs.noPlace')} · {new Date(club.created_at).toLocaleDateString(dateLocale)}
                       </div>
                       <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>
-                        Erstellt von: <strong style={{ color: 'rgba(255,255,255,0.7)' }}>{club.owner_name || '–'}</strong> ({club.owner_email || '–'})
+                        {t('admin.pendingClubs.createdBy')} <strong style={{ color: 'rgba(255,255,255,0.7)' }}>{club.owner_name || '–'}</strong> ({club.owner_email || '–'})
                       </div>
                     </div>
                     {club.image_url && (
@@ -181,7 +184,7 @@ export const AdminDashboard = () => {
                           await admin.approveClub(club.id);
                           setPendingClubs(prev => prev.filter(c => c.id !== club.id));
                         } catch {
-                          alert('Freigabe fehlgeschlagen');
+                          alert(t('admin.pendingClubs.approveError'));
                         } finally {
                           setClubActionId(null);
                         }
@@ -193,18 +196,18 @@ export const AdminDashboard = () => {
                         opacity: clubActionId === club.id ? 0.6 : 1,
                       }}
                     >
-                      {clubActionId === club.id ? 'Laden…' : 'Freigeben'}
+                      {clubActionId === club.id ? t('admin.pendingClubs.approving') : t('admin.pendingClubs.approve')}
                     </button>
                     <button
                       disabled={clubActionId === club.id}
                       onClick={async () => {
-                        if (!window.confirm(`Club "${club.name}" wirklich ablehnen?`)) return;
+                        if (!window.confirm(t('admin.pendingClubs.rejectConfirm', { name: club.name }))) return;
                         setClubActionId(club.id);
                         try {
                           await admin.rejectClub(club.id);
                           setPendingClubs(prev => prev.filter(c => c.id !== club.id));
                         } catch {
-                          alert('Ablehnung fehlgeschlagen');
+                          alert(t('admin.pendingClubs.rejectError'));
                         } finally {
                           setClubActionId(null);
                         }
@@ -216,7 +219,7 @@ export const AdminDashboard = () => {
                         opacity: clubActionId === club.id ? 0.6 : 1,
                       }}
                     >
-                      Ablehnen
+                      {t('admin.pendingClubs.reject')}
                     </button>
                   </div>
                 </div>
@@ -228,15 +231,15 @@ export const AdminDashboard = () => {
         {screens.length > 0 && (
           <div style={{ marginBottom: 32 }}>
             <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
-              Top Seiten (30 Tage)
+              {t('admin.sections.topPages')}
             </h2>
             <div style={{ background: 'var(--bg-card, #1e2235)', borderRadius: 16, overflow: 'hidden' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                    <th style={{ padding: '12px 16px', textAlign: 'left', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>Seite</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>Aufrufe</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>Ø Dauer</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>{t('admin.topPages.page')}</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>{t('admin.topPages.views')}</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>{t('admin.topPages.avgDuration')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -258,7 +261,7 @@ export const AdminDashboard = () => {
         {stats?.suggestions?.length > 0 && (
           <div style={{ marginBottom: 32 }}>
             <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
-              Kategorie-Vorschläge
+              {t('admin.sections.categorySuggestions')}
             </h2>
             <div style={{ background: 'var(--bg-card, #1e2235)', borderRadius: 16, padding: '16px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {stats.suggestions.map((s, i) => (
@@ -276,7 +279,7 @@ export const AdminDashboard = () => {
         {recentUsers.length > 0 && (
           <div style={{ marginBottom: 32 }}>
             <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
-              Neue Nutzer
+              {t('admin.sections.newUsers')}
             </h2>
             <div style={{ background: 'var(--bg-card, #1e2235)', borderRadius: 16, overflow: 'hidden' }}>
               {recentUsers.map((u, i) => (
@@ -301,7 +304,7 @@ export const AdminDashboard = () => {
                     <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>{u.email}</div>
                   </div>
                   <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, flexShrink: 0 }}>
-                    {new Date(u.created_at).toLocaleDateString('de-AT')}
+                    {new Date(u.created_at).toLocaleDateString(dateLocale)}
                   </div>
                 </div>
               ))}
@@ -310,14 +313,10 @@ export const AdminDashboard = () => {
         )}
 
         <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
-          CSV Export
+          {t('admin.sections.csvExport')}
         </h2>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-          {[
-            { key: 'users', label: 'Nutzer exportieren' },
-            { key: 'screens', label: 'Seiten exportieren' },
-            { key: 'suggestions', label: 'Vorschläge exportieren' },
-          ].map(({ key, label }) => (
+          {['users', 'screens', 'suggestions'].map(key => (
             <button
               key={key}
               onClick={() => handleExport(key)}
@@ -328,7 +327,7 @@ export const AdminDashboard = () => {
                 cursor: 'pointer', opacity: exportLoading === key ? 0.5 : 1,
               }}
             >
-              {exportLoading === key ? '⏳ Exportiere...' : `⬇ ${label}`}
+              {exportLoading === key ? t('admin.export.loading') : `⬇ ${t(`admin.export.${key}`)}`}
             </button>
           ))}
         </div>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { groups, friends as friendsApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -10,6 +11,8 @@ export const GroupEdit = () => {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const toast = useToast();
+  const { t, i18n } = useTranslation();
+  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-DE';
 
   const [group, setGroup]           = useState(null);
   const [members, setMembers]       = useState([]);
@@ -31,8 +34,11 @@ export const GroupEdit = () => {
       ]);
       const g = groupRes.data;
       setGroup(g);
-      setMembers(membersRes.data || []);
-      const memberIds = new Set((membersRes.data || []).map(m => m.id || m.user_id));
+      // /api/groups/:id/members returns { members, total_count, gated } — unwrap.
+      const memberData = membersRes.data;
+      const memberList = Array.isArray(memberData) ? memberData : (memberData?.members || []);
+      setMembers(memberList);
+      const memberIds = new Set(memberList.map(m => m.id || m.user_id));
       setFriends((friendsRes.data || []).filter(f => !memberIds.has(f.friend_id)));
       setFormData({
         name: g.name || g.title || '',
@@ -41,7 +47,7 @@ export const GroupEdit = () => {
         date: g.date ? g.date.slice(0, 10) : ''
       });
     } catch {
-      toast.error('Gruppe konnte nicht geladen werden');
+      toast.error(t('groupEdit.loadError'));
       navigate(-1);
     } finally {
       setLoading(false);
@@ -52,10 +58,10 @@ export const GroupEdit = () => {
     setSaving(true);
     try {
       await groups.update(id, formData);
-      toast.success('Gespeichert!');
+      toast.success(t('groupEdit.saved'));
       navigate(-1);
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Fehler beim Speichern');
+      toast.error(err.response?.data?.error || t('groupEdit.saveError'));
     } finally {
       setSaving(false);
     }
@@ -66,7 +72,7 @@ export const GroupEdit = () => {
       await groups.kickMember(id, memberId);
       setMembers(prev => prev.filter(m => m.id !== memberId && m.user_id !== memberId));
     } catch {
-      toast.error('Fehler beim Entfernen');
+      toast.error(t('groupEdit.removeError'));
     }
   };
 
@@ -75,9 +81,9 @@ export const GroupEdit = () => {
       await groups.invite(id, friendId);
       setFriends(prev => prev.filter(f => f.friend_id !== friendId));
       setMembers(prev => [...prev, { user_id: friendId, name: friendName, role: 'member' }]);
-      toast.success(`${friendName} eingeladen!`);
+      toast.success(t('groupEdit.inviteToast', { name: friendName }));
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Einladung fehlgeschlagen');
+      toast.error(err.response?.data?.error || t('groupEdit.inviteError'));
     }
   };
 
@@ -85,11 +91,11 @@ export const GroupEdit = () => {
     const url = `${window.location.origin}/group/${id}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: group?.name || group?.title || 'Gruppe', url });
+        await navigator.share({ title: group?.name || group?.title || t('groupEdit.fallbackName'), url });
       } catch { /* user cancelled */ }
     } else {
       await navigator.clipboard.writeText(url);
-      toast.success('Link kopiert!');
+      toast.success(t('groupEdit.linkCopied'));
     }
   };
 
@@ -105,9 +111,9 @@ export const GroupEdit = () => {
     );
   }
 
-  const groupName = group?.name || group?.title || 'Gruppe';
+  const groupName = group?.name || group?.title || t('groupEdit.fallbackName');
   const displayDate = formData.date
-    ? new Date(formData.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })
+    ? new Date(formData.date).toLocaleDateString(dateLocale, { day: '2-digit', month: '2-digit', year: '2-digit' })
     : '—';
 
   return (
@@ -128,7 +134,7 @@ export const GroupEdit = () => {
           </button>
           <h1 className="ge-page-title">{groupName}</h1>
           <button className="ge-save-header-btn" onClick={handleSave} disabled={saving}>
-            {saving ? '…' : 'Speichern'}
+            {saving ? t('groupEdit.savingShort') : t('groupEdit.save')}
           </button>
         </div>
       </div>
@@ -139,7 +145,7 @@ export const GroupEdit = () => {
         {/* ── Mitglieder ── */}
         <section className="ge-section">
           <div className="ge-section-head">
-            <span className="ge-section-title">Mitglieder</span>
+            <span className="ge-section-title">{t('groupEdit.sections.members')}</span>
             <span className="ge-section-count">{members.length}</span>
           </div>
           <div className="ge-card">
@@ -166,14 +172,14 @@ export const GroupEdit = () => {
                     onClick={() => !isSelf && navigate(`/user/${mid}`)}
                   >
                     <p className="ge-member-name">{member.name}</p>
-                    {isOwner && <p className="ge-member-role">Ersteller</p>}
+                    {isOwner && <p className="ge-member-role">{t('groupEdit.memberRole')}</p>}
                   </div>
                   {canRemove && (
                     <button className="ge-remove-btn" onClick={() => handleRemoveMember(mid)}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                         <path d="M18 6L6 18M6 6l12 12"/>
                       </svg>
-                      <span>Entfernen</span>
+                      <span>{t('groupEdit.removeBtn')}</span>
                     </button>
                   )}
                 </div>
@@ -185,7 +191,7 @@ export const GroupEdit = () => {
         {/* ── Freunde hinzufügen ── */}
         <section className="ge-section">
           <div className="ge-section-head">
-            <span className="ge-section-title">Freunde hinzufügen</span>
+            <span className="ge-section-title">{t('groupEdit.sections.addFriends')}</span>
           </div>
           <div className="ge-search-wrap">
             <svg className="ge-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -193,13 +199,13 @@ export const GroupEdit = () => {
             </svg>
             <input
               className="ge-search"
-              placeholder="Suchen"
+              placeholder={t('groupEdit.searchPlaceholder')}
               value={friendSearch}
               onChange={e => setFriendSearch(e.target.value)}
             />
           </div>
           {filteredFriends.length === 0 ? (
-            <p className="ge-empty">Keine Freunde verfügbar</p>
+            <p className="ge-empty">{t('groupEdit.noFriendsAvailable')}</p>
           ) : (
             <div className="ge-friends-grid">
               {filteredFriends.map(friend => (
@@ -224,15 +230,15 @@ export const GroupEdit = () => {
         {/* ── Gruppe bearbeiten ── */}
         <section className="ge-section">
           <div className="ge-section-head">
-            <span className="ge-section-title">Gruppeninfo</span>
+            <span className="ge-section-title">{t('groupEdit.sections.groupInfo')}</span>
           </div>
           <div className="ge-card ge-form-card">
 
             <div className="ge-field">
-              <label className="ge-label">Titel</label>
+              <label className="ge-label">{t('groupEdit.fields.title')}</label>
               <input
                 className="ge-input"
-                placeholder="Gruppenname"
+                placeholder={t('groupEdit.fields.titlePlaceholder')}
                 value={formData.name}
                 onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
               />
@@ -241,10 +247,10 @@ export const GroupEdit = () => {
             <div className="ge-divider" />
 
             <div className="ge-field">
-              <label className="ge-label">Beschreibung</label>
+              <label className="ge-label">{t('groupEdit.fields.desc')}</label>
               <textarea
                 className="ge-input ge-textarea"
-                placeholder="Erzähl etwas über die Gruppe…"
+                placeholder={t('groupEdit.fields.descPlaceholder')}
                 rows={3}
                 value={formData.description}
                 onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
@@ -255,7 +261,7 @@ export const GroupEdit = () => {
 
             <div className="ge-controls-row">
               <div className="ge-control-block">
-                <span className="ge-control-label">Gruppengröße</span>
+                <span className="ge-control-label">{t('groupEdit.fields.size')}</span>
                 <div className="ge-stepper">
                   <button
                     className="ge-step-btn"
@@ -272,7 +278,7 @@ export const GroupEdit = () => {
               <div className="ge-control-divider" />
 
               <div className="ge-control-block">
-                <span className="ge-control-label">Datum</span>
+                <span className="ge-control-label">{t('groupEdit.fields.date')}</span>
                 <div className="ge-date-wrap">
                   <span className="ge-date-display">{displayDate}</span>
                   <input
@@ -291,14 +297,14 @@ export const GroupEdit = () => {
         {/* ── Gruppe teilen ── */}
         <section className="ge-section">
           <div className="ge-section-head">
-            <span className="ge-section-title">Gruppe teilen</span>
+            <span className="ge-section-title">{t('groupEdit.sections.shareGroup')}</span>
           </div>
           <button className="ge-share-btn" onClick={handleShare}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
               <path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"/>
             </svg>
-            Link teilen
+            {t('groupEdit.shareBtn')}
           </button>
         </section>
 
@@ -308,7 +314,7 @@ export const GroupEdit = () => {
       {/* ── Sticky footer ── */}
       <div className="ge-footer">
         <button className="ge-save-btn" onClick={handleSave} disabled={saving}>
-          {saving ? 'Speichern…' : 'Speichern'}
+          {saving ? t('groupEdit.saving') : t('groupEdit.save')}
         </button>
       </div>
     </div>

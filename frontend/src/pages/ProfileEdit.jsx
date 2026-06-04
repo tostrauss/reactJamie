@@ -1,5 +1,6 @@
 import { useState, useContext, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { auth, upload, spotify } from '../utils/api';
 import { useToast } from '../context/ToastContext';
@@ -26,16 +27,20 @@ const AVAILABLE_INTERESTS = [
 ];
 
 // value: backend enum (en) \u2014 must match GENDER_VALUES in authController.js
-const GENDER_OPTIONS = [
-  { value: 'male',    label: 'M\u00e4nnlich' },
-  { value: 'female',  label: 'Weiblich' },
-  { value: 'diverse', label: 'Divers' }
+// value: backend enum (en) \u2014 must match GENDER_VALUES in authController.js.
+// labelKey: i18n key for the user-facing label.
+const GENDER_OPTION_KEYS = [
+  { value: 'male',    labelKey: 'profileEdit.gender.male' },
+  { value: 'female',  labelKey: 'profileEdit.gender.female' },
+  { value: 'diverse', labelKey: 'profileEdit.gender.diverse' }
 ];
 
 export const ProfileEdit = () => {
   const { user, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
   const toast = useToast();
+  const { t } = useTranslation();
+  const DE_MONTHS = t('profileEdit.months', { returnObjects: true });
   const fileInputRef = useRef(null);
   const avatarBlobRef = useRef(null);
 
@@ -96,8 +101,6 @@ export const ProfileEdit = () => {
     }).catch(() => {});
   }, []);
 
-  const DE_MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
-
   const handleDobChange = (field, value) => {
     const next = { ...dobParts, [field]: value };
     setDobParts(next);
@@ -113,7 +116,7 @@ export const ProfileEdit = () => {
       const res = await spotify.getAuthUrl();
       window.location.href = res.data.url;
     } catch (err) {
-      toast.error('Spotify-Verbindung fehlgeschlagen');
+      toast.error(t('profileEdit.toast.spotifyConnectError'));
       setSpotifyLoading(false);
     }
   };
@@ -123,9 +126,9 @@ export const ProfileEdit = () => {
     try {
       await spotify.disconnect();
       setSpotifyConnected(false);
-      toast.success('Spotify getrennt');
+      toast.success(t('profileEdit.toast.spotifyDisconnected'));
     } catch (err) {
-      toast.error('Fehler beim Trennen');
+      toast.error(t('profileEdit.toast.spotifyDisconnectError'));
     } finally {
       setSpotifyLoading(false);
     }
@@ -140,10 +143,10 @@ export const ProfileEdit = () => {
         favorite_song: favoriteSong
       });
       setUser(res.data);
-      toast.success('Profil gespeichert');
+      toast.success(t('profileEdit.toast.saved'));
       navigate('/profile');
     } catch (error) {
-      toast.error('Fehler beim Speichern');
+      toast.error(t('profileEdit.toast.saveError'));
     } finally {
       setLoading(false);
     }
@@ -163,9 +166,9 @@ export const ProfileEdit = () => {
       const res = await upload.image(file);
       await auth.updateProfile({ avatar_url: res.data.url });
       setUser(prev => ({ ...prev, avatar_url: res.data.url }));
-      toast.success('Profilbild aktualisiert');
+      toast.success(t('profileEdit.toast.avatarUpdated'));
     } catch (err) {
-      toast.error('Bild konnte nicht hochgeladen werden');
+      toast.error(t('profileEdit.toast.avatarError'));
       setAvatarPreview(user?.avatar_url || null);
     } finally {
       setUploading(false);
@@ -214,7 +217,7 @@ export const ProfileEdit = () => {
       const res = await upload.image(file);
       setFormData(prev => ({ ...prev, photos: [...(prev.photos || []), res.data.url] }));
     } catch {
-      toast.error('Foto konnte nicht hochgeladen werden');
+      toast.error(t('profileEdit.toast.photoError'));
     } finally {
       setPhotoUploading(false);
       e.target.value = '';
@@ -229,12 +232,12 @@ export const ProfileEdit = () => {
     <div className="settings-page">
       {/* Header */}
       <div className="settings-header">
-        <button className="settings-back" onClick={() => navigate(-1)} aria-label="Zurück">
+        <button className="settings-back" onClick={() => navigate(-1)} aria-label={t('profileEdit.backAria')}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
         </button>
-        <h1 className="settings-title">Profil bearbeiten</h1>
+        <h1 className="settings-title">{t('profileEdit.title')}</h1>
       </div>
 
       <div className="settings-body">
@@ -259,7 +262,7 @@ export const ProfileEdit = () => {
             )}
           </div>
         </div>
-        <span className="pe-avatar-hint">Foto {'\u00e4'}ndern</span>
+        <span className="pe-avatar-hint">{t('profileEdit.avatarHint')}</span>
         <input
           ref={fileInputRef}
           type="file"
@@ -277,7 +280,7 @@ export const ProfileEdit = () => {
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
               <circle cx="12" cy="7" r="4"/>
             </svg>
-            Pers{'\u00f6'}nliche Daten
+            {t('profileEdit.sections.personal')}
           </h3>
 
           <div className="pe-field">
@@ -286,14 +289,14 @@ export const ProfileEdit = () => {
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
                 <circle cx="12" cy="7" r="4"/>
               </svg>
-              <span>Name</span>
+              <span>{t('profileEdit.fields.name')}</span>
             </div>
             <input
               type="text"
               value={formData.name}
               onChange={(e) => handleChange('name', e.target.value)}
               className="settings-input"
-              placeholder="Dein Name"
+              placeholder={t('profileEdit.fields.namePlaceholder')}
             />
           </div>
 
@@ -305,14 +308,14 @@ export const ProfileEdit = () => {
                 <line x1="21" y1="14" x2="3" y2="14"/>
                 <line x1="17" y1="18" x2="3" y2="18"/>
               </svg>
-              <span>Bio</span>
+              <span>{t('profileEdit.fields.bio')}</span>
             </div>
             <textarea
               value={formData.bio}
               onChange={(e) => handleChange('bio', e.target.value)}
               rows={3}
               className="settings-input pe-textarea"
-              placeholder="Erz{'\u00e4'}hl etwas {'\u00fc'}ber dich..."
+              placeholder={t('profileEdit.fields.bioPlaceholder')}
               maxLength={300}
             />
             <span className="pe-char-count">{formData.bio.length}/300</span>
@@ -324,7 +327,7 @@ export const ProfileEdit = () => {
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
                 <circle cx="12" cy="10" r="3"/>
               </svg>
-              <span>Standort</span>
+              <span>{t('profileEdit.fields.location')}</span>
             </div>
             <div style={{ position: 'relative' }}>
               <input
@@ -332,7 +335,7 @@ export const ProfileEdit = () => {
                 value={formData.location}
                 onChange={(e) => handleLocationInput(e.target.value)}
                 className="settings-input"
-                placeholder="z.B. Wien"
+                placeholder={t('profileEdit.fields.locationPlaceholder')}
                 autoComplete="off"
               />
               {locationSuggestions.length > 0 && (
@@ -354,23 +357,23 @@ export const ProfileEdit = () => {
                   <line x1="8" y1="2" x2="8" y2="6"/>
                   <line x1="3" y1="10" x2="21" y2="10"/>
                 </svg>
-                <span>Geburtsdatum</span>
+                <span>{t('profileEdit.fields.dob')}</span>
               </div>
               <div className="dob-select-row">
                 <select className="settings-input dob-select" value={dobParts.d} onChange={e => handleDobChange('d', e.target.value)}>
-                  <option value="">Tag</option>
+                  <option value="">{t('profileEdit.fields.dobDay')}</option>
                   {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(d => (
                     <option key={d} value={d}>{d}</option>
                   ))}
                 </select>
                 <select className="settings-input dob-select dob-select--month" value={dobParts.m} onChange={e => handleDobChange('m', e.target.value)}>
-                  <option value="">Monat</option>
+                  <option value="">{t('profileEdit.fields.dobMonth')}</option>
                   {DE_MONTHS.map((mo, i) => (
                     <option key={mo} value={String(i + 1).padStart(2, '0')}>{mo}</option>
                   ))}
                 </select>
                 <select className="settings-input dob-select" value={dobParts.y} onChange={e => handleDobChange('y', e.target.value)}>
-                  <option value="">Jahr</option>
+                  <option value="">{t('profileEdit.fields.dobYear')}</option>
                   {Array.from({ length: 80 }, (_, i) => new Date().getFullYear() - 10 - i).map(y => (
                     <option key={y} value={String(y)}>{y}</option>
                   ))}
@@ -386,17 +389,17 @@ export const ProfileEdit = () => {
                   <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
                   <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                 </svg>
-                <span>Geschlecht</span>
+                <span>{t('profileEdit.fields.gender')}</span>
               </div>
               <div className="pe-gender-options">
-                {GENDER_OPTIONS.map(({ value, label }) => (
+                {GENDER_OPTION_KEYS.map(({ value, labelKey }) => (
                   <button
                     key={value}
                     type="button"
                     className={`pe-gender-chip ${formData.gender === value ? 'active' : ''}`}
                     onClick={() => handleChange('gender', value)}
                   >
-                    {label}
+                    {t(labelKey)}
                   </button>
                 ))}
               </div>
@@ -410,8 +413,8 @@ export const ProfileEdit = () => {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
             </svg>
-            Interessen
-            <span className="pe-interest-count">{formData.interests.length} ausgew{'\u00e4'}hlt</span>
+            {t('profileEdit.sections.interests')}
+            <span className="pe-interest-count">{t('profileEdit.interestsCountFmt', { count: formData.interests.length })}</span>
           </h3>
 
           <div className="pe-interests-grid">
@@ -437,7 +440,7 @@ export const ProfileEdit = () => {
               <circle cx="6" cy="18" r="3"/>
               <circle cx="18" cy="16" r="3"/>
             </svg>
-            Lieblingssong
+            {t('profileEdit.sections.song')}
           </h3>
 
           <div className="pe-song-section">
@@ -458,16 +461,16 @@ export const ProfileEdit = () => {
               <path d="M7 12s2-3 5-3 5 3 5 3"/>
               <path d="M6 9s2.5-4 6-4 6 4 6 4"/>
             </svg>
-            Spotify
+            {t('profileEdit.sections.spotify')}
           </h3>
 
           <div className="pe-spotify-section">
             {spotifyConnected ? (
               <div className="pe-spotify-connected">
                 <div className="pe-spotify-status">
-                  <span className="pe-spotify-badge">Verbunden</span>
+                  <span className="pe-spotify-badge">{t('profileEdit.spotify.connected')}</span>
                   <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
-                    Dein Spotify-Konto ist verkn{'\u00fc'}pft
+                    {t('profileEdit.spotify.connectedDesc')}
                   </span>
                 </div>
                 <button
@@ -476,7 +479,7 @@ export const ProfileEdit = () => {
                   onClick={handleSpotifyDisconnect}
                   disabled={spotifyLoading}
                 >
-                  {spotifyLoading ? '...' : 'Trennen'}
+                  {spotifyLoading ? '...' : t('profileEdit.spotify.disconnect')}
                 </button>
               </div>
             ) : (
@@ -486,12 +489,12 @@ export const ProfileEdit = () => {
                 onClick={handleSpotifyConnect}
                 disabled={spotifyLoading}
               >
-                {spotifyLoading ? 'Verbinde...' : (
+                {spotifyLoading ? t('profileEdit.spotify.connecting') : (
                   <>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
                     </svg>
-                    Mit Spotify verbinden
+                    {t('profileEdit.spotify.connect')}
                   </>
                 )}
               </button>
@@ -506,8 +509,8 @@ export const ProfileEdit = () => {
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
               <circle cx="12" cy="13" r="4"/>
             </svg>
-            Meine Fotos
-            <span className="pe-interest-count">{(formData.photos || []).length} / 6</span>
+            {t('profileEdit.sections.photos')}
+            <span className="pe-interest-count">{t('profileEdit.photosCountFmt', { current: (formData.photos || []).length, total: 6 })}</span>
           </h3>
 
           <div className="pe-photo-grid">
@@ -553,7 +556,7 @@ export const ProfileEdit = () => {
         {/* Save Button */}
         <button type="submit" className="pe-save-btn" disabled={loading || uploading}>
           {loading ? (
-            'Speichern...'
+            t('profileEdit.saveLoading')
           ) : (
             <>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -561,7 +564,7 @@ export const ProfileEdit = () => {
                 <polyline points="17 21 17 13 7 13 7 21"/>
                 <polyline points="7 3 7 8 15 8"/>
               </svg>
-              {'\u00c4'}nderungen speichern
+              {t('profileEdit.saveBtn')}
             </>
           )}
         </button>

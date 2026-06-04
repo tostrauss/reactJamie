@@ -1,5 +1,6 @@
 import { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { users, friends, subscription as subscriptionApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -17,6 +18,7 @@ export const UserProfile = () => {
   const navigate = useNavigate();
   const { user: currentUser } = useContext(AuthContext);
   const toast = useToast();
+  const { t } = useTranslation();
 
   const [profile, setProfile]               = useState(null);
   const [loading, setLoading]               = useState(true);
@@ -51,7 +53,7 @@ export const UserProfile = () => {
       }
       setProfile(data);
     } catch {
-      toast.error('Profil konnte nicht geladen werden');
+      toast.error(t('userProfile.toast.loadError'));
     } finally {
       setLoading(false);
     }
@@ -73,7 +75,7 @@ export const UserProfile = () => {
       setFriendshipStatus('pending');
       setIsRequester(true);
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Fehler beim Senden');
+      toast.error(err.response?.data?.error || t('userProfile.toast.sendError'));
     } finally { setActionLoading(false); }
   };
 
@@ -81,7 +83,7 @@ export const UserProfile = () => {
     if (!friendshipId) return;
     setActionLoading(true);
     try { await friends.respondRequest(friendshipId, 'accept'); setFriendshipStatus('accepted'); }
-    catch { toast.error('Fehler beim Annehmen'); }
+    catch { toast.error(t('userProfile.toast.acceptError')); }
     finally { setActionLoading(false); }
   };
 
@@ -89,14 +91,14 @@ export const UserProfile = () => {
     if (!friendshipId) return;
     setActionLoading(true);
     try { await friends.respondRequest(friendshipId, 'reject'); setFriendshipStatus('none'); setFriendshipId(null); }
-    catch { toast.error('Fehler beim Ablehnen'); }
+    catch { toast.error(t('userProfile.toast.rejectError')); }
     finally { setActionLoading(false); }
   };
 
   const handleRemoveFriend = async () => {
     setActionLoading(true);
     try { await friends.remove(id); setFriendshipStatus('none'); setFriendshipId(null); }
-    catch { toast.error('Fehler beim Entfernen'); }
+    catch { toast.error(t('userProfile.toast.removeError')); }
     finally { setActionLoading(false); }
   };
 
@@ -113,8 +115,8 @@ export const UserProfile = () => {
       <div className="up-page up-loading">
         <div className="up-not-found">
           <div style={{ fontSize: 48 }}>😕</div>
-          <p>Nutzer nicht gefunden</p>
-          <button className="up-cta-btn" onClick={() => navigate(-1)}>Zurück</button>
+          <p>{t('userProfile.notFound')}</p>
+          <button className="up-cta-btn" onClick={() => navigate(-1)}>{t('userProfile.backBtn')}</button>
         </div>
       </div>
     );
@@ -126,7 +128,7 @@ export const UserProfile = () => {
   const song = profile.favorite_song;
 
   const renderBottomAction = () => {
-    if (actionLoading) return <button className="up-cta-btn" disabled>Laden…</button>;
+    if (actionLoading) return <button className="up-cta-btn" disabled>{t('userProfile.actions.loading')}</button>;
 
     switch (friendshipStatus) {
       case 'accepted':
@@ -136,25 +138,25 @@ export const UserProfile = () => {
               className="up-cta-btn up-cta-msg"
               onClick={isPro ? () => navigate(`/dm/${id}`) : () => setShowProModal(true)}
             >
-              {isPro ? 'Nachricht senden' : '👑 Nachricht (Pro)'}
+              {isPro ? t('userProfile.actions.message') : t('userProfile.actions.messagePro')}
             </button>
             <button className="up-cta-btn up-cta-ghost" onClick={handleRemoveFriend}>
-              Freund entfernen
+              {t('userProfile.actions.removeFriend')}
             </button>
           </div>
         );
       case 'pending':
-        if (isRequester) return <button className="up-cta-btn up-cta-muted" disabled>Anfrage gesendet ✓</button>;
+        if (isRequester) return <button className="up-cta-btn up-cta-muted" disabled>{t('userProfile.actions.requestSent')}</button>;
         return (
           <div className="up-cta-row">
-            <button className="up-cta-btn" onClick={handleAcceptRequest}>Annehmen</button>
-            <button className="up-cta-btn up-cta-ghost" onClick={handleRejectRequest}>Ablehnen</button>
+            <button className="up-cta-btn" onClick={handleAcceptRequest}>{t('userProfile.actions.accept')}</button>
+            <button className="up-cta-btn up-cta-ghost" onClick={handleRejectRequest}>{t('userProfile.actions.reject')}</button>
           </div>
         );
       default:
         return (
           <button className="up-cta-btn" onClick={handleSendFriendRequest}>
-            + Freundschaftsanfrage
+            {t('userProfile.actions.sendRequest')}
           </button>
         );
     }
@@ -194,7 +196,7 @@ export const UserProfile = () => {
       {/* ── Identity row ── */}
       <div className="up-identity">
         <div className="up-location">
-          <span>{profile.location || 'Wien'}</span>
+          <span>{profile.location || t('userProfile.locationFallback')}</span>
         </div>
         <div className="up-name-age">
           <span className="up-name">{profile.name?.toUpperCase()}</span>
@@ -214,7 +216,7 @@ export const UserProfile = () => {
       {/* ── Bio card ── */}
       {profile.bio && (
         <div className="up-bio-card">
-          <h3 className="up-bio-label">Über Dich!</h3>
+          <h3 className="up-bio-label">{t('userProfile.bioCardTitle')}</h3>
           <p className="up-bio-text">{profile.bio}</p>
         </div>
       )}
@@ -225,13 +227,13 @@ export const UserProfile = () => {
           className={`up-tab ${activeTab === 'pinnwand' ? 'up-tab-active' : ''}`}
           onClick={() => setActiveTab('pinnwand')}
         >
-          Pinnwand
+          {t('userProfile.tabs.pinnwand')}
         </button>
         <button
           className={`up-tab ${activeTab === 'halloffame' ? 'up-tab-active' : ''}`}
           onClick={() => setActiveTab('halloffame')}
         >
-          Hall of Fame
+          {t('userProfile.tabs.halloffame')}
         </button>
       </div>
 
@@ -245,14 +247,14 @@ export const UserProfile = () => {
               </div>
             ))
           ) : (
-            <p className="up-empty-photos">Keine weiteren Fotos</p>
+            <p className="up-empty-photos">{t('userProfile.emptyPhotos')}</p>
           )}
         </div>
       )}
 
       {activeTab === 'halloffame' && (
         <div className="up-photo-grid">
-          <p className="up-empty-photos">Noch nichts hier</p>
+          <p className="up-empty-photos">{t('userProfile.emptyHof')}</p>
         </div>
       )}
 
@@ -279,7 +281,7 @@ export const UserProfile = () => {
       <div className="up-footer">
         {renderBottomAction()}
         <button className="up-report-link" onClick={() => setShowReportModal(true)}>
-          Nutzer melden
+          {t('userProfile.reportBtn')}
         </button>
       </div>
 

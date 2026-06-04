@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { clubs, friends as friendsApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -10,6 +11,7 @@ export const ClubEdit = () => {
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
   const toast = useToast();
+  const { t } = useTranslation();
 
   const [club, setClub] = useState(null);
   const [members, setMembers] = useState([]);
@@ -60,19 +62,19 @@ export const ClubEdit = () => {
       await clubs.update(id, formData);
       navigate(`/group/${id}`);
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Fehler beim Speichern');
+      toast.error(error.response?.data?.error || t('clubEdit.saveError'));
     } finally {
       setSaving(false);
     }
   };
 
   const handleRemoveMember = async (memberId) => {
-    if (!window.confirm('Mitglied wirklich entfernen?')) return;
+    if (!window.confirm(t('clubEdit.removeConfirm'))) return;
     try {
       await clubs.kickMember(id, memberId);
       setMembers(prev => prev.filter(m => m.id !== memberId && m.user_id !== memberId));
     } catch (error) {
-      toast.error('Fehler beim Entfernen');
+      toast.error(t('clubEdit.removeError'));
     }
   };
 
@@ -86,17 +88,17 @@ export const ClubEdit = () => {
       // Join the club on behalf of the friend — this adds them as a member
       await clubs.join(id);
       setFriends(prev => prev.filter(f => f.friend_id !== friendId));
-      toast.success(`${friendName} wurde eingeladen!`);
+      toast.success(t('clubEdit.inviteToast', { name: friendName }));
     } catch (err) {
       // If joining fails (e.g. friend must accept themselves), just notify
-      toast.info(`Einladung an ${friendName} gesendet`);
+      toast.info(t('clubEdit.inviteFallback', { name: friendName }));
     }
   };
 
   if (loading) {
     return (
       <div className="club-edit-page">
-        <div className="loading">Laden...</div>
+        <div className="loading">{t('clubEdit.loading')}</div>
       </div>
     );
   }
@@ -110,9 +112,9 @@ export const ClubEdit = () => {
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
         </button>
-        <h1>Club bearbeiten</h1>
+        <h1>{t('clubEdit.title')}</h1>
         <button className="save-btn" onClick={handleSave} disabled={saving}>
-          {saving ? '...' : 'Speichern'}
+          {saving ? t('clubEdit.saving') : t('clubEdit.save')}
         </button>
       </div>
 
@@ -120,48 +122,48 @@ export const ClubEdit = () => {
         {/* Club Info Form */}
         <div className="edit-section">
           <div className="form-section">
-            <label className="form-label">Club-Name</label>
+            <label className="form-label">{t('clubEdit.fields.name')}</label>
             <input
               type="text"
               name="name"
               value={formData.name}
               onChange={handleInputChange}
               className="form-input"
-              placeholder="Club-Name"
+              placeholder={t('clubEdit.fields.namePlaceholder')}
             />
           </div>
 
           <div className="form-section">
-            <label className="form-label">Beschreibung</label>
+            <label className="form-label">{t('clubEdit.fields.desc')}</label>
             <textarea
               name="description"
               value={formData.description}
               onChange={handleInputChange}
               className="form-input"
-              placeholder="Beschreibung..."
+              placeholder={t('clubEdit.fields.descPlaceholder')}
               rows={3}
             />
           </div>
 
           <div className="form-section">
-            <label className="form-label">Standort</label>
+            <label className="form-label">{t('clubEdit.fields.location')}</label>
             <input
               type="text"
               name="location"
               value={formData.location}
               onChange={handleInputChange}
               className="form-input"
-              placeholder="z.B. Wien"
+              placeholder={t('clubEdit.fields.locationPlaceholder')}
             />
           </div>
 
           <div className="form-section" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '14px 16px' }}>
             <div>
               <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-white)', marginBottom: 2 }}>
-                Chat-Schreibrechte
+                {t('clubEdit.chat.title')}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                {formData.chat_only_owner ? 'Nur du kannst schreiben' : 'Alle Mitglieder können schreiben'}
+                {formData.chat_only_owner ? t('clubEdit.chat.ownerOnly') : t('clubEdit.chat.all')}
               </div>
             </div>
             <label className="settings-toggle">
@@ -178,7 +180,7 @@ export const ClubEdit = () => {
         {/* Members Section */}
         <div className="edit-section">
           <h2 className="edit-section-title">
-            Mitglieder
+            {t('clubEdit.membersTitle')}
             <span className="member-count-badge">{members.length}</span>
           </h2>
           <div className="members-list">
@@ -196,7 +198,7 @@ export const ClubEdit = () => {
                 <div className="member-info">
                   <span className="member-name">{member.name}</span>
                   {member.role === 'owner' && (
-                    <span className="member-role">Gründer</span>
+                    <span className="member-role">{t('clubEdit.memberRole')}</span>
                   )}
                 </div>
                 {member.role !== 'owner' && (member.user_id || member.id) !== user?.id && (
@@ -214,10 +216,10 @@ export const ClubEdit = () => {
 
         {/* Invite Friends Section */}
         <div className="edit-section">
-          <h2 className="edit-section-title">Freunde einladen</h2>
+          <h2 className="edit-section-title">{t('clubEdit.inviteTitle')}</h2>
           <div className="invite-list">
             {friends.length === 0 ? (
-              <p className="invite-empty">Keine Freunde zum Einladen verfügbar</p>
+              <p className="invite-empty">{t('clubEdit.noFriends')}</p>
             ) : (
               friends.map(friend => (
                 <div key={friend.id} className="member-row">
@@ -235,7 +237,7 @@ export const ClubEdit = () => {
                     className="invite-btn"
                     onClick={() => handleInviteFriend(friend.friend_id, friend.name)}
                   >
-                    Einladen
+                    {t('clubEdit.inviteBtn')}
                   </button>
                 </div>
               ))

@@ -1,14 +1,9 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useToast } from '../context/ToastContext';
 import api from '../utils/api';
 
-const REASONS = [
-  { value: 'spam',          label: 'Spam' },
-  { value: 'inappropriate', label: 'Unangemessen' },
-  { value: 'harassment',    label: 'Belästigung' },
-  { value: 'fake',          label: 'Fake-Profil' },
-  { value: 'other',         label: 'Sonstiges' },
-];
+const REASON_KEYS = ['spam', 'inappropriate', 'harassment', 'fake', 'other'];
 
 /**
  * ReportModal
@@ -18,12 +13,13 @@ const REASONS = [
  * @param {function} onClose                - Called when the modal should close
  */
 export const ReportModal = ({ type, id, name, onClose }) => {
+  const { t } = useTranslation();
   const toast = useToast();
   const [reason, setReason]   = useState('');
   const [details, setDetails] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const typeLabel = type === 'user' ? 'Nutzer' : type === 'group' ? 'Gruppe/Club' : 'Nachricht';
+  const typeLabel = type === 'user' ? t('report.type.user') : type === 'group' ? t('report.type.group') : t('report.type.message');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -31,10 +27,10 @@ export const ReportModal = ({ type, id, name, onClose }) => {
     setLoading(true);
     try {
       await api.reports.create(type, id, reason, details);
-      toast.success('Meldung gesendet. Danke!');
+      toast.success(t('report.success'));
       onClose();
     } catch {
-      toast.error('Meldung konnte nicht gesendet werden');
+      toast.error(t('report.error'));
     } finally {
       setLoading(false);
     }
@@ -50,7 +46,7 @@ export const ReportModal = ({ type, id, name, onClose }) => {
         {/* Header */}
         <div className="modal-top-bar">
           <h3 style={{ margin: 0, fontSize: 18 }}>
-            {typeLabel} melden
+            {t('report.titleFmt', { type: typeLabel })}
           </h3>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
@@ -65,26 +61,26 @@ export const ReportModal = ({ type, id, name, onClose }) => {
           {/* Reason chips */}
           <div>
             <label style={{ fontSize: 13, color: 'var(--text-light)', marginBottom: 10, display: 'block' }}>
-              Grund *
+              {t('report.reasonLabel')}
             </label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {REASONS.map((r) => (
+              {REASON_KEYS.map((key) => (
                 <button
-                  key={r.value}
+                  key={key}
                   type="button"
-                  onClick={() => setReason(r.value)}
+                  onClick={() => setReason(key)}
                   style={{
                     padding: '7px 14px',
                     borderRadius: 20,
-                    border: `1.5px solid ${reason === r.value ? 'var(--accent-coral)' : 'rgba(255,255,255,0.15)'}`,
-                    background: reason === r.value ? 'rgba(253,118,102,0.15)' : 'transparent',
-                    color: reason === r.value ? 'var(--accent-coral)' : 'var(--text-light)',
+                    border: `1.5px solid ${reason === key ? 'var(--accent-coral)' : 'rgba(255,255,255,0.15)'}`,
+                    background: reason === key ? 'rgba(253,118,102,0.15)' : 'transparent',
+                    color: reason === key ? 'var(--accent-coral)' : 'var(--text-light)',
                     fontSize: 13,
                     cursor: 'pointer',
                     transition: 'all 0.15s',
                   }}
                 >
-                  {r.label}
+                  {t(`report.reasons.${key}`)}
                 </button>
               ))}
             </div>
@@ -93,12 +89,12 @@ export const ReportModal = ({ type, id, name, onClose }) => {
           {/* Optional details */}
           <div className="form-group">
             <label style={{ fontSize: 13, color: 'var(--text-light)' }}>
-              Details (optional)
+              {t('report.detailsLabel')}
             </label>
             <textarea
               value={details}
               onChange={(e) => setDetails(e.target.value)}
-              placeholder="Beschreibe das Problem kurz..."
+              placeholder={t('report.detailsPlaceholder')}
               maxLength={500}
               rows={3}
               style={{
@@ -120,7 +116,7 @@ export const ReportModal = ({ type, id, name, onClose }) => {
             className="btn btn-primary modal-submit-btn"
             disabled={!reason || loading}
           >
-            {loading ? 'Wird gesendet...' : 'Melden'}
+            {loading ? t('report.sending') : t('report.submit')}
           </button>
         </form>
       </div>

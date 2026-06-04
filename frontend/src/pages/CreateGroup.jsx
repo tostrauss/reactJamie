@@ -1,14 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { groups, api as axiosInstance } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
 import '../styles/create.css';
 
+const LEVELS = [
+  { value: 'Anfänger',        key: 'beginner' },
+  { value: 'Alle Levels',     key: 'all' },
+  { value: 'Fortgeschritten', key: 'advanced' },
+  { value: 'Experte',         key: 'expert' },
+];
+
 export const CreateGroup = () => {
   const navigate = useNavigate();
   const toast = useToast();
+  const { t, i18n } = useTranslation();
+  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-AT';
+  const months = t('profileEdit.months', { returnObjects: true });
   const imageBlobRef    = useRef(null);
   const locationRef     = useRef(null);
   const autocompleteRef = useRef(null);
@@ -36,8 +47,6 @@ export const CreateGroup = () => {
     image: null,
     imagePreview: null
   });
-
-  const DE_MONTHS = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
 
   const handleDateChange = (field, value) => {
     setFormData(prev => {
@@ -104,7 +113,7 @@ export const CreateGroup = () => {
     const file = e.target.files[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
-        toast.error('Das Bild ist zu groß (max. 10 MB)');
+        toast.error(t('createGroup.imageTooLarge'));
         e.target.value = '';
         return;
       }
@@ -128,7 +137,7 @@ export const CreateGroup = () => {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         imageUrl = uploadRes.data.url;
-        if (!imageUrl) throw new Error('Bild-Upload fehlgeschlagen');
+        if (!imageUrl) throw new Error(t('createGroup.imageUploadError'));
       }
 
       // Step 2: create group as JSON
@@ -149,7 +158,7 @@ export const CreateGroup = () => {
       const response = await groups.create(payload);
       navigate(`/group/${response.data.id}`);
     } catch (err) {
-      const msg = err.response?.data?.error || err.message || 'Fehler beim Erstellen der Gruppe';
+      const msg = err.response?.data?.error || err.message || t('createGroup.createError');
       setError(msg);
       toast.error(msg);
     } finally {
@@ -174,10 +183,10 @@ export const CreateGroup = () => {
   };
 
   const dateError = step === 2 && formData.date && !isDateInFuture()
-    ? 'Das Event-Datum muss in der Zukunft liegen'
+    ? t('groups.detail.events.errorDateFuture')
     : '';
 
-  const stepLabels = ['Details', 'Wann & Wo', 'Vorschau'];
+  const stepLabels = t('createGroup.stepsTitles', { returnObjects: true });
 
   return (
     <div className="page create-page">
@@ -190,10 +199,10 @@ export const CreateGroup = () => {
           </svg>
         </button>
         <div className="create-header-center">
-          <h1 className="create-title">Gruppe erstellen</h1>
+          <h1 className="create-title">{t('createGroup.title')}</h1>
           <p className="create-subtitle">{stepLabels[step - 1]}</p>
         </div>
-        <div className="create-step-badge">{step}/3</div>
+        <div className="create-step-badge">{t('createGroup.stepFmt', { current: step })}</div>
       </div>
 
       {/* Progress Steps */}
@@ -226,21 +235,21 @@ export const CreateGroup = () => {
         <div className="create-content">
           <div className="form-section">
             <label className="form-label">
-              <span className="form-label-icon">✏️</span> Titel deiner Aktivität
+              <span className="form-label-icon">✏️</span> {t('createGroup.step1.titleLabel')}
             </label>
             <input
               type="text"
               name="name"
               value={formData.name}
               onChange={handleInputChange}
-              placeholder="z.B. Volleyball am Strand"
+              placeholder={t('createGroup.step1.titlePlaceholder')}
               className="input"
             />
           </div>
 
           <div className="form-section">
             <label className="form-label">
-              <span className="form-label-icon">🏷️</span> Hauptkategorie
+              <span className="form-label-icon">🏷️</span> {t('createGroup.step1.categoryLabel')}
             </label>
             <div className="main-category-grid">
               {CATEGORY_HIERARCHY.map(cat => (
@@ -260,7 +269,7 @@ export const CreateGroup = () => {
           {formData.mainCategory && (
             <div className="form-section">
               <label className="form-label">
-                <span className="form-label-icon">🎯</span> Aktivität
+                <span className="form-label-icon">🎯</span> {t('createGroup.step1.subCategoryLabel')}
               </label>
               <div className="activity-grid">
                 {CATEGORY_HIERARCHY.find(c => c.id === formData.mainCategory)?.subs.map(sub => (
@@ -279,13 +288,13 @@ export const CreateGroup = () => {
 
           <div className="form-section">
             <label className="form-label">
-              <span className="form-label-icon">📝</span> Beschreibung
+              <span className="form-label-icon">📝</span> {t('createGroup.step1.descLabel')}
             </label>
             <textarea
               name="description"
               value={formData.description}
               onChange={handleInputChange}
-              placeholder="Erzähl etwas über deine Aktivität..."
+              placeholder={t('createGroup.step1.descPlaceholder')}
               className="input textarea"
               rows={4}
             />
@@ -293,12 +302,12 @@ export const CreateGroup = () => {
 
           <div className="form-section">
             <label className="form-label">
-              <span className="form-label-icon">📸</span> Titelbild
+              <span className="form-label-icon">📸</span> {t('createGroup.step1.imageLabel')}
             </label>
             <div className="image-upload-area">
               {formData.imagePreview ? (
                 <div className="image-preview">
-                  <img src={formData.imagePreview} alt="Vorschau" decoding="async" />
+                  <img src={formData.imagePreview} alt="" decoding="async" />
                   <button
                     className="remove-image"
                     onClick={() => {
@@ -317,8 +326,8 @@ export const CreateGroup = () => {
                       <polyline points="21 15 16 10 5 21"/>
                     </svg>
                   </div>
-                  <span className="upload-label-text">Bild auswählen</span>
-                  <span className="upload-label-hint">JPG, PNG oder HEIC · max. 10MB</span>
+                  <span className="upload-label-text">{t('createGroup.step1.addImage')}</span>
+                  <span className="upload-label-hint">{t('createGroup.step1.imageHint')}</span>
                 </label>
               )}
             </div>
@@ -334,7 +343,7 @@ export const CreateGroup = () => {
           {/* Date */}
           <div className="form-section">
             <label className="form-label">
-              <span className="form-label-icon">📅</span> Datum
+              <span className="form-label-icon">📅</span> {t('createGroup.step2.whenLabel')}
             </label>
             <div className="time-picker-box">
               <div className="time-picker-col">
@@ -348,7 +357,7 @@ export const CreateGroup = () => {
                     <option key={d} value={d}>{d}</option>
                   ))}
                 </select>
-                <span className="time-picker-label">Tag</span>
+                <span className="time-picker-label">{t('createGroup.step2.day')}</span>
               </div>
               <span className="time-picker-colon">.</span>
               <div className="time-picker-col time-picker-col--wide">
@@ -358,11 +367,11 @@ export const CreateGroup = () => {
                   onChange={e => handleDateChange('dateMonth', e.target.value)}
                 >
                   <option value="">--</option>
-                  {DE_MONTHS.map((m, i) => (
+                  {months.map((m, i) => (
                     <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>
                   ))}
                 </select>
-                <span className="time-picker-label">Monat</span>
+                <span className="time-picker-label">{t('createGroup.step2.month')}</span>
               </div>
               <span className="time-picker-colon">.</span>
               <div className="time-picker-col">
@@ -376,7 +385,7 @@ export const CreateGroup = () => {
                     <option key={y} value={y}>{y}</option>
                   ))}
                 </select>
-                <span className="time-picker-label">Jahr</span>
+                <span className="time-picker-label">{t('createGroup.step2.year')}</span>
               </div>
             </div>
           </div>
@@ -384,7 +393,7 @@ export const CreateGroup = () => {
           {/* Time */}
           <div className="form-section">
             <label className="form-label">
-              <span className="form-label-icon">🕐</span> Uhrzeit
+              <span className="form-label-icon">🕐</span> {t('groups.detail.events.uhr')}
             </label>
             <div className="time-picker-box">
               <div className="time-picker-col">
@@ -398,7 +407,7 @@ export const CreateGroup = () => {
                     <option key={h} value={h}>{h}</option>
                   ))}
                 </select>
-                <span className="time-picker-label">Stunden</span>
+                <span className="time-picker-label">{t('createGroup.step2.hours')}</span>
               </div>
               <span className="time-picker-colon">:</span>
               <div className="time-picker-col">
@@ -411,15 +420,15 @@ export const CreateGroup = () => {
                     <option key={m} value={m}>{m}</option>
                   ))}
                 </select>
-                <span className="time-picker-label">Minuten</span>
+                <span className="time-picker-label">{t('createGroup.step2.minutes')}</span>
               </div>
-              <span className="time-picker-uhr">Uhr</span>
+              <span className="time-picker-uhr">{t('createGroup.step2.uhr')}</span>
             </div>
           </div>
 
           <div className="form-section">
             <label className="form-label">
-              <span className="form-label-icon">📍</span> Ort
+              <span className="form-label-icon">📍</span> {t('createGroup.step2.locationLabel')}
             </label>
             <input
               ref={locationRef}
@@ -427,7 +436,7 @@ export const CreateGroup = () => {
               name="location"
               value={formData.location}
               onChange={handleInputChange}
-              placeholder="z.B. Wien, Donauinsel"
+              placeholder={t('createGroup.step2.locationPlaceholder')}
               className="input"
               autoComplete="off"
             />
@@ -435,7 +444,7 @@ export const CreateGroup = () => {
 
           <div className="form-section">
             <label className="form-label">
-              <span className="form-label-icon">👥</span> Maximale Teilnehmer
+              <span className="form-label-icon">👥</span> {t('createGroup.step2.maxLabel')}
             </label>
             <div className="counter-input">
               <button
@@ -445,7 +454,7 @@ export const CreateGroup = () => {
               >−</button>
               <div className="counter-display">
                 <span className="counter-value">{formData.maxMembers}</span>
-                <span className="counter-unit">Personen</span>
+                <span className="counter-unit">{t('createGroup.step2.peopleUnit')}</span>
               </div>
               <button
                 type="button"
@@ -457,16 +466,16 @@ export const CreateGroup = () => {
 
           <div className="form-section">
             <label className="form-label">
-              <span className="form-label-icon">⚡</span> Niveau
+              <span className="form-label-icon">⚡</span> {t('createGroup.step2.levelLabel')}
             </label>
             <div className="level-options">
-              {['Anfänger', 'Alle Levels', 'Fortgeschritten', 'Experte'].map(level => (
+              {LEVELS.map(({ value, key }) => (
                 <button
-                  key={level}
-                  className={`level-chip ${formData.level === level ? 'active' : ''}`}
-                  onClick={() => setFormData(prev => ({ ...prev, level }))}
+                  key={key}
+                  className={`level-chip ${formData.level === value ? 'active' : ''}`}
+                  onClick={() => setFormData(prev => ({ ...prev, level: value }))}
                 >
-                  {level}
+                  {t(`createGroup.step2.levels.${key}`)}
                 </button>
               ))}
             </div>
@@ -474,7 +483,7 @@ export const CreateGroup = () => {
 
           <div className="form-section">
             <label className="form-label">
-              <span className="form-label-icon">🔒</span> Sichtbarkeit
+              <span className="form-label-icon">🔒</span> {t('createGroup.step2.visibilityLabel')}
             </label>
             <div className="visibility-toggle">
               <button
@@ -483,8 +492,8 @@ export const CreateGroup = () => {
               >
                 <span className="visibility-icon">🌍</span>
                 <div className="visibility-text">
-                  <span className="visibility-title">Öffentlich</span>
-                  <span className="visibility-desc">Jeder kann beitreten</span>
+                  <span className="visibility-title">{t('createGroup.step2.public')}</span>
+                  <span className="visibility-desc">{t('createGroup.step2.publicDesc')}</span>
                 </div>
               </button>
               <button
@@ -493,8 +502,8 @@ export const CreateGroup = () => {
               >
                 <span className="visibility-icon">🔒</span>
                 <div className="visibility-text">
-                  <span className="visibility-title">Privat</span>
-                  <span className="visibility-desc">Nur mit Anfrage</span>
+                  <span className="visibility-title">{t('createGroup.step2.private')}</span>
+                  <span className="visibility-desc">{t('createGroup.step2.privateDesc')}</span>
                 </div>
               </button>
             </div>
@@ -505,26 +514,26 @@ export const CreateGroup = () => {
       {/* Step 3 — Preview */}
       {step === 3 && (
         <div className="create-content">
-          <p className="preview-intro">So sieht deine Gruppe aus 👀</p>
+          <p className="preview-intro">{t('createGroup.step3.title')} 👀</p>
           <div className="preview-card">
             {formData.imagePreview ? (
-              <img src={formData.imagePreview} alt="Vorschau" className="preview-image" decoding="async" />
+              <img src={formData.imagePreview} alt="" className="preview-image" decoding="async" />
             ) : (
               <div className="preview-image-placeholder">🏃</div>
             )}
             <div className="preview-content">
               <div className="preview-badges">
-                <span className="preview-badge type">Gruppe</span>
+                <span className="preview-badge type">{t('map.popupGroup')}</span>
                 {formData.activity && <span className="preview-badge category">{formData.activity}</span>}
-                {!formData.isPublic && <span className="preview-badge private">🔒 Privat</span>}
+                {!formData.isPublic && <span className="preview-badge private">{t('createGroup.step3.privateBadge')}</span>}
               </div>
-              <h4 className="preview-name">{formData.name || 'Kein Titel'}</h4>
+              <h4 className="preview-name">{formData.name || t('createGroup.step3.fallbackTitle')}</h4>
               {formData.description && <p className="preview-desc">{formData.description}</p>}
               <div className="preview-details">
-                {formData.date && <span className="preview-detail">📅 {new Date(formData.date).toLocaleDateString('de-AT', { day: '2-digit', month: '2-digit', year: 'numeric' })}{formData.time ? ` · ${formData.time} Uhr` : ''}</span>}
+                {formData.date && <span className="preview-detail">📅 {new Date(formData.date).toLocaleDateString(dateLocale, { day: '2-digit', month: '2-digit', year: 'numeric' })}{formData.time ? ` · ${formData.time} ${t('createGroup.step2.uhr')}` : ''}</span>}
                 {formData.location && <span className="preview-detail">📍 {formData.location}</span>}
-                <span className="preview-detail">👥 max. {formData.maxMembers} Personen</span>
-                <span className="preview-detail">⚡ {formData.level}</span>
+                <span className="preview-detail">👥 {t('createGroup.step3.participantsFmt', { count: formData.maxMembers })}</span>
+                <span className="preview-detail">⚡ {t(`createGroup.step2.levels.${(LEVELS.find(l => l.value === formData.level) || { key: 'all' }).key}`)}</span>
               </div>
             </div>
           </div>
@@ -539,7 +548,7 @@ export const CreateGroup = () => {
             onClick={() => setStep(step + 1)}
             disabled={!canProceed()}
           >
-            Weiter
+            {t('createGroup.next')}
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M5 12h14M12 5l7 7-7 7"/>
             </svg>
@@ -550,7 +559,7 @@ export const CreateGroup = () => {
             onClick={handleSubmit}
             disabled={loading}
           >
-            {loading ? 'Erstelle...' : '🚀 Gruppe erstellen'}
+            {loading ? t('createGroup.submitting') : t('createGroup.submit')}
           </button>
         )}
       </div>

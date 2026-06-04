@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { reviews } from '../utils/api';
 
 /**
@@ -8,6 +9,8 @@ import { reviews } from '../utils/api';
  *   onDone          - called when all reviews are submitted or skipped
  */
 export const EventReviewModal = ({ pendingReviews, onDone }) => {
+  const { t, i18n } = useTranslation();
+  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-AT';
   const [index, setIndex] = useState(0);
   const [attendances, setAttendances] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -74,13 +77,13 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
           <div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 4 }}>
-              Event-Feedback {index + 1}/{pendingReviews.length}
+              {t('eventReview.counterFmt', { current: index + 1, total: pendingReviews.length })}
             </div>
             <h2 style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: 0 }}>
               {current.group_name}
             </h2>
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, margin: '4px 0 0' }}>
-              {new Date(current.event_date).toLocaleDateString('de-AT', { day: 'numeric', month: 'long' })}
+              {new Date(current.event_date).toLocaleDateString(dateLocale, { day: 'numeric', month: 'long' })}
             </p>
           </div>
           <button
@@ -94,12 +97,12 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
               flexShrink: 0,
             }}
           >
-            Überspringen
+            {t('eventReview.skip')}
           </button>
         </div>
 
         <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 14, marginBottom: 16 }}>
-          Wer war dabei? Deine Angaben sind anonym.
+          {t('eventReview.prompt')}
         </p>
 
         {/* Member list */}
@@ -162,7 +165,7 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
 
         {submitError && (
           <p style={{ color: '#f87171', fontSize: 13, textAlign: 'center', marginBottom: 8 }}>
-            Senden fehlgeschlagen. Bitte erneut versuchen.
+            {t('eventReview.submitError')}
           </p>
         )}
         <button
@@ -175,7 +178,7 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
             cursor: 'pointer', opacity: submitting ? 0.6 : 1,
           }}
         >
-          {submitting ? 'Sende...' : submitError ? 'Erneut versuchen' : isLast ? 'Fertig' : 'Weiter'}
+          {submitting ? t('eventReview.sending') : submitError ? t('eventReview.retry') : isLast ? t('eventReview.done') : t('eventReview.next')}
         </button>
       </div>
     </div>

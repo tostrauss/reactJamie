@@ -1,52 +1,32 @@
 import React, { useState, useContext, useRef } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 
 const NEW_REG_KEY = 'jamie_new_registration';
 const INTRO_SEEN_KEY = 'jamie_intro_seen';
 
-const SLIDES = [
+// Visual-only slide themes. Text content lives in i18n and is composed
+// inside the component so a language switch re-renders everything.
+const SLIDE_THEMES = [
   {
     emoji: '🎉',
-    title: (name) => name ? `Hey ${name}!` : 'Willkommen!',
-    subtitle: 'Du bist jetzt dabei',
-    description: 'Dein Konto ist erstellt. JAMIE verbindet dich mit echten Menschen für echte Erlebnisse — spontan, unkompliziert, in deiner Nähe.',
-    bg1: '#1a1a2e',
-    bg2: '#2d1b69',
-    accent: '#FD7666',
-    ring: '#FD766640',
+    bg1: '#1a1a2e', bg2: '#2d1b69',
+    accent: '#FD7666', ring: '#FD766640',
   },
   {
     emoji: '🌍',
-    title: () => 'Entdecke & Erlebe',
-    subtitle: 'Alles, was dich erwartet',
-    description: 'Such dir die perfekte Gruppe aus — für einen Abend oder für immer. Chatte, tritt bei, und erlebe Momente, die zählen.',
-    bg1: '#0d1b2a',
-    bg2: '#1b3a5c',
-    accent: '#6C63FF',
-    ring: '#6C63FF40',
-    items: [
-      { icon: '👥', label: 'Gruppen', sub: 'Einmalige Events für 3–10 Personen' },
-      { icon: '🏆', label: 'Clubs', sub: 'Dauerhafte Communities' },
-      { icon: '💬', label: 'Chats', sub: 'Direkt mit Gleichgesinnten' },
-      { icon: '📍', label: 'In der Nähe', sub: 'Events direkt bei dir' },
-    ],
+    bg1: '#0d1b2a', bg2: '#1b3a5c',
+    accent: '#6C63FF', ring: '#6C63FF40',
+    itemIcons: ['👥', '🏆', '💬', '📍'],
+    itemKeys: ['groups', 'clubs', 'chats', 'nearby'],
   },
   {
     emoji: '👑',
-    title: () => 'JAMIE Pro',
-    subtitle: 'Nur 5 € pro Monat',
-    description: 'Boosts für deine Gruppen & Clubs — kostenlos. Kein Credit-Kauf. Maximale Sichtbarkeit. Jederzeit kündbar.',
-    bg1: '#1c1400',
-    bg2: '#2a2000',
-    accent: '#FFD700',
-    ring: '#FFD70040',
-    items: [
-      { icon: '⚡', label: 'Gruppen boosten', sub: 'Kostenlos & unbegrenzt' },
-      { icon: '🏆', label: 'Clubs boosten', sub: 'Mehr Mitglieder gewinnen' },
-      { icon: '🔝', label: 'Top-Platzierung', sub: 'Immer ganz oben' },
-      { icon: '∞', label: 'Kein Limit', sub: 'Jederzeit kündbar' },
-    ],
+    bg1: '#1c1400', bg2: '#2a2000',
+    accent: '#FFD700', ring: '#FFD70040',
+    itemIcons: ['⚡', '🏆', '🔝', '∞'],
+    itemKeys: ['groupBoost', 'clubBoost', 'top', 'noLimit'],
   },
 ];
 
@@ -108,6 +88,7 @@ export const WelcomeIntro = () => {
   const { user } = useContext(AuthContext);
   const navigate    = useNavigate();
   const touchX      = useRef(null);
+  const { t } = useTranslation();
 
   const [isNewUser]  = useState(() => localStorage.getItem(NEW_REG_KEY) === '1');
   const [current, setCurrent]   = useState(0);
@@ -117,9 +98,38 @@ export const WelcomeIntro = () => {
 
   if (!isNewUser) return <Navigate to="/home" replace />;
 
-  const slide  = SLIDES[current];
-  const isLast = current === SLIDES.length - 1;
-  const name   = user?.name?.split(' ')[0] || '';
+  const name = user?.name?.split(' ')[0] || '';
+
+  // Compose translated slides from visual themes. Slide 1's title flips between
+  // a name-aware greeting and a fallback; slides 2 & 3 carry feature item lists.
+  const slides = SLIDE_THEMES.map((theme, i) => {
+    const idx = i + 1;
+    let title;
+    if (i === 0) {
+      title = name
+        ? t('welcome.slide1.titleWithName', { name })
+        : t('welcome.slide1.titleNoName');
+    } else {
+      title = t(`welcome.slide${idx}.title`);
+    }
+    const slide = {
+      ...theme,
+      title,
+      subtitle: t(`welcome.slide${idx}.subtitle`),
+      description: t(`welcome.slide${idx}.description`),
+    };
+    if (theme.itemIcons && theme.itemKeys) {
+      slide.items = theme.itemKeys.map((key, j) => ({
+        icon: theme.itemIcons[j],
+        label: t(`welcome.slide${idx}.${key}Label`),
+        sub: t(`welcome.slide${idx}.${key}Sub`),
+      }));
+    }
+    return slide;
+  });
+
+  const slide  = slides[current];
+  const isLast = current === slides.length - 1;
 
   const goTo = (idx) => {
     if (idx === current) return;
@@ -130,7 +140,7 @@ export const WelcomeIntro = () => {
   };
 
   const next = () => {
-    if (current < SLIDES.length - 1) goTo(current + 1);
+    if (current < slides.length - 1) goTo(current + 1);
     else finish(false);
   };
 
@@ -196,7 +206,7 @@ export const WelcomeIntro = () => {
         }}>
           {/* Progress bar */}
           <div style={{ display:'flex', gap:'6px', flex:1 }}>
-            {SLIDES.map((_,i) => (
+            {slides.map((_,i) => (
               <div key={i} onClick={() => goTo(i)} style={{
                 flex: i===current ? 2 : 1,
                 height:'3px', borderRadius:'2px', cursor:'pointer',
@@ -213,7 +223,7 @@ export const WelcomeIntro = () => {
               cursor:'pointer', padding:'4px 0', whiteSpace:'nowrap',
               fontWeight:'600', letterSpacing:'0.3px',
             }}>
-              Überspringen
+              {t('welcome.skip')}
             </button>
           )}
         </div>
@@ -277,7 +287,7 @@ export const WelcomeIntro = () => {
               color:'#fff', margin:'0 0 14px', lineHeight:1.15,
               textShadow:`0 2px 20px ${slide.ring}`,
             }}>
-              {slide.title(name)}
+              {slide.title}
             </h1>
             <p style={{
               fontSize:'15px', color:'rgba(255,255,255,0.62)',
@@ -342,7 +352,7 @@ export const WelcomeIntro = () => {
         }}>
           {/* Dot progress */}
           <div style={{ display:'flex', gap:'7px', alignItems:'center' }}>
-            {SLIDES.map((_,i) => (
+            {slides.map((_,i) => (
               <button key={i} onClick={() => goTo(i)} style={{
                 width: i===current ? '24px' : '7px',
                 height:'7px', borderRadius:'4px',
@@ -367,7 +377,7 @@ export const WelcomeIntro = () => {
                   animation:'wi-badge 0.5s cubic-bezier(.34,1.56,.64,1) both',
                 }}
               >
-                👑 Pro jetzt aktivieren — 5 € / Monat
+                {t('welcome.ctaPro')}
               </button>
               <button
                 onClick={() => finish(false)}
@@ -378,7 +388,7 @@ export const WelcomeIntro = () => {
                   letterSpacing:'0.2px',
                 }}
               >
-                Ohne Pro weitermachen
+                {t('welcome.ctaNoPro')}
               </button>
             </>
           ) : (
@@ -393,7 +403,7 @@ export const WelcomeIntro = () => {
                 boxShadow:`0 8px 24px ${slide.accent}44, 0 2px 8px rgba(0,0,0,0.2)`,
               }}
             >
-              {current===0 ? "Los geht's ✨" : 'Weiter'}
+              {current===0 ? t('welcome.ctaStart') : t('welcome.ctaNext')}
             </button>
           )}
         </div>

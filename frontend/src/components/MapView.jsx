@@ -6,6 +6,7 @@ import {
   useLoadScript,
 } from '@react-google-maps/api';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { map as mapApi } from '../utils/api';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 
@@ -79,6 +80,8 @@ const SESSION_KEY = 'jamie_map_category';
 
 export default function MapView({ typeFilter }) {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
+  const mapLanguage = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en' : 'de';
   const mapRef = useRef(null);
 
   const [pins,             setPins]            = useState([]);
@@ -92,7 +95,7 @@ export default function MapView({ typeFilter }) {
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '',
     libraries: LIBRARIES,
-    language: 'de',
+    language: mapLanguage,
     region: 'AT',
   });
 
@@ -186,7 +189,7 @@ export default function MapView({ typeFilter }) {
       <div className="map-container">
         <div className="map-load-error">
           <span>🗺️</span>
-          <p>Karte konnte nicht geladen werden.</p>
+          <p>{t('map.loadError')}</p>
         </div>
       </div>
     );
@@ -203,7 +206,7 @@ export default function MapView({ typeFilter }) {
             className={`map-cat-pill${!selectedDate ? ' active' : ''}`}
             onClick={() => { setSelectedDate(null); setSelectedPin(null); }}
           >
-            Alle
+            {t('map.dateAll')}
           </button>
           {['heute', 'morgen'].map(d => (
             <button
@@ -211,7 +214,7 @@ export default function MapView({ typeFilter }) {
               className={`map-cat-pill${selectedDate === d ? ' active' : ''}`}
               onClick={() => { setSelectedDate(selectedDate === d ? null : d); setSelectedPin(null); }}
             >
-              {d === 'heute' ? '📅 Heute' : '📅 Morgen'}
+              {d === 'heute' ? t('map.today') : t('map.tomorrow')}
             </button>
           ))}
           <div className="map-filter-divider" />
@@ -219,7 +222,7 @@ export default function MapView({ typeFilter }) {
             className={`map-cat-pill${!selectedCategory ? ' active' : ''}`}
             onClick={() => updateCategory(null)}
           >
-            Alle Kategorien
+            {t('map.categoryAll')}
           </button>
           {CATEGORY_HIERARCHY.map(cat => (
             <button
@@ -278,7 +281,7 @@ export default function MapView({ typeFilter }) {
                 <div className="map-popup-body">
                   <div className="map-popup-badges">
                     <span className={`map-popup-type ${selectedPin.type}`}>
-                      {selectedPin.type === 'club' ? 'Club' : 'Gruppe'}
+                      {selectedPin.type === 'club' ? t('map.popupClub') : t('map.popupGroup')}
                     </span>
                     {selectedPin.category && (
                       <span className="map-popup-cat">{selectedPin.category}</span>
@@ -289,7 +292,9 @@ export default function MapView({ typeFilter }) {
                     <div className="map-popup-loc">{selectedPin.location}</div>
                   )}
                   <div className="map-popup-meta">
-                    {selectedPin.members_count ?? 0} / {selectedPin.max_members || '∞'} Mitglieder
+                    {selectedPin.max_members
+                      ? t('map.popupMembersFmt', { current: selectedPin.members_count ?? 0, max: selectedPin.max_members })
+                      : t('map.popupMembersUnlimited', { current: selectedPin.members_count ?? 0 })}
                   </div>
                 </div>
               </div>
@@ -299,7 +304,7 @@ export default function MapView({ typeFilter }) {
       )}
 
       {/* Locate me */}
-      <button className="map-locate-btn" onClick={handleLocate} title="Meinen Standort anzeigen">
+      <button className="map-locate-btn" onClick={handleLocate} title={t('map.locateTitle')}>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <circle cx="12" cy="12" r="3" fill="currentColor"/>
           <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
@@ -311,13 +316,12 @@ export default function MapView({ typeFilter }) {
       {isLoaded && !loading && pins.length === 0 && (
         <div className="map-pioneer-cta">
           <div className="map-pioneer-icon">🏆</div>
-          <h2 className="map-pioneer-title">Trau dich, sei der Erste!</h2>
+          <h2 className="map-pioneer-title">{t('map.pioneer.title')}</h2>
           <p className="map-pioneer-text">
-            In deiner Region gibt es noch keine Gruppen. Erstelle die erste
-            und erhalte einen <strong>kostenlosen 7-Tage-Boost</strong> + Pioneer-Badge!
+            {t('map.pioneer.textPrefix')} <strong>{t('map.pioneer.textHighlight')}</strong> {t('map.pioneer.textSuffix')}
           </p>
           <button className="map-pioneer-btn" onClick={() => navigate('/create-group')}>
-            Erste Gruppe erstellen
+            {t('map.pioneer.btn')}
           </button>
         </div>
       )}

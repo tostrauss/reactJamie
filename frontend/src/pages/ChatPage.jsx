@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { groups, messages } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { SocketContext } from '../context/SocketContext';
@@ -22,6 +23,8 @@ export const ChatPage = () => {
   const { user } = useContext(AuthContext);
   const { socket, isConnected } = useContext(SocketContext);
   const toast = useToast();
+  const { t, i18n } = useTranslation();
+  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-DE';
   const messagesEndRef = useRef(null);
   // Banner only appears after 3s of sustained disconnection — avoids
   // scary flashes during routine network blips that socket.io recovers from.
@@ -46,11 +49,11 @@ export const ChatPage = () => {
         setGroup(response.data);
         if (response.data.type === 'club' && response.data.chat_only_owner && response.data.owner_id !== user?.id) {
           setCanSendMessages(false);
-          setPermissionMessage('Nur der Club-Gründer kann Nachrichten senden');
+          setPermissionMessage(t('chat.page.permissionOwnerOnly'));
         }
       } catch (error) {
         if (cancelled) return;
-        toast.error('Gruppe konnte nicht geladen werden');
+        toast.error(t('chat.page.toast.loadGroupError'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -66,7 +69,7 @@ export const ChatPage = () => {
         setHasMore(Array.isArray(data) ? false : (data?.has_more ?? false));
       } catch (error) {
         if (cancelled) return;
-        toast.error('Nachrichten konnten nicht geladen werden');
+        toast.error(t('chat.page.toast.loadMessagesError'));
       }
     };
 
@@ -108,7 +111,7 @@ export const ChatPage = () => {
       setMessageList(prev => [...older, ...prev]);
       setHasMore(Array.isArray(data) ? false : (data?.has_more ?? false));
     } catch (error) {
-      toast.error('Ältere Nachrichten konnten nicht geladen werden');
+      toast.error(t('chat.page.toast.loadEarlierError'));
     } finally {
       setLoadingMore(false);
     }
@@ -136,7 +139,7 @@ export const ChatPage = () => {
       }
     } catch (error) {
       setContent(sentContent);
-      toast.error('Nachricht konnte nicht gesendet werden');
+      toast.error(t('chat.page.toast.sendError'));
       if (error.response?.data?.isOwnerOnly) {
         setCanSendMessages(false);
         setPermissionMessage('Nur der Club-Gründer kann Nachrichten senden');
@@ -146,8 +149,8 @@ export const ChatPage = () => {
     }
   };
 
-  if (loading) return <div className="chat-page"><div className="loading">Laden...</div></div>;
-  if (!group) return <div className="chat-page"><div className="loading">Gruppe nicht gefunden</div></div>;
+  if (loading) return <div className="chat-page"><div className="loading">{t('chat.page.loading')}</div></div>;
+  if (!group) return <div className="chat-page"><div className="loading">{t('chat.page.notFound')}</div></div>;
 
   return (
     <div className="chat-page">
@@ -161,8 +164,8 @@ export const ChatPage = () => {
         <div className="chat-page-info" onClick={() => navigate(`/group/${groupId}`)} style={{ cursor: 'pointer', flex: 1 }}>
           <div className="chat-page-name">{group.name || group.title}</div>
           <div className="chat-page-status">
-            {group.member_count || group.members_count || 0} Mitglieder
-            {group.type === 'club' && ' · Club'}
+            {group.member_count || group.members_count || 0} {t('chat.page.members')}
+            {group.type === 'club' && t('chat.page.clubSuffix')}
           </div>
         </div>
         {group.image_url && (
@@ -173,7 +176,7 @@ export const ChatPage = () => {
       {/* Reconnection Banner — only after 3s sustained disconnect */}
       {showReconnectBanner && (
         <div className="reconnect-banner">
-          Verbindung unterbrochen – Wiederverbindung...
+          {t('chat.shared.reconnectBanner')}
         </div>
       )}
 
@@ -193,7 +196,7 @@ export const ChatPage = () => {
               onClick={loadEarlier}
               disabled={loadingMore}
             >
-              {loadingMore ? 'Laden…' : 'Ältere Nachrichten laden'}
+              {loadingMore ? t('chat.page.loadingShort') : t('chat.page.loadEarlier')}
             </button>
           </div>
         )}
@@ -215,7 +218,7 @@ export const ChatPage = () => {
               )}
               <div className="message-content">{msg.content}</div>
               <div className="message-time">
-                {new Date(msg.created_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                {new Date(msg.created_at).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
           );
@@ -227,7 +230,7 @@ export const ChatPage = () => {
       <form className="message-input-container" onSubmit={handleSendMessage}>
         <input
           type="text"
-          placeholder={canSendMessages ? "Nachricht schreiben..." : "Nur der Gr\u00fcnder kann schreiben"}
+          placeholder={canSendMessages ? t('chat.page.input.placeholder') : t('chat.page.input.placeholderOwnerOnly')}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           className="message-input"

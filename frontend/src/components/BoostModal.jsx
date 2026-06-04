@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation, Trans } from 'react-i18next';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
@@ -9,6 +10,7 @@ import { useToast } from '../context/ToastContext';
 // STRIPE PAYMENT FORM
 // ==========================================
 function StripeForm({ clientSecret, onSuccess, onCancel }) {
+  const { t } = useTranslation();
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
@@ -44,14 +46,14 @@ function StripeForm({ clientSecret, onSuccess, onCancel }) {
           onClick={onCancel}
           style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'var(--bg-input)', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: '600' }}
         >
-          Zurück
+          {t('boost.stripe.back')}
         </button>
         <button
           type="submit"
           disabled={loading || !stripe}
           style={{ flex: 2, padding: '14px', borderRadius: '12px', background: '#6C63FF', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}
         >
-          {loading ? 'Verarbeite...' : 'Jetzt bezahlen'}
+          {loading ? t('boost.stripe.processing') : t('boost.stripe.pay')}
         </button>
       </div>
     </form>
@@ -62,12 +64,13 @@ function StripeForm({ clientSecret, onSuccess, onCancel }) {
 // MAIN BOOST MODAL
 // ==========================================
 const PACKAGES = [
-  { id: 'starter', credits: 1,  price: '1,99 €', label: '1 Boost',  icon: '⚡', popular: false },
-  { id: 'popular', credits: 5,  price: '7,99 €', label: '5 Boost',  icon: '🔥', popular: true  },
-  { id: 'pro',     credits: 15, price: '19,99 €', label: '15 Boost', icon: '💎', popular: false },
+  { id: 'starter', credits: 1,  price: '1,99 €', icon: '⚡', popular: false },
+  { id: 'popular', credits: 5,  price: '7,99 €', icon: '🔥', popular: true  },
+  { id: 'pro',     credits: 15, price: '19,99 €', icon: '💎', popular: false },
 ];
 
 export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
+  const { t } = useTranslation();
   const toast = useToast();
   const [tab, setTab] = useState('buy'); // 'buy' | 'apply' | 'referral'
   const [credits, setCredits] = useState(0);
@@ -96,17 +99,17 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
 
   const handleApplyBoost = async () => {
     if (credits < 1) {
-      toast.error('Nicht genug Credits — kaufe zuerst Boost-Credits!');
+      toast.error(t('boost.apply.noCreditsToast'));
       setTab('buy');
       return;
     }
     setLoading(true);
     try {
       await boostApi.apply(targetType, targetId);
-      toast.success(`🚀 ${targetName} wird jetzt 24h geboosted!`);
+      toast.success(t('boost.apply.boostedToast', { name: targetName }));
       onClose();
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Boost fehlgeschlagen');
+      toast.error(err.response?.data?.error || t('boost.apply.boostError'));
     } finally {
       setLoading(false);
     }
@@ -128,14 +131,14 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
       setStripePromise(loadStripe(publishable_key));
       setPaymentMethod('stripe');
     } catch {
-      toast.error('Stripe konnte nicht gestartet werden');
+      toast.error(t('boost.buy.stripeError'));
     } finally {
       setLoading(false);
     }
   };
 
   const handleStripeSuccess = () => {
-    toast.success(`+${selectedPkg.credits} Boost-Credits gutgeschrieben!`);
+    toast.success(t('boost.buy.creditsAddedToast', { count: selectedPkg.credits }));
     setCredits(c => c + selectedPkg.credits);
     setPaymentMethod(null);
     setSelectedPkg(null);
@@ -147,11 +150,11 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
     setLoading(true);
     try {
       await boostApi.redeemReferral(redeemCode.trim());
-      toast.success('+1 Boost-Credit für dich und deinen Freund!');
+      toast.success(t('boost.referral.redeemSuccess'));
       setCredits(c => c + 1);
       setRedeemCode('');
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Code ungültig');
+      toast.error(err.response?.data?.error || t('boost.referral.redeemError'));
     } finally {
       setLoading(false);
     }
@@ -159,7 +162,7 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
 
   const copyCode = () => {
     navigator.clipboard.writeText(referralCode);
-    toast.success('Code kopiert!');
+    toast.success(t('boost.referral.codeCopied'));
   };
 
   return (
@@ -185,9 +188,9 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '800' }}>🚀 Boost</h2>
+            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '800' }}>{t('boost.title')}</h2>
             <p style={{ margin: '2px 0 0', fontSize: '13px', color: 'var(--text-muted)' }}>
-              {credits} Credit{credits !== 1 ? 's' : ''} verfügbar
+              {t('boost.creditsAvailable', { count: credits })}
             </p>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '22px', cursor: 'pointer' }}>✕</button>
@@ -196,10 +199,10 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
         {/* Tabs */}
         <div style={{ display: 'flex', background: 'var(--bg-input, rgba(255,255,255,0.05))', borderRadius: '12px', padding: '4px', marginBottom: '20px' }}>
           {[
-            { key: 'apply', label: 'Boost anwenden' },
-            { key: 'buy', label: 'Credits kaufen' },
-            { key: 'referral', label: 'Freunde einladen' },
-          ].map(({ key, label }) => (
+            { key: 'apply', tKey: 'apply' },
+            { key: 'buy', tKey: 'buy' },
+            { key: 'referral', tKey: 'referral' },
+          ].map(({ key, tKey }) => (
             <button
               key={key}
               onClick={() => setTab(key)}
@@ -211,7 +214,7 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
                 transition: 'all 0.2s',
               }}
             >
-              {label}
+              {t(`boost.tabs.${tKey}`)}
             </button>
           ))}
         </div>
@@ -221,25 +224,25 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
           <div>
             <div style={{ background: 'rgba(253,118,102,0.1)', border: '1px solid rgba(253,118,102,0.3)', borderRadius: '16px', padding: '16px', marginBottom: '20px' }}>
               <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎯</div>
-              <h3 style={{ margin: '0 0 6px', fontSize: '18px' }}>{targetName || 'Diese Gruppe/Club'}</h3>
+              <h3 style={{ margin: '0 0 6px', fontSize: '18px' }}>{targetName || t('boost.apply.fallbackTarget')}</h3>
               <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>
-                Wird für 24h oben in der Entdecken-Liste angezeigt
+                {t('boost.apply.desc')}
               </p>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-input)', borderRadius: '12px', padding: '14px', marginBottom: '20px' }}>
               <span style={{ fontSize: '28px' }}>⚡</span>
               <div>
-                <div style={{ fontWeight: '700' }}>{credits} Boost-Credits</div>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>1 Credit = 24h Boost</div>
+                <div style={{ fontWeight: '700' }}>{t('boost.apply.creditsCount', { count: credits })}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('boost.apply.creditEq')}</div>
               </div>
             </div>
 
             {credits < 1 ? (
               <div style={{ textAlign: 'center', padding: '16px' }}>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '12px' }}>Keine Credits. Kaufe welche oder lade Freunde ein!</p>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '12px' }}>{t('boost.apply.noCredits')}</p>
                 <button onClick={() => setTab('buy')} style={{ padding: '12px 24px', borderRadius: '12px', background: '#FD7666', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer' }}>
-                  Credits kaufen
+                  {t('boost.apply.buyBtn')}
                 </button>
               </div>
             ) : (
@@ -248,7 +251,7 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
                 disabled={loading}
                 style={{ width: '100%', padding: '16px', borderRadius: '14px', background: '#FD7666', border: 'none', color: '#fff', fontSize: '16px', fontWeight: '700', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}
               >
-                {loading ? 'Wird geboostet...' : '🚀 Jetzt boosten (1 Credit)'}
+                {loading ? t('boost.apply.boosting') : t('boost.apply.applyBtn')}
               </button>
             )}
           </div>
@@ -276,13 +279,13 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <span style={{ fontSize: '28px' }}>{pkg.icon}</span>
                         <div>
-                          <div style={{ fontWeight: '700', fontSize: '16px' }}>{pkg.label}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{pkg.credits} × 24h Boost</div>
+                          <div style={{ fontWeight: '700', fontSize: '16px' }}>{t(`boost.buy.packages.${pkg.credits}`)}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('boost.buy.creditsPerPackage', { count: pkg.credits })}</div>
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontWeight: '800', fontSize: '18px', color: '#FD7666' }}>{pkg.price}</div>
-                        {pkg.popular && <div style={{ fontSize: '10px', color: '#FD7666', fontWeight: '700' }}>BELIEBT</div>}
+                        {pkg.popular && <div style={{ fontSize: '10px', color: '#FD7666', fontWeight: '700' }}>{t('boost.buy.popular')}</div>}
                       </div>
                     </button>
                   ))}
@@ -290,14 +293,14 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
 
                 {selectedPkg && (
                   <div>
-                    <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>Zahlungsmethode wählen</p>
+                    <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>{t('boost.buy.choosePayment')}</p>
                     <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
                       <button
                         onClick={handleStripeStart}
                         disabled={loading}
                         style={{ flex: 1, padding: '14px', borderRadius: '14px', background: '#6C63FF', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: loading ? 0.7 : 1 }}
                       >
-                        🍎 Apple Pay / Karte
+                        {t('boost.buy.applePay')}
                       </button>
                     </div>
 
@@ -312,15 +315,15 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
                           onApprove={async (data) => {
                             try {
                               await boostApi.capturePaypalOrder(data.orderID);
-                              toast.success(`+${selectedPkg.credits} Boost-Credits gutgeschrieben!`);
+                              toast.success(t('boost.buy.creditsAddedToast', { count: selectedPkg.credits }));
                               setCredits(c => c + selectedPkg.credits);
                               setSelectedPkg(null);
                               setTab('apply');
                             } catch {
-                              toast.error('Zahlung konnte nicht abgeschlossen werden');
+                              toast.error(t('boost.buy.paymentError'));
                             }
                           }}
-                          onError={() => toast.error('PayPal-Fehler. Bitte erneut versuchen.')}
+                          onError={() => toast.error(t('boost.buy.paypalError'))}
                         />
                       </PayPalScriptProvider>
                     )}
@@ -347,16 +350,16 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
           <div>
             <div style={{ textAlign: 'center', marginBottom: '24px' }}>
               <div style={{ fontSize: '48px', marginBottom: '8px' }}>🎁</div>
-              <h3 style={{ margin: '0 0 6px' }}>Lade Freunde ein</h3>
+              <h3 style={{ margin: '0 0 6px' }}>{t('boost.referral.title')}</h3>
               <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>
-                Teile deinen Code und erhalte <strong style={{ color: '#FD7666' }}>1 gratis Boost-Credit</strong> für jeden neuen Freund!
+                <Trans i18nKey="boost.referral.subtitle" components={{ 1: <strong style={{ color: '#FD7666' }} /> }} />
               </p>
             </div>
 
             {/* Your code */}
             {referralCode && (
               <div style={{ marginBottom: '24px' }}>
-                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>Dein Einladungscode</p>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>{t('boost.referral.yourCode')}</p>
                 <div
                   onClick={copyCode}
                   style={{
@@ -370,21 +373,21 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
                   <span style={{ fontWeight: '800', fontSize: '20px', letterSpacing: '2px', color: '#FD7666' }}>
                     {referralCode}
                   </span>
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>KOPIEREN</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('boost.referral.copy')}</span>
                 </div>
                 <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px', textAlign: 'center' }}>
-                  {referralUsed} Freund{referralUsed !== 1 ? 'e' : ''} eingeladen
+                  {t('boost.referral.invitedFmt', { count: referralUsed })}
                 </p>
               </div>
             )}
 
             {/* Redeem a code */}
             <div>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>Code eines Freundes einlösen</p>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>{t('boost.referral.redeemLabel')}</p>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
                   type="text"
-                  placeholder="JAMIE-XXXX"
+                  placeholder={t('boost.referral.redeemPlaceholder')}
                   value={redeemCode}
                   onChange={e => setRedeemCode(e.target.value.toUpperCase())}
                   style={{
@@ -403,7 +406,7 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
                     opacity: (loading || !redeemCode.trim()) ? 0.5 : 1,
                   }}
                 >
-                  Einlösen
+                  {t('boost.referral.redeemBtn')}
                 </button>
               </div>
             </div>

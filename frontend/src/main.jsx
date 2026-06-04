@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/react';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import './i18n'; // Initialize i18next before React mounts so t() works on first render
 import App from './App.jsx';
 
 // Body fields Sentry must NEVER ship along with a frontend error. axios

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { subscription as subscriptionApi } from '../utils/api';
@@ -37,6 +38,7 @@ const CONFETTI_CHARS = ['🎊','✨','⭐','💛','🌟','🎉','👑'];
 
 // ── Stripe form ──────────────────────────────────────────────────────────
 function StripeSubscribeForm({ onSuccess, onCancel }) {
+  const { t } = useTranslation();
   const stripe   = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
@@ -76,7 +78,7 @@ function StripeSubscribeForm({ onSuccess, onCancel }) {
           color:'rgba(255,255,255,0.55)',
           cursor:'pointer', fontWeight:'600', fontSize:'14px',
         }}>
-          ← Zurück
+          {t('pro.back')}
         </button>
         <button type="submit" disabled={loading || !stripe} style={{
           flex:2, padding:'15px', borderRadius:'14px', border:'none',
@@ -90,16 +92,16 @@ function StripeSubscribeForm({ onSuccess, onCancel }) {
         }}>
           {loading
             ? <span style={{ display:'inline-flex', gap:'6px', alignItems:'center' }}>
-                <Spinner /> Verarbeite…
+                <Spinner /> {t('pro.verifying')}
               </span>
-            : '👑 Jetzt starten'}
+            : t('pro.ctaSubscribe')}
         </button>
       </div>
       <p style={{
         textAlign:'center', color:'rgba(255,255,255,0.28)',
         fontSize:'11px', marginTop:'14px', letterSpacing:'0.3px',
       }}>
-        🔒 Sicher via Stripe · Monatlich kündbar · Keine Bindung
+        {t('pro.secure')}
       </p>
     </form>
   );
@@ -116,12 +118,12 @@ function Spinner() {
 }
 
 // ── Feature rows ─────────────────────────────────────────────────────────
-const FEATURES = [
-  { icon:'👥', title:'Freunde hinzufügen', desc:'Sende Freundschaftsanfragen an andere Nutzer' },
-  { icon:'💬', title:'Direktnachrichten',  desc:'Chatte privat mit deinen Freunden' },
-  { icon:'⚡', title:'Gruppen boosten',    desc:'Kostenlos & unbegrenzt für deine Events' },
-  { icon:'🏆', title:'Clubs boosten',      desc:'Mehr Mitglieder für deine Community' },
-  { icon:'🔝', title:'Top-Platzierung',    desc:'Immer ganz oben in der Entdecken-Liste' },
+const FEATURE_KEYS = [
+  { icon:'👥', titleKey:'addFriends',    descKey:'addFriendsDesc' },
+  { icon:'💬', titleKey:'dm',            descKey:'dmDesc' },
+  { icon:'⚡', titleKey:'boostGroups',   descKey:'boostGroupsDesc' },
+  { icon:'🏆', titleKey:'boostClubs',    descKey:'boostClubsDesc' },
+  { icon:'🔝', titleKey:'topPlacement', descKey:'topPlacementDesc' },
 ];
 
 // ── Confetti piece ───────────────────────────────────────────────────────
@@ -145,6 +147,7 @@ function Confetto({ i }) {
 
 // ── Main modal ───────────────────────────────────────────────────────────
 export const ProModal = ({ onClose, onSuccess }) => {
+  const { t } = useTranslation();
   const toast = useToast();
   const [step,          setStep]          = useState('features');
   const [stripePromise, setStripePromise] = useState(null);
@@ -160,7 +163,7 @@ export const ProModal = ({ onClose, onSuccess }) => {
       setClientSecret(client_secret);
       setStep('payment');
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Fehler beim Starten des Abonnements');
+      toast.error(err.response?.data?.error || t('pro.startError'));
     } finally {
       setLoading(false);
     }
@@ -240,10 +243,10 @@ export const ProModal = ({ onClose, onSuccess }) => {
                 </div>
               </div>
               <h2 style={{ fontSize:'26px', fontWeight:'900', color:'#FFD700', margin:'0 0 10px' }}>
-                Willkommen bei Pro!
+                {t('pro.successTitle')}
               </h2>
               <p style={{ color:'rgba(255,255,255,0.6)', fontSize:'15px', lineHeight:1.7, maxWidth:'280px', margin:'0 auto' }}>
-                Du kannst ab sofort Freunde hinzufügen, Direktnachrichten senden und deine Gruppen & Clubs boosten.
+                {t('pro.successBody')}
               </p>
             </div>
           )}
@@ -274,7 +277,7 @@ export const ProModal = ({ onClose, onSuccess }) => {
                   👑
                 </div>
                 <h2 style={{ fontSize:'28px', fontWeight:'900', color:'#FFD700', margin:'0 0 8px' }}>
-                  JAMIE Pro
+                  {t('pro.title')}
                 </h2>
                 {/* Price pill */}
                 <div style={{ display:'inline-flex', alignItems:'baseline', gap:'4px',
@@ -282,13 +285,13 @@ export const ProModal = ({ onClose, onSuccess }) => {
                   borderRadius:'24px', padding:'8px 20px',
                 }}>
                   <span style={{ fontSize:'26px', fontWeight:'900', color:'#FFD700' }}>5 €</span>
-                  <span style={{ fontSize:'14px', color:'rgba(255,215,0,0.65)', fontWeight:'600' }}>/&nbsp;Monat</span>
+                  <span style={{ fontSize:'14px', color:'rgba(255,215,0,0.65)', fontWeight:'600' }}>{t('pro.priceMonth')}</span>
                 </div>
               </div>
 
               {/* Feature cards */}
               <div style={{ display:'flex', flexDirection:'column', gap:'10px', marginBottom:'22px' }}>
-                {FEATURES.map((f, i) => (
+                {FEATURE_KEYS.map((f, i) => (
                   <div key={i} style={{
                     display:'flex', alignItems:'center', gap:'14px',
                     background:'linear-gradient(135deg, rgba(255,215,0,0.07), rgba(255,165,0,0.03))',
@@ -307,10 +310,10 @@ export const ProModal = ({ onClose, onSuccess }) => {
                     </div>
                     <div>
                       <div style={{ color:'#fff', fontWeight:'700', fontSize:'15px', lineHeight:1.2, marginBottom:'3px' }}>
-                        {f.title}
+                        {t(`pro.features.${f.titleKey}`)}
                       </div>
                       <div style={{ color:'rgba(255,255,255,0.45)', fontSize:'12px', lineHeight:1.4 }}>
-                        {f.desc}
+                        {t(`pro.features.${f.descKey}`)}
                       </div>
                     </div>
                     {/* Checkmark */}
@@ -347,14 +350,14 @@ export const ProModal = ({ onClose, onSuccess }) => {
                   display:'flex', alignItems:'center', justifyContent:'center', gap:'8px',
                 }}
               >
-                {loading ? <><Spinner /> Wird geladen…</> : '👑 Pro aktivieren — 5 € / Monat'}
+                {loading ? <><Spinner /> {t('pro.loading')}</> : t('pro.ctaActivate')}
               </button>
               <button onClick={onClose} style={{
                 width:'100%', padding:'13px', borderRadius:'14px',
                 background:'none', border:'none',
                 color:'rgba(255,255,255,0.3)', fontSize:'13px', cursor:'pointer',
               }}>
-                Vielleicht später
+                {t('pro.later')}
               </button>
             </>
           )}
@@ -369,16 +372,16 @@ export const ProModal = ({ onClose, onSuccess }) => {
                 color:'rgba(255,255,255,0.45)', fontSize:'14px',
                 cursor:'pointer', padding:0, fontWeight:'600',
               }}>
-                ← Zurück
+                {t('pro.back')}
               </button>
 
               <div style={{ textAlign:'center', marginBottom:'22px' }}>
                 <div style={{ fontSize:'36px', marginBottom:'10px' }}>💳</div>
                 <h2 style={{ fontSize:'22px', fontWeight:'900', color:'#fff', margin:'0 0 4px' }}>
-                  Zahlungsdaten
+                  {t('pro.paymentTitle')}
                 </h2>
                 <p style={{ color:'rgba(255,255,255,0.4)', fontSize:'13px', margin:0 }}>
-                  5 € / Monat · SSL-verschlüsselt · Jederzeit kündbar
+                  {t('pro.paymentSub')}
                 </p>
               </div>
 
@@ -391,8 +394,8 @@ export const ProModal = ({ onClose, onSuccess }) => {
                 <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
                   <span style={{ fontSize:'20px' }}>👑</span>
                   <div>
-                    <div style={{ color:'#fff', fontWeight:'700', fontSize:'14px' }}>JAMIE Pro</div>
-                    <div style={{ color:'rgba(255,255,255,0.4)', fontSize:'12px' }}>Monatliches Abonnement</div>
+                    <div style={{ color:'#fff', fontWeight:'700', fontSize:'14px' }}>{t('pro.title')}</div>
+                    <div style={{ color:'rgba(255,255,255,0.4)', fontSize:'12px' }}>{t('pro.subscriptionLabel')}</div>
                   </div>
                 </div>
                 <div style={{ color:'#FFD700', fontWeight:'900', fontSize:'18px' }}>5 €</div>

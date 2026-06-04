@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { auth } from '../utils/api';
 import '../styles/auth.css';
 
 const ResetPassword = () => {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
 
@@ -18,10 +20,10 @@ const ResetPassword = () => {
     setError('');
 
     if (password.length < 6) {
-      return setError('Passwort muss mindestens 6 Zeichen lang sein');
+      return setError(t('auth.reset.errorMin'));
     }
     if (password !== confirmPassword) {
-      return setError('Passwörter stimmen nicht überein');
+      return setError(t('auth.reset.errorMismatch'));
     }
 
     setLoading(true);
@@ -29,7 +31,7 @@ const ResetPassword = () => {
       await auth.resetPassword(token, password);
       setSuccess(true);
     } catch (err) {
-      setError(err.response?.data?.error || 'Fehler beim Zurücksetzen');
+      setError(err.response?.data?.error || t('auth.reset.errorGeneric'));
     } finally {
       setLoading(false);
     }
@@ -40,15 +42,15 @@ const ResetPassword = () => {
       <div className="auth-container">
         <div className="auth-content" style={{ textAlign: 'center' }}>
           <div className="auth-logo">
-            <h1 className="logo-text">JAMIE</h1>
+            <h1 className="logo-text">{t('auth.appName')}</h1>
           </div>
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔗</div>
-          <h2 style={{ marginBottom: '12px' }}>Ungültiger Link</h2>
+          <h2 style={{ marginBottom: '12px' }}>{t('auth.reset.invalidTitle')}</h2>
           <p style={{ color: 'var(--text-light)', marginBottom: '24px' }}>
-            Dieser Link ist ungültig oder abgelaufen.
+            {t('auth.reset.invalidBody')}
           </p>
           <Link to="/forgot-password" className="auth-btn auth-btn-primary" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>
-            Neuen Link anfordern
+            {t('auth.reset.invalidCta')}
           </Link>
         </div>
       </div>
@@ -59,32 +61,32 @@ const ResetPassword = () => {
     <div className="auth-container">
       <div className="auth-content">
         <div className="auth-logo">
-          <h1 className="logo-text">JAMIE</h1>
+          <h1 className="logo-text">{t('auth.appName')}</h1>
         </div>
 
         {success ? (
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
-            <h2 style={{ marginBottom: '12px' }}>Passwort zurückgesetzt!</h2>
+            <h2 style={{ marginBottom: '12px' }}>{t('auth.reset.successTitle')}</h2>
             <p style={{ color: 'var(--text-light)', marginBottom: '24px' }}>
-              Dein Passwort wurde erfolgreich geändert. Du kannst dich jetzt einloggen.
+              {t('auth.reset.successBody')}
             </p>
             <Link to="/login" className="auth-btn auth-btn-primary" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>
-              Zum Login
+              {t('auth.reset.successCta')}
             </Link>
           </div>
         ) : (
           <>
             <p className="auth-subtitle">
-              Wähle ein neues Passwort für dein Konto.
+              {t('auth.reset.subtitle')}
             </p>
 
             <form onSubmit={handleSubmit} className="auth-form">
               <div className="form-group">
-                <label>Neues Passwort</label>
+                <label>{t('auth.reset.newPasswordLabel')}</label>
                 <input
                   type="password"
-                  placeholder="Mindestens 6 Zeichen"
+                  placeholder={t('auth.shared.newPasswordPlaceholder')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -93,10 +95,10 @@ const ResetPassword = () => {
               </div>
 
               <div className="form-group">
-                <label>Passwort bestätigen</label>
+                <label>{t('auth.reset.confirmLabel')}</label>
                 <input
                   type="password"
-                  placeholder="Passwort wiederholen"
+                  placeholder={t('auth.shared.confirmPasswordPlaceholder')}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
@@ -106,7 +108,7 @@ const ResetPassword = () => {
               {error && <p className="error-message">{error}</p>}
 
               <button type="submit" className="auth-btn auth-btn-primary" disabled={loading}>
-                {loading ? 'Wird gespeichert...' : 'Passwort speichern'}
+                {loading ? t('auth.reset.saving') : t('auth.reset.submit')}
               </button>
             </form>
           </>

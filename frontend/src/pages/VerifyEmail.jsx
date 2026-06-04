@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { auth } from '../utils/api';
 import '../styles/auth.css';
 
 const VerifyEmail = () => {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
 
@@ -13,7 +15,7 @@ const VerifyEmail = () => {
   useEffect(() => {
     if (!token) {
       setStatus('error');
-      setError('Kein Verifizierungs-Token gefunden.');
+      setError(t('auth.verify.errorMissingToken'));
       return;
     }
 
@@ -23,36 +25,36 @@ const VerifyEmail = () => {
         setStatus('success');
       } catch (err) {
         setStatus('error');
-        setError(err.response?.data?.error || 'Verifizierung fehlgeschlagen');
+        setError(err.response?.data?.error || t('auth.verify.errorGeneric'));
       }
     };
 
     verify();
-  }, [token]);
+  }, [token, t]);
 
   return (
     <div className="auth-container">
       <div className="auth-content" style={{ textAlign: 'center' }}>
         <div className="auth-logo">
-          <h1 className="logo-text">JAMIE</h1>
+          <h1 className="logo-text">{t('auth.appName')}</h1>
         </div>
 
         {status === 'verifying' && (
           <>
             <div className="loading-spinner" style={{ margin: '40px auto' }} />
-            <p style={{ color: 'var(--text-light)' }}>E-Mail wird verifiziert...</p>
+            <p style={{ color: 'var(--text-light)' }}>{t('auth.verify.verifying')}</p>
           </>
         )}
 
         {status === 'success' && (
           <>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
-            <h2 style={{ marginBottom: '12px' }}>E-Mail verifiziert!</h2>
+            <h2 style={{ marginBottom: '12px' }}>{t('auth.verify.successTitle')}</h2>
             <p style={{ color: 'var(--text-light)', marginBottom: '24px' }}>
-              Deine E-Mail-Adresse wurde erfolgreich bestätigt.
+              {t('auth.verify.successBody')}
             </p>
             <Link to="/home" className="auth-btn auth-btn-primary" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>
-              Weiter zur App
+              {t('auth.verify.successCta')}
             </Link>
           </>
         )}
@@ -60,10 +62,10 @@ const VerifyEmail = () => {
         {status === 'error' && (
           <>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>❌</div>
-            <h2 style={{ marginBottom: '12px' }}>Verifizierung fehlgeschlagen</h2>
+            <h2 style={{ marginBottom: '12px' }}>{t('auth.verify.errorTitle')}</h2>
             <p style={{ color: 'var(--text-light)', marginBottom: '24px' }}>{error}</p>
             <Link to="/login" className="auth-btn auth-btn-primary" style={{ display: 'block', textAlign: 'center', textDecoration: 'none' }}>
-              Zum Login
+              {t('auth.verify.errorCta')}
             </Link>
           </>
         )}

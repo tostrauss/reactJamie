@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { deals } from '../utils/api';
 import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
 
@@ -43,6 +44,7 @@ function DealMiniMap({ lat, lng }) {
 export const DealDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [deal, setDeal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -91,7 +93,7 @@ export const DealDetail = () => {
           </svg>
         </button>
         <h1 style={{ color: '#fff', fontSize: 17, fontWeight: 700, margin: 0, flex: 1, textAlign: 'center' }}>
-          Für Dich – {deal.category}
+          {t('deal.titleFmt', { category: deal.category })}
         </h1>
         <div style={{ width: 36 }} />
       </div>
@@ -169,7 +171,7 @@ export const DealDetail = () => {
               letterSpacing: 0.2,
             }}
           >
-            Jetzt buchen
+            {t('deal.bookNow')}
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12h14M12 5l7 7-7 7"/>
             </svg>

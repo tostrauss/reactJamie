@@ -1,5 +1,6 @@
 import { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { SocketContext } from '../context/SocketContext';
 import { directMessages, users, subscription as subscriptionApi } from '../utils/api';
@@ -13,12 +14,17 @@ export const DirectMessagePage = () => {
   const { socket, isConnected } = useContext(SocketContext);
   const navigate = useNavigate();
   const toast = useToast();
+  const { t, i18n } = useTranslation();
+  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-DE';
 
   const [messagesList, setMessagesList] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [otherUser, setOtherUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // Track the *type* of error separately so the UI can branch without
+  // string-matching the localized message (which would break in English).
+  const [errorIsFriendship, setErrorIsFriendship] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [isPro, setIsPro] = useState(null);
   const [showProModal, setShowProModal] = useState(false);
@@ -78,9 +84,11 @@ export const DirectMessagePage = () => {
       setLoading(false);
     } catch (err) {
       if (err.response?.data?.requiresFriendship) {
-        setError('Ihr müsst befreundet sein, um Nachrichten zu senden');
+        setError(t('chat.dm.errorNotFriends'));
+        setErrorIsFriendship(true);
       } else {
-        setError('Konversation konnte nicht geladen werden');
+        setError(t('chat.dm.errorLoad'));
+        setErrorIsFriendship(false);
       }
       setLoading(false);
     }
@@ -130,9 +138,10 @@ export const DirectMessagePage = () => {
       stopTyping();
     } catch (err) {
       if (err.response?.data?.requiresFriendship) {
-        setError('Ihr müsst befreundet sein, um Nachrichten zu senden');
+        setError(t('chat.dm.errorNotFriends'));
+        setErrorIsFriendship(true);
       } else {
-        toast.error('Nachricht konnte nicht gesendet werden');
+        toast.error(t('chat.dm.errorSend'));
       }
     }
   };
@@ -166,7 +175,7 @@ export const DirectMessagePage = () => {
     return (
       <div className="chat-page">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-          <div className="loading">Laden...</div>
+          <div className="loading">{t('chat.dm.loading')}</div>
         </div>
       </div>
     );
@@ -182,17 +191,17 @@ export const DirectMessagePage = () => {
             </svg>
           </button>
           <div className="chat-page-info">
-            <h2 className="chat-page-name">Direktnachrichten</h2>
+            <h2 className="chat-page-name">{t('chat.dm.title')}</h2>
           </div>
         </header>
         <div className="error-state">
           <p style={{ fontSize: '32px', marginBottom: '12px' }}>👑</p>
-          <p style={{ fontWeight: 700, marginBottom: '8px' }}>Pro erforderlich</p>
+          <p style={{ fontWeight: 700, marginBottom: '8px' }}>{t('chat.dm.proRequired')}</p>
           <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '20px' }}>
-            Direktnachrichten sind exklusiv für Pro-Mitglieder.
+            {t('chat.dm.proRequiredDesc')}
           </p>
           <button className="btn btn-primary" onClick={() => setShowProModal(true)}>
-            Pro aktivieren
+            {t('chat.dm.proActivate')}
           </button>
         </div>
         {showProModal && (
@@ -206,7 +215,6 @@ export const DirectMessagePage = () => {
   }
 
   if (error) {
-    const isFriendshipError = error.includes('befreundet');
     return (
       <div className="chat-page">
         <header className="chat-page-header">
@@ -216,18 +224,18 @@ export const DirectMessagePage = () => {
             </svg>
           </button>
           <div className="chat-page-info">
-            <h2 className="chat-page-name">{otherUser?.name || 'Chat'}</h2>
+            <h2 className="chat-page-name">{otherUser?.name || t('chat.dm.chatFallback')}</h2>
           </div>
         </header>
         <div className="error-state">
           <p>{error}</p>
-          {isFriendshipError ? (
+          {errorIsFriendship ? (
             <button className="btn btn-primary" onClick={() => navigate(`/user/${otherUserId}`)} style={{ marginTop: '12px' }}>
-              Freund hinzufügen
+              {t('chat.dm.addFriend')}
             </button>
           ) : (
             <button className="btn btn-primary" onClick={() => navigate('/chats')} style={{ marginTop: '12px' }}>
-              Zurück zu Chats
+              {t('chat.dm.backToChats')}
             </button>
           )}
         </div>
@@ -244,8 +252,8 @@ export const DirectMessagePage = () => {
           </svg>
         </button>
         <div className="chat-page-info" onClick={() => navigate(`/user/${otherUserId}`)}>
-          <h2 className="chat-page-name">{otherUser?.name || 'Chat'}</h2>
-          <span className="chat-page-status">Tippe für Profil</span>
+          <h2 className="chat-page-name">{otherUser?.name || t('chat.dm.chatFallback')}</h2>
+          <span className="chat-page-status">{t('chat.dm.profileHint')}</span>
         </div>
         {otherUser?.avatar_url ? (
           <img
@@ -268,15 +276,15 @@ export const DirectMessagePage = () => {
       {/* Reconnection Banner */}
       {!isConnected && (
         <div className="reconnect-banner">
-          Verbindung unterbrochen – Wiederverbindung...
+          {t('chat.shared.reconnectBanner')}
         </div>
       )}
 
       <div className="messages-container">
         {messagesList.length === 0 && (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
-            <p>Noch keine Nachrichten</p>
-            <p style={{ fontSize: '13px', marginTop: '8px' }}>Sag Hallo!</p>
+            <p>{t('chat.dm.empty')}</p>
+            <p style={{ fontSize: '13px', marginTop: '8px' }}>{t('chat.dm.emptyHint')}</p>
           </div>
         )}
         {messagesList.map((msg) => (
@@ -286,7 +294,7 @@ export const DirectMessagePage = () => {
           >
             <div className="message-content">{msg.content}</div>
             <div className="message-time">
-              {new Date(msg.created_at).toLocaleTimeString('de-DE', {
+              {new Date(msg.created_at).toLocaleTimeString(dateLocale, {
                 hour: '2-digit',
                 minute: '2-digit'
               })}
@@ -295,7 +303,7 @@ export const DirectMessagePage = () => {
         ))}
         {isTyping && (
           <div className="typing-indicator">
-            <span>{otherUser?.name} schreibt...</span>
+            <span>{t('chat.dm.typingFmt', { name: otherUser?.name || '' })}</span>
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -315,7 +323,7 @@ export const DirectMessagePage = () => {
               handleSendMessage(e);
             }
           }}
-          placeholder="Nachricht schreiben..."
+          placeholder={t('chat.dm.inputPlaceholder')}
           className="message-input"
         />
         <button

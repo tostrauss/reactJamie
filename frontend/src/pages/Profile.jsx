@@ -1,6 +1,8 @@
 import { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { auth, subscription as subscriptionApi, groups as groupsApi, clubs as clubsApi } from '../utils/api';
 import SpotifySongPicker from '../components/SpotifySongPicker';
 import { ProModal } from '../components/ProModal';
@@ -37,6 +39,9 @@ const translateInterest = (i) => INTEREST_DE[i] ?? i;
 export const Profile = () => {
   const { user, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
+  const toast = useToast();
+  const { t, i18n } = useTranslation();
+  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-AT';
   const [activeTab, setActiveTab] = useState('pinnwand');
   const [savingSong, setSavingSong] = useState(false);
   const [isPro, setIsPro] = useState(false);
@@ -44,6 +49,26 @@ export const Profile = () => {
   const [pastEvents, setPastEvents] = useState([]);
   const [hofLoading, setHofLoading] = useState(false);
   const [favItems, setFavItems] = useState([]);
+
+  const handleShareProfile = async () => {
+    if (!user?.id) return;
+    const url = `${window.location.origin}/user/${user.id}`;
+    const title = user.name ? t('profile.share.titleFmt', { name: user.name }) : t('profile.share.titleFallback');
+    const text = t('profile.share.text');
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, text, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast.success(t('profile.share.linkCopied'));
+      }
+    } catch (err) {
+      // AbortError = user cancelled the native share sheet — silent
+      if (err?.name !== 'AbortError') {
+        toast.error(t('profile.share.error'));
+      }
+    }
+  };
 
   useEffect(() => {
     subscriptionApi.getStatus()
@@ -126,19 +151,19 @@ export const Profile = () => {
           <div className="profile-cover-top-gradient" />
 
           <div className="profile-header-actions">
-            <button className="profile-action-btn" onClick={() => navigate(-1)} aria-label="Zurück">
+            <button className="profile-action-btn" onClick={() => navigate(-1)} aria-label={t('profile.header.backAria')}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M19 12H5M12 19l-7-7 7-7"/>
               </svg>
             </button>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="profile-action-btn" onClick={() => navigate('/settings')} aria-label="Einstellungen">
+              <button className="profile-action-btn" onClick={() => navigate('/settings')} aria-label={t('profile.header.settingsAria')}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="12" cy="12" r="3"/>
                   <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09c-.658.003-1.25.396-1.51 1z"/>
                 </svg>
               </button>
-              <button className="profile-action-btn" onClick={() => navigate('/profile/edit')} aria-label="Profil bearbeiten">
+              <button className="profile-action-btn" onClick={() => navigate('/profile/edit')} aria-label={t('profile.header.editAria')}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -159,7 +184,7 @@ export const Profile = () => {
             <div className="profile-progress-bar">
               <div className="profile-progress-fill" style={{ width: `${completion}%` }} />
             </div>
-            <span className="profile-progress-label">{completion}% Profil vollständig</span>
+            <span className="profile-progress-label">{t('profile.progressFmt', { percent: completion })}</span>
           </div>
         )}
 
@@ -172,7 +197,7 @@ export const Profile = () => {
               <div className="profile-location-left">{user.location}</div>
             ) : <div />}
             <div className="profile-name-age">
-              <span className="profile-name-cap">{(user?.name || 'Nutzer').toUpperCase()}</span>
+              <span className="profile-name-cap">{(user?.name || t('profile.fallbackName')).toUpperCase()}</span>
               {age && <span className="profile-age-sup">{age}</span>}
               {isPro && <span className="pro-name-badge">👑</span>}
             </div>
@@ -190,7 +215,7 @@ export const Profile = () => {
           {/* Bio card */}
           {user?.bio && (
             <div className="profile-bio-card">
-              <p className="profile-bio-card-title">Über Dich!</p>
+              <p className="profile-bio-card-title">{t('profile.bioCardTitle')}</p>
               <p className="profile-bio">{user.bio}</p>
             </div>
           )}
@@ -200,8 +225,8 @@ export const Profile = () => {
             <button className="pro-cta-card" onClick={() => setShowProModal(true)}>
               <div className="pro-card-icon">👑</div>
               <div className="pro-card-body">
-                <div className="pro-card-title">JAMIE Pro — 5 € / Monat</div>
-                <div className="pro-card-sub">Exklusive Deals &amp; Empfehlungen in Wien</div>
+                <div className="pro-card-title">{t('profile.proCardTitle')}</div>
+                <div className="pro-card-sub">{t('profile.proCardSub')}</div>
               </div>
               <div className="pro-card-arrow">→</div>
             </button>
@@ -215,7 +240,7 @@ export const Profile = () => {
               <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
               <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
             </svg>
-            Freunde &amp; Anfragen
+            {t('profile.friendsBtn')}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M9 18l6-6-6-6"/>
             </svg>
@@ -228,7 +253,7 @@ export const Profile = () => {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="#FD7666" stroke="none">
                   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
                 </svg>
-                Favoriten
+                {t('profile.favoritesTitle')}
               </div>
               <div className="profile-favs-grid">
                 {favItems.map(item => (
@@ -242,7 +267,7 @@ export const Profile = () => {
                         ? <img src={item.image_url} alt={item.name || item.title} className="profile-fav-img" loading="lazy" />
                         : <div className="profile-fav-placeholder">{(item.category || item.name || '?')[0]}</div>
                       }
-                      {item.type === 'club' && <span className="profile-fav-type-badge">Club</span>}
+                      {item.type === 'club' && <span className="profile-fav-type-badge">{t('profile.clubBadge')}</span>}
                     </div>
                     <span className="profile-fav-label">{item.name || item.title || item.category}</span>
                   </button>
@@ -257,13 +282,13 @@ export const Profile = () => {
               className={`profile-tab ${activeTab === 'pinnwand' ? 'active' : ''}`}
               onClick={() => setActiveTab('pinnwand')}
             >
-              Pinnwand
+              {t('profile.tabs.pinnwand')}
             </button>
             <button
               className={`profile-tab ${activeTab === 'halloffame' ? 'active' : ''}`}
               onClick={() => setActiveTab('halloffame')}
             >
-              Hall of Fame
+              {t('profile.tabs.halloffame')}
             </button>
           </div>
 
@@ -279,14 +304,14 @@ export const Profile = () => {
                   ))}
                   <button className="pinnwand-item add-photo" onClick={() => navigate('/profile/edit')}>
                     <span>+</span>
-                    <p>Foto hinzufügen</p>
+                    <p>{t('profile.addPhoto')}</p>
                   </button>
                 </div>
 
                 {/* Lieblingssong below pinnwand */}
                 <div className="profile-song-section">
                   {savingSong ? (
-                    <div className="empty-music"><p>Wird gespeichert…</p></div>
+                    <div className="empty-music"><p>{t('profile.savingSong')}</p></div>
                   ) : (
                     <SpotifySongPicker
                       currentSong={user?.favorite_song}
@@ -295,6 +320,20 @@ export const Profile = () => {
                     />
                   )}
                 </div>
+
+                {/* Share own profile */}
+                <button
+                  className="profile-share-btn"
+                  onClick={handleShareProfile}
+                  type="button"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                    <polyline points="16 6 12 2 8 6"/>
+                    <line x1="12" y1="2" x2="12" y2="15"/>
+                  </svg>
+                  {t('profile.share.btn')}
+                </button>
               </>
             ) : (
               <div className="halloffame-section">
@@ -303,8 +342,8 @@ export const Profile = () => {
                 ) : pastEvents.length === 0 ? (
                   <div className="halloffame-empty">
                     <span className="halloffame-icon">🏆</span>
-                    <p>Deine Hall of Fame</p>
-                    <span>Tritt Events bei – sie erscheinen hier nach dem Datum</span>
+                    <p>{t('profile.hof.title')}</p>
+                    <span>{t('profile.hof.hint')}</span>
                   </div>
                 ) : (
                   <div className="hof-grid">
@@ -324,7 +363,7 @@ export const Profile = () => {
                         <div className="hof-card-body">
                           <p className="hof-card-name">{event.name || event.title}</p>
                           <p className="hof-card-date">
-                            {new Date(event.date).toLocaleDateString('de-AT', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            {new Date(event.date).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short', year: 'numeric' })}
                           </p>
                           {event.location && <p className="hof-card-loc">📍 {event.location}</p>}
                         </div>

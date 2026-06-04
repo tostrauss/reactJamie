@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { spotify } from '../utils/api';
 import '../styles/profile.css';
 
 const SpotifySongPicker = ({ currentSong, onSelect, onRemove }) => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -78,7 +80,7 @@ const SpotifySongPicker = ({ currentSong, onSelect, onRemove }) => {
             onClick={() => setIsOpen(true)}
           >
             <span className="song-picker-add-icon">🎵</span>
-            <span>Lieblingssong hinzufügen</span>
+            <span>{t('spotify.songPicker.addBtn')}</span>
           </button>
         )}
       </div>
@@ -93,7 +95,7 @@ const SpotifySongPicker = ({ currentSong, onSelect, onRemove }) => {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Song oder Künstler suchen..."
+          placeholder={t('spotify.songPicker.searchPlaceholder')}
           className="song-picker-input"
           autoFocus
         />
@@ -106,17 +108,17 @@ const SpotifySongPicker = ({ currentSong, onSelect, onRemove }) => {
             setResults([]);
           }}
         >
-          Abbrechen
+          {t('spotify.songPicker.cancel')}
         </button>
       </div>
 
       <div className="song-picker-results">
         {loading && (
-          <div className="song-picker-loading">Suche...</div>
+          <div className="song-picker-loading">{t('spotify.songPicker.searching')}</div>
         )}
 
         {!loading && query.length >= 2 && results.length === 0 && (
-          <div className="song-picker-empty">Keine Ergebnisse</div>
+          <div className="song-picker-empty">{t('spotify.songPicker.empty')}</div>
         )}
 
         {results.map((song) => (

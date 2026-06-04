@@ -1,38 +1,40 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
-const SLIDES = [
+const STORAGE_KEY = 'jamie_intro_seen';
+
+// Visual style data — kept outside the component since it never changes.
+// Text content lives inside the component and pulls from i18n.
+const SLIDE_THEMES = [
   {
     emoji: '👋',
-    title: 'Willkommen bei JAMIE',
-    subtitle: 'Deine App für echte Begegnungen',
-    description: 'JAMIE verbindet dich mit Menschen in deiner Nähe, die dieselben Aktivitäten lieben wie du — spontan, einfach und ohne Schnickschnack.',
     gradient: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
     accent: '#FD7666',
   },
   {
     emoji: '🔍',
-    title: 'Entdecke Gruppen & Clubs',
-    subtitle: 'Von Sport bis Kochen',
-    description: 'Finde Gruppen für einmalige Events oder tritt dauerhaften Clubs bei. Filtere nach Kategorie, Datum und Ort — und finde Leute, die wirklich passen.',
     gradient: 'linear-gradient(135deg, #16213e 0%, #0f3460 100%)',
     accent: '#6C63FF',
   },
   {
     emoji: '🚀',
-    title: 'Verbinde dich & starte durch',
-    subtitle: 'Erstelle. Tritt bei. Erlebe.',
-    description: 'Erstelle deine eigene Gruppe, lade Freunde ein und erlebe unvergessliche Momente. Boost deine Gruppe, um noch mehr Leute zu erreichen!',
     gradient: 'linear-gradient(135deg, #0f3460 0%, #1a1a2e 100%)',
     accent: '#FD7666',
   },
 ];
 
-const STORAGE_KEY = 'jamie_intro_seen';
-
 export const AppIntro = ({ onDone }) => {
+  const { t } = useTranslation();
   const [current, setCurrent] = useState(0);
   const navigate = useNavigate();
+
+  const slides = SLIDE_THEMES.map((theme, i) => ({
+    ...theme,
+    subtitle: t(`intro.slide${i + 1}.subtitle`),
+    title: t(`intro.slide${i + 1}.title`),
+    description: t(`intro.slide${i + 1}.description`),
+  }));
 
   const handleDone = () => {
     localStorage.setItem(STORAGE_KEY, '1');
@@ -47,12 +49,12 @@ export const AppIntro = ({ onDone }) => {
   };
 
   const handleNext = () => {
-    if (current < SLIDES.length - 1) setCurrent(current + 1);
+    if (current < slides.length - 1) setCurrent(current + 1);
     else handleDone();
   };
 
-  const slide = SLIDES[current];
-  const isLast = current === SLIDES.length - 1;
+  const slide = slides[current];
+  const isLast = current === slides.length - 1;
 
   return (
     <div style={{
@@ -71,7 +73,7 @@ export const AppIntro = ({ onDone }) => {
             onClick={handleSkip}
             style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: '15px', cursor: 'pointer' }}
           >
-            Überspringen
+            {t('intro.skip')}
           </button>
         )}
       </div>
@@ -107,7 +109,7 @@ export const AppIntro = ({ onDone }) => {
       <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '24px' }}>
         {/* Dots */}
         <div style={{ display: 'flex', gap: '8px' }}>
-          {SLIDES.map((_, i) => (
+          {slides.map((_, i) => (
             <button
               key={i}
               onClick={() => setCurrent(i)}
@@ -142,7 +144,7 @@ export const AppIntro = ({ onDone }) => {
             boxShadow: `0 8px 24px ${slide.accent}60`,
           }}
         >
-          {isLast ? "Los geht's! 🚀" : 'Weiter'}
+          {isLast ? t('intro.ctaLast') : t('intro.ctaNext')}
         </button>
       </div>
     </div>

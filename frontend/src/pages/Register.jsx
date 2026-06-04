@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation, Trans } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { auth } from '../utils/api';
 import '../styles/auth.css';
@@ -20,6 +21,7 @@ async function fetchLocationSuggestions(query) {
 }
 
 export const Register = () => {
+  const { t } = useTranslation();
   const [step, setStep]                       = useState(1);
   const [name, setName]                       = useState('');
   const [email, setEmail]                     = useState('');
@@ -86,7 +88,7 @@ export const Register = () => {
         setOtpResendTimer(OTP_RESEND_SECONDS);
       }
     } catch (err) {
-      setOtpError(err.response?.data?.error || 'Code konnte nicht gesendet werden');
+      setOtpError(err.response?.data?.error || t('auth.register.step3.errorSendFailed'));
     } finally {
       setOtpLoading(false);
     }
@@ -94,13 +96,13 @@ export const Register = () => {
 
   const handleVerifyCode = async () => {
     setOtpError('');
-    if (otpCode.length !== 6) { setOtpError('Bitte alle 6 Ziffern eingeben'); return; }
+    if (otpCode.length !== 6) { setOtpError(t('auth.register.step3.errorMissing')); return; }
     setOtpLoading(true);
     try {
       await auth.verifyEmailCode(email, otpCode);
       setStep(4);
     } catch (err) {
-      setOtpError(err.response?.data?.error || 'Ungültiger Code');
+      setOtpError(err.response?.data?.error || t('auth.register.step3.errorInvalid'));
     } finally {
       setOtpLoading(false);
     }
@@ -119,7 +121,7 @@ export const Register = () => {
         setOtpResendTimer(OTP_RESEND_SECONDS);
       }
     } catch (err) {
-      setOtpError(err.response?.data?.error || 'Code konnte nicht gesendet werden');
+      setOtpError(err.response?.data?.error || t('auth.register.step3.errorSendFailed'));
     } finally {
       setOtpLoading(false);
     }
@@ -133,11 +135,11 @@ export const Register = () => {
     if (/[0-9]/.test(pwd))        score++;
     if (/[^A-Za-z0-9]/.test(pwd)) score++;
     const levels = [
-      { label: 'Sehr schwach', color: '#ff4444' },
-      { label: 'Schwach',      color: '#ff8800' },
-      { label: 'Mittel',       color: '#ffcc00' },
-      { label: 'Stark',        color: '#88cc00' },
-      { label: 'Sehr stark',   color: '#00cc66' },
+      { label: t('auth.register.strength.veryWeak'), color: '#ff4444' },
+      { label: t('auth.register.strength.weak'),     color: '#ff8800' },
+      { label: t('auth.register.strength.medium'),   color: '#ffcc00' },
+      { label: t('auth.register.strength.strong'),   color: '#88cc00' },
+      { label: t('auth.register.strength.veryStrong'), color: '#00cc66' },
     ];
     return { score, ...levels[score] };
   };
@@ -145,11 +147,11 @@ export const Register = () => {
   const strength = getPasswordStrength(password);
 
   const validatePassword = (pwd) => {
-    if (pwd.length < 6)             return 'Mindestens 6 Zeichen erforderlich';
-    if (!/[A-Z]/.test(pwd))         return 'Mindestens 1 Großbuchstabe erforderlich';
-    if (!/[a-z]/.test(pwd))         return 'Mindestens 1 Kleinbuchstabe erforderlich';
-    if (!/[0-9]/.test(pwd))         return 'Mindestens 1 Zahl erforderlich';
-    if (!/[^A-Za-z0-9]/.test(pwd))  return 'Mindestens 1 Sonderzeichen erforderlich (!@#$…)';
+    if (pwd.length < 6)             return t('auth.register.validation.passwordMinLength');
+    if (!/[A-Z]/.test(pwd))         return t('auth.register.validation.passwordUpper');
+    if (!/[a-z]/.test(pwd))         return t('auth.register.validation.passwordLower');
+    if (!/[0-9]/.test(pwd))         return t('auth.register.validation.passwordDigit');
+    if (!/[^A-Za-z0-9]/.test(pwd))  return t('auth.register.validation.passwordSpecial');
     return null;
   };
 
@@ -162,9 +164,9 @@ export const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!dateOfBirth) { setError('Bitte gib dein Geburtsdatum ein'); return; }
-    if (dateOfBirth > maxDOB) { setError('Du musst mindestens 18 Jahre alt sein, um JAMIE zu nutzen.'); return; }
-    if (password !== confirmPassword) { setError('Passwörter stimmen nicht überein'); return; }
+    if (!dateOfBirth) { setError(t('auth.register.validation.dobRequired')); return; }
+    if (dateOfBirth > maxDOB) { setError(t('auth.register.validation.ageMin')); return; }
+    if (password !== confirmPassword) { setError(t('auth.register.validation.passwordMismatch')); return; }
     const pwdError = validatePassword(password);
     if (pwdError) { setError(pwdError); return; }
     try {
@@ -175,7 +177,7 @@ export const Register = () => {
       localStorage.setItem('jamie_new_registration', '1');
       navigate('/welcome');
     } catch (err) {
-      setError(err.response?.data?.error || 'Registrierung fehlgeschlagen');
+      setError(err.response?.data?.error || t('auth.register.validation.registerFailed'));
     }
   };
 
@@ -184,7 +186,7 @@ export const Register = () => {
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M19 12H5M12 19l-7-7 7-7"/>
       </svg>
-      Zurück
+      {t('common.back')}
     </button>
   );
 
@@ -192,7 +194,7 @@ export const Register = () => {
     <div className="auth-screen auth-screen--scroll">
       {/* Top — logo + progress */}
       <div className="auth-top auth-top--compact">
-        <h1 className="auth-wordmark">JAMIE</h1>
+        <h1 className="auth-wordmark">{t('auth.appName')}</h1>
         <div className="reg-steps">
           {Array.from({ length: TOTAL_STEPS }, (_, i) => (
             <div
@@ -201,7 +203,7 @@ export const Register = () => {
             />
           ))}
         </div>
-        <p className="reg-step-label">Schritt {step} von {TOTAL_STEPS}</p>
+        <p className="reg-step-label">{t('auth.register.stepLabel', { current: step, total: TOTAL_STEPS })}</p>
       </div>
 
       {/* Middle — step content */}
@@ -212,14 +214,14 @@ export const Register = () => {
           {step === 1 && (
             <>
               <div className="reg-step-heading">
-                <h2 className="reg-title">Wie heißt du?</h2>
-                <p className="reg-hint">So wirst du in der App angezeigt</p>
+                <h2 className="reg-title">{t('auth.register.step1.title')}</h2>
+                <p className="reg-hint">{t('auth.register.step1.hint')}</p>
               </div>
               <div className="form-group">
-                <label>Dein Name</label>
+                <label>{t('auth.register.step1.label')}</label>
                 <input
                   type="text"
-                  placeholder="Dein Name"
+                  placeholder={t('auth.register.step1.placeholder')}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   required
@@ -232,7 +234,7 @@ export const Register = () => {
                 onClick={() => name.trim() && setStep(2)}
                 disabled={!name.trim()}
               >
-                Weiter
+                {t('common.continue')}
               </button>
             </>
           )}
@@ -242,14 +244,14 @@ export const Register = () => {
             <>
               <BackBtn onClick={() => setStep(1)} />
               <div className="reg-step-heading">
-                <h2 className="reg-title">Deine E-Mail</h2>
-                <p className="reg-hint">Wir schicken dir einen Bestätigungscode</p>
+                <h2 className="reg-title">{t('auth.register.step2.title')}</h2>
+                <p className="reg-hint">{t('auth.register.step2.hint')}</p>
               </div>
               <div className="form-group">
-                <label>E-Mail-Adresse</label>
+                <label>{t('auth.register.step2.label')}</label>
                 <input
                   type="email"
-                  placeholder="deine@email.com"
+                  placeholder={t('auth.register.step2.placeholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -263,7 +265,7 @@ export const Register = () => {
                 onClick={handleSendCode}
                 disabled={!email || otpLoading}
               >
-                {otpLoading ? 'Wird gesendet…' : 'Code senden'}
+                {otpLoading ? t('common.sending') : t('auth.register.step2.sendCode')}
               </button>
             </>
           )}
@@ -273,21 +275,22 @@ export const Register = () => {
             <>
               <BackBtn onClick={() => { setStep(2); setOtpCode(''); setOtpError(''); }} />
               <div className="reg-step-heading">
-                <h2 className="reg-title">Code eingeben</h2>
+                <h2 className="reg-title">{t('auth.register.step3.title')}</h2>
                 <p className="reg-hint">
-                  Wir haben einen 6-stelligen Code an{' '}
-                  <strong className="reg-hint-em">{email}</strong> gesendet.
+                  {t('auth.register.step3.hintPrefix')}{' '}
+                  <strong className="reg-hint-em">{email}</strong>
+                  {t('auth.register.step3.hintSuffix')}
                 </p>
               </div>
               <div className="form-group">
-                <label>Bestätigungscode</label>
+                <label>{t('auth.register.step3.label')}</label>
                 <input
                   className="otp-input"
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
                   maxLength={6}
-                  placeholder="— — — — — —"
+                  placeholder={t('auth.register.step3.placeholder')}
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   autoComplete="one-time-code"
@@ -300,7 +303,7 @@ export const Register = () => {
                 onClick={handleVerifyCode}
                 disabled={otpCode.length !== 6 || otpLoading}
               >
-                {otpLoading ? 'Prüfe…' : 'Bestätigen'}
+                {otpLoading ? t('auth.register.step3.checking') : t('auth.register.step3.confirm')}
               </button>
               <button
                 type="button"
@@ -309,8 +312,8 @@ export const Register = () => {
                 disabled={otpResendTimer > 0 || otpLoading}
               >
                 {otpResendTimer > 0
-                  ? `Erneut senden (${otpResendTimer}s)`
-                  : 'Code erneut senden'}
+                  ? t('auth.register.step3.resendIn', { seconds: otpResendTimer })
+                  : t('auth.register.step3.resend')}
               </button>
             </>
           )}
@@ -320,11 +323,11 @@ export const Register = () => {
             <>
               <BackBtn onClick={() => setStep(3)} />
               <div className="reg-step-heading">
-                <h2 className="reg-title">Dein Geburtsdatum</h2>
-                <p className="reg-hint">Du musst mindestens 18 Jahre alt sein</p>
+                <h2 className="reg-title">{t('auth.register.step4.title')}</h2>
+                <p className="reg-hint">{t('auth.register.step4.hint')}</p>
               </div>
               <div className="form-group">
-                <label>Geburtsdatum</label>
+                <label>{t('auth.register.step4.label')}</label>
                 <input
                   type="date"
                   value={dateOfBirth}
@@ -335,7 +338,7 @@ export const Register = () => {
                 />
                 {dateOfBirth && dateOfBirth > maxDOB && (
                   <p className="error-message" style={{ marginTop: 6 }}>
-                    Du musst mindestens 18 Jahre alt sein.
+                    {t('auth.register.step4.errorAge')}
                   </p>
                 )}
               </div>
@@ -345,7 +348,7 @@ export const Register = () => {
                 onClick={() => setStep(5)}
                 disabled={!dateOfBirth || dateOfBirth > maxDOB}
               >
-                Weiter
+                {t('common.continue')}
               </button>
             </>
           )}
@@ -355,18 +358,18 @@ export const Register = () => {
             <>
               <BackBtn onClick={() => setStep(4)} />
               <div className="reg-step-heading">
-                <h2 className="reg-title">Wo bist du?</h2>
-                <p className="reg-hint">Hilft dir, Events in deiner Nähe zu finden</p>
+                <h2 className="reg-title">{t('auth.register.step5.title')}</h2>
+                <p className="reg-hint">{t('auth.register.step5.hint')}</p>
               </div>
               <div className="form-group">
                 <label>
-                  Stadt oder Region
-                  <span className="field-optional"> (optional)</span>
+                  {t('auth.register.step5.label')}
+                  <span className="field-optional"> {t('auth.shared.fieldOptional')}</span>
                 </label>
                 <div className="location-field">
                   <input
                     type="text"
-                    placeholder="z.B. Wien, Österreich"
+                    placeholder={t('auth.register.step5.placeholder')}
                     value={location}
                     onChange={(e) => handleLocationInput(e.target.value)}
                     autoComplete="off"
@@ -383,7 +386,7 @@ export const Register = () => {
                       type="button"
                       className="location-clear"
                       onClick={() => { setLocation(''); setLocationSuggestions([]); }}
-                      aria-label="Ort entfernen"
+                      aria-label={t('auth.register.step5.removeLocation')}
                     >
                       ×
                     </button>
@@ -395,7 +398,7 @@ export const Register = () => {
                 className="auth-btn auth-btn-primary"
                 onClick={() => setStep(6)}
               >
-                Weiter
+                {t('common.continue')}
               </button>
             </>
           )}
@@ -405,14 +408,14 @@ export const Register = () => {
             <>
               <BackBtn onClick={() => setStep(5)} />
               <div className="reg-step-heading">
-                <h2 className="reg-title">Passwort wählen</h2>
-                <p className="reg-hint">Mind. 6 Zeichen, Groß/Klein, Zahl & Sonderzeichen</p>
+                <h2 className="reg-title">{t('auth.register.step6.title')}</h2>
+                <p className="reg-hint">{t('auth.register.step6.hint')}</p>
               </div>
               <div className="form-group">
-                <label>Passwort</label>
+                <label>{t('auth.register.step6.label')}</label>
                 <input
                   type="password"
-                  placeholder="Dein Passwort"
+                  placeholder={t('auth.register.step6.placeholder')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -436,10 +439,10 @@ export const Register = () => {
                 )}
               </div>
               <div className="form-group">
-                <label>Passwort bestätigen</label>
+                <label>{t('auth.register.step6.confirmLabel')}</label>
                 <input
                   type="password"
-                  placeholder="Passwort wiederholen"
+                  placeholder={t('auth.shared.confirmPasswordPlaceholder')}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
@@ -448,12 +451,12 @@ export const Register = () => {
               </div>
               <div className="form-group">
                 <label>
-                  Einladungscode
-                  <span className="field-optional"> (optional)</span>
+                  {t('auth.register.step6.referralLabel')}
+                  <span className="field-optional"> {t('auth.shared.fieldOptional')}</span>
                 </label>
                 <input
                   type="text"
-                  placeholder="z.B. JAMIE-X7K2"
+                  placeholder={t('auth.register.step6.referralPlaceholder')}
                   value={referralCode}
                   onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
                   className="referral-input"
@@ -473,15 +476,13 @@ export const Register = () => {
                   style={{ marginTop: 2, flexShrink: 0, accentColor: 'var(--coral)' }}
                 />
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  Ich habe die{' '}
-                  <Link to="/privacy" target="_blank" style={{ color: 'var(--coral)' }}>
-                    Datenschutzerklärung
-                  </Link>{' '}
-                  und die{' '}
-                  <Link to="/terms" target="_blank" style={{ color: 'var(--coral)' }}>
-                    Nutzungsbedingungen
-                  </Link>{' '}
-                  gelesen und stimme ihnen zu.
+                  <Trans
+                    i18nKey="auth.shared.consentText"
+                    components={{
+                      1: <Link to="/privacy" target="_blank" style={{ color: 'var(--coral)' }} />,
+                      2: <Link to="/terms" target="_blank" style={{ color: 'var(--coral)' }} />,
+                    }}
+                  />
                 </span>
               </label>
               {error && <p className="error-message">{error}</p>}
@@ -490,7 +491,7 @@ export const Register = () => {
                 className="auth-btn auth-btn-primary"
                 disabled={loading || !password || !confirmPassword || !consentGiven}
               >
-                {loading ? 'Wird erstellt…' : 'Konto erstellen'}
+                {loading ? t('auth.register.step6.creating') : t('auth.register.step6.submit')}
               </button>
             </>
           )}
@@ -501,8 +502,8 @@ export const Register = () => {
       {/* Bottom — login link */}
       <div className="auth-bottom">
         <p>
-          Bereits ein Konto?{' '}
-          <Link to="/login" className="auth-link">Jetzt einloggen</Link>
+          {t('auth.register.alreadyAccount')}{' '}
+          <Link to="/login" className="auth-link">{t('auth.register.loginLink')}</Link>
         </p>
       </div>
     </div>

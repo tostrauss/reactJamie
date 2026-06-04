@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export const CONSENT_KEY = 'jamie_analytics_consent';
 
 export function ConsentBanner() {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(() => !localStorage.getItem(CONSENT_KEY));
 
   if (!visible) return null;
@@ -37,8 +39,8 @@ export function ConsentBanner() {
         color: 'rgba(255,255,255,0.72)',
         lineHeight: 1.55,
       }}>
-        JAMIE verwendet anonyme Nutzungsstatistiken, um die App zu verbessern. Keine personenbezogenen Daten werden an Dritte weitergegeben.{' '}
-        <a href="/privacy" style={{ color: '#FD7666', textDecoration: 'none' }}>Datenschutz</a>
+        {t('consent.text')}{' '}
+        <a href="/privacy" style={{ color: '#FD7666', textDecoration: 'none' }}>{t('consent.privacy')}</a>
       </p>
       <div style={{ display: 'flex', gap: '10px' }}>
         <button
@@ -55,7 +57,7 @@ export function ConsentBanner() {
             cursor: 'pointer',
           }}
         >
-          Akzeptieren
+          {t('consent.accept')}
         </button>
         <button
           onClick={decline}
@@ -71,7 +73,7 @@ export function ConsentBanner() {
             cursor: 'pointer',
           }}
         >
-          Ablehnen
+          {t('consent.decline')}
         </button>
       </div>
     </div>
