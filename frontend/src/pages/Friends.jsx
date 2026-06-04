@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { friends as friendsApi } from '../utils/api';
+import { useTranslation } from 'react-i18next';
+import { friends as friendsApi, users as usersApi } from '../utils/api';
+import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import '../styles/friends.css';
 
@@ -12,6 +14,8 @@ const calcAge = (dob) => {
 export const Friends = () => {
   const navigate = useNavigate();
   const toast = useToast();
+  const { t } = useTranslation();
+  const { user: currentUser } = useContext(AuthContext) || {};
 
   const [tab, setTab] = useState('friends');
   const [friendsList, setFriendsList] = useState([]);
@@ -20,7 +24,41 @@ export const Friends = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
 
+  const [query, setQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const debounceRef = useRef(null);
+  const abortRef = useRef(null);
+
   useEffect(() => { loadAll(); }, []);
+
+  // Debounced user search — runs once query reaches 2+ chars
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      if (abortRef.current) abortRef.current.abort();
+      abortRef.current = new AbortController();
+      setSearching(true);
+      try {
+        const res = await usersApi.search(q);
+        const rows = (res.data || []).filter(u => u.id !== currentUser?.id);
+        setSearchResults(rows);
+      } catch (err) {
+        if (err.name !== 'CanceledError' && err.name !== 'AbortError') {
+          setSearchResults([]);
+        }
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(debounceRef.current);
+  }, [query, currentUser?.id]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -34,7 +72,7 @@ export const Friends = () => {
       setPending(pRes.data || []);
       setSent(sRes.data || []);
     } catch {
-      toast.error('Freunde konnten nicht geladen werden');
+      toast.error(t('friends.toast.loadError'));
     } finally {
       setLoading(false);
     }
@@ -46,9 +84,9 @@ export const Friends = () => {
       await friendsApi.respondRequest(requestId, 'accept');
       setPending(prev => prev.filter(r => r.id !== requestId));
       await loadAll();
-      toast.success('Freundschaft angenommen!');
+      toast.success(t('friends.toast.accepted'));
     } catch {
-      toast.error('Fehler beim Annehmen');
+      toast.error(t('friends.toast.acceptError'));
     } finally {
       setActionLoading(null);
     }
@@ -59,9 +97,9 @@ export const Friends = () => {
     try {
       await friendsApi.respondRequest(requestId, 'reject');
       setPending(prev => prev.filter(r => r.id !== requestId));
-      toast.success('Anfrage abgelehnt');
+      toast.success(t('friends.toast.rejected'));
     } catch {
-      toast.error('Fehler beim Ablehnen');
+      toast.error(t('friends.toast.rejectError'));
     } finally {
       setActionLoading(null);
     }
@@ -72,9 +110,9 @@ export const Friends = () => {
     try {
       await friendsApi.remove(friendId);
       setFriendsList(prev => prev.filter(f => f.friend_id !== friendId && f.id !== friendId));
-      toast.success('Freund entfernt');
+      toast.success(t('friends.toast.removed'));
     } catch {
-      toast.error('Fehler beim Entfernen');
+      toast.error(t('friends.toast.removeError'));
     } finally {
       setActionLoading(null);
     }
@@ -97,8 +135,28 @@ export const Friends = () => {
             <path d="M15 18l-6-6 6-6"/>
           </svg>
         </button>
-        <h1 className="fr-title">Freunde</h1>
+        <h1 className="fr-title">{t('friends.title')}</h1>
         <div style={{ width: 40 }} />
+      </div>
+
+      <div className="fr-search-wrap">
+        <svg className="fr-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input
+          type="text"
+          className="fr-search-input"
+          placeholder={t('friends.search.placeholder')}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        {query && (
+          <button
+            className="fr-search-clear"
+            onClick={() => setQuery('')}
+            aria-label={t('friends.search.clear')}
+          >×</button>
+        )}
       </div>
 
       <div className="fr-tabs">
@@ -106,27 +164,50 @@ export const Friends = () => {
           className={`fr-tab ${tab === 'friends' ? 'fr-tab-active' : ''}`}
           onClick={() => setTab('friends')}
         >
-          Freunde
+          {t('friends.tabs.friends')}
           {friendsList.length > 0 && <span className="fr-count">{friendsList.length}</span>}
         </button>
         <button
           className={`fr-tab ${tab === 'pending' ? 'fr-tab-active' : ''}`}
           onClick={() => setTab('pending')}
         >
-          Anfragen
+          {t('friends.tabs.pending')}
           {pending.length > 0 && <span className="fr-count fr-count-red">{pending.length}</span>}
         </button>
         <button
           className={`fr-tab ${tab === 'sent' ? 'fr-tab-active' : ''}`}
           onClick={() => setTab('sent')}
         >
-          Gesendet
+          {t('friends.tabs.sent')}
           {sent.length > 0 && <span className="fr-count">{sent.length}</span>}
         </button>
       </div>
 
       <div className="fr-body">
-        {loading ? (
+        {query.trim().length >= 2 ? (
+          searching ? (
+            <div className="fr-loading"><div className="fr-spinner" /></div>
+          ) : searchResults.length === 0 ? (
+            <div className="fr-empty">
+              <div className="fr-empty-icon">🔍</div>
+              <p>{t('friends.search.empty')}</p>
+            </div>
+          ) : (
+            <div className="fr-list">
+              {searchResults.map(u => (
+                <div key={u.id} className="fr-row">
+                  <div className="fr-row-left" onClick={() => navigate(`/user/${u.id}`)}>
+                    <Avatar src={u.avatar_url} name={u.name} />
+                    <div className="fr-row-info">
+                      <p className="fr-row-name">{u.name}</p>
+                      {u.location && <p className="fr-row-sub">{u.location}</p>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : loading ? (
           <div className="fr-loading"><div className="fr-spinner" /></div>
         ) : (
           <>
@@ -135,8 +216,8 @@ export const Friends = () => {
               friendsList.length === 0 ? (
                 <div className="fr-empty">
                   <div className="fr-empty-icon">👥</div>
-                  <p>Noch keine Freunde</p>
-                  <span>Schau dir Profile an und sende Anfragen!</span>
+                  <p>{t('friends.empty.noFriends')}</p>
+                  <span>{t('friends.empty.noFriendsHint')}</span>
                 </div>
               ) : (
                 <div className="fr-list">
@@ -181,7 +262,7 @@ export const Friends = () => {
               pending.length === 0 ? (
                 <div className="fr-empty">
                   <div className="fr-empty-icon">📬</div>
-                  <p>Keine offenen Anfragen</p>
+                  <p>{t('friends.empty.noPending')}</p>
                 </div>
               ) : (
                 <div className="fr-list">
@@ -221,7 +302,7 @@ export const Friends = () => {
               sent.length === 0 ? (
                 <div className="fr-empty">
                   <div className="fr-empty-icon">📤</div>
-                  <p>Keine gesendeten Anfragen</p>
+                  <p>{t('friends.empty.noSent')}</p>
                 </div>
               ) : (
                 <div className="fr-list">
@@ -231,7 +312,7 @@ export const Friends = () => {
                         <Avatar src={r.addressee_avatar} name={r.addressee_name} />
                         <div className="fr-row-info">
                           <p className="fr-row-name">{r.addressee_name}</p>
-                          <p className="fr-row-sub">Ausstehend</p>
+                          <p className="fr-row-sub">{t('friends.sentPending')}</p>
                         </div>
                       </div>
                     </div>
