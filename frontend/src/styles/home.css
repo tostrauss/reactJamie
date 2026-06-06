@@ -295,13 +295,16 @@
    Groups Feed & Grid
    ======================================== */
 .groups-feed {
-  padding: 12px 28px 0;
+  /* Tightened horizontal padding (was 28px) so each card gets ~12px more width.
+     Combined with the smaller grid gap below, short titles like "Wandern"
+     now fit on a single line instead of ellipsizing. */
+  padding: 12px 16px 0;
 }
 
 .groups-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 14px;
+  gap: 10px;
 }
 
 @media (min-width: 768px) {
@@ -378,6 +381,10 @@
   font-size: 12px;
   font-weight: 700;
   color: var(--accent-coral);
+  /* Keeps "1/15 Mitglieder" on one line — without this the row was breaking
+     at the space between the count and the word. Flex items don't auto-wrap
+     internally; the nowrap forces the count + label to render as one chunk. */
+  white-space: nowrap;
 }
 
 .card-private-badge {
