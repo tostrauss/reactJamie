@@ -374,11 +374,14 @@ select:focus {
   background: var(--bg-secondary);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 1000;
-  /* Reserve the iOS home-indicator zone so the nav background continues
-     through it — without this, the system area below the nav shows as an
-     empty band on installed PWAs. */
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  /* Extend background colour below viewport edge (covers Android gesture bar + iOS overscroll) */
+  /* No padding-bottom: in iOS installed-PWA mode with viewport-fit=cover,
+     `bottom: 0` already sits at the top of the home-indicator safe area —
+     adding env(safe-area-inset-bottom) double-counts and pushes icons up
+     by ~34px, creating a visible empty band. Background colour for the
+     home-indicator zone is provided by the box-shadow trick below. */
+  padding-bottom: 0;
+  /* Extend background colour below the viewport edge so Android gesture
+     bar + iOS overscroll bg stay solid. Larger shadow values are safe. */
   box-shadow: 0 100px 0 100px var(--bg-secondary);
 }
 

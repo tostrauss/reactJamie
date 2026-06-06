@@ -500,6 +500,11 @@ const runStartupMigrations = async () => {
     db.query(`CREATE INDEX IF NOT EXISTS idx_evc_email ON email_verification_codes(email)`));
   await migrate('email_verification_codes attempts col', () =>
     db.query(`ALTER TABLE email_verification_codes ADD COLUMN IF NOT EXISTS attempts INTEGER NOT NULL DEFAULT 0`));
+  // Binds a successful OTP verification to a subsequent /register call. Without this,
+  // the OTP step lives only on the frontend and /api/auth/register can be called
+  // directly with any email, enabling account-squatting against waitlisted users.
+  await migrate('email_verification_codes verified_at col', () =>
+    db.query(`ALTER TABLE email_verification_codes ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ`));
 
   // Case-insensitive email uniqueness. The base schema has UNIQUE(email)
   // which is case-sensitive — so "User@x.com" and "user@x.com" could

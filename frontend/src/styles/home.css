@@ -363,11 +363,12 @@
   color: var(--accent-coral);
   line-height: 1.15;
   margin: 0;
+  /* Single line + ellipsis. Two-line wrapping made short titles like "Wandern"
+     split awkwardly (Wande / rn) when the badge reserved 64px of right padding,
+     and the second line slid under the absolutely-positioned date badge. */
+  white-space: nowrap;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  word-break: break-word;
+  text-overflow: ellipsis;
 }
 
 .card-subtitle-row {

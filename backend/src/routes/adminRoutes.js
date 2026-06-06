@@ -15,10 +15,13 @@ import { authenticate, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Tight rate limit on admin routes: 30 requests/15min per IP
+// Rate limit on admin routes: 200 req/15min per IP. Admins are already gated
+// by JWT + is_admin column, so this is just a brute-force/runaway-loop safety
+// net. The previous limit of 30 locked a real admin out after a few minutes
+// of normal dashboard navigation + CSV exports.
 const adminLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 30,
+  max: 200,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Zu viele Admin-Anfragen. Bitte warte 15 Minuten.' },

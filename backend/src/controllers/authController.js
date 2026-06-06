@@ -118,6 +118,40 @@ export const register = async (req, res) => {
       return res.status(400).json({ error: 'Diese E-Mail-Adresse ist bereits registriert' });
     }
 
+    // Bind the OTP step to /register. Skipped in dev because sendEmailCode auto-
+    // verifies via devCode (see Register.jsx step 3) and the table may not exist
+    // on a fresh local DB before the first OTP request. In production, without
+    // this check, /api/auth/register can be called directly with any email,
+    // enabling account-squatting against the 410 waitlisted users.
+    if (process.env.NODE_ENV === 'production') {
+      try {
+        const otpCheck = await db.query(
+          `SELECT id FROM email_verification_codes
+           WHERE email = $1
+             AND verified_at IS NOT NULL
+             AND verified_at > NOW() - INTERVAL '30 minutes'
+           ORDER BY id DESC
+           LIMIT 1`,
+          [email]
+        );
+        if (otpCheck.rows.length === 0) {
+          return res.status(400).json({
+            error: 'E-Mail-Bestätigung erforderlich. Bitte fordere einen neuen Code an.',
+            code: 'EMAIL_NOT_VERIFIED'
+          });
+        }
+        // Single-use: consume the verified row so the same OTP can't be replayed
+        // for a second account on the same email after the previous one is deleted.
+        await db.query('DELETE FROM email_verification_codes WHERE id = $1', [otpCheck.rows[0].id]);
+      } catch (otpErr) {
+        // Missing table on a fresh prod boot — fail closed so we never silently bypass.
+        if (otpErr.code === '42P01') {
+          return res.status(503).json({ error: 'Registrierung ist gerade nicht verfügbar. Bitte versuche es in einer Minute erneut.' });
+        }
+        throw otpErr;
+      }
+    }
+
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
@@ -858,8 +892,11 @@ export const verifyEmailCode = async (req, res) => {
       return res.status(400).json({ error: 'Ungültiger oder abgelaufener Code' });
     }
 
-    // Mark as used
-    await db.query('UPDATE email_verification_codes SET used = TRUE WHERE id = $1', [row.id]);
+    // Mark as used + stamp verified_at so /register can confirm the OTP step happened
+    await db.query(
+      'UPDATE email_verification_codes SET used = TRUE, verified_at = NOW() WHERE id = $1',
+      [row.id]
+    );
 
     res.json({ verified: true });
   } catch (error) {

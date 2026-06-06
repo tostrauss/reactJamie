@@ -56,7 +56,7 @@ export const createReport = async (req, res) => {
 };
 
 // GET /api/reports  (simple admin view — no admin role system yet)
-const VALID_STATUSES = ['pending', 'reviewed', 'dismissed'];
+const VALID_STATUSES = ['pending', 'reviewed', 'resolved', 'dismissed'];
 
 export const getReports = async (req, res) => {
   try {

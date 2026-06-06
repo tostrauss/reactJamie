@@ -148,10 +148,14 @@ export const getClubs = async (req, res) => {
       LEFT JOIN users u ON g.owner_id = u.id
       WHERE g.is_active = TRUE
         AND g.type = $1
-        AND (g.approval_status = 'approved'${callerIsAdmin ? '' : ` OR g.owner_id = ${parseInt(callerId, 10)}`})
+        AND (g.approval_status = 'approved'${callerIsAdmin ? '' : ' OR g.owner_id = $2'})
     `;
     const params = [CLUB_TYPE];
     let paramIndex = 2;
+    if (!callerIsAdmin) {
+      params.push(parseInt(callerId, 10) || 0);
+      paramIndex = 3;
+    }
 
     if (search) {
       query += ` AND (g.name ILIKE $${paramIndex} OR g.description ILIKE $${paramIndex})`;

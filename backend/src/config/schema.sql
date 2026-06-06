@@ -291,20 +291,9 @@ CREATE INDEX idx_prt_user ON password_reset_tokens(user_id);
 CREATE INDEX idx_prt_expires ON password_reset_tokens(expires_at);
 
 
--- ============================================================
--- 14. SESSION TABLE (connect-pg-simple)
--- ============================================================
--- Required by express-session with PostgreSQL store.
--- ============================================================
-
-CREATE TABLE IF NOT EXISTS "session" (
-    "sid"       VARCHAR NOT NULL COLLATE "default",
-    "sess"      JSON NOT NULL,
-    "expire"    TIMESTAMP(6) NOT NULL,
-    CONSTRAINT "session_pkey" PRIMARY KEY ("sid") NOT DEFERRABLE INITIALLY IMMEDIATE
-);
-
-CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+-- Note: the old "session" table for express-session / connect-pg-simple
+-- was removed when auth migrated to JWT in an httpOnly cookie. Existing
+-- dev databases may still have an empty `session` table — harmless.
 
 -- SEED DATA: Hauptkategorien (parent_id = NULL)
 INSERT INTO categories (name, icon, color, sort_order) VALUES

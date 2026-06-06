@@ -93,6 +93,65 @@ describe('register', () => {
     await register(req, res, vi.fn());
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ token: expect.any(String) }));
   });
+
+  // ── Regression: OTP must be bound to /register in production ───────────────
+  // Without this gate, /api/auth/register can be called directly with any email
+  // (the OTP flow lives only on the frontend), enabling account squatting.
+  describe('OTP binding (production)', () => {
+    let prevEnv;
+    beforeEach(() => { prevEnv = process.env.NODE_ENV; process.env.NODE_ENV = 'production'; });
+    afterEach(() => { process.env.NODE_ENV = prevEnv; });
+
+    it('rejects when no recent verified OTP exists for the email', async () => {
+      db.query
+        .mockResolvedValueOnce({ rows: [] })   // email not taken
+        .mockResolvedValueOnce({ rows: [] });  // no verified OTP row
+
+      const req = { body: { email: 'attacker@b.com', password: 'Test1!abc', name: 'Anon', date_of_birth: '1990-01-01' } };
+      const res = makeRes();
+      await register(req, res, vi.fn());
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'EMAIL_NOT_VERIFIED' }));
+    });
+
+    it('returns 503 when email_verification_codes table is missing (fail-closed)', async () => {
+      db.query
+        .mockResolvedValueOnce({ rows: [] }); // email not taken
+      // OTP check throws 42P01 (undefined_table)
+      const tableMissing = Object.assign(new Error('relation does not exist'), { code: '42P01' });
+      db.query.mockRejectedValueOnce(tableMissing);
+
+      const req = { body: { email: 'first@b.com', password: 'Test1!abc', name: 'First', date_of_birth: '1990-01-01' } };
+      const res = makeRes();
+      await register(req, res, vi.fn());
+
+      expect(res.status).toHaveBeenCalledWith(503);
+    });
+
+    it('proceeds and consumes the OTP row when a recent verified row exists', async () => {
+      db.query
+        .mockResolvedValueOnce({ rows: [] })                        // email not taken
+        .mockResolvedValueOnce({ rows: [{ id: 77 }] })              // OTP row found
+        .mockResolvedValueOnce({ rows: [] })                        // DELETE OTP row
+        .mockResolvedValueOnce({ rows: [{ id: 42 }] })              // INSERT user
+        .mockResolvedValueOnce({ rows: [] })                        // INSERT boost_credits
+        .mockResolvedValueOnce({ rows: [] })                        // INSERT referral
+        .mockResolvedValueOnce({ rows: [{ id: 42, email: 'ok@b.com', name: 'Ok', onboarding_completed: false }] }); // SELECT user
+
+      const req = { body: { email: 'ok@b.com', password: 'Test1!abc', name: 'Ok', date_of_birth: '1990-01-01' } };
+      const res = makeRes();
+      await register(req, res, vi.fn());
+
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ token: expect.any(String) }));
+      // DELETE call must have happened with the OTP row id — confirms single-use.
+      const deleteCall = db.query.mock.calls.find(c =>
+        /DELETE FROM email_verification_codes WHERE id/.test(c[0])
+      );
+      expect(deleteCall).toBeDefined();
+      expect(deleteCall[1]).toEqual([77]);
+    });
+  });
 });
 
 // ── login ──────────────────────────────────────────────────────────────────
