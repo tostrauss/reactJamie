@@ -374,10 +374,11 @@ select:focus {
   background: var(--bg-secondary);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 1000;
-  /* Bake the home-indicator / gesture-bar zone into the nav itself. The bg
-     extends to the WebView bottom edge naturally, so there is no separate
-     band to fill and no risk of iOS Safari clipping a box-shadow / pseudo. */
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* No safe-area padding — user explicitly wants the nav flush with the
+     WebView bottom edge so there's no visible band beneath the icons. iOS
+     home indicator may visually overlap the bottom edge of the icon strip;
+     accepted trade-off. */
+  padding-bottom: 0;
 }
 
 .bottom-nav-items {

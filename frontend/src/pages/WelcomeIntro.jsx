@@ -176,7 +176,7 @@ export const WelcomeIntro = () => {
           background: `linear-gradient(160deg, ${slide.bg1} 0%, ${slide.bg2} 100%)`,
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'space-between',
-          padding: 'env(safe-area-inset-top,20px) 24px env(safe-area-inset-bottom,40px)',
+          padding: 'env(safe-area-inset-top,20px) 24px 16px',
           transition: 'background 0.55s ease',
           overflow: 'hidden', userSelect: 'none',
         }}

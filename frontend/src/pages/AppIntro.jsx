@@ -62,7 +62,7 @@ export const AppIntro = ({ onDone }) => {
       background: slide.gradient,
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'space-between',
-      padding: 'env(safe-area-inset-top, 20px) 24px env(safe-area-inset-bottom, 40px)',
+      padding: 'env(safe-area-inset-top, 20px) 24px 16px',
       transition: 'background 0.5s ease',
       fontFamily: 'inherit',
     }}>
