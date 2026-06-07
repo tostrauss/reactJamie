@@ -433,17 +433,22 @@ select:focus {
 /* Plus Button - Hauptaktion */
 .nav-add-button {
   position: relative;
-  width: 72px;
-  height: 72px;
+  width: 64px;
+  height: 64px;
   background: var(--bg-input);
   border: 1px solid var(--border-default);
-  border-radius: 26px;
+  border-radius: 22px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all var(--transition-normal);
-  margin-top: -16px;
+  /* Pin to the bottom of the nav strip + a small clearance, so the rounded
+     bottom corners are never clipped by the WebView edge. The 64px height
+     still protrudes 14px above the 50px nav strip, keeping the floating
+     "central CTA" silhouette. */
+  align-self: flex-end;
+  margin-bottom: 2px;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
@@ -458,7 +463,7 @@ select:focus {
 }
 
 .plus-icon {
-  font-size: 44px;
+  font-size: 38px;
   font-weight: 400;
   color: white;
   line-height: 1;
