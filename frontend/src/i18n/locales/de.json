@@ -682,7 +682,8 @@
       "saveError": "Fehler beim Speichern",
       "avatarUpdated": "Profilbild aktualisiert",
       "avatarError": "Bild konnte nicht hochgeladen werden",
-      "photoError": "Foto konnte nicht hochgeladen werden"
+      "photoError": "Foto konnte nicht hochgeladen werden",
+      "photoTooLarge": "Bild ist zu groß (max. 15 MB). Bitte komprimiere es zuerst."
     }
   },
   "settings": {

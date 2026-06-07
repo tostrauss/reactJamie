@@ -682,7 +682,8 @@
       "saveError": "Could not save",
       "avatarUpdated": "Profile picture updated",
       "avatarError": "Could not upload picture",
-      "photoError": "Could not upload photo"
+      "photoError": "Could not upload photo",
+      "photoTooLarge": "Image too large (max. 15 MB). Please compress it first."
     }
   },
   "settings": {

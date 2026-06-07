@@ -212,12 +212,25 @@ export const ProfileEdit = () => {
   const handlePhotoAdd = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    // Client-side guard so the user sees an instant error instead of waiting
+    // for the upload to round-trip and the backend to reject with 413.
+    const MAX_BYTES = 15 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      toast.error(t('profileEdit.toast.photoTooLarge'));
+      e.target.value = '';
+      return;
+    }
+
     setPhotoUploading(true);
     try {
       const res = await upload.image(file);
       setFormData(prev => ({ ...prev, photos: [...(prev.photos || []), res.data.url] }));
-    } catch {
-      toast.error(t('profileEdit.toast.photoError'));
+    } catch (err) {
+      // Surface the backend's reason if present — moderation rejection, format,
+      // size, etc. — so the user knows WHY the upload failed.
+      const msg = err?.response?.data?.error || err?.message || t('profileEdit.toast.photoError');
+      toast.error(msg);
     } finally {
       setPhotoUploading(false);
       e.target.value = '';

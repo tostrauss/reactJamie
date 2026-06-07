@@ -42,17 +42,36 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Memory storage — we handle the final destination (cloud or disk) ourselves
+// Memory storage — we handle the final destination (cloud or disk) ourselves.
+// Limit raised from 5 MB → 15 MB because iPhone photos are routinely 5–10 MB
+// straight off the camera roll. Sharp downsizes to ~80–200 KB before we store.
 const upload = multer({
   storage: multer.memoryStorage(),
   fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  limits: { fileSize: 15 * 1024 * 1024 },
 });
 
-router.post('/', authenticate, uploadLimiter, upload.single('image'), async (req, res) => {
+// Surface multer errors (file-too-large, wrong mimetype) as JSON so the
+// frontend can show a useful message instead of a generic "upload failed".
+const handleUpload = upload.single('image');
+router.post('/', authenticate, uploadLimiter, (req, res, next) => {
+  handleUpload(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'Bild ist zu groß (max. 15 MB).' });
+      }
+      if (err.message === 'Only image files are allowed') {
+        return res.status(400).json({ error: 'Nur Bilder werden unterstützt (JPG, PNG, GIF, WebP).' });
+      }
+      console.error('Multer error:', err);
+      return res.status(400).json({ error: 'Upload fehlgeschlagen: ' + err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+      return res.status(400).json({ error: 'Kein Bild ausgewählt.' });
     }
 
     // Validate actual file bytes — reject if magic bytes don't match a known image format
