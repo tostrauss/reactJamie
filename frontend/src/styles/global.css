@@ -94,7 +94,11 @@
 html, body {
   height: 100%;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #231B43; /* explicit hex so the colour is set even before CSS variables resolve */
+  /* Pure black so the iOS home-indicator zone (which shows whatever the root
+     element's bg is, because position:fixed elements don't extend below the
+     visible viewport on iOS PWA) blends with dark pages — Pro modal, AppIntro,
+     Onboarding, chat input bar. Each page's own bg paints its content area. */
+  background: #000;
   color: var(--text-white);
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;

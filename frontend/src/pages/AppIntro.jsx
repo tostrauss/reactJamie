@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 const STORAGE_KEY = 'jamie_intro_seen';
+const NEW_REG_KEY = 'jamie_new_registration';
 
 // Visual style data — kept outside the component since it never changes.
 // Text content lives inside the component and pulls from i18n.
@@ -38,12 +39,14 @@ export const AppIntro = ({ onDone }) => {
 
   const handleDone = () => {
     localStorage.setItem(STORAGE_KEY, '1');
+    localStorage.removeItem(NEW_REG_KEY);
     if (onDone) onDone();
     else navigate('/home');
   };
 
   const handleSkip = () => {
     localStorage.setItem(STORAGE_KEY, '1');
+    localStorage.removeItem(NEW_REG_KEY);
     if (onDone) onDone();
     else navigate('/home');
   };
@@ -151,7 +154,14 @@ export const AppIntro = ({ onDone }) => {
   );
 };
 
-/** Returns true if the intro hasn't been shown yet. */
-export const shouldShowIntro = () => !localStorage.getItem(STORAGE_KEY);
+/**
+ * AppIntro is now tied to the registration event, not to "never seen".
+ * It shows once right after a successful sign-up (Register.jsx sets
+ * `jamie_new_registration`) and is dismissed permanently when the user
+ * finishes or skips. Subsequent logins do NOT re-trigger it, even if the
+ * `jamie_intro_seen` flag is missing (e.g. cleared browser storage, new
+ * device). Avoids the "Willkommen bei JAMIE always shows on relogin" bug.
+ */
+export const shouldShowIntro = () => localStorage.getItem(NEW_REG_KEY) === '1';
 
 export default AppIntro;
