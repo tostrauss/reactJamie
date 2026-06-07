@@ -20,6 +20,7 @@ export const CATEGORY_HIERARCHY = [
       { name: 'Kampfsport', icon: '🥋' },
       { name: 'Boxen', icon: '🥊' },
       { name: 'Reiten', icon: '🏇' },
+      { name: 'Sonstiges', icon: '✨' },
     ],
   },
   {
@@ -38,6 +39,7 @@ export const CATEGORY_HIERARCHY = [
       { name: 'Pub Quiz', icon: '🧠' },
       { name: 'Comedy Show', icon: '😂' },
       { name: 'Networking', icon: '🤝' },
+      { name: 'Sonstiges', icon: '✨' },
     ],
   },
   {
@@ -57,6 +59,7 @@ export const CATEGORY_HIERARCHY = [
       { name: 'Kanufahren', icon: '🛶' },
       { name: 'Segeln', icon: '⛵' },
       { name: 'Picknick', icon: '🧺' },
+      { name: 'Sonstiges', icon: '✨' },
     ],
   },
   {
@@ -77,6 +80,7 @@ export const CATEGORY_HIERARCHY = [
       { name: 'Escape Room', icon: '🔐' },
       { name: 'Stadtführung', icon: '🗺️' },
       { name: 'Sprachen', icon: '🗣️' },
+      { name: 'Sonstiges', icon: '✨' },
     ],
   },
   {
@@ -96,6 +100,7 @@ export const CATEGORY_HIERARCHY = [
       { name: 'Bierverkostung', icon: '🍺' },
       { name: 'Kaffee', icon: '☕' },
       { name: 'Veganes Essen', icon: '🥗' },
+      { name: 'Sonstiges', icon: '✨' },
     ],
   },
   {

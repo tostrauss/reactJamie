@@ -196,7 +196,10 @@ export const ProModal = ({ onClose, onSuccess }) => {
             borderRadius:'28px 28px 0 0',
             border:'1px solid rgba(255,215,0,0.18)',
             borderBottom:'none',
-            padding:`24px 22px calc(env(safe-area-inset-bottom,16px) + 28px)`,
+            // Tight bottom padding: just clear the iOS home indicator + minimal
+            // breathing room. The previous "+28px" left ~60px of empty space
+            // below "Vielleicht später" that read as a gap.
+            padding:`24px 22px calc(env(safe-area-inset-bottom,8px) + 8px)`,
             maxHeight:'92vh', overflowY:'auto',
             animation:'pm-slide-up 0.38s cubic-bezier(.25,.8,.25,1) both',
           }}

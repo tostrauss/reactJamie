@@ -386,12 +386,16 @@ select:focus {
 }
 
 .bottom-nav-items {
-  height: 64px;
+  height: 56px;
   display: flex;
   justify-content: space-around;
-  align-items: center;
-  padding-left: max(10px, env(safe-area-inset-left, 10px));
+  /* Bottom-align icons so they sit flush with the bottom of the nav.
+     With `align-items: center` icons floated in the middle of a 64px
+     slab, creating ~32px of dead space below them which read as a gap. */
+  align-items: flex-end;
+  padding-left:  max(10px, env(safe-area-inset-left, 10px));
   padding-right: max(10px, env(safe-area-inset-right, 10px));
+  padding-bottom: 4px;
 }
 
 .nav-item {
@@ -692,7 +696,7 @@ select:focus {
   flex: 1;
   padding: 20px;
   padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 56px);
   max-width: 600px;
   margin: 0 auto;
   width: 100%;
@@ -763,7 +767,7 @@ select:focus {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 64px);
+  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 56px);
   min-height: 100%;
 }
 

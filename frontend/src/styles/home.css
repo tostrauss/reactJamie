@@ -31,7 +31,7 @@
 
 /* ── Content: normal page flow, clears fixed bottom nav ── */
 .home-content {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 56px);
 }
 
 /* Map tab: fill remaining flex space, no scroll, no padding */
@@ -1299,12 +1299,16 @@
 .avatar-pro-gate-blur {
   position: absolute;
   inset: 0;
+  /* Brand-blue silhouette: a slightly lighter blue blob (head) over a
+     deeper purple-blue background. Heavily blurred so it reads as
+     "a real person is here, but identity is hidden", not as a beige
+     stock-photo face. Tones are pulled from --bg-primary (#231B43). */
   background:
-    radial-gradient(circle at 50% 38%, #d8b094 0%, #a3744f 26%, transparent 52%),
-    radial-gradient(ellipse at 50% 18%, #2c1d18 0%, transparent 48%),
-    linear-gradient(180deg, #3a2a55 0%, #1f1438 100%);
-  filter: blur(14px);
-  transform: scale(1.25);
+    radial-gradient(circle at 50% 38%, #4a3d70 0%, #2e2452 28%, transparent 55%),
+    radial-gradient(ellipse at 50% 16%, #1a1230 0%, transparent 45%),
+    linear-gradient(180deg, #271e44 0%, #15102a 100%);
+  filter: blur(18px);
+  transform: scale(1.3);
   pointer-events: none;
 }
 
@@ -1417,7 +1421,7 @@
   min-height: 100vh;
   background: var(--bg-primary);
   color: white;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 56px);
 }
 
 .edit-header {
@@ -1529,7 +1533,7 @@
   min-height: 100dvh;
   background: var(--bg-primary);
   color: white;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 56px);
 }
 
 .settings-header {

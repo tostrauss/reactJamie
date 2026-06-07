@@ -6,7 +6,7 @@
   min-height: 100vh; /* fallback */
   min-height: 100dvh;
   background: var(--bg-primary);
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 56px);
 }
 
 /* Profile Header Image */
@@ -723,7 +723,7 @@
    ======================================== */
 .profile-edit-page {
   padding: 20px;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 56px);
 }
 
 /* Header */
@@ -1073,7 +1073,7 @@
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   padding: 20px;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 56px);
 }
 
 .settings-back {
