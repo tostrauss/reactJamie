@@ -148,7 +148,7 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 56px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0px);
 }
 
 .fr-loading {

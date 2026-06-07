@@ -374,36 +374,22 @@ select:focus {
   background: var(--bg-secondary);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 1000;
-  padding-bottom: 0;
-}
-
-/* Fill the home-indicator / Android gesture-bar zone with the same colour as
-   the nav so there is no visible band beneath the icons. A pseudo-element is
-   used instead of a box-shadow because iOS Safari clips box-shadows on
-   position:fixed elements at the viewport edge, which was leaving a strip of
-   bg-primary visible below the nav. */
-.bottom-nav::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  height: env(safe-area-inset-bottom, 0px);
-  background: var(--bg-secondary);
-  pointer-events: none;
+  /* Bake the home-indicator / gesture-bar zone into the nav itself. The bg
+     extends to the WebView bottom edge naturally, so there is no separate
+     band to fill and no risk of iOS Safari clipping a box-shadow / pseudo. */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .bottom-nav-items {
-  height: 56px;
+  /* Shorter than the previous 56px — the icons are 24px tall, so 50px gives
+     ample room with no wasted vertical space. Safe-area padding lives on
+     the parent .bottom-nav so this container stays a clean icon strip. */
+  height: 50px;
   display: flex;
   justify-content: space-around;
-  /* Bottom-align icons so they sit flush with the bottom of the nav.
-     With `align-items: center` icons floated in the middle of a 64px
-     slab, creating ~32px of dead space below them which read as a gap. */
-  align-items: flex-end;
+  align-items: center;
   padding-left:  max(10px, env(safe-area-inset-left, 10px));
   padding-right: max(10px, env(safe-area-inset-right, 10px));
-  padding-bottom: 4px;
 }
 
 .nav-item {
@@ -704,7 +690,7 @@ select:focus {
   flex: 1;
   padding: 20px;
   padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 56px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0px);
   max-width: 600px;
   margin: 0 auto;
   width: 100%;
@@ -775,7 +761,7 @@ select:focus {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 56px);
+  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 0px);
   min-height: 100%;
 }
 
