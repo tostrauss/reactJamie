@@ -94,11 +94,10 @@
 html, body {
   height: 100%;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  /* Pure black so the iOS home-indicator zone (which shows whatever the root
-     element's bg is, because position:fixed elements don't extend below the
-     visible viewport on iOS PWA) blends with dark pages — Pro modal, AppIntro,
-     Onboarding, chat input bar. Each page's own bg paints its content area. */
-  background: #000;
+  /* Matches --bg-primary so the iOS home-indicator zone (which shows whatever
+     the root element's bg is, because position:fixed elements don't extend
+     below the visible viewport on iOS PWA) blends with the main app pages. */
+  background: #231B43;
   color: var(--text-white);
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
@@ -386,10 +385,10 @@ select:focus {
 }
 
 .bottom-nav-items {
-  /* Shorter than the previous 56px — the icons are 24px tall, so 50px gives
-     ample room with no wasted vertical space. Safe-area padding lives on
-     the parent .bottom-nav so this container stays a clean icon strip. */
-  height: 50px;
+  /* Strip is the visible nav + the home-indicator zone, treated as one
+     unified band. Icons centered in the full extended height so they sit
+     in the middle of the entire bottom strip, not just the top portion. */
+  height: calc(50px + env(safe-area-inset-bottom, 0px));
   display: flex;
   justify-content: space-around;
   align-items: center;
@@ -447,12 +446,12 @@ select:focus {
   align-items: center;
   justify-content: center;
   transition: all var(--transition-normal);
-  /* Pin to the bottom of the nav strip + a small clearance, so the rounded
-     bottom corners are never clipped by the WebView edge. The 64px height
-     still protrudes 14px above the 50px nav strip, keeping the floating
-     "central CTA" silhouette. */
-  align-self: flex-end;
-  margin-bottom: 2px;
+  /* Align with the centered icon row, then float a touch above it so the
+     button still reads as the central CTA. The nav strip itself (.bottom-nav-items)
+     extends through the home-indicator zone, so the button bottom stays
+     well clear of the WebView edge — no clipping. */
+  align-self: center;
+  margin-top: -10px;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
