@@ -770,7 +770,7 @@ select:focus {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 60px);
+  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 2px);
   min-height: 100%;
 }
 
