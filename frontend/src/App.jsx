@@ -13,7 +13,6 @@ import { AppIntro, shouldShowIntro } from './pages/AppIntro';
 const ProModal = lazy(() => import('./components/ProModal').then(m => ({ default: m.ProModal })));
 import { useAnalytics } from './hooks/useAnalytics';
 import { EventReviewModal } from './components/EventReviewModal';
-import { ConsentBanner } from './components/ConsentBanner';
 import { reviews } from './utils/api';
 
 // Auth Pages (eagerly loaded - needed at startup)
@@ -575,7 +574,6 @@ function App() {
             <AuthProvider>
               <SocketProvider>
                 <AppRoutes />
-                <ConsentBanner />
               </SocketProvider>
             </AuthProvider>
           </ToastProvider>
