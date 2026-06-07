@@ -385,13 +385,11 @@ select:focus {
 }
 
 .bottom-nav-items {
-  /* Strip still extends the full 50px + safe-area so the bg fills the
-     home-indicator zone, but a padding-bottom equal to HALF the safe-area
-     inset shifts the icons upward. Result: the "box" below the icons
-     (within the strip) is half its previous height, and the icons sit a
-     little higher on the screen. */
+  /* Strip is the full visible bottom band (50px nav + safe-area home-indicator
+     zone). align-items: center places the icons in the EXACT middle of the
+     full strip — equal space above and below them, matching the visible band
+     the user circled. */
   height: calc(50px + env(safe-area-inset-bottom, 0px));
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) / 2);
   display: flex;
   justify-content: space-around;
   align-items: center;
