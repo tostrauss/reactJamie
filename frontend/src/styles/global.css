@@ -385,14 +385,15 @@ select:focus {
 }
 
 .bottom-nav-items {
-  /* Strip is the full visible bottom band (50px nav + safe-area home-indicator
-     zone). align-items: center places the icons in the EXACT middle of the
-     full strip — equal space above and below them, matching the visible band
-     the user circled. */
+  /* Strip extends 50px nav + safe-area home-indicator zone. Icons aligned to
+     flex-end with a fixed 12px bottom padding so they sit close to the screen
+     edge (just above the home-indicator pill) — gives the user the "icons
+     lower" feel while keeping the bg filled through the safe-area zone. */
   height: calc(50px + env(safe-area-inset-bottom, 0px));
   display: flex;
   justify-content: space-around;
-  align-items: center;
+  align-items: flex-end;
+  padding-bottom: 12px;
   padding-left:  max(10px, env(safe-area-inset-left, 10px));
   padding-right: max(10px, env(safe-area-inset-right, 10px));
 }
@@ -447,12 +448,10 @@ select:focus {
   align-items: center;
   justify-content: center;
   transition: all var(--transition-normal);
-  /* Align with the centered icon row, then float a touch above it so the
-     button still reads as the central CTA. The nav strip itself (.bottom-nav-items)
-     extends through the home-indicator zone, so the button bottom stays
-     well clear of the WebView edge — no clipping. */
-  align-self: center;
-  margin-top: -10px;
+  /* Match the regular icons' baseline (flex-end + parent padding-bottom)
+     so all 5 nav items share the same bottom edge. The button is taller
+     than the regular icons so it visually protrudes upward = floating CTA. */
+  align-self: flex-end;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
@@ -700,7 +699,7 @@ select:focus {
   flex: 1;
   padding: 20px;
   padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 60px);
   max-width: 600px;
   margin: 0 auto;
   width: 100%;
@@ -771,7 +770,7 @@ select:focus {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 0px);
+  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 60px);
   min-height: 100%;
 }
 

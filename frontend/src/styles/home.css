@@ -31,7 +31,7 @@
 
 /* ── Content: normal page flow, clears fixed bottom nav ── */
 .home-content {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 60px);
 }
 
 /* Map tab: fill remaining flex space, no scroll, no padding */
@@ -1428,7 +1428,7 @@
   min-height: 100vh;
   background: var(--bg-primary);
   color: white;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 60px);
 }
 
 .edit-header {
@@ -1540,7 +1540,7 @@
   min-height: 100dvh;
   background: var(--bg-primary);
   color: white;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 60px);
 }
 
 .settings-header {
