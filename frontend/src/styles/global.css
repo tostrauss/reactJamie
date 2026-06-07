@@ -385,10 +385,13 @@ select:focus {
 }
 
 .bottom-nav-items {
-  /* Strip is the visible nav + the home-indicator zone, treated as one
-     unified band. Icons centered in the full extended height so they sit
-     in the middle of the entire bottom strip, not just the top portion. */
+  /* Strip still extends the full 50px + safe-area so the bg fills the
+     home-indicator zone, but a padding-bottom equal to HALF the safe-area
+     inset shifts the icons upward. Result: the "box" below the icons
+     (within the strip) is half its previous height, and the icons sit a
+     little higher on the screen. */
   height: calc(50px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) / 2);
   display: flex;
   justify-content: space-around;
   align-items: center;
