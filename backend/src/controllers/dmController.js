@@ -26,16 +26,19 @@ export const sendDM = async (req, res) => {
       return res.status(422).json({ error: reason });
     }
 
-    // Verify friendship exists and is accepted
+    // Verify friendship exists and is accepted. A 'blocked' row hides under the
+    // same status check — it isn't 'accepted' so DMs are refused in both
+    // directions, but we hand back the same generic friendship error so a
+    // blocker isn't outed by a different message text.
     const friendship = await db.query(
-      `SELECT * FROM friendships
-       WHERE status = 'accepted'
-       AND ((requester_id = $1 AND addressee_id = $2)
-            OR (requester_id = $2 AND addressee_id = $1))`,
+      `SELECT status FROM friendships
+       WHERE (requester_id = $1 AND addressee_id = $2)
+          OR (requester_id = $2 AND addressee_id = $1)`,
       [req.userId, receiverId]
     );
 
-    if (friendship.rows.length === 0) {
+    const status = friendship.rows[0]?.status;
+    if (status !== 'accepted') {
       return res.status(403).json({
         error: 'Ihr müsst befreundet sein, um Direktnachrichten zu senden',
         requiresFriendship: true

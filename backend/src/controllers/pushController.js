@@ -10,6 +10,52 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   );
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// APNs (Apple Push Notification service) — lazy init
+// Uses JWT-based provider auth (modern .p8 key) instead of legacy .pem certs.
+// Required env vars:
+//   APNS_KEY_ID       — 10-char key id from developer.apple.com → Keys
+//   APNS_TEAM_ID      — 10-char Apple Developer Team ID (from Membership)
+//   APNS_KEY          — full contents of AuthKey_XXXXXXXXXX.p8 (literal \n
+//                       escapes are converted to real newlines so the key
+//                       can live as a single-line Railway env var)
+//   APNS_BUNDLE_ID    — iOS bundle identifier, used as the APNs topic
+// Dynamic import keeps the boot loop alive if @parse/node-apn is not yet
+// installed (degrades gracefully — iOS push silently no-ops, web still works).
+// ──────────────────────────────────────────────────────────────────────────
+let _apnModule = null;
+let _apnProvider = null;
+let _apnInitTried = false;
+
+async function getApnContext() {
+  if (_apnProvider) return { apn: _apnModule, provider: _apnProvider };
+  if (_apnInitTried) return null;
+  _apnInitTried = true;
+
+  const { APNS_KEY_ID, APNS_TEAM_ID, APNS_KEY, APNS_BUNDLE_ID } = process.env;
+  if (!APNS_KEY_ID || !APNS_TEAM_ID || !APNS_KEY || !APNS_BUNDLE_ID) {
+    return null;
+  }
+
+  try {
+    const imported = await import('@parse/node-apn');
+    _apnModule = imported.default || imported;
+    _apnProvider = new _apnModule.Provider({
+      token: {
+        key: APNS_KEY.replace(/\\n/g, '\n'),
+        keyId: APNS_KEY_ID,
+        teamId: APNS_TEAM_ID,
+      },
+      production: process.env.NODE_ENV === 'production',
+    });
+    console.log('[APNs] Provider initialized');
+    return { apn: _apnModule, provider: _apnProvider };
+  } catch (err) {
+    console.error('[APNs] Init failed (is @parse/node-apn installed?):', err.message);
+    return null;
+  }
+}
+
 // ==========================================
 // GET VAPID PUBLIC KEY
 // ==========================================
@@ -101,12 +147,15 @@ export const saveApnsToken = async (req, res) => {
 // INTERNAL: SEND PUSH TO USER (called from notificationController)
 // ==========================================
 export const sendPushToUser = async (userId, title, body, url = '/notifications') => {
-  if (!process.env.VAPID_PUBLIC_KEY) return; // push not configured, skip silently
+  // No web AND no APNs configured — nothing to send. (If only one is configured
+  // we still proceed; sends to the other platform will silently no-op.)
+  if (!process.env.VAPID_PUBLIC_KEY && !process.env.APNS_KEY_ID) return;
 
   let subs;
   try {
     const result = await db.query(
-      `SELECT id, platform, endpoint, p256dh, auth_key FROM push_subscriptions WHERE user_id = $1`,
+      `SELECT id, platform, endpoint, p256dh, auth_key, device_token
+       FROM push_subscriptions WHERE user_id = $1`,
       [userId]
     );
     subs = result.rows;
@@ -115,15 +164,17 @@ export const sendPushToUser = async (userId, title, body, url = '/notifications'
     return;
   }
 
-  const payload = JSON.stringify({ title, body, url });
+  const webPayload = JSON.stringify({ title, body, url });
+  let apnCtx = null; // resolved lazily on the first APNs subscription we see
 
   for (const sub of subs) {
     if (sub.platform === 'web' && sub.endpoint) {
+      if (!process.env.VAPID_PUBLIC_KEY) continue;
       const pushSub = {
         endpoint: sub.endpoint,
         keys: { p256dh: sub.p256dh, auth: sub.auth_key }
       };
-      webpush.sendNotification(pushSub, payload).catch((err) => {
+      webpush.sendNotification(pushSub, webPayload).catch((err) => {
         // 410 Gone = subscription expired, clean it up
         if (err.statusCode === 410) {
           db.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]).catch(() => {});
@@ -131,8 +182,30 @@ export const sendPushToUser = async (userId, title, body, url = '/notifications'
           console.error('Push send error:', err.statusCode, err.message);
         }
       });
+    } else if (sub.platform === 'apns' && sub.device_token) {
+      apnCtx = apnCtx ?? await getApnContext();
+      if (!apnCtx) continue;
+      const { apn, provider } = apnCtx;
+      const notification = new apn.Notification();
+      notification.alert = { title, body };
+      notification.topic = process.env.APNS_BUNDLE_ID;
+      notification.sound = 'default';
+      notification.payload = { url };
+      // Use 'alert' priority so the OS displays the notification immediately
+      notification.priority = 10;
+      provider.send(notification, sub.device_token).then((result) => {
+        for (const failure of (result.failed || [])) {
+          const reason = failure.response?.reason || '';
+          // Token is dead / app uninstalled — purge so we don't keep retrying
+          if (reason === 'BadDeviceToken' || reason === 'Unregistered' || failure.status === '410') {
+            db.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]).catch(() => {});
+          } else if (reason) {
+            console.error('[APNs] send failure:', reason, 'status', failure.status);
+          }
+        }
+      }).catch((err) => {
+        console.error('[APNs] send error:', err.message);
+      });
     }
-    // APNs sending requires Apple certificates — see README for setup instructions
-    // For iOS native push: implement with node-apn or Firebase Cloud Messaging
   }
 };

@@ -29,6 +29,7 @@ export const UserProfile = () => {
   const [actionLoading, setActionLoading]   = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showProModal, setShowProModal]     = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
   const [isPro, setIsPro]                   = useState(false);
 
   useEffect(() => {
@@ -59,13 +60,45 @@ export const UserProfile = () => {
     }
   };
 
+  const [blockedByMe, setBlockedByMe] = useState(false);
+
   const checkFriendship = async () => {
     try {
       const res = await friends.getStatus(id);
       setFriendshipStatus(res.data.status || 'none');
       setFriendshipId(res.data.friendship_id || null);
       setIsRequester(res.data.is_requester || false);
+      setBlockedByMe(!!res.data.blocked_by_me);
     } catch {}
+  };
+
+  const handleBlock = async () => {
+    setActionLoading(true);
+    try {
+      await friends.block(parseInt(id));
+      setFriendshipStatus('blocked');
+      setBlockedByMe(true);
+      setShowBlockConfirm(false);
+      toast.success(t('userProfile.toast.blocked', { name: profile?.name || '' }));
+    } catch (err) {
+      toast.error(err.response?.data?.error || t('userProfile.toast.blockError'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleUnblock = async () => {
+    setActionLoading(true);
+    try {
+      await friends.unblock(parseInt(id));
+      setFriendshipStatus('none');
+      setBlockedByMe(false);
+      toast.success(t('userProfile.toast.unblocked'));
+    } catch (err) {
+      toast.error(err.response?.data?.error || t('userProfile.toast.blockError'));
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleSendFriendRequest = async () => {
@@ -129,6 +162,14 @@ export const UserProfile = () => {
 
   const renderBottomAction = () => {
     if (actionLoading) return <button className="up-cta-btn" disabled>{t('userProfile.actions.loading')}</button>;
+
+    if (blockedByMe) {
+      return (
+        <button className="up-cta-btn up-cta-ghost" onClick={handleUnblock}>
+          {t('userProfile.actions.unblock')}
+        </button>
+      );
+    }
 
     switch (friendshipStatus) {
       case 'accepted':
@@ -280,9 +321,19 @@ export const UserProfile = () => {
       {/* ── Bottom action ── */}
       <div className="up-footer">
         {renderBottomAction()}
-        <button className="up-report-link" onClick={() => setShowReportModal(true)}>
-          {t('userProfile.reportBtn')}
-        </button>
+        <div className="up-footer-links">
+          <button className="up-report-link" onClick={() => setShowReportModal(true)}>
+            {t('userProfile.reportBtn')}
+          </button>
+          {!blockedByMe && (
+            <>
+              <span className="up-footer-sep">·</span>
+              <button className="up-report-link" onClick={() => setShowBlockConfirm(true)}>
+                {t('userProfile.blockBtn')}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {showReportModal && (
@@ -290,6 +341,24 @@ export const UserProfile = () => {
       )}
       {showProModal && (
         <ProModal onClose={() => setShowProModal(false)} onSuccess={() => setIsPro(true)} />
+      )}
+      {showBlockConfirm && (
+        <div className="modal-overlay" onClick={() => setShowBlockConfirm(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 360 }}>
+            <h2 className="modal-title">{t('userProfile.blockConfirm.title', { name: profile.name })}</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.5, marginBottom: 20 }}>
+              {t('userProfile.blockConfirm.body')}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button className="up-cta-btn" onClick={handleBlock} disabled={actionLoading} style={{ background: '#e23b3b' }}>
+                {actionLoading ? t('userProfile.actions.loading') : t('userProfile.blockConfirm.confirm')}
+              </button>
+              <button className="up-cta-btn up-cta-ghost" onClick={() => setShowBlockConfirm(false)}>
+                {t('common.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

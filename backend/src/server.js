@@ -34,6 +34,17 @@ if (process.env.NODE_ENV === 'production') {
     ['EMAIL_FROM',        'verified sender address (e.g. noreply@jamie-app.com)'],
     ['RESEND_API_KEY',    'Resend transactional email API key (used by utils/email.js via api.resend.com)'],
     ['FRONTEND_URL',      'public frontend URL for email links'],
+    // Cloud storage — production has no local /uploads serving, so missing keys mean every upload returns a URL that 404s
+    ['STORAGE_ENDPOINT',  'Cloudflare R2 / S3 endpoint URL'],
+    ['STORAGE_ACCESS_KEY','Cloud storage access key'],
+    ['STORAGE_SECRET_KEY','Cloud storage secret key'],
+    ['STORAGE_BUCKET',    'Cloud storage bucket name'],
+    ['STORAGE_PUBLIC_URL','Public-read base URL for uploaded files'],
+    // Web push — missing keys cause sendPushToUser to silently return, so notifications die without warning
+    ['VAPID_PUBLIC_KEY',  'Web Push VAPID public key'],
+    ['VAPID_PRIVATE_KEY', 'Web Push VAPID private key'],
+    // Observability — without DSN, captureException is a no-op and day-1 crashes are invisible
+    ['SENTRY_DSN',        'Sentry error reporting DSN'],
   ];
 
   let fatal = false;
@@ -56,6 +67,12 @@ if (process.env.NODE_ENV === 'production') {
     ['OPENAI_API_KEY',         'text moderation will be DISABLED — unsafe content may pass through'],
     ['STRIPE_SUBSCRIPTION_WEBHOOK_SECRET', 'Stripe subscription webhook signature validation will FAIL'],
     ['GOOGLE_CLIENT_ID',                   'Google OAuth will use unverified userinfo endpoint (reduced security)'],
+    // APNs (iOS push) — without these, all iOS Capacitor users get zero push notifications.
+    // Listed in WARNED rather than REQUIRED so the backend can still boot before iOS keys are issued.
+    ['APNS_KEY_ID',    'iOS push notifications will be DISABLED'],
+    ['APNS_TEAM_ID',   'iOS push notifications will be DISABLED'],
+    ['APNS_KEY',       'iOS push notifications will be DISABLED'],
+    ['APNS_BUNDLE_ID', 'iOS push notifications will be DISABLED'],
   ];
   for (const [key, desc] of REQUIRED) {
     if (!process.env[key]) {
@@ -106,9 +123,11 @@ import reviewRoutes from './routes/reviewRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import { subscriptionWebhook } from './controllers/subscriptionController.js';
 import { stripeWebhook as boostStripeWebhook } from './controllers/boostController.js';
+import boostRoutes from './routes/boostRoutes.js';
 import mapRoutes from './routes/mapRoutes.js';
 import waitlistRoutes from './routes/waitlistRoutes.js';
 import dealRoutes from './routes/dealRoutes.js';
+import suggestionRoutes from './routes/suggestionRoutes.js';
 import socketHandler from './socket.js';
 
 // ==========================================
@@ -321,9 +340,11 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/boost', boostRoutes);
 app.use('/api/map', mapRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/deals', dealRoutes);
+app.use('/api/suggestions', suggestionRoutes);
 
 // Health check — verifies DB + optional services for Railway health probes.
 // In production we return ONLY {status} so an attacker can't fingerprint
@@ -443,13 +464,23 @@ const gracefulShutdown = (signal) => {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-// Catch-all safety nets — prevent silent crashes from fire-and-forget async tasks
+// Catch-all safety nets — report to Sentry so day-1 crashes aren't invisible
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Promise Rejection at:', promise, 'reason:', reason);
+  try {
+    Sentry?.captureException(reason instanceof Error ? reason : new Error(String(reason)), {
+      tags: { source: 'unhandledRejection' },
+    });
+  } catch { /* never let the reporter itself crash the process */ }
 });
 
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', async (error) => {
   console.error('Uncaught Exception — shutting down:', error);
+  try {
+    Sentry?.captureException(error, { tags: { source: 'uncaughtException' } });
+    // Block briefly so the event flushes before the process exits
+    await Sentry?.flush?.(2000);
+  } catch { /* ignore */ }
   gracefulShutdown('uncaughtException');
 });
 
@@ -715,9 +746,93 @@ const runStartupMigrations = async () => {
   await migrate('idx_subscriptions_user', () =>
     db.query(`CREATE INDEX IF NOT EXISTS subscriptions_user_id_idx ON subscriptions(user_id)`));
 
-  // ── Optional: boost_transactions index (table created by boost_migration.sql) ──
+  // ── Boost & Referral system ────────────────────────────────────────────────
+  // Folded from boost_migration.sql so fresh Railway deploys self-bootstrap
+  // these tables. Without this, register() crashes on INSERT INTO boost_credits.
+  await migrate('referral_codes', () => db.query(`
+    CREATE TABLE IF NOT EXISTS referral_codes (
+      id         SERIAL PRIMARY KEY,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code       VARCHAR(20) NOT NULL UNIQUE,
+      used_count INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`));
+  await migrate('idx_referral_codes', async () => {
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_referral_codes_user ON referral_codes(user_id)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_referral_codes_code ON referral_codes(code)`);
+  });
+  await migrate('boost_credits', () => db.query(`
+    CREATE TABLE IF NOT EXISTS boost_credits (
+      user_id       INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      credits       INTEGER NOT NULL DEFAULT 0,
+      total_earned  INTEGER NOT NULL DEFAULT 0
+    )`));
+  await migrate('boosts', () => db.query(`
+    CREATE TABLE IF NOT EXISTS boosts (
+      id            SERIAL PRIMARY KEY,
+      user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      target_type   VARCHAR(10) NOT NULL CHECK (target_type IN ('group', 'club')),
+      target_id     INTEGER NOT NULL,
+      credits_spent INTEGER NOT NULL DEFAULT 1,
+      boosted_until TIMESTAMP NOT NULL,
+      created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`));
+  await migrate('idx_boosts_target', () =>
+    db.query(`CREATE INDEX IF NOT EXISTS idx_boosts_target ON boosts(target_type, target_id)`));
+  await migrate('boost_transactions', () => db.query(`
+    CREATE TABLE IF NOT EXISTS boost_transactions (
+      id               SERIAL PRIMARY KEY,
+      user_id          INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      credits          INTEGER NOT NULL,
+      amount_cents     INTEGER NOT NULL,
+      currency         VARCHAR(3) NOT NULL DEFAULT 'EUR',
+      payment_provider VARCHAR(20),
+      payment_id       TEXT,
+      status           VARCHAR(20) NOT NULL DEFAULT 'pending',
+      created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`));
   await migrate('idx_boost_txn_payment_id', () =>
     db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_boost_txn_payment_id ON boost_transactions(payment_id) WHERE payment_id IS NOT NULL`));
+
+  // ── Push subscriptions (web-push VAPID + APNs) ────────────────────────────
+  // Folded from push_subscriptions_migration.sql.
+  await migrate('push_subscriptions', () => db.query(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id           SERIAL PRIMARY KEY,
+      user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      platform     VARCHAR(10) NOT NULL DEFAULT 'web' CHECK (platform IN ('web', 'apns')),
+      endpoint     TEXT,
+      p256dh       TEXT,
+      auth_key     TEXT,
+      device_token TEXT,
+      created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, endpoint),
+      UNIQUE(user_id, device_token)
+    )`));
+  await migrate('idx_push_subscriptions_user', () =>
+    db.query(`CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id)`));
+
+  // ── Reports / Content Moderation ──────────────────────────────────────────
+  // Folded from reports_migration.sql.
+  await migrate('reports', () => db.query(`
+    CREATE TABLE IF NOT EXISTS reports (
+      id              SERIAL PRIMARY KEY,
+      reporter_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      reported_type   VARCHAR(20) NOT NULL CHECK (reported_type IN ('user', 'group', 'message')),
+      reported_id     INTEGER NOT NULL,
+      reason          VARCHAR(50) NOT NULL CHECK (reason IN ('spam', 'inappropriate', 'harassment', 'fake', 'other')),
+      details         TEXT,
+      status          VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'resolved', 'dismissed')),
+      reviewed_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      reviewed_at     TIMESTAMP,
+      created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(reporter_id, reported_type, reported_id)
+    )`));
+  await migrate('idx_reports', async () => {
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_reports_status   ON reports(status, created_at DESC)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_reports_reported ON reports(reported_type, reported_id)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_reports_reporter ON reports(reporter_id)`);
+  });
 
   // ── Password reset tokens table ───────────────────────────────────────────
   await migrate('password_reset_tokens', () => db.query(`

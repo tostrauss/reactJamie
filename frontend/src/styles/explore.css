@@ -1127,15 +1127,10 @@
   font-family: 'Archivo', sans-serif;
   font-size: 30px;
   font-weight: 900;
-  font-style: italic;
   color: var(--accent-coral);
   letter-spacing: -0.5px;
   margin: 0;
   line-height: 1;
-  background: linear-gradient(135deg, var(--accent-coral) 30%, #ff9a8b);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
 .ef-search-toggle {
@@ -1341,6 +1336,29 @@
   color: #f59e0b;
   text-shadow: 0 0 10px rgba(245, 158, 11, 0.8), 0 1px 4px rgba(0,0,0,0.9);
   letter-spacing: 0.8px;
+  pointer-events: none;
+}
+
+/* ── Reason chip ("Für Dich") — why this was suggested ──────────── */
+.ef-reason {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 118, 102, 0.92);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.2px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  max-width: calc(100% - 28px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   pointer-events: none;
 }
 

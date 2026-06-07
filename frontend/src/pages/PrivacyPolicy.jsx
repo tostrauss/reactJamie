@@ -47,19 +47,52 @@ export default function PrivacyPolicy() {
       </Section>
 
       <Section title="4. Weitergabe an Dritte">
-        <p>Wir geben deine Daten nicht an Dritte weiter, außer:</p>
+        <p>
+          Folgende Dienstleister verarbeiten in unserem Auftrag personenbezogene Daten.
+          Übermittlungen in Drittländer (insbes. USA) erfolgen auf Grundlage von
+          Standardvertragsklauseln gem. Art. 46 DSGVO bzw. – soweit zertifiziert – des
+          EU-US Data Privacy Framework.
+        </p>
         <ul>
-          <li><strong>Spotify:</strong> Wenn du Spotify verbindest, werden OAuth-Tokens sicher
-            gespeichert und nur für deine Spotify-Anfragen verwendet.</li>
-          <li><strong>Sightengine (Frankreich):</strong> Hochgeladene Bilder werden zur
-            automatischen Prüfung auf unzulässige Inhalte (Moderation) an Sightengine übermittelt.
+          <li><strong>Sentry, Inc. (USA):</strong> Zur Fehlerdiagnose und Stabilitätsanalyse
+            (Art. 6 Abs. 1 lit. f DSGVO – berechtigtes Interesse an einer funktionsfähigen App).
+            Übermittelt werden Fehlermeldungen, Stacktraces, Browser- und Geräte-Metadaten
+            sowie die IP-Adresse. Passwörter, Tokens, Cookies und Chat-Inhalte werden vor der
+            Übermittlung serverseitig entfernt; Session-Replays maskieren Texteingaben und
+            blockieren Chat-/Avatar-Inhalte. Speicherdauer: 30&nbsp;Tage. Datenschutz:
+            sentry.io/privacy</li>
+          <li><strong>Resend (Resend, Inc., USA):</strong> Versand transaktionaler E-Mails
+            (Verifizierung, Passwort-Reset, Sicherheits-Benachrichtigungen) im Auftrag.
+            Übermittelt werden E-Mail-Adresse und Mail-Inhalt. Rechtsgrundlage:
+            Art. 6 Abs. 1 lit. b DSGVO. Datenschutz: resend.com/legal/privacy-policy</li>
+          <li><strong>Cloudflare R2 (Cloudflare, Inc., USA):</strong> Speicherung
+            hochgeladener Bilder (Profil- und Gruppenfotos). EXIF-Metadaten werden vor dem
+            Upload entfernt. Datenschutz: cloudflare.com/privacypolicy</li>
+          <li><strong>Stripe, Inc. (USA):</strong> Zahlungsabwicklung für Boost-Credits und
+            Pro-Abonnement. Wir sehen niemals vollständige Zahlungsdaten – diese werden
+            direkt von Stripe verarbeitet. Datenschutz: stripe.com/privacy</li>
+          <li><strong>Google Ireland Ltd. (Google Maps / Geocoding):</strong> Wenn du Karten
+            ansiehst oder eine Adresse eingibst, werden Such- und Anzeigeanfragen sowie deine
+            IP-Adresse an Google übermittelt. Datenschutz: policies.google.com/privacy</li>
+          <li><strong>OpenStreetMap Foundation (UK) – Nominatim:</strong> Wenn du eine Adresse
+            beim Erstellen einer Gruppe oder eines Clubs eingibst, wird die Suchanfrage zur
+            Geocodierung an Nominatim übermittelt. Datenschutz:
+            wiki.osmfoundation.org/wiki/Privacy_Policy</li>
+          <li><strong>Spotify AB (Schweden):</strong> Nur wenn du Spotify verbindest, werden
+            OAuth-Tokens sicher gespeichert und für deine Spotify-Anfragen verwendet.</li>
+          <li><strong>Sightengine SAS (Frankreich):</strong> Hochgeladene Bilder werden zur
+            automatischen Prüfung auf unzulässige Inhalte an Sightengine übermittelt.
             Datenschutz: sightengine.com/privacy</li>
           <li><strong>OpenAI, Inc. (USA):</strong> Textnachrichten werden zur automatischen
             Inhaltsmoderation an die OpenAI Moderation API übermittelt. Es werden keine
             Nachrichten gespeichert oder für das Training von Modellen verwendet.
             Datenschutz: openai.com/privacy</li>
-          <li><strong>Hosting-Anbieter:</strong> Unsere Server laufen bei Railway (USA). Die
-            Datenübertragung erfolgt nach Art. 46 DSGVO mit Standardvertragsklauseln.</li>
+          <li><strong>Hosting-Anbieter (Railway, USA):</strong> Unsere Server laufen bei
+            Railway. Übermittlung gem. Art. 46 DSGVO mit Standardvertragsklauseln.</li>
+          <li><strong>Apple Inc. (USA) / Google LLC (USA) – Push-Benachrichtigungen:</strong>{' '}
+            Wenn du Push-Benachrichtigungen aktivierst, wird ein anonymer Geräte-Token an
+            den jeweiligen Push-Dienst (APNs bzw. FCM) übermittelt, um Benachrichtigungen
+            zustellen zu können.</li>
           <li><strong>Gesetzliche Pflichten:</strong> Bei berechtigten behördlichen Anfragen.</li>
         </ul>
       </Section>

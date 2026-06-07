@@ -530,7 +530,7 @@ select:focus {
   max-width: 500px;
   background: var(--bg-secondary);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-  padding: 20px 24px calc(env(safe-area-inset-bottom, 0px) + 40px);
+  padding: 20px 24px calc(env(safe-area-inset-bottom, 0px) + 16px);
   animation: slideUp 0.3s ease;
 }
 

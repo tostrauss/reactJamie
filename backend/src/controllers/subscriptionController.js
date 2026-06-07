@@ -220,7 +220,11 @@ export const subscriptionWebhook = async (req, res) => {
       }
     }
   } catch (dbErr) {
+    // Return 500 so Stripe retries per its backoff schedule. Returning 200 here
+    // would make Stripe consider the event handled — a paid user's Pro status
+    // would silently never sync if the DB hiccupped during the webhook.
     console.error('subscriptionWebhook DB error:', dbErr);
+    return res.status(500).json({ error: 'DB update failed' });
   }
 
   res.json({ received: true });

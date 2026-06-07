@@ -65,7 +65,7 @@
   border-radius: 14px;
   color: var(--text-white);
   font-size: 14px;
-  padding: 10px 36px 10px 38px;
+  padding: 10px 36px 10px 48px;
   outline: none;
   transition: border-color 0.15s, background 0.15s;
 }

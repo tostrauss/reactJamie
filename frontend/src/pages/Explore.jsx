@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef, memo } from 'react';
+import { useState, useEffect, useRef, useContext, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { groups, clubs } from '../utils/api';
+import { useTranslation } from 'react-i18next';
+import { groups, clubs, suggestions as suggestionsApi } from '../utils/api';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
+import { AuthContext } from '../context/AuthContext';
 import '../styles/explore.css';
 
 const getCategoryIcon = (catName) => {
@@ -38,11 +40,23 @@ const isPast = (dateStr) => !!dateStr && new Date(dateStr) < new Date();
 const seedColor = (id, offset = 0) =>
   `hsl(${((id + offset) * 137) % 360}, 55%, 52%)`;
 
+// ─── Reason chip ─────────────────────────────────────────────────────────────
+// Renders the WHY behind a "Für Dich" pick — comes from the /suggestions
+// endpoint as item._reason = { kind: 'friends' | 'interest' | 'similar', ... }.
+const reasonText = (reason, t) => {
+  if (!reason) return null;
+  if (reason.kind === 'friends')  return t('explore.suggested.reasonFriends', { count: reason.count });
+  if (reason.kind === 'interest') return t('explore.suggested.reasonInterest', { category: reason.category });
+  if (reason.kind === 'similar')  return t('explore.suggested.reasonSimilar');
+  return null;
+};
+
 // ─── FeedCard ────────────────────────────────────────────────────────────────
 
-const FeedCard = memo(({ item, hallOfFame, navigate }) => {
+const FeedCard = memo(({ item, hallOfFame, navigate, t }) => {
   const icon = getCategoryIcon(item.category);
   const timeAgo = formatTimeAgo(item.created_at);
+  const reason = reasonText(item._reason, t);
 
   return (
     <button className="ef-card" onClick={() => navigate(`/group/${item.id}`)}>
@@ -54,6 +68,11 @@ const FeedCard = memo(({ item, hallOfFame, navigate }) => {
           <div className="ef-media-placeholder">
             <span className="ef-ph-icon">{icon}</span>
           </div>
+        )}
+
+        {/* Top-left: why this was suggested (only on the "Für Dich" tab) */}
+        {reason && (
+          <span className="ef-reason">{reason}</span>
         )}
 
         {/* Bottom-left: likes or timestamp */}
@@ -139,10 +158,15 @@ const SearchResults = memo(({ results, loading, navigate }) => {
 
 export const Explore = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
+  const { user } = useContext(AuthContext);
 
-  const [activeTab, setActiveTab]     = useState('trend');
+  // The first tab — formerly "Im Trend" — is now the personalized "Für Dich"
+  // feed. Robert's algorithm request: rank groups/clubs by interests + member
+  // overlap with the caller's social graph.
+  const [activeTab, setActiveTab]     = useState('foryou');
   const [loading, setLoading]         = useState(true);
-  const [trendItems, setTrendItems]   = useState([]);
+  const [forYouItems, setForYouItems] = useState([]);
   const [hallItems, setHallItems]     = useState([]);
 
   const [searchQuery, setSearchQuery]     = useState('');
@@ -157,17 +181,31 @@ export const Explore = () => {
     (async () => {
       setLoading(true);
       try {
-        const res = await groups.getAll({ limit: 50 });
-        const all = res.data || [];
-        if (!cancelled) {
-          setTrendItems(all.filter(g => !isPast(g.date) || !g.date));
-          setHallItems(all.filter(g => isPast(g.date)));
-        }
+        // Hall of Fame still needs the full list (filtered by past dates).
+        // For Du / Für Dich uses the dedicated /suggestions endpoint so the
+        // ranking includes friends-in-group + interest match.
+        const isAuthed = user && !user.isGuest;
+        const [suggestRes, allRes] = await Promise.all([
+          isAuthed
+            ? suggestionsApi.get({ limit: 30 }).catch(() => ({ data: [] }))
+            : Promise.resolve({ data: [] }),
+          groups.getAll({ limit: 50 }).catch(() => ({ data: [] })),
+        ]);
+        if (cancelled) return;
+
+        const suggestList = suggestRes.data || [];
+        // Fallback for guests / users with no signal yet: show newest upcoming
+        // items so the "Für Dich" tab is never empty.
+        const fallback = (allRes.data || []).filter(g => !isPast(g.date) || !g.date);
+        setForYouItems(suggestList.length > 0 ? suggestList : fallback);
+
+        const all = allRes.data || [];
+        setHallItems(all.filter(g => isPast(g.date)));
       } catch { /* silent */ }
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!searchQuery.trim()) { setSearchResults([]); return; }
@@ -189,7 +227,7 @@ export const Explore = () => {
     return () => clearTimeout(debounceRef.current);
   }, [searchQuery]);
 
-  const feedItems = activeTab === 'trend' ? trendItems : hallItems;
+  const feedItems = activeTab === 'foryou' ? forYouItems : hallItems;
 
   return (
     <div className="explore-container">
@@ -203,16 +241,16 @@ export const Explore = () => {
         {/* Tabs */}
         <div className="ef-tabs">
           <button
-            className={`ef-tab${activeTab === 'trend' ? ' active' : ''}`}
-            onClick={() => setActiveTab('trend')}
+            className={`ef-tab${activeTab === 'foryou' ? ' active' : ''}`}
+            onClick={() => setActiveTab('foryou')}
           >
-            Im Trend
+            {t('explore.tabs.forYou')}
           </button>
           <button
             className={`ef-tab${activeTab === 'halloffame' ? ' active' : ''}`}
             onClick={() => setActiveTab('halloffame')}
           >
-            Hall of Fame
+            {t('explore.tabs.hallOfFame')}
           </button>
         </div>
       </div>
@@ -224,8 +262,8 @@ export const Explore = () => {
           <div className="explore-loading"><div className="explore-spinner" /></div>
         ) : feedItems.length === 0 ? (
           <div className="explore-empty">
-            <div className="explore-empty-icon">{activeTab === 'halloffame' ? '🏆' : '🔥'}</div>
-            <p>{activeTab === 'halloffame' ? 'Noch keine vergangenen Events' : 'Noch keine Gruppen'}</p>
+            <div className="explore-empty-icon">{activeTab === 'halloffame' ? '🏆' : '✨'}</div>
+            <p>{activeTab === 'halloffame' ? t('explore.empty.hallOfFame') : t('explore.empty.forYou')}</p>
           </div>
         ) : (
           <div className="ef-feed">
@@ -235,6 +273,7 @@ export const Explore = () => {
                 item={item}
                 hallOfFame={activeTab === 'halloffame'}
                 navigate={navigate}
+                t={t}
               />
             ))}
           </div>

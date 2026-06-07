@@ -2,7 +2,7 @@ import { useState, useContext, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
-import { auth, groups as groupsApi, clubs as clubsApi } from '../utils/api';
+import { auth, groups as groupsApi, clubs as clubsApi, subscription as subscriptionApi } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import {
   isPushSupported,
@@ -33,6 +33,43 @@ export const SettingsPage = () => {
 
   // Data export (DSGVO Art. 15/20)
   const [exportLoading, setExportLoading] = useState(false);
+
+  // Subscription — required to be cancellable from inside the app
+  // (EU Consumer Rights Directive 2011/83/EU + App Store auto-renew rules).
+  // sub = { is_pro, status, current_period_end } or null while loading.
+  const [sub, setSub] = useState(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
+
+  useEffect(() => {
+    subscriptionApi.getStatus()
+      .then(({ data }) => setSub(data))
+      .catch(() => setSub({ is_pro: false, status: 'none', current_period_end: null }));
+  }, []);
+
+  const handleCancelSubscription = async () => {
+    setCancelLoading(true);
+    try {
+      await subscriptionApi.cancel();
+      const { data } = await subscriptionApi.getStatus();
+      setSub(data);
+      setShowCancelConfirm(false);
+      toast.success(t('settings.subscription.canceledToast'));
+    } catch (err) {
+      toast.error(err.response?.data?.error || t('settings.subscription.cancelError'));
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
+  const formatPeriodEnd = (iso) => {
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleDateString(currentLang === 'de' ? 'de-DE' : 'en-US', {
+        year: 'numeric', month: 'long', day: 'numeric',
+      });
+    } catch { return ''; }
+  };
 
   // Notification prefs — persisted to localStorage
   const lsGet = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
@@ -261,7 +298,95 @@ export const SettingsPage = () => {
             </div>
           </div>
         </div>
+
+        <Link to="/blocked" className="settings-row" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="settings-row-left">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+            </svg>
+            <span>{t('settings.account.blockedUsers')}</span>
+          </div>
+          {chevron}
+        </Link>
       </div>
+
+      {/* Pro-Abonnement — only shown when the user has an active or canceling
+          subscription. Required by EU Consumer Rights Directive + App Store
+          auto-renew rules: cancellation must be reachable from within the app. */}
+      {sub?.is_pro && (
+        <div className="settings-section">
+          <h3 className="settings-section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            {t('settings.sections.subscription')}
+          </h3>
+
+          <div className="settings-row static">
+            <div className="settings-row-left">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+              <div className="settings-row-stacked">
+                <span>JAMIE Pro · {sub.status === 'canceling'
+                  ? t('settings.subscription.statusCanceling')
+                  : t('settings.subscription.statusActive')}</span>
+                {sub.current_period_end && (
+                  <span className="settings-row-detail">
+                    {sub.status === 'canceling'
+                      ? t('settings.subscription.periodEndCancelingPrefix')
+                      : t('settings.subscription.periodEndPrefix')}{' '}
+                    {formatPeriodEnd(sub.current_period_end)}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {sub.status !== 'canceling' && !showCancelConfirm && (
+            <div className="settings-row" onClick={() => setShowCancelConfirm(true)}>
+              <div className="settings-row-left">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                </svg>
+                <span>{t('settings.subscription.cancelBtn')}</span>
+              </div>
+              {chevron}
+            </div>
+          )}
+
+          {showCancelConfirm && (
+            <div className="settings-expand">
+              <p className="delete-warning" style={{ fontWeight: 600, marginBottom: 6 }}>
+                {t('settings.subscription.cancelConfirmTitle')}
+              </p>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 12 }}>
+                {t('settings.subscription.cancelConfirmBody')}
+              </p>
+              <div className="settings-form-actions">
+                <button
+                  type="button"
+                  className="danger-btn"
+                  onClick={handleCancelSubscription}
+                  disabled={cancelLoading}
+                >
+                  {cancelLoading ? t('common.loading') : t('settings.subscription.cancelConfirmYes')}
+                </button>
+                <button
+                  type="button"
+                  className="settings-action-btn"
+                  onClick={() => setShowCancelConfirm(false)}
+                  disabled={cancelLoading}
+                >
+                  {t('settings.subscription.cancelConfirmNo')}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Favoriten */}
       <div className="settings-section">
@@ -554,7 +679,7 @@ export const SettingsPage = () => {
             : chevron}
         </div>
 
-        <a href="mailto:support@jamie-app.com" className="settings-row" style={{ textDecoration: 'none', color: 'inherit' }}>
+        <Link to="/help" className="settings-row" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="settings-row-left">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10"/>
@@ -563,11 +688,11 @@ export const SettingsPage = () => {
             </svg>
             <div className="settings-row-stacked">
               <span>{t('settings.legal.help')}</span>
-              <span className="settings-row-detail">support@jamie-app.com</span>
+              <span className="settings-row-detail">{t('settings.legal.helpHint')}</span>
             </div>
           </div>
           {chevron}
-        </a>
+        </Link>
 
         <div className="settings-row static">
           <div className="settings-row-left" style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', gap: 6 }}>

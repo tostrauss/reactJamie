@@ -98,3 +98,19 @@ export const reportLimiter = rateLimit({
   store: makeStore('rl:report:'),
   message: { error: 'Zu viele Meldungen. Bitte versuche es in einer Stunde erneut.' }
 });
+
+// Friend request: 20/hour per authenticated user. Without this, one user can
+// fire thousands of requests at a single victim (each triggering a push
+// notification). The general /api limit is per-IP across all routes, so it's
+// not protective here.
+export const friendRequestLimiter = rateLimit({
+  ...SHARED,
+  windowMs: 60 * 60 * 1000,
+  max: disabled ? 10000 : 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `friendreq:${req.userId}`,
+  validate: { keyGeneratorIpFallback: false },
+  store: makeStore('rl:friendreq:'),
+  message: { error: 'Zu viele Freundschaftsanfragen. Bitte versuche es in einer Stunde erneut.' }
+});

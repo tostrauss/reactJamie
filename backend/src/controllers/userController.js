@@ -44,12 +44,22 @@ export const searchUsers = async (req, res) => {
     if (!q || q.length < 2) return res.json([]);
     if (q.length > 100) return res.status(400).json({ error: 'Suchbegriff zu lang' });
 
+    // Exclude anyone the caller has blocked AND anyone who has blocked the caller —
+    // a blocked user should be effectively invisible to the blocker, and the
+    // blocker should also disappear from the blockee's search to avoid letting
+    // them reach out via a different path.
     const result = await db.query(
       `SELECT id, name, avatar_url, location, bio
-       FROM users 
+       FROM users
        WHERE name ILIKE $1
+         AND id <> $2
+         AND id NOT IN (
+           SELECT CASE WHEN requester_id = $2 THEN addressee_id ELSE requester_id END
+           FROM friendships
+           WHERE status = 'blocked' AND (requester_id = $2 OR addressee_id = $2)
+         )
        LIMIT 20`,
-      [`%${q}%`]
+      [`%${q}%`, req.userId]
     );
 
     res.json(result.rows);

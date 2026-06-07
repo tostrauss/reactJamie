@@ -29,6 +29,52 @@ async function checkMembership(groupId, userId) {
   return result;
 }
 
+// Mirrors the HTTP /api/messages chat_only_owner rule (messageController.js:40-45)
+// so a non-owner can't bypass the restriction by emitting send_message directly.
+const _groupCtxCache = new Map();
+async function canChatInGroup(groupId, userId) {
+  const key = `ctx:${groupId}:${userId}`;
+  const cached = _groupCtxCache.get(key);
+  if (cached !== undefined && Date.now() < cached.exp) return cached.result;
+  let result = false;
+  try {
+    const { rows } = await db.query(
+      `SELECT g.type, g.owner_id, g.chat_only_owner, gm.user_id AS member_user_id
+       FROM groups g
+       LEFT JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = $2
+       WHERE g.id = $1`,
+      [groupId, userId]
+    );
+    if (rows.length) {
+      const { type, owner_id, chat_only_owner, member_user_id } = rows[0];
+      const isMember = member_user_id != null;
+      const ownerOnlyBlocks = type === 'club' && chat_only_owner && owner_id !== userId;
+      result = isMember && !ownerOnlyBlocks;
+    }
+  } catch {
+    result = false; // fail closed on DB error
+  }
+  _groupCtxCache.set(key, { result, exp: Date.now() + MEMBER_CACHE_TTL });
+  return result;
+}
+
+// Used by DM socket events to gate room-join + typing on friendship.
+// Without this, any authenticated user can join_dm_room with a guessed
+// userId and eavesdrop on real-time DMs.
+async function areFriends(a, b) {
+  try {
+    const { rows } = await db.query(
+      `SELECT 1 FROM friendships WHERE status = 'accepted'
+       AND ((requester_id = $1 AND addressee_id = $2)
+         OR (requester_id = $2 AND addressee_id = $1)) LIMIT 1`,
+      [a, b]
+    );
+    return rows.length > 0;
+  } catch {
+    return false; // fail closed
+  }
+}
+
 const DM_LIMIT = 60;
 const DM_WINDOW_MS = 60_000;
 
@@ -130,11 +176,16 @@ const socketHandler = (io) => {
     // already-persisted message out to other room members. We pick a fixed
     // shape so a malicious client cannot inject arbitrary fields, and we
     // override identity fields from the authenticated socket — without this,
-    // any room member can impersonate any other user in real time.
-    socket.on('send_message', (data) => {
+    // any room member can impersonate any other user in real time. We also
+    // re-check chat_only_owner here so a non-owner can't bypass the HTTP gate
+    // by emitting on the socket directly (the message would be a "ghost"
+    // visible to other members until refresh).
+    socket.on('send_message', async (data) => {
       if (!data || typeof data !== 'object') return;
       const roomId = String(data.group_id || data.groupId || '');
       if (!roomId || !socket.rooms.has(roomId)) return;
+      const groupIdInt = parseInt(roomId, 10);
+      if (!groupIdInt || !(await canChatInGroup(groupIdInt, socket.userId))) return;
       // Whitelist fields — everything else from the client is dropped
       const safeMessage = {
         id:         data.id,
@@ -166,9 +217,17 @@ const socketHandler = (io) => {
     });
 
     // Direct Message Handlers
-    socket.on('join_dm_room', ({ otherUserId }) => {
+    // ─────────────────────────────────────────────────────────────────────
+    // SECURITY: DM room names are deterministic (`dm_${min(a,b)}_${max(a,b)}`)
+    // so any authenticated user can guess another user's room id. Without
+    // a friendship check at join time, an attacker could join_dm_room with
+    // arbitrary userIds and silently receive every receive_dm broadcast.
+    // Same applies to typing — without the gate, a stranger can impersonate
+    // typing indicators inside a victim's DM thread.
+    socket.on('join_dm_room', async ({ otherUserId }) => {
       const other = parseInt(otherUserId, 10);
       if (!other || other <= 0 || other === socket.userId) return;
+      if (!(await areFriends(socket.userId, other))) return;
       const roomName = `dm_${Math.min(socket.userId, other)}_${Math.max(socket.userId, other)}`;
       socket.join(roomName);
     });
@@ -183,12 +242,43 @@ const socketHandler = (io) => {
     socket.on('send_dm', async (data) => {
       // Always use authenticated userId as senderId — never trust client-provided value
       const senderId = socket.userId;
-      const { receiverId, message } = data;
+      if (!data || typeof data !== 'object') return;
+      const receiverIdInt = parseInt(data.receiverId, 10);
+      if (isNaN(receiverIdInt) || receiverIdInt <= 0 || receiverIdInt === senderId) return;
 
-      // Basic input validation — drop malformed events silently
-      const receiverIdInt = parseInt(receiverId, 10);
-      if (isNaN(receiverIdInt) || receiverIdInt === senderId) return;
-      if (typeof message !== 'string' || !message.trim() || message.length > 5000) return;
+      // The frontend sends `message` as the full DB row (object) returned by
+      // POST /api/dm. Legacy clients may still pass a raw string. Normalize
+      // both into a canonical message object — never trust client identity.
+      let normalized;
+      if (typeof data.message === 'string') {
+        const content = data.message.trim();
+        if (!content || content.length > 5000) return;
+        normalized = {
+          id: null,
+          sender_id: senderId,
+          receiver_id: receiverIdInt,
+          content: content.slice(0, 5000),
+          created_at: new Date().toISOString(),
+        };
+      } else if (data.message && typeof data.message === 'object') {
+        const content = typeof data.message.content === 'string' ? data.message.content.trim() : '';
+        if (!content || content.length > 5000) return;
+        normalized = {
+          id: Number.isInteger(data.message.id) ? data.message.id : null,
+          sender_id: senderId, // authoritative override
+          receiver_id: receiverIdInt,
+          content: content.slice(0, 5000),
+          created_at: typeof data.message.created_at === 'string'
+            ? data.message.created_at
+            : new Date().toISOString(),
+          sender_name: typeof data.message.sender_name === 'string'
+            ? data.message.sender_name.slice(0, 100) : undefined,
+          sender_avatar: typeof data.message.sender_avatar === 'string'
+            ? data.message.sender_avatar.slice(0, 1024) : undefined,
+        };
+      } else {
+        return;
+      }
 
       if (!await isDmAllowed(senderId)) {
         socket.emit('dm_rate_limited', { error: 'Zu viele Nachrichten. Bitte kurz warten.' });
@@ -196,45 +286,37 @@ const socketHandler = (io) => {
       }
 
       // Friendship gate — prevents socket DM spam to arbitrary user IDs
-      try {
-        const { rows } = await db.query(
-          `SELECT 1 FROM friendships WHERE status = 'accepted'
-           AND ((requester_id = $1 AND addressee_id = $2)
-             OR (requester_id = $2 AND addressee_id = $1))`,
-          [senderId, receiverIdInt]
-        );
-        if (!rows.length) return; // silently drop — not friends
-      } catch { /* non-critical — degrade gracefully */ }
+      if (!(await areFriends(senderId, receiverIdInt))) return;
 
-      // Whitelist fields broadcast to the DM room — never spread raw client data.
-      // The HTTP /api/dm endpoint runs moderation + persistence; this socket
-      // event only fans the live message out for typing-indicator-style UX.
-      const safeDm = {
+      // Broadcast shape matches what frontend handleReceiveDM expects:
+      // `data.message` is the full message object, appended directly to messagesList.
+      const roomName = `dm_${Math.min(senderId, receiverIdInt)}_${Math.max(senderId, receiverIdInt)}`;
+      io.to(roomName).emit('receive_dm', {
         senderId,
         receiverId: receiverIdInt,
-        message: message.slice(0, 5000),
-        timestamp: new Date(),
-      };
-      const roomName = `dm_${Math.min(senderId, receiverIdInt)}_${Math.max(senderId, receiverIdInt)}`;
-      io.to(roomName).emit('receive_dm', safeDm);
+        message: normalized,
+        timestamp: normalized.created_at,
+      });
       io.to(`user_${receiverIdInt}`).emit('new_dm_notification', {
         senderId,
         // Notification preview — truncate so a single payload can't push 5 KB to every receiver's socket
-        message: message.slice(0, 200),
-        timestamp: safeDm.timestamp,
+        message: normalized.content.slice(0, 200),
+        timestamp: normalized.created_at,
       });
     });
 
-    socket.on('dm_typing', ({ receiverId }) => {
+    socket.on('dm_typing', async ({ receiverId }) => {
       const recv = parseInt(receiverId, 10);
-      if (!recv || recv <= 0) return;
+      if (!recv || recv <= 0 || recv === socket.userId) return;
+      if (!(await areFriends(socket.userId, recv))) return;
       const roomName = `dm_${Math.min(socket.userId, recv)}_${Math.max(socket.userId, recv)}`;
       socket.to(roomName).emit('dm_user_typing', { userId: socket.userId });
     });
 
-    socket.on('dm_stop_typing', ({ receiverId }) => {
+    socket.on('dm_stop_typing', async ({ receiverId }) => {
       const recv = parseInt(receiverId, 10);
-      if (!recv || recv <= 0) return;
+      if (!recv || recv <= 0 || recv === socket.userId) return;
+      if (!(await areFriends(socket.userId, recv))) return;
       const roomName = `dm_${Math.min(socket.userId, recv)}_${Math.max(socket.userId, recv)}`;
       socket.to(roomName).emit('dm_user_stop_typing', { userId: socket.userId });
     });

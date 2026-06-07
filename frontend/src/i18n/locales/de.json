@@ -353,6 +353,22 @@
       }
     }
   },
+  "explore": {
+    "tabs": {
+      "forYou": "Für Dich",
+      "hallOfFame": "Hall of Fame"
+    },
+    "suggested": {
+      "reasonFriends_one": "{{count}} Freund dabei",
+      "reasonFriends_other": "{{count}} Freunde dabei",
+      "reasonInterest": "Passt zu {{category}}",
+      "reasonSimilar": "Ähnliche Interessen"
+    },
+    "empty": {
+      "forYou": "Noch keine Vorschläge für dich – schau später noch mal vorbei!",
+      "hallOfFame": "Noch keine vergangenen Events"
+    }
+  },
   "home": {
     "tabs": {
       "groups": "Gruppen",
@@ -551,6 +567,12 @@
     "emptyPhotos": "Keine weiteren Fotos",
     "emptyHof": "Noch nichts hier",
     "reportBtn": "Nutzer melden",
+    "blockBtn": "Blockieren",
+    "blockConfirm": {
+      "title": "{{name}} blockieren?",
+      "body": "Die Person kann dir keine Nachrichten mehr senden, sieht dein Profil nicht mehr und taucht in keiner Suche mehr auf. Bestehende Freundschaft wird beendet.",
+      "confirm": "Ja, blockieren"
+    },
     "actions": {
       "loading": "Laden…",
       "messagePro": "👑 Nachricht (Pro)",
@@ -559,14 +581,18 @@
       "requestSent": "Anfrage gesendet ✓",
       "accept": "Annehmen",
       "reject": "Ablehnen",
-      "sendRequest": "+ Freundschaftsanfrage"
+      "sendRequest": "+ Freundschaftsanfrage",
+      "unblock": "Blockierung aufheben"
     },
     "toast": {
       "loadError": "Profil konnte nicht geladen werden",
       "sendError": "Fehler beim Senden",
       "acceptError": "Fehler beim Annehmen",
       "rejectError": "Fehler beim Ablehnen",
-      "removeError": "Fehler beim Entfernen"
+      "removeError": "Fehler beim Entfernen",
+      "blocked": "{{name}} blockiert",
+      "unblocked": "Blockierung aufgehoben",
+      "blockError": "Aktion fehlgeschlagen"
     }
   },
   "friends": {
@@ -667,10 +693,24 @@
     },
     "sections": {
       "account": "Konto",
+      "subscription": "Pro-Abonnement",
       "favorites": "Favoriten",
       "notifications": "Benachrichtigungen",
       "app": "App",
       "legal": "Rechtliches"
+    },
+    "subscription": {
+      "statusActive": "Aktiv",
+      "statusCanceling": "Wird gekündigt",
+      "periodEndPrefix": "Verlängert sich am",
+      "periodEndCancelingPrefix": "Läuft aus am",
+      "cancelBtn": "Abonnement kündigen",
+      "cancelConfirmTitle": "Pro-Abo wirklich kündigen?",
+      "cancelConfirmBody": "Du behältst deine Pro-Funktionen bis zum Ende der aktuellen Abrechnungsperiode. Danach wird kein neuer Betrag eingezogen.",
+      "cancelConfirmYes": "Ja, kündigen",
+      "cancelConfirmNo": "Doch nicht",
+      "canceledToast": "Dein Abonnement wird zum Periodenende gekündigt.",
+      "cancelError": "Kündigung fehlgeschlagen. Bitte erneut versuchen oder support@jamie-app.com kontaktieren."
     },
     "account": {
       "editProfile": "Profil bearbeiten",
@@ -678,7 +718,8 @@
       "email": "E-Mail",
       "currentPasswordPlaceholder": "Aktuelles Passwort",
       "newPasswordPlaceholder": "Neues Passwort (min. 6 Zeichen)",
-      "confirmPasswordPlaceholder": "Neues Passwort bestätigen"
+      "confirmPasswordPlaceholder": "Neues Passwort bestätigen",
+      "blockedUsers": "Blockierte Nutzer"
     },
     "favorites": {
       "tabGroups": "Gruppen",
@@ -706,6 +747,7 @@
       "exportData": "Meine Daten herunterladen",
       "exportDataHint": "DSGVO Art. 15 – Auskunftsrecht",
       "help": "Hilfe & Support",
+      "helpHint": "FAQs, Kontakt & Probleme melden",
       "legalContact": "Rechtliche Fragen"
     },
     "logout": "Ausloggen",
@@ -729,6 +771,65 @@
       "passwordRequired": "Passwort erforderlich",
       "deleteError": "Fehler beim Löschen"
     }
+  },
+  "blockedUsers": {
+    "title": "Blockierte Nutzer",
+    "subtitle": "Diese Personen können dir nicht schreiben, sehen dein Profil nicht und finden dich nicht in der Suche.",
+    "empty": "Du hast niemanden blockiert.",
+    "unblock": "Aufheben",
+    "loadError": "Liste konnte nicht geladen werden",
+    "unblocked": "Blockierung aufgehoben",
+    "unblockError": "Aktion fehlgeschlagen"
+  },
+  "help": {
+    "title": "Hilfe & Support",
+    "intro": "Antworten auf die häufigsten Fragen – und falls dir niemand hilft, melde dich direkt bei uns.",
+    "contact": {
+      "title": "Kontakt",
+      "email": "E-Mail an Support",
+      "reportBug": "Fehler melden",
+      "suggestFeature": "Feature vorschlagen",
+      "subjectSupport": "[JAMIE Support]",
+      "subjectBug": "[JAMIE Fehler]",
+      "subjectFeature": "[JAMIE Idee]"
+    },
+    "faqTitle": "Häufige Fragen",
+    "faqs": [
+      {
+        "q": "Wie erstelle ich eine Gruppe?",
+        "a": "Tippe unten auf das +-Symbol, wähle „Gruppe erstellen“ und folge den Schritten. Du kannst Kategorie, Datum, Ort und Teilnehmerzahl festlegen."
+      },
+      {
+        "q": "Was ist der Unterschied zwischen Gruppen und Clubs?",
+        "a": "Gruppen sind für einzelne Aktivitäten oder Events gedacht. Clubs sind dauerhafte Communities, in denen sich Mitglieder regelmäßig zu Events treffen."
+      },
+      {
+        "q": "Wie kann ich jemanden blockieren?",
+        "a": "Öffne das Profil der Person, tippe ganz unten auf „Blockieren“. Die Person kann dir danach keine Nachrichten mehr senden oder dein Profil sehen."
+      },
+      {
+        "q": "Wie ändere ich meine Interessen oder mein Profilbild?",
+        "a": "Gehe in dein Profil und tippe auf „Profil bearbeiten“. Dort kannst du Foto, Bio, Interessen, Lieblings­song und alles andere anpassen."
+      },
+      {
+        "q": "Push-Benachrichtigungen kommen nicht an",
+        "a": "Prüfe in den Einstellungen, ob Push-Benachrichtigungen aktiviert sind. Auf iOS musst du die App vom Home-Bildschirm öffnen (nicht aus Safari). Wenn dein Browser Benachrichtigungen blockiert hat, musst du das in den Browser-Einstellungen freigeben."
+      },
+      {
+        "q": "Wie melde ich unangemessene Inhalte oder einen Nutzer?",
+        "a": "Auf jedem Profil und in jeder Gruppe gibt es ganz unten einen „Melden“-Link. Beschreibe kurz das Problem – wir prüfen jede Meldung."
+      },
+      {
+        "q": "Wie kann ich mein Konto löschen?",
+        "a": "Einstellungen → ganz unten „Account löschen“. Die Löschung ist endgültig und kann nicht rückgängig gemacht werden."
+      },
+      {
+        "q": "Was ist JAMIE Pro?",
+        "a": "Pro schaltet Direkt­nachrichten, exklusive Deals („Für Dich“) und erweiterte Mitglieder­ansichten frei. Du kannst Pro jederzeit in den Einstellungen kündigen."
+      }
+    ],
+    "moreLinks": "Mehr",
+    "footer": "JAMIE Hilfe · {{lang}}"
   },
   "app": {
     "updateAvailable": "Neue Version verfügbar",
@@ -764,7 +865,7 @@
     }
   },
   "consent": {
-    "text": "JAMIE verwendet anonyme Nutzungsstatistiken, um die App zu verbessern. Keine personenbezogenen Daten werden an Dritte weitergegeben.",
+    "text": "JAMIE nutzt anonyme Nutzungsstatistiken zur Produktverbesserung. Fehlerdiagnose-Daten (inkl. gekürzter IP-Adresse) werden an Sentry (USA) übermittelt, damit wir Abstürze beheben können. Details siehe ",
     "privacy": "Datenschutz",
     "accept": "Akzeptieren",
     "decline": "Ablehnen"

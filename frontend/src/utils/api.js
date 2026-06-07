@@ -428,7 +428,15 @@ export const friends = {
 
   // Remove friend
   remove: (friendId) =>
-    axiosInstance.delete(`/friends/${friendId}`)
+    axiosInstance.delete(`/friends/${friendId}`),
+
+  // Block / unblock
+  block: (userId) =>
+    axiosInstance.post('/friends/block', { userId }),
+  unblock: (userId) =>
+    axiosInstance.delete(`/friends/block/${userId}`),
+  getBlocked: () =>
+    axiosInstance.get('/friends/blocked')
 };
 
 // ==========================================
@@ -592,6 +600,13 @@ export const waitlist = {
   getVotes: ()               => axiosInstance.get('/waitlist/votes'),
 };
 
+// ==========================================
+// SUGGESTIONS API — personalized groups/clubs
+// ==========================================
+export const suggestions = {
+  get: (params = {}) => axiosInstance.get('/suggestions', { params }),
+};
+
 // Attach modules to instance for convenience
 axiosInstance.auth = auth;
 axiosInstance.users = users;
@@ -609,6 +624,7 @@ axiosInstance.push = push;
 axiosInstance.map      = map;
 axiosInstance.waitlist = waitlist;
 axiosInstance.deals    = deals;
+axiosInstance.suggestions = suggestions;
 
 // Export the instance as 'api'
 export const api = axiosInstance;

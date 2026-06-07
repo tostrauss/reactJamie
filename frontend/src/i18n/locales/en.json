@@ -353,6 +353,22 @@
       }
     }
   },
+  "explore": {
+    "tabs": {
+      "forYou": "For You",
+      "hallOfFame": "Hall of Fame"
+    },
+    "suggested": {
+      "reasonFriends_one": "{{count}} friend joined",
+      "reasonFriends_other": "{{count}} friends joined",
+      "reasonInterest": "Matches {{category}}",
+      "reasonSimilar": "Similar interests"
+    },
+    "empty": {
+      "forYou": "No suggestions yet — check back later!",
+      "hallOfFame": "No past events yet"
+    }
+  },
   "home": {
     "tabs": {
       "groups": "Groups",
@@ -551,6 +567,12 @@
     "emptyPhotos": "No additional photos",
     "emptyHof": "Nothing here yet",
     "reportBtn": "Report user",
+    "blockBtn": "Block",
+    "blockConfirm": {
+      "title": "Block {{name}}?",
+      "body": "They won't be able to message you, see your profile or find you in search. Any existing friendship will end.",
+      "confirm": "Yes, block"
+    },
     "actions": {
       "loading": "Loading…",
       "messagePro": "👑 Message (Pro)",
@@ -559,14 +581,18 @@
       "requestSent": "Request sent ✓",
       "accept": "Accept",
       "reject": "Decline",
-      "sendRequest": "+ Friend request"
+      "sendRequest": "+ Friend request",
+      "unblock": "Unblock"
     },
     "toast": {
       "loadError": "Could not load profile",
       "sendError": "Could not send",
       "acceptError": "Could not accept",
       "rejectError": "Could not decline",
-      "removeError": "Could not remove"
+      "removeError": "Could not remove",
+      "blocked": "{{name}} blocked",
+      "unblocked": "Unblocked",
+      "blockError": "Action failed"
     }
   },
   "friends": {
@@ -667,10 +693,24 @@
     },
     "sections": {
       "account": "Account",
+      "subscription": "Pro subscription",
       "favorites": "Favorites",
       "notifications": "Notifications",
       "app": "App",
       "legal": "Legal"
+    },
+    "subscription": {
+      "statusActive": "Active",
+      "statusCanceling": "Canceling",
+      "periodEndPrefix": "Renews on",
+      "periodEndCancelingPrefix": "Ends on",
+      "cancelBtn": "Cancel subscription",
+      "cancelConfirmTitle": "Cancel your Pro subscription?",
+      "cancelConfirmBody": "You'll keep Pro features until the end of the current billing period. No further charges will be made.",
+      "cancelConfirmYes": "Yes, cancel",
+      "cancelConfirmNo": "Keep it",
+      "canceledToast": "Your subscription will end at the period close.",
+      "cancelError": "Could not cancel. Please try again or contact support@jamie-app.com."
     },
     "account": {
       "editProfile": "Edit profile",
@@ -678,7 +718,8 @@
       "email": "Email",
       "currentPasswordPlaceholder": "Current password",
       "newPasswordPlaceholder": "New password (min. 6 characters)",
-      "confirmPasswordPlaceholder": "Confirm new password"
+      "confirmPasswordPlaceholder": "Confirm new password",
+      "blockedUsers": "Blocked users"
     },
     "favorites": {
       "tabGroups": "Groups",
@@ -706,6 +747,7 @@
       "exportData": "Download my data",
       "exportDataHint": "GDPR Art. 15 — Right of access",
       "help": "Help & support",
+      "helpHint": "FAQs, contact & report a problem",
       "legalContact": "Legal inquiries"
     },
     "logout": "Log out",
@@ -729,6 +771,65 @@
       "passwordRequired": "Password required",
       "deleteError": "Could not delete account"
     }
+  },
+  "blockedUsers": {
+    "title": "Blocked users",
+    "subtitle": "These people can't message you, see your profile, or find you in search.",
+    "empty": "You haven't blocked anyone.",
+    "unblock": "Unblock",
+    "loadError": "Couldn't load list",
+    "unblocked": "Unblocked",
+    "unblockError": "Action failed"
+  },
+  "help": {
+    "title": "Help & Support",
+    "intro": "Answers to the most common questions — and if you're still stuck, write us directly.",
+    "contact": {
+      "title": "Contact",
+      "email": "Email support",
+      "reportBug": "Report a bug",
+      "suggestFeature": "Suggest a feature",
+      "subjectSupport": "[JAMIE Support]",
+      "subjectBug": "[JAMIE Bug]",
+      "subjectFeature": "[JAMIE Idea]"
+    },
+    "faqTitle": "Frequently asked",
+    "faqs": [
+      {
+        "q": "How do I create a group?",
+        "a": "Tap the + button at the bottom, choose \"Create group\" and follow the steps. You can set category, date, location and max participants."
+      },
+      {
+        "q": "What's the difference between groups and clubs?",
+        "a": "Groups are for single activities or events. Clubs are lasting communities whose members meet up regularly."
+      },
+      {
+        "q": "How do I block someone?",
+        "a": "Open the person's profile, scroll to the bottom and tap \"Block\". After that they can no longer message you or see your profile."
+      },
+      {
+        "q": "How do I change my interests or profile picture?",
+        "a": "Go to your Profile and tap \"Edit profile\". From there you can update your photo, bio, interests, favorite song and everything else."
+      },
+      {
+        "q": "I'm not getting push notifications",
+        "a": "Check Settings to make sure push notifications are enabled. On iOS, you have to open the app from the Home Screen (not from Safari). If your browser has blocked notifications, you'll need to allow them in the browser settings."
+      },
+      {
+        "q": "How do I report inappropriate content or a user?",
+        "a": "Every profile and group has a \"Report\" link at the bottom. Briefly describe the issue — we review every report."
+      },
+      {
+        "q": "How do I delete my account?",
+        "a": "Settings → at the very bottom, tap \"Delete account\". This is permanent and cannot be undone."
+      },
+      {
+        "q": "What is JAMIE Pro?",
+        "a": "Pro unlocks direct messages, exclusive \"For You\" deals and extended member previews. You can cancel anytime from Settings."
+      }
+    ],
+    "moreLinks": "More",
+    "footer": "JAMIE Help · {{lang}}"
   },
   "app": {
     "updateAvailable": "New version available",
@@ -764,7 +865,7 @@
     }
   },
   "consent": {
-    "text": "JAMIE uses anonymous usage statistics to improve the app. No personal data is shared with third parties.",
+    "text": "JAMIE uses anonymous usage analytics to improve the app. Crash diagnostics (including truncated IP address) are sent to Sentry (USA) so we can fix bugs. See ",
     "privacy": "Privacy",
     "accept": "Accept",
     "decline": "Decline"

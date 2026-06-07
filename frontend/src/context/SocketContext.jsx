@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import io from 'socket.io-client';
 import { AuthContext } from './AuthContext';
 import { useToast } from './ToastContext';
@@ -10,7 +10,6 @@ export const SocketProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const { user, token } = useContext(AuthContext);
   const toast = useToast();
-  const wasConnectedRef = useRef(false);
 
   useEffect(() => {
     if (user && token) {
@@ -30,29 +29,32 @@ export const SocketProvider = ({ children }) => {
 
       setSocket(newSocket);
 
+      // Only show "reconnected" toast if we actually warned the user about a disconnect.
+      // Brief blips recovered within 3s never surface a disconnect, so they must not
+      // surface a reconnect either — that's the noise Tina was seeing.
+      let disconnectTimer = null;
+      let disconnectShown = false;
+
       newSocket.on('connect', () => {
         setIsConnected(true);
         newSocket.emit('join_user', user.id);
-        if (wasConnectedRef.current) {
+        if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
+        if (disconnectShown) {
           toast.success('Verbindung wiederhergestellt');
+          disconnectShown = false;
         }
-        wasConnectedRef.current = true;
       });
 
-      // Delay the warning toast by 3s so brief network glitches that
-      // socket.io recovers from automatically don't surface to the user.
-      let disconnectTimer = null;
       newSocket.on('disconnect', (reason) => {
         setIsConnected(false);
         if (reason !== 'io client disconnect') {
           if (disconnectTimer) clearTimeout(disconnectTimer);
           disconnectTimer = setTimeout(() => {
             toast.warning('Verbindung unterbrochen – Wiederverbindung...');
+            disconnectShown = true;
+            disconnectTimer = null;
           }, 3000);
         }
-      });
-      newSocket.on('connect', () => {
-        if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
       });
 
       newSocket.on('connect_error', () => {
@@ -64,7 +66,7 @@ export const SocketProvider = ({ children }) => {
       });
 
       return () => {
-        wasConnectedRef.current = false;
+        if (disconnectTimer) clearTimeout(disconnectTimer);
         setIsConnected(false);
         newSocket.close();
       };

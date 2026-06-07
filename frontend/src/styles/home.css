@@ -75,7 +75,6 @@
   font-weight: 900;
   color: var(--accent-coral);
   letter-spacing: -0.5px;
-  font-style: italic;
 }
 
 /* ========================================
@@ -147,7 +146,7 @@
    Search
    ======================================== */
 .search-container {
-  padding: 20px 20px 16px;
+  padding: 10px 20px 6px;
 }
 
 .search-input-wrapper {
@@ -298,7 +297,7 @@
   /* Tightened horizontal padding (was 28px) so each card gets ~12px more width.
      Combined with the smaller grid gap below, short titles like "Wandern"
      now fit on a single line instead of ellipsizing. */
-  padding: 12px 16px 0;
+  padding: 4px 16px 0;
 }
 
 .groups-grid {
@@ -329,7 +328,9 @@
   /* Inner border slightly lighter than the outer #392B58 */
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
   background: var(--bg-card);
-  aspect-ratio: 4 / 5.8;
+  /* Shorter cards (was 4/5.8) so the whole grid feels less stretched
+     and longer titles like "Bar-Hopping" sit visually closer to the photos. */
+  aspect-ratio: 4 / 5;
   position: relative;
 }
 
@@ -346,7 +347,8 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 12px 12px 10px;
+  /* Reduced top padding so the title + date badge sit higher on the card. */
+  padding: 8px 12px 8px;
   gap: 6px;
   flex-shrink: 0;
 }
@@ -360,18 +362,22 @@
 }
 
 .card-title {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   font-family: 'Archivo', -apple-system, sans-serif;
   color: var(--accent-coral);
   line-height: 1.15;
   margin: 0;
-  /* Single line + ellipsis. Two-line wrapping made short titles like "Wandern"
-     split awkwardly (Wande / rn) when the badge reserved 64px of right padding,
-     and the second line slid under the absolutely-positioned date badge. */
-  white-space: nowrap;
+  /* Allow up to 2 lines so longer titles like "Bar-Hopping" or "Brettspiele"
+     are fully spelled out instead of ellipsizing. The has-badge rule below
+     reserves enough right-padding that the second line doesn't slide under
+     the absolutely-positioned date badge. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .card-subtitle-row {
@@ -410,7 +416,7 @@
   z-index: 10;
   font-size: 11px;
   font-weight: 700;
-  padding: 4px 9px;
+  padding: 3px 8px;
   background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -421,9 +427,10 @@
 }
 
 /* When a date badge is present, reserve room on the right so the title
-   never tucks under the badge — replaces the older mask-image fade hack. */
+   never tucks under the badge. Reserved enough width for the two-line title
+   to wrap cleanly above the badge area without sliding under it. */
 .group-card.has-badge .card-text-area {
-  padding-right: 64px;
+  padding-right: 56px;
 }
 
 /* ── Photo grid (bottom portion) ───────────────────────── */

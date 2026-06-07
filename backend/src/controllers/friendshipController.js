@@ -21,6 +21,10 @@ export const sendFriendRequest = async (req, res) => {
 
     if (existing.rows.length > 0) {
       const f = existing.rows[0];
+      if (f.status === 'blocked') {
+        // Don't leak whether the OTHER party blocked us — same generic 403 either way.
+        return res.status(403).json({ error: 'Diese Anfrage kann nicht gesendet werden' });
+      }
       if (f.status === 'accepted') return res.status(400).json({ error: 'Already friends' });
       if (f.status === 'pending') return res.status(400).json({ error: 'Friend request already pending' });
       if (f.status === 'rejected') {
@@ -208,6 +212,16 @@ export const checkFriendship = async (req, res) => {
     }
 
     const f = result.rows[0];
+    // For a 'blocked' row the requester_id is always the blocker (see blockUser).
+    // We expose only `blocked_by_me` so the UI can show "Blockierung aufheben"
+    // but the other side just sees a normal "no relationship" view — they
+    // shouldn't know they were blocked.
+    if (f.status === 'blocked') {
+      if (f.requester_id === req.userId) {
+        return res.json({ status: 'blocked', blocked_by_me: true, friendship_id: f.id });
+      }
+      return res.json({ status: 'none' });
+    }
     res.json({
       status: f.status,
       friendship_id: f.id,
@@ -215,6 +229,119 @@ export const checkFriendship = async (req, res) => {
     });
   } catch (error) {
     console.error('Error checking friendship:', error);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+};
+
+// ==========================================
+// BLOCK USER
+// ==========================================
+// A block is stored in the friendships table as status='blocked'. The row is
+// owned by the blocker (requester_id = blocker, addressee_id = blockee) so we
+// can tell who initiated it. Any existing row between the two users is replaced
+// — blocking unfriends as a side-effect, which is the expected UX.
+export const blockUser = async (req, res) => {
+  try {
+    const targetId = parseInt(req.body.userId, 10);
+
+    if (!targetId || isNaN(targetId) || targetId <= 0) {
+      return res.status(400).json({ error: 'Ungültige Nutzer-ID' });
+    }
+    if (targetId === req.userId) {
+      return res.status(400).json({ error: 'Du kannst dich nicht selbst blockieren' });
+    }
+
+    // Make sure the user exists at all
+    const exists = await db.query('SELECT 1 FROM users WHERE id = $1', [targetId]);
+    if (exists.rows.length === 0) {
+      return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+    }
+
+    const existing = await db.query(
+      `SELECT id, status, requester_id FROM friendships
+       WHERE (requester_id = $1 AND addressee_id = $2)
+          OR (requester_id = $2 AND addressee_id = $1)`,
+      [req.userId, targetId]
+    );
+
+    if (existing.rows.length > 0) {
+      // Take over the row regardless of who created it so requester_id is the blocker.
+      await db.query(
+        `UPDATE friendships
+           SET status = 'blocked',
+               requester_id = $1,
+               addressee_id = $2,
+               updated_at = CURRENT_TIMESTAMP,
+               expires_at = NULL
+         WHERE id = $3`,
+        [req.userId, targetId, existing.rows[0].id]
+      );
+    } else {
+      await db.query(
+        `INSERT INTO friendships (requester_id, addressee_id, status)
+         VALUES ($1, $2, 'blocked')`,
+        [req.userId, targetId]
+      );
+    }
+
+    res.json({ message: 'Nutzer blockiert', status: 'blocked' });
+  } catch (error) {
+    console.error('Error blocking user:', error);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+};
+
+// ==========================================
+// UNBLOCK USER
+// ==========================================
+// Only the original blocker can unblock — deletes the row entirely so the two
+// users return to the 'none' relationship and can re-add each other.
+export const unblockUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const targetId = parseInt(userId, 10);
+
+    if (!targetId || isNaN(targetId) || targetId <= 0) {
+      return res.status(400).json({ error: 'Ungültige Nutzer-ID' });
+    }
+
+    const result = await db.query(
+      `DELETE FROM friendships
+       WHERE status = 'blocked'
+         AND requester_id = $1
+         AND addressee_id = $2`,
+      [req.userId, targetId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Blockierung nicht gefunden' });
+    }
+
+    res.json({ message: 'Blockierung aufgehoben', status: 'none' });
+  } catch (error) {
+    console.error('Error unblocking user:', error);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+};
+
+// ==========================================
+// GET BLOCKED USERS (for settings screen)
+// ==========================================
+export const getBlockedUsers = async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT f.id as friendship_id,
+              u.id, u.name, u.avatar_url
+       FROM friendships f
+       JOIN users u ON u.id = f.addressee_id
+       WHERE f.status = 'blocked' AND f.requester_id = $1
+       ORDER BY f.updated_at DESC
+       LIMIT 200`,
+      [req.userId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching blocked users:', error);
     res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };

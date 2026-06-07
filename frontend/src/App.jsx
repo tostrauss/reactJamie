@@ -50,6 +50,8 @@ const WelcomeIntro   = lazy(() => import('./pages/WelcomeIntro'));
 const OutOfRegion    = lazy(() => import('./pages/OutOfRegion'));
 const Friends        = lazy(() => import('./pages/Friends'));
 const DealDetail     = lazy(() => import('./pages/DealDetail'));
+const Help           = lazy(() => import('./pages/Help'));
+const BlockedUsers   = lazy(() => import('./pages/BlockedUsers'));
 
 // Styles
 import './styles/global.css';
@@ -518,6 +520,10 @@ function AppRoutes() {
 
           {/* Admin — requires login + is_admin flag in DB */}
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+
+          {/* Help — requires login */}
+          <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
+          <Route path="/blocked" element={<ProtectedRoute><BlockedUsers /></ProtectedRoute>} />
 
           {/* Legal — public, no auth required */}
           <Route path="/privacy" element={<PrivacyPolicy />} />
