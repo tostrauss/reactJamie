@@ -175,7 +175,7 @@ export const Register = () => {
         try { await auth.updateProfile({ location: location.trim() }); } catch (_) {}
       }
       localStorage.setItem('jamie_new_registration', '1');
-      navigate('/welcome');
+      navigate('/onboarding');
     } catch (err) {
       setError(err.response?.data?.error || t('auth.register.validation.registerFailed'));
     }

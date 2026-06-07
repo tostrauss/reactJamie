@@ -45,7 +45,6 @@ const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const Impressum = lazy(() => import('./pages/Impressum'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
-const WelcomeIntro   = lazy(() => import('./pages/WelcomeIntro'));
 const OutOfRegion    = lazy(() => import('./pages/OutOfRegion'));
 const Friends        = lazy(() => import('./pages/Friends'));
 const DealDetail     = lazy(() => import('./pages/DealDetail'));
@@ -475,7 +474,9 @@ function AppRoutes() {
           {/* Auth */}
           <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
           <Route path="/register" element={<AuthRoute><Register /></AuthRoute>} />
-          <Route path="/welcome" element={<ProtectedRoute><WelcomeIntro /></ProtectedRoute>} />
+          {/* /welcome removed — AppIntro after login covers the same flow.
+              Redirect kept so any cached link / external reference still works. */}
+          <Route path="/welcome" element={<Navigate to="/onboarding" replace />} />
           <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
