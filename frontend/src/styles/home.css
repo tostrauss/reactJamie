@@ -368,16 +368,16 @@
   color: var(--accent-coral);
   line-height: 1.15;
   margin: 0;
-  /* Allow up to 2 lines so longer titles like "Bar-Hopping" or "Brettspiele"
-     are fully spelled out instead of ellipsizing. The has-badge rule below
-     reserves enough right-padding that the second line doesn't slide under
-     the absolutely-positioned date badge. */
+  /* Allow up to 2 lines so longer titles like "Brettspiele Treffen" are fully
+     spelled out instead of ellipsizing. Browsers break only at whitespace by
+     default — earlier we had `overflow-wrap: anywhere` + `word-break: break-word`
+     which forced breaks at any character including hyphens, splitting
+     "Bar-Hopping" into "Bar-" / "Hopping". Removing those rules keeps
+     hyphenated single words like "Bar-Hopping" on one line. */
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  overflow-wrap: anywhere;
-  word-break: break-word;
 }
 
 .card-subtitle-row {

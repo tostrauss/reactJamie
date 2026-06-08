@@ -107,7 +107,13 @@ export const GroupCard = memo(({
       {/* ── Top text section ── */}
       <div className="card-header">
         <div className="card-text-area">
-          <h3 className="card-title">{group.category || group.title || group.name}</h3>
+          <h3 className="card-title">
+            {/* "Sonstiges" as a subcategory tells the user nothing about the
+                actual group — fall back to the user-entered title in that case. */}
+            {group.category && group.category.toLowerCase() !== 'sonstiges'
+              ? group.category
+              : (group.name || group.title || group.category)}
+          </h3>
           <div className="card-subtitle-row">
             {isClub ? (
               <>
