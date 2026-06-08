@@ -878,6 +878,45 @@ const runStartupMigrations = async () => {
   await migrate('groups.events_owner_only', async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS events_owner_only BOOLEAN DEFAULT FALSE`);
   });
+  // Direct messaging tables were only defined in seed schema.sql, so any DB
+  // bootstrapped without that seed (e.g. fresh Railway plugin instance) blew up
+  // with "relation does not exist" on every DM read/write. These idempotent
+  // CREATEs make sure the tables show up on first server start.
+  await migrate('direct_messages table', async () => {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS direct_messages (
+        id                  SERIAL PRIMARY KEY,
+        sender_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        receiver_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        content             TEXT NOT NULL,
+        message_type        VARCHAR(20) DEFAULT 'text',
+        is_read             BOOLEAN DEFAULT FALSE,
+        is_deleted_sender   BOOLEAN DEFAULT FALSE,
+        is_deleted_receiver BOOLEAN DEFAULT FALSE,
+        created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_sender ON direct_messages(sender_id)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_receiver ON direct_messages(receiver_id)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_conversation ON direct_messages(LEAST(sender_id, receiver_id), GREATEST(sender_id, receiver_id), created_at DESC)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_unread ON direct_messages(receiver_id, is_read) WHERE is_read = FALSE`);
+  });
+  await migrate('dm_conversations table', async () => {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS dm_conversations (
+        id              SERIAL PRIMARY KEY,
+        user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        other_user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        last_message_id INTEGER REFERENCES direct_messages(id) ON DELETE SET NULL,
+        last_message_at TIMESTAMP,
+        unread_count    INTEGER DEFAULT 0,
+        is_archived     BOOLEAN DEFAULT FALSE,
+        updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (user_id, other_user_id)
+      )
+    `);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_dmc_user ON dm_conversations(user_id, updated_at DESC)`);
+  });
   await migrate('idx_groups_category_lower', () =>
     db.query(`CREATE INDEX IF NOT EXISTS idx_groups_category_lower ON groups(LOWER(category))`));
   await migrate('idx_groups_feed + map', async () => {

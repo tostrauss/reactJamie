@@ -161,10 +161,10 @@ export const Explore = () => {
   const { t } = useTranslation();
   const { user } = useContext(AuthContext);
 
-  // The first tab — formerly "Im Trend" — is now the personalized "Für Dich"
-  // feed. Robert's algorithm request: rank groups/clubs by interests + member
-  // overlap with the caller's social graph.
-  const [activeTab, setActiveTab]     = useState('foryou');
+  // Tabs were removed — "Für Dich" and "Hall of Fame" now share one combined
+  // feed (suggestions on top, past/Hall-of-Fame items appended). Robert's
+  // call: easier to scan everything in one scroll than to remember which tab
+  // you're on.
   const [loading, setLoading]         = useState(true);
   const [forYouItems, setForYouItems] = useState([]);
   const [hallItems, setHallItems]     = useState([]);
@@ -227,7 +227,13 @@ export const Explore = () => {
     return () => clearTimeout(debounceRef.current);
   }, [searchQuery]);
 
-  const feedItems = activeTab === 'foryou' ? forYouItems : hallItems;
+  // Combined feed: For-You suggestions on top, then past/Hall-of-Fame items.
+  // Each card carries its own `_hallOfFame` flag so FeedCard renders the right
+  // visual treatment per item without needing the page-level active tab.
+  const feedItems = [
+    ...forYouItems.map(i => ({ ...i, _hallOfFame: false })),
+    ...hallItems.map(i => ({ ...i, _hallOfFame: true })),
+  ];
 
   return (
     <div className="explore-container">
@@ -236,22 +242,6 @@ export const Explore = () => {
       <div className="ef-sticky">
         <div className="ef-top">
           <h1 className="ef-logo">JAMIE</h1>
-        </div>
-
-        {/* Tabs */}
-        <div className="ef-tabs">
-          <button
-            className={`ef-tab${activeTab === 'foryou' ? ' active' : ''}`}
-            onClick={() => setActiveTab('foryou')}
-          >
-            {t('explore.tabs.forYou')}
-          </button>
-          <button
-            className={`ef-tab${activeTab === 'halloffame' ? ' active' : ''}`}
-            onClick={() => setActiveTab('halloffame')}
-          >
-            {t('explore.tabs.hallOfFame')}
-          </button>
         </div>
       </div>
 
@@ -262,16 +252,16 @@ export const Explore = () => {
           <div className="explore-loading"><div className="explore-spinner" /></div>
         ) : feedItems.length === 0 ? (
           <div className="explore-empty">
-            <div className="explore-empty-icon">{activeTab === 'halloffame' ? '🏆' : '✨'}</div>
-            <p>{activeTab === 'halloffame' ? t('explore.empty.hallOfFame') : t('explore.empty.forYou')}</p>
+            <div className="explore-empty-icon">✨</div>
+            <p>{t('explore.empty.forYou')}</p>
           </div>
         ) : (
           <div className="ef-feed">
             {feedItems.map(item => (
               <FeedCard
-                key={item.id}
+                key={`${item._hallOfFame ? 'h' : 'f'}-${item.id}`}
                 item={item}
-                hallOfFame={activeTab === 'halloffame'}
+                hallOfFame={item._hallOfFame}
                 navigate={navigate}
                 t={t}
               />

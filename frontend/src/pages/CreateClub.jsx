@@ -7,13 +7,6 @@ import { CATEGORY_HIERARCHY } from '../utils/categories';
 import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
 import '../styles/create.css';
 
-const FREQUENCIES = [
-  { value: 'daily',    key: 'daily' },
-  { value: 'weekly',   key: 'weekly' },
-  { value: 'monthly',  key: 'monthly' },
-  { value: 'flexible', key: 'flexible' },
-];
-
 export const CreateClub = () => {
   const navigate = useNavigate();
   const toast = useToast();
@@ -36,7 +29,6 @@ export const CreateClub = () => {
     max_members: 50,
     is_public: true,
     requires_approval: false,
-    meeting_frequency: 'weekly',
     rules: '',
     image_url: null,
     chat_only_owner: false,
@@ -125,7 +117,6 @@ export const CreateClub = () => {
         location: formData.location,
         max_members: formData.max_members,
         is_private: !formData.is_public,
-        meeting_frequency: formData.meeting_frequency,
         image_url: formData.image_url,
         chat_only_owner: formData.chat_only_owner,
         events_owner_only: formData.events_owner_only,
@@ -285,22 +276,6 @@ export const CreateClub = () => {
               <button type="button" className="counter-btn" onClick={() => setFormData(prev => ({ ...prev, max_members: Math.max(5, prev.max_members - 5) }))}>−</button>
               <span className="counter-value">{formData.max_members}</span>
               <button type="button" className="counter-btn" onClick={() => setFormData(prev => ({ ...prev, max_members: Math.min(500, prev.max_members + 5) }))}>+</button>
-            </div>
-          </div>
-
-          <div className="form-section">
-            <label className="form-label">{t('createClub.step2.frequencyLabel')}</label>
-            <div className="level-options">
-              {FREQUENCIES.map(({ value, key }) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`level-chip ${formData.meeting_frequency === value ? 'active' : ''}`}
-                  onClick={() => setFormData(prev => ({ ...prev, meeting_frequency: value }))}
-                >
-                  <span className="level-label">{t(`createClub.step2.frequency.${key}`)}</span>
-                </button>
-              ))}
             </div>
           </div>
 

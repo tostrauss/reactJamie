@@ -261,7 +261,7 @@
 
 .ge-search-icon {
   position: absolute;
-  left: 18px;
+  left: 16px;
   top: 50%;
   transform: translateY(-50%);
   color: var(--text-muted);
@@ -271,7 +271,10 @@
 
 .ge-search {
   width: 100%;
-  padding: 14px 18px 14px 50px;
+  /* 52px left padding leaves ~20px clearance between the icon (16px wide at
+     left:16px) and the text/placeholder. Previous 44/50px values still
+     overlapped on some devices. */
+  padding: 14px 18px 14px 52px !important;
   background: var(--bg-card);
   border: none;
   border-radius: 16px;
@@ -481,6 +484,10 @@
   bottom: 0;
   left: 0;
   right: 0;
+  /* Bottom-nav (.bottom-nav) uses z-index: 1000 and was covering the save
+     button entirely, making it look like the footer was no longer sticky.
+     1001 places the save CTA above the nav. */
+  z-index: 1001;
   padding: 14px 20px;
   padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 14px);
   background: linear-gradient(to top, var(--bg-primary) 70%, transparent);

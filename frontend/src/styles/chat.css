@@ -55,6 +55,9 @@
    three tabs still fit comfortably on narrow iPhones. */
 .chat-tabs-container {
   padding-top: 10px !important;
+  /* Bottom padding gives space between the active tab's coral underline and
+     the first section heading below it ("Anfragen", "Erstellt von dir", etc.). */
+  padding-bottom: 16px !important;
   padding-left: 28px !important;
   padding-right: 28px !important;
 }

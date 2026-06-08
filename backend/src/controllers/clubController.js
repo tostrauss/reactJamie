@@ -271,7 +271,8 @@ export const updateClub = async (req, res) => {
       max_members,
       is_private,
       skill_level,
-      events_owner_only
+      events_owner_only,
+      chat_only_owner
     } = req.body;
 
     if (name !== undefined && name.length > 100) return res.status(400).json({ error: 'Name darf maximal 100 Zeichen lang sein' });
@@ -311,6 +312,7 @@ export const updateClub = async (req, res) => {
            is_private = COALESCE($8, is_private),
            skill_level = COALESCE($9, skill_level),
            events_owner_only = COALESCE($14, events_owner_only),
+           chat_only_owner = COALESCE($15, chat_only_owner),
            lat = CASE WHEN $5 IS NOT NULL THEN $12 ELSE lat END,
            lng = CASE WHEN $5 IS NOT NULL THEN $13 ELSE lng END,
            updated_at = CURRENT_TIMESTAMP
@@ -330,7 +332,8 @@ export const updateClub = async (req, res) => {
         CLUB_TYPE,
         latUpdate,
         lngUpdate,
-        events_owner_only ?? null
+        events_owner_only ?? null,
+        chat_only_owner ?? null
       ]
     );
 

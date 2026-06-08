@@ -385,15 +385,15 @@ select:focus {
 }
 
 .bottom-nav-items {
-  /* Strip extends 50px nav + safe-area home-indicator zone. Icons aligned to
-     flex-end with a fixed 12px bottom padding so they sit close to the screen
-     edge (just above the home-indicator pill) — gives the user the "icons
-     lower" feel while keeping the bg filled through the safe-area zone. */
-  height: calc(50px + env(safe-area-inset-bottom, 0px));
+  /* Strip extends 40px nav + safe-area home-indicator zone. Icons aligned to
+     flex-end with a small 6px bottom padding so they sit close to the screen
+     edge (just above the home-indicator pill). Reduced from 50px+12px to bring
+     the overall footer down to ~46px on devices without a home indicator. */
+  height: calc(40px + env(safe-area-inset-bottom, 0px));
   display: flex;
   justify-content: space-around;
   align-items: flex-end;
-  padding-bottom: 12px;
+  padding-bottom: 6px;
   padding-left:  max(10px, env(safe-area-inset-left, 10px));
   padding-right: max(10px, env(safe-area-inset-right, 10px));
 }
@@ -438,11 +438,11 @@ select:focus {
 /* Plus Button - Hauptaktion */
 .nav-add-button {
   position: relative;
-  width: 64px;
-  height: 64px;
+  width: 54px;
+  height: 54px;
   background: var(--bg-input);
   border: 1px solid var(--border-default);
-  border-radius: 22px;
+  border-radius: 18px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -466,7 +466,7 @@ select:focus {
 }
 
 .plus-icon {
-  font-size: 38px;
+  font-size: 32px;
   font-weight: 400;
   color: white;
   line-height: 1;

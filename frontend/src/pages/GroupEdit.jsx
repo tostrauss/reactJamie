@@ -298,10 +298,14 @@ export const GroupEdit = () => {
           </div>
         </section>
 
-        {/* ── Gruppe teilen ── */}
+        {/* ── Gruppe / Event teilen ── */}
         <section className="ge-section">
           <div className="ge-section-head">
-            <span className="ge-section-title">{t('groupEdit.sections.shareGroup')}</span>
+            <span className="ge-section-title">
+              {group?.type === 'event'
+                ? t('groupEdit.sections.shareEvent')
+                : t('groupEdit.sections.shareGroup')}
+            </span>
           </div>
           <button className="ge-share-btn" onClick={handleShare}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

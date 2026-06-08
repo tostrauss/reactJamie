@@ -138,15 +138,25 @@ export const ProfileEdit = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await auth.updateProfile({
+      // Backend rejects empty-string gender ('' isn't in the enum) with a 400.
+      // Normalise empty optional strings to null so the save survives when the
+      // user hasn't filled every field.
+      const payload = {
         ...formData,
-        favorite_song: favoriteSong
-      });
+        gender: formData.gender || null,
+        date_of_birth: formData.date_of_birth || null,
+        bio: formData.bio || null,
+        location: formData.location || null,
+        favorite_song: favoriteSong,
+      };
+      const res = await auth.updateProfile(payload);
       setUser(res.data);
       toast.success(t('profileEdit.toast.saved'));
       navigate('/profile');
     } catch (error) {
-      toast.error(t('profileEdit.toast.saveError'));
+      // Surface the backend's German error message when available so the user
+      // sees WHY it failed (e.g. "Bio max. 500 Zeichen") instead of a generic toast.
+      toast.error(error.response?.data?.error || t('profileEdit.toast.saveError'));
     } finally {
       setLoading(false);
     }
@@ -361,18 +371,20 @@ export const ProfileEdit = () => {
             </div>
           </div>
 
-          <div className="pe-field-row">
-            <div className="pe-field pe-field-half">
-              <div className="pe-field-label">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                  <line x1="16" y1="2" x2="16" y2="6"/>
-                  <line x1="8" y1="2" x2="8" y2="6"/>
-                  <line x1="3" y1="10" x2="21" y2="10"/>
-                </svg>
-                <span>{t('profileEdit.fields.dob')}</span>
-              </div>
-              <div className="dob-select-row">
+          {/* DOB and Gender now stack vertically (full-width each) because the
+              prior side-by-side layout cropped "Divers" to "DI" on narrow phones
+              — 3 chips couldn't fit in half a screen-width. */}
+          <div className="pe-field">
+            <div className="pe-field-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              <span>{t('profileEdit.fields.dob')}</span>
+            </div>
+            <div className="dob-select-row">
                 <select className="settings-input dob-select" value={dobParts.d} onChange={e => handleDobChange('d', e.target.value)}>
                   <option value="">{t('profileEdit.fields.dobDay')}</option>
                   {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(d => (
@@ -385,37 +397,36 @@ export const ProfileEdit = () => {
                     <option key={mo} value={String(i + 1).padStart(2, '0')}>{mo}</option>
                   ))}
                 </select>
-                <select className="settings-input dob-select" value={dobParts.y} onChange={e => handleDobChange('y', e.target.value)}>
-                  <option value="">{t('profileEdit.fields.dobYear')}</option>
-                  {Array.from({ length: 80 }, (_, i) => new Date().getFullYear() - 10 - i).map(y => (
-                    <option key={y} value={String(y)}>{y}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="pe-field pe-field-half">
-              <div className="pe-field-label">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                  <circle cx="9" cy="7" r="4"/>
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
-                <span>{t('profileEdit.fields.gender')}</span>
-              </div>
-              <div className="pe-gender-options">
-                {GENDER_OPTION_KEYS.map(({ value, labelKey }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={`pe-gender-chip ${formData.gender === value ? 'active' : ''}`}
-                    onClick={() => handleChange('gender', value)}
-                  >
-                    {t(labelKey)}
-                  </button>
+              <select className="settings-input dob-select" value={dobParts.y} onChange={e => handleDobChange('y', e.target.value)}>
+                <option value="">{t('profileEdit.fields.dobYear')}</option>
+                {Array.from({ length: 80 }, (_, i) => new Date().getFullYear() - 10 - i).map(y => (
+                  <option key={y} value={String(y)}>{y}</option>
                 ))}
-              </div>
+              </select>
+            </div>
+          </div>
+
+          <div className="pe-field">
+            <div className="pe-field-label">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <span>{t('profileEdit.fields.gender')}</span>
+            </div>
+            <div className="pe-gender-options">
+              {GENDER_OPTION_KEYS.map(({ value, labelKey }) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`pe-gender-chip ${formData.gender === value ? 'active' : ''}`}
+                  onClick={() => handleChange('gender', value)}
+                >
+                  {t(labelKey)}
+                </button>
+              ))}
             </div>
           </div>
         </div>

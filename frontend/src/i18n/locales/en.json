@@ -274,6 +274,7 @@
       "loading": "Loading...",
       "notFound": "Group not found",
       "share": "Share",
+      "shareEvent": "Share event",
       "calendar": "Calendar",
       "shareLinkCopied": "Link copied!",
       "actions": {
@@ -1120,8 +1121,8 @@
     "imageTooLarge": "Image is too large (max 10 MB)",
     "imageUploadError": "Image could not be uploaded",
     "step1": {
-      "titleLabel": "Title *",
-      "titlePlaceholder": "e.g. Yoga in the park",
+      "titleLabel": "Activity *",
+      "titlePlaceholder": "e.g. Yoga",
       "categoryLabel": "Category *",
       "subCategoryLabel": "Subcategory *",
       "descLabel": "Description",
@@ -1237,7 +1238,8 @@
       "addFriends": "Add friends",
       "groupInfo": "Group info",
       "eventInfo": "Event info",
-      "shareGroup": "Share group"
+      "shareGroup": "Share group",
+      "shareEvent": "Share event"
     },
     "memberRole": "Creator",
     "removeBtn": "Remove",

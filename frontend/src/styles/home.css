@@ -296,8 +296,9 @@
 .groups-feed {
   /* Tightened horizontal padding (was 28px) so each card gets ~12px more width.
      Combined with the smaller grid gap below, short titles like "Wandern"
-     now fit on a single line instead of ellipsizing. */
-  padding: 4px 16px 0;
+     now fit on a single line instead of ellipsizing. Top padding gives breathing
+     room between the sticky search bar and the first row of group cards. */
+  padding: 18px 16px 0;
 }
 
 .groups-grid {

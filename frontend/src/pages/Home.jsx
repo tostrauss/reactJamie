@@ -496,7 +496,7 @@ export const Home = () => {
                       </div>
                       <div className="my-club-info">
                         <h4>{club.name || club.title}</h4>
-                        <span className="my-club-members">👥 {club.member_count || club.members_count || 0}</span>
+                        <span className="my-club-members">{club.member_count || club.members_count || 0} {t('groups.card.members')}</span>
                       </div>
                     </div>
                   ))}
