@@ -3,9 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { SocketContext } from '../context/SocketContext';
-import { directMessages, users, subscription as subscriptionApi } from '../utils/api';
+import { directMessages, users } from '../utils/api';
 import { useToast } from '../context/ToastContext';
-import { ProModal } from '../components/ProModal';
 import '../styles/chat.css';
 
 export const DirectMessagePage = () => {
@@ -26,22 +25,11 @@ export const DirectMessagePage = () => {
   // string-matching the localized message (which would break in English).
   const [errorIsFriendship, setErrorIsFriendship] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
-  const [isPro, setIsPro] = useState(null);
-  const [showProModal, setShowProModal] = useState(false);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
 
   useEffect(() => {
-    subscriptionApi.getStatus().then(r => setIsPro(r.data.is_pro)).catch(() => setIsPro(false));
-  }, []);
-
-  useEffect(() => {
-    if (!user || !otherUserId || isPro === null) return;
-
-    if (!isPro) {
-      setLoading(false);
-      return;
-    }
+    if (!user || !otherUserId) return;
 
     loadOtherUser();
     loadMessages();
@@ -63,7 +51,7 @@ export const DirectMessagePage = () => {
       socket.off('dm_user_typing');
       socket.off('dm_user_stop_typing');
     };
-  }, [user, socket, otherUserId, isPro]);
+  }, [user, socket, otherUserId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -171,45 +159,12 @@ export const DirectMessagePage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  if (loading || isPro === null) {
+  if (loading) {
     return (
       <div className="chat-page">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
           <div className="loading">{t('chat.dm.loading')}</div>
         </div>
-      </div>
-    );
-  }
-
-  if (!isPro) {
-    return (
-      <div className="chat-page">
-        <header className="chat-page-header">
-          <button className="back-button" onClick={() => navigate('/chats')}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M19 12H5M12 19l-7-7 7-7"/>
-            </svg>
-          </button>
-          <div className="chat-page-info">
-            <h2 className="chat-page-name">{t('chat.dm.title')}</h2>
-          </div>
-        </header>
-        <div className="error-state">
-          <p style={{ fontSize: '32px', marginBottom: '12px' }}>👑</p>
-          <p style={{ fontWeight: 700, marginBottom: '8px' }}>{t('chat.dm.proRequired')}</p>
-          <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '20px' }}>
-            {t('chat.dm.proRequiredDesc')}
-          </p>
-          <button className="btn btn-primary" onClick={() => setShowProModal(true)}>
-            {t('chat.dm.proActivate')}
-          </button>
-        </div>
-        {showProModal && (
-          <ProModal
-            onClose={() => setShowProModal(false)}
-            onSuccess={() => setIsPro(true)}
-          />
-        )}
       </div>
     );
   }

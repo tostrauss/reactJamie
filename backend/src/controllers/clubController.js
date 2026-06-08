@@ -143,7 +143,18 @@ export const getClubs = async (req, res) => {
       .catch(() => false);
 
     let query = `
-      SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar
+      SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar,
+             (
+               SELECT COALESCE(json_agg(sub), '[]'::json)
+               FROM (
+                 SELECT u2.id, u2.name, u2.avatar_url
+                 FROM group_members gm
+                 JOIN users u2 ON gm.user_id = u2.id
+                 WHERE gm.group_id = g.id
+                 ORDER BY gm.joined_at ASC
+                 LIMIT 8
+               ) sub
+             ) AS member_previews
       FROM groups g
       LEFT JOIN users u ON g.owner_id = u.id
       WHERE g.is_active = TRUE

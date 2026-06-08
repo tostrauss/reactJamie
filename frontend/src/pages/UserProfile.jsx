@@ -1,11 +1,10 @@
 import { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { users, friends, subscription as subscriptionApi } from '../utils/api';
+import { users, friends } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
-import { ProModal } from '../components/ProModal';
 import '../styles/user-profile.css';
 
 const calcAge = (dob) => {
@@ -28,9 +27,7 @@ export const UserProfile = () => {
   const [isRequester, setIsRequester]       = useState(false);
   const [actionLoading, setActionLoading]   = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [showProModal, setShowProModal]     = useState(false);
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
-  const [isPro, setIsPro]                   = useState(false);
 
   useEffect(() => {
     if (currentUser && currentUser.id === parseInt(id)) {
@@ -39,7 +36,6 @@ export const UserProfile = () => {
     }
     loadProfile();
     checkFriendship();
-    subscriptionApi.getStatus().then(r => setIsPro(r.data.is_pro)).catch(() => {});
   }, [id, currentUser]);
 
   const loadProfile = async () => {
@@ -177,9 +173,9 @@ export const UserProfile = () => {
           <div className="up-cta-row">
             <button
               className="up-cta-btn up-cta-msg"
-              onClick={isPro ? () => navigate(`/dm/${id}`) : () => setShowProModal(true)}
+              onClick={() => navigate(`/dm/${id}`)}
             >
-              {isPro ? t('userProfile.actions.message') : t('userProfile.actions.messagePro')}
+              {t('userProfile.actions.message')}
             </button>
             <button className="up-cta-btn up-cta-ghost" onClick={handleRemoveFriend}>
               {t('userProfile.actions.removeFriend')}
@@ -338,9 +334,6 @@ export const UserProfile = () => {
 
       {showReportModal && (
         <ReportModal type="user" id={parseInt(id)} name={profile.name} onClose={() => setShowReportModal(false)} />
-      )}
-      {showProModal && (
-        <ProModal onClose={() => setShowProModal(false)} onSuccess={() => setIsPro(true)} />
       )}
       {showBlockConfirm && (
         <div className="modal-overlay" onClick={() => setShowBlockConfirm(false)}>

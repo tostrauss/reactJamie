@@ -369,6 +369,90 @@
       "hallOfFame": "Noch keine vergangenen Events"
     }
   },
+  "clubDetail": {
+    "loading": "Lade Club…",
+    "notFound": "Club nicht gefunden",
+    "back": "Zurück",
+    "favorite": "Favorit",
+    "membersLabel": "Mitglieder",
+    "toast": {
+      "loadError": "Club konnte nicht geladen werden",
+      "favError": "Favorit konnte nicht gespeichert werden",
+      "joinLeaveError": "Aktion fehlgeschlagen",
+      "requestSent": "Beitrittsanfrage gesendet"
+    },
+    "actions": {
+      "join": "Club beitreten",
+      "requestJoin": "Beitritt anfragen",
+      "pending": "Anfrage gesendet ✓",
+      "leave": "Club verlassen",
+      "openChat": "Zum Chat",
+      "boost": "Club boosten",
+      "delete": "Club löschen",
+      "report": "Club melden"
+    },
+    "delete": {
+      "confirm": "Diesen Club wirklich löschen?",
+      "deleted": "Club gelöscht",
+      "error": "Club konnte nicht gelöscht werden"
+    },
+    "map": {
+      "title": "Standort"
+    },
+    "members": {
+      "title": "Mitglieder",
+      "seeAll": "Alle anzeigen",
+      "seeAllFull": "Alle {{count}} Mitglieder anzeigen",
+      "ownerTag": "Owner",
+      "trusted": "Verifiziert",
+      "unknownName": "Mitglied"
+    },
+    "events": {
+      "title": "Termine",
+      "createAria": "Neuen Termin erstellen",
+      "loading": "Lade Termine…",
+      "empty": "Noch keine Termine geplant",
+      "firstEventCta": "Ersten Termin erstellen",
+      "create": "Termin erstellen",
+      "creating": "Wird erstellt…",
+      "join": "Beitreten",
+      "joined": "Dabei ✓",
+      "delete": "Löschen",
+      "uhr": "Uhr",
+      "participants": "{{current}}/{{max}} Teilnehmer",
+      "calendarAdd": "Zum Kalender hinzufügen",
+      "confirmDelete": "Diesen Termin wirklich löschen?",
+      "formNamePlaceholder": "Name des Termins",
+      "formDescPlaceholder": "Beschreibung (optional)",
+      "formLocationPlaceholder": "Ort",
+      "formMaxPlaceholder": "Max.",
+      "errorNameRequired": "Name ist erforderlich",
+      "errorDateRequired": "Datum ist erforderlich",
+      "errorDateFuture": "Datum muss in der Zukunft liegen",
+      "createdToast": "Termin erstellt",
+      "createError": "Termin konnte nicht erstellt werden",
+      "deletedToast": "Termin gelöscht",
+      "deleteError": "Termin konnte nicht gelöscht werden",
+      "joinedToast": "Du bist dabei!",
+      "joinError": "Beitritt fehlgeschlagen",
+      "leaveError": "Verlassen fehlgeschlagen",
+      "requestSent": "Beitrittsanfrage gesendet"
+    }
+  },
+  "clubMembers": {
+    "title": "Mitglieder",
+    "titlePrefix": "Mitglieder ·",
+    "back": "Zurück",
+    "loading": "Lade Mitglieder…",
+    "searchPlaceholder": "Mitglied suchen…",
+    "emptySearch": "Kein Mitglied gefunden",
+    "emptyAll": "Noch keine Mitglieder",
+    "ownerTag": "Owner",
+    "unknownName": "Mitglied",
+    "toast": {
+      "loadError": "Mitglieder konnten nicht geladen werden"
+    }
+  },
   "home": {
     "tabs": {
       "groups": "Gruppen",
@@ -509,9 +593,6 @@
       "errorLoad": "Konversation konnte nicht geladen werden",
       "errorSend": "Nachricht konnte nicht gesendet werden",
       "title": "Direktnachrichten",
-      "proRequired": "Pro erforderlich",
-      "proRequiredDesc": "Direktnachrichten sind exklusiv für Pro-Mitglieder.",
-      "proActivate": "Pro aktivieren",
       "chatFallback": "Chat",
       "profileHint": "Tippe für Profil",
       "addFriend": "Freund hinzufügen",
@@ -575,7 +656,6 @@
     },
     "actions": {
       "loading": "Laden…",
-      "messagePro": "👑 Nachricht (Pro)",
       "message": "Nachricht senden",
       "removeFriend": "Freund entfernen",
       "requestSent": "Anfrage gesendet ✓",
@@ -909,16 +989,14 @@
     "ctaSubscribe": "👑 Jetzt starten",
     "secure": "🔒 Sicher via Stripe · Monatlich kündbar · Keine Bindung",
     "features": {
-      "addFriends": "Freunde hinzufügen",
-      "addFriendsDesc": "Sende Freundschaftsanfragen an andere Nutzer",
-      "dm": "Direktnachrichten",
-      "dmDesc": "Chatte privat mit deinen Freunden",
       "boostGroups": "Gruppen boosten",
       "boostGroupsDesc": "Kostenlos & unbegrenzt für deine Events",
       "boostClubs": "Clubs boosten",
       "boostClubsDesc": "Mehr Mitglieder für deine Community",
       "topPlacement": "Top-Platzierung",
-      "topPlacementDesc": "Immer ganz oben in der Entdecken-Liste"
+      "topPlacementDesc": "Immer ganz oben in der Entdecken-Liste",
+      "deals": "Für Dich – exklusive Deals",
+      "dealsDesc": "Rabatte & Specials bei Partnern in Wien"
     },
     "title": "JAMIE Pro",
     "priceMonth": "/ Monat",

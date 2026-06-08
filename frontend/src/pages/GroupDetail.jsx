@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, lazy, Suspense } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
 import { groups, clubs } from '../utils/api';
@@ -392,6 +392,10 @@ export const GroupDetail = () => {
 
   if (loading) return <div className="gd-loading">{t('groups.detail.loading')}</div>;
   if (!group) return <div className="gd-loading">{t('groups.detail.notFound')}</div>;
+
+  // Clubs use a dedicated detail page — forward existing /group/:id URLs so old
+  // navigation, share links, and notifications keep working.
+  if (group.type === 'club') return <Navigate to={`/club/${id}`} replace />;
 
   const isClub = group.type === 'club';
   const isEvent = group.type === 'event';

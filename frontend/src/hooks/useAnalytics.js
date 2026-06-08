@@ -24,7 +24,9 @@ const getScreenName = (pathname) => {
   if (pathname === '/privacy') return 'Privacy';
   if (pathname.startsWith('/group/') && pathname.endsWith('/requests')) return 'GroupRequests';
   if (pathname.startsWith('/group/')) return 'GroupDetail';
-  if (pathname.startsWith('/club/')) return 'ClubEdit';
+  if (pathname.startsWith('/club/') && pathname.endsWith('/edit')) return 'ClubEdit';
+  if (pathname.startsWith('/club/') && pathname.endsWith('/members')) return 'ClubMembers';
+  if (pathname.startsWith('/club/')) return 'ClubDetail';
   if (pathname.startsWith('/chat/')) return 'Chat';
   if (pathname.startsWith('/dm/')) return 'DirectMessage';
   if (pathname.startsWith('/user/')) return 'UserProfile';

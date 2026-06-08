@@ -81,6 +81,10 @@ export const GroupCard = memo(({
   const hiddenCount = Math.max(0, (group.members_count || 0) - memberAvatars.length);
   const showProGate = !isClub && !isPro && hiddenCount > 0;
   const emptySpots  = isClub ? 0 : Math.max(0, 4 - memberAvatars.length - (showProGate ? 1 : 0));
+  // Clubs render an 8-slot (4×2) member grid when previews exist, falling back
+  // to the full club image otherwise (e.g. a brand-new club with 0 joined members).
+  const clubAvatars  = isClub ? memberAvatars.slice(0, 8) : [];
+  const clubEmpty    = isClub ? Math.max(0, 8 - clubAvatars.length) : 0;
 
   const locale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-DE';
   const descriptor = parseDateDescriptor(group.date, locale);
@@ -116,14 +120,31 @@ export const GroupCard = memo(({
       {/* ── Photo grid ── */}
       <div className="card-photo-grid">
         {isClub ? (
-          <div className="avatar-slot card-club-full-image" style={{ gridColumn: '1 / -1', gridRow: '1 / -1', borderRadius: '9px' }}>
-            <AvatarImage
-              src={group.image_url}
-              alt={group.name || group.title || ''}
-              fallbackChar={group.category || group.name || group.title}
-              placeholderStyle={{ fontSize: 48, fontWeight: 700 }}
-            />
-          </div>
+          clubAvatars.length > 0 ? (
+            <>
+              {clubAvatars.map((member) => (
+                <div key={member.id} className="avatar-slot">
+                  <AvatarImage
+                    src={member.avatar_url}
+                    alt={member.name || ''}
+                    fallbackChar={member.name}
+                  />
+                </div>
+              ))}
+              {Array.from({ length: clubEmpty }).map((_, idx) => (
+                <div key={`club-empty-${idx}`} className="avatar-slot empty" />
+              ))}
+            </>
+          ) : (
+            <div className="avatar-slot card-club-full-image" style={{ gridColumn: '1 / -1', gridRow: '1 / -1', borderRadius: '9px' }}>
+              <AvatarImage
+                src={group.image_url}
+                alt={group.name || group.title || ''}
+                fallbackChar={group.category || group.name || group.title}
+                placeholderStyle={{ fontSize: 48, fontWeight: 700 }}
+              />
+            </div>
+          )
         ) : (
           <>
             {memberAvatars.map((member) => (

@@ -119,11 +119,10 @@ function Spinner() {
 
 // ── Feature rows ─────────────────────────────────────────────────────────
 const FEATURE_KEYS = [
-  { icon:'👥', titleKey:'addFriends',    descKey:'addFriendsDesc' },
-  { icon:'💬', titleKey:'dm',            descKey:'dmDesc' },
   { icon:'⚡', titleKey:'boostGroups',   descKey:'boostGroupsDesc' },
   { icon:'🏆', titleKey:'boostClubs',    descKey:'boostClubsDesc' },
   { icon:'🔝', titleKey:'topPlacement', descKey:'topPlacementDesc' },
+  { icon:'⭐', titleKey:'deals',         descKey:'dealsDesc' },
 ];
 
 // ── Confetti piece ───────────────────────────────────────────────────────

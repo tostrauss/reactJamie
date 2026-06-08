@@ -338,7 +338,10 @@ export const Home = () => {
     }
   };
 
-  const handleCardClick = (groupId) => navigate(`/group/${groupId}`);
+  // Clubs use a dedicated detail page; groups stay on /group/:id. Without the
+  // type hint we'd hit /group/:id, fetch, then redirect — wasted round-trip.
+  const handleCardClick = (id, type) =>
+    navigate(type === 'club' ? `/club/${id}` : `/group/${id}`);
 
   const handleTabSwitch = (tab) => {
     setActiveTab(tab);
@@ -457,7 +460,7 @@ export const Home = () => {
                     onJoin={handleJoin}
                     onChat={handleChat}
                     onWaitlist={handleWaitlist}
-                    onClick={() => handleCardClick(group.id)}
+                    onClick={() => handleCardClick(group.id, group.type)}
                   />
                 ))}
               </div>
@@ -484,7 +487,7 @@ export const Home = () => {
                 </div>
                 <div className="my-clubs-scroll">
                   {myClubs.map(club => (
-                    <div key={club.id} className="my-club-card" onClick={() => handleCardClick(club.id)}>
+                    <div key={club.id} className="my-club-card" onClick={() => handleCardClick(club.id, 'club')}>
                       <div className="my-club-image">
                         {club.image_url
                           ? <img src={club.image_url} alt={club.name || club.title} loading="lazy" decoding="async" />
@@ -521,7 +524,7 @@ export const Home = () => {
                       onJoin={handleJoin}
                       onChat={handleChat}
                       onWaitlist={handleWaitlist}
-                      onClick={() => handleCardClick(club.id)}
+                      onClick={() => handleCardClick(club.id, 'club')}
                     />
                   ))}
                 </div>

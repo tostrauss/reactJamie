@@ -2086,6 +2086,20 @@ input:checked + .slider:before {
   aspect-ratio: 4 / 3;
 }
 
+/* Club photo grid: 4 columns × 2 rows = 8 member preview slots.
+   Overrides the default 2×2 layout used by groups. */
+.clubs-grid .card-photo-grid {
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+/* Reset per-slot corner rounding from the 2×2 group rules, then apply the
+   four outer corners of the 4×2 grid (slots 1, 4, 5, 8). */
+.clubs-grid .card-photo-grid .avatar-slot { border-radius: 0; }
+.clubs-grid .card-photo-grid .avatar-slot:nth-child(1) { border-radius: 9px 0 0 0; }
+.clubs-grid .card-photo-grid .avatar-slot:nth-child(4) { border-radius: 0 9px 0 0; }
+.clubs-grid .card-photo-grid .avatar-slot:nth-child(5) { border-radius: 0 0 0 9px; }
+.clubs-grid .card-photo-grid .avatar-slot:nth-child(8) { border-radius: 0 0 9px 0; }
+
 /* ========================================
    FILTER BOTTOM SHEET
    ======================================== */

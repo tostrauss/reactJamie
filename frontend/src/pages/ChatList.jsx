@@ -1,9 +1,8 @@
 import { useState, useEffect, useContext, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { groups, directMessages, friends, subscription as subscriptionApi } from '../utils/api';
+import { groups, directMessages, friends } from '../utils/api';
 import { SocketContext } from '../context/SocketContext';
-import { ProModal } from '../components/ProModal';
 import { useToast } from '../context/ToastContext';
 import '../styles/chat.css';
 import '../styles/profile.css';
@@ -16,8 +15,6 @@ export const ChatList = () => {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [loading, setLoading]               = useState(true);
   const [showHidden, setShowHidden]         = useState(false);
-  const [isPro, setIsPro]                   = useState(false);
-  const [showProModal, setShowProModal]     = useState(false);
   const [requestsModal, setRequestsModal]   = useState(null); // { groupId, groupName }
   const [modalRequests, setModalRequests]   = useState([]);
   const [modalIndex, setModalIndex]         = useState(0);
@@ -35,7 +32,6 @@ export const ChatList = () => {
 
   useEffect(() => {
     loadData();
-    subscriptionApi.getStatus().then(r => setIsPro(r.data.is_pro)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -477,10 +473,6 @@ export const ChatList = () => {
         )}
 
       </div>
-
-      {showProModal && (
-        <ProModal onClose={() => setShowProModal(false)} onSuccess={() => setIsPro(true)} />
-      )}
 
       {/* ── Anfragen Modal ──────────────────────────────────────────── */}
       {requestsModal && (

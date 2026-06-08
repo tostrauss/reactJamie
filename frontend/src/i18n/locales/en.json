@@ -369,6 +369,90 @@
       "hallOfFame": "No past events yet"
     }
   },
+  "clubDetail": {
+    "loading": "Loading club…",
+    "notFound": "Club not found",
+    "back": "Back",
+    "favorite": "Favorite",
+    "membersLabel": "members",
+    "toast": {
+      "loadError": "Club could not be loaded",
+      "favError": "Could not save favorite",
+      "joinLeaveError": "Action failed",
+      "requestSent": "Join request sent"
+    },
+    "actions": {
+      "join": "Join club",
+      "requestJoin": "Request to join",
+      "pending": "Request sent ✓",
+      "leave": "Leave club",
+      "openChat": "Open chat",
+      "boost": "Boost club",
+      "delete": "Delete club",
+      "report": "Report club"
+    },
+    "delete": {
+      "confirm": "Really delete this club?",
+      "deleted": "Club deleted",
+      "error": "Club could not be deleted"
+    },
+    "map": {
+      "title": "Location"
+    },
+    "members": {
+      "title": "Members",
+      "seeAll": "See all",
+      "seeAllFull": "See all {{count}} members",
+      "ownerTag": "Owner",
+      "trusted": "Verified",
+      "unknownName": "Member"
+    },
+    "events": {
+      "title": "Events",
+      "createAria": "Create new event",
+      "loading": "Loading events…",
+      "empty": "No events scheduled yet",
+      "firstEventCta": "Create first event",
+      "create": "Create event",
+      "creating": "Creating…",
+      "join": "Join",
+      "joined": "Joined ✓",
+      "delete": "Delete",
+      "uhr": "",
+      "participants": "{{current}}/{{max}} participants",
+      "calendarAdd": "Add to calendar",
+      "confirmDelete": "Really delete this event?",
+      "formNamePlaceholder": "Event name",
+      "formDescPlaceholder": "Description (optional)",
+      "formLocationPlaceholder": "Location",
+      "formMaxPlaceholder": "Max.",
+      "errorNameRequired": "Name is required",
+      "errorDateRequired": "Date is required",
+      "errorDateFuture": "Date must be in the future",
+      "createdToast": "Event created",
+      "createError": "Could not create event",
+      "deletedToast": "Event deleted",
+      "deleteError": "Could not delete event",
+      "joinedToast": "You're in!",
+      "joinError": "Could not join",
+      "leaveError": "Could not leave",
+      "requestSent": "Join request sent"
+    }
+  },
+  "clubMembers": {
+    "title": "Members",
+    "titlePrefix": "Members ·",
+    "back": "Back",
+    "loading": "Loading members…",
+    "searchPlaceholder": "Search member…",
+    "emptySearch": "No member found",
+    "emptyAll": "No members yet",
+    "ownerTag": "Owner",
+    "unknownName": "Member",
+    "toast": {
+      "loadError": "Could not load members"
+    }
+  },
   "home": {
     "tabs": {
       "groups": "Groups",
@@ -509,9 +593,6 @@
       "errorLoad": "Could not load conversation",
       "errorSend": "Could not send message",
       "title": "Direct messages",
-      "proRequired": "Pro required",
-      "proRequiredDesc": "Direct messages are exclusive to Pro members.",
-      "proActivate": "Activate Pro",
       "chatFallback": "Chat",
       "profileHint": "Tap for profile",
       "addFriend": "Add friend",
@@ -575,7 +656,6 @@
     },
     "actions": {
       "loading": "Loading…",
-      "messagePro": "👑 Message (Pro)",
       "message": "Send message",
       "removeFriend": "Remove friend",
       "requestSent": "Request sent ✓",
@@ -909,16 +989,14 @@
     "ctaSubscribe": "👑 Start now",
     "secure": "🔒 Secure via Stripe · Cancel monthly · No commitment",
     "features": {
-      "addFriends": "Add friends",
-      "addFriendsDesc": "Send friend requests to other users",
-      "dm": "Direct messages",
-      "dmDesc": "Chat privately with your friends",
       "boostGroups": "Boost groups",
       "boostGroupsDesc": "Free & unlimited for your events",
       "boostClubs": "Boost clubs",
       "boostClubsDesc": "More members for your community",
       "topPlacement": "Top placement",
-      "topPlacementDesc": "Always on top of the Explore list"
+      "topPlacementDesc": "Always on top of the Explore list",
+      "deals": "For You – exclusive deals",
+      "dealsDesc": "Discounts & specials with partners in Vienna"
     },
     "title": "JAMIE Pro",
     "priceMonth": "/ month",

@@ -30,6 +30,8 @@ const ChatList = lazy(() => import('./pages/ChatList'));
 const ChatPage = lazy(() => import('./pages/ChatPage'));
 const DirectMessagePage = lazy(() => import('./pages/DirectMessagePage'));
 const GroupDetail = lazy(() => import('./pages/GroupDetail'));
+const ClubDetail = lazy(() => import('./pages/ClubDetail'));
+const ClubMembers = lazy(() => import('./pages/ClubMembers'));
 const CreateGroup = lazy(() => import('./pages/CreateGroup'));
 const CreateClub = lazy(() => import('./pages/CreateClub'));
 const GroupRequests = lazy(() => import('./pages/GroupRequests'));
@@ -501,6 +503,8 @@ function AppRoutes() {
           <Route path="/group/:id/edit" element={<ProtectedRoute><GroupEdit /></ProtectedRoute>} />
           <Route path="/create-group" element={<ProtectedRoute><CreateGroup /></ProtectedRoute>} />
           <Route path="/create-club" element={<ProtectedRoute><CreateClub /></ProtectedRoute>} />
+          <Route path="/club/:id" element={<ProtectedRoute><ClubDetail /></ProtectedRoute>} />
+          <Route path="/club/:id/members" element={<ProtectedRoute><ClubMembers /></ProtectedRoute>} />
           <Route path="/club/:id/edit" element={<ProtectedRoute><ClubEdit /></ProtectedRoute>} />
 
           {/* Friends */}
