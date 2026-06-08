@@ -406,6 +406,7 @@
       "title": "Members",
       "seeAll": "See all",
       "seeAllFull": "See all {{count}} members",
+      "openListAria": "Open member list",
       "ownerTag": "Owner",
       "trusted": "Verified",
       "unknownName": "Member"

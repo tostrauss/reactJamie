@@ -80,6 +80,7 @@ export const ClubDetail = () => {
   const [isFavorited, setIsFavorited] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBoostModal, setShowBoostModal] = useState(false);
+  const [showMembersModal, setShowMembersModal] = useState(false);
 
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
@@ -316,8 +317,8 @@ export const ClubDetail = () => {
                 <button
                   key={m.id}
                   className="cd-member-chip"
-                  onClick={() => navigate(`/user/${m.id}`)}
-                  aria-label={m.name || 'Mitglied'}
+                  onClick={() => setShowMembersModal(true)}
+                  aria-label={t('clubDetail.members.openListAria')}
                 >
                   {m.avatar_url ? (
                     <img src={m.avatar_url} alt={m.name || ''} loading="lazy" decoding="async" />
@@ -329,7 +330,13 @@ export const ClubDetail = () => {
                 </button>
               ))}
               {overflowMembers > 0 && (
-                <div className="cd-member-more">+{overflowMembers}</div>
+                <button
+                  className="cd-member-more"
+                  onClick={() => setShowMembersModal(true)}
+                  aria-label={t('clubDetail.members.openListAria')}
+                >
+                  +{overflowMembers}
+                </button>
               )}
             </div>
           </div>
@@ -366,64 +373,6 @@ export const ClubDetail = () => {
               </button>
             )}
           </div>
-
-          {/* ── Members section ────────────────────────────────── */}
-          {members.length > 0 && (
-            <section className="cd-members-section">
-              <div className="cd-section-header">
-                <h3 className="cd-section-title">
-                  {t('clubDetail.members.title')}
-                  <span className="cd-section-count">{membersCount}</span>
-                </h3>
-                {membersCount > 10 && (
-                  <button
-                    className="cd-section-link"
-                    onClick={() => navigate(`/club/${id}/members`)}
-                  >
-                    {t('clubDetail.members.seeAll')}
-                  </button>
-                )}
-              </div>
-              <div className="cd-members-list">
-                {members.slice(0, 10).map(m => (
-                  <button
-                    key={m.id}
-                    className="cd-member-row"
-                    onClick={() => navigate(`/user/${m.id}`)}
-                  >
-                    {m.avatar_url ? (
-                      <img src={m.avatar_url} alt={m.name || ''} className="cd-member-row-avatar" loading="lazy" decoding="async" />
-                    ) : (
-                      <div className="cd-member-row-avatar cd-member-row-avatar--placeholder">
-                        {(m.name || '?')[0]?.toUpperCase()}
-                      </div>
-                    )}
-                    <div className="cd-member-row-info">
-                      <span className="cd-member-row-name">{m.name || t('clubDetail.members.unknownName')}</span>
-                      {club.owner_id === m.id && (
-                        <span className="cd-member-row-tag">{t('clubDetail.members.ownerTag')}</span>
-                      )}
-                    </div>
-                    {m.is_trusted_user && (
-                      <span className="cd-member-row-trusted" aria-label={t('clubDetail.members.trusted')}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20,6 9,17 4,12"/>
-                        </svg>
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-              {membersCount > 10 && (
-                <button
-                  className="cd-members-see-all-btn"
-                  onClick={() => navigate(`/club/${id}/members`)}
-                >
-                  {t('clubDetail.members.seeAllFull', { count: membersCount })}
-                </button>
-              )}
-            </section>
-          )}
 
           {/* ── Events section (primary content) ───────────────── */}
           <section className="cd-events">
@@ -614,6 +563,68 @@ export const ClubDetail = () => {
           </button>
         </div>
       </div>
+
+      {showMembersModal && (
+        <div
+          className="cd-modal-overlay"
+          onClick={() => setShowMembersModal(false)}
+        >
+          <div
+            className="cd-modal cd-members-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="cd-modal-handle" />
+            <div className="cd-modal-header">
+              <h3 className="cd-modal-title">
+                {t('clubDetail.members.title')}
+                <span className="cd-section-count">{membersCount}</span>
+              </h3>
+              <button
+                className="cd-modal-close"
+                onClick={() => setShowMembersModal(false)}
+                aria-label={t('common.close')}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="cd-modal-body">
+              <div className="cd-members-list">
+                {members.map(m => (
+                  <button
+                    key={m.id}
+                    className="cd-member-row"
+                    onClick={() => {
+                      setShowMembersModal(false);
+                      navigate(`/user/${m.id}`);
+                    }}
+                  >
+                    {m.avatar_url ? (
+                      <img src={m.avatar_url} alt={m.name || ''} className="cd-member-row-avatar" loading="lazy" decoding="async" />
+                    ) : (
+                      <div className="cd-member-row-avatar cd-member-row-avatar--placeholder">
+                        {(m.name || '?')[0]?.toUpperCase()}
+                      </div>
+                    )}
+                    <div className="cd-member-row-info">
+                      <span className="cd-member-row-name">{m.name || t('clubDetail.members.unknownName')}</span>
+                      {club.owner_id === m.id && (
+                        <span className="cd-member-row-tag">{t('clubDetail.members.ownerTag')}</span>
+                      )}
+                    </div>
+                    {m.is_trusted_user && (
+                      <span className="cd-member-row-trusted" aria-label={t('clubDetail.members.trusted')}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20,6 9,17 4,12"/>
+                        </svg>
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showReportModal && (
         <ReportModal
