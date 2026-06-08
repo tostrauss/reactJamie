@@ -109,10 +109,14 @@ export const GroupCard = memo(({
         <div className="card-text-area">
           <h3 className="card-title">
             {/* "Sonstiges" as a subcategory tells the user nothing about the
-                actual group — fall back to the user-entered title in that case. */}
-            {group.category && group.category.toLowerCase() !== 'sonstiges'
+                actual group — fall back to the user-entered title in that case.
+                Hyphens are replaced with U+2011 (non-breaking hyphen) so titles
+                like "Bar-Hopping" don't wrap onto two lines — browsers always
+                allow line breaks at a regular hyphen regardless of CSS. */}
+            {(group.category && group.category.toLowerCase() !== 'sonstiges'
               ? group.category
-              : (group.name || group.title || group.category)}
+              : (group.name || group.title || group.category) || ''
+            ).replace(/-/g, '‑')}
           </h3>
           <div className="card-subtitle-row">
             {isClub ? (
