@@ -132,7 +132,20 @@ export const GroupCard = memo(({
                 </div>
               ))}
               {Array.from({ length: clubEmpty }).map((_, idx) => (
-                <div key={`club-empty-${idx}`} className="avatar-slot empty" />
+                <div key={`club-empty-${idx}`} className="avatar-slot empty">
+                  <button
+                    className="avatar-gamble"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/club/${group.id}`);
+                    }}
+                    aria-label={t('groups.card.joinAria')}
+                  >
+                    <svg width="11" height="11" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+                      <path d="M5 1v8M1 5h8"/>
+                    </svg>
+                  </button>
+                </div>
               ))}
             </>
           ) : (

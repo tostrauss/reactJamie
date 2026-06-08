@@ -331,11 +331,11 @@ export const ClubDetail = () => {
           <div className="cd-cover-gradient" />
           <div className="cd-cover-meta">
             <span className="cd-cover-pill cd-cover-pill--members">
-              👥 {membersCount} {t('clubDetail.membersLabel')}
+              {membersCount} {t('clubDetail.membersLabel')}
             </span>
             {club.location && (
               <span className="cd-cover-pill cd-cover-pill--location">
-                📍 {club.location}
+                {club.location}
               </span>
             )}
           </div>
@@ -403,9 +403,7 @@ export const ClubDetail = () => {
           {/* ── Location mini-map ──────────────────────────────── */}
           {club.lat != null && club.lng != null && (
             <section className="cd-map-section">
-              <h3 className="cd-section-title">
-                <span className="cd-section-icon">📍</span> {t('clubDetail.map.title')}
-              </h3>
+              <h3 className="cd-section-title">{t('clubDetail.map.title')}</h3>
               <ClubMiniMap lat={Number(club.lat)} lng={Number(club.lng)} />
               {club.location && (
                 <p className="cd-map-address">{club.location}</p>
@@ -418,7 +416,7 @@ export const ClubDetail = () => {
             <section className="cd-members-section">
               <div className="cd-section-header">
                 <h3 className="cd-section-title">
-                  <span className="cd-section-icon">👥</span> {t('clubDetail.members.title')}
+                  {t('clubDetail.members.title')}
                   <span className="cd-section-count">{membersCount}</span>
                 </h3>
                 {membersCount > 10 && (
@@ -475,7 +473,7 @@ export const ClubDetail = () => {
           <section className="cd-events">
             <div className="cd-events-header">
               <h3 className="cd-events-title">
-                <span className="cd-events-icon">📅</span> {t('clubDetail.events.title')}
+                {t('clubDetail.events.title')}
                 {events.length > 0 && <span className="cd-events-count">{events.length}</span>}
               </h3>
               {canCreateEvent && (
