@@ -54,19 +54,24 @@ export const ChatList = () => {
         friends.getPending().catch(() => null)
       ]);
 
-      setGroupChats((joinedRes?.data || []).map(g => {
-        const prefix = g.last_message_sender ? `${g.last_message_sender}: ` : '';
-        return {
-          id: g.id,
-          name: g.name || g.title,
-          lastMessage: g.last_message ? `${prefix}${g.last_message}` : '',
-          time: g.last_message_time ? formatTime(g.last_message_time) : '',
-          unread: g.unread_count || 0,
-          avatar: g.image_url,
-          type: g.type,
-          isOwner: g.role === 'owner'
-        };
-      }));
+      // Events (type='event') live under a parent club and shouldn't surface
+      // as a top-level chat row — that would duplicate the club entry and
+      // confuse users who joined an event but didn't think they'd see a chat.
+      setGroupChats((joinedRes?.data || [])
+        .filter(g => g.type !== 'event')
+        .map(g => {
+          const prefix = g.last_message_sender ? `${g.last_message_sender}: ` : '';
+          return {
+            id: g.id,
+            name: g.name || g.title,
+            lastMessage: g.last_message ? `${prefix}${g.last_message}` : '',
+            time: g.last_message_time ? formatTime(g.last_message_time) : '',
+            unread: g.unread_count || 0,
+            avatar: g.image_url,
+            type: g.type,
+            isOwner: g.role === 'owner'
+          };
+        }));
 
       setPrivateChats((dmsRes?.data || []).map(dm => ({
         id: dm.other_user_id,

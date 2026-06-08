@@ -39,7 +39,8 @@ export const CreateClub = () => {
     meeting_frequency: 'weekly',
     rules: '',
     image_url: null,
-    chat_only_owner: false
+    chat_only_owner: false,
+    events_owner_only: false
   });
 
   const [imagePreview, setImagePreview] = useState(null);
@@ -127,6 +128,7 @@ export const CreateClub = () => {
         meeting_frequency: formData.meeting_frequency,
         image_url: formData.image_url,
         chat_only_owner: formData.chat_only_owner,
+        events_owner_only: formData.events_owner_only,
         type: 'club'
       });
 
@@ -356,6 +358,25 @@ export const CreateClub = () => {
                 type="checkbox"
                 checked={formData.chat_only_owner}
                 onChange={(e) => setFormData(prev => ({ ...prev, chat_only_owner: e.target.checked }))}
+              />
+              <span className="settings-toggle-slider" />
+            </label>
+          </div>
+
+          <div className="form-section" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '14px 16px' }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-white)', marginBottom: 2 }}>
+                {t('createClub.step2.eventsTitle')}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {formData.events_owner_only ? t('createClub.step2.eventsOwnerOnly') : t('createClub.step2.eventsAll')}
+              </div>
+            </div>
+            <label className="settings-toggle">
+              <input
+                type="checkbox"
+                checked={formData.events_owner_only}
+                onChange={(e) => setFormData(prev => ({ ...prev, events_owner_only: e.target.checked }))}
               />
               <span className="settings-toggle-slider" />
             </label>

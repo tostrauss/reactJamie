@@ -24,7 +24,8 @@ export const createClub = async (req, res) => {
     image_url,
     max_members,
     is_private,
-    skill_level
+    skill_level,
+    events_owner_only
   } = req.body;
   const userId = req.userId;
 
@@ -68,9 +69,10 @@ export const createClub = async (req, res) => {
         owner_id,
         lat,
         lng,
-        approval_status
+        approval_status,
+        events_owner_only
       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING *`,
       [
         name,
@@ -86,7 +88,8 @@ export const createClub = async (req, res) => {
         userId,
         coords?.lat ?? null,
         coords?.lng ?? null,
-        approval
+        approval,
+        events_owner_only || false
       ]
     );
 
@@ -267,7 +270,8 @@ export const updateClub = async (req, res) => {
       image_url,
       max_members,
       is_private,
-      skill_level
+      skill_level,
+      events_owner_only
     } = req.body;
 
     if (name !== undefined && name.length > 100) return res.status(400).json({ error: 'Name darf maximal 100 Zeichen lang sein' });
@@ -306,6 +310,7 @@ export const updateClub = async (req, res) => {
            max_members = COALESCE($7, max_members),
            is_private = COALESCE($8, is_private),
            skill_level = COALESCE($9, skill_level),
+           events_owner_only = COALESCE($14, events_owner_only),
            lat = CASE WHEN $5 IS NOT NULL THEN $12 ELSE lat END,
            lng = CASE WHEN $5 IS NOT NULL THEN $13 ELSE lng END,
            updated_at = CURRENT_TIMESTAMP
@@ -324,7 +329,8 @@ export const updateClub = async (req, res) => {
         id,
         CLUB_TYPE,
         latUpdate,
-        lngUpdate
+        lngUpdate,
+        events_owner_only ?? null
       ]
     );
 
@@ -816,8 +822,23 @@ export const getClubEvents = async (req, res) => {
     const { id } = req.params;
     const { past } = req.query;
 
-    const club = await db.query('SELECT id FROM groups WHERE id = $1 AND type = $2', [id, CLUB_TYPE]);
+    const club = await db.query(
+      'SELECT id, owner_id FROM groups WHERE id = $1 AND type = $2',
+      [id, CLUB_TYPE]
+    );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club nicht gefunden' });
+
+    // Events are members-only. Non-authenticated callers and non-members get 403
+    // so the frontend can render a locked state (rather than showing 0 events
+    // and confusing the user about whether the club is just empty).
+    if (!req.userId) return res.status(403).json({ error: 'Login erforderlich', code: 'NOT_MEMBER' });
+    const membership = await db.query(
+      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [id, req.userId]
+    );
+    if (membership.rows.length === 0 && club.rows[0].owner_id !== req.userId) {
+      return res.status(403).json({ error: 'Nur für Clubmitglieder sichtbar', code: 'NOT_MEMBER' });
+    }
 
     const isPast = past === 'true';
     const result = await db.query(
@@ -867,7 +888,7 @@ export const createClubEvent = async (req, res) => {
 
   try {
     const club = await db.query(
-      'SELECT id, name, category, owner_id FROM groups WHERE id = $1 AND type = $2',
+      'SELECT id, name, category, owner_id, events_owner_only FROM groups WHERE id = $1 AND type = $2',
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club nicht gefunden' });
@@ -877,7 +898,13 @@ export const createClubEvent = async (req, res) => {
       [id, userId]
     );
     if (membership.rows.length === 0) {
-      return res.status(403).json({ error: 'Nur Mitglieder können Veranstaltungen erstellen' });
+      return res.status(403).json({ error: 'Nur Mitglieder können Events erstellen' });
+    }
+
+    // Owner-only gate: when the club founder restricted event creation, only
+    // the founder (owner) may add events. Members can still see them.
+    if (club.rows[0].events_owner_only && club.rows[0].owner_id !== userId) {
+      return res.status(403).json({ error: 'Nur der Club-Gründer darf Events erstellen' });
     }
 
     const { safe, reason } = await checkTextSafety([name, description].filter(Boolean).join('\n'));

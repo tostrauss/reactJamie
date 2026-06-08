@@ -266,7 +266,9 @@
       "dateMorgen": "Morgen",
       "dateGestern": "Gestern",
       "proGateAria": "Mit JAMIE Pro alle Mitglieder sehen",
-      "joinAria": "Beitreten"
+      "joinAria": "Beitreten",
+      "publicBadge": "Öffentlich",
+      "privateBadge": "Privat"
     },
     "detail": {
       "loading": "Laden...",
@@ -278,6 +280,7 @@
         "joinPublic": "Beitreten",
         "joinPrivate": "Beitritt anfragen",
         "openChat": "Chat öffnen",
+        "editEvent": "Bearbeiten",
         "requestPending": "Anfrage ausstehend…",
         "spotFreeJoin": "🎉 Platz frei – Jetzt beitreten!",
         "leaveWaitlist": "Von Warteliste entfernen",
@@ -408,12 +411,12 @@
       "unknownName": "Mitglied"
     },
     "events": {
-      "title": "Termine",
-      "createAria": "Neuen Termin erstellen",
-      "loading": "Lade Termine…",
-      "empty": "Noch keine Termine geplant",
-      "firstEventCta": "Ersten Termin erstellen",
-      "create": "Termin erstellen",
+      "title": "Events",
+      "createAria": "Neues Event erstellen",
+      "loading": "Lade Events…",
+      "empty": "Noch keine Events geplant",
+      "firstEventCta": "Erstes Event erstellen",
+      "create": "Event erstellen",
       "creating": "Wird erstellt…",
       "join": "Beitreten",
       "joined": "Dabei ✓",
@@ -421,22 +424,24 @@
       "uhr": "Uhr",
       "participants": "{{current}}/{{max}} Teilnehmer",
       "calendarAdd": "Zum Kalender hinzufügen",
-      "confirmDelete": "Diesen Termin wirklich löschen?",
-      "formNamePlaceholder": "Name des Termins",
+      "confirmDelete": "Dieses Event wirklich löschen?",
+      "formNamePlaceholder": "Name des Events",
       "formDescPlaceholder": "Beschreibung (optional)",
       "formLocationPlaceholder": "Ort",
       "formMaxPlaceholder": "Max.",
       "errorNameRequired": "Name ist erforderlich",
       "errorDateRequired": "Datum ist erforderlich",
       "errorDateFuture": "Datum muss in der Zukunft liegen",
-      "createdToast": "Termin erstellt",
-      "createError": "Termin konnte nicht erstellt werden",
-      "deletedToast": "Termin gelöscht",
-      "deleteError": "Termin konnte nicht gelöscht werden",
+      "createdToast": "Event erstellt",
+      "createError": "Event konnte nicht erstellt werden",
+      "deletedToast": "Event gelöscht",
+      "deleteError": "Event konnte nicht gelöscht werden",
       "joinedToast": "Du bist dabei!",
       "joinError": "Beitritt fehlgeschlagen",
       "leaveError": "Verlassen fehlgeschlagen",
-      "requestSent": "Beitrittsanfrage gesendet"
+      "requestSent": "Beitrittsanfrage gesendet",
+      "membersOnly": "Events sind nur für Clubmitglieder sichtbar",
+      "membersOnlyHint": "Tritt dem Club bei, um Events zu sehen"
     }
   },
   "clubMembers": {
@@ -1200,7 +1205,10 @@
       "rulesPlaceholder": "Regeln für deine Mitglieder...",
       "chatTitle": "Chat-Schreibrechte",
       "chatOwnerOnly": "Nur du kannst schreiben",
-      "chatAll": "Alle Mitglieder können schreiben"
+      "chatAll": "Alle Mitglieder können schreiben",
+      "eventsTitle": "Wer darf Events erstellen?",
+      "eventsOwnerOnly": "Nur du als Gründer",
+      "eventsAll": "Alle Clubmitglieder"
     },
     "step3": {
       "title": "Vorschau",
@@ -1227,6 +1235,7 @@
       "members": "Mitglieder",
       "addFriends": "Freunde hinzufügen",
       "groupInfo": "Gruppeninfo",
+      "eventInfo": "Eventinfo",
       "shareGroup": "Gruppe teilen"
     },
     "memberRole": "Ersteller",
@@ -1265,6 +1274,11 @@
       "title": "Chat-Schreibrechte",
       "ownerOnly": "Nur du kannst schreiben",
       "all": "Alle Mitglieder können schreiben"
+    },
+    "events": {
+      "title": "Wer darf Events erstellen?",
+      "ownerOnly": "Nur du als Gründer",
+      "all": "Alle Clubmitglieder"
     },
     "membersTitle": "Mitglieder",
     "memberRole": "Gründer",

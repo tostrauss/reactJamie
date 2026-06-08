@@ -227,10 +227,14 @@ export const GroupEdit = () => {
           )}
         </section>
 
-        {/* ── Gruppe bearbeiten ── */}
+        {/* ── Gruppe / Event bearbeiten ── */}
         <section className="ge-section">
           <div className="ge-section-head">
-            <span className="ge-section-title">{t('groupEdit.sections.groupInfo')}</span>
+            <span className="ge-section-title">
+              {group?.type === 'event'
+                ? t('groupEdit.sections.eventInfo')
+                : t('groupEdit.sections.groupInfo')}
+            </span>
           </div>
           <div className="ge-card ge-form-card">
 

@@ -49,6 +49,7 @@ export const ClubEdit = () => {
         location: clubData.location || '',
         category: clubData.category || '',
         chat_only_owner: clubData.chat_only_owner || false,
+        events_owner_only: clubData.events_owner_only || false,
       });
     } catch (error) {
     } finally {
@@ -171,6 +172,25 @@ export const ClubEdit = () => {
                 type="checkbox"
                 checked={formData.chat_only_owner}
                 onChange={(e) => setFormData(prev => ({ ...prev, chat_only_owner: e.target.checked }))}
+              />
+              <span className="settings-toggle-slider" />
+            </label>
+          </div>
+
+          <div className="form-section" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '14px 16px' }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-white)', marginBottom: 2 }}>
+                {t('clubEdit.events.title')}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {formData.events_owner_only ? t('clubEdit.events.ownerOnly') : t('clubEdit.events.all')}
+              </div>
+            </div>
+            <label className="settings-toggle">
+              <input
+                type="checkbox"
+                checked={formData.events_owner_only}
+                onChange={(e) => setFormData(prev => ({ ...prev, events_owner_only: e.target.checked }))}
               />
               <span className="settings-toggle-slider" />
             </label>

@@ -266,7 +266,9 @@
       "dateMorgen": "Tomorrow",
       "dateGestern": "Yesterday",
       "proGateAria": "See all members with JAMIE Pro",
-      "joinAria": "Join"
+      "joinAria": "Join",
+      "publicBadge": "Public",
+      "privateBadge": "Private"
     },
     "detail": {
       "loading": "Loading...",
@@ -278,6 +280,7 @@
         "joinPublic": "Join",
         "joinPrivate": "Request to join",
         "openChat": "Open chat",
+        "editEvent": "Edit",
         "requestPending": "Request pending…",
         "spotFreeJoin": "🎉 Spot open – Join now!",
         "leaveWaitlist": "Leave waitlist",
@@ -436,7 +439,9 @@
       "joinedToast": "You're in!",
       "joinError": "Could not join",
       "leaveError": "Could not leave",
-      "requestSent": "Join request sent"
+      "requestSent": "Join request sent",
+      "membersOnly": "Events are only visible to club members",
+      "membersOnlyHint": "Join the club to see events"
     }
   },
   "clubMembers": {
@@ -1200,7 +1205,10 @@
       "rulesPlaceholder": "Rules for your members...",
       "chatTitle": "Chat permissions",
       "chatOwnerOnly": "Only you can post",
-      "chatAll": "All members can post"
+      "chatAll": "All members can post",
+      "eventsTitle": "Who can create events?",
+      "eventsOwnerOnly": "Only you as founder",
+      "eventsAll": "All club members"
     },
     "step3": {
       "title": "Preview",
@@ -1227,6 +1235,7 @@
       "members": "Members",
       "addFriends": "Add friends",
       "groupInfo": "Group info",
+      "eventInfo": "Event info",
       "shareGroup": "Share group"
     },
     "memberRole": "Creator",
@@ -1265,6 +1274,11 @@
       "title": "Chat permissions",
       "ownerOnly": "Only you can post",
       "all": "All members can post"
+    },
+    "events": {
+      "title": "Who can create events?",
+      "ownerOnly": "Only you as founder",
+      "all": "All club members"
     },
     "membersTitle": "Members",
     "memberRole": "Founder",

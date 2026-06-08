@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useContext, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
 import { clubs } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -10,46 +9,6 @@ import { isNativeIOS } from '../utils/platform';
 import '../styles/club-detail.css';
 
 const BoostModal = lazy(() => import('../components/BoostModal').then(m => ({ default: m.BoostModal })));
-
-// Stable empty libraries array — re-creating this triggers Google Maps reload.
-const MAP_LIBRARIES = [];
-
-const CLUB_MAP_STYLES = [
-  { elementType: 'geometry',           stylers: [{ color: '#1a1a2e' }] },
-  { elementType: 'labels.icon',        stylers: [{ visibility: 'off' }] },
-  { elementType: 'labels.text.fill',   stylers: [{ color: '#7b7b9a' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1a2e' }] },
-  { featureType: 'road',         elementType: 'geometry.fill', stylers: [{ color: '#2d2d4e' }] },
-  { featureType: 'road.highway', elementType: 'geometry',      stylers: [{ color: '#3d3d6b' }] },
-  { featureType: 'water',        elementType: 'geometry',      stylers: [{ color: '#0d1b2a' }] },
-  { featureType: 'poi.park',     elementType: 'geometry',      stylers: [{ color: '#162030' }] },
-];
-
-function ClubMiniMap({ lat, lng }) {
-  const { isLoaded } = useLoadScript({
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '',
-    libraries: MAP_LIBRARIES,
-  });
-  if (!isLoaded) return <div className="cd-mini-map cd-mini-map--loading" />;
-  const pos = { lat, lng };
-  return (
-    <div className="cd-mini-map">
-      <GoogleMap
-        mapContainerClassName="cd-mini-map-canvas"
-        center={pos}
-        zoom={14}
-        options={{
-          styles: CLUB_MAP_STYLES,
-          disableDefaultUI: true,
-          gestureHandling: 'cooperative',
-          clickableIcons: false,
-        }}
-      >
-        <Marker position={pos} />
-      </GoogleMap>
-    </div>
-  );
-}
 
 const today = () => new Date().toISOString().split('T')[0];
 const nowTime = () => {
@@ -124,6 +83,7 @@ export const ClubDetail = () => {
 
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsLocked, setEventsLocked] = useState(false);
   const [showCreateEvent, setShowCreateEvent] = useState(false);
   const [eventForm, setEventForm] = useState({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20 });
   const [eventSubmitting, setEventSubmitting] = useState(false);
@@ -149,9 +109,14 @@ export const ClubDetail = () => {
         setMembers(Array.isArray(memberData) ? memberData : (memberData?.members || []));
 
         setEventsLoading(true);
+        setEventsLocked(false);
         clubs.getEvents(id)
-          .then(r => { if (!controller.signal.aborted) setEvents(r.data || []); })
-          .catch(() => {})
+          .then(r => { if (!controller.signal.aborted) { setEvents(r.data || []); setEventsLocked(false); } })
+          .catch(err => {
+            if (controller.signal.aborted) return;
+            // 403 → user is not a member; backend gates events for members-only.
+            if (err?.response?.status === 403) setEventsLocked(true);
+          })
           .finally(() => { if (!controller.signal.aborted) setEventsLoading(false); });
       } catch {
         if (!controller.signal.aborted) toast.error(t('clubDetail.toast.loadError'));
@@ -288,7 +253,9 @@ export const ClubDetail = () => {
 
   const isOwner = user && club.owner_id === user.id;
   const isMember = isJoined;
-  const canCreateEvent = user && isMember;
+  // Owner-only setting (from the founder's club settings) restricts event
+  // creation to the owner. Members can still see the events list.
+  const canCreateEvent = user && isMember && (!club.events_owner_only || isOwner);
   const membersCount = club.members_count || members.length || 0;
   const visibleMembers = members.slice(0, 20);
   const overflowMembers = Math.max(0, membersCount - visibleMembers.length);
@@ -399,17 +366,6 @@ export const ClubDetail = () => {
               </button>
             )}
           </div>
-
-          {/* ── Location mini-map ──────────────────────────────── */}
-          {club.lat != null && club.lng != null && (
-            <section className="cd-map-section">
-              <h3 className="cd-section-title">{t('clubDetail.map.title')}</h3>
-              <ClubMiniMap lat={Number(club.lat)} lng={Number(club.lng)} />
-              {club.location && (
-                <p className="cd-map-address">{club.location}</p>
-              )}
-            </section>
-          )}
 
           {/* ── Members section ────────────────────────────────── */}
           {members.length > 0 && (
@@ -545,6 +501,14 @@ export const ClubDetail = () => {
 
             {eventsLoading ? (
               <p className="cd-events-empty">{t('clubDetail.events.loading')}</p>
+            ) : eventsLocked ? (
+              <div className="cd-events-empty-state">
+                <div className="cd-events-empty-icon">🔒</div>
+                <p>{t('clubDetail.events.membersOnly')}</p>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                  {t('clubDetail.events.membersOnlyHint')}
+                </p>
+              </div>
             ) : events.length === 0 ? (
               <div className="cd-events-empty-state">
                 <div className="cd-events-empty-icon">📅</div>

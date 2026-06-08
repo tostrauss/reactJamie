@@ -126,7 +126,10 @@
   flex: 1;
   overflow-y: auto;
   padding: 0 18px;
-  padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 74px);
+  /* Bottom nav is ~64px tall, but on some Android devices it renders taller
+     with its own safe-area inset baked in — bumping to 110px so the very last
+     form field (and any inline submit) is comfortably scrollable above it. */
+  padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 110px);
 }
 
 /* ── Section ── */
@@ -258,16 +261,17 @@
 
 .ge-search-icon {
   position: absolute;
-  left: 16px;
+  left: 18px;
   top: 50%;
   transform: translateY(-50%);
   color: var(--text-muted);
   pointer-events: none;
+  z-index: 1;
 }
 
 .ge-search {
   width: 100%;
-  padding: 14px 18px 14px 44px;
+  padding: 14px 18px 14px 50px;
   background: var(--bg-card);
   border: none;
   border-radius: 16px;

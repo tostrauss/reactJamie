@@ -109,55 +109,39 @@ export const GroupCard = memo(({
         <div className="card-text-area">
           <h3 className="card-title">{group.category || group.title || group.name}</h3>
           <div className="card-subtitle-row">
-            <span>{group.members_count}/{maxMembers} {t('groups.card.members')}</span>
-            {group.is_private && <span className="card-private-badge">🔒</span>}
-            {isFull && <span className="card-private-badge">{t('groups.card.full')}</span>}
+            {isClub ? (
+              <>
+                <span>{group.members_count || 0} {t('groups.card.members')}</span>
+                {group.location && (
+                  <span className="card-club-location">📍 {group.location}</span>
+                )}
+              </>
+            ) : (
+              <span>{group.members_count}/{maxMembers} {t('groups.card.members')}</span>
+            )}
+            {!isClub && group.is_private && <span className="card-private-badge">🔒</span>}
+            {!isClub && isFull && <span className="card-private-badge">{t('groups.card.full')}</span>}
             {group.is_boosted && <span className="card-private-badge">🚀</span>}
           </div>
         </div>
+        {isClub && (
+          <span className={`card-visibility-badge ${group.is_private ? 'private' : 'public'}`}>
+            {group.is_private ? t('groups.card.privateBadge') : t('groups.card.publicBadge')}
+          </span>
+        )}
       </div>
 
       {/* ── Photo grid ── */}
       <div className="card-photo-grid">
         {isClub ? (
-          clubAvatars.length > 0 ? (
-            <>
-              {clubAvatars.map((member) => (
-                <div key={member.id} className="avatar-slot">
-                  <AvatarImage
-                    src={member.avatar_url}
-                    alt={member.name || ''}
-                    fallbackChar={member.name}
-                  />
-                </div>
-              ))}
-              {Array.from({ length: clubEmpty }).map((_, idx) => (
-                <div key={`club-empty-${idx}`} className="avatar-slot empty">
-                  <button
-                    className="avatar-gamble"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/club/${group.id}`);
-                    }}
-                    aria-label={t('groups.card.joinAria')}
-                  >
-                    <svg width="11" height="11" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-                      <path d="M5 1v8M1 5h8"/>
-                    </svg>
-                  </button>
-                </div>
-              ))}
-            </>
-          ) : (
-            <div className="avatar-slot card-club-full-image" style={{ gridColumn: '1 / -1', gridRow: '1 / -1', borderRadius: '9px' }}>
-              <AvatarImage
-                src={group.image_url}
-                alt={group.name || group.title || ''}
-                fallbackChar={group.category || group.name || group.title}
-                placeholderStyle={{ fontSize: 48, fontWeight: 700 }}
-              />
-            </div>
-          )
+          <div className="avatar-slot card-club-full-image" style={{ gridColumn: '1 / -1', gridRow: '1 / -1', borderRadius: '9px' }}>
+            <AvatarImage
+              src={group.image_url}
+              alt={group.name || group.title || ''}
+              fallbackChar={group.category || group.name || group.title}
+              placeholderStyle={{ fontSize: 48, fontWeight: 700 }}
+            />
+          </div>
         ) : (
           <>
             {memberAvatars.map((member) => (

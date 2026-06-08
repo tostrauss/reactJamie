@@ -875,6 +875,9 @@ const runStartupMigrations = async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS chat_only_owner BOOLEAN DEFAULT FALSE`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_chat_only_owner ON groups(chat_only_owner) WHERE chat_only_owner = TRUE`);
   });
+  await migrate('groups.events_owner_only', async () => {
+    await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS events_owner_only BOOLEAN DEFAULT FALSE`);
+  });
   await migrate('idx_groups_category_lower', () =>
     db.query(`CREATE INDEX IF NOT EXISTS idx_groups_category_lower ON groups(LOWER(category))`));
   await migrate('idx_groups_feed + map', async () => {

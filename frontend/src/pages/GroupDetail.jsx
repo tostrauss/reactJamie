@@ -486,6 +486,17 @@ export const GroupDetail = () => {
         {/* Anfragen / Chat / Waitlist button */}
         {(() => {
           const isFull = group.members_count >= group.max_members;
+          // Event owner sees "Bearbeiten" instead of join/chat CTA — clicking
+          // routes to the event edit page (group edit handles event editing).
+          if (isEvent && isOwner) {
+            return (
+              <div className="gd-anfragen-row">
+                <button className="gd-anfragen-btn joined" onClick={() => navigate(`/group/${group.id}/edit`)}>
+                  {t('groups.detail.actions.editEvent')}
+                </button>
+              </div>
+            );
+          }
           if (isJoined) {
             return (
               <div className="gd-anfragen-row">
