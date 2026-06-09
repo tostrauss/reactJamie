@@ -132,7 +132,6 @@ export const AdminDashboard = () => {
           <KPICard label={t('admin.kpis.today')} value={u.today} />
           <KPICard label={t('admin.kpis.thisWeek')} value={u.this_week} />
           <KPICard label={t('admin.kpis.thisMonth')} value={u.this_month} />
-          <KPICard label={t('admin.kpis.trusted')} value={u.trusted} />
         </div>
 
         <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>

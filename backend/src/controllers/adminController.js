@@ -6,22 +6,24 @@ import db from '../config/database.js';
 export const getStats = async (_req, res) => {
   try {
     const [users, groups, events, reviews, suggestions, topScreens, churn] = await Promise.all([
-      // User counts
+      // User counts. Aliases match what AdminDashboard renders (`u.this_week`,
+      // `u.this_month`) — earlier the SQL was using `week`/`month` and the
+      // dashboard fell back to undefined → blank "-" cells.
       db.query(`
         SELECT
           COUNT(*)                                                            AS total,
           COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day')    AS today,
-          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')   AS week,
-          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days')  AS month,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')   AS this_week,
+          COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '30 days')  AS this_month,
           COUNT(*) FILTER (WHERE is_trusted_user = TRUE)                     AS trusted
         FROM users
       `),
-      // Group/club counts
+      // Group/club counts. Frontend reads `g.total_groups` / `g.total_clubs`.
       db.query(`
         SELECT
           COUNT(*)                                          AS total,
-          COUNT(*) FILTER (WHERE type = 'group')            AS groups,
-          COUNT(*) FILTER (WHERE type = 'club')             AS clubs,
+          COUNT(*) FILTER (WHERE type = 'group')            AS total_groups,
+          COUNT(*) FILTER (WHERE type = 'club')             AS total_clubs,
           COUNT(*) FILTER (WHERE is_active = TRUE)          AS active
         FROM groups
       `),
