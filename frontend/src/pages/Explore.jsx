@@ -1,10 +1,16 @@
-import { useState, useEffect, useRef, useContext, memo } from 'react';
+import React, { useState, useEffect, useRef, useContext, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { groups, clubs, suggestions as suggestionsApi } from '../utils/api';
+import { groups, clubs, suggestions as suggestionsApi, deals as dealsApi } from '../utils/api';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import { AuthContext } from '../context/AuthContext';
+import { DealCard } from '../components/DealCard';
 import '../styles/explore.css';
+
+// Drop a sponsored DealCard into the feed every Nth position. Robert's spec:
+// "Jeder 6. Post auf der Entdecken Seite". Deals cycle so they don't repeat
+// adjacent to each other when more than one is active.
+const DEAL_INTERVAL_EXPLORE = 6;
 
 const getCategoryIcon = (catName) => {
   if (!catName) return '✨';
@@ -168,6 +174,7 @@ export const Explore = () => {
   const [loading, setLoading]         = useState(true);
   const [forYouItems, setForYouItems] = useState([]);
   const [hallItems, setHallItems]     = useState([]);
+  const [dealList, setDealList]       = useState([]);
 
   const [searchQuery, setSearchQuery]     = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -183,13 +190,15 @@ export const Explore = () => {
       try {
         // Hall of Fame still needs the full list (filtered by past dates).
         // For Du / Für Dich uses the dedicated /suggestions endpoint so the
-        // ranking includes friends-in-group + interest match.
+        // ranking includes friends-in-group + interest match. Deals are
+        // sponsored cooperations that mix in every Nth position.
         const isAuthed = user && !user.isGuest;
-        const [suggestRes, allRes] = await Promise.all([
+        const [suggestRes, allRes, dealsRes] = await Promise.all([
           isAuthed
             ? suggestionsApi.get({ limit: 30 }).catch(() => ({ data: [] }))
             : Promise.resolve({ data: [] }),
           groups.getAll({ limit: 50 }).catch(() => ({ data: [] })),
+          dealsApi.getAll().catch(() => ({ data: [] })),
         ]);
         if (cancelled) return;
 
@@ -201,6 +210,7 @@ export const Explore = () => {
 
         const all = allRes.data || [];
         setHallItems(all.filter(g => isPast(g.date)));
+        setDealList(dealsRes.data || []);
       } catch { /* silent */ }
       finally { if (!cancelled) setLoading(false); }
     })();
@@ -257,15 +267,28 @@ export const Explore = () => {
           </div>
         ) : (
           <div className="ef-feed">
-            {feedItems.map(item => (
-              <FeedCard
-                key={`${item._hallOfFame ? 'h' : 'f'}-${item.id}`}
-                item={item}
-                hallOfFame={item._hallOfFame}
-                navigate={navigate}
-                t={t}
-              />
-            ))}
+            {feedItems.map((item, idx) => {
+              // After every N feed items, insert a sponsored DealCard, cycling
+              // through the available deals so we don't repeat the same one
+              // back-to-back when more than one is active.
+              const showDealAfter =
+                dealList.length > 0 && (idx + 1) % DEAL_INTERVAL_EXPLORE === 0;
+              const dealIdx = Math.floor((idx + 1) / DEAL_INTERVAL_EXPLORE) - 1;
+              const deal = showDealAfter ? dealList[dealIdx % dealList.length] : null;
+              return (
+                <React.Fragment key={`${item._hallOfFame ? 'h' : 'f'}-${item.id}`}>
+                  <FeedCard
+                    item={item}
+                    hallOfFame={item._hallOfFame}
+                    navigate={navigate}
+                    t={t}
+                  />
+                  {deal && (
+                    <DealCard key={`deal-explore-${idx}-${deal.id}`} deal={deal} variant="explore" />
+                  )}
+                </React.Fragment>
+              );
+            })}
           </div>
         )}
 

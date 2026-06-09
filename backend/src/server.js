@@ -730,6 +730,12 @@ const runStartupMigrations = async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_deals_active ON deals(is_active) WHERE is_active = TRUE`);
     await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS booking_url TEXT`);
   });
+  // Cooperation deals: admin sets "Sichtbar bis" so promos expire automatically.
+  // NULL = no expiry. Filtered server-side; client never needs to check.
+  await migrate('deals.visible_until', async () => {
+    await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS visible_until TIMESTAMP`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_deals_visible_until ON deals(visible_until) WHERE is_active = TRUE`);
+  });
 
   // ── Subscriptions table (Stripe Pro) ─────────────────────────────────────────
   await migrate('subscriptions', () => db.query(`
@@ -877,6 +883,24 @@ const runStartupMigrations = async () => {
   });
   await migrate('groups.events_owner_only', async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS events_owner_only BOOLEAN DEFAULT FALSE`);
+  });
+  // Target audience age range. NULL on both sides means "no restriction"
+  // (group is visible to everyone), which matches the existing default.
+  await migrate('groups.target_age_min_max', async () => {
+    await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS target_age_min INTEGER`);
+    await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS target_age_max INTEGER`);
+    // Postgres has no IF NOT EXISTS for table constraints, so wrap each ADD
+    // CONSTRAINT in a DO block that swallows duplicate_object errors.
+    await db.query(`DO $$ BEGIN
+      ALTER TABLE groups ADD CONSTRAINT chk_target_age_range
+        CHECK (target_age_min IS NULL OR target_age_min BETWEEN 14 AND 99);
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$`);
+    await db.query(`DO $$ BEGIN
+      ALTER TABLE groups ADD CONSTRAINT chk_target_age_min_max
+        CHECK (target_age_min IS NULL OR target_age_max IS NULL OR target_age_min <= target_age_max);
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END $$`);
   });
   // Direct messaging tables were only defined in seed schema.sql, so any DB
   // bootstrapped without that seed (e.g. fresh Railway plugin instance) blew up

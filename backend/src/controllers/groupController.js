@@ -68,7 +68,7 @@ async function checkAndAwardPioneer(userId, groupId, lat, lng) {
 // CREATE GROUP / CLUB
 // ==========================================
 export const createGroup = async (req, res) => {
-  const { name, description, type, category, date, time, location, image_url, max_members, is_private, skill_level, chat_only_owner } = req.body;
+  const { name, description, type, category, date, time, location, image_url, max_members, is_private, skill_level, chat_only_owner, target_age_min, target_age_max } = req.body;
   const userId = req.userId; // JWT auth (not session)
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
@@ -116,14 +116,34 @@ export const createGroup = async (req, res) => {
       return res.status(400).json({ error: 'Maximale Teilnehmerzahl muss zwischen 2 und 500 liegen' });
     }
 
+    // Validate target age range: optional, but if either bound is set it must
+    // be a sane integer 14-99, and min <= max. Frontend should enforce this too.
+    const parseAge = (v) => {
+      if (v === undefined || v === null || v === '') return null;
+      const n = parseInt(v, 10);
+      return Number.isNaN(n) ? NaN : n;
+    };
+    const ageMin = parseAge(target_age_min);
+    const ageMax = parseAge(target_age_max);
+    if (Number.isNaN(ageMin) || Number.isNaN(ageMax)) {
+      return res.status(400).json({ error: 'Ungültige Altersangabe' });
+    }
+    if ((ageMin !== null && (ageMin < 14 || ageMin > 99)) ||
+        (ageMax !== null && (ageMax < 14 || ageMax > 99))) {
+      return res.status(400).json({ error: 'Alter muss zwischen 14 und 99 liegen' });
+    }
+    if (ageMin !== null && ageMax !== null && ageMin > ageMax) {
+      return res.status(400).json({ error: 'Mindestalter darf nicht größer als Maximalalter sein' });
+    }
+
     // Geocode location (non-blocking on failure)
     const coords = await geocodeLocation(location);
 
     const result = await db.query(
-      `INSERT INTO groups (name, description, type, category, date, location, image_url, max_members, is_private, skill_level, owner_id, lat, lng, chat_only_owner)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      `INSERT INTO groups (name, description, type, category, date, location, image_url, max_members, is_private, skill_level, owner_id, lat, lng, chat_only_owner, target_age_min, target_age_max)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        RETURNING *`,
-      [name, description, type || 'group', category, dateTime, location, image_url, max_members || 10, is_private || false, skill_level, userId, coords?.lat ?? null, coords?.lng ?? null, chat_only_owner || false]
+      [name, description, type || 'group', category, dateTime, location, image_url, max_members || 10, is_private || false, skill_level, userId, coords?.lat ?? null, coords?.lng ?? null, chat_only_owner || false, ageMin, ageMax]
     );
 
     const newGroup = result.rows[0];
@@ -170,11 +190,24 @@ export const getGroups = async (req, res) => {
     const callerIsPro = req.userId ? await isUserPro(req.userId) : false;
     const previewLimit = callerIsPro ? 4 : 3;
 
+    // Target-age hard filter. Compute the caller's age from their DOB so we can
+    // hide groups whose target_age_min/max excludes them. Users without DOB are
+    // included in everything (friendly default per Tina's call).
+    let callerAge = null;
+    if (req.userId) {
+      const dobRes = await db.query(
+        'SELECT EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age FROM users WHERE id = $1 AND date_of_birth IS NOT NULL',
+        [req.userId]
+      );
+      callerAge = dobRes.rows[0]?.age ?? null;
+    }
+
     // Cache only filter combinations that don't involve free-text search or location
     // (those are low-frequency, high-variability and not worth the memory).
-    // Pro flag is part of the key so non-Pro and Pro users never share a cache row.
+    // Pro flag + caller age are part of the key so users with different
+    // visibility filters never share a cache row.
     const cacheKey = !search && !location
-      ? `groups:${type || ''}:${category || ''}:${upcoming || ''}:${limit || ''}:${offset || ''}:p${callerIsPro ? 1 : 0}`
+      ? `groups:${type || ''}:${category || ''}:${upcoming || ''}:${limit || ''}:${offset || ''}:p${callerIsPro ? 1 : 0}:a${callerAge ?? 'x'}`
       : null;
     if (cacheKey) {
       const cached = getCached(cacheKey);
@@ -213,6 +246,15 @@ export const getGroups = async (req, res) => {
     `;
     const params = [];
     let paramIndex = 1;
+
+    // Apply target-age hard filter. NULL caller age = pass everything; otherwise
+    // exclude groups whose [min,max] range doesn't contain the caller.
+    if (callerAge !== null) {
+      query += ` AND (g.target_age_min IS NULL OR g.target_age_min <= $${paramIndex})
+                 AND (g.target_age_max IS NULL OR g.target_age_max >= $${paramIndex})`;
+      params.push(callerAge);
+      paramIndex++;
+    }
 
     if (type) {
       query += ` AND g.type = $${paramIndex++}`;
@@ -321,11 +363,31 @@ export const getGroupById = async (req, res) => {
 export const updateGroup = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, category, date, location, image_url, max_members, is_private, skill_level, chat_only_owner } = req.body;
+    const { name, description, category, date, location, image_url, max_members, is_private, skill_level, chat_only_owner, target_age_min, target_age_max } = req.body;
 
     if (name !== undefined && name.length > 100) return res.status(400).json({ error: 'Name darf maximal 100 Zeichen lang sein' });
     if (description !== undefined && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
     if (location !== undefined && location.length > 200) return res.status(400).json({ error: 'Ort darf maximal 200 Zeichen lang sein' });
+
+    // Same age-range validation as createGroup; null clears the bound.
+    const parseAgeUpdate = (v) => {
+      if (v === undefined) return undefined;
+      if (v === null || v === '') return null;
+      const n = parseInt(v, 10);
+      return Number.isNaN(n) ? NaN : n;
+    };
+    const ageMinU = parseAgeUpdate(target_age_min);
+    const ageMaxU = parseAgeUpdate(target_age_max);
+    if (Number.isNaN(ageMinU) || Number.isNaN(ageMaxU)) {
+      return res.status(400).json({ error: 'Ungültige Altersangabe' });
+    }
+    if ((typeof ageMinU === 'number' && (ageMinU < 14 || ageMinU > 99)) ||
+        (typeof ageMaxU === 'number' && (ageMaxU < 14 || ageMaxU > 99))) {
+      return res.status(400).json({ error: 'Alter muss zwischen 14 und 99 liegen' });
+    }
+    if (typeof ageMinU === 'number' && typeof ageMaxU === 'number' && ageMinU > ageMaxU) {
+      return res.status(400).json({ error: 'Mindestalter darf nicht größer als Maximalalter sein' });
+    }
 
     // Verify ownership
     const group = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
@@ -376,6 +438,8 @@ export const updateGroup = async (req, res) => {
     invalidatePrefix('groups:');
     if (location !== undefined) invalidatePrefix('map:');
 
+    // Sentinels: ageMin/MaxU is `undefined` when client didn't touch the field
+    // (keep existing), `null` when explicitly clearing, integer when setting.
     const result = await db.query(
       `UPDATE groups
        SET name = COALESCE($1, name),
@@ -388,12 +452,19 @@ export const updateGroup = async (req, res) => {
            is_private = COALESCE($8, is_private),
            skill_level = COALESCE($9, skill_level),
            chat_only_owner = COALESCE($13, chat_only_owner),
+           target_age_min = CASE WHEN $14::text = '__keep__' THEN target_age_min ELSE NULLIF($14, '__null__')::int END,
+           target_age_max = CASE WHEN $15::text = '__keep__' THEN target_age_max ELSE NULLIF($15, '__null__')::int END,
            lat = CASE WHEN $5 IS NOT NULL THEN $11 ELSE lat END,
            lng = CASE WHEN $5 IS NOT NULL THEN $12 ELSE lng END,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $10
        RETURNING *`,
-      [name, description, category, date, location, image_url, max_members, is_private, skill_level, id, latUpdate, lngUpdate, chat_only_owner ?? null]
+      [
+        name, description, category, date, location, image_url, max_members, is_private, skill_level,
+        id, latUpdate, lngUpdate, chat_only_owner ?? null,
+        ageMinU === undefined ? '__keep__' : (ageMinU === null ? '__null__' : String(ageMinU)),
+        ageMaxU === undefined ? '__keep__' : (ageMaxU === null ? '__null__' : String(ageMaxU)),
+      ]
     );
 
     res.json(result.rows[0]);

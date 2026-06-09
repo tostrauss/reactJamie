@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS boost_transactions (
   credits          INTEGER NOT NULL,
   amount_cents     INTEGER NOT NULL,
   currency         VARCHAR(3) NOT NULL DEFAULT 'EUR',
-  payment_provider VARCHAR(20),           -- 'stripe', 'referral' (legacy rows may contain 'paypal')
+  payment_provider VARCHAR(20),           -- 'stripe', 'referral'
   payment_id       TEXT,
   status           VARCHAR(20) NOT NULL DEFAULT 'pending',  -- pending, completed, failed
   created_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP

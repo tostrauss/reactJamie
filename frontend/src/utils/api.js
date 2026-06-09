@@ -573,11 +573,16 @@ export const upload = {
 };
 
 // ==========================================
-// DEALS API  (Pro-exclusive)
+// DEALS / COOPERATIONS API
 // ==========================================
+// Reads are available to everyone (no Pro gate as of 2026-06-09).
+// Write endpoints require admin (enforced on the backend via requireAdmin).
 export const deals = {
-  getAll: ()    => axiosInstance.get('/deals'),
-  getOne: (id)  => axiosInstance.get(`/deals/${id}`),
+  getAll: ()        => axiosInstance.get('/deals'),
+  getOne: (id)      => axiosInstance.get(`/deals/${id}`),
+  create: (data)    => axiosInstance.post('/deals', data),
+  update: (id, data)=> axiosInstance.put(`/deals/${id}`, data),
+  remove: (id)      => axiosInstance.delete(`/deals/${id}`),
 };
 
 // ==========================================

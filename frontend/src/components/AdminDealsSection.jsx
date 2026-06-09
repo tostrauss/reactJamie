@@ -1,0 +1,326 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { deals as dealsApi, upload } from '../utils/api';
+import { useToast } from '../context/ToastContext';
+
+/**
+ * Admin CRUD for Kooperationen (sponsored deals). Embedded inside
+ * AdminDashboard. Lists every active deal with edit/delete actions and a
+ * collapsible "Neue Kooperation" form covering Robert's required fields:
+ *   - company name
+ *   - 2-word headline
+ *   - longer description (shown on the deal detail page)
+ *   - company photo (uploaded via /api/upload, stored as photos[0])
+ *   - visible-until date
+ */
+
+const emptyForm = () => ({
+  id: null,
+  name: '',
+  deal_label: '',
+  description: '',
+  visible_until: '', // YYYY-MM-DD in the input
+  photo_url: '',
+});
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+export const AdminDealsSection = () => {
+  const { t } = useTranslation();
+  const toast = useToast();
+  const fileRef = useRef(null);
+
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(emptyForm());
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await dealsApi.getAll();
+      setList(res.data || []);
+    } catch {
+      toast.error(t('admin.deals.toast.loadError'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const onPhotoPick = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await upload.image(file);
+      const url = res.data?.url;
+      if (!url) throw new Error('no url');
+      setForm(prev => ({ ...prev, photo_url: url }));
+    } catch (err) {
+      toast.error(err.response?.data?.error || t('admin.deals.toast.uploadError'));
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const startNew = () => {
+    setForm(emptyForm());
+    setShowForm(true);
+  };
+
+  const startEdit = (deal) => {
+    setForm({
+      id: deal.id,
+      name: deal.name || '',
+      deal_label: deal.deal_label || '',
+      description: deal.description || '',
+      visible_until: deal.visible_until ? deal.visible_until.slice(0, 10) : '',
+      photo_url: Array.isArray(deal.photos) && deal.photos.length > 0 ? deal.photos[0] : '',
+    });
+    setShowForm(true);
+  };
+
+  const cancelForm = () => {
+    setShowForm(false);
+    setForm(emptyForm());
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim() || !form.deal_label.trim()) {
+      toast.error(t('admin.deals.toast.requiredFields'));
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        name: form.name.trim(),
+        deal_label: form.deal_label.trim(),
+        description: form.description.trim() || null,
+        photos: form.photo_url ? [form.photo_url] : [],
+        visible_until: form.visible_until || null,
+      };
+      if (form.id) {
+        await dealsApi.update(form.id, payload);
+      } else {
+        await dealsApi.create(payload);
+      }
+      toast.success(t('admin.deals.toast.saved'));
+      setShowForm(false);
+      setForm(emptyForm());
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.error || t('admin.deals.toast.saveError'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (deal) => {
+    if (!window.confirm(t('admin.deals.confirmDelete', { name: deal.name }))) return;
+    try {
+      await dealsApi.remove(deal.id);
+      toast.success(t('admin.deals.toast.deleted'));
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.error || t('admin.deals.toast.deleteError'));
+    }
+  };
+
+  const headingStyle = {
+    color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12,
+    opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1,
+  };
+  const cardStyle = {
+    display: 'flex', gap: 12, padding: 12, background: '#252544',
+    borderRadius: 12, marginBottom: 8, alignItems: 'center',
+  };
+  const inputStyle = {
+    width: '100%', padding: '10px 12px', background: '#1a1a2e',
+    border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8,
+    color: '#fff', fontSize: 14, fontFamily: 'inherit',
+    boxSizing: 'border-box',
+  };
+  const labelStyle = { display: 'block', color: 'rgba(255,255,255,0.6)', fontSize: 12, marginBottom: 6, fontWeight: 600 };
+  const btnPrimary = {
+    padding: '10px 18px', borderRadius: 8, background: '#FD7666', color: '#fff',
+    border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: 14,
+  };
+  const btnGhost = {
+    padding: '10px 18px', borderRadius: 8, background: 'transparent',
+    color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.15)',
+    cursor: 'pointer', fontSize: 14,
+  };
+
+  return (
+    <div id="admin-deals" style={{ marginBottom: 32 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <h2 style={headingStyle}>{t('admin.deals.title')}</h2>
+        {!showForm && (
+          <button onClick={startNew} style={btnPrimary}>+ {t('admin.deals.newBtn')}</button>
+        )}
+      </div>
+
+      {showForm && (
+        <form onSubmit={submit} style={{ background: '#252544', borderRadius: 14, padding: 16, marginBottom: 16 }}>
+          <h3 style={{ color: '#FD7666', fontSize: 16, fontWeight: 700, marginBottom: 14 }}>
+            {form.id ? t('admin.deals.editTitle') : t('admin.deals.newTitle')}
+          </h3>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>{t('admin.deals.fields.company')} *</label>
+            <input
+              type="text"
+              maxLength={255}
+              value={form.name}
+              onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+              placeholder={t('admin.deals.fields.companyPlaceholder')}
+              style={inputStyle}
+              required
+            />
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>{t('admin.deals.fields.headline')} *</label>
+            <input
+              type="text"
+              maxLength={100}
+              value={form.deal_label}
+              onChange={e => setForm(p => ({ ...p, deal_label: e.target.value }))}
+              placeholder={t('admin.deals.fields.headlinePlaceholder')}
+              style={inputStyle}
+              required
+            />
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4 }}>
+              {t('admin.deals.fields.headlineHint')}
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>{t('admin.deals.fields.description')}</label>
+            <textarea
+              maxLength={2000}
+              rows={4}
+              value={form.description}
+              onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+              placeholder={t('admin.deals.fields.descriptionPlaceholder')}
+              style={{ ...inputStyle, resize: 'vertical', minHeight: 80 }}
+            />
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4 }}>
+              {t('admin.deals.fields.descriptionHint')}
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>{t('admin.deals.fields.visibleUntil')}</label>
+            <input
+              type="date"
+              min={todayIso()}
+              value={form.visible_until}
+              onChange={e => setForm(p => ({ ...p, visible_until: e.target.value }))}
+              style={inputStyle}
+            />
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4 }}>
+              {t('admin.deals.fields.visibleUntilHint')}
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>{t('admin.deals.fields.photo')}</label>
+            {form.photo_url ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <img
+                  src={form.photo_url}
+                  alt=""
+                  style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 10 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setForm(p => ({ ...p, photo_url: '' }))}
+                  style={btnGhost}
+                >
+                  {t('admin.deals.fields.photoRemove')}
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={onPhotoPick}
+                  style={{ display: 'none' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploading}
+                  style={{ ...btnGhost, width: '100%', padding: '14px 16px' }}
+                >
+                  {uploading ? t('admin.deals.fields.photoUploading') : t('admin.deals.fields.photoPick')}
+                </button>
+              </>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="submit" disabled={saving || uploading} style={{ ...btnPrimary, flex: 1 }}>
+              {saving ? t('admin.deals.savingBtn') : t('admin.deals.saveBtn')}
+            </button>
+            <button type="button" onClick={cancelForm} style={btnGhost}>
+              {t('common.cancel')}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {loading ? (
+        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>{t('admin.deals.loading')}</p>
+      ) : list.length === 0 ? (
+        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, fontStyle: 'italic' }}>
+          {t('admin.deals.empty')}
+        </p>
+      ) : (
+        list.map(deal => {
+          const photo = Array.isArray(deal.photos) && deal.photos[0];
+          const expiry = deal.visible_until ? new Date(deal.visible_until).toLocaleDateString('de-DE') : null;
+          return (
+            <div key={deal.id} style={cardStyle}>
+              <div style={{ width: 56, height: 56, borderRadius: 10, overflow: 'hidden', background: '#1a1a2e', flexShrink: 0 }}>
+                {photo && <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {deal.name}
+                </div>
+                <div style={{ color: '#FD7666', fontSize: 12, fontWeight: 600 }}>
+                  {deal.deal_label}
+                </div>
+                {expiry && (
+                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 2 }}>
+                    {t('admin.deals.untilFmt', { date: expiry })}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <button onClick={() => startEdit(deal)} style={{ ...btnGhost, padding: '8px 12px', fontSize: 12 }}>
+                  {t('admin.deals.editBtn')}
+                </button>
+                <button onClick={() => remove(deal)} style={{ ...btnGhost, padding: '8px 12px', fontSize: 12, color: '#ff7a7a' }}>
+                  {t('admin.deals.deleteBtn')}
+                </button>
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+};
+
+export default AdminDealsSection;

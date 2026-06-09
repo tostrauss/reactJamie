@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { admin } from '../utils/api';
+import { AdminDealsSection } from '../components/AdminDealsSection';
 
 const downloadCSV = (data, filename) => {
   if (!data?.length) return;
@@ -142,6 +143,9 @@ export const AdminDashboard = () => {
           <KPICard label={t('admin.kpis.clubs')} value={g.total_clubs} />
           <KPICard label={t('admin.kpis.reviews')} value={stats?.reviews} />
         </div>
+
+        {/* Sponsored cooperations (Kooperationen) */}
+        <AdminDealsSection />
 
         {/* Approval queue for user-created clubs (#14) */}
         <div id="clubs-pending" style={{ marginBottom: 32 }}>

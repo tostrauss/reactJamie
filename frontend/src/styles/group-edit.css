@@ -547,3 +547,39 @@
   border-color: var(--accent-coral);
   background: rgba(255,107,107,0.07);
 }
+
+/* ── Target age range (GroupEdit) ──────────────────────────── */
+.ge-hint {
+  margin: 4px 0 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ge-age-range {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ge-age-input {
+  flex: 1;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ge-age-input::-webkit-outer-spin-button,
+.ge-age-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.ge-age-input {
+  -moz-appearance: textfield;
+}
+
+.ge-age-sep {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-muted);
+}

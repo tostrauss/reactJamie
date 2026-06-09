@@ -1,12 +1,18 @@
-import { useState, useEffect, useContext, useRef, useCallback, useMemo, lazy, Suspense } from "react";
+import React, { useState, useEffect, useContext, useRef, useCallback, useMemo, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import api, { groups, clubs } from "../utils/api";
+import api, { groups, clubs, deals as dealsApi } from "../utils/api";
 import { GroupCard } from "../components/GroupCard";
+import { DealCard } from "../components/DealCard";
 import { AuthContext } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { CATEGORY_HIERARCHY } from "../utils/categories";
 import "../styles/home.css";
+
+// Robert's spec: every 8th group on the Home/Gruppen tab is a sponsored deal.
+// Only kicks in when the user is browsing (no active search/filters) so deal
+// slots don't get in the way when someone is hunting for a specific group.
+const DEAL_INTERVAL_HOME = 8;
 
 const MapView = lazy(() => import("../components/MapView"));
 
@@ -67,6 +73,7 @@ const AgeRangeSlider = ({ value, onChange }) => {
 export const Home = () => {
   const [groupList, setGroupList] = useState([]);
   const [clubList, setClubList] = useState([]);
+  const [dealList, setDealList] = useState([]);
   const [myClubs, setMyClubs] = useState([]);
   const [activeTab, setActiveTab] = useState("gruppen");
   const [searchQuery, setSearchQuery] = useState("");
@@ -110,13 +117,15 @@ export const Home = () => {
     setLoading(true);
     try {
       if (activeTab === "gruppen") {
-        const [groupsRes, favGroupsRes, joinedGroupsRes, joinedClubsRes] = await Promise.all([
+        const [groupsRes, favGroupsRes, joinedGroupsRes, joinedClubsRes, dealsRes] = await Promise.all([
           api.get("/groups", { params: { type: "group" } }),
           groups.getFavorites().catch(() => ({ data: [] })),
           groups.getJoined().catch(() => ({ data: [] })),
           clubs.getJoined().catch(() => ({ data: [] })),
+          dealsApi.getAll().catch(() => ({ data: [] })),
         ]);
         setGroupList(groupsRes.data || []);
+        setDealList(dealsRes.data || []);
         setFavorites(new Set((favGroupsRes.data || []).map(g => g.id)));
         setJoined(new Set([
           ...(joinedGroupsRes.data || []).map(g => g.id),
@@ -450,19 +459,36 @@ export const Home = () => {
               </div>
             ) : filteredGroups.length > 0 ? (
               <div className="groups-grid">
-                {filteredGroups.map((group) => (
-                  <GroupCard
-                    key={group.id}
-                    group={group}
-                    isFavorite={favorites.has(group.id)}
-                    isJoined={joined.has(group.id)}
-                    onFavorite={handleFavorite}
-                    onJoin={handleJoin}
-                    onChat={handleChat}
-                    onWaitlist={handleWaitlist}
-                    onClick={() => handleCardClick(group.id, group.type)}
-                  />
-                ))}
+                {filteredGroups.map((group, idx) => {
+                  // Deals only inject into the unfiltered browse feed — when
+                  // the user searches/filters we skip the sponsored slots so
+                  // they don't pollute targeted results.
+                  const isPlainBrowse =
+                    !searchQuery.trim() && activeFilterCount === 0;
+                  const showDealAfter =
+                    isPlainBrowse &&
+                    dealList.length > 0 &&
+                    (idx + 1) % DEAL_INTERVAL_HOME === 0;
+                  const dealIdx = Math.floor((idx + 1) / DEAL_INTERVAL_HOME) - 1;
+                  const deal = showDealAfter ? dealList[dealIdx % dealList.length] : null;
+                  return (
+                    <React.Fragment key={group.id}>
+                      <GroupCard
+                        group={group}
+                        isFavorite={favorites.has(group.id)}
+                        isJoined={joined.has(group.id)}
+                        onFavorite={handleFavorite}
+                        onJoin={handleJoin}
+                        onChat={handleChat}
+                        onWaitlist={handleWaitlist}
+                        onClick={() => handleCardClick(group.id, group.type)}
+                      />
+                      {deal && (
+                        <DealCard key={`deal-home-${idx}-${deal.id}`} deal={deal} variant="home" />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </div>
             ) : (
               <div className="empty-state">

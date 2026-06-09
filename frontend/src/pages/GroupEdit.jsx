@@ -20,7 +20,7 @@ export const GroupEdit = () => {
   const [friendSearch, setFriendSearch] = useState('');
   const [loading, setLoading]       = useState(true);
   const [saving, setSaving]         = useState(false);
-  const [formData, setFormData]     = useState({ name: '', description: '', max_members: 10, date: '' });
+  const [formData, setFormData]     = useState({ name: '', description: '', max_members: 10, date: '', target_age_min: '', target_age_max: '' });
 
   useEffect(() => { loadData(); }, [id]);
 
@@ -44,7 +44,9 @@ export const GroupEdit = () => {
         name: g.name || g.title || '',
         description: g.description || '',
         max_members: g.max_members || 10,
-        date: g.date ? g.date.slice(0, 10) : ''
+        date: g.date ? g.date.slice(0, 10) : '',
+        target_age_min: g.target_age_min ?? '',
+        target_age_max: g.target_age_max ?? '',
       });
     } catch {
       toast.error(t('groupEdit.loadError'));
@@ -292,6 +294,36 @@ export const GroupEdit = () => {
                     onChange={e => setFormData(p => ({ ...p, date: e.target.value }))}
                   />
                 </div>
+              </div>
+            </div>
+
+            <div className="ge-divider" />
+
+            <div className="ge-field">
+              <label className="ge-label">{t('groupEdit.fields.targetAge')}</label>
+              <p className="ge-hint">{t('groupEdit.fields.targetAgeHint')}</p>
+              <div className="ge-age-range">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={14}
+                  max={99}
+                  placeholder={t('groupEdit.fields.targetAgeFromPlaceholder')}
+                  className="ge-input ge-age-input"
+                  value={formData.target_age_min}
+                  onChange={e => setFormData(p => ({ ...p, target_age_min: e.target.value }))}
+                />
+                <span className="ge-age-sep">–</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={14}
+                  max={99}
+                  placeholder={t('groupEdit.fields.targetAgeToPlaceholder')}
+                  className="ge-input ge-age-input"
+                  value={formData.target_age_max}
+                  onChange={e => setFormData(p => ({ ...p, target_age_max: e.target.value }))}
+                />
               </div>
             </div>
 

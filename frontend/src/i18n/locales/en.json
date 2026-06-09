@@ -1142,6 +1142,12 @@
       "uhr": "",
       "locationLabel": "Where? *",
       "locationPlaceholder": "e.g. City park, Vienna",
+      "ageLabel": "Target age range",
+      "ageHint": "Only users in this age range can see the group (empty = everyone)",
+      "ageFromLabel": "from",
+      "ageToLabel": "to",
+      "ageFromPlaceholder": "e.g. 22",
+      "ageToPlaceholder": "e.g. 30",
       "maxLabel": "Max participants",
       "peopleUnit": "people",
       "levelLabel": "Level",
@@ -1251,7 +1257,11 @@
       "desc": "Description",
       "descPlaceholder": "Tell people about the group…",
       "size": "Group size",
-      "date": "Date"
+      "date": "Date",
+      "targetAge": "Target age range",
+      "targetAgeHint": "Only users in this age range can see the group (empty = everyone)",
+      "targetAgeFromPlaceholder": "from",
+      "targetAgeToPlaceholder": "to"
     },
     "shareBtn": "Share link"
   },
@@ -1351,8 +1361,52 @@
       "empty": "No results"
     }
   },
+  "deals": {
+    "card": {
+      "badge": "Jamie Deal"
+    }
+  },
   "admin": {
     "title": "JAMIE Analytics",
+    "deals": {
+      "title": "Cooperations",
+      "newBtn": "New cooperation",
+      "newTitle": "New cooperation",
+      "editTitle": "Edit cooperation",
+      "saveBtn": "Save",
+      "savingBtn": "Saving…",
+      "editBtn": "Edit",
+      "deleteBtn": "Delete",
+      "confirmDelete": "Really delete cooperation \"{{name}}\"?",
+      "loading": "Loading cooperations…",
+      "empty": "No cooperations yet.",
+      "untilFmt": "Visible until {{date}}",
+      "fields": {
+        "company": "Company",
+        "companyPlaceholder": "e.g. Cafe 1070",
+        "headline": "Deal headline (2 words)",
+        "headlinePlaceholder": "e.g. 1+1 free",
+        "headlineHint": "Shown on the feed card",
+        "description": "Detailed description",
+        "descriptionPlaceholder": "How it works: grab any drink and get one free. Say \"Jamie\" when ordering.",
+        "descriptionHint": "User sees this only after tapping the card",
+        "visibleUntil": "Visible until",
+        "visibleUntilHint": "Auto-hidden after this date (empty = no expiry)",
+        "photo": "Company photo",
+        "photoPick": "Pick photo",
+        "photoUploading": "Uploading…",
+        "photoRemove": "Remove"
+      },
+      "toast": {
+        "loadError": "Could not load cooperations",
+        "uploadError": "Photo upload failed",
+        "requiredFields": "Company and headline are required",
+        "saved": "Cooperation saved",
+        "saveError": "Save failed",
+        "deleted": "Cooperation deleted",
+        "deleteError": "Delete failed"
+      }
+    },
     "refresh": "Refresh",
     "errorAccess": "No admin access. Please sign in with an admin account.",
     "errorLoad": "Could not load admin data.",

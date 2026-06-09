@@ -1142,6 +1142,12 @@
       "uhr": "Uhr",
       "locationLabel": "Wo? *",
       "locationPlaceholder": "z.B. Stadtpark, Wien",
+      "ageLabel": "Für welches Alter?",
+      "ageHint": "Nur Nutzer in dieser Altersspanne sehen die Gruppe (leer = alle)",
+      "ageFromLabel": "von",
+      "ageToLabel": "bis",
+      "ageFromPlaceholder": "z.B. 22",
+      "ageToPlaceholder": "z.B. 30",
       "maxLabel": "Maximale Teilnehmer",
       "peopleUnit": "Personen",
       "levelLabel": "Level",
@@ -1251,7 +1257,11 @@
       "desc": "Beschreibung",
       "descPlaceholder": "Erzähl etwas über die Gruppe…",
       "size": "Gruppengröße",
-      "date": "Datum"
+      "date": "Datum",
+      "targetAge": "Für welches Alter?",
+      "targetAgeHint": "Nur Nutzer in dieser Altersspanne sehen die Gruppe (leer = alle)",
+      "targetAgeFromPlaceholder": "von",
+      "targetAgeToPlaceholder": "bis"
     },
     "shareBtn": "Link teilen"
   },
@@ -1351,8 +1361,52 @@
       "empty": "Keine Ergebnisse"
     }
   },
+  "deals": {
+    "card": {
+      "badge": "Jamie Deal"
+    }
+  },
   "admin": {
     "title": "JAMIE Analytics",
+    "deals": {
+      "title": "Kooperationen",
+      "newBtn": "Neue Kooperation",
+      "newTitle": "Neue Kooperation",
+      "editTitle": "Kooperation bearbeiten",
+      "saveBtn": "Speichern",
+      "savingBtn": "Speichert…",
+      "editBtn": "Bearbeiten",
+      "deleteBtn": "Löschen",
+      "confirmDelete": "Kooperation \"{{name}}\" wirklich löschen?",
+      "loading": "Lade Kooperationen…",
+      "empty": "Noch keine Kooperationen angelegt.",
+      "untilFmt": "Sichtbar bis {{date}}",
+      "fields": {
+        "company": "Unternehmen",
+        "companyPlaceholder": "z.B. Cafe 1070",
+        "headline": "Deal-Überschrift (2 Wörter)",
+        "headlinePlaceholder": "z.B. 1+1 Gratis",
+        "headlineHint": "Wird auf der Karte im Feed angezeigt",
+        "description": "Genaue Beschreibung",
+        "descriptionPlaceholder": "So funktioniert: hol dir ein Getränk deiner Wahl und krieg eins Gratis dazu. Sag bei deiner Bestellung „Jamie\".",
+        "descriptionHint": "Sieht der User erst nach dem Klick auf die Karte",
+        "visibleUntil": "Sichtbar bis",
+        "visibleUntilHint": "Nach diesem Datum wird die Kooperation automatisch ausgeblendet (leer = unbefristet)",
+        "photo": "Foto des Unternehmens",
+        "photoPick": "Foto auswählen",
+        "photoUploading": "Wird hochgeladen…",
+        "photoRemove": "Entfernen"
+      },
+      "toast": {
+        "loadError": "Kooperationen konnten nicht geladen werden",
+        "uploadError": "Foto-Upload fehlgeschlagen",
+        "requiredFields": "Unternehmen und Überschrift sind Pflichtfelder",
+        "saved": "Kooperation gespeichert",
+        "saveError": "Speichern fehlgeschlagen",
+        "deleted": "Kooperation gelöscht",
+        "deleteError": "Löschen fehlgeschlagen"
+      }
+    },
     "refresh": "Aktualisieren",
     "errorAccess": "Kein Admin-Zugriff. Bitte melde dich mit einem Admin-Account an.",
     "errorLoad": "Fehler beim Laden der Admin-Daten.",

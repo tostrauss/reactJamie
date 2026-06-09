@@ -44,6 +44,8 @@ export const CreateGroup = () => {
     maxMembers: 20,
     level: 'Alle Levels',
     isPublic: true,
+    targetAgeMin: '',
+    targetAgeMax: '',
     image: null,
     imagePreview: null
   });
@@ -153,6 +155,8 @@ export const CreateGroup = () => {
         is_private: !formData.isPublic,
         type: 'group',
         image_url: imageUrl,
+        target_age_min: formData.targetAgeMin === '' ? null : parseInt(formData.targetAgeMin, 10),
+        target_age_max: formData.targetAgeMax === '' ? null : parseInt(formData.targetAgeMax, 10),
       };
 
       const response = await groups.create(payload);
@@ -478,6 +482,42 @@ export const CreateGroup = () => {
                   {t(`createGroup.step2.levels.${key}`)}
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div className="form-section">
+            <label className="form-label">
+              <span className="form-label-icon">🎯</span> {t('createGroup.step2.ageLabel')}
+            </label>
+            <p className="form-hint">{t('createGroup.step2.ageHint')}</p>
+            <div className="age-range-row">
+              <div className="age-range-input-wrap">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={14}
+                  max={99}
+                  placeholder={t('createGroup.step2.ageFromPlaceholder')}
+                  value={formData.targetAgeMin}
+                  onChange={(e) => setFormData(prev => ({ ...prev, targetAgeMin: e.target.value }))}
+                  className="input age-range-input"
+                />
+                <span className="age-range-label">{t('createGroup.step2.ageFromLabel')}</span>
+              </div>
+              <span className="age-range-separator">–</span>
+              <div className="age-range-input-wrap">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={14}
+                  max={99}
+                  placeholder={t('createGroup.step2.ageToPlaceholder')}
+                  value={formData.targetAgeMax}
+                  onChange={(e) => setFormData(prev => ({ ...prev, targetAgeMax: e.target.value }))}
+                  className="input age-range-input"
+                />
+                <span className="age-range-label">{t('createGroup.step2.ageToLabel')}</span>
+              </div>
             </div>
           </div>
 
