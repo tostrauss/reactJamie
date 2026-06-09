@@ -10,6 +10,7 @@ import {
   getPendingClubs,
   approveClub,
   rejectClub,
+  deleteUser,
 } from '../controllers/adminController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 
@@ -32,6 +33,7 @@ router.use(adminLimiter, authenticate, requireAdmin);
 
 router.get('/stats',       getStats);
 router.get('/users',       getRecentUsers);
+router.delete('/users/:id', deleteUser);
 router.get('/screen-time', getScreenTime);
 router.get('/export/users',       exportUsers);
 router.get('/export/screens',     exportScreens);

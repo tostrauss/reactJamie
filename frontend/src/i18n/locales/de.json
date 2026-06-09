@@ -1463,6 +1463,11 @@
       "suggestions": "Vorschläge exportieren",
       "loading": "⏳ Exportiere...",
       "error": "Export fehlgeschlagen"
+    },
+    "users": {
+      "deleteBtn": "Löschen",
+      "confirmDelete": "Account von „{{name}}\" wirklich löschen? Alle erstellten Gruppen, Clubs, Nachrichten und Freundschaften dieses Nutzers werden mit gelöscht.",
+      "deleteError": "Nutzer konnte nicht gelöscht werden"
     }
   }
 }

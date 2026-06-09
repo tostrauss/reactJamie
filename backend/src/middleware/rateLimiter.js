@@ -14,22 +14,27 @@ const makeStore = (prefix) =>
 // passing the request through instead of returning 500.
 const SHARED = { passOnStoreError: true };
 
-// General API rate limit: 500 req/15min
+// General API rate limit: 2000 req/15min per IP. Bumped from 500 for launch
+// scenarios where 100s of users share one NAT (event WiFi, mobile carrier
+// NAT). The per-user limiters below still protect against single-user abuse.
 export const generalLimiter = rateLimit({
   ...SHARED,
   windowMs: 15 * 60 * 1000,
-  max: disabled ? 10000 : 500,
+  max: disabled ? 10000 : 2000,
   standardHeaders: true,
   legacyHeaders: false,
   store: makeStore('rl:general:'),
   message: { error: 'Zu viele Anfragen. Bitte versuche es in 15 Minuten erneut.' }
 });
 
-// Auth rate limit: 20 attempts/15min
+// Auth rate limit: 100 attempts/15min per IP. Bumped from 20 — at a launch
+// event 100+ users behind one NAT each need to log in + verify their email
+// OTP, which alone burns 2 calls per user. 100 is still well below the
+// 6+ attempts/sec a botnet would need to be effective.
 export const authLimiter = rateLimit({
   ...SHARED,
   windowMs: 15 * 60 * 1000,
-  max: disabled ? 10000 : 20,
+  max: disabled ? 10000 : 100,
   standardHeaders: true,
   legacyHeaders: false,
   store: makeStore('rl:auth:'),
@@ -47,11 +52,14 @@ export const strictLimiter = rateLimit({
   message: { error: 'Zu viele Versuche. Bitte versuche es in einer Stunde erneut.' }
 });
 
-// Registration flow: 20 attempts/hour — separate counter from strictLimiter.
+// Registration flow: 200 attempts/hour per IP. Bumped from 20 to survive a
+// 500-user launch event where most signups come from a single NAT. Still
+// protects against the bot scenario (a real attacker would need 200+ Sims
+// or proxies to register beyond this).
 export const registrationLimiter = rateLimit({
   ...SHARED,
   windowMs: 60 * 60 * 1000,
-  max: disabled ? 10000 : 20,
+  max: disabled ? 10000 : 200,
   standardHeaders: true,
   legacyHeaders: false,
   store: makeStore('rl:reg:'),

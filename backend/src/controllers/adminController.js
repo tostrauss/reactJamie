@@ -86,7 +86,7 @@ export const getRecentUsers = async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 100, 500);
     const result = await db.query(`
       SELECT id, name, email, location, created_at, is_trusted_user, trusted_count,
-             onboarding_completed
+             onboarding_completed, is_admin
       FROM users
       ORDER BY created_at DESC
       LIMIT $1
@@ -238,6 +238,44 @@ export const rejectClub = async (req, res) => {
   } catch (err) {
     console.error('rejectClub error:', err);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// DELETE USER (admin only)
+// ==========================================
+// Hard-deletes a user row; ON DELETE CASCADE FKs on group_members, messages,
+// direct_messages, friendships, push_subscriptions, etc. clean up the rest.
+// Admins cannot delete themselves (prevents accidental self-lockout) or
+// other admins (a deliberate footgun safeguard — flip is_admin off via DB
+// first if you really need to remove an admin).
+export const deleteUser = async (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(targetId) || targetId <= 0) {
+      return res.status(400).json({ error: 'Ungültige Nutzer-ID' });
+    }
+    if (targetId === req.userId) {
+      return res.status(400).json({ error: 'Du kannst dich nicht selbst löschen' });
+    }
+    const target = await db.query(
+      'SELECT id, email, name, is_admin FROM users WHERE id = $1',
+      [targetId]
+    );
+    if (target.rows.length === 0) {
+      return res.status(404).json({ error: 'Nutzer nicht gefunden' });
+    }
+    if (target.rows[0].is_admin) {
+      return res.status(403).json({ error: 'Admins können hier nicht gelöscht werden' });
+    }
+    await db.query('DELETE FROM users WHERE id = $1', [targetId]);
+    res.json({
+      success: true,
+      deleted: { id: target.rows[0].id, email: target.rows[0].email, name: target.rows[0].name },
+    });
+  } catch (err) {
+    console.error('Admin deleteUser error:', err);
+    res.status(500).json({ error: 'Nutzer konnte nicht gelöscht werden', detail: err.message });
   }
 };
 

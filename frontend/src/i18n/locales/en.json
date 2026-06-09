@@ -1463,6 +1463,11 @@
       "suggestions": "Export suggestions",
       "loading": "⏳ Exporting...",
       "error": "Export failed"
+    },
+    "users": {
+      "deleteBtn": "Delete",
+      "confirmDelete": "Really delete account \"{{name}}\"? All groups, clubs, messages and friendships created by this user will be deleted too.",
+      "deleteError": "User could not be deleted"
     }
   }
 }

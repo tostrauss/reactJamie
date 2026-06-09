@@ -528,6 +528,7 @@ export const analytics = {
 export const admin = {
   getStats: () => axiosInstance.get('/admin/stats'),
   getUsers: (limit = 50) => axiosInstance.get('/admin/users', { params: { limit } }),
+  deleteUser: (id) => axiosInstance.delete(`/admin/users/${id}`),
   getScreenTime: () => axiosInstance.get('/admin/screen-time'),
   exportUsers: () => axiosInstance.get('/admin/export/users'),
   exportScreens: () => axiosInstance.get('/admin/export/screens'),

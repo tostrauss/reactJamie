@@ -2,10 +2,12 @@ import db from '../config/database.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { sendPushToUser } from './pushController.js';
 
-// Self-heal: production databases bootstrapped without the seed schema.sql
-// don't have the direct_messages / dm_conversations tables. If a query throws
-// Postgres error 42P01 ("relation does not exist"), create the tables inline
-// and let the caller retry. Idempotent — safe to run on every cold cache.
+// Self-heal: production databases bootstrapped without the seed schema.sql may
+// be missing the direct_messages / dm_conversations tables OR have them with an
+// older column set. We catch both Postgres 42P01 (missing relation) and 42703
+// (missing column), then CREATE TABLE IF NOT EXISTS + ALTER TABLE ADD COLUMN
+// IF NOT EXISTS for every column the queries reference. Idempotent and cheap
+// — safe to run on every cold cache.
 const ensureDmTables = async () => {
   await db.query(`
     CREATE TABLE IF NOT EXISTS direct_messages (
@@ -13,33 +15,49 @@ const ensureDmTables = async () => {
       sender_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       receiver_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       content             TEXT NOT NULL,
-      message_type        VARCHAR(20) DEFAULT 'text',
-      is_read             BOOLEAN DEFAULT FALSE,
-      is_deleted_sender   BOOLEAN DEFAULT FALSE,
-      is_deleted_receiver BOOLEAN DEFAULT FALSE,
       created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  // Add optional/newer columns one-by-one so a pre-existing table with an
+  // older shape gets brought up to spec without dropping data.
+  await db.query(`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS message_type        VARCHAR(20) DEFAULT 'text'`);
+  await db.query(`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS is_read             BOOLEAN DEFAULT FALSE`);
+  await db.query(`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS is_deleted_sender   BOOLEAN DEFAULT FALSE`);
+  await db.query(`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS is_deleted_receiver BOOLEAN DEFAULT FALSE`);
+
   await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_sender ON direct_messages(sender_id)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_receiver ON direct_messages(receiver_id)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_conversation ON direct_messages(LEAST(sender_id, receiver_id), GREATEST(sender_id, receiver_id), created_at DESC)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_unread ON direct_messages(receiver_id, is_read) WHERE is_read = FALSE`);
+
   await db.query(`
     CREATE TABLE IF NOT EXISTS dm_conversations (
       id              SERIAL PRIMARY KEY,
       user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       other_user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      last_message_id INTEGER REFERENCES direct_messages(id) ON DELETE SET NULL,
-      last_message_at TIMESTAMP,
-      unread_count    INTEGER DEFAULT 0,
-      is_archived     BOOLEAN DEFAULT FALSE,
-      updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE (user_id, other_user_id)
+      created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await db.query(`ALTER TABLE dm_conversations ADD COLUMN IF NOT EXISTS last_message_id INTEGER REFERENCES direct_messages(id) ON DELETE SET NULL`);
+  await db.query(`ALTER TABLE dm_conversations ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMP`);
+  await db.query(`ALTER TABLE dm_conversations ADD COLUMN IF NOT EXISTS unread_count    INTEGER DEFAULT 0`);
+  await db.query(`ALTER TABLE dm_conversations ADD COLUMN IF NOT EXISTS is_archived     BOOLEAN DEFAULT FALSE`);
+  await db.query(`ALTER TABLE dm_conversations ADD COLUMN IF NOT EXISTS updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+  // The UNIQUE constraint is needed for the ON CONFLICT upsert in sendDM —
+  // add it via DO block so a pre-existing table without it gets the index.
+  await db.query(`DO $$ BEGIN
+    ALTER TABLE dm_conversations ADD CONSTRAINT dm_conv_user_pair_uniq UNIQUE (user_id, other_user_id);
+  EXCEPTION WHEN duplicate_table THEN NULL;
+            WHEN duplicate_object THEN NULL;
+            WHEN unique_violation THEN NULL;
+  END $$`);
 };
 
-const isMissingRelationError = (err) => err?.code === '42P01';
+// Match both "relation does not exist" (42P01) and "column does not exist" (42703)
+// — the second case means the table was already there but with an older shape.
+const isSchemaError = (err) => err?.code === '42P01' || err?.code === '42703';
+// Backwards-compatible alias used by older call sites (keep both spellings).
+const isMissingRelationError = isSchemaError;
 
 // ==========================================
 // SEND DIRECT MESSAGE

@@ -46,6 +46,27 @@ export const AdminDashboard = () => {
   const [error, setError] = useState('');
   const [exportLoading, setExportLoading] = useState('');
   const [clubActionId, setClubActionId] = useState(null);
+  const [deletingUserId, setDeletingUserId] = useState(null);
+
+  const handleDeleteUser = async (user) => {
+    if (deletingUserId) return;
+    const ok = window.confirm(
+      t('admin.users.confirmDelete', { name: user.name || user.email })
+    );
+    if (!ok) return;
+    setDeletingUserId(user.id);
+    try {
+      await admin.deleteUser(user.id);
+      // Drop the row locally so it disappears immediately; KPIs will refresh
+      // on the next dashboard reload but stale-ish numbers for a few seconds
+      // are fine vs. re-fetching the entire stats payload here.
+      setRecentUsers(prev => prev.filter(u => u.id !== user.id));
+    } catch (err) {
+      alert(err.response?.data?.error || t('admin.users.deleteError'));
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -309,6 +330,27 @@ export const AdminDashboard = () => {
                   <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, flexShrink: 0 }}>
                     {new Date(u.created_at).toLocaleDateString(dateLocale)}
                   </div>
+                  {!u.is_admin && (
+                    <button
+                      onClick={() => handleDeleteUser(u)}
+                      disabled={deletingUserId === u.id}
+                      title={t('admin.users.deleteBtn')}
+                      style={{
+                        background: 'transparent',
+                        border: '1px solid rgba(255, 122, 122, 0.35)',
+                        color: '#ff7a7a',
+                        borderRadius: 8,
+                        padding: '6px 10px',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: deletingUserId === u.id ? 'wait' : 'pointer',
+                        opacity: deletingUserId === u.id ? 0.5 : 1,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {deletingUserId === u.id ? '…' : t('admin.users.deleteBtn')}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
