@@ -698,6 +698,10 @@ export const toggleFavorite = async (req, res) => {
 // ==========================================
 export const getUserFavorites = async (req, res) => {
   try {
+    // Filter by type='group' so this endpoint only returns group favourites —
+    // clubs live in the same table and have their own /api/clubs/user/favorites
+    // endpoint. Without the type filter Profile.jsx concatenated both lists
+    // and rendered every favourited club twice.
     const result = await db.query(
       `SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar
        FROM group_favorites gf
@@ -705,6 +709,7 @@ export const getUserFavorites = async (req, res) => {
        LEFT JOIN users u ON g.owner_id = u.id
        WHERE gf.user_id = $1
          AND g.deleted_at IS NULL
+         AND g.type = 'group'
        ORDER BY gf.created_at DESC`,
       [req.userId]
     );

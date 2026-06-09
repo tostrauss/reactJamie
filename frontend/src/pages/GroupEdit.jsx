@@ -93,10 +93,19 @@ export const GroupEdit = () => {
       // chat_only_owner and events_owner_only actually persist — the generic
       // groups.update ignores those columns.
       const isClubType = group?.type === 'club';
+      // Strip empty strings for nullable backend fields. Postgres can't cast
+      // '' to TIMESTAMP/INT — converting to null lets COALESCE in the SQL
+      // update keep the existing column value instead of throwing.
+      const payload = {
+        ...formData,
+        date: formData.date === '' ? null : formData.date,
+        target_age_min: formData.target_age_min === '' ? null : formData.target_age_min,
+        target_age_max: formData.target_age_max === '' ? null : formData.target_age_max,
+      };
       if (isClubType) {
-        await clubs.update(id, formData);
+        await clubs.update(id, payload);
       } else {
-        await groups.update(id, formData);
+        await groups.update(id, payload);
       }
       toast.success(t('groupEdit.saved'));
       navigate(-1);

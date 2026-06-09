@@ -278,12 +278,22 @@ export const updateClub = async (req, res) => {
     if (name !== undefined && name.length > 100) return res.status(400).json({ error: 'Name darf maximal 100 Zeichen lang sein' });
     if (description !== undefined && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
 
+    // Normalize empty-string date to null. Frontend sends "" when the club has
+    // no date set, but Postgres `''::timestamp` throws invalid-input — we want
+    // null so COALESCE keeps the existing column value untouched.
+    const dateValue = date === '' ? null : date;
+
     const club = await db.query(
       'SELECT owner_id FROM groups WHERE id = $1 AND type = $2',
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
+    // Cast both sides to Number — req.userId from JWT may come back as string
+    // depending on how the token was signed; strict !== would lock the owner
+    // out of their own club.
+    if (Number(club.rows[0].owner_id) !== Number(req.userId)) {
+      return res.status(403).json({ error: 'Keine Berechtigung' });
+    }
 
     const textToCheck = [name, description].filter(Boolean).join('\n');
     if (textToCheck) {
@@ -322,7 +332,7 @@ export const updateClub = async (req, res) => {
         name,
         description,
         category,
-        date,
+        dateValue,
         location,
         image_url,
         max_members,
@@ -342,7 +352,11 @@ export const updateClub = async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating club:', err);
-    res.status(500).json({ error: 'Club konnte nicht aktualisiert werden' });
+    res.status(500).json({
+      error: 'Club konnte nicht aktualisiert werden',
+      detail: err.message,
+      code: err.code,
+    });
   }
 };
 
