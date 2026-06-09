@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext';
 import { auth, subscription as subscriptionApi, groups as groupsApi, clubs as clubsApi } from '../utils/api';
 import SpotifySongPicker from '../components/SpotifySongPicker';
 import { ProModal } from '../components/ProModal';
+import { PhotoLightbox } from '../components/PhotoLightbox';
 import '../styles/home.css';
 import '../styles/profile.css';
 
@@ -43,6 +44,7 @@ export const Profile = () => {
   const { t, i18n } = useTranslation();
   const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-AT';
   const [activeTab, setActiveTab] = useState('pinnwand');
+  const [lightboxIndex, setLightboxIndex] = useState(null);
   const [savingSong, setSavingSong] = useState(false);
   const [isPro, setIsPro] = useState(false);
   const [showProModal, setShowProModal] = useState(false);
@@ -294,9 +296,15 @@ export const Profile = () => {
               <>
                 <div className="pinnwand-grid">
                   {profilePhotos.map((photo, i) => (
-                    <div key={photo} className={`pinnwand-item${i === 0 ? ' pinnwand-item--large' : ''}`}>
+                    <button
+                      key={photo}
+                      type="button"
+                      className={`pinnwand-item${i === 0 ? ' pinnwand-item--large' : ''}`}
+                      onClick={() => setLightboxIndex(i)}
+                      aria-label={t('userProfile.viewPhotoAria')}
+                    >
                       <img src={photo} alt={`Foto ${i + 1}`} loading="lazy" />
-                    </div>
+                    </button>
                   ))}
                   <button className="pinnwand-item add-photo" onClick={() => navigate('/profile/edit')}>
                     <span>+</span>
@@ -380,6 +388,13 @@ export const Profile = () => {
           onSuccess={() => { setIsPro(true); setShowProModal(false); }}
         />
       )}
+
+      <PhotoLightbox
+        photos={profilePhotos}
+        index={lightboxIndex}
+        onIndex={setLightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+      />
     </>
   );
 };

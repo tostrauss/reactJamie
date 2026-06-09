@@ -245,6 +245,16 @@
   border-radius: 14px;
   overflow: hidden;
   background: var(--bg-card);
+  /* Reset <button> chrome — the cell is now a button so it's tap-to-enlarge. */
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  display: block;
+}
+
+.up-photo-cell:active {
+  opacity: 0.9;
 }
 
 .up-photo-cell img {
@@ -360,11 +370,6 @@
   opacity: 0.6;
   box-shadow: none;
   cursor: default;
-}
-
-.up-cta-msg {
-  background: linear-gradient(135deg, #6c63ff, #a855f7);
-  box-shadow: 0 6px 20px rgba(108,99,255,0.3);
 }
 
 .up-cta-ghost {

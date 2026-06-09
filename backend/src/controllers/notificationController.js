@@ -7,7 +7,8 @@ import { sendPushToUser } from './pushController.js';
 export const getNotifications = async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT n.*, u.name as sender_name, u.avatar_url as sender_avatar
+      `SELECT n.*, u.name as sender_name, u.avatar_url as sender_avatar,
+              EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS sender_age
        FROM notifications n
        LEFT JOIN users u ON n.sender_id = u.id
        WHERE n.user_id = $1

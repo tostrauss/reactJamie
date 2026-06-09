@@ -3,12 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { clubs } from '../utils/api';
 import { useToast } from '../context/ToastContext';
+import { UserName } from '../components/UserName';
 import '../styles/club-detail.css';
-
-const calcAge = (dob) => {
-  if (!dob) return null;
-  return Math.floor((Date.now() - new Date(dob)) / 31557600000);
-};
 
 export const ClubMembers = () => {
   const { id } = useParams();
@@ -95,7 +91,6 @@ export const ClubMembers = () => {
           ) : (
             <div className="cd-members-list cd-members-list--full">
               {filtered.map(m => {
-                const age = calcAge(m.date_of_birth);
                 const isOwner = club && club.owner_id === m.id;
                 return (
                   <button
@@ -117,10 +112,11 @@ export const ClubMembers = () => {
                       </div>
                     )}
                     <div className="cd-member-row-info">
-                      <span className="cd-member-row-name">
-                        {m.name || t('clubMembers.unknownName')}
-                        {age != null && <span className="cd-member-row-age">, {age}</span>}
-                      </span>
+                      <UserName
+                        className="cd-member-row-name"
+                        name={m.name || t('clubMembers.unknownName')}
+                        age={m.age}
+                      />
                       {isOwner && (
                         <span className="cd-member-row-tag">{t('clubMembers.ownerTag')}</span>
                       )}

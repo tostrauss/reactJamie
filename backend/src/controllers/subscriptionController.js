@@ -7,6 +7,24 @@ const getStripe = () => {
 };
 
 // ==========================================
+// PRO PLAN CATALOG (server is authoritative on price)
+// ==========================================
+// Hinge-style tiered pricing (Tina's spec, 2026-06-04):
+//   • weekly  — 14,99 €/Woche, baseline (no discount)
+//   • monthly — ~22,75 €/Monat → 5,25 €/Woche, "65% sparen", DEFAULT + "Beliebt"
+//   • sixmonth— 58,50 €/6 Monate → 2,25 €/Woche, "85% sparen", "Bestes Angebot"
+// Totals are derived so the per-week headline stays honest:
+//   weekly 14,99/1wk · monthly 22,75/4.33wk=5,25 · 6mo 58,50/26wk=2,25.
+// amount_cents is the ONLY price the client can't influence — the request
+// just names a plan key; we look up the amount here.
+export const PRO_PLANS = {
+  weekly:   { amount_cents: 1499, interval: 'week',  interval_count: 1, label: 'JAMIE Pro – Wöchentlich' },
+  monthly:  { amount_cents: 2275, interval: 'month', interval_count: 1, label: 'JAMIE Pro – Monatlich' },
+  sixmonth: { amount_cents: 5850, interval: 'month', interval_count: 6, label: 'JAMIE Pro – 6 Monate' },
+};
+const DEFAULT_PLAN = 'monthly';
+
+// ==========================================
 // GET SUBSCRIPTION STATUS
 // ==========================================
 export const getStatus = async (req, res) => {
@@ -39,6 +57,13 @@ export const getStatus = async (req, res) => {
 export const createSubscription = async (req, res) => {
   const stripe = getStripe();
   if (!stripe) return res.status(503).json({ error: 'Stripe not configured' });
+
+  // Resolve the requested plan against the server-side catalog. Unknown /
+  // missing plan falls back to the default monthly tier rather than erroring.
+  const planKey = (typeof req.body?.plan === 'string' && PRO_PLANS[req.body.plan])
+    ? req.body.plan
+    : DEFAULT_PLAN;
+  const plan = PRO_PLANS[planKey];
 
   try {
     const userResult = await db.query(
@@ -81,20 +106,23 @@ export const createSubscription = async (req, res) => {
       } catch (_) { /* ignore — subscription may not exist in Stripe anymore */ }
     }
 
-    // Create Stripe subscription (incomplete until payment confirmed)
+    // Create Stripe subscription (incomplete until payment confirmed).
+    // price_data is built from the server-side catalog entry so the client
+    // can never dictate the charged amount or billing cadence.
     const subscription = await stripe.subscriptions.create({
       customer: customerId,
       items: [{
         price_data: {
           currency: 'eur',
-          product_data: { name: 'JAMIE Pro' },
-          unit_amount: 500, // 5.00 EUR
-          recurring: { interval: 'month' },
+          product_data: { name: plan.label },
+          unit_amount: plan.amount_cents,
+          recurring: { interval: plan.interval, interval_count: plan.interval_count },
         },
       }],
       payment_behavior: 'default_incomplete',
       payment_settings: { save_default_payment_method: 'on_subscription' },
       expand: ['latest_invoice.payment_intent'],
+      metadata: { user_id: String(req.userId), plan: planKey },
     });
 
     // Upsert subscription record

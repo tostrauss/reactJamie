@@ -1107,20 +1107,56 @@
    ================================================================ */
 
 /* ── Sticky header ──────────────────────────────────────────────── */
+/* Was sticky-at-top; now scrolls away with the rest of the page so the JAMIE
+   bar AND the tab strip both disappear once the user starts scrolling.
+   (Safe-area-inset moved to .ef-top, which is now the topmost element.) */
 .ef-sticky {
   flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  z-index: 100;
   background: var(--bg-primary);
-  padding-top: env(safe-area-inset-top, 0px);
 }
 
 .ef-top {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 22px 20px 18px;
+  /* Safe-area-inset-top keeps "JAMIE" clear of the iOS notch / status bar
+     now that the bar lives inside the scroll region. */
+  padding: calc(env(safe-area-inset-top, 0px) + 22px) 20px 14px;
+}
+
+/* ── Tab strip (Hall of Fame · Deals) ────────────────────────────── */
+/* No JAMIE bar above us anymore — JAMIE scrolls away with the content —
+   so the top padding here is what gives the tabs breathing room from the
+   notch / status bar. (The parent .ef-sticky already adds safe-area-inset-top.) */
+.ef-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ef-tab {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  color: rgba(255, 255, 255, 0.55);
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  letter-spacing: 0.2px;
+}
+
+.ef-tab:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.ef-tab.is-active {
+  color: #fff;
+  background: rgba(253, 118, 102, 0.16);
 }
 
 .ef-logo {
@@ -1258,18 +1294,125 @@
   border-radius: 24px;
   overflow: hidden;
   padding: 10px 10px 0;
-  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   text-align: left;
   box-shadow: 0 6px 28px rgba(0, 0, 0, 0.35);
   transition: transform 0.18s, box-shadow 0.18s;
+  font-family: inherit;
 }
 
-.ef-card:active {
+/* Owner sees their own past events as still-tappable cards. */
+.ef-card--owner {
+  cursor: pointer;
+}
+
+.ef-card--owner:active {
   transform: scale(0.97);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
   opacity: 0.92;
+}
+
+/* Non-owners: read-only polaroid. The only interactive child is the heart. */
+.ef-card--locked {
+  cursor: default;
+}
+
+/* ── Heart toggle (top-right corner of the media) ────────────────── */
+.ef-heart-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ef-heart-btn:hover {
+  background: rgba(0, 0, 0, 0.6);
+  transform: scale(1.08);
+}
+
+.ef-heart-btn:active {
+  transform: scale(0.92);
+}
+
+.ef-heart-btn.is-active {
+  background: rgba(253, 118, 102, 0.22);
+}
+
+/* ── JAMIE Moment upload prompt (BeReal-style) ───────────────────── */
+/* Sits absolutely over the .ef-media block. Only rendered for the owner
+   while moment_photo_url is null — persists across days until they fill it. */
+.ef-moment-prompt {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  border: none;
+  background: rgba(15, 12, 30, 0.55);
+  backdrop-filter: blur(10px) saturate(1.05);
+  -webkit-backdrop-filter: blur(10px) saturate(1.05);
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+  transition: background 0.15s, transform 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ef-moment-prompt:hover {
+  background: rgba(15, 12, 30, 0.7);
+}
+
+.ef-moment-prompt:active {
+  transform: scale(0.985);
+}
+
+.ef-moment-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #FD7666, #ff8f7e);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(253, 118, 102, 0.5);
+  margin-bottom: 6px;
+}
+
+.ef-moment-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.ef-moment-sub {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.78);
+  max-width: 240px;
+  line-height: 1.35;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
 
 /* ── Media block (inset image box with own border + bg) ─────────── */
@@ -1291,8 +1434,17 @@
   transition: transform 0.35s ease;
 }
 
-.ef-card:active .ef-media-img {
+.ef-card--owner:active .ef-media-img {
   transform: scale(1.04);
+}
+
+/* Vertical list shared with the Hall-of-Fame feed — used for the Deals tab
+   too so DealCards have the same outer padding and gap. */
+.ef-deal-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px;
 }
 
 .ef-media-placeholder {

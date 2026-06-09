@@ -681,8 +681,19 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+  /* Without this, grid items default to min-content sizing — iOS Safari's
+     native date/time pickers carry intrinsic-width chrome that then pushes
+     the second column past the form edge. */
+  min-width: 0;
+}
+/* Every grid child must opt out of the default "don't shrink below content
+   width" behaviour, otherwise the native date/time widget overflows. */
+.cd-event-row > * {
+  min-width: 0;
 }
 .cd-event-input {
+  width: 100%;
+  box-sizing: border-box;
   padding: 10px 12px;
   background: var(--bg-input);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -691,6 +702,17 @@
   font-size: 14px;
   font-family: inherit;
   min-height: 40px;
+  /* Cap intrinsic widget width on iOS Safari to the cell's actual width. */
+  max-width: 100%;
+}
+/* iOS Safari renders native date/time pickers right-aligned, which left a
+   big gap on the left of each cell and the value crammed against the right
+   edge (visible in the screenshot). Centering reads like a normal field. */
+.cd-event-input[type="date"],
+.cd-event-input[type="time"] {
+  text-align: center;
+  -webkit-appearance: none;
+  appearance: none;
 }
 .cd-event-input:focus {
   outline: none;

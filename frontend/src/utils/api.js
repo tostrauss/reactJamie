@@ -459,12 +459,15 @@ export const notifications = {
 // ==========================================
 
 export const spotify = {
-  search: (query) =>
-    axiosInstance.get('/spotify/search', { params: { query } }),
-  getAuthUrl: () =>
-    axiosInstance.get('/spotify/auth-url'),
-  handleCallback: (code, state) =>
-    axiosInstance.post('/spotify/callback', { code, state }),
+  // config (e.g. { signal }) is forwarded so the caller's AbortController can
+  // actually cancel in-flight searches — previously the 2nd arg was dropped.
+  search: (query, config = {}) =>
+    axiosInstance.get('/spotify/search', { params: { query }, ...config }),
+  // opts.native=true → backend uses the Capacitor deep-link redirect_uri
+  getAuthUrl: (opts = {}) =>
+    axiosInstance.get('/spotify/auth-url', { params: opts.native ? { native: 1 } : {} }),
+  handleCallback: (code, state, opts = {}) =>
+    axiosInstance.post('/spotify/callback', { code, state, ...(opts.native ? { native: true } : {}) }),
   getTopTracks: (timeRange = 'medium_term', limit = 10) =>
     axiosInstance.get('/spotify/top-tracks', { params: { time_range: timeRange, limit } }),
   getRecentlyPlayed: (limit = 10) =>
@@ -545,7 +548,8 @@ export const admin = {
 
 export const subscription = {
   getStatus: () => axiosInstance.get('/subscription/status'),
-  create: () => axiosInstance.post('/subscription/create'),
+  // plan: 'weekly' | 'monthly' | 'sixmonth' (server validates + falls back to monthly)
+  create: (plan) => axiosInstance.post('/subscription/create', plan ? { plan } : {}),
   cancel: () => axiosInstance.post('/subscription/cancel'),
 };
 

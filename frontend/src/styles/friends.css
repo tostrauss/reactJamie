@@ -43,42 +43,50 @@
 }
 
 /* ── Search ── */
+/* Search bar is a single flex "pill": [icon] [input] [clear].
+   Icon + clear are normal flow children — no absolute positioning, so the
+   magnifying glass can never overlap the placeholder text. The wrap carries
+   the background/border that used to live on the input. */
 .fr-search-wrap {
   flex-shrink: 0;
-  position: relative;
-  padding: 0 20px 12px;
   display: flex;
   align-items: center;
+  gap: 10px;
+  margin: 0 20px 12px;
+  padding: 0 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.fr-search-wrap:focus-within {
+  border-color: rgba(253,118,102,0.5);
+  background: rgba(255,255,255,0.08);
 }
 
 .fr-search-icon {
-  position: absolute;
-  left: 32px;
+  flex-shrink: 0;
   color: rgba(255,255,255,0.4);
   pointer-events: none;
 }
 
 .fr-search-input {
-  width: 100%;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 14px;
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
   color: var(--text-white);
   font-size: 14px;
-  padding: 10px 36px 10px 48px;
+  font-family: inherit;
+  padding: 11px 0;
   outline: none;
-  transition: border-color 0.15s, background 0.15s;
 }
 
 .fr-search-input::placeholder { color: rgba(255,255,255,0.4); }
-.fr-search-input:focus {
-  border-color: rgba(253,118,102,0.5);
-  background: rgba(255,255,255,0.08);
-}
 
 .fr-search-clear {
-  position: absolute;
-  right: 28px;
+  flex-shrink: 0;
   width: 22px;
   height: 22px;
   border-radius: 50%;

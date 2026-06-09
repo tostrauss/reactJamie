@@ -6,6 +6,18 @@ const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
 const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
 const SPOTIFY_API_BASE = 'https://api.spotify.com/v1';
 
+// Native (Capacitor) deep-link redirect vs web redirect. The redirect_uri MUST
+// be identical in the auth request and the token exchange, so both getAuthUrl
+// and handleCallback resolve it the same way from the `native` flag.
+//   • web    → SPOTIFY_REDIRECT_URI  (or FRONTEND_URL/spotify/callback)
+//   • native → SPOTIFY_NATIVE_REDIRECT_URI (or jamie://spotify-callback)
+// Both URIs must be registered in the Spotify dashboard's Redirect URIs list.
+const NATIVE_FALLBACK_REDIRECT = 'jamie://spotify-callback';
+const resolveRedirectUri = (isNative) =>
+  isNative
+    ? (process.env.SPOTIFY_NATIVE_REDIRECT_URI || NATIVE_FALLBACK_REDIRECT)
+    : (process.env.SPOTIFY_REDIRECT_URI || `${process.env.FRONTEND_URL}/spotify/callback`);
+
 // Default timeout for outbound Spotify calls so a hung Spotify endpoint can't
 // pin a Node thread for the duration of the express request timeout.
 const FETCH_TIMEOUT_MS = 8000;
@@ -90,7 +102,8 @@ const getClientToken = async () => {
 // Step 1: Generate Spotify login URL
 export const getAuthUrl = (req, res) => {
   const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const redirectUri = process.env.SPOTIFY_REDIRECT_URI || `${process.env.FRONTEND_URL}/spotify/callback`;
+  const isNative = req.query.native === '1' || req.query.native === 'true';
+  const redirectUri = resolveRedirectUri(isNative);
 
   if (!clientId) {
     return res.status(500).json({ error: 'Spotify nicht konfiguriert' });
@@ -129,7 +142,9 @@ export const handleCallback = async (req, res) => {
 
   const clientId = process.env.SPOTIFY_CLIENT_ID;
   const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-  const redirectUri = process.env.SPOTIFY_REDIRECT_URI || `${process.env.FRONTEND_URL}/spotify/callback`;
+  // Must match the redirect_uri used in getAuthUrl for this same flow.
+  const isNative = req.body.native === true || req.body.native === '1';
+  const redirectUri = resolveRedirectUri(isNative);
 
   try {
     const tokenRes = await timedFetch(SPOTIFY_TOKEN_URL, {

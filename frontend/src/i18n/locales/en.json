@@ -266,6 +266,9 @@
       "dateMorgen": "Tomorrow",
       "dateGestern": "Yesterday",
       "proGateAria": "See all members with JAMIE Pro",
+      "proLockCaption": "Unlock Pro",
+      "weekly": "Weekly",
+      "weeklyTitle": "Weekly recurring event",
       "joinAria": "Join",
       "publicBadge": "Public",
       "privateBadge": "Private"
@@ -294,6 +297,7 @@
       "info": {
         "level": "Level: {{level}}",
         "when": "When: {{when}}",
+        "weekly": "Every {{weekday}}",
         "participants": "Participants: {{current}}/{{max}}",
         "participantsUnlimited": "Participants: {{current}}/∞",
         "age": "Age: {{range}}"
@@ -359,8 +363,8 @@
   },
   "explore": {
     "tabs": {
-      "forYou": "For You",
-      "hallOfFame": "Hall of Fame"
+      "hallOfFame": "Hall of Fame",
+      "deals": "Deals"
     },
     "suggested": {
       "reasonFriends_one": "{{count}} friend joined",
@@ -369,8 +373,18 @@
       "reasonSimilar": "Similar interests"
     },
     "empty": {
-      "forYou": "No suggestions yet — check back later!",
-      "hallOfFame": "No past events yet"
+      "hallOfFame": "No past events yet",
+      "deals": "No cooperations available right now"
+    },
+    "loginToFavorite": "Please log in to save favorites.",
+    "favoriteError": "Couldn't save favorite.",
+    "moment": {
+      "cta": "📸 Share your JAMIE moment",
+      "hint": "Upload a photo from the event — it becomes the cover in your Hall of Fame.",
+      "tooLarge": "Image is too large (max 10 MB).",
+      "uploadError": "Couldn't upload the photo.",
+      "saveError": "Couldn't save the photo.",
+      "savedToast": "Your JAMIE moment is live! ✨"
     }
   },
   "clubDetail": {
@@ -600,6 +614,7 @@
       "errorNotFriends": "You must be friends to send messages",
       "errorLoad": "Could not load conversation",
       "errorSend": "Could not send message",
+      "notSent": "Not sent",
       "title": "Direct messages",
       "chatFallback": "Chat",
       "profileHint": "Tap for profile",
@@ -655,6 +670,7 @@
     },
     "emptyPhotos": "No additional photos",
     "emptyHof": "Nothing here yet",
+    "viewPhotoAria": "Enlarge photo",
     "reportBtn": "Report user",
     "blockBtn": "Block",
     "blockConfirm": {
@@ -764,6 +780,7 @@
     "saveLoading": "Saving...",
     "toast": {
       "spotifyConnectError": "Spotify connection failed",
+      "spotifyConnected": "Spotify connected successfully!",
       "spotifyDisconnected": "Spotify disconnected",
       "spotifyDisconnectError": "Could not disconnect",
       "saved": "Profile saved",
@@ -1010,15 +1027,33 @@
     },
     "title": "JAMIE Pro",
     "priceMonth": "/ month",
-    "ctaActivate": "👑 Activate Pro — €5 / month",
+    "newSaveBadge": "NEW · Save up to {{pct}}%",
+    "ctaActivate": "👑 Unlock Pro",
     "loading": "Loading…",
     "later": "Maybe later",
     "startError": "Could not start subscription",
     "successTitle": "Welcome to Pro!",
     "successBody": "You can now add friends, send direct messages and boost your groups & clubs.",
     "paymentTitle": "Payment details",
-    "paymentSub": "€5 / month · SSL-encrypted · Cancel any time",
-    "subscriptionLabel": "Monthly subscription"
+    "paymentSub": "SSL-encrypted · Cancel any time",
+    "subscriptionLabel": "Subscription",
+    "plans": {
+      "perWeek": "per week",
+      "wkShort": "wk",
+      "savePct": "save {{pct}}%",
+      "terms": {
+        "weekly": "Weekly",
+        "monthly": "Monthly",
+        "sixmonth": "6 months"
+      },
+      "billedWeekly": "€14.99 / week",
+      "billedMonthly": "~€22.75 / month",
+      "billedSixmonth": "€58.50 every 6 months",
+      "badges": {
+        "popular": "Popular",
+        "bestValue": "Best value"
+      }
+    }
   },
   "boost": {
     "title": "🚀 Boost",
@@ -1143,6 +1178,9 @@
       "hours": "Hours",
       "minutes": "Minutes",
       "uhr": "",
+      "timeInChatHint": "You can agree on the exact time directly in the group chat.",
+      "weeklyLabel": "Repeat weekly",
+      "weeklyHint": "Happens every week on the same weekday — great for regular meetups",
       "locationLabel": "Where? *",
       "locationPlaceholder": "e.g. City park, Vienna",
       "ageLabel": "Target age range",
@@ -1263,6 +1301,9 @@
       "descPlaceholder": "Tell people about the group…",
       "size": "Group size",
       "date": "Date",
+      "weeklyLabel": "Repeat weekly",
+      "weeklyOn": "Event happens every week on the same weekday",
+      "weeklyOff": "One-off event",
       "targetAge": "Target age range",
       "targetAgeHint": "Only users in this age range can see the group (empty = everyone)",
       "targetAgeFromPlaceholder": "from",
@@ -1371,7 +1412,9 @@
       "searchPlaceholder": "Search song or artist...",
       "cancel": "Cancel",
       "searching": "Searching...",
-      "empty": "No results"
+      "empty": "No results",
+      "change": "Change",
+      "remove": "Remove"
     }
   },
   "deals": {

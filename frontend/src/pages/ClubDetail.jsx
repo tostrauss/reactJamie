@@ -5,6 +5,7 @@ import { clubs } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
+import { UserName } from '../components/UserName';
 import { isNativeIOS } from '../utils/platform';
 import '../styles/club-detail.css';
 
@@ -606,7 +607,11 @@ export const ClubDetail = () => {
                       </div>
                     )}
                     <div className="cd-member-row-info">
-                      <span className="cd-member-row-name">{m.name || t('clubDetail.members.unknownName')}</span>
+                      <UserName
+                        className="cd-member-row-name"
+                        name={m.name || t('clubDetail.members.unknownName')}
+                        age={m.age}
+                      />
                       {club.owner_id === m.id && (
                         <span className="cd-member-row-tag">{t('clubDetail.members.ownerTag')}</span>
                       )}

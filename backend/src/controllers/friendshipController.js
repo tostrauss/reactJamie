@@ -101,8 +101,9 @@ export const respondFriendRequest = async (req, res) => {
 export const getPendingRequests = async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT f.*, u.name as requester_name, u.avatar_url as requester_avatar, 
-              u.bio as requester_bio, u.location as requester_location
+      `SELECT f.*, u.name as requester_name, u.avatar_url as requester_avatar,
+              u.bio as requester_bio, u.location as requester_location,
+              EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS requester_age
        FROM friendships f
        JOIN users u ON f.requester_id = u.id
        WHERE f.addressee_id = $1 AND f.status = 'pending'
@@ -122,7 +123,8 @@ export const getPendingRequests = async (req, res) => {
 export const getSentRequests = async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT f.*, u.name as addressee_name, u.avatar_url as addressee_avatar
+      `SELECT f.*, u.name as addressee_name, u.avatar_url as addressee_avatar,
+              EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS addressee_age
        FROM friendships f
        JOIN users u ON f.addressee_id = u.id
        WHERE f.requester_id = $1 AND f.status = 'pending'
@@ -149,7 +151,8 @@ export const getFriends = async (req, res) => {
            WHEN f.requester_id = $1 THEN f.addressee_id 
            ELSE f.requester_id 
          END as friend_id,
-         u.name, u.avatar_url, u.bio, u.location, u.last_seen
+         u.name, u.avatar_url, u.bio, u.location, u.last_seen,
+         EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS age
        FROM friendships f
        JOIN users u ON u.id = CASE 
          WHEN f.requester_id = $1 THEN f.addressee_id 
@@ -331,7 +334,8 @@ export const getBlockedUsers = async (req, res) => {
   try {
     const result = await db.query(
       `SELECT f.id as friendship_id,
-              u.id, u.name, u.avatar_url
+              u.id, u.name, u.avatar_url,
+              EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS age
        FROM friendships f
        JOIN users u ON u.id = f.addressee_id
        WHERE f.status = 'blocked' AND f.requester_id = $1

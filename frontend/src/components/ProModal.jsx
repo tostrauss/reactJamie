@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { subscription as subscriptionApi } from '../utils/api';
+import { PRO_PLANS, DEFAULT_PLAN_KEY, BASELINE_WEEKLY } from '../utils/proPlans';
 import { useToast } from '../context/ToastContext';
 
 // ── Keyframes injected once ──────────────────────────────────────────────
@@ -144,19 +145,123 @@ function Confetto({ i }) {
   );
 }
 
+// ── Plan tile ──────────────────────────────────────────────────────────────
+// One selectable row in the Hinge-style pricing grid. Per-week price is the
+// headline; the struck-through baseline + green "X% sparen" chip drive the
+// "Sparfaktor". Selected tile gets a gold border + check.
+function PlanTile({ plan, selected, onSelect, t }) {
+  const badge = plan.badgeKey ? t(`pro.plans.badges.${plan.badgeKey}`) : null;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(plan.key)}
+      style={{
+        position: 'relative',
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px',
+        textAlign: 'left',
+        padding: badge ? '16px 16px 14px' : '14px 16px',
+        marginTop: badge ? '10px' : 0,
+        borderRadius: '16px',
+        cursor: 'pointer',
+        background: selected
+          ? 'linear-gradient(135deg, rgba(255,215,0,0.14), rgba(255,165,0,0.06))'
+          : 'rgba(255,255,255,0.04)',
+        border: selected ? '1.5px solid #FFD700' : '1.5px solid rgba(255,255,255,0.1)',
+        transition: 'background 0.15s, border-color 0.15s',
+      }}
+    >
+      {/* Badge */}
+      {badge && (
+        <span style={{
+          position: 'absolute', top: '-10px', left: '14px',
+          padding: '3px 10px', borderRadius: '20px',
+          background: 'linear-gradient(135deg, #FFD700, #FFAA00)',
+          color: '#1a1100', fontSize: '11px', fontWeight: '800',
+          letterSpacing: '0.2px', whiteSpace: 'nowrap',
+          boxShadow: '0 4px 12px rgba(255,215,0,0.4)',
+        }}>
+          {badge}
+        </span>
+      )}
+
+      {/* Left: radio + term + billed */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+        <span style={{
+          flexShrink: 0, width: '22px', height: '22px', borderRadius: '50%',
+          border: selected ? 'none' : '2px solid rgba(255,255,255,0.25)',
+          background: selected ? '#FFD700' : 'transparent',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {selected && (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="#1a1100" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20,6 9,17 4,12" />
+            </svg>
+          )}
+        </span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ color: '#fff', fontWeight: '700', fontSize: '15px', lineHeight: 1.2 }}>
+            {t(`pro.plans.terms.${plan.termKey}`)}
+          </div>
+          <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginTop: '2px' }}>
+            {t(`pro.plans.${plan.billedKey}`)}
+          </div>
+        </div>
+      </div>
+
+      {/* Right: per-week price + struck baseline + savings chip */}
+      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', justifyContent: 'flex-end' }}>
+          {plan.strikethrough && (
+            <span style={{
+              color: 'rgba(255,255,255,0.35)', fontSize: '13px',
+              textDecoration: 'line-through', textDecorationColor: 'rgba(255,120,120,0.8)',
+            }}>
+              {BASELINE_WEEKLY} €
+            </span>
+          )}
+          <span style={{ color: '#FFD700', fontWeight: '900', fontSize: '19px', lineHeight: 1 }}>
+            {plan.perWeek} €
+          </span>
+        </div>
+        <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '11px', marginTop: '3px' }}>
+          {t('pro.plans.perWeek')}
+        </div>
+        {plan.savings != null && (
+          <span style={{
+            display: 'inline-block', marginTop: '5px',
+            padding: '2px 8px', borderRadius: '20px',
+            background: 'rgba(34,197,94,0.18)', color: '#4ade80',
+            fontSize: '11px', fontWeight: '800',
+          }}>
+            {t('pro.plans.savePct', { pct: plan.savings })}
+          </span>
+        )}
+      </div>
+    </button>
+  );
+}
+
 // ── Main modal ───────────────────────────────────────────────────────────
 export const ProModal = ({ onClose, onSuccess }) => {
   const { t } = useTranslation();
   const toast = useToast();
   const [step,          setStep]          = useState('features');
+  const [selectedPlan,  setSelectedPlan]  = useState(DEFAULT_PLAN_KEY);
   const [stripePromise, setStripePromise] = useState(null);
   const [clientSecret,  setClientSecret]  = useState(null);
   const [loading,       setLoading]       = useState(false);
 
+  const maxSavings = Math.max(...PRO_PLANS.map(p => p.savings || 0));
+
   const startPayment = async () => {
     setLoading(true);
     try {
-      const res = await subscriptionApi.create();
+      const res = await subscriptionApi.create(selectedPlan);
       const { client_secret, publishable_key } = res.data;
       setStripePromise(loadStripe(publishable_key));
       setClientSecret(client_secret);
@@ -281,14 +386,28 @@ export const ProModal = ({ onClose, onSuccess }) => {
                 <h2 style={{ fontSize:'28px', fontWeight:'900', color:'#FFD700', margin:'0 0 8px' }}>
                   {t('pro.title')}
                 </h2>
-                {/* Price pill */}
-                <div style={{ display:'inline-flex', alignItems:'baseline', gap:'4px',
-                  background:'rgba(255,215,0,0.1)', border:'1px solid rgba(255,215,0,0.28)',
-                  borderRadius:'24px', padding:'8px 20px',
+                {/* "NEU – Spare bis zu XX%" pill */}
+                <div style={{ display:'inline-flex', alignItems:'center', gap:'6px',
+                  background:'rgba(34,197,94,0.14)', border:'1px solid rgba(34,197,94,0.35)',
+                  borderRadius:'24px', padding:'7px 16px',
                 }}>
-                  <span style={{ fontSize:'26px', fontWeight:'900', color:'#FFD700' }}>5 €</span>
-                  <span style={{ fontSize:'14px', color:'rgba(255,215,0,0.65)', fontWeight:'600' }}>{t('pro.priceMonth')}</span>
+                  <span style={{ fontSize:'13px', fontWeight:'900', color:'#4ade80', letterSpacing:'0.3px' }}>
+                    {t('pro.newSaveBadge', { pct: maxSavings })}
+                  </span>
                 </div>
+              </div>
+
+              {/* Plan tiles — weekly first, monthly default ("Beliebt"), 6mo "Bestes Angebot" */}
+              <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'20px' }}>
+                {PRO_PLANS.map(plan => (
+                  <PlanTile
+                    key={plan.key}
+                    plan={plan}
+                    selected={selectedPlan === plan.key}
+                    onSelect={setSelectedPlan}
+                    t={t}
+                  />
+                ))}
               </div>
 
               {/* Feature cards */}
@@ -387,21 +506,32 @@ export const ProModal = ({ onClose, onSuccess }) => {
                 </p>
               </div>
 
-              {/* Amount reminder */}
-              <div style={{
-                display:'flex', alignItems:'center', justifyContent:'space-between',
-                background:'rgba(255,215,0,0.07)', border:'1px solid rgba(255,215,0,0.18)',
-                borderRadius:'14px', padding:'12px 16px', marginBottom:'18px',
-              }}>
-                <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-                  <span style={{ fontSize:'20px' }}>👑</span>
-                  <div>
-                    <div style={{ color:'#fff', fontWeight:'700', fontSize:'14px' }}>{t('pro.title')}</div>
-                    <div style={{ color:'rgba(255,255,255,0.4)', fontSize:'12px' }}>{t('pro.subscriptionLabel')}</div>
+              {/* Amount reminder — reflects the plan the user picked */}
+              {(() => {
+                const sel = PRO_PLANS.find(p => p.key === selectedPlan) || PRO_PLANS[0];
+                return (
+                  <div style={{
+                    display:'flex', alignItems:'center', justifyContent:'space-between',
+                    background:'rgba(255,215,0,0.07)', border:'1px solid rgba(255,215,0,0.18)',
+                    borderRadius:'14px', padding:'12px 16px', marginBottom:'18px',
+                  }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                      <span style={{ fontSize:'20px' }}>👑</span>
+                      <div>
+                        <div style={{ color:'#fff', fontWeight:'700', fontSize:'14px' }}>
+                          {t('pro.title')} · {t(`pro.plans.terms.${sel.termKey}`)}
+                        </div>
+                        <div style={{ color:'rgba(255,255,255,0.4)', fontSize:'12px' }}>
+                          {t(`pro.plans.${sel.billedKey}`)}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ color:'#FFD700', fontWeight:'900', fontSize:'18px', whiteSpace:'nowrap' }}>
+                      {sel.perWeek} €<span style={{ fontSize:'11px', fontWeight:'600', color:'rgba(255,215,0,0.6)' }}>/{t('pro.plans.wkShort')}</span>
+                    </div>
                   </div>
-                </div>
-                <div style={{ color:'#FFD700', fontWeight:'900', fontSize:'18px' }}>5 €</div>
-              </div>
+                );
+              })()}
 
               <Elements
                 stripe={stripePromise}

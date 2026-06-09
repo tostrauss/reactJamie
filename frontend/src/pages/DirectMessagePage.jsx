@@ -112,35 +112,68 @@ export const DirectMessagePage = () => {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
+    const content = newMessage.trim();
+    if (!content) return;
 
+    // Optimistic send: render the bubble immediately and emit the socket
+    // event in parallel to the HTTP persist. Without this every keystroke
+    // sit-and-wait on a ~150–500ms HTTP roundtrip before the message
+    // appeared and before the recipient's socket fired — the "Verzögerung"
+    // users were feeling. The backend's `send_dm` socket handler already
+    // gates on friendship + rate-limits + truncates, so emitting before
+    // the HTTP returns is safe.
+    const receiverIdInt = parseInt(otherUserId, 10);
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const optimistic = {
+      id: tempId,
+      sender_id: user.id,
+      receiver_id: receiverIdInt,
+      content,
+      created_at: new Date().toISOString(),
+      sender_name: user.name,
+      sender_avatar: user.avatar_url,
+      _pending: true,
+    };
+
+    setMessagesList(prev => [...prev, optimistic]);
+    setNewMessage('');
+    stopTyping();
+
+    // Recipient delivery via socket — fires before HTTP completes so it
+    // hits their UI in ~30ms instead of waiting on our DB write.
+    if (socket) {
+      socket.emit('send_dm', {
+        senderId: user.id,
+        receiverId: receiverIdInt,
+        message: optimistic,
+      });
+    }
+
+    // Persist + reconcile in the background.
     try {
-      const res = await directMessages.send(parseInt(otherUserId), newMessage);
-
-      // Add to local messages immediately
-      const sentMessage = {
+      const res = await directMessages.send(receiverIdInt, content);
+      const real = {
         ...res.data,
         sender_name: user.name,
-        sender_avatar: user.avatar_url
+        sender_avatar: user.avatar_url,
       };
-      setMessagesList(prev => [...prev, sentMessage]);
-
-      // Emit socket event for real-time delivery
-      if (socket) {
-        socket.emit('send_dm', {
-          senderId: user.id,
-          receiverId: parseInt(otherUserId),
-          message: sentMessage
-        });
-      }
-
-      setNewMessage('');
-      stopTyping();
+      setMessagesList(prev => prev.map(m => (m.id === tempId ? real : m)));
     } catch (err) {
       if (err.response?.data?.requiresFriendship) {
+        // Friendship dropped between page-load and send. Pull the
+        // optimistic bubble back so the chat doesn't appear to have sent
+        // a message that never persisted.
+        setMessagesList(prev => prev.filter(m => m.id !== tempId));
         setError(t('chat.dm.errorNotFriends'));
         setErrorIsFriendship(true);
       } else {
+        // Persist failed (rate limit, server error, etc.) — keep the
+        // bubble visible but mark it failed so the sender knows it
+        // didn't go through. Recipient may have already seen it via
+        // socket; acceptable trade-off for the latency win.
+        setMessagesList(prev =>
+          prev.map(m => (m.id === tempId ? { ...m, _pending: false, _failed: true } : m))
+        );
         toast.error(t('chat.dm.errorSend'));
       }
     }
@@ -257,14 +290,16 @@ export const DirectMessagePage = () => {
         {messagesList.map((msg) => (
           <div
             key={msg.id}
-            className={`message ${msg.sender_id === user.id ? 'sent' : 'received'}`}
+            className={`message ${msg.sender_id === user.id ? 'sent' : 'received'}${msg._pending ? ' message--pending' : ''}${msg._failed ? ' message--failed' : ''}`}
           >
             <div className="message-content">{msg.content}</div>
             <div className="message-time">
-              {new Date(msg.created_at).toLocaleTimeString(dateLocale, {
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
+              {msg._failed
+                ? t('chat.dm.notSent')
+                : new Date(msg.created_at).toLocaleTimeString(dateLocale, {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
             </div>
           </div>
         ))}

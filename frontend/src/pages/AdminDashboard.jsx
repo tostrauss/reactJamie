@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { admin } from '../utils/api';
 import { AdminDealsSection } from '../components/AdminDealsSection';
+import { UserName } from '../components/UserName';
 
 const downloadCSV = (data, filename) => {
   if (!data?.length) return;
@@ -187,7 +188,7 @@ export const AdminDashboard = () => {
                         {club.category || t('admin.pendingClubs.noCategory')} · {club.location || t('admin.pendingClubs.noPlace')} · {new Date(club.created_at).toLocaleDateString(dateLocale)}
                       </div>
                       <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>
-                        {t('admin.pendingClubs.createdBy')} <strong style={{ color: 'rgba(255,255,255,0.7)' }}>{club.owner_name || '–'}</strong> ({club.owner_email || '–'})
+                        {t('admin.pendingClubs.createdBy')} <strong style={{ color: 'rgba(255,255,255,0.7)' }}><UserName name={club.owner_name || '–'} age={club.owner_age} /></strong> ({club.owner_email || '–'})
                       </div>
                     </div>
                     {club.image_url && (
@@ -322,7 +323,7 @@ export const AdminDashboard = () => {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>
-                      {u.name}
+                      <UserName name={u.name} age={u.age} />
                       {u.is_trusted_user && <span style={{ color: '#4ade80', marginLeft: 6, fontSize: 12 }}>✓</span>}
                     </div>
                     <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12 }}>{u.email}</div>

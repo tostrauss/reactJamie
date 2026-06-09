@@ -86,7 +86,8 @@ export const getRecentUsers = async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 100, 500);
     const result = await db.query(`
       SELECT id, name, email, location, created_at, is_trusted_user, trusted_count,
-             onboarding_completed, is_admin
+             onboarding_completed, is_admin,
+             EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age
       FROM users
       ORDER BY created_at DESC
       LIMIT $1

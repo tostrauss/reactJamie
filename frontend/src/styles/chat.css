@@ -819,6 +819,24 @@
   text-align: right;
 }
 
+/* Optimistic-send states. Pending is visually almost identical so the
+   sender's eye sees the bubble appear instantly with no jitter when the
+   HTTP persist completes a moment later. Failed flips the bubble to a
+   red tint so the sender clearly sees the message didn't go through. */
+.message--pending {
+  opacity: 0.72;
+}
+
+.message.sent.message--failed {
+  background: rgba(226, 59, 59, 0.85);
+}
+
+.message.sent.message--failed .message-time {
+  opacity: 1;
+  color: #ffd9d9;
+  font-weight: 600;
+}
+
 /* System messages — welcome lines + join announcements. Centered pill,
    muted styling so they read as ambient chat metadata rather than as
    a real user message. */

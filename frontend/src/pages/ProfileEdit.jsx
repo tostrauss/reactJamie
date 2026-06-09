@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { auth, upload, spotify } from '../utils/api';
+import { connectSpotify } from '../utils/spotifyAuth';
 import { useToast } from '../context/ToastContext';
 import SpotifySongPicker from '../components/SpotifySongPicker';
 import '../styles/profile.css';
@@ -113,8 +114,19 @@ export const ProfileEdit = () => {
   const handleSpotifyConnect = async () => {
     setSpotifyLoading(true);
     try {
-      const res = await spotify.getAuthUrl();
-      window.location.href = res.data.url;
+      // Web path navigates away (page unloads); native resolves via callbacks.
+      await connectSpotify({
+        onSuccess: (data) => {
+          setSpotifyConnected(true);
+          setSpotifyLoading(false);
+          toast.success(data?.message || t('profileEdit.toast.spotifyConnected'));
+        },
+        onError: () => {
+          setSpotifyLoading(false);
+          toast.error(t('profileEdit.toast.spotifyConnectError'));
+        },
+        onCancel: () => setSpotifyLoading(false),
+      });
     } catch (err) {
       toast.error(t('profileEdit.toast.spotifyConnectError'));
       setSpotifyLoading(false);

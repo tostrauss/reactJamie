@@ -266,6 +266,9 @@
       "dateMorgen": "Morgen",
       "dateGestern": "Gestern",
       "proGateAria": "Mit JAMIE Pro alle Mitglieder sehen",
+      "proLockCaption": "Pro freischalten",
+      "weekly": "Wöchentlich",
+      "weeklyTitle": "Wöchentlich wiederkehrendes Event",
       "joinAria": "Beitreten",
       "publicBadge": "Öffentlich",
       "privateBadge": "Privat"
@@ -294,6 +297,7 @@
       "info": {
         "level": "Level: {{level}}",
         "when": "Wann: {{when}}",
+        "weekly": "Jeden {{weekday}}",
         "participants": "Teilnehmer: {{current}}/{{max}}",
         "participantsUnlimited": "Teilnehmer: {{current}}/∞",
         "age": "Alter: {{range}}"
@@ -359,8 +363,8 @@
   },
   "explore": {
     "tabs": {
-      "forYou": "Für Dich",
-      "hallOfFame": "Hall of Fame"
+      "hallOfFame": "Hall of Fame",
+      "deals": "Deals"
     },
     "suggested": {
       "reasonFriends_one": "{{count}} Freund dabei",
@@ -369,8 +373,18 @@
       "reasonSimilar": "Ähnliche Interessen"
     },
     "empty": {
-      "forYou": "Noch keine Vorschläge für dich – schau später noch mal vorbei!",
-      "hallOfFame": "Noch keine vergangenen Events"
+      "hallOfFame": "Noch keine vergangenen Events",
+      "deals": "Aktuell sind keine Kooperationen verfügbar"
+    },
+    "loginToFavorite": "Bitte melde dich an, um Favoriten zu speichern.",
+    "favoriteError": "Favorit konnte nicht gespeichert werden.",
+    "moment": {
+      "cta": "📸 Teile deinen JAMIE Moment",
+      "hint": "Lade ein Foto vom Event hoch — wird zum Cover in deiner Hall of Fame.",
+      "tooLarge": "Bild ist zu groß (max. 10 MB).",
+      "uploadError": "Foto konnte nicht hochgeladen werden.",
+      "saveError": "Foto konnte nicht gespeichert werden.",
+      "savedToast": "Dein JAMIE Moment ist live! ✨"
     }
   },
   "clubDetail": {
@@ -600,6 +614,7 @@
       "errorNotFriends": "Ihr müsst befreundet sein, um Nachrichten zu senden",
       "errorLoad": "Konversation konnte nicht geladen werden",
       "errorSend": "Nachricht konnte nicht gesendet werden",
+      "notSent": "Nicht gesendet",
       "title": "Direktnachrichten",
       "chatFallback": "Chat",
       "profileHint": "Tippe für Profil",
@@ -655,6 +670,7 @@
     },
     "emptyPhotos": "Keine weiteren Fotos",
     "emptyHof": "Noch nichts hier",
+    "viewPhotoAria": "Foto vergrößern",
     "reportBtn": "Nutzer melden",
     "blockBtn": "Blockieren",
     "blockConfirm": {
@@ -764,6 +780,7 @@
     "saveLoading": "Speichern...",
     "toast": {
       "spotifyConnectError": "Spotify-Verbindung fehlgeschlagen",
+      "spotifyConnected": "Spotify erfolgreich verbunden!",
       "spotifyDisconnected": "Spotify getrennt",
       "spotifyDisconnectError": "Fehler beim Trennen",
       "saved": "Profil gespeichert",
@@ -1010,15 +1027,33 @@
     },
     "title": "JAMIE Pro",
     "priceMonth": "/ Monat",
-    "ctaActivate": "👑 Pro aktivieren — 5 € / Monat",
+    "newSaveBadge": "NEU · Spare bis zu {{pct}}%",
+    "ctaActivate": "👑 Pro freischalten",
     "loading": "Wird geladen…",
     "later": "Vielleicht später",
     "startError": "Fehler beim Starten des Abonnements",
     "successTitle": "Willkommen bei Pro!",
     "successBody": "Du kannst ab sofort Freunde hinzufügen, Direktnachrichten senden und deine Gruppen & Clubs boosten.",
     "paymentTitle": "Zahlungsdaten",
-    "paymentSub": "5 € / Monat · SSL-verschlüsselt · Jederzeit kündbar",
-    "subscriptionLabel": "Monatliches Abonnement"
+    "paymentSub": "SSL-verschlüsselt · Jederzeit kündbar",
+    "subscriptionLabel": "Abonnement",
+    "plans": {
+      "perWeek": "pro Woche",
+      "wkShort": "Wo",
+      "savePct": "{{pct}}% sparen",
+      "terms": {
+        "weekly": "Wöchentlich",
+        "monthly": "Monatlich",
+        "sixmonth": "6 Monate"
+      },
+      "billedWeekly": "14,99 € / Woche",
+      "billedMonthly": "ca. 22,75 € / Monat",
+      "billedSixmonth": "58,50 € alle 6 Monate",
+      "badges": {
+        "popular": "Beliebt",
+        "bestValue": "Bestes Angebot"
+      }
+    }
   },
   "boost": {
     "title": "🚀 Boost",
@@ -1143,6 +1178,9 @@
       "hours": "Stunden",
       "minutes": "Minuten",
       "uhr": "Uhr",
+      "timeInChatHint": "Die genaue Uhrzeit könnt ihr direkt im Gruppenchat ausmachen.",
+      "weeklyLabel": "Wöchentlich wiederholen",
+      "weeklyHint": "Findet jede Woche am gleichen Wochentag statt — perfekt für regelmäßige Treffs",
       "locationLabel": "Wo? *",
       "locationPlaceholder": "z.B. Stadtpark, Wien",
       "ageLabel": "Für welches Alter?",
@@ -1263,6 +1301,9 @@
       "descPlaceholder": "Erzähl etwas über die Gruppe…",
       "size": "Gruppengröße",
       "date": "Datum",
+      "weeklyLabel": "Wöchentlich wiederholen",
+      "weeklyOn": "Event findet jede Woche am gleichen Wochentag statt",
+      "weeklyOff": "Einmaliges Event",
       "targetAge": "Für welches Alter?",
       "targetAgeHint": "Nur Nutzer in dieser Altersspanne sehen die Gruppe (leer = alle)",
       "targetAgeFromPlaceholder": "von",
@@ -1371,7 +1412,9 @@
       "searchPlaceholder": "Song oder Künstler suchen...",
       "cancel": "Abbrechen",
       "searching": "Suche...",
-      "empty": "Keine Ergebnisse"
+      "empty": "Keine Ergebnisse",
+      "change": "Ändern",
+      "remove": "Entfernen"
     }
   },
   "deals": {

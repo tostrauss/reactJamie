@@ -4,12 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { friends as friendsApi, users as usersApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { UserName } from '../components/UserName';
 import '../styles/friends.css';
-
-const calcAge = (dob) => {
-  if (!dob) return null;
-  return Math.floor((Date.now() - new Date(dob)) / 31557600000);
-};
 
 export const Friends = () => {
   const navigate = useNavigate();
@@ -199,7 +195,7 @@ export const Friends = () => {
                   <div className="fr-row-left" onClick={() => navigate(`/user/${u.id}`)}>
                     <Avatar src={u.avatar_url} name={u.name} />
                     <div className="fr-row-info">
-                      <p className="fr-row-name">{u.name}</p>
+                      <p className="fr-row-name"><UserName name={u.name} age={u.age} /></p>
                       {u.location && <p className="fr-row-sub">{u.location}</p>}
                     </div>
                   </div>
@@ -223,13 +219,12 @@ export const Friends = () => {
                 <div className="fr-list">
                   {friendsList.map(f => {
                     const fid = f.friend_id || f.id;
-                    const age = calcAge(f.date_of_birth);
                     return (
                       <div key={fid} className="fr-row">
                         <div className="fr-row-left" onClick={() => navigate(`/user/${fid}`)}>
                           <Avatar src={f.avatar_url} name={f.name} />
                           <div className="fr-row-info">
-                            <p className="fr-row-name">{f.name}{age ? `, ${age}` : ''}</p>
+                            <p className="fr-row-name"><UserName name={f.name} age={f.age} /></p>
                             {f.location && <p className="fr-row-sub">{f.location}</p>}
                           </div>
                         </div>
@@ -271,7 +266,7 @@ export const Friends = () => {
                       <div className="fr-row-left" onClick={() => navigate(`/user/${r.requester_id}`)}>
                         <Avatar src={r.requester_avatar} name={r.requester_name} />
                         <div className="fr-row-info">
-                          <p className="fr-row-name">{r.requester_name}</p>
+                          <p className="fr-row-name"><UserName name={r.requester_name} age={r.requester_age} /></p>
                           {r.location && <p className="fr-row-sub">{r.location}</p>}
                         </div>
                       </div>
@@ -311,7 +306,7 @@ export const Friends = () => {
                       <div className="fr-row-left" onClick={() => navigate(`/user/${r.addressee_id}`)}>
                         <Avatar src={r.addressee_avatar} name={r.addressee_name} />
                         <div className="fr-row-info">
-                          <p className="fr-row-name">{r.addressee_name}</p>
+                          <p className="fr-row-name"><UserName name={r.addressee_name} age={r.addressee_age} /></p>
                           <p className="fr-row-sub">{t('friends.sentPending')}</p>
                         </div>
                       </div>

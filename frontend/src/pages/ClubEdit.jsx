@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { clubs, friends as friendsApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { UserName } from '../components/UserName';
 import '../styles/home.css';
 
 export const ClubEdit = () => {
@@ -216,7 +217,7 @@ export const ClubEdit = () => {
                   )}
                 </div>
                 <div className="member-info">
-                  <span className="member-name">{member.name}</span>
+                  <UserName className="member-name" name={member.name} age={member.age} />
                   {member.role === 'owner' && (
                     <span className="member-role">{t('clubEdit.memberRole')}</span>
                   )}
@@ -252,7 +253,7 @@ export const ClubEdit = () => {
                       </div>
                     )}
                   </div>
-                  <span className="member-name">{friend.name}</span>
+                  <UserName className="member-name" name={friend.name} age={friend.age} />
                   <button
                     className="invite-btn"
                     onClick={() => handleInviteFriend(friend.friend_id, friend.name)}

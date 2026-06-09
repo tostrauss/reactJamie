@@ -123,6 +123,7 @@ import reviewRoutes from './routes/reviewRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import { subscriptionWebhook } from './controllers/subscriptionController.js';
 import { stripeWebhook as boostStripeWebhook } from './controllers/boostController.js';
+import { sendPushToUser } from './controllers/pushController.js';
 import boostRoutes from './routes/boostRoutes.js';
 import mapRoutes from './routes/mapRoutes.js';
 import waitlistRoutes from './routes/waitlistRoutes.js';
@@ -893,6 +894,30 @@ const runStartupMigrations = async () => {
   });
   // Target audience age range. NULL on both sides means "no restriction"
   // (group is visible to everyone), which matches the existing default.
+  // "JAMIE Moment" photo: a post-event picture uploaded by the owner from the
+  // Hall of Fame page. Decoupled from `image_url` (the pre-event cover) so we
+  // can show the planned image until the owner replaces it with the real
+  // moment afterwards. Hall of Fame renders moment_photo_url ?? image_url.
+  await migrate('groups.moment_photo_url', async () => {
+    await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS moment_photo_url TEXT`);
+  });
+  // Timestamp the moment-prompt push so the cron only fires once per event.
+  // Stays NULL until the cron sends, then gates re-sends forever (even if the
+  // owner later uploads + deletes their moment photo).
+  await migrate('groups.moment_prompt_sent_at', async () => {
+    await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS moment_prompt_sent_at TIMESTAMPTZ`);
+  });
+
+  // Weekly recurring events for groups (type='group'). NULL/FALSE = one-off.
+  // The `date` column stays as the *first* occurrence; the frontend computes
+  // the next occurrence (date + N*7 days) when displaying / exporting to
+  // calendar. We deliberately do NOT pre-generate child rows: one weekly
+  // event for 5 years would be 260 rows per series, and any change to the
+  // start time would fan out to every child. A flag + helper keeps it cheap.
+  await migrate('groups.is_recurring_weekly', async () => {
+    await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS is_recurring_weekly BOOLEAN NOT NULL DEFAULT FALSE`);
+  });
+
   await migrate('groups.target_age_min_max', async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS target_age_min INTEGER`);
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS target_age_max INTEGER`);
@@ -1016,6 +1041,58 @@ cron.schedule('0 3 * * *', async () => {
     console.log(`[cron] analytics_events purged: ${result.rowCount} rows deleted`);
   } catch (err) {
     console.error('[cron] analytics purge failed:', err.message);
+  }
+});
+
+// JAMIE Moment push prompt: every 15 min, claim past events whose owner
+// hasn't uploaded a moment photo yet and send them a one-shot reminder.
+//
+// Window: 2 h ≤ now − date ≤ 24 h
+//   • For timed events (e.g. 18:00 start): fires 2h after — they're 1h into
+//     the second drink, perfect "share your moment" timing.
+//   • For date-only events (stored at midnight): fires later in the day; if
+//     that falls into night, the OS quiet-hours handling defers delivery.
+//
+// Atomic UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED) claims
+// the rows so two Railway instances never fire the same push. The
+// moment_prompt_sent_at flag stays set forever once written — even if the
+// owner uploads + deletes, we never re-spam.
+cron.schedule('*/15 * * * *', async () => {
+  try {
+    const claimed = await db.query(`
+      UPDATE groups
+      SET moment_prompt_sent_at = NOW()
+      WHERE id IN (
+        SELECT id FROM groups
+        WHERE type = 'group'
+          AND date IS NOT NULL
+          AND moment_photo_url IS NULL
+          AND moment_prompt_sent_at IS NULL
+          AND deleted_at IS NULL
+          AND date + INTERVAL '2 hours' <= NOW()
+          AND date + INTERVAL '24 hours' >= NOW()
+        FOR UPDATE SKIP LOCKED
+        LIMIT 200
+      )
+      RETURNING id, owner_id, name
+    `);
+    for (const ev of claimed.rows) {
+      try {
+        await sendPushToUser(
+          ev.owner_id,
+          '📸 Teile deinen JAMIE Moment',
+          `Wie war ${ev.name}? Lade jetzt dein Erinnerungsfoto hoch und hol's in die Hall of Fame.`,
+          '/explore',
+        );
+      } catch (err) {
+        console.error(`[cron] moment push failed for group ${ev.id}:`, err.message);
+      }
+    }
+    if (claimed.rowCount > 0) {
+      console.log(`[cron] moment prompts sent: ${claimed.rowCount}`);
+    }
+  } catch (err) {
+    console.error('[cron] moment prompt cron failed:', err.message);
   }
 });
 

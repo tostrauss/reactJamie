@@ -6,7 +6,9 @@ import { groups, clubs } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
+import { UserName } from '../components/UserName';
 import { isNativeIOS } from '../utils/platform';
+import { nextOccurrence } from '../utils/recurrence';
 import '../styles/group-detail.css';
 
 // Lazy-load: pulls Stripe SDK only when the owner opens the modal.
@@ -63,7 +65,12 @@ function GroupMiniMap({ lat, lng }) {
 const toCalDate = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 
 const openCalendar = (group) => {
-  const start = new Date(group.date);
+  // Recurring weekly events: export the *first* occurrence so the calendar
+  // engine itself drives the repeat (via RRULE), instead of dropping a single
+  // future event that won't repeat.
+  const start = group.is_recurring_weekly
+    ? new Date(group.date)
+    : (nextOccurrence(group) || new Date(group.date));
   if (isNaN(start)) return;
 
   // Default duration: 2 hours
@@ -94,6 +101,9 @@ const openCalendar = (group) => {
       'BEGIN:VEVENT',
       `DTSTART:${startStr}`,
       `DTEND:${endStr}`,
+      // Open-ended weekly repeat — Apple Calendar honors a bare WEEKLY rule
+      // and lets the user cap or skip occurrences on their device.
+      group.is_recurring_weekly ? 'RRULE:FREQ=WEEKLY' : '',
       `SUMMARY:${icalEscape(group.name || group.category || 'JAMIE Event')}`,
       group.description ? `DESCRIPTION:${icalEscape(group.description)}` : '',
       group.location    ? `LOCATION:${icalEscape(group.location)}` : '',
@@ -110,8 +120,10 @@ const openCalendar = (group) => {
     a.click();
     URL.revokeObjectURL(url);
   } else {
-    // Android / web → Google Calendar
-    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&location=${loc}`;
+    // Android / web → Google Calendar. `recur` takes a URL-encoded RRULE
+    // value; the `=` in `FREQ=WEEKLY` MUST become %3D or Calendar ignores it.
+    const recurParam = group.is_recurring_weekly ? `&recur=RRULE:FREQ%3DWEEKLY` : '';
+    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&location=${loc}${recurParam}`;
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 };
@@ -405,8 +417,14 @@ export const GroupDetail = () => {
   const maxSlots = Math.min(group.max_members || 4, 4);
   const filledSlots = members.slice(0, maxSlots);
   const emptySlots = Math.max(0, maxSlots - filledSlots.length);
-  const headerDate = formatHeaderDate(group.date, dateLocale);
-  const shortDate = formatShortDate(group.date);
+  // Recurring events show the *next* occurrence everywhere (header chip,
+  // info row) so "Wann?" never reads as a date in the past.
+  const displayDateISO = (() => {
+    const d = nextOccurrence(group);
+    return d ? d.toISOString() : group.date;
+  })();
+  const headerDate = formatHeaderDate(displayDateISO, dateLocale);
+  const shortDate = formatShortDate(displayDateISO);
 
   return (
     <div className="gd-page">
@@ -465,9 +483,14 @@ export const GroupDetail = () => {
                     ? <img src={member.avatar_url} alt={member.name} loading="lazy" />
                     : <div className="gd-photo-placeholder">{(member.name || '?')[0].toUpperCase()}</div>
                   }
-                  {member.age && <span className="gd-photo-age">{member.age}</span>}
                   <div className="gd-photo-bottom">
-                    <span className="gd-photo-name">{(member.name || '').toUpperCase()}</span>
+                    {/* Photo grid: age is shown only as the name-superscript
+                        (corner chip removed) — single source of truth. */}
+                    <UserName
+                      className="gd-photo-name"
+                      name={(member.name || '').toUpperCase()}
+                      age={member.age}
+                    />
                     {member.is_trusted_user && (
                       <span className="gd-photo-check">✓</span>
                     )}
@@ -577,6 +600,17 @@ export const GroupDetail = () => {
                     <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                   </svg>
                   {t('groups.detail.info.when', { when: shortDate })}
+                </span>
+              )}
+              {group.is_recurring_weekly && (
+                <span className="gd-info-item" style={{ color: '#FD7666' }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="23 4 23 10 17 10"/>
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                  </svg>
+                  {t('groups.detail.info.weekly', {
+                    weekday: new Date(group.date).toLocaleDateString(dateLocale, { weekday: 'long' })
+                  })}
                 </span>
               )}
               <span className="gd-info-item">

@@ -37,15 +37,19 @@ export const CreateGroup = () => {
     dateDay: '',
     dateMonth: '',
     dateYear: '',
-    time: '',
-    timeHour: '',
-    timeMinute: '00',
+    // The exact time is decided in the chat — Tina's call. We keep only the
+    // calendar day and let members coordinate the rest. The backend tolerates
+    // date-only payloads (no `time` key sent → stored as midnight).
     location: '',
     maxMembers: 20,
     level: 'Alle Levels',
     isPublic: true,
-    targetAgeMin: '',
-    targetAgeMax: '',
+    isRecurringWeekly: false,
+    // Default target age range — Tina's call (2026-06-09): most JAMIE events
+    // skew 20-35, so pre-filling reduces friction for the typical creator.
+    // Users can clear the fields if they don't want an age restriction.
+    targetAgeMin: '20',
+    targetAgeMax: '35',
     image: null,
     imagePreview: null
   });
@@ -58,16 +62,6 @@ export const CreateGroup = () => {
       const y = field === 'dateYear'  ? value : next.dateYear;
       const date = d && m && y ? `${y}-${m}-${d}` : '';
       return { ...next, date };
-    });
-  };
-
-  const handleTimeChange = (field, value) => {
-    setFormData(prev => {
-      const next = { ...prev, [field]: value };
-      const h = next.timeHour;
-      const mi = next.timeMinute;
-      const time = h ? `${h}:${mi}` : '';
-      return { ...next, time };
     });
   };
 
@@ -148,7 +142,6 @@ export const CreateGroup = () => {
         category: formData.activity,
         description: formData.description,
         date: formData.date,
-        time: formData.time,
         location: formData.location,
         max_members: formData.maxMembers,
         skill_level: formData.level,
@@ -157,6 +150,7 @@ export const CreateGroup = () => {
         image_url: imageUrl,
         target_age_min: formData.targetAgeMin === '' ? null : parseInt(formData.targetAgeMin, 10),
         target_age_max: formData.targetAgeMax === '' ? null : parseInt(formData.targetAgeMax, 10),
+        is_recurring_weekly: formData.isRecurringWeekly,
       };
 
       const response = await groups.create(payload);
@@ -172,9 +166,10 @@ export const CreateGroup = () => {
 
   const isDateInFuture = () => {
     if (!formData.date) return true;
-    // Use local midnight when no time set — avoids UTC-parse shifting the date
-    const dt = new Date(`${formData.date}T${formData.time || '00:00'}`);
-    return dt > new Date();
+    // Date-only events: "today" is valid. Compare YYYY-MM-DD against today's
+    // YYYY-MM-DD so a user creating a group on the day-of doesn't get blocked.
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return formData.date >= todayStr;
   };
 
   const canProceed = () => {
@@ -394,40 +389,28 @@ export const CreateGroup = () => {
             </div>
           </div>
 
-          {/* Time */}
+          {/* Time picker removed (2026-06-09): exact times are coordinated in
+              the group chat, so the form just captures the calendar day. */}
+
+          <p className="form-hint-row">{t('createGroup.step2.timeInChatHint')}</p>
+
+          {/* Wiederholen — wöchentlich. Picks the same weekday as the chosen
+              start date and lets the user keep the meetup running forever. */}
           <div className="form-section">
-            <label className="form-label">
-              <span className="form-label-icon">🕐</span> {t('groups.detail.events.uhr')}
+            <label className="recurring-toggle">
+              <input
+                type="checkbox"
+                checked={formData.isRecurringWeekly}
+                onChange={(e) => setFormData(prev => ({ ...prev, isRecurringWeekly: e.target.checked }))}
+              />
+              <span className="recurring-toggle-content">
+                <span className="recurring-toggle-title">
+                  <span className="form-label-icon" aria-hidden="true">🔁</span>
+                  {t('createGroup.step2.weeklyLabel')}
+                </span>
+                <span className="recurring-toggle-hint">{t('createGroup.step2.weeklyHint')}</span>
+              </span>
             </label>
-            <div className="time-picker-box">
-              <div className="time-picker-col">
-                <select
-                  className="time-picker-select"
-                  value={formData.timeHour}
-                  onChange={e => handleTimeChange('timeHour', e.target.value)}
-                >
-                  <option value="">--</option>
-                  {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => (
-                    <option key={h} value={h}>{h}</option>
-                  ))}
-                </select>
-                <span className="time-picker-label">{t('createGroup.step2.hours')}</span>
-              </div>
-              <span className="time-picker-colon">:</span>
-              <div className="time-picker-col">
-                <select
-                  className="time-picker-select"
-                  value={formData.timeMinute}
-                  onChange={e => handleTimeChange('timeMinute', e.target.value)}
-                >
-                  {['00','05','10','15','20','25','30','35','40','45','50','55'].map(m => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
-                <span className="time-picker-label">{t('createGroup.step2.minutes')}</span>
-              </div>
-              <span className="time-picker-uhr">{t('createGroup.step2.uhr')}</span>
-            </div>
           </div>
 
           <div className="form-section">

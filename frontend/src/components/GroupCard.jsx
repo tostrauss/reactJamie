@@ -2,6 +2,14 @@ import React, { memo, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
+import { nextOccurrence } from '../utils/recurrence';
+
+// Dispatched on every Pro-gate click (member-preview lock on group cards).
+// AppRoutes listens for this and opens <ProModal />. Using a window event
+// avoids threading a "showProModal" setter through context just so a card
+// deep in a virtualized list can open the upgrade sheet.
+export const PRO_MODAL_EVENT = 'jamie:open-pro-modal';
+const openProModal = () => window.dispatchEvent(new CustomEvent(PRO_MODAL_EVENT));
 
 // Renders an avatar image with graceful fallback. If the URL is missing, fails
 // to load, or returns a non-image response (e.g. SPA index.html for a stale path),
@@ -33,10 +41,10 @@ const AvatarImage = memo(({ src, alt, fallbackChar, placeholderStyle }) => {
 //   { kind: 'today'|'tomorrow'|'yesterday', time }
 //   { kind: 'date', date, time }
 // Locale-specific text composition happens in the component using t().
-function parseDateDescriptor(dateStr, locale) {
-  if (!dateStr) return null;
+function parseDateDescriptor(dateInput, locale) {
+  if (!dateInput) return null;
   try {
-    const d = new Date(dateStr);
+    const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
     if (isNaN(d.getTime())) return null;
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -71,23 +79,25 @@ export const GroupCard = memo(({
   const { isPro } = useContext(AuthContext) || {};
   const isClub = group.type === 'club';
 
-  // member_previews is embedded by the backend — non-Pro callers get 3 entries,
-  // Pro callers get 4. We render a Pro-gated blurry 4th slot whenever the group
-  // has more members than the caller is allowed to preview.
+  // member_previews is embedded by the backend. Non-Pro users never see who's
+  // inside: the entire photo grid is blurred and a single lock overlay sits
+  // over it (the avatars are still rendered so a Pro upgrade animates from
+  // "blurred silhouettes" → "real faces" instead of from black).
   const memberAvatars = Array.isArray(group.member_previews) ? group.member_previews : [];
 
   const maxMembers  = group.max_members || 10;
   const isFull      = group.members_count >= maxMembers;
-  const hiddenCount = Math.max(0, (group.members_count || 0) - memberAvatars.length);
-  const showProGate = !isClub && !isPro && hiddenCount > 0;
-  const emptySpots  = isClub ? 0 : Math.max(0, 4 - memberAvatars.length - (showProGate ? 1 : 0));
-  // Clubs render an 8-slot (4×2) member grid when previews exist, falling back
-  // to the full club image otherwise (e.g. a brand-new club with 0 joined members).
-  const clubAvatars  = isClub ? memberAvatars.slice(0, 8) : [];
-  const clubEmpty    = isClub ? Math.max(0, 8 - clubAvatars.length) : 0;
+  const emptySpots  = isClub ? 0 : Math.max(0, 4 - memberAvatars.length);
+  // Show the Pro lock for every non-Pro viewer. Gamification: even an empty
+  // group teases "unlock to see who joins" — the lock is the cue, not the
+  // member count. Pro users see real faces with no overlay.
+  const showProLock = !isPro;
 
   const locale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-DE';
-  const descriptor = parseDateDescriptor(group.date, locale);
+  // Recurring groups: badge tracks the next occurrence so a Tuesday meetup
+  // never says "Gestern" on Wednesday — it just rolls forward to next Tuesday.
+  const displayDate = nextOccurrence(group);
+  const descriptor = parseDateDescriptor(displayDate, locale);
   // Badge sits in the corner of the card and shows just the "when" — Heute,
   // Morgen, Gestern, or a short month/day chip for other dates.
   let badgeLabel = null;
@@ -131,6 +141,15 @@ export const GroupCard = memo(({
             )}
             {!isClub && group.is_private && <span className="card-private-badge">🔒</span>}
             {!isClub && isFull && <span className="card-private-badge">{t('groups.card.full')}</span>}
+            {!isClub && group.is_recurring_weekly && (
+              <span className="card-private-badge card-recurring-badge" title={t('groups.card.weeklyTitle')}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="23 4 23 10 17 10"/>
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                </svg>
+                {t('groups.card.weekly')}
+              </span>
+            )}
             {group.is_boosted && <span className="card-private-badge">🚀</span>}
           </div>
         </div>
@@ -142,7 +161,7 @@ export const GroupCard = memo(({
       </div>
 
       {/* ── Photo grid ── */}
-      <div className="card-photo-grid">
+      <div className={`card-photo-grid${showProLock ? ' is-pro-locked' : ''}`}>
         {isClub ? (
           <div className="avatar-slot card-club-full-image" style={{ gridColumn: '1 / -1', gridRow: '1 / -1', borderRadius: '9px' }}>
             <AvatarImage
@@ -163,23 +182,6 @@ export const GroupCard = memo(({
                 />
               </div>
             ))}
-            {showProGate && (
-              <div className="avatar-slot pro-gate">
-                <div className="avatar-pro-gate-blur" aria-hidden="true" />
-                <button
-                  className="avatar-gamble pro-gate-plus"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/group/${group.id}`);
-                  }}
-                  aria-label={t('groups.card.proGateAria')}
-                >
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-                    <path d="M12 5v14M5 12h14"/>
-                  </svg>
-                </button>
-              </div>
-            )}
             {[...Array(emptySpots)].map((_, idx) => (
               <div key={`empty-${idx}`} className="avatar-slot empty">
                 <button
@@ -189,6 +191,9 @@ export const GroupCard = memo(({
                     navigate(`/group/${group.id}`);
                   }}
                   aria-label={t('groups.card.joinAria')}
+                  // Hide the "+" join slot behind the Pro lock so non-Pro
+                  // viewers see one focal CTA (the lock) instead of two.
+                  tabIndex={showProLock ? -1 : 0}
                 >
                   <svg width="11" height="11" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
                     <path d="M5 1v8M1 5h8"/>
@@ -197,6 +202,27 @@ export const GroupCard = memo(({
               </div>
             ))}
           </>
+        )}
+
+        {showProLock && (
+          <button
+            type="button"
+            className="card-pro-overlay"
+            onClick={(e) => {
+              e.stopPropagation();
+              openProModal();
+            }}
+            aria-label={t('groups.card.proGateAria')}
+          >
+            <span className="card-pro-overlay-blur" aria-hidden="true" />
+            <span className="card-pro-lock-badge" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="4" y="11" width="16" height="10" rx="2.5" />
+                <path d="M8 11V8a4 4 0 1 1 8 0v3" />
+              </svg>
+            </span>
+            <span className="card-pro-lock-caption">{t('groups.card.proLockCaption')}</span>
+          </button>
         )}
       </div>
 

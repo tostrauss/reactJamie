@@ -68,7 +68,7 @@ async function checkAndAwardPioneer(userId, groupId, lat, lng) {
 // CREATE GROUP / CLUB
 // ==========================================
 export const createGroup = async (req, res) => {
-  const { name, description, type, category, date, time, location, image_url, max_members, is_private, skill_level, chat_only_owner, target_age_min, target_age_max } = req.body;
+  const { name, description, type, category, date, time, location, image_url, max_members, is_private, skill_level, chat_only_owner, target_age_min, target_age_max, is_recurring_weekly } = req.body;
   const userId = req.userId; // JWT auth (not session)
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
@@ -99,14 +99,29 @@ export const createGroup = async (req, res) => {
       dateTime = `${date}T${time}`;
     }
 
-    // Events must be in the future (clubs have no date, so skip check)
+    // Events must be in the future (clubs have no date, so skip check).
+    // Two modes:
+    //   - date-only payload ("2026-06-15"): "today or later" is OK because
+    //     the exact time is coordinated later in the chat.
+    //   - date+time payload ("2026-06-15T18:00"): must be a future timestamp.
     if (dateTime && (type === 'group' || !type)) {
       const eventDate = new Date(dateTime);
       if (isNaN(eventDate.getTime())) {
         return res.status(400).json({ error: 'Ungültiges Datum' });
       }
-      if (eventDate <= new Date()) {
-        return res.status(400).json({ error: 'Das Event-Datum muss in der Zukunft liegen' });
+      const hasTime = typeof dateTime === 'string' && dateTime.includes('T');
+      if (hasTime) {
+        if (eventDate <= new Date()) {
+          return res.status(400).json({ error: 'Das Event-Datum muss in der Zukunft liegen' });
+        }
+      } else {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const eventDay = new Date(eventDate);
+        eventDay.setHours(0, 0, 0, 0);
+        if (eventDay < today) {
+          return res.status(400).json({ error: 'Das Event-Datum muss in der Zukunft liegen' });
+        }
       }
     }
 
@@ -139,11 +154,14 @@ export const createGroup = async (req, res) => {
     // Geocode location (non-blocking on failure)
     const coords = await geocodeLocation(location);
 
+    // Weekly recurrence only applies to events (type='group'); silently ignored for clubs.
+    const recurringWeekly = !!is_recurring_weekly && (type === 'group' || !type);
+
     const result = await db.query(
-      `INSERT INTO groups (name, description, type, category, date, location, image_url, max_members, is_private, skill_level, owner_id, lat, lng, chat_only_owner, target_age_min, target_age_max)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      `INSERT INTO groups (name, description, type, category, date, location, image_url, max_members, is_private, skill_level, owner_id, lat, lng, chat_only_owner, target_age_min, target_age_max, is_recurring_weekly)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        RETURNING *`,
-      [name, description, type || 'group', category, dateTime, location, image_url, max_members || 10, is_private || false, skill_level, userId, coords?.lat ?? null, coords?.lng ?? null, chat_only_owner || false, ageMin, ageMax]
+      [name, description, type || 'group', category, dateTime, location, image_url, max_members || 10, is_private || false, skill_level, userId, coords?.lat ?? null, coords?.lng ?? null, chat_only_owner || false, ageMin, ageMax, recurringWeekly]
     );
 
     const newGroup = result.rows[0];
@@ -216,11 +234,13 @@ export const getGroups = async (req, res) => {
 
     let query = `
       SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar,
+             EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS owner_age,
              CASE WHEN g.members_count >= g.max_members THEN 1 ELSE 0 END as is_full,
              (
                SELECT COALESCE(json_agg(sub), '[]'::json)
                FROM (
-                 SELECT u2.id, u2.name, u2.avatar_url
+                 SELECT u2.id, u2.name, u2.avatar_url,
+                        EXTRACT(YEAR FROM AGE(u2.date_of_birth))::int AS age
                  FROM group_members gm
                  JOIN users u2 ON gm.user_id = u2.id
                  WHERE gm.group_id = g.id
@@ -274,7 +294,9 @@ export const getGroups = async (req, res) => {
       params.push(`%${location}%`);
     }
     if (upcoming === 'true') {
-      query += ` AND g.date >= CURRENT_TIMESTAMP`;
+      // Weekly recurring events never go "past" — the next occurrence rolls
+      // forward forever, so include them regardless of g.date.
+      query += ` AND (g.date >= CURRENT_TIMESTAMP OR g.is_recurring_weekly = TRUE)`;
     }
 
     query += ` ORDER BY is_full ASC, g.created_at DESC`;
@@ -305,6 +327,7 @@ export const getGroupById = async (req, res) => {
     const { id } = req.params;
     const result = await db.query(
       `SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar,
+              EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS owner_age,
               (
                 SELECT MIN(EXTRACT(YEAR FROM AGE(u2.date_of_birth))::int)
                 FROM group_members gm
@@ -363,7 +386,7 @@ export const getGroupById = async (req, res) => {
 export const updateGroup = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, category, date, location, image_url, max_members, is_private, skill_level, chat_only_owner, target_age_min, target_age_max } = req.body;
+    const { name, description, category, date, location, image_url, max_members, is_private, skill_level, chat_only_owner, target_age_min, target_age_max, is_recurring_weekly, moment_photo_url } = req.body;
 
     if (name !== undefined && name.length > 100) return res.status(400).json({ error: 'Name darf maximal 100 Zeichen lang sein' });
     if (description !== undefined && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
@@ -402,14 +425,35 @@ export const updateGroup = async (req, res) => {
       }
     }
 
-    // Validate future date on update (groups only, clubs have no date)
+    // Validate future date on update (groups only, clubs have no date).
+    // Skip the future check when the (incoming or stored) event is weekly
+    // recurring — past start dates are normal for recurring series. Date-only
+    // payloads also pass when the date is today (time is set in chat).
     if (date !== undefined && date !== null) {
       const eventDate = new Date(date);
       if (isNaN(eventDate.getTime())) {
         return res.status(400).json({ error: 'Ungültiges Datum' });
       }
-      if (eventDate <= new Date()) {
-        return res.status(400).json({ error: 'Das Event-Datum muss in der Zukunft liegen' });
+      let recurringForCheck = !!is_recurring_weekly;
+      if (is_recurring_weekly === undefined) {
+        const cur = await db.query('SELECT is_recurring_weekly FROM groups WHERE id = $1', [id]);
+        recurringForCheck = !!cur.rows[0]?.is_recurring_weekly;
+      }
+      if (!recurringForCheck) {
+        const hasTime = typeof date === 'string' && date.includes('T');
+        if (hasTime) {
+          if (eventDate <= new Date()) {
+            return res.status(400).json({ error: 'Das Event-Datum muss in der Zukunft liegen' });
+          }
+        } else {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const eventDay = new Date(eventDate);
+          eventDay.setHours(0, 0, 0, 0);
+          if (eventDay < today) {
+            return res.status(400).json({ error: 'Das Event-Datum muss in der Zukunft liegen' });
+          }
+        }
       }
     }
 
@@ -454,6 +498,8 @@ export const updateGroup = async (req, res) => {
            chat_only_owner = COALESCE($13, chat_only_owner),
            target_age_min = CASE WHEN $14::text = '__keep__' THEN target_age_min ELSE NULLIF($14, '__null__')::int END,
            target_age_max = CASE WHEN $15::text = '__keep__' THEN target_age_max ELSE NULLIF($15, '__null__')::int END,
+           is_recurring_weekly = COALESCE($16, is_recurring_weekly),
+           moment_photo_url = COALESCE($17, moment_photo_url),
            lat = CASE WHEN $5 IS NOT NULL THEN $11 ELSE lat END,
            lng = CASE WHEN $5 IS NOT NULL THEN $12 ELSE lng END,
            updated_at = CURRENT_TIMESTAMP
@@ -464,6 +510,8 @@ export const updateGroup = async (req, res) => {
         id, latUpdate, lngUpdate, chat_only_owner ?? null,
         ageMinU === undefined ? '__keep__' : (ageMinU === null ? '__null__' : String(ageMinU)),
         ageMaxU === undefined ? '__keep__' : (ageMaxU === null ? '__null__' : String(ageMaxU)),
+        is_recurring_weekly === undefined ? null : !!is_recurring_weekly,
+        moment_photo_url ?? null,
       ]
     );
 
@@ -748,7 +796,8 @@ export const getGroupMembers = async (req, res) => {
     }
 
     const fullList = await db.query(
-      `SELECT u.id, u.name, u.avatar_url, u.bio, u.location, gm.role, gm.joined_at
+      `SELECT u.id, u.name, u.avatar_url, u.bio, u.location, gm.role, gm.joined_at,
+              EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS age
        FROM group_members gm
        JOIN users u ON gm.user_id = u.id
        WHERE gm.group_id = $1
@@ -836,6 +885,7 @@ export const getJoinRequests = async (req, res) => {
     const result = await db.query(
       `SELECT jr.*, u.name as user_name, u.avatar_url as user_avatar, u.bio as user_bio,
               u.interests as user_interests, u.date_of_birth as user_dob,
+              EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS user_age,
               u.is_trusted_user as user_trusted
        FROM group_join_requests jr
        JOIN users u ON jr.user_id = u.id
@@ -1148,7 +1198,8 @@ export const getGroupMemberAvatars = async (req, res) => {
       if (cached) return res.json(cached);
 
       const result = await db.query(
-        `SELECT u.id, u.avatar_url, u.name
+        `SELECT u.id, u.avatar_url, u.name,
+              EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS age
          FROM group_members gm
          JOIN users u ON gm.user_id = u.id
          WHERE gm.group_id = $1

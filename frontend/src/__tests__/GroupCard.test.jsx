@@ -51,11 +51,23 @@ describe('GroupCard', () => {
     await waitFor(() => expect(screen.getByText('Voll')).toBeInTheDocument());
   });
 
-  it('shows join buttons for empty + pro-gate avatar slots', async () => {
+  it('renders the Pro lock overlay over 4 empty member slots for non-Pro viewers', async () => {
     render(<MemoryRouter><GroupCard group={baseGroup} isJoined={false} /></MemoryRouter>);
-    // baseGroup has members_count 3 with no member_previews → 1 pro-gate + 3 empty slots,
-    // each rendering a button with an SVG plus icon.
-    await waitFor(() => expect(screen.getAllByRole('button')).toHaveLength(4));
+    // No AuthContext provider in this test, so `isPro` is undefined → the Pro
+    // lock overlay always renders for non-club cards. baseGroup has 0 previews →
+    // 4 empty "+" join slots underneath + 1 lock overlay button on top = 5.
+    await waitFor(() => expect(screen.getAllByRole('button')).toHaveLength(5));
+    expect(screen.getByLabelText('Mit JAMIE Pro alle Mitglieder sehen')).toBeInTheDocument();
+  });
+
+  it('dispatches jamie:open-pro-modal when the Pro lock is clicked', async () => {
+    const listener = vi.fn();
+    window.addEventListener('jamie:open-pro-modal', listener);
+    render(<MemoryRouter><GroupCard group={baseGroup} /></MemoryRouter>);
+    const lock = await screen.findByLabelText('Mit JAMIE Pro alle Mitglieder sehen');
+    await act(async () => { fireEvent.click(lock); });
+    expect(listener).toHaveBeenCalledTimes(1);
+    window.removeEventListener('jamie:open-pro-modal', listener);
   });
 
   it('calls onClick when the card is clicked', async () => {

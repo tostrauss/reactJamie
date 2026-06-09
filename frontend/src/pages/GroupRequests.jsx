@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { groups } from '../utils/api';
 import { useToast } from '../context/ToastContext';
+import { UserName } from '../components/UserName';
 
 export const GroupRequests = () => {
   const { id } = useParams();
@@ -173,7 +174,9 @@ export const GroupRequests = () => {
               </div>
 
               <div className="request-user-info">
-                <h2 className="request-name">{currentRequest.user_name}</h2>
+                <h2 className="request-name">
+                  <UserName name={currentRequest.user_name} age={currentRequest.user_age} />
+                </h2>
 
                 {currentRequest.user_bio && (
                   <p className="request-bio">{currentRequest.user_bio}</p>

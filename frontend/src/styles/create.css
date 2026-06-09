@@ -175,6 +175,86 @@
   margin-bottom: 22px;
 }
 
+/* Inline hint shown below the date row — explains that time is coordinated
+   in the chat rather than fixed at create-time. */
+.form-hint-row {
+  margin: -10px 4px 22px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+}
+
+/* Recurring-event toggle: card-style row with native checkbox styled to a
+   coral pill. Same vertical rhythm as the date/time pickers above it. */
+.recurring-toggle {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border: 1.5px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s;
+}
+
+.recurring-toggle:hover {
+  border-color: rgba(253, 118, 102, 0.4);
+}
+
+.recurring-toggle input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: transparent;
+  margin: 0;
+  flex-shrink: 0;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.recurring-toggle input[type="checkbox"]:checked {
+  background: #FD7666;
+  border-color: #FD7666;
+}
+
+.recurring-toggle input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 5px; top: 1px;
+  width: 6px; height: 11px;
+  border: solid white;
+  border-width: 0 2.5px 2.5px 0;
+  transform: rotate(45deg);
+}
+
+.recurring-toggle-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.recurring-toggle-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-white);
+}
+
+.recurring-toggle-hint {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.4;
+}
+
 .form-label {
   display: flex;
   align-items: center;

@@ -121,28 +121,59 @@ export const ChatPage = () => {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!content.trim() || !canSendMessages || isSendingRef.current) return;
+    const sentContent = content.trim();
+    if (!sentContent || !canSendMessages || isSendingRef.current) return;
 
-    const sentContent = content;
+    // Optimistic send (mirrors DirectMessagePage): render the bubble + fire
+    // the socket emit in parallel to the HTTP persist. Without this, the
+    // sender's own bubble waits on the full HTTP roundtrip, and so does the
+    // recipient's. Backend's `send_message` socket handler only broadcasts
+    // (does NOT persist) and re-checks chat_only_owner, so emitting before
+    // the HTTP completes is safe.
     isSendingRef.current = true;
     setContent('');
 
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const optimistic = {
+      id: tempId,
+      user_id: user.id,
+      user_name: user.name,
+      avatar_url: user.avatar_url,
+      content: sentContent,
+      created_at: new Date().toISOString(),
+      _pending: true,
+    };
+
+    setMessageList(prev => [...prev, optimistic]);
+
+    if (socket) {
+      socket.emit('send_message', { ...optimistic, group_id: groupId, groupId });
+    }
+
     try {
       const response = await messages.send(groupId, sentContent);
-      const msg = { ...response.data, user_name: user.name, avatar_url: user.avatar_url, user_id: user.id };
-
-      // Add own message immediately — socket only broadcasts to others
-      setMessageList(prev => [...prev, msg]);
-
-      if (socket) {
-        socket.emit('send_message', { ...msg, group_id: groupId, groupId });
-      }
+      const real = {
+        ...response.data,
+        user_name: user.name,
+        avatar_url: user.avatar_url,
+        user_id: user.id,
+      };
+      setMessageList(prev => prev.map(m => (m.id === tempId ? real : m)));
     } catch (error) {
-      setContent(sentContent);
-      toast.error(t('chat.page.toast.sendError'));
       if (error.response?.data?.isOwnerOnly) {
+        // Permission revoked between page-load and send — pull the bubble.
+        setMessageList(prev => prev.filter(m => m.id !== tempId));
         setCanSendMessages(false);
         setPermissionMessage('Nur der Club-Gründer kann Nachrichten senden');
+        setContent(sentContent);
+      } else {
+        // Persist failed (rate limit, server error). Keep the bubble visible
+        // but mark it failed — recipients may have already seen it via
+        // socket; this is the same trade-off as DMs.
+        setMessageList(prev =>
+          prev.map(m => (m.id === tempId ? { ...m, _pending: false, _failed: true } : m))
+        );
+        toast.error(t('chat.page.toast.sendError'));
       }
     } finally {
       isSendingRef.current = false;
@@ -212,13 +243,18 @@ export const ChatPage = () => {
             );
           }
           return (
-            <div key={msg.id || index} className={`message ${msg.user_id === user?.id ? 'sent' : 'received'}`}>
+            <div
+              key={msg.id || index}
+              className={`message ${msg.user_id === user?.id ? 'sent' : 'received'}${msg._pending ? ' message--pending' : ''}${msg._failed ? ' message--failed' : ''}`}
+            >
               {msg.user_id !== user?.id && (
                 <div className="message-sender">{msg.user_name}</div>
               )}
               <div className="message-content">{msg.content}</div>
               <div className="message-time">
-                {new Date(msg.created_at).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}
+                {msg._failed
+                  ? t('chat.dm.notSent')
+                  : new Date(msg.created_at).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
           );

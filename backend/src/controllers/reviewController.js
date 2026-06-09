@@ -33,7 +33,8 @@ export const getPendingReviews = async (req, res) => {
          g.image_url,
          COALESCE(
            json_agg(
-             json_build_object('id', u.id, 'name', u.name, 'avatar_url', u.avatar_url)
+             json_build_object('id', u.id, 'name', u.name, 'avatar_url', u.avatar_url,
+                               'age', EXTRACT(YEAR FROM AGE(u.date_of_birth))::int)
            ) FILTER (WHERE u.id IS NOT NULL AND u.id != $1),
            '[]'
          ) AS members

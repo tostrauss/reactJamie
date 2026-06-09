@@ -454,6 +454,15 @@ function AppRoutes() {
     }
   }, [user?.id]);
 
+  // Global Pro-modal trigger — fired by GroupCard's Pro lock and any other
+  // component that needs to surface the upgrade sheet from deep in the tree.
+  // Plain window event keeps the contract loose; no provider/context plumbing.
+  useEffect(() => {
+    const open = () => setShowProModal(true);
+    window.addEventListener('jamie:open-pro-modal', open);
+    return () => window.removeEventListener('jamie:open-pro-modal', open);
+  }, []);
+
   const region = useGeoFence();
 
   if (showIntro) return <AppIntro onDone={() => setShowIntro(false)} />;

@@ -1,16 +1,13 @@
-import React, { useState, useEffect, useRef, useContext, memo } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useRef, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { groups, clubs, suggestions as suggestionsApi, deals as dealsApi } from '../utils/api';
+import { groups, deals as dealsApi, upload as uploadApi } from '../utils/api';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import { AuthContext } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { DealCard } from '../components/DealCard';
+import { UserName } from '../components/UserName';
 import '../styles/explore.css';
-
-// Drop a sponsored DealCard into the feed every Nth position. Robert's spec:
-// "Jeder 6. Post auf der Entdecken Seite". Deals cycle so they don't repeat
-// adjacent to each other when more than one is active.
-const DEAL_INTERVAL_EXPLORE = 6;
 
 const getCategoryIcon = (catName) => {
   if (!catName) return '✨';
@@ -42,56 +39,119 @@ const formatCameraDate = (dateStr) => {
 
 const isPast = (dateStr) => !!dateStr && new Date(dateStr) < new Date();
 
-// Stable pastel color from a numeric seed
 const seedColor = (id, offset = 0) =>
   `hsl(${((id + offset) * 137) % 360}, 55%, 52%)`;
 
-// ─── Reason chip ─────────────────────────────────────────────────────────────
-// Renders the WHY behind a "Für Dich" pick — comes from the /suggestions
-// endpoint as item._reason = { kind: 'friends' | 'interest' | 'similar', ... }.
-const reasonText = (reason, t) => {
-  if (!reason) return null;
-  if (reason.kind === 'friends')  return t('explore.suggested.reasonFriends', { count: reason.count });
-  if (reason.kind === 'interest') return t('explore.suggested.reasonInterest', { category: reason.category });
-  if (reason.kind === 'similar')  return t('explore.suggested.reasonSimilar');
-  return null;
-};
+// ─── Hall-of-Fame card ───────────────────────────────────────────────────────
+// Read-only "polaroid" of a past event. The outer is a <div> (NOT a <button>)
+// for both owners and viewers — nested interactive elements (heart, "Moment"
+// upload prompt) inside a <button> is invalid HTML. We give the owner card
+// role="button" + keyboard handler so it stays accessible and tappable for
+// navigation, while preserving the heart and Moment-upload sub-buttons.
+//
+// The displayed image is moment_photo_url ?? image_url. When the viewer is
+// the owner AND moment_photo_url is null, a BeReal-style upload prompt sits
+// over the media. The prompt persists across days — owners can fill it in
+// whenever they want.
 
-// ─── FeedCard ────────────────────────────────────────────────────────────────
-
-const FeedCard = memo(({ item, hallOfFame, navigate, t }) => {
+const HofCard = memo(({ item, isOwner, isFavorited, onToggleFavorite, onUploadMoment, navigate, t }) => {
   const icon = getCategoryIcon(item.category);
   const timeAgo = formatTimeAgo(item.created_at);
-  const reason = reasonText(item._reason, t);
+  const fileInputRef = useRef(null);
+
+  const displayPhoto = item.moment_photo_url || item.image_url;
+  const showMomentPrompt = isOwner && !item.moment_photo_url;
+
+  const handleHeart = (e) => {
+    e.stopPropagation();
+    onToggleFavorite(item);
+  };
+
+  const openPicker = (e) => {
+    e.stopPropagation();
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // reset so picking the same file again re-fires onChange
+    if (file) onUploadMoment(item, file);
+  };
+
+  const handleNavigate = () => {
+    if (isOwner) navigate(`/group/${item.id}`);
+  };
+
+  const handleKey = (e) => {
+    if (!isOwner) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      navigate(`/group/${item.id}`);
+    }
+  };
 
   return (
-    <button className="ef-card" onClick={() => navigate(`/group/${item.id}`)}>
+    <div
+      className={`ef-card ${isOwner ? 'ef-card--owner' : 'ef-card--locked'}`}
+      role={isOwner ? 'button' : undefined}
+      tabIndex={isOwner ? 0 : undefined}
+      onClick={handleNavigate}
+      onKeyDown={handleKey}
+    >
       {/* Photo */}
       <div className="ef-media">
-        {item.image_url ? (
-          <img src={item.image_url} alt={item.name} loading="lazy" className="ef-media-img" />
+        {displayPhoto ? (
+          <img src={displayPhoto} alt={item.name} loading="lazy" className="ef-media-img" />
         ) : (
           <div className="ef-media-placeholder">
             <span className="ef-ph-icon">{icon}</span>
           </div>
         )}
 
-        {/* Top-left: why this was suggested (only on the "Für Dich" tab) */}
-        {reason && (
-          <span className="ef-reason">{reason}</span>
+        {/* Top-right: like heart (always interactive) */}
+        <button
+          type="button"
+          className={`ef-heart-btn${isFavorited ? ' is-active' : ''}`}
+          onClick={handleHeart}
+          aria-label={isFavorited ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'}
+          aria-pressed={isFavorited}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24"
+               fill={isFavorited ? '#FD7666' : 'none'}
+               stroke={isFavorited ? '#FD7666' : 'currentColor'}
+               strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+          </svg>
+        </button>
+
+        {/* Moment upload prompt — owner only, until moment_photo_url is set.
+            BeReal-style: full-card frosted overlay with a single CTA. */}
+        {showMomentPrompt && (
+          <button type="button" className="ef-moment-prompt" onClick={openPicker}>
+            <span className="ef-moment-icon" aria-hidden="true">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+            </span>
+            <span className="ef-moment-title">{t('explore.moment.cta')}</span>
+            <span className="ef-moment-sub">{t('explore.moment.hint')}</span>
+          </button>
         )}
 
-        {/* Bottom-left: likes or timestamp */}
-        {hallOfFame ? (
-          <span className="ef-timestamp">{formatCameraDate(item.date || item.created_at)}</span>
-        ) : (
-          <span className="ef-likes">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-            </svg>
-            {item.members_count || 0}
-          </span>
-        )}
+        {/* Hidden file input — driven by the prompt button */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          style={{ display: 'none' }}
+          onChange={handleFileSelected}
+        />
+
+        {/* Bottom-left: timestamp (the "polaroid" date stamp) */}
+        <span className="ef-timestamp">{formatCameraDate(item.date || item.created_at)}</span>
 
         {/* Bottom-right: stacked member avatars */}
         <div className="ef-avatars">
@@ -114,182 +174,187 @@ const FeedCard = memo(({ item, hallOfFame, navigate, t }) => {
               : <span style={{ background: seedColor(item.id) }}>{(item.owner_name || '?')[0].toUpperCase()}</span>}
           </div>
           <div className="ef-user-meta">
-            <p className="ef-user-name">{item.owner_name || 'Unbekannt'}</p>
+            <p className="ef-user-name">
+              <UserName name={item.owner_name || 'Unbekannt'} age={item.owner_age} />
+            </p>
             <p className="ef-user-time">{timeAgo}</p>
           </div>
         </div>
         {item.category && <span className="ef-cat">{item.category}</span>}
       </div>
-    </button>
-  );
-});
-
-// ─── Search results (kept from previous design) ──────────────────────────────
-
-const SearchResults = memo(({ results, loading, navigate }) => {
-  if (loading) return <div className="explore-loading"><div className="explore-spinner" /></div>;
-  if (!results.length) return (
-    <div className="explore-empty">
-      <div className="explore-empty-icon">🔍</div>
-      <p>Keine Ergebnisse gefunden</p>
-    </div>
-  );
-  return (
-    <div className="search-results-list">
-      {results.map(item => {
-        const icon = getCategoryIcon(item.category);
-        return (
-          <button key={`${item._type}-${item.id}`} className="sr-item" onClick={() => navigate(`/group/${item.id}`)}>
-            <div className="sr-thumb">
-              {item.image_url ? <img src={item.image_url} alt={item.name} loading="lazy" /> : <span>{icon}</span>}
-            </div>
-            <div className="sr-body">
-              <p className="sr-name">{item.name}</p>
-              <p className="sr-meta">
-                <span className={`sr-type-badge ${item._type}`}>{item._type === 'club' ? 'Club' : 'Gruppe'}</span>
-                {' · '}{item.category}
-              </p>
-            </div>
-            <svg className="sr-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </button>
-        );
-      })}
     </div>
   );
 });
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
+const TABS = { hall: 'hall', deals: 'deals' };
+
 export const Explore = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { user } = useContext(AuthContext);
+  const toast = useToast();
 
-  // Tabs were removed — "Für Dich" and "Hall of Fame" now share one combined
-  // feed (suggestions on top, past/Hall-of-Fame items appended). Robert's
-  // call: easier to scan everything in one scroll than to remember which tab
-  // you're on.
+  const [tab, setTab]                 = useState(TABS.hall);
   const [loading, setLoading]         = useState(true);
-  const [forYouItems, setForYouItems] = useState([]);
   const [hallItems, setHallItems]     = useState([]);
   const [dealList, setDealList]       = useState([]);
-
-  const [searchQuery, setSearchQuery]     = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [searchLoading, setSearchLoading] = useState(false);
-
-  const searchRef  = useRef(null);
-  const debounceRef = useRef(null);
+  const [favoriteIds, setFavoriteIds] = useState(() => new Set());
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       try {
-        // Hall of Fame still needs the full list (filtered by past dates).
-        // For Du / Für Dich uses the dedicated /suggestions endpoint so the
-        // ranking includes friends-in-group + interest match. Deals are
-        // sponsored cooperations that mix in every Nth position.
         const isAuthed = user && !user.isGuest;
-        const [suggestRes, allRes, dealsRes] = await Promise.all([
-          isAuthed
-            ? suggestionsApi.get({ limit: 30 }).catch(() => ({ data: [] }))
-            : Promise.resolve({ data: [] }),
+        const [allRes, dealsRes, favRes] = await Promise.all([
           groups.getAll({ limit: 50 }).catch(() => ({ data: [] })),
           dealsApi.getAll().catch(() => ({ data: [] })),
+          isAuthed ? groups.getFavorites().catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
         ]);
         if (cancelled) return;
-
-        const suggestList = suggestRes.data || [];
-        // Fallback for guests / users with no signal yet: show newest upcoming
-        // items so the "Für Dich" tab is never empty.
-        const fallback = (allRes.data || []).filter(g => !isPast(g.date) || !g.date);
-        setForYouItems(suggestList.length > 0 ? suggestList : fallback);
 
         const all = allRes.data || [];
         setHallItems(all.filter(g => isPast(g.date)));
         setDealList(dealsRes.data || []);
+        setFavoriteIds(new Set((favRes.data || []).map(g => g.id)));
       } catch { /* silent */ }
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
   }, [user?.id]);
 
-  useEffect(() => {
-    if (!searchQuery.trim()) { setSearchResults([]); return; }
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      setSearchLoading(true);
-      try {
-        const [gRes, cRes] = await Promise.all([
-          groups.getAll({ search: searchQuery, limit: 10 }),
-          clubs.getAll({ search: searchQuery, limit: 5 }),
-        ]);
-        setSearchResults([
-          ...(gRes.data || []).map(g => ({ ...g, _type: 'group' })),
-          ...(cRes.data || []).map(c => ({ ...c, _type: 'club' })),
-        ]);
-      } catch { /* silent */ }
-      finally { setSearchLoading(false); }
-    }, 380);
-    return () => clearTimeout(debounceRef.current);
-  }, [searchQuery]);
+  // Upload the JAMIE Moment photo for one of the owner's past events. Two-step:
+  //   1. POST /api/upload → returns the public URL for the file
+  //   2. PUT /api/groups/:id  with { moment_photo_url } → persists it
+  // Optimistic UI: we replace the card image as soon as step 1 returns so the
+  // owner doesn't have to wait for the DB roundtrip to see their picture.
+  const handleUploadMoment = useCallback(async (item, file) => {
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error(t('explore.moment.tooLarge'));
+      return;
+    }
+    let uploadedUrl;
+    try {
+      const res = await uploadApi.image(file);
+      uploadedUrl = res.data?.url;
+      if (!uploadedUrl) throw new Error('no url');
+    } catch {
+      toast.error(t('explore.moment.uploadError'));
+      return;
+    }
+    // Optimistic state update
+    setHallItems(prev => prev.map(g =>
+      g.id === item.id ? { ...g, moment_photo_url: uploadedUrl } : g
+    ));
+    try {
+      await groups.update(item.id, { moment_photo_url: uploadedUrl });
+      toast.success(t('explore.moment.savedToast'));
+    } catch {
+      // Revert if persisting failed
+      setHallItems(prev => prev.map(g =>
+        g.id === item.id ? { ...g, moment_photo_url: item.moment_photo_url ?? null } : g
+      ));
+      toast.error(t('explore.moment.saveError'));
+    }
+  }, [toast, t]);
 
-  // Combined feed: For-You suggestions on top, then past/Hall-of-Fame items.
-  // Each card carries its own `_hallOfFame` flag so FeedCard renders the right
-  // visual treatment per item without needing the page-level active tab.
-  const feedItems = [
-    ...forYouItems.map(i => ({ ...i, _hallOfFame: false })),
-    ...hallItems.map(i => ({ ...i, _hallOfFame: true })),
-  ];
+  // Optimistic favorite toggle with rollback on error. Hall-of-Fame items are
+  // all type='group' (clubs have no date, so isPast() drops them), so we use
+  // groups.toggleFavorite for every card.
+  const handleToggleFavorite = useCallback(async (item) => {
+    if (!user || user.isGuest) {
+      toast.error(t('explore.loginToFavorite'));
+      return;
+    }
+    setFavoriteIds(prev => {
+      const next = new Set(prev);
+      next.has(item.id) ? next.delete(item.id) : next.add(item.id);
+      return next;
+    });
+    try {
+      await groups.toggleFavorite(item.id);
+    } catch {
+      // Revert
+      setFavoriteIds(prev => {
+        const next = new Set(prev);
+        next.has(item.id) ? next.delete(item.id) : next.add(item.id);
+        return next;
+      });
+      toast.error(t('explore.favoriteError'));
+    }
+  }, [user, toast, t]);
 
   return (
     <div className="explore-container">
 
-      {/* ── Sticky header ─────────────────────────────────────────── */}
-      <div className="ef-sticky">
+      {/* ── Scrollable content — JAMIE bar AND the tab strip live inside the
+          scroll region so both disappear when the user scrolls down. ───── */}
+      <div className="explore-content">
+
         <div className="ef-top">
           <h1 className="ef-logo">JAMIE</h1>
         </div>
-      </div>
 
-      {/* ── Scrollable content ─────────────────────────────────────── */}
-      <div className="explore-content">
+        <div className="ef-sticky">
+          <div className="ef-tabs" role="tablist">
+            <button
+              role="tab"
+              aria-selected={tab === TABS.hall}
+              className={`ef-tab${tab === TABS.hall ? ' is-active' : ''}`}
+              onClick={() => setTab(TABS.hall)}
+            >
+              {t('explore.tabs.hallOfFame')}
+            </button>
+            <button
+              role="tab"
+              aria-selected={tab === TABS.deals}
+              className={`ef-tab${tab === TABS.deals ? ' is-active' : ''}`}
+              onClick={() => setTab(TABS.deals)}
+            >
+              {t('explore.tabs.deals')}
+            </button>
+          </div>
+        </div>
 
         {loading ? (
           <div className="explore-loading"><div className="explore-spinner" /></div>
-        ) : feedItems.length === 0 ? (
-          <div className="explore-empty">
-            <div className="explore-empty-icon">✨</div>
-            <p>{t('explore.empty.forYou')}</p>
-          </div>
+        ) : tab === TABS.hall ? (
+          hallItems.length === 0 ? (
+            <div className="explore-empty">
+              <div className="explore-empty-icon">🏆</div>
+              <p>{t('explore.empty.hallOfFame')}</p>
+            </div>
+          ) : (
+            <div className="ef-feed">
+              {hallItems.map(item => (
+                <HofCard
+                  key={`hof-${item.id}`}
+                  item={item}
+                  isOwner={user && !user.isGuest && Number(item.owner_id) === Number(user.id)}
+                  isFavorited={favoriteIds.has(item.id)}
+                  onToggleFavorite={handleToggleFavorite}
+                  onUploadMoment={handleUploadMoment}
+                  navigate={navigate}
+                  t={t}
+                />
+              ))}
+            </div>
+          )
         ) : (
-          <div className="ef-feed">
-            {feedItems.map((item, idx) => {
-              // After every N feed items, insert a sponsored DealCard, cycling
-              // through the available deals so we don't repeat the same one
-              // back-to-back when more than one is active.
-              const showDealAfter =
-                dealList.length > 0 && (idx + 1) % DEAL_INTERVAL_EXPLORE === 0;
-              const dealIdx = Math.floor((idx + 1) / DEAL_INTERVAL_EXPLORE) - 1;
-              const deal = showDealAfter ? dealList[dealIdx % dealList.length] : null;
-              return (
-                <React.Fragment key={`${item._hallOfFame ? 'h' : 'f'}-${item.id}`}>
-                  <FeedCard
-                    item={item}
-                    hallOfFame={item._hallOfFame}
-                    navigate={navigate}
-                    t={t}
-                  />
-                  {deal && (
-                    <DealCard key={`deal-explore-${idx}-${deal.id}`} deal={deal} variant="explore" />
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </div>
+          dealList.length === 0 ? (
+            <div className="explore-empty">
+              <div className="explore-empty-icon">🤝</div>
+              <p>{t('explore.empty.deals')}</p>
+            </div>
+          ) : (
+            <div className="ef-deal-feed">
+              {dealList.map(deal => (
+                <DealCard key={`deal-${deal.id}`} deal={deal} variant="explore" />
+              ))}
+            </div>
+          )
         )}
 
       </div>

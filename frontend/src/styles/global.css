@@ -36,6 +36,105 @@
 }
 /* ─────────────────────────────────────────────────────────────────────────── */
 
+/* ── Photo lightbox (PhotoLightbox.jsx) ──────────────────────────────────
+   Full-screen tap-to-enlarge viewer. Global because it's reused across
+   profile pages. Above everything (z 11000 > modals at 10000). */
+.lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 11000;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: env(safe-area-inset-top, 0px) 12px env(safe-area-inset-bottom, 0px);
+  animation: lightbox-fade 0.18s ease both;
+}
+@keyframes lightbox-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.lightbox-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+  animation: lightbox-zoom 0.2s cubic-bezier(.2,.7,.3,1) both;
+}
+@keyframes lightbox-zoom { from { transform: scale(0.94); } to { transform: scale(1); } }
+
+.lightbox-close {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 14px);
+  right: 14px;
+  z-index: 2;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.lightbox-nav--prev { left: 12px; }
+.lightbox-nav--next { right: 12px; }
+
+.lightbox-counter {
+  position: absolute;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 14px;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+/* Age superscript next to a user name. Rendered by <UserName name age />
+   wherever names appear EXCEPT in chats. Kept here in global.css because
+   it's a tiny, presentation-only hook used across many pages. */
+.user-age-sup {
+  font-size: 0.62em;
+  font-weight: 600;
+  margin-left: 2px;
+  color: #FD7666;
+  vertical-align: super;
+  line-height: 0;
+  letter-spacing: 0.2px;
+  /* Browsers default <sup> to top-aligned; nudge it down a hair so it
+     visually sits on the cap-height of the name. */
+  position: relative;
+  top: -0.1em;
+}
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 /* CSS Variables */
 :root {
   /* Brand Colors */

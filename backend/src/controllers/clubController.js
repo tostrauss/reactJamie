@@ -152,10 +152,12 @@ export const getClubs = async (req, res) => {
 
     let query = `
       SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar,
+             EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS owner_age,
              (
                SELECT COALESCE(json_agg(sub), '[]'::json)
                FROM (
-                 SELECT u2.id, u2.name, u2.avatar_url
+                 SELECT u2.id, u2.name, u2.avatar_url,
+                        EXTRACT(YEAR FROM AGE(u2.date_of_birth))::int AS age
                  FROM group_members gm
                  JOIN users u2 ON gm.user_id = u2.id
                  WHERE gm.group_id = g.id
@@ -220,7 +222,8 @@ export const getClubById = async (req, res) => {
   try {
     const { id } = req.params;
     const result = await db.query(
-      `SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar
+      `SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar,
+              EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS owner_age
        FROM groups g
        LEFT JOIN users u ON g.owner_id = u.id
        WHERE g.id = $1 AND g.type = $2`,
@@ -604,7 +607,8 @@ export const getClubMembers = async (req, res) => {
     }
 
     const result = await db.query(
-      `SELECT u.id, u.name, u.avatar_url, u.bio, u.location, gm.role, gm.joined_at
+      `SELECT u.id, u.name, u.avatar_url, u.bio, u.location, gm.role, gm.joined_at,
+              EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS age
        FROM group_members gm
        JOIN users u ON gm.user_id = u.id
        WHERE gm.group_id = $1
@@ -654,7 +658,8 @@ export const getClubJoinRequests = async (req, res) => {
     if (Number(club.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     const result = await db.query(
-      `SELECT jr.*, u.name as user_name, u.avatar_url as user_avatar, u.bio as user_bio
+      `SELECT jr.*, u.name as user_name, u.avatar_url as user_avatar, u.bio as user_bio,
+              EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS user_age
        FROM group_join_requests jr
        JOIN users u ON jr.user_id = u.id
        WHERE jr.group_id = $1 AND jr.status = 'pending'

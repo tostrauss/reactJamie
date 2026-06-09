@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { reviews } from '../utils/api';
+import { UserName } from './UserName';
 
 /**
  * Post-event feedback modal.
@@ -127,9 +128,11 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
                     : member.name?.[0]?.toUpperCase()}
                 </div>
 
-                <span style={{ flex: 1, color: '#fff', fontSize: 15, fontWeight: 500 }}>
-                  {member.name}
-                </span>
+                <UserName
+                  style={{ flex: 1, color: '#fff', fontSize: 15, fontWeight: 500 }}
+                  name={member.name}
+                  age={member.age}
+                />
 
                 {/* ✓ / ✗ toggles */}
                 <div style={{ display: 'flex', gap: 8 }}>

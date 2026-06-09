@@ -577,6 +577,12 @@
   overflow: hidden;
   background: var(--bg-card);
   cursor: pointer;
+  /* Photo cells are <button>s (tap-to-enlarge) — strip default chrome. */
+  padding: 0;
+  border: none;
+  display: block;
+  width: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* First photo spans 2 columns + 2 rows */

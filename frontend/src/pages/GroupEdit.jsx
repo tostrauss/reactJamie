@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { groups, clubs, friends as friendsApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { UserName } from '../components/UserName';
 import '../styles/group-edit.css';
 
 export const GroupEdit = () => {
@@ -26,6 +27,7 @@ export const GroupEdit = () => {
     name: '', description: '', max_members: 10, date: '',
     target_age_min: '', target_age_max: '',
     chat_only_owner: false, events_owner_only: false,
+    is_recurring_weekly: false,
   });
 
   useEffect(() => { loadData(); }, [id]);
@@ -63,6 +65,7 @@ export const GroupEdit = () => {
         target_age_max: g.target_age_max ?? '',
         chat_only_owner: !!g.chat_only_owner,
         events_owner_only: !!g.events_owner_only,
+        is_recurring_weekly: !!g.is_recurring_weekly,
       });
       // Load favorite status from the API that matches the entity type so
       // the heart in the header reflects the user's current state on mount.
@@ -243,7 +246,7 @@ export const GroupEdit = () => {
                     style={{ cursor: isSelf ? 'default' : 'pointer' }}
                     onClick={() => !isSelf && navigate(`/user/${mid}`)}
                   >
-                    <p className="ge-member-name">{member.name}</p>
+                    <p className="ge-member-name"><UserName name={member.name} age={member.age} /></p>
                     {isOwner && <p className="ge-member-role">{t('groupEdit.memberRole')}</p>}
                   </div>
                   {canRemove && (
@@ -292,7 +295,7 @@ export const GroupEdit = () => {
                       : <span>{(friend.name || '?')[0].toUpperCase()}</span>
                     }
                   </div>
-                  <span className="ge-friend-name">{friend.name}</span>
+                  <UserName className="ge-friend-name" name={friend.name} age={friend.age} />
                 </button>
               ))}
             </div>
@@ -368,6 +371,31 @@ export const GroupEdit = () => {
                 </div>
               </div>
             </div>
+
+            {/* Weekly recurrence — only meaningful for type='group' events. */}
+            {group?.type !== 'club' && (
+              <>
+                <div className="ge-divider" />
+                <div className="ge-field ge-toggle-field">
+                  <div>
+                    <label className="ge-label">{t('groupEdit.fields.weeklyLabel')}</label>
+                    <p className="ge-hint">
+                      {formData.is_recurring_weekly
+                        ? t('groupEdit.fields.weeklyOn')
+                        : t('groupEdit.fields.weeklyOff')}
+                    </p>
+                  </div>
+                  <label className="ge-toggle">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_recurring_weekly}
+                      onChange={e => setFormData(p => ({ ...p, is_recurring_weekly: e.target.checked }))}
+                    />
+                    <span className="ge-toggle-slider" />
+                  </label>
+                </div>
+              </>
+            )}
 
             <div className="ge-divider" />
 

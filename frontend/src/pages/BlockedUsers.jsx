@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { friends } from '../utils/api';
 import { useToast } from '../context/ToastContext';
+import { UserName } from '../components/UserName';
 
 export default function BlockedUsers() {
   const { t } = useTranslation();
@@ -105,7 +106,7 @@ export default function BlockedUsers() {
                 to={`/user/${u.id}`}
                 style={{ flex: 1, fontSize: 15, fontWeight: 600, color: 'inherit', textDecoration: 'none' }}
               >
-                {u.name}
+                <UserName name={u.name} age={u.age} />
               </Link>
               <button
                 onClick={() => handleUnblock(u.id)}

@@ -72,6 +72,26 @@ const SpotifySongPicker = ({ currentSong, onSelect, onRemove }) => {
                 <span className="song-artist">{currentSong.artist}</span>
               </div>
             </div>
+            {/* Without these the song was permanently locked once set — there
+                was no control to reopen the search or clear it. */}
+            <div className="song-picker-actions">
+              <button
+                type="button"
+                className="song-picker-btn change"
+                onClick={() => setIsOpen(true)}
+              >
+                {t('spotify.songPicker.change')}
+              </button>
+              {onRemove && (
+                <button
+                  type="button"
+                  className="song-picker-btn remove"
+                  onClick={() => onRemove()}
+                >
+                  {t('spotify.songPicker.remove')}
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <button

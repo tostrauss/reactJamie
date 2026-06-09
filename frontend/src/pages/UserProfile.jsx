@@ -5,12 +5,9 @@ import { users, friends } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
+import { UserName } from '../components/UserName';
+import { PhotoLightbox } from '../components/PhotoLightbox';
 import '../styles/user-profile.css';
-
-const calcAge = (dob) => {
-  if (!dob) return null;
-  return Math.floor((Date.now() - new Date(dob)) / 31557600000);
-};
 
 export const UserProfile = () => {
   const { id } = useParams();
@@ -28,6 +25,8 @@ export const UserProfile = () => {
   const [actionLoading, setActionLoading]   = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  // Index into `allPhotos` for the fullscreen viewer; null = closed.
+  const [lightboxIndex, setLightboxIndex] = useState(null);
 
   useEffect(() => {
     if (currentUser && currentUser.id === parseInt(id)) {
@@ -151,9 +150,14 @@ export const UserProfile = () => {
     );
   }
 
-  const age = calcAge(profile.date_of_birth);
+  // Age now comes from the API as a computed integer; DOB is never sent.
+  const age = profile.age;
   const heroImg = profile.photos?.[0] || profile.avatar_url;
   const extraPhotos = profile.photos?.slice(1) || [];
+  // The lightbox shows every real photo (hero first, then the grid), so a
+  // tapped grid thumbnail maps to index i+1. Falls back to [avatar] when the
+  // user only has an avatar and no photos array.
+  const allPhotos = (profile.photos?.length ? profile.photos : (profile.avatar_url ? [profile.avatar_url] : []));
   const song = profile.favorite_song;
 
   const renderBottomAction = () => {
@@ -171,8 +175,11 @@ export const UserProfile = () => {
       case 'accepted':
         return (
           <div className="up-cta-row">
+            {/* "Nachricht senden" now uses the brand-standard coral .up-cta-btn
+                (was a one-off purple gradient that stood out) — matches the
+                Freund-anfrage / Accept buttons throughout the rest of the app. */}
             <button
-              className="up-cta-btn up-cta-msg"
+              className="up-cta-btn"
               onClick={() => navigate(`/dm/${id}`)}
             >
               {t('userProfile.actions.message')}
@@ -206,7 +213,14 @@ export const UserProfile = () => {
       {/* ── Hero image ── */}
       <div className="up-hero">
         {heroImg
-          ? <img src={heroImg} alt={profile.name} className="up-hero-img" loading="lazy" />
+          ? <img
+              src={heroImg}
+              alt={profile.name}
+              className="up-hero-img"
+              loading="lazy"
+              onClick={() => allPhotos.length > 0 && setLightboxIndex(0)}
+              style={{ cursor: allPhotos.length > 0 ? 'pointer' : 'default' }}
+            />
           : <div className="up-hero-placeholder">
               <span>{profile.name?.[0]?.toUpperCase()}</span>
             </div>
@@ -236,8 +250,7 @@ export const UserProfile = () => {
           <span>{profile.location || t('userProfile.locationFallback')}</span>
         </div>
         <div className="up-name-age">
-          <span className="up-name">{profile.name?.toUpperCase()}</span>
-          {age && <span className="up-age">{age}</span>}
+          <UserName className="up-name" name={profile.name?.toUpperCase()} age={age} />
         </div>
       </div>
 
@@ -279,9 +292,15 @@ export const UserProfile = () => {
         <div className="up-photo-grid">
           {extraPhotos.length > 0 ? (
             extraPhotos.map((photo, i) => (
-              <div key={i} className="up-photo-cell">
+              <button
+                key={i}
+                type="button"
+                className="up-photo-cell"
+                onClick={() => setLightboxIndex(allPhotos.indexOf(photo) === -1 ? i + 1 : allPhotos.indexOf(photo))}
+                aria-label={t('userProfile.viewPhotoAria')}
+              >
                 <img src={photo} alt="" loading="lazy" />
-              </div>
+              </button>
             ))
           ) : (
             <p className="up-empty-photos">{t('userProfile.emptyPhotos')}</p>
@@ -353,6 +372,13 @@ export const UserProfile = () => {
           </div>
         </div>
       )}
+
+      <PhotoLightbox
+        photos={allPhotos}
+        index={lightboxIndex}
+        onIndex={setLightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+      />
     </div>
   );
 };
