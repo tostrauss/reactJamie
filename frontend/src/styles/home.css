@@ -333,6 +333,22 @@
      and longer titles like "Bar-Hopping" sit visually closer to the photos. */
   aspect-ratio: 4 / 5;
   position: relative;
+  /* Defensive: iOS Safari has been observed to render mysterious horizontal
+     white lines through card titles after just-created-group/club mutations
+     (Tina + Tobi 2026-06-09). Couldn't reproduce in DevTools so we cannot
+     pin the exact source — explicitly killing every text-decoration variant
+     here and on every descendant neutralises whatever an ancestor inherits. */
+  text-decoration: none;
+  -webkit-text-decoration-line: none;
+}
+
+.group-card,
+.group-card *,
+.group-card *::before,
+.group-card *::after {
+  text-decoration: none;
+  text-decoration-line: none;
+  -webkit-text-decoration-line: none;
 }
 
 .group-card:active {

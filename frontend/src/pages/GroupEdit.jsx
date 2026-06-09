@@ -39,6 +39,14 @@ export const GroupEdit = () => {
         friendsApi.getAll().catch(() => ({ data: [] }))
       ]);
       const g = groupRes.data;
+      // Defense-in-depth: also block non-owners on the frontend so a guest who
+      // pastes a /group/:id/edit URL doesn't see a form they can't actually
+      // save. Backend still rejects the PUT with 403 either way.
+      if (user && g.owner_id && Number(g.owner_id) !== Number(user.id)) {
+        toast.error(t('groupEdit.notOwner'));
+        navigate(-1);
+        return;
+      }
       setGroup(g);
       // /api/groups/:id/members returns { members, total_count, gated } — unwrap.
       const memberData = membersRes.data;

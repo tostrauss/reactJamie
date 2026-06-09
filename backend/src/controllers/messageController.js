@@ -37,7 +37,7 @@ export const sendMessage = async (req, res) => {
     if (member_user_id == null) {
       return res.status(403).json({ error: 'Not a member of this group' });
     }
-    if (type === 'club' && chat_only_owner && owner_id !== req.userId) {
+    if (type === 'club' && chat_only_owner && Number(owner_id) !== Number(req.userId)) {
       return res.status(403).json({
         error: 'Nur der Club-Gründer kann Nachrichten senden',
         isOwnerOnly: true
@@ -135,8 +135,8 @@ export const deleteMessage = async (req, res) => {
     }
 
     const { author_id, group_owner_id } = result.rows[0];
-    const isAuthor      = author_id      === req.userId;
-    const isGroupOwner  = group_owner_id === req.userId;
+    const isAuthor      = Number(author_id)      === Number(req.userId);
+    const isGroupOwner  = Number(group_owner_id) === Number(req.userId);
 
     if (!isAuthor && !isGroupOwner) {
       return res.status(403).json({ error: 'Keine Berechtigung, diese Nachricht zu löschen' });

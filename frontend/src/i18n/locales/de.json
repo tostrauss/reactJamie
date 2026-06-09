@@ -1238,6 +1238,7 @@
     "save": "Speichern",
     "saved": "Gespeichert!",
     "saveError": "Fehler beim Speichern",
+    "notOwner": "Nur der Ersteller kann diese Einstellungen ändern",
     "removeError": "Fehler beim Entfernen",
     "inviteToast": "{{name}} eingeladen!",
     "inviteError": "Einladung fehlgeschlagen",

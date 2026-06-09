@@ -392,7 +392,7 @@ export const updateGroup = async (req, res) => {
     // Verify ownership
     const group = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
     if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
-    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (Number(group.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     const textToCheck = [name, description].filter(Boolean).join('\n');
     if (textToCheck) {
@@ -484,7 +484,7 @@ export const deleteGroup = async (req, res) => {
     // Verify ownership
     const group = await db.query('SELECT owner_id FROM groups WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
-    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (Number(group.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     // Soft delete — preserves messages, reviews, and member history
     await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [id]);
@@ -541,7 +541,7 @@ export const joinGroup = async (req, res) => {
         [id, req.userId, message || null]
       );
       // Notify owner about the new join request (fire-and-forget)
-      if (g.owner_id && g.owner_id !== req.userId) {
+      if (g.owner_id && Number(g.owner_id) !== Number(req.userId)) {
         notifyJoinRequest(req.userId, g.owner_id, g.name || '', id).catch(() => {});
       }
       return res.json({ message: 'Join request sent', status: 'pending' });
@@ -574,7 +574,7 @@ export const joinGroup = async (req, res) => {
     }
 
     // Notify group owner (fire-and-forget)
-    if (g.owner_id && g.owner_id !== req.userId) {
+    if (g.owner_id && Number(g.owner_id) !== Number(req.userId)) {
       notifyGroupJoin(req.userId, g.owner_id, g.name || '').catch(() => {});
     }
 
@@ -604,7 +604,7 @@ export const leaveGroup = async (req, res) => {
 
     // Prevent owner from leaving (they must delete the group)
     const group = await db.query('SELECT owner_id, members_count, max_members FROM groups WHERE id = $1', [id]);
-    if (group.rows.length > 0 && group.rows[0].owner_id === req.userId) {
+    if (group.rows.length > 0 && Number(group.rows[0].owner_id) === Number(req.userId)) {
       return res.status(400).json({ error: 'Als Ersteller kannst du die Gruppe nicht verlassen – lösche sie stattdessen.' });
     }
 
@@ -831,7 +831,7 @@ export const getJoinRequests = async (req, res) => {
     // Verify ownership
     const group = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
     if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
-    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (Number(group.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     const result = await db.query(
       `SELECT jr.*, u.name as user_name, u.avatar_url as user_avatar, u.bio as user_bio,
@@ -866,7 +866,7 @@ export const handleJoinRequest = async (req, res) => {
       db.query('SELECT user_id, status FROM group_join_requests WHERE id = $1 AND group_id = $2', [requestId, id]),
     ]);
     if (groupRes.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
-    if (groupRes.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (Number(groupRes.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
     if (request.rows.length === 0) return res.status(404).json({ error: 'Request not found' });
 
     const joinReq = request.rows[0];
@@ -937,7 +937,7 @@ export const kickMember = async (req, res) => {
     // Verify ownership
     const group = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
     if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
-    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (Number(group.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     // Cannot kick yourself (owner)
     if (parseInt(userId, 10) === req.userId) {
@@ -974,7 +974,7 @@ export const cancelGroup = async (req, res) => {
       db.query('SELECT user_id FROM group_members WHERE group_id = $1 AND user_id != $2', [id, req.userId]),
     ]);
     if (groupRes.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
-    if (groupRes.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (Number(groupRes.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     // Mark group as inactive (soft delete)
     await db.query(
@@ -1082,7 +1082,7 @@ export const getWaitlist = async (req, res) => {
     const { id } = req.params;
     const group = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
     if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
-    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (Number(group.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
     const result = await db.query(
       `SELECT w.*, u.name, u.avatar_url, u.bio
        FROM group_waitlist w
@@ -1185,7 +1185,7 @@ export const inviteMember = async (req, res) => {
 
     const group = await db.query('SELECT owner_id, name, max_members FROM groups WHERE id = $1', [id]);
     if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
-    if (group.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (Number(group.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     const g = group.rows[0];
 

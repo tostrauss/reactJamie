@@ -380,7 +380,7 @@ export const deleteClub = async (req, res) => {
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (Number(club.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     // Soft delete — preserves messages, reviews, and member history.
     // Mirrors deleteGroup behaviour so audit trails are recoverable.
@@ -436,7 +436,7 @@ export const joinClub = async (req, res) => {
         [id, req.userId, message || null]
       );
       // Notify the club owner about the new request (fire-and-forget)
-      if (clubRow.owner_id && clubRow.owner_id !== req.userId) {
+      if (clubRow.owner_id && Number(clubRow.owner_id) !== Number(req.userId)) {
         notifyJoinRequest(req.userId, clubRow.owner_id, clubRow.name || '', id).catch(() => {});
       }
       return res.json({ message: 'Join request sent', status: 'pending' });
@@ -493,7 +493,7 @@ export const leaveClub = async (req, res) => {
       'SELECT owner_id FROM groups WHERE id = $1 AND type = $2',
       [id, CLUB_TYPE]
     );
-    if (club.rows.length > 0 && club.rows[0].owner_id === req.userId) {
+    if (club.rows.length > 0 && Number(club.rows[0].owner_id) === Number(req.userId)) {
       return res.status(400).json({
         error: 'Als Ersteller kannst du den Club nicht verlassen – lösche ihn stattdessen.'
       });
@@ -651,7 +651,7 @@ export const getClubJoinRequests = async (req, res) => {
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (Number(club.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     const result = await db.query(
       `SELECT jr.*, u.name as user_name, u.avatar_url as user_avatar, u.bio as user_bio
@@ -682,7 +682,7 @@ export const handleClubJoinRequest = async (req, res) => {
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (Number(club.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     const request = await db.query(
       'SELECT * FROM group_join_requests WHERE id = $1 AND group_id = $2',
@@ -763,7 +763,7 @@ export const kickClubMember = async (req, res) => {
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (Number(club.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     if (parseInt(userId, 10) === req.userId) {
       return res.status(400).json({
@@ -801,7 +801,7 @@ export const cancelClub = async (req, res) => {
       db.query('SELECT user_id FROM group_members WHERE group_id = $1 AND user_id != $2', [id, req.userId]),
     ]);
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    if (club.rows[0].owner_id !== req.userId) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (Number(club.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     await db.query(
       'UPDATE groups SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1',
@@ -861,7 +861,7 @@ export const getClubEvents = async (req, res) => {
       'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
       [id, req.userId]
     );
-    if (membership.rows.length === 0 && club.rows[0].owner_id !== req.userId) {
+    if (membership.rows.length === 0 && Number(club.rows[0].owner_id) !== Number(req.userId)) {
       return res.status(403).json({ error: 'Nur für Clubmitglieder sichtbar', code: 'NOT_MEMBER' });
     }
 
@@ -986,8 +986,8 @@ export const deleteClubEvent = async (req, res) => {
     if (event.rows.length === 0) return res.status(404).json({ error: 'Veranstaltung nicht gefunden' });
 
     const club = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
-    const isClubOwner = club.rows[0]?.owner_id === req.userId;
-    const isEventOwner = event.rows[0].owner_id === req.userId;
+    const isClubOwner = Number(club.rows[0]?.owner_id) === Number(req.userId);
+    const isEventOwner = Number(event.rows[0].owner_id) === Number(req.userId);
 
     if (!isClubOwner && !isEventOwner) {
       return res.status(403).json({ error: 'Keine Berechtigung' });

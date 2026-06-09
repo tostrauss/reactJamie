@@ -38,6 +38,24 @@ export function loadGoogleMaps(apiKey) {
   s.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=de&callback=${GLOBAL_CB}`;
   s.async = true;
   s.defer = true;
+  // Surface load failures in the console so we can tell (a) the script never
+  // reached Google vs. (b) Google rejected the key at runtime. Without this
+  // hook a CSP block or DNS failure is silent.
+  s.onerror = (e) => {
+    loading = false;
+    console.error('[googleMaps] script failed to load — check CSP, API key, referrer restrictions:', e);
+  };
+  // Catch Google's runtime "auth failure" callback. This fires when the key is
+  // invalid, billing is off, the Places API isn't enabled, or the current host
+  // isn't in the key's HTTP-referrer allowlist. Google's grey overlay appears
+  // on top of the page in that case — logging here gives us a clear signal.
+  window.gm_authFailure = () => {
+    console.error('[googleMaps] gm_authFailure — Google rejected the key. Check:'
+      + '\n  • Places API (Legacy) is enabled in Google Cloud Console'
+      + '\n  • Billing is enabled on the project'
+      + '\n  • The current host is in the key\'s HTTP referrer restrictions'
+      + '\n  • The key itself is correct (VITE_GOOGLE_MAPS_API_KEY in Railway env)');
+  };
   document.head.appendChild(s);
 }
 

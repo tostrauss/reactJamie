@@ -95,7 +95,7 @@ export const applyBoost = async (req, res) => {
       `SELECT owner_id FROM groups WHERE id = $1 AND type = $2`,
       [target_id, target_type]
     );
-    if (!ownerRes.rows.length || ownerRes.rows[0].owner_id !== req.userId) {
+    if (!ownerRes.rows.length || Number(ownerRes.rows[0].owner_id) !== Number(req.userId)) {
       return res.status(403).json({ error: 'Du kannst nur deine eigenen Gruppen/Clubs boosten' });
     }
 

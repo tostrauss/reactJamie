@@ -1238,6 +1238,7 @@
     "save": "Save",
     "saved": "Saved!",
     "saveError": "Could not save",
+    "notOwner": "Only the creator can change these settings",
     "removeError": "Could not remove",
     "inviteToast": "{{name}} invited!",
     "inviteError": "Invitation failed",
