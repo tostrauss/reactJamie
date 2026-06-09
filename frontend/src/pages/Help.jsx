@@ -179,6 +179,9 @@ export default function Help() {
         <Link to="/terms" style={{ color: 'var(--coral)', textDecoration: 'none', padding: '8px 0' }}>
           {t('settings.legal.terms')}
         </Link>
+        <Link to="/guidelines" style={{ color: 'var(--coral)', textDecoration: 'none', padding: '8px 0' }}>
+          {t('settings.legal.guidelines')}
+        </Link>
         <Link to="/impressum" style={{ color: 'var(--coral)', textDecoration: 'none', padding: '8px 0' }}>
           {t('settings.legal.imprint')}
         </Link>

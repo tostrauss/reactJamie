@@ -46,6 +46,7 @@ const SpotifyCallback = lazy(() => import('./pages/SpotifyCallback'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const Impressum = lazy(() => import('./pages/Impressum'));
+const CommunityGuidelines = lazy(() => import('./pages/CommunityGuidelines'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const OutOfRegion    = lazy(() => import('./pages/OutOfRegion'));
 const Friends        = lazy(() => import('./pages/Friends'));
@@ -532,6 +533,7 @@ function AppRoutes() {
           {/* Legal — public, no auth required */}
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<TermsOfService />} />
+          <Route path="/guidelines" element={<CommunityGuidelines />} />
           <Route path="/impressum" element={<Impressum />} />
 
           {/* Redirects */}

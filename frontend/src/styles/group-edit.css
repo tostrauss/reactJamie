@@ -583,3 +583,86 @@
   font-weight: 700;
   color: var(--text-muted);
 }
+
+/* ── Header heart button (replaces ge-save-header-btn for favourite toggle) ── */
+.ge-fav-header-btn {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  flex-shrink: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.ge-fav-header-btn.active {
+  background: rgba(253, 118, 102, 0.18);
+  border-color: rgba(253, 118, 102, 0.5);
+}
+.ge-fav-header-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Toggle field (label/hint on the left, switch on the right) ── */
+.ge-toggle-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.ge-toggle-field .ge-label {
+  margin-bottom: 4px;
+}
+.ge-toggle-field .ge-hint {
+  margin: 0;
+}
+
+.ge-toggle {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 28px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.ge-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.ge-toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.ge-toggle-slider::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.18s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.ge-toggle input:checked + .ge-toggle-slider {
+  background: var(--accent-coral);
+  border-color: var(--accent-coral);
+}
+.ge-toggle input:checked + .ge-toggle-slider::before {
+  transform: translateX(20px);
+}

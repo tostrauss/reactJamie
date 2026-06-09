@@ -18,7 +18,7 @@
     "shared": {
       "privacy": "Privacy policy",
       "terms": "Terms of service",
-      "consentText": "I have read and agree to the <1>Privacy policy</1> and the <2>Terms of service</2>.",
+      "consentText": "I have read and agree to the <1>Privacy policy</1>, the <2>Terms of service</2> and the <3>Community Guidelines</3>.",
       "fieldOptional": "(optional)",
       "newPasswordPlaceholder": "At least 6 characters",
       "confirmPasswordPlaceholder": "Repeat password"
@@ -831,6 +831,7 @@
     "legal": {
       "privacy": "Privacy policy",
       "terms": "Terms of service",
+      "guidelines": "Community Guidelines",
       "imprint": "Imprint",
       "exportData": "Download my data",
       "exportDataHint": "GDPR Art. 15 — Right of access",
@@ -1243,6 +1244,7 @@
       "members": "Members",
       "addFriends": "Add friends",
       "groupInfo": "Group info",
+      "clubInfo": "Club info",
       "eventInfo": "Event info",
       "shareGroup": "Share group",
       "shareEvent": "Share event"
@@ -1261,8 +1263,16 @@
       "targetAge": "Target age range",
       "targetAgeHint": "Only users in this age range can see the group (empty = everyone)",
       "targetAgeFromPlaceholder": "from",
-      "targetAgeToPlaceholder": "to"
+      "targetAgeToPlaceholder": "to",
+      "chatPermissions": "Chat permissions",
+      "chatOwnerOnly": "Only you as founder can post",
+      "chatAll": "All club members can post",
+      "eventPermissions": "Who can create events?",
+      "eventsOwnerOnly": "Only you as founder",
+      "eventsAll": "All club members"
     },
+    "favoriteAria": "Add to favourites",
+    "favError": "Could not save favourite",
     "shareBtn": "Share link"
   },
   "clubEdit": {

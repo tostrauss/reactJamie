@@ -71,11 +71,23 @@ export const DirectMessagePage = () => {
       setMessagesList(res.data || []);
       setLoading(false);
     } catch (err) {
+      // Log the full backend payload to the console so we can read the actual
+      // server-side cause (Postgres error code, missing table, etc.) instead
+      // of staring at a generic "could not load conversation" toast.
+      console.error('[dm] getConversation failed:', {
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message,
+      });
       if (err.response?.data?.requiresFriendship) {
         setError(t('chat.dm.errorNotFriends'));
         setErrorIsFriendship(true);
       } else {
-        setError(t('chat.dm.errorLoad'));
+        // Prefer the backend's specific error string when present — the user
+        // (and we) can then tell whether it's a network blip, missing table,
+        // moderation rejection, etc.
+        const backendMsg = err.response?.data?.error;
+        setError(backendMsg || t('chat.dm.errorLoad'));
         setErrorIsFriendship(false);
       }
       setLoading(false);

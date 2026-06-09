@@ -18,7 +18,7 @@
     "shared": {
       "privacy": "Datenschutzerklärung",
       "terms": "Nutzungsbedingungen",
-      "consentText": "Ich habe die <1>Datenschutzerklärung</1> und die <2>Nutzungsbedingungen</2> gelesen und stimme ihnen zu.",
+      "consentText": "Ich habe die <1>Datenschutzerklärung</1>, die <2>Nutzungsbedingungen</2> und die <3>Community Guidelines</3> gelesen und stimme ihnen zu.",
       "fieldOptional": "(optional)",
       "newPasswordPlaceholder": "Mindestens 6 Zeichen",
       "confirmPasswordPlaceholder": "Passwort wiederholen"
@@ -831,6 +831,7 @@
     "legal": {
       "privacy": "Datenschutzerklärung",
       "terms": "Nutzungsbedingungen",
+      "guidelines": "Community Guidelines",
       "imprint": "Impressum",
       "exportData": "Meine Daten herunterladen",
       "exportDataHint": "DSGVO Art. 15 – Auskunftsrecht",
@@ -1243,6 +1244,7 @@
       "members": "Mitglieder",
       "addFriends": "Freunde hinzufügen",
       "groupInfo": "Gruppeninfo",
+      "clubInfo": "Clubinfo",
       "eventInfo": "Eventinfo",
       "shareGroup": "Gruppe teilen",
       "shareEvent": "Event teilen"
@@ -1261,8 +1263,16 @@
       "targetAge": "Für welches Alter?",
       "targetAgeHint": "Nur Nutzer in dieser Altersspanne sehen die Gruppe (leer = alle)",
       "targetAgeFromPlaceholder": "von",
-      "targetAgeToPlaceholder": "bis"
+      "targetAgeToPlaceholder": "bis",
+      "chatPermissions": "Chat-Schreibrechte",
+      "chatOwnerOnly": "Nur du als Gründer kannst schreiben",
+      "chatAll": "Alle Clubmitglieder können schreiben",
+      "eventPermissions": "Wer darf Events erstellen?",
+      "eventsOwnerOnly": "Nur du als Gründer",
+      "eventsAll": "Alle Clubmitglieder"
     },
+    "favoriteAria": "Zu Favoriten hinzufügen",
+    "favError": "Favorit konnte nicht gespeichert werden",
     "shareBtn": "Link teilen"
   },
   "clubEdit": {

@@ -481,6 +481,7 @@ export const Register = () => {
                     components={{
                       1: <Link to="/privacy" target="_blank" style={{ color: 'var(--coral)' }} />,
                       2: <Link to="/terms" target="_blank" style={{ color: 'var(--coral)' }} />,
+                      3: <Link to="/guidelines" target="_blank" style={{ color: 'var(--coral)' }} />,
                     }}
                   />
                 </span>

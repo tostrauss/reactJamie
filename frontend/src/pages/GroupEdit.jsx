@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { groups, friends as friendsApi } from '../utils/api';
+import { groups, clubs, friends as friendsApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import '../styles/group-edit.css';
@@ -20,7 +20,13 @@ export const GroupEdit = () => {
   const [friendSearch, setFriendSearch] = useState('');
   const [loading, setLoading]       = useState(true);
   const [saving, setSaving]         = useState(false);
-  const [formData, setFormData]     = useState({ name: '', description: '', max_members: 10, date: '', target_age_min: '', target_age_max: '' });
+  const [isFavorited, setIsFavorited] = useState(false);
+  const [favoriteBusy, setFavoriteBusy] = useState(false);
+  const [formData, setFormData]     = useState({
+    name: '', description: '', max_members: 10, date: '',
+    target_age_min: '', target_age_max: '',
+    chat_only_owner: false, events_owner_only: false,
+  });
 
   useEffect(() => { loadData(); }, [id]);
 
@@ -47,7 +53,15 @@ export const GroupEdit = () => {
         date: g.date ? g.date.slice(0, 10) : '',
         target_age_min: g.target_age_min ?? '',
         target_age_max: g.target_age_max ?? '',
+        chat_only_owner: !!g.chat_only_owner,
+        events_owner_only: !!g.events_owner_only,
       });
+      // Load favorite status from the API that matches the entity type so
+      // the heart in the header reflects the user's current state on mount.
+      const isClubType = g.type === 'club';
+      const favRes = await (isClubType ? clubs.getFavorites() : groups.getFavorites())
+        .catch(() => ({ data: [] }));
+      setIsFavorited((favRes.data || []).some(f => f.id === parseInt(id, 10)));
     } catch {
       toast.error(t('groupEdit.loadError'));
       navigate(-1);
@@ -56,10 +70,34 @@ export const GroupEdit = () => {
     }
   };
 
+  const handleFavoriteToggle = async () => {
+    if (favoriteBusy) return;
+    const wasFav = isFavorited;
+    setIsFavorited(!wasFav);
+    setFavoriteBusy(true);
+    try {
+      const isClubType = group?.type === 'club';
+      await (isClubType ? clubs.toggleFavorite(id) : groups.toggleFavorite(id));
+    } catch {
+      setIsFavorited(wasFav);
+      toast.error(t('groupEdit.favError'));
+    } finally {
+      setFavoriteBusy(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      await groups.update(id, formData);
+      // Clubs need the dedicated /api/clubs/:id endpoint so settings like
+      // chat_only_owner and events_owner_only actually persist — the generic
+      // groups.update ignores those columns.
+      const isClubType = group?.type === 'club';
+      if (isClubType) {
+        await clubs.update(id, formData);
+      } else {
+        await groups.update(id, formData);
+      }
       toast.success(t('groupEdit.saved'));
       navigate(-1);
     } catch (err) {
@@ -135,8 +173,23 @@ export const GroupEdit = () => {
             </svg>
           </button>
           <h1 className="ge-page-title">{groupName}</h1>
-          <button className="ge-save-header-btn" onClick={handleSave} disabled={saving}>
-            {saving ? t('groupEdit.savingShort') : t('groupEdit.save')}
+          {/* Header save button removed by request — the single save action is
+              the sticky button at the bottom of the page. The right-side slot
+              now holds a favourite-toggle heart so the owner can add their own
+              group/club to favourites without leaving the edit view. */}
+          <button
+            className={`ge-fav-header-btn${isFavorited ? ' active' : ''}`}
+            onClick={handleFavoriteToggle}
+            disabled={favoriteBusy}
+            aria-label={t('groupEdit.favoriteAria')}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24"
+              fill={isFavorited ? '#FD7666' : 'none'}
+              stroke={isFavorited ? '#FD7666' : 'currentColor'}
+              strokeWidth="2"
+            >
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+            </svg>
           </button>
         </div>
       </div>
@@ -229,12 +282,14 @@ export const GroupEdit = () => {
           )}
         </section>
 
-        {/* ── Gruppe / Event bearbeiten ── */}
+        {/* ── Gruppe / Club / Event bearbeiten ── */}
         <section className="ge-section">
           <div className="ge-section-head">
             <span className="ge-section-title">
               {group?.type === 'event'
                 ? t('groupEdit.sections.eventInfo')
+                : group?.type === 'club'
+                ? t('groupEdit.sections.clubInfo')
                 : t('groupEdit.sections.groupInfo')}
             </span>
           </div>
@@ -326,6 +381,51 @@ export const GroupEdit = () => {
                 />
               </div>
             </div>
+
+            {/* ── Club settings (only relevant for type='club') ─────── */}
+            {group?.type === 'club' && (
+              <>
+                <div className="ge-divider" />
+                <div className="ge-field ge-toggle-field">
+                  <div>
+                    <label className="ge-label">{t('groupEdit.fields.chatPermissions')}</label>
+                    <p className="ge-hint">
+                      {formData.chat_only_owner
+                        ? t('groupEdit.fields.chatOwnerOnly')
+                        : t('groupEdit.fields.chatAll')}
+                    </p>
+                  </div>
+                  <label className="ge-toggle">
+                    <input
+                      type="checkbox"
+                      checked={formData.chat_only_owner}
+                      onChange={e => setFormData(p => ({ ...p, chat_only_owner: e.target.checked }))}
+                    />
+                    <span className="ge-toggle-slider" />
+                  </label>
+                </div>
+
+                <div className="ge-divider" />
+                <div className="ge-field ge-toggle-field">
+                  <div>
+                    <label className="ge-label">{t('groupEdit.fields.eventPermissions')}</label>
+                    <p className="ge-hint">
+                      {formData.events_owner_only
+                        ? t('groupEdit.fields.eventsOwnerOnly')
+                        : t('groupEdit.fields.eventsAll')}
+                    </p>
+                  </div>
+                  <label className="ge-toggle">
+                    <input
+                      type="checkbox"
+                      checked={formData.events_owner_only}
+                      onChange={e => setFormData(p => ({ ...p, events_owner_only: e.target.checked }))}
+                    />
+                    <span className="ge-toggle-slider" />
+                  </label>
+                </div>
+              </>
+            )}
 
           </div>
         </section>

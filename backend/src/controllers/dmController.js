@@ -2,6 +2,45 @@ import db from '../config/database.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { sendPushToUser } from './pushController.js';
 
+// Self-heal: production databases bootstrapped without the seed schema.sql
+// don't have the direct_messages / dm_conversations tables. If a query throws
+// Postgres error 42P01 ("relation does not exist"), create the tables inline
+// and let the caller retry. Idempotent — safe to run on every cold cache.
+const ensureDmTables = async () => {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS direct_messages (
+      id                  SERIAL PRIMARY KEY,
+      sender_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      receiver_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      content             TEXT NOT NULL,
+      message_type        VARCHAR(20) DEFAULT 'text',
+      is_read             BOOLEAN DEFAULT FALSE,
+      is_deleted_sender   BOOLEAN DEFAULT FALSE,
+      is_deleted_receiver BOOLEAN DEFAULT FALSE,
+      created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_sender ON direct_messages(sender_id)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_receiver ON direct_messages(receiver_id)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_conversation ON direct_messages(LEAST(sender_id, receiver_id), GREATEST(sender_id, receiver_id), created_at DESC)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_unread ON direct_messages(receiver_id, is_read) WHERE is_read = FALSE`);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS dm_conversations (
+      id              SERIAL PRIMARY KEY,
+      user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      other_user_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      last_message_id INTEGER REFERENCES direct_messages(id) ON DELETE SET NULL,
+      last_message_at TIMESTAMP,
+      unread_count    INTEGER DEFAULT 0,
+      is_archived     BOOLEAN DEFAULT FALSE,
+      updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (user_id, other_user_id)
+    )
+  `);
+};
+
+const isMissingRelationError = (err) => err?.code === '42P01';
+
 // ==========================================
 // SEND DIRECT MESSAGE
 // ==========================================
@@ -46,13 +85,30 @@ export const sendDM = async (req, res) => {
     }
 
     // Insert message
-    const result = await db.query(
-      'INSERT INTO direct_messages (sender_id, receiver_id, content) VALUES ($1, $2, $3) RETURNING *',
-      [req.userId, receiverId, content]
-    );
+    // Self-heal wrapper: on first send against a fresh DB the tables may be
+    // missing — create them on demand and retry once.
+    let insertResult;
+    let attempts = 0;
+    while (attempts < 2) {
+      try {
+        insertResult = await db.query(
+          'INSERT INTO direct_messages (sender_id, receiver_id, content) VALUES ($1, $2, $3) RETURNING *',
+          [req.userId, receiverId, content]
+        );
+        break;
+      } catch (err) {
+        if (isMissingRelationError(err) && attempts === 0) {
+          console.warn('[dm] direct_messages missing on send, creating on demand');
+          await ensureDmTables();
+          attempts += 1;
+          continue;
+        }
+        throw err;
+      }
+    }
 
     // Update or create conversation trackers atomically
-    const msgId = result.rows[0].id;
+    const msgId = insertResult.rows[0].id;
     const client = await db.pool.connect();
     try {
       await client.query('BEGIN');
@@ -81,10 +137,14 @@ export const sendDM = async (req, res) => {
     // Notify receiver (fire-and-forget)
     notifyDMReceived(req.userId, receiverId).catch(() => {});
 
-    res.status(201).json(result.rows[0]);
+    res.status(201).json(insertResult.rows[0]);
   } catch (error) {
     console.error('Error sending DM:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({
+      error: 'Nachricht konnte nicht gesendet werden',
+      detail: error.message,
+      code: error.code,
+    });
   }
 };
 
@@ -123,25 +183,41 @@ export const getConversation = async (req, res) => {
       });
     }
 
-    const result = await db.query(
-      `SELECT dm.id, dm.sender_id, dm.receiver_id, dm.content, dm.message_type,
-              dm.is_read, dm.is_deleted_sender, dm.is_deleted_receiver, dm.created_at,
-              s.name as sender_name, s.avatar_url as sender_avatar,
-              r.name as receiver_name, r.avatar_url as receiver_avatar
-       FROM direct_messages dm
-       LEFT JOIN users s ON dm.sender_id = s.id
-       LEFT JOIN users r ON dm.receiver_id = r.id
-       WHERE LEAST(dm.sender_id, dm.receiver_id)    = LEAST($1, $2)
-         AND GREATEST(dm.sender_id, dm.receiver_id) = GREATEST($1, $2)
-       ORDER BY dm.created_at ASC
-       LIMIT $3 OFFSET $4`,
-      [req.userId, userId, limit, offset]
-    );
+    const querySql = `
+      SELECT dm.id, dm.sender_id, dm.receiver_id, dm.content, dm.message_type,
+             dm.is_read, dm.is_deleted_sender, dm.is_deleted_receiver, dm.created_at,
+             s.name as sender_name, s.avatar_url as sender_avatar,
+             r.name as receiver_name, r.avatar_url as receiver_avatar
+      FROM direct_messages dm
+      LEFT JOIN users s ON dm.sender_id = s.id
+      LEFT JOIN users r ON dm.receiver_id = r.id
+      WHERE LEAST(dm.sender_id, dm.receiver_id)    = LEAST($1, $2)
+        AND GREATEST(dm.sender_id, dm.receiver_id) = GREATEST($1, $2)
+      ORDER BY dm.created_at ASC
+      LIMIT $3 OFFSET $4
+    `;
+    let result;
+    try {
+      result = await db.query(querySql, [req.userId, userId, limit, offset]);
+    } catch (err) {
+      // Fresh DB without seed schema → table missing. Create it inline and
+      // return an empty conversation so the user can start chatting.
+      if (isMissingRelationError(err)) {
+        console.warn('[dm] direct_messages table missing, creating on demand');
+        await ensureDmTables();
+        return res.json([]);
+      }
+      throw err;
+    }
 
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching conversation:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({
+      error: 'Konversation konnte nicht geladen werden',
+      detail: error.message,
+      code: error.code,
+    });
   }
 };
 
@@ -150,22 +226,35 @@ export const getConversation = async (req, res) => {
 // ==========================================
 export const getConversations = async (req, res) => {
   try {
-    const result = await db.query(
-      `SELECT dc.*, u.name as other_user_name, u.avatar_url as other_user_avatar,
-              dm.content as last_message_text, dm.created_at as last_message_at
-       FROM dm_conversations dc
-       JOIN users u ON dc.other_user_id = u.id
-       LEFT JOIN direct_messages dm ON dc.last_message_id = dm.id
-       WHERE dc.user_id = $1
-       ORDER BY dc.updated_at DESC
-       LIMIT 100`,
-      [req.userId]
-    );
-
+    const sql = `
+      SELECT dc.*, u.name as other_user_name, u.avatar_url as other_user_avatar,
+             dm.content as last_message_text, dm.created_at as last_message_at
+      FROM dm_conversations dc
+      JOIN users u ON dc.other_user_id = u.id
+      LEFT JOIN direct_messages dm ON dc.last_message_id = dm.id
+      WHERE dc.user_id = $1
+      ORDER BY dc.updated_at DESC
+      LIMIT 100
+    `;
+    let result;
+    try {
+      result = await db.query(sql, [req.userId]);
+    } catch (err) {
+      if (isMissingRelationError(err)) {
+        console.warn('[dm] tables missing on list, creating on demand');
+        await ensureDmTables();
+        return res.json([]);
+      }
+      throw err;
+    }
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching conversations:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({
+      error: 'Konversationen konnten nicht geladen werden',
+      detail: error.message,
+      code: error.code,
+    });
   }
 };
 
@@ -179,21 +268,30 @@ export const markDMRead = async (req, res) => {
       return res.status(400).json({ error: 'Ungültige Nutzer-ID' });
     }
 
-    await Promise.all([
-      db.query(
-        `UPDATE dm_conversations SET unread_count = 0 WHERE user_id = $1 AND other_user_id = $2`,
-        [req.userId, userId]
-      ),
-      db.query(
-        `UPDATE direct_messages SET is_read = TRUE
-         WHERE sender_id = $1 AND receiver_id = $2 AND is_read = FALSE`,
-        [userId, req.userId]
-      ),
-    ]);
+    try {
+      await Promise.all([
+        db.query(
+          `UPDATE dm_conversations SET unread_count = 0 WHERE user_id = $1 AND other_user_id = $2`,
+          [req.userId, userId]
+        ),
+        db.query(
+          `UPDATE direct_messages SET is_read = TRUE
+           WHERE sender_id = $1 AND receiver_id = $2 AND is_read = FALSE`,
+          [userId, req.userId]
+        ),
+      ]);
+    } catch (err) {
+      if (isMissingRelationError(err)) {
+        await ensureDmTables();
+        // Nothing to mark read on a freshly-created table — just return OK.
+        return res.json({ success: true });
+      }
+      throw err;
+    }
 
     res.json({ success: true });
   } catch (error) {
     console.error('Error marking DM read:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error', detail: error.message, code: error.code });
   }
 };
