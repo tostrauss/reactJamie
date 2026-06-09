@@ -807,7 +807,8 @@
       "currentPasswordPlaceholder": "Aktuelles Passwort",
       "newPasswordPlaceholder": "Neues Passwort (min. 6 Zeichen)",
       "confirmPasswordPlaceholder": "Neues Passwort bestätigen",
-      "blockedUsers": "Blockierte Nutzer"
+      "blockedUsers": "Blockierte Nutzer",
+      "adminDashboard": "Admin-Dashboard"
     },
     "favorites": {
       "tabGroups": "Gruppen",

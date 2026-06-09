@@ -89,8 +89,8 @@ export const sendDM = async (req, res) => {
     // blocker isn't outed by a different message text.
     const friendship = await db.query(
       `SELECT status FROM friendships
-       WHERE (requester_id = $1 AND addressee_id = $2)
-          OR (requester_id = $2 AND addressee_id = $1)`,
+       WHERE (requester_id = $1::int AND addressee_id = $2::int)
+          OR (requester_id = $2::int AND addressee_id = $1::int)`,
       [req.userId, receiverId]
     );
 
@@ -110,7 +110,7 @@ export const sendDM = async (req, res) => {
     while (attempts < 2) {
       try {
         insertResult = await db.query(
-          'INSERT INTO direct_messages (sender_id, receiver_id, content) VALUES ($1, $2, $3) RETURNING *',
+          'INSERT INTO direct_messages (sender_id, receiver_id, content) VALUES ($1::int, $2::int, $3) RETURNING *',
           [req.userId, receiverId, content]
         );
         break;
@@ -132,16 +132,16 @@ export const sendDM = async (req, res) => {
       await client.query('BEGIN');
       await client.query(
         `INSERT INTO dm_conversations (user_id, other_user_id, last_message_id, unread_count)
-         VALUES ($1, $2, $3, 0)
+         VALUES ($1::int, $2::int, $3::int, 0)
          ON CONFLICT (user_id, other_user_id)
-         DO UPDATE SET last_message_id = $3, updated_at = CURRENT_TIMESTAMP`,
+         DO UPDATE SET last_message_id = $3::int, updated_at = CURRENT_TIMESTAMP`,
         [req.userId, receiverId, msgId]
       );
       await client.query(
         `INSERT INTO dm_conversations (user_id, other_user_id, last_message_id, unread_count)
-         VALUES ($1, $2, $3, 1)
+         VALUES ($1::int, $2::int, $3::int, 1)
          ON CONFLICT (user_id, other_user_id)
-         DO UPDATE SET last_message_id = $3, unread_count = dm_conversations.unread_count + 1, updated_at = CURRENT_TIMESTAMP`,
+         DO UPDATE SET last_message_id = $3::int, unread_count = dm_conversations.unread_count + 1, updated_at = CURRENT_TIMESTAMP`,
         [receiverId, req.userId, msgId]
       );
       await client.query('COMMIT');
@@ -186,12 +186,15 @@ export const getConversation = async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
 
-    // Verify friendship before allowing message history access
+    // Verify friendship before allowing message history access. Casting both
+    // params to int defensively because req.userId from JWT may come back as a
+    // string depending on how the token was signed — then LEAST/GREATEST in
+    // the next query trips on `integer = text` (PG error 42883).
     const friendship = await db.query(
       `SELECT id FROM friendships
        WHERE status = 'accepted'
-       AND ((requester_id = $1 AND addressee_id = $2)
-            OR (requester_id = $2 AND addressee_id = $1))`,
+       AND ((requester_id = $1::int AND addressee_id = $2::int)
+            OR (requester_id = $2::int AND addressee_id = $1::int))`,
       [req.userId, userId]
     );
     if (friendship.rows.length === 0) {
@@ -209,8 +212,8 @@ export const getConversation = async (req, res) => {
       FROM direct_messages dm
       LEFT JOIN users s ON dm.sender_id = s.id
       LEFT JOIN users r ON dm.receiver_id = r.id
-      WHERE LEAST(dm.sender_id, dm.receiver_id)    = LEAST($1, $2)
-        AND GREATEST(dm.sender_id, dm.receiver_id) = GREATEST($1, $2)
+      WHERE LEAST(dm.sender_id, dm.receiver_id)    = LEAST($1::int, $2::int)
+        AND GREATEST(dm.sender_id, dm.receiver_id) = GREATEST($1::int, $2::int)
       ORDER BY dm.created_at ASC
       LIMIT $3 OFFSET $4
     `;
@@ -250,7 +253,7 @@ export const getConversations = async (req, res) => {
       FROM dm_conversations dc
       JOIN users u ON dc.other_user_id = u.id
       LEFT JOIN direct_messages dm ON dc.last_message_id = dm.id
-      WHERE dc.user_id = $1
+      WHERE dc.user_id = $1::int
       ORDER BY dc.updated_at DESC
       LIMIT 100
     `;
@@ -289,12 +292,12 @@ export const markDMRead = async (req, res) => {
     try {
       await Promise.all([
         db.query(
-          `UPDATE dm_conversations SET unread_count = 0 WHERE user_id = $1 AND other_user_id = $2`,
+          `UPDATE dm_conversations SET unread_count = 0 WHERE user_id = $1::int AND other_user_id = $2::int`,
           [req.userId, userId]
         ),
         db.query(
           `UPDATE direct_messages SET is_read = TRUE
-           WHERE sender_id = $1 AND receiver_id = $2 AND is_read = FALSE`,
+           WHERE sender_id = $1::int AND receiver_id = $2::int AND is_read = FALSE`,
           [userId, req.userId]
         ),
       ]);
