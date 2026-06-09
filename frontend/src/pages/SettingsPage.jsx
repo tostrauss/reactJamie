@@ -14,10 +14,21 @@ import {
 import '../styles/profile.css';
 
 export const SettingsPage = () => {
-  const { user, logout } = useContext(AuthContext);
+  const { user, logout, refreshProfile } = useContext(AuthContext);
   const navigate = useNavigate();
   const toast = useToast();
   const { t, i18n } = useTranslation();
+
+  // Pull fresh profile data whenever Settings opens. Server-side flags like
+  // is_admin can change while the app is still running (admins are flipped on
+  // via SQL/Cloud-console); without this the cached user keeps the stale value
+  // and the admin shortcut never appears until the next cold start / re-login.
+  useEffect(() => {
+    refreshProfile?.();
+    // Intentionally only run once on mount — refreshProfile is stable from
+    // useCallback in AuthContext, no need to re-fire on every re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Password change
   const [showPasswordForm, setShowPasswordForm] = useState(false);
