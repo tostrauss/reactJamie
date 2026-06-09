@@ -141,7 +141,7 @@ export const AdminDashboard = () => {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 32 }}>
           <KPICard label={t('admin.kpis.groups')} value={g.total_groups} />
           <KPICard label={t('admin.kpis.clubs')} value={g.total_clubs} />
-          <KPICard label={t('admin.kpis.reviews')} value={stats?.reviews} />
+          <KPICard label={t('admin.kpis.reviews')} value={stats?.reviews?.total} />
         </div>
 
         {/* Sponsored cooperations (Kooperationen) */}
