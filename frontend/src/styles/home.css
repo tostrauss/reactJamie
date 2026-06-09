@@ -733,12 +733,21 @@
   align-items: center;
   gap: 10px;
   padding: 0 0 18px;
+  /* Tina saw a horizontal line through "Meine Clubs" on iOS Safari right after
+     creating her first club. Could not reproduce in DevTools — most likely an
+     inherited text-decoration from a parent or a Safari-specific quirk where
+     the heading inherits a strikethrough. Explicit reset on both wrapper and
+     heading neutralises it without affecting anything else. */
+  text-decoration: none;
 }
 
 .section-heading {
   font-size: 22px;
   font-weight: 700;
   color: var(--text-white);
+  text-decoration: none;
+  text-decoration-line: none;
+  -webkit-text-decoration-line: none;
 }
 
 .section-count {

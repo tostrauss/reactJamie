@@ -884,6 +884,13 @@ const runStartupMigrations = async () => {
   await migrate('groups.events_owner_only', async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS events_owner_only BOOLEAN DEFAULT FALSE`);
   });
+  // Tina's call (2026-06-09): default Clubs to "only founder creates events"
+  // — most clubs in DACH are operator-led, so the default should match the
+  // common case. Existing rows are NOT migrated: that's an explicit choice by
+  // each existing owner. Only the column default + new INSERTs change.
+  await migrate('groups.events_owner_only default true', async () => {
+    await db.query(`ALTER TABLE groups ALTER COLUMN events_owner_only SET DEFAULT TRUE`);
+  });
   // Target audience age range. NULL on both sides means "no restriction"
   // (group is visible to everyone), which matches the existing default.
   await migrate('groups.target_age_min_max', async () => {

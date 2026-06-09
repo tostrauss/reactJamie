@@ -32,6 +32,11 @@ export const createClub = async (req, res) => {
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
   if (name.length > 100) return res.status(400).json({ error: 'Name darf maximal 100 Zeichen lang sein' });
+  // Name must contain at least one letter or digit. Tina's call: "ned emoji" —
+  // emoji-only names are unreadable in chat lists and unsearchable.
+  if (!/[\p{L}\p{N}]/u.test(name)) {
+    return res.status(400).json({ error: 'Club-Name muss mindestens einen Buchstaben oder eine Zahl enthalten' });
+  }
   if (description && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
 
   try {
@@ -276,6 +281,9 @@ export const updateClub = async (req, res) => {
     } = req.body;
 
     if (name !== undefined && name.length > 100) return res.status(400).json({ error: 'Name darf maximal 100 Zeichen lang sein' });
+    if (name !== undefined && !/[\p{L}\p{N}]/u.test(name)) {
+      return res.status(400).json({ error: 'Club-Name muss mindestens einen Buchstaben oder eine Zahl enthalten' });
+    }
     if (description !== undefined && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
 
     // Normalize empty-string date to null. Frontend sends "" when the club has

@@ -32,7 +32,7 @@ export const CreateClub = () => {
     rules: '',
     image_url: null,
     chat_only_owner: false,
-    events_owner_only: false
+    events_owner_only: true
   });
 
   const [imagePreview, setImagePreview] = useState(null);
