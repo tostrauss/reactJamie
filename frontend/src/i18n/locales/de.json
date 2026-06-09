@@ -542,8 +542,9 @@
         "hidden": "Ausgeblendet"
       },
       "empty": {
-        "noChats": "Noch keine Chats",
+        "noChats": "Noch keine Chats mit Freunden",
         "noChatsHint": "Tritt Gruppen bei und lerne Leute kennen!",
+        "toFriends": "Zu deinen Freunden",
         "noGroupChats": "Noch keine Gruppen-Chats",
         "noClubChats": "Noch keine Club-Chats",
         "joinGroupHint": "Tritt einer Gruppe bei!",

@@ -245,8 +245,8 @@ export const ChatList = () => {
             onClick={() => setActiveTab('freunde')}
           >
             {t('chat.list.tabs.chats')}
-            {(privateChats.length > 0 || pendingRequests.length > 0) && (
-              <span className="tab-count">{privateChats.length + pendingRequests.length}</span>
+            {privateChats.length > 0 && (
+              <span className="tab-count">{privateChats.length}</span>
             )}
           </button>
         </div>
@@ -256,36 +256,13 @@ export const ChatList = () => {
       <div className="home-content">
 
         {/* ── Chats (DM) tab ──────────────────────────────────────── */}
+        {/* Friend list + pending requests live under Profil → Freunde now —
+            this tab only shows real DM conversations to keep it focused. */}
         {activeTab === 'freunde' && (
           <div className="chat-friends-section">
 
-            {pendingRequests.length > 0 && (
-              <div className="pending-requests-section">
-                <div className="pending-requests-header">
-                  <span className="pending-requests-title">{t('chat.list.sections.friendRequests')}</span>
-                  <span className="pending-count">{pendingRequests.length}</span>
-                </div>
-                {pendingRequests.map(req => (
-                  <div key={req.id} className="friend-request-item">
-                    {req.requester_avatar
-                      ? <img src={req.requester_avatar} alt={req.requester_name} className="friend-avatar" loading="lazy" />
-                      : <div className="friend-avatar-placeholder">{(req.requester_name || '?')[0].toUpperCase()}</div>
-                    }
-                    <div className="friend-info" onClick={() => navigate(`/user/${req.requester_id}`)}>
-                      <div className="friend-name">{req.requester_name}</div>
-                      <div className="friend-location">{req.requester_location || t('chat.list.friend.noLocation')}</div>
-                    </div>
-                    <div className="friend-request-actions">
-                      <button className="friend-request-btn accept" onClick={() => handleAcceptFriendRequest(req.id)}>✓</button>
-                      <button className="friend-request-btn decline" onClick={() => handleRejectFriendRequest(req.id)}>✕</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
             {/* Private DM conversations */}
-            {privateChats.length > 0 && (
+            {privateChats.length > 0 ? (
               <div className="chat-list">
                 {privateChats.map(chat => (
                   <div key={chat.id} className="chat-item" onClick={() => navigate(`/dm/${chat.id}`)}>
@@ -308,55 +285,17 @@ export const ChatList = () => {
                   </div>
                 ))}
               </div>
+            ) : loading ? (
+              <div className="home-loading"><div className="home-spinner" /></div>
+            ) : (
+              <div className="empty-state">
+                <div className="empty-icon">💬</div>
+                <p>{t('chat.list.empty.noChats')}</p>
+                <button className="empty-hint" onClick={() => navigate('/friends')}>
+                  {t('chat.list.empty.toFriends')}
+                </button>
+              </div>
             )}
-
-            <div className="friends-list">
-              {loading ? (
-                <div className="home-loading"><div className="home-spinner" /></div>
-              ) : friendsList.length === 0 && privateChats.length === 0 ? (
-                <div className="empty-state">
-                  <div className="empty-icon">💬</div>
-                  <p>{t('chat.list.empty.noChats')}</p>
-                  <button className="empty-hint" onClick={() => navigate('/home')}>
-                    {t('chat.list.empty.noChatsHint')}
-                  </button>
-                </div>
-              ) : (
-                friendsList.map(friend => (
-                  <div key={friend.friend_id} className="friend-item">
-                    {friend.avatar_url
-                      ? <img src={friend.avatar_url} alt={friend.name} className="friend-avatar" loading="lazy" />
-                      : <div className="friend-avatar-placeholder">{(friend.name || '?')[0].toUpperCase()}</div>
-                    }
-                    <div className="friend-info" onClick={() => navigate(`/user/${friend.friend_id}`)}>
-                      <div className="friend-name">{friend.name}</div>
-                      <div className="friend-location">{friend.location || t('chat.list.friend.noLocation')}</div>
-                    </div>
-                    <div className="friend-actions">
-                      <button
-                        className="friend-action-btn"
-                        onClick={() => navigate(`/dm/${friend.friend_id}`)}
-                        title={t('chat.list.friend.messageTitle')}
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
-                        </svg>
-                      </button>
-                      <button
-                        className="friend-action-btn"
-                        onClick={() => navigate(`/user/${friend.friend_id}`)}
-                        title={t('chat.list.friend.profileTitle')}
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                          <circle cx="12" cy="7" r="4"/>
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
           </div>
         )}
 
