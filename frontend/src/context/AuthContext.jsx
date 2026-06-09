@@ -89,7 +89,11 @@ export const AuthProvider = ({ children }) => {
 
   const refreshProfile = useCallback(async () => {
     if (!token || token === 'guest_token') return null;
-    setLoading(true);
+    // NOTE: do NOT toggle the global `loading` flag here. `loading` is read by
+    // ProtectedRoute to decide whether to show <PageLoader />; if we set it
+    // true during a background refresh, the protected page unmounts mid-render,
+    // the new mount fires its own refreshProfile() useEffect, and we get a
+    // screen-flicker loop. Background refreshes should be invisible.
     try {
       const { data } = await auth.getProfile();
       setUser(data);
@@ -97,8 +101,6 @@ export const AuthProvider = ({ children }) => {
       return data;
     } catch {
       return null;
-    } finally {
-      setLoading(false);
     }
   }, [token]);
 
