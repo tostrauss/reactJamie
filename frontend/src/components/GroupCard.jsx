@@ -76,22 +76,24 @@ export const GroupCard = memo(({
 }) => {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
-  const { isPro } = useContext(AuthContext) || {};
+  const { user, isPro } = useContext(AuthContext) || {};
+  const isAdmin = !!user?.is_admin;
   const isClub = group.type === 'club';
 
-  // member_previews is embedded by the backend. Non-Pro users never see who's
-  // inside: the entire photo grid is blurred and a single lock overlay sits
-  // over it (the avatars are still rendered so a Pro upgrade animates from
-  // "blurred silhouettes" → "real faces" instead of from black).
+  // member_previews is embedded by the backend (3 for the gated audience, 4
+  // for Pro/admins). Only the 4th (bottom-right) tile is the Pro gate; the
+  // first three show real avatars or empty "join" slots.
   const memberAvatars = Array.isArray(group.member_previews) ? group.member_previews : [];
 
   const maxMembers  = group.max_members || 10;
   const isFull      = group.members_count >= maxMembers;
-  const emptySpots  = isClub ? 0 : Math.max(0, 4 - memberAvatars.length);
-  // Show the Pro lock for every non-Pro viewer. Gamification: even an empty
-  // group teases "unlock to see who joins" — the lock is the cue, not the
-  // member count. Pro users see real faces with no overlay.
-  const showProLock = !isPro;
+  // Gate the 4th tile only for non-Pro, non-admin viewers on non-club cards.
+  // Admins + Pro see all four real/empty tiles.
+  const showProGate = !isClub && !isPro && !isAdmin;
+  // Tiles available for avatars/empties before the gate: 3 when gated, else 4.
+  const realSlots    = showProGate ? 3 : 4;
+  const visibleAvatars = isClub ? [] : memberAvatars.slice(0, realSlots);
+  const emptySpots   = isClub ? 0 : Math.max(0, realSlots - visibleAvatars.length);
 
   const locale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-DE';
   // Recurring groups: badge tracks the next occurrence so a Tuesday meetup
@@ -161,7 +163,7 @@ export const GroupCard = memo(({
       </div>
 
       {/* ── Photo grid ── */}
-      <div className={`card-photo-grid${showProLock ? ' is-pro-locked' : ''}`}>
+      <div className="card-photo-grid">
         {isClub ? (
           <div className="avatar-slot card-club-full-image" style={{ gridColumn: '1 / -1', gridRow: '1 / -1', borderRadius: '9px' }}>
             <AvatarImage
@@ -173,7 +175,7 @@ export const GroupCard = memo(({
           </div>
         ) : (
           <>
-            {memberAvatars.map((member) => (
+            {visibleAvatars.map((member) => (
               <div key={member.id} className="avatar-slot">
                 <AvatarImage
                   src={member.avatar_url}
@@ -191,9 +193,6 @@ export const GroupCard = memo(({
                     navigate(`/group/${group.id}`);
                   }}
                   aria-label={t('groups.card.joinAria')}
-                  // Hide the "+" join slot behind the Pro lock so non-Pro
-                  // viewers see one focal CTA (the lock) instead of two.
-                  tabIndex={showProLock ? -1 : 0}
                 >
                   <svg width="11" height="11" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
                     <path d="M5 1v8M1 5h8"/>
@@ -201,28 +200,28 @@ export const GroupCard = memo(({
                 </button>
               </div>
             ))}
+            {/* 4th (bottom-right) tile: Pro gate for non-Pro non-admin. Only
+                this tile is blurred + locked — the others stay clear. */}
+            {showProGate && (
+              <button
+                type="button"
+                className="avatar-slot pro-gate"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openProModal();
+                }}
+                aria-label={t('groups.card.proGateAria')}
+              >
+                <span className="avatar-pro-gate-blur" aria-hidden="true" />
+                <span className="card-pro-lock-badge" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="4" y="11" width="16" height="10" rx="2.5" />
+                    <path d="M8 11V8a4 4 0 1 1 8 0v3" />
+                  </svg>
+                </span>
+              </button>
+            )}
           </>
-        )}
-
-        {showProLock && (
-          <button
-            type="button"
-            className="card-pro-overlay"
-            onClick={(e) => {
-              e.stopPropagation();
-              openProModal();
-            }}
-            aria-label={t('groups.card.proGateAria')}
-          >
-            <span className="card-pro-overlay-blur" aria-hidden="true" />
-            <span className="card-pro-lock-badge" aria-hidden="true">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="4" y="11" width="16" height="10" rx="2.5" />
-                <path d="M8 11V8a4 4 0 1 1 8 0v3" />
-              </svg>
-            </span>
-            <span className="card-pro-lock-caption">{t('groups.card.proLockCaption')}</span>
-          </button>
         )}
       </div>
 

@@ -1338,55 +1338,46 @@
   transform: scale(0.93);
 }
 
-/* ── Pro lock overlay ─────────────────────────────────────────────────
-   Non-Pro users see a full blur + central lock badge over the photo grid
-   (4 user avatars for groups, club image for clubs). Click opens ProModal
-   via the PRO_MODAL_EVENT window event listened to in AppRoutes.
-   Underlying avatars stay rendered so a Pro upgrade animates from
-   "blurred silhouettes" → "real faces" instead of from black. */
-.card-pro-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 3;
+/* ── Pro gate — 4th (bottom-right) tile only ──────────────────────────
+   Non-Pro, non-admin viewers get a single blurred + locked tile in the
+   bottom-right of the 2×2 grid; the other three tiles show real avatars or
+   empty "join" slots. Click opens ProModal via the PRO_MODAL_EVENT window
+   event listened to in AppRoutes. Admins + Pro never render this tile. */
+.avatar-slot.pro-gate {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  border: none;
+  padding: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 0;
-  margin: 0;
-  border: none;
-  border-radius: inherit;
-  background: transparent;
-  color: #fff;
-  cursor: pointer;
-  font-family: inherit;
   -webkit-tap-highlight-color: transparent;
-  /* Standalone button — interaction handled directly here, not bubbled to card */
-  isolation: isolate;
 }
 
-.card-pro-overlay-blur {
+.avatar-pro-gate-blur {
   position: absolute;
   inset: 0;
-  z-index: -1;
-  border-radius: inherit;
-  /* Heavy blur on the avatars/image already in the grid, plus a coral-tinted
-     veil so the lock reads as part of the Pro brand (coral) rather than as
-     an error/disabled state. */
-  backdrop-filter: blur(14px) saturate(0.85);
-  -webkit-backdrop-filter: blur(14px) saturate(0.85);
+  /* Brand-blue silhouette behind a coral veil — reads as "someone's here,
+     unlock to see" rather than a broken image. No real avatar is leaked:
+     the backend simply doesn't send the 4th preview to gated users. */
   background:
-    radial-gradient(ellipse at center, rgba(253, 118, 102, 0.18) 0%, rgba(15, 12, 30, 0.55) 70%),
-    linear-gradient(180deg, rgba(20, 16, 38, 0.35) 0%, rgba(8, 6, 20, 0.55) 100%);
+    radial-gradient(circle at 50% 38%, #4a3d70 0%, #2e2452 28%, transparent 55%),
+    radial-gradient(ellipse at 50% 120%, rgba(253, 118, 102, 0.22) 0%, transparent 55%),
+    linear-gradient(180deg, #271e44 0%, #15102a 100%);
+  filter: blur(10px);
+  transform: scale(1.3);
+  pointer-events: none;
 }
 
 .card-pro-lock-badge {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background: linear-gradient(135deg, #FD7666 0%, #ff8f7e 100%);
   color: #fff;
@@ -1394,31 +1385,14 @@
   transition: transform 0.18s ease;
 }
 
-.card-pro-overlay:hover .card-pro-lock-badge,
-.card-pro-overlay:focus-visible .card-pro-lock-badge {
+.avatar-slot.pro-gate:hover .card-pro-lock-badge,
+.avatar-slot.pro-gate:focus-visible .card-pro-lock-badge {
   transform: scale(1.08);
 }
 
-.card-pro-lock-caption {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.2px;
-  color: #fff;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
-  padding: 0 12px;
-  text-align: center;
-  line-height: 1.25;
-}
-
-.card-pro-overlay:focus-visible {
+.avatar-slot.pro-gate:focus-visible {
   outline: 2px solid #FD7666;
   outline-offset: -2px;
-}
-
-/* When the lock is up, kill the residual "+" join button focus rings on
-   the empty slots underneath — the overlay owns the interaction. */
-.card-photo-grid.is-pro-locked .avatar-slot.empty .avatar-gamble {
-  pointer-events: none;
 }
 
 .avatar-placeholder {

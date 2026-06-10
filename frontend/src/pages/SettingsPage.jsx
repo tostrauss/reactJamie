@@ -4,8 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { auth, groups as groupsApi, clubs as clubsApi, subscription as subscriptionApi } from '../utils/api';
 import { useToast } from '../context/ToastContext';
-import { UserName } from '../components/UserName';
-import { ageFromDob } from '../utils/age';
 import {
   isPushSupported,
   getPushPermission,
@@ -243,12 +241,8 @@ export const SettingsPage = () => {
           )}
         </div>
         <div className="settings-user-info">
-          <div className="settings-user-name">
-            <UserName
-              name={user?.name || t('settings.user.fallbackName')}
-              age={ageFromDob(user?.date_of_birth)}
-            />
-          </div>
+          {/* Own profile header — no age superscript. */}
+          <div className="settings-user-name">{user?.name || t('settings.user.fallbackName')}</div>
           <div className="settings-user-email">{user?.email || ''}</div>
         </div>
         {chevron}

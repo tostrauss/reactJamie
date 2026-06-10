@@ -130,17 +130,6 @@ export const Profile = () => {
   const interests     = user?.interests || [];
   const coverPhoto    = user?.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800';
   const completion    = user?.profile_completion || 0;
-  const age = (() => {
-    const dob = user?.date_of_birth;
-    if (!dob) return null;
-    const birth = new Date(dob);
-    if (isNaN(birth)) return null;
-    const today = new Date();
-    let a = today.getFullYear() - birth.getFullYear();
-    const m = today.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) a--;
-    return a > 0 ? a : null;
-  })();
 
   return (
     <>
@@ -195,8 +184,8 @@ export const Profile = () => {
               <div className="profile-location-left">{user.location}</div>
             ) : <div />}
             <div className="profile-name-age">
+              {/* Own profile: no age superscript (you know your own age). */}
               <span className="profile-name-cap">{(user?.name || t('profile.fallbackName')).toUpperCase()}</span>
-              {age && <span className="profile-age-sup">{age}</span>}
               {isPro && <span className="pro-name-badge">👑</span>}
             </div>
           </div>

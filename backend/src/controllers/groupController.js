@@ -202,30 +202,33 @@ export const getGroups = async (req, res) => {
 
     if (search && search.length > 100) return res.status(400).json({ error: 'Suchbegriff zu lang' });
 
-    // #1 Pro gate: non-Pro callers see only 3 member previews per group on the
-    // browse feed; Pro users see up to 4. The frontend pads the 4th slot with
-    // a blurred "unlock with Pro" tile when members_count > previews.length.
+    // #1 Pro gate: non-Pro, non-admin callers see only 3 member previews per
+    // group; Pro users AND admins see up to 4. The frontend blurs just the 4th
+    // (bottom-right) tile as the "unlock with Pro" gate for the gated audience.
     const callerIsPro = req.userId ? await isUserPro(req.userId) : false;
-    const previewLimit = callerIsPro ? 4 : 3;
 
-    // Target-age hard filter. Compute the caller's age from their DOB so we can
-    // hide groups whose target_age_min/max excludes them. Users without DOB are
-    // included in everything (friendly default per Tina's call).
+    // Caller age (target-age filter) + admin flag come from one user lookup.
+    // Users without DOB are included in everything (friendly default, Tina).
     let callerAge = null;
+    let callerIsAdmin = false;
     if (req.userId) {
-      const dobRes = await db.query(
-        'SELECT EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age FROM users WHERE id = $1 AND date_of_birth IS NOT NULL',
+      const r = await db.query(
+        'SELECT EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age, is_admin FROM users WHERE id = $1',
         [req.userId]
       );
-      callerAge = dobRes.rows[0]?.age ?? null;
+      callerAge = r.rows[0]?.age ?? null;
+      callerIsAdmin = !!r.rows[0]?.is_admin;
     }
+
+    // Admins bypass the gate entirely → full 4 previews like Pro.
+    const previewLimit = (callerIsPro || callerIsAdmin) ? 4 : 3;
 
     // Cache only filter combinations that don't involve free-text search or location
     // (those are low-frequency, high-variability and not worth the memory).
-    // Pro flag + caller age are part of the key so users with different
-    // visibility filters never share a cache row.
+    // Pro flag + admin flag + caller age are part of the key so users with
+    // different visibility never share a cache row.
     const cacheKey = !search && !location
-      ? `groups:${type || ''}:${category || ''}:${upcoming || ''}:${limit || ''}:${offset || ''}:p${callerIsPro ? 1 : 0}:a${callerAge ?? 'x'}`
+      ? `groups:${type || ''}:${category || ''}:${upcoming || ''}:${limit || ''}:${offset || ''}:p${callerIsPro ? 1 : 0}:adm${callerIsAdmin ? 1 : 0}:a${callerAge ?? 'x'}`
       : null;
     if (cacheKey) {
       const cached = getCached(cacheKey);
