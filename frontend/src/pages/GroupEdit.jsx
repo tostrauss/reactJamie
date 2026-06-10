@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { useParams, useNavigate, Navigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { groups, clubs, friends as friendsApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
@@ -171,12 +171,11 @@ export const GroupEdit = () => {
     );
   }
 
-  // Clubs have a dedicated editor (ClubEdit). Forward any /group/:id/edit hit
-  // for a club — old links, the legacy "Verwalten" button, bookmarks — to
-  // /club/:id/edit. Mirrors the GroupDetail → ClubDetail redirect.
-  if (group?.type === 'club') {
-    return <Navigate to={`/club/${id}/edit`} replace />;
-  }
+  // This component edits groups, events AND clubs (the /club/:id/edit route
+  // points here too) so the layout is identical across all three. Club-only
+  // fields (chat/event permission toggles) and group-only fields (date,
+  // target age) are conditionally rendered on group.type below.
+  const isClub = group?.type === 'club';
 
   const groupName = group?.name || group?.title || t('groupEdit.fallbackName');
   const displayDate = formData.date
@@ -363,24 +362,28 @@ export const GroupEdit = () => {
                 </div>
               </div>
 
-              <div className="ge-control-divider" />
-
-              <div className="ge-control-block">
-                <span className="ge-control-label">{t('groupEdit.fields.date')}</span>
-                <div className="ge-date-wrap">
-                  <span className="ge-date-display">{displayDate}</span>
-                  <input
-                    type="date"
-                    className="ge-date-overlay"
-                    value={formData.date}
-                    onChange={e => setFormData(p => ({ ...p, date: e.target.value }))}
-                  />
-                </div>
-              </div>
+              {/* Clubs have no event date — show only the size control for them. */}
+              {!isClub && (
+                <>
+                  <div className="ge-control-divider" />
+                  <div className="ge-control-block">
+                    <span className="ge-control-label">{t('groupEdit.fields.date')}</span>
+                    <div className="ge-date-wrap">
+                      <span className="ge-date-display">{displayDate}</span>
+                      <input
+                        type="date"
+                        className="ge-date-overlay"
+                        value={formData.date}
+                        onChange={e => setFormData(p => ({ ...p, date: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Weekly recurrence — only meaningful for type='group' events. */}
-            {group?.type !== 'club' && (
+            {!isClub && (
               <>
                 <div className="ge-divider" />
                 <div className="ge-field ge-toggle-field">
@@ -406,36 +409,39 @@ export const GroupEdit = () => {
 
             <div className="ge-divider" />
 
-            <div className="ge-field">
-              <label className="ge-label">{t('groupEdit.fields.targetAge')}</label>
-              <p className="ge-hint">{t('groupEdit.fields.targetAgeHint')}</p>
-              <div className="ge-age-range">
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={14}
-                  max={99}
-                  placeholder={t('groupEdit.fields.targetAgeFromPlaceholder')}
-                  className="ge-input ge-age-input"
-                  value={formData.target_age_min}
-                  onChange={e => setFormData(p => ({ ...p, target_age_min: e.target.value }))}
-                />
-                <span className="ge-age-sep">–</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={14}
-                  max={99}
-                  placeholder={t('groupEdit.fields.targetAgeToPlaceholder')}
-                  className="ge-input ge-age-input"
-                  value={formData.target_age_max}
-                  onChange={e => setFormData(p => ({ ...p, target_age_max: e.target.value }))}
-                />
+            {/* Target age — group/event audience filter, not a club concept. */}
+            {!isClub && (
+              <div className="ge-field">
+                <label className="ge-label">{t('groupEdit.fields.targetAge')}</label>
+                <p className="ge-hint">{t('groupEdit.fields.targetAgeHint')}</p>
+                <div className="ge-age-range">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={14}
+                    max={99}
+                    placeholder={t('groupEdit.fields.targetAgeFromPlaceholder')}
+                    className="ge-input ge-age-input"
+                    value={formData.target_age_min}
+                    onChange={e => setFormData(p => ({ ...p, target_age_min: e.target.value }))}
+                  />
+                  <span className="ge-age-sep">–</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={14}
+                    max={99}
+                    placeholder={t('groupEdit.fields.targetAgeToPlaceholder')}
+                    className="ge-input ge-age-input"
+                    value={formData.target_age_max}
+                    onChange={e => setFormData(p => ({ ...p, target_age_max: e.target.value }))}
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             {/* ── Club settings (only relevant for type='club') ─────── */}
-            {group?.type === 'club' && (
+            {isClub && (
               <>
                 <div className="ge-divider" />
                 <div className="ge-field ge-toggle-field">
@@ -488,6 +494,8 @@ export const GroupEdit = () => {
             <span className="ge-section-title">
               {group?.type === 'event'
                 ? t('groupEdit.sections.shareEvent')
+                : isClub
+                ? t('groupEdit.sections.shareClub')
                 : t('groupEdit.sections.shareGroup')}
             </span>
           </div>

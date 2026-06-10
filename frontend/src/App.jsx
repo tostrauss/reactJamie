@@ -36,7 +36,6 @@ const CreateGroup = lazy(() => import('./pages/CreateGroup'));
 const CreateClub = lazy(() => import('./pages/CreateClub'));
 const GroupRequests = lazy(() => import('./pages/GroupRequests'));
 const UserProfile = lazy(() => import('./pages/UserProfile'));
-const ClubEdit = lazy(() => import('./pages/ClubEdit'));
 const GroupEdit = lazy(() => import('./pages/GroupEdit'));
 const Notifications = lazy(() => import('./pages/Notifications'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
@@ -515,7 +514,9 @@ function AppRoutes() {
           <Route path="/create-club" element={<ProtectedRoute><CreateClub /></ProtectedRoute>} />
           <Route path="/club/:id" element={<ProtectedRoute><ClubDetail /></ProtectedRoute>} />
           <Route path="/club/:id/members" element={<ProtectedRoute><ClubMembers /></ProtectedRoute>} />
-          <Route path="/club/:id/edit" element={<ProtectedRoute><ClubEdit /></ProtectedRoute>} />
+          {/* Clubs reuse the GroupEdit component (identical layout); it
+              renders club-only fields based on type. URL stays /club/:id/edit. */}
+          <Route path="/club/:id/edit" element={<ProtectedRoute><GroupEdit /></ProtectedRoute>} />
 
           {/* Friends */}
           <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />

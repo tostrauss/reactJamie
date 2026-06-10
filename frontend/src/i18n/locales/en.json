@@ -1291,7 +1291,8 @@
       "clubInfo": "Club info",
       "eventInfo": "Event info",
       "shareGroup": "Share group",
-      "shareEvent": "Share event"
+      "shareEvent": "Share event",
+      "shareClub": "Share club"
     },
     "memberRole": "Creator",
     "removeBtn": "Remove",
