@@ -725,6 +725,66 @@
 .cd-event-input--sm {
   max-width: 100%;
 }
+
+/* Recurring-weekly toggle inside the event create form */
+.cd-event-recurring {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-input);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.cd-event-recurring input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  background: transparent;
+  margin: 0;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.cd-event-recurring input[type="checkbox"]:checked {
+  background: var(--accent-coral);
+  border-color: var(--accent-coral);
+}
+.cd-event-recurring input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 5px; top: 1px;
+  width: 5px; height: 10px;
+  border: solid #fff;
+  border-width: 0 2.5px 2.5px 0;
+  transform: rotate(45deg);
+}
+.cd-event-recurring-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.cd-event-recurring-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-light);
+}
+.cd-event-recurring-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+.cd-event-recurring-badge {
+  margin-left: 6px;
+  font-size: 12px;
+}
+
 .cd-event-submit-btn {
   padding: 12px;
   border-radius: var(--radius-md);

@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
 import { UserName } from '../components/UserName';
 import { isNativeIOS } from '../utils/platform';
+import { nextOccurrence } from '../utils/recurrence';
 import '../styles/club-detail.css';
 
 const BoostModal = lazy(() => import('../components/BoostModal').then(m => ({ default: m.BoostModal })));
@@ -31,7 +32,11 @@ const formatEventDate = (dateStr, locale) => {
 const toCalDate = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 
 const openCalendar = (ev) => {
-  const start = new Date(ev.date);
+  // Recurring events export their FIRST occurrence + an RRULE so the calendar
+  // engine drives the weekly repeat; one-offs export the next occurrence.
+  const start = ev.is_recurring_weekly
+    ? new Date(ev.date)
+    : (nextOccurrence(ev) || new Date(ev.date));
   if (isNaN(start)) return;
   const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
   const title = encodeURIComponent(ev.name || 'JAMIE Event');
@@ -46,6 +51,7 @@ const openCalendar = (ev) => {
     const ics = [
       'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//JAMIE//JAMIE App//DE', 'BEGIN:VEVENT',
       `DTSTART:${startStr}`, `DTEND:${endStr}`,
+      ev.is_recurring_weekly ? 'RRULE:FREQ=WEEKLY' : '',
       `SUMMARY:${icalEscape(ev.name || 'JAMIE Event')}`,
       ev.description ? `DESCRIPTION:${icalEscape(ev.description)}` : '',
       ev.location ? `LOCATION:${icalEscape(ev.location)}` : '',
@@ -60,7 +66,8 @@ const openCalendar = (ev) => {
     a.click();
     URL.revokeObjectURL(url);
   } else {
-    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&location=${loc}`;
+    const recurParam = ev.is_recurring_weekly ? `&recur=RRULE:FREQ%3DWEEKLY` : '';
+    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&location=${loc}${recurParam}`;
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 };
@@ -87,7 +94,7 @@ export const ClubDetail = () => {
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsLocked, setEventsLocked] = useState(false);
   const [showCreateEvent, setShowCreateEvent] = useState(false);
-  const [eventForm, setEventForm] = useState({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20 });
+  const [eventForm, setEventForm] = useState({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20, is_recurring_weekly: false });
   const [eventSubmitting, setEventSubmitting] = useState(false);
   const [joiningEventId, setJoiningEventId] = useState(null);
 
@@ -214,8 +221,12 @@ export const ClubDetail = () => {
     e.preventDefault();
     if (!eventForm.name.trim()) { toast.error(t('clubDetail.events.errorNameRequired')); return; }
     if (!eventForm.date) { toast.error(t('clubDetail.events.errorDateRequired')); return; }
-    const eventDateTime = new Date(`${eventForm.date}T${eventForm.time || '00:00'}`);
-    if (eventDateTime <= new Date()) { toast.error(t('clubDetail.events.errorDateFuture')); return; }
+    // Recurring events legitimately start "now/in the past" — they roll forward
+    // each week — so only enforce the future check on one-off events.
+    if (!eventForm.is_recurring_weekly) {
+      const eventDateTime = new Date(`${eventForm.date}T${eventForm.time || '00:00'}`);
+      if (eventDateTime <= new Date()) { toast.error(t('clubDetail.events.errorDateFuture')); return; }
+    }
     setEventSubmitting(true);
     try {
       const res = await clubs.createEvent(id, {
@@ -225,12 +236,13 @@ export const ClubDetail = () => {
         time: eventForm.time || undefined,
         location: eventForm.location.trim() || undefined,
         max_members: parseInt(eventForm.max_members, 10) || 20,
+        is_recurring_weekly: eventForm.is_recurring_weekly,
       });
       const newEvent = res.data;
       newEvent.is_member = true;
       setEvents(prev => [newEvent, ...prev].sort((a, b) => new Date(a.date) - new Date(b.date)));
       setShowCreateEvent(false);
-      setEventForm({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20 });
+      setEventForm({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20, is_recurring_weekly: false });
       toast.success(t('clubDetail.events.createdToast'));
     } catch (err) {
       toast.error(err.response?.data?.error || t('clubDetail.events.createError'));
@@ -443,6 +455,18 @@ export const ClubDetail = () => {
                     onChange={e => setEventForm(f => ({ ...f, max_members: e.target.value }))}
                   />
                 </div>
+                {/* Wöchentlich wiederholen — same weekday every week. */}
+                <label className="cd-event-recurring">
+                  <input
+                    type="checkbox"
+                    checked={eventForm.is_recurring_weekly}
+                    onChange={e => setEventForm(f => ({ ...f, is_recurring_weekly: e.target.checked }))}
+                  />
+                  <span className="cd-event-recurring-text">
+                    <span className="cd-event-recurring-title">🔁 {t('clubDetail.events.weeklyLabel')}</span>
+                    <span className="cd-event-recurring-hint">{t('clubDetail.events.weeklyHint')}</span>
+                  </span>
+                </label>
                 <button type="submit" className="cd-event-submit-btn" disabled={eventSubmitting}>
                   {eventSubmitting ? t('clubDetail.events.creating') : t('clubDetail.events.create')}
                 </button>
@@ -472,7 +496,10 @@ export const ClubDetail = () => {
             ) : (
               <div className="cd-events-list">
                 {events.map(ev => {
-                  const dateParts = formatEventDate(ev.date, dateLocale);
+                  // Recurring events show the next occurrence so the badge never
+                  // shows a past date once the first week has passed.
+                  const displayDate = (nextOccurrence(ev) || new Date(ev.date)).toISOString();
+                  const dateParts = formatEventDate(displayDate, dateLocale);
                   const evIsOwner = user && ev.owner_id === user.id;
                   return (
                     <div key={ev.id} className="cd-event-card" onClick={() => navigate(`/group/${ev.id}`)}>
@@ -487,7 +514,12 @@ export const ClubDetail = () => {
                         </div>
                       )}
                       <div className="cd-event-info">
-                        <p className="cd-event-name">{ev.name}</p>
+                        <p className="cd-event-name">
+                          {ev.name}
+                          {ev.is_recurring_weekly && (
+                            <span className="cd-event-recurring-badge" title={t('clubDetail.events.weeklyBadgeTitle')}>🔁</span>
+                          )}
+                        </p>
                         {dateParts?.time && (
                           <p className="cd-event-time">
                             {dateParts.time} {t('clubDetail.events.uhr')}

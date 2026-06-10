@@ -909,7 +909,7 @@ export const getClubEvents = async (req, res) => {
 // ==========================================
 export const createClubEvent = async (req, res) => {
   const { id } = req.params;
-  const { name, description, date, time, location, max_members } = req.body;
+  const { name, description, date, time, location, max_members, is_recurring_weekly } = req.body;
   const userId = req.userId;
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
@@ -946,8 +946,8 @@ export const createClubEvent = async (req, res) => {
     const result = await db.query(
       `INSERT INTO groups
          (name, description, type, category, date, location, max_members, owner_id,
-          parent_club_id, is_private, lat, lng)
-       VALUES ($1, $2, 'event', $3, $4, $5, $6, $7, $8, FALSE, $9, $10)
+          parent_club_id, is_private, lat, lng, is_recurring_weekly)
+       VALUES ($1, $2, 'event', $3, $4, $5, $6, $7, $8, FALSE, $9, $10, $11)
        RETURNING *`,
       [
         name.trim(),
@@ -960,6 +960,7 @@ export const createClubEvent = async (req, res) => {
         parseInt(id, 10),
         coords?.lat ?? null,
         coords?.lng ?? null,
+        !!is_recurring_weekly,
       ]
     );
 

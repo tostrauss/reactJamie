@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { groups, clubs, friends as friendsApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
@@ -169,6 +169,13 @@ export const GroupEdit = () => {
         <div className="ge-spinner" />
       </div>
     );
+  }
+
+  // Clubs have a dedicated editor (ClubEdit). Forward any /group/:id/edit hit
+  // for a club — old links, the legacy "Verwalten" button, bookmarks — to
+  // /club/:id/edit. Mirrors the GroupDetail → ClubDetail redirect.
+  if (group?.type === 'club') {
+    return <Navigate to={`/club/${id}/edit`} replace />;
   }
 
   const groupName = group?.name || group?.title || t('groupEdit.fallbackName');
