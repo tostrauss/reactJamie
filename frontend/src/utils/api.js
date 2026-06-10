@@ -66,8 +66,15 @@ axiosInstance.interceptors.response.use(
       return axiosInstance(config);
     }
 
-    // 401 handling — clear in-memory token and redirect to login
-    if (error.response?.status === 401 && _memToken !== 'guest_token') {
+    // 401 handling — clear in-memory token and redirect to login.
+    // IMPORTANT: a 401 from an auth attempt (wrong password, etc.) is an
+    // EXPECTED response, NOT an expired session. Skip the redirect/token-clear
+    // for those so the page never reloads — the calling component shows the
+    // error itself. Otherwise the reload wiped the "Passwort falsch" message
+    // before the user could see it.
+    const reqUrl = error.config?.url || '';
+    const isAuthAttempt = /\/auth\/(login|register|google|refresh|apple)/.test(reqUrl);
+    if (!isAuthAttempt && error.response?.status === 401 && _memToken !== 'guest_token') {
       clearMemToken();
       const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
       if (!publicPaths.some(p => window.location.pathname === p || window.location.pathname.startsWith(p + '/'))) {

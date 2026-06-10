@@ -1137,26 +1137,41 @@
 
 .ef-tab {
   flex: 1;
+  /* Underline indicator (matching the Home Gruppen/Clubs/Karte tabs) instead
+     of a coral background pill, so the active tab reads as a clean "Strich". */
+  position: relative;
   padding: 10px 14px;
-  font-size: 14px;
-  font-weight: 600;
-  font-family: inherit;
-  color: rgba(255, 255, 255, 0.55);
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'Archivo', sans-serif;
+  color: var(--text-muted);
   background: transparent;
   border: none;
-  border-radius: 12px;
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  transition: color 0.15s;
   letter-spacing: 0.2px;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .ef-tab:hover {
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-light);
 }
 
 .ef-tab.is-active {
-  color: #fff;
-  background: rgba(253, 118, 102, 0.16);
+  color: var(--text-white);
+  background: transparent;
+}
+
+.ef-tab.is-active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 3px;
+  background: var(--accent-coral);
+  border-radius: var(--radius-full);
 }
 
 .ef-logo {
