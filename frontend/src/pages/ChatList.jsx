@@ -354,7 +354,12 @@ export const ChatList = () => {
                                 </button>
                                 <button
                                   className="chat-owner-btn chat-owner-btn--manage"
-                                  onClick={(e) => { e.stopPropagation(); navigate(`/group/${chat.id}/edit`); }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    // Clubs have a dedicated edit page (ClubEdit);
+                                    // groups/events use GroupEdit. Route by type.
+                                    navigate(chat.type === 'club' ? `/club/${chat.id}/edit` : `/group/${chat.id}/edit`);
+                                  }}
                                 >
                                   {t('chat.list.ownerActions.manage')}
                                 </button>
