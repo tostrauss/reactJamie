@@ -418,6 +418,45 @@ function useHideKeyboardAccessoryBar() {
 }
 
 // ==========================================
+// iOS VIEWPORT RESTORE AFTER KEYBOARD
+// ==========================================
+// On iOS (native WKWebView and standalone PWA alike) the visual viewport can
+// stay shifted upward after the keyboard closes: every position:fixed element
+// (bottom nav, modal backdrops) then floats ~50pt above the screen bottom with
+// a dead background band below. Snapping the window scroll position back
+// re-anchors the viewport. Harmless when the bug isn't present — the app
+// scrolls in inner containers, so window scroll is normally 0 anyway.
+function useViewportRestore() {
+  useEffect(() => {
+    const snap = () => {
+      const el = document.activeElement;
+      // An input still has focus → keyboard is open (or moving to the next
+      // field); don't fight it.
+      if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      window.scrollTo(0, 0);
+    };
+    const onFocusOut = () => setTimeout(snap, 60); // let the dismiss animation finish
+    window.visualViewport?.addEventListener('resize', snap);
+    document.addEventListener('focusout', onFocusOut);
+
+    // Native shell: Capacitor fires a dedicated event when the keyboard hides.
+    let kbListener = null;
+    if (isNative()) {
+      import('@capacitor/keyboard')
+        .then(({ Keyboard }) => Keyboard.addListener('keyboardDidHide', snap))
+        .then(l => { kbListener = l; })
+        .catch(() => {});
+    }
+
+    return () => {
+      window.visualViewport?.removeEventListener('resize', snap);
+      document.removeEventListener('focusout', onFocusOut);
+      kbListener?.remove();
+    };
+  }, []);
+}
+
+// ==========================================
 // NATIVE IOS PUSH REGISTRATION
 // ==========================================
 function useNativePush(user) {
@@ -449,6 +488,7 @@ function AppRoutes() {
   const { t } = useTranslation();
   useNativePush(user);
   useHideKeyboardAccessoryBar();
+  useViewportRestore();
   useAnalytics();
   const [showIntro, setShowIntro] = useState(() => !!user && !user?.isGuest && shouldShowIntro());
   const [showProModal, setShowProModal] = useState(false);

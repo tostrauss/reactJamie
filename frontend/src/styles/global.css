@@ -476,23 +476,21 @@ select:focus {
   background: var(--bg-secondary);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 1000;
-  /* No safe-area padding — user explicitly wants the nav flush with the
-     WebView bottom edge so there's no visible band beneath the icons. iOS
-     home indicator may visually overlap the bottom edge of the icon strip;
-     accepted trade-off. */
-  padding-bottom: 0;
+  /* The home-indicator inset belongs HERE as bar padding, so the zone below
+     the icons is the bar's own background hugging the screen edge. Baking
+     env() into the items' height instead (previous approach) blew the strip
+     up to 74px+ on home-indicator iPhones and left a dead page-colored band
+     under the icons — the "Footerbar zu hoch" bug. Resolves to 0 on devices
+     without an inset. */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .bottom-nav-items {
-  /* Strip extends 40px nav + safe-area home-indicator zone. Icons aligned to
-     flex-end with a small 6px bottom padding so they sit close to the screen
-     edge (just above the home-indicator pill). Reduced from 50px+12px to bring
-     the overall footer down to ~46px on devices without a home indicator. */
-  height: calc(40px + env(safe-area-inset-bottom, 0px));
+  /* Fixed content height — keep env() out of here (see .bottom-nav). */
+  height: 48px;
   display: flex;
   justify-content: space-around;
-  align-items: flex-end;
-  padding-bottom: 6px;
+  align-items: center;
   padding-left:  max(10px, env(safe-area-inset-left, 10px));
   padding-right: max(10px, env(safe-area-inset-right, 10px));
 }
@@ -547,10 +545,8 @@ select:focus {
   align-items: center;
   justify-content: center;
   transition: all var(--transition-normal);
-  /* Match the regular icons' baseline (flex-end + parent padding-bottom)
-     so all 5 nav items share the same bottom edge. The button is taller
-     than the regular icons so it visually protrudes upward = floating CTA. */
-  align-self: flex-end;
+  /* Centered like the other items; being taller than the 48px strip it
+     protrudes slightly past both edges = floating CTA. */
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
