@@ -200,9 +200,11 @@ JAMIE sells **Pro subscriptions** and **Boost credits**. On web and Android, pay
 
 | Key | Price | Per week | amount_cents | Interval | Badge |
 |---|---|---|---|---|---|
-| `weekly` | 14,99 €/Woche | 14,99 € | 1499 | week / 1 | baseline |
-| `monthly` | ca. 22,75 €/Monat | 5,25 € | 2275 | month / 1 | "Beliebt" (default, "65% sparen") |
-| `sixmonth` | 58,50 €/6 Monate | 2,25 € | 5850 | month / 6 | "Bestes Angebot" ("85% sparen") |
+| `weekly` | 4,99 €/Woche | 4,99 € | 499 | week / 1 | baseline |
+| `monthly` | 14,99 €/Monat | 3,46 € | 1499 | month / 1 | "Beliebt" (default, "31% sparen") |
+| `sixmonth` | 29,99 €/6 Monate | 1,15 € | 2999 | month / 6 | "Bestes Angebot" ("77% sparen") |
+
+> Repriced 2026-06-11 (previously 14,99 / 22,75 / 58,50). Existing Stripe subscriptions keep their old amount; only new checkouts use the new prices. App Store Connect subscription prices must be updated manually to match.
 
 ### Boost credit packages (`boostController.js` / `iap.js`)
 

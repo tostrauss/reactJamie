@@ -160,9 +160,9 @@ JAMIE Pro prices (authoritative, from `subscriptionController.js`):
 
 | Plan | Price | Notes |
 |---|---|---|
-| Wöchentlich | 14,99 €/Woche | baseline |
-| Monatlich | ca. 22,75 €/Monat (≈ 5,25 €/Woche) | default, badge "Beliebt", "65% sparen" |
-| 6 Monate | 58,50 €/6 Monate (≈ 2,25 €/Woche) | badge "Bestes Angebot", "85% sparen" |
+| Wöchentlich | 4,99 €/Woche | baseline |
+| Monatlich | 14,99 €/Monat (≈ 3,46 €/Woche) | default, badge "Beliebt", "31% sparen" |
+| 6 Monate | 29,99 €/6 Monate (≈ 1,15 €/Woche) | badge "Bestes Angebot", "77% sparen" |
 
 Subscription management on web/Android goes through the Stripe Customer Portal (`POST /api/subscription/portal`). This portal must be activated once in the Stripe Dashboard or the call returns 503 — see `store/STRIPE-MEETING-CHECKLIST.md`.
 

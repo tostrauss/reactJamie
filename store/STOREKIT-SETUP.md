@@ -49,11 +49,11 @@ Create one Subscription Group first ("JAMIE Pro"), then these three subscription
 
 | Product ID | Duration | Price | Per week | Note |
 |---|---|---|---|---|
-| `pro_weekly` | 1 Week | 14,99 € | 14,99 € | baseline |
-| `pro_monthly` | 1 Month | 22,75 € | 5,25 € | "65% sparen", default, badge "Beliebt" |
-| `pro_sixmonth` | 6 Months | 58,50 € | 2,25 € | "85% sparen", badge "Bestes Angebot" |
+| `pro_weekly` | 1 Week | 4,99 € | 4,99 € | baseline |
+| `pro_monthly` | 1 Month | 14,99 € | 3,46 € | "31% sparen", default, badge "Beliebt" |
+| `pro_sixmonth` | 6 Months | 29,99 € | 1,15 € | "77% sparen", badge "Bestes Angebot" |
 
-These match the backend `subscriptionController.js` `PRO_PLANS` (amount_cents 1499 week/1, 2275 month/1, 5850 month/6) and the frontend `frontend/src/utils/proPlans.js`.
+These match the backend `subscriptionController.js` `PRO_PLANS` (amount_cents 499 week/1, 1499 month/1, 2999 month/6) and the frontend `frontend/src/utils/proPlans.js`. (Repriced 2026-06-11 — previously 14,99 / 22,75 / 58,50.)
 
 > Apple price tiers are discrete — pick the closest tier to each target. If a tier cannot match the exact amount, change `PRO_PLANS` in `backend/src/controllers/subscriptionController.js` to match Apple's tier so web/iOS show the same price.
 

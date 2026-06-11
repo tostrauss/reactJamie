@@ -52,18 +52,28 @@ describe('GroupCard', () => {
   });
 
   it('renders the Pro gate on the 4th tile for non-Pro non-admin viewers', async () => {
-    render(<MemoryRouter><GroupCard group={baseGroup} isJoined={false} /></MemoryRouter>);
+    // Gate requires a member actually hidden behind it: members_count > 3.
+    const gatedGroup = { ...baseGroup, members_count: 5 };
+    render(<MemoryRouter><GroupCard group={gatedGroup} isJoined={false} /></MemoryRouter>);
     // No AuthContext provider → user undefined (non-admin) + isPro undefined →
-    // the gate occupies the 4th tile. baseGroup has 0 previews → 3 empty "+"
+    // the gate occupies the 4th tile. Fixture has 0 previews → 3 empty "+"
     // join slots + 1 Pro-gate tile = 4 buttons.
     await waitFor(() => expect(screen.getAllByRole('button')).toHaveLength(4));
     expect(screen.getByLabelText('Mit JAMIE Pro alle Mitglieder sehen')).toBeInTheDocument();
   });
 
+  it('hides the Pro gate when no member is hidden behind it (≤3 members)', async () => {
+    // baseGroup has members_count: 3 — all members already visible, a lock
+    // would imply hidden people that don't exist.
+    render(<MemoryRouter><GroupCard group={baseGroup} isJoined={false} /></MemoryRouter>);
+    await waitFor(() => expect(screen.getAllByRole('button')).toHaveLength(4)); // 4 plain "+" slots
+    expect(screen.queryByLabelText('Mit JAMIE Pro alle Mitglieder sehen')).not.toBeInTheDocument();
+  });
+
   it('dispatches jamie:open-pro-modal when the Pro lock is clicked', async () => {
     const listener = vi.fn();
     window.addEventListener('jamie:open-pro-modal', listener);
-    render(<MemoryRouter><GroupCard group={baseGroup} /></MemoryRouter>);
+    render(<MemoryRouter><GroupCard group={{ ...baseGroup, members_count: 5 }} /></MemoryRouter>);
     const lock = await screen.findByLabelText('Mit JAMIE Pro alle Mitglieder sehen');
     await act(async () => { fireEvent.click(lock); });
     expect(listener).toHaveBeenCalledTimes(1);

@@ -9,18 +9,18 @@ const getStripe = () => {
 // ==========================================
 // PRO PLAN CATALOG (server is authoritative on price)
 // ==========================================
-// Hinge-style tiered pricing (Tina's spec, 2026-06-04):
-//   • weekly  — 14,99 €/Woche, baseline (no discount)
-//   • monthly — ~22,75 €/Monat → 5,25 €/Woche, "65% sparen", DEFAULT + "Beliebt"
-//   • sixmonth— 58,50 €/6 Monate → 2,25 €/Woche, "85% sparen", "Bestes Angebot"
-// Totals are derived so the per-week headline stays honest:
-//   weekly 14,99/1wk · monthly 22,75/4.33wk=5,25 · 6mo 58,50/26wk=2,25.
+// Hinge-style tiered pricing (repriced 2026-06-11, prev. Tina's 2026-06-04 spec):
+//   • weekly  — 4,99 €/Woche, baseline (no discount)
+//   • monthly — 14,99 €/Monat → 3,46 €/Woche, "31% sparen", DEFAULT + "Beliebt"
+//   • sixmonth— 29,99 €/6 Monate → 1,15 €/Woche, "77% sparen", "Bestes Angebot"
+// Per-week headlines derived so they stay honest:
+//   weekly 4,99/1wk · monthly 14,99/4.33wk=3,46 · 6mo 29,99/26wk=1,15.
 // amount_cents is the ONLY price the client can't influence — the request
 // just names a plan key; we look up the amount here.
 export const PRO_PLANS = {
-  weekly:   { amount_cents: 1499, interval: 'week',  interval_count: 1, label: 'JAMIE Pro – Wöchentlich' },
-  monthly:  { amount_cents: 2275, interval: 'month', interval_count: 1, label: 'JAMIE Pro – Monatlich' },
-  sixmonth: { amount_cents: 5850, interval: 'month', interval_count: 6, label: 'JAMIE Pro – 6 Monate' },
+  weekly:   { amount_cents: 499,  interval: 'week',  interval_count: 1, label: 'JAMIE Pro – Wöchentlich' },
+  monthly:  { amount_cents: 1499, interval: 'month', interval_count: 1, label: 'JAMIE Pro – Monatlich' },
+  sixmonth: { amount_cents: 2999, interval: 'month', interval_count: 6, label: 'JAMIE Pro – 6 Monate' },
 };
 const DEFAULT_PLAN = 'monthly';
 

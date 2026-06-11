@@ -87,9 +87,12 @@ export const GroupCard = memo(({
 
   const maxMembers  = group.max_members || 10;
   const isFull      = group.members_count >= maxMembers;
-  // Gate the 4th tile only for non-Pro, non-admin viewers on non-club cards.
-  // Admins + Pro see all four real/empty tiles.
-  const showProGate = !isClub && !isPro && !isAdmin;
+  // Gate the 4th tile only for non-Pro, non-admin viewers on non-club cards —
+  // and only when a member is actually hidden behind it (4+ members). With ≤3
+  // members everyone is already visible, so a lock would imply hidden people
+  // that don't exist (tester feedback 2026-06-11). Admins + Pro always see
+  // all four real/empty tiles.
+  const showProGate = !isClub && !isPro && !isAdmin && (group.members_count || 0) > 3;
   // Tiles available for avatars/empties before the gate: 3 when gated, else 4.
   const realSlots    = showProGate ? 3 : 4;
   const visibleAvatars = isClub ? [] : memberAvatars.slice(0, realSlots);
