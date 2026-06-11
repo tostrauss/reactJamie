@@ -216,7 +216,7 @@ export const getRedemptionStatus = async (req, res) => {
     const result = await db.query(
       `SELECT redeemed_at FROM deal_redemptions
        WHERE deal_id = $1 AND user_id = $2`,
-      [id, req.user.id]
+      [id, req.userId]
     );
     const row = result.rows[0];
     res.json({
@@ -252,7 +252,7 @@ export const redeemDeal = async (req, res) => {
     const inserted = await db.query(
       `INSERT INTO deal_redemptions (deal_id, user_id) VALUES ($1, $2)
        RETURNING redeemed_at`,
-      [id, req.user.id]
+      [id, req.userId]
     );
     res.status(201).json({
       redeemed: true,
@@ -267,7 +267,7 @@ export const redeemDeal = async (req, res) => {
       const existing = await db.query(
         `SELECT redeemed_at FROM deal_redemptions
          WHERE deal_id = $1 AND user_id = $2`,
-        [id, req.user.id]
+        [id, req.userId]
       );
       return res.status(409).json({
         error: 'Already redeemed',

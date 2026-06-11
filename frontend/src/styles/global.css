@@ -141,6 +141,9 @@
   --accent-coral: #FD7666;
   --accent-coral-light: #ff8a7a;
   --accent-coral-dark: #e5574a;
+  /* Alias — lots of pages reference var(--coral); without this it resolves
+     to nothing and the elements silently inherit their parent color. */
+  --coral: var(--accent-coral);
 
   /* Background Colors */
   --bg-primary: #231B43;
@@ -831,6 +834,22 @@ select:focus {
   max-width: 600px;
   margin: 0 auto;
   width: 100%;
+}
+
+/* Shared loading indicator — referenced by PageLoader (App.jsx) and the
+   loading states of DealDetail, DealRedeem, AdminDashboard, GroupRequests,
+   SpotifyCallback and VerifyEmail. */
+.loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255, 255, 255, 0.12);
+  border-top-color: var(--coral, #FD7666);
+  border-radius: 50%;
+  animation: spinner-rotate 0.8s linear infinite;
+}
+
+@keyframes spinner-rotate {
+  to { transform: rotate(360deg); }
 }
 
 /* ========================================

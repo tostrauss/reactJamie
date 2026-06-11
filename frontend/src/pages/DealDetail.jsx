@@ -57,17 +57,19 @@ export const DealDetail = () => {
   const [redeeming, setRedeeming] = useState(false);
 
   useEffect(() => {
-    // Parallel fetch: the deal payload is what blocks render, the redemption
-    // status only blocks the CTA — but fetching both together keeps the page
-    // fully interactive a tick after mount.
-    Promise.allSettled([
-      deals.getOne(id),
-      deals.getRedemptionStatus(id),
-    ]).then(([dealRes, redRes]) => {
-      if (dealRes.status === 'fulfilled') setDeal(dealRes.value.data);
-      else { navigate(-1); return; }
-      if (redRes.status === 'fulfilled') setRedemption(redRes.value.data);
-    }).finally(() => setLoading(false));
+    // Two independent fetches: ONLY the deal payload gates render. The
+    // redemption status gates just the CTA — it must never hold the whole
+    // page hostage (a failing status call goes through the axios 5xx retry
+    // ladder, ~8s; coupling them via allSettled meant 8s of blank screen).
+    let cancelled = false;
+    deals.getOne(id)
+      .then(res => { if (!cancelled) setDeal(res.data); })
+      .catch(() => { if (!cancelled) navigate(-1); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    deals.getRedemptionStatus(id)
+      .then(res => { if (!cancelled) setRedemption(res.data); })
+      .catch(() => {}); // non-fatal: CTA simply stays disabled
+    return () => { cancelled = true; };
   }, [id, navigate]);
 
   const handleConfirmRedeem = async () => {
