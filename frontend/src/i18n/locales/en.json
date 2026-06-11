@@ -857,8 +857,6 @@
       "pushHint": "Notifications even when the app is closed"
     },
     "app": {
-      "design": "Theme",
-      "designValue": "Dark",
       "language": "Language",
       "version": "Version"
     },
