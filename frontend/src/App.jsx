@@ -350,8 +350,12 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const AuthRoute = ({ children }) => {
-  const { user, loading } = useContext(AuthContext);
-  if (loading) return <PageLoader />;
+  const { user } = useContext(AuthContext);
+  // No PageLoader swap here: the global `loading` flips during login/register
+  // attempts, and unmounting the form resets its state — a wrong password
+  // threw users back to the first login screen with the error wiped. The
+  // submit buttons render their own busy state; on success `user` is set and
+  // the redirect below kicks in.
   return user ? <Navigate to="/home" replace /> : children;
 };
 

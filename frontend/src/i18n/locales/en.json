@@ -1070,8 +1070,8 @@
   },
   "boost": {
     "title": "🚀 Boost",
-    "creditsAvailable": "{{count}} credit available",
-    "creditsAvailable_plural": "{{count}} credits available",
+    "creditsAvailable_one": "{{count}} credit available",
+    "creditsAvailable_other": "{{count}} credits available",
     "tabs": {
       "apply": "Apply boost",
       "buy": "Buy credits",
@@ -1080,8 +1080,8 @@
     "apply": {
       "fallbackTarget": "This group/club",
       "desc": "Shown right at the top for 24h",
-      "creditsCount": "{{count}} boost credit",
-      "creditsCount_plural": "{{count}} boost credits",
+      "creditsCount_one": "{{count}} boost credit",
+      "creditsCount_other": "{{count}} boost credits",
       "creditEq": "1 credit = 24h boost",
       "noCredits": "No credits. Buy some or invite friends!",
       "buyBtn": "Buy credits",
@@ -1116,8 +1116,8 @@
       "yourCode": "Your invite code",
       "copy": "COPY",
       "codeCopied": "Code copied!",
-      "invitedFmt": "{{count}} friend invited",
-      "invitedFmt_plural": "{{count}} friends invited",
+      "invitedFmt_one": "{{count}} friend invited",
+      "invitedFmt_other": "{{count}} friends invited",
       "redeemLabel": "Redeem a friend's code",
       "redeemPlaceholder": "JAMIE-XXXX",
       "redeemBtn": "Redeem",

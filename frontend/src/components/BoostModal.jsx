@@ -302,6 +302,9 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
                         border: `2px solid ${selectedPkg?.id === pkg.id ? '#FD7666' : 'transparent'}`,
                         background: pkg.popular ? 'rgba(253,118,102,0.1)' : 'var(--bg-input)',
                         cursor: 'pointer', position: 'relative', textAlign: 'left',
+                        // Ohne explizite Farbe rendert iOS Safari Button-Text
+                        // im System-Blau (#007AFF) — Pakettitel wurden blau.
+                        color: '#fff',
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

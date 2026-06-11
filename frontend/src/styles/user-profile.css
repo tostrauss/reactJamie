@@ -327,7 +327,12 @@
 /* ── Footer ── */
 .up-footer {
   flex-shrink: 0;
-  padding: 14px 20px calc(env(safe-area-inset-bottom, 0px) + 78px);
+  /* Bottom clearance for the fixed nav: the strip is 48px FLUSH with the
+     screen edge (deliberately no safe-area, see .bottom-nav) and the + button
+     protrudes ~11px above it. Do NOT add env(safe-area-inset-bottom) here —
+     that double-counted ~34px and left a dead band between links and nav,
+     squeezing the scroll area (bio card was hidden behind the footer). */
+  padding: 14px 20px 68px;
   background: var(--bg-primary);
   border-top: 1px solid rgba(255,255,255,0.06);
   display: flex;

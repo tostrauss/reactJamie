@@ -217,7 +217,7 @@ export const GroupCard = memo(({
               >
                 <span className="avatar-pro-gate-blur" aria-hidden="true" />
                 <span className="card-pro-lock-badge" aria-hidden="true">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="4" y="11" width="16" height="10" rx="2.5" />
                     <path d="M8 11V8a4 4 0 1 1 8 0v3" />
                   </svg>

@@ -1376,12 +1376,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #FD7666 0%, #ff8f7e 100%);
-  color: #fff;
-  box-shadow: 0 6px 18px rgba(253, 118, 102, 0.45), 0 1px 3px rgba(0, 0, 0, 0.35);
+  /* Plain coral lock, no circle/background (Tobi, 2026-06-11). The faint
+     dark drop-shadow keeps it legible on the blurred silhouette tile. */
+  color: #FD7666;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45));
   transition: transform 0.18s ease;
 }
 
