@@ -580,6 +580,39 @@
   flex-shrink: 0;
 }
 
+/* ── Pro gate row (groups roster only): API returned a truncated list ── */
+.cd-members-gated {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 14px 16px;
+  min-height: 52px;
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.08), rgba(255, 165, 0, 0.03));
+  border: 1px solid rgba(255, 215, 0, 0.22);
+  border-radius: var(--radius-lg);
+  color: var(--text-light);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  text-align: left;
+}
+.cd-members-gated-lock {
+  flex-shrink: 0;
+  font-size: 16px;
+}
+.cd-members-gated-text {
+  flex: 1;
+}
+.cd-members-gated-cta {
+  flex-shrink: 0;
+  color: #FFD700;
+  font-weight: 800;
+}
+
 /* ── Events section (primary content) ─────────────────── */
 .cd-events {
   margin-top: 8px;

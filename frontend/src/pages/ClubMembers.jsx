@@ -1,19 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { clubs } from '../utils/api';
+import { clubs, groups } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { UserName } from '../components/UserName';
 import '../styles/club-detail.css';
 
+// Serves BOTH /club/:id/members and /group/:id/members — the list UI is
+// identical. Groups differ in one way: their members endpoint applies the
+// Pro gate (non-members without Pro get only the first 3 + gated flag),
+// which we surface as a locked hint row that opens the ProModal.
 export const ClubMembers = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const { t } = useTranslation();
 
+  const isGroup = location.pathname.startsWith('/group/');
+  const entityApi = isGroup ? groups : clubs;
+
   const [club, setClub] = useState(null);
   const [members, setMembers] = useState([]);
+  const [gated, setGated] = useState(false);
+  const [totalCount, setTotalCount] = useState(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
 
@@ -23,13 +33,21 @@ export const ClubMembers = () => {
       setLoading(true);
       try {
         const [clubRes, membersRes] = await Promise.all([
-          clubs.getById(id),
-          clubs.getMembers(id).catch(() => ({ data: [] })),
+          entityApi.getById(id),
+          entityApi.getMembers(id).catch(() => ({ data: [] })),
         ]);
         if (controller.signal.aborted) return;
         setClub(clubRes.data);
         const memberData = membersRes.data;
-        setMembers(Array.isArray(memberData) ? memberData : (memberData?.members || []));
+        if (Array.isArray(memberData)) {
+          setMembers(memberData);
+          setGated(false);
+          setTotalCount(null);
+        } else {
+          setMembers(memberData?.members || []);
+          setGated(!!memberData?.gated);
+          setTotalCount(memberData?.total_count ?? null);
+        }
       } catch {
         if (!controller.signal.aborted) toast.error(t('clubMembers.toast.loadError'));
       } finally {
@@ -37,7 +55,7 @@ export const ClubMembers = () => {
       }
     })();
     return () => controller.abort();
-  }, [id]);
+  }, [id, isGroup]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const q = query.trim().toLowerCase();
   const filtered = q
@@ -51,7 +69,7 @@ export const ClubMembers = () => {
         <div className="cd-top-bar">
           <button
             className="cd-back-btn"
-            onClick={() => navigate(`/club/${id}`)}
+            onClick={() => navigate(isGroup ? `/group/${id}` : `/club/${id}`)}
             aria-label={t('clubMembers.back')}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -76,7 +94,7 @@ export const ClubMembers = () => {
             />
             {members.length > 0 && (
               <span className="cd-members-page-count">
-                {filtered.length} / {members.length}
+                {filtered.length} / {totalCount ?? members.length}
               </span>
             )}
           </div>
@@ -132,6 +150,21 @@ export const ClubMembers = () => {
                 );
               })}
             </div>
+          )}
+
+          {/* Pro gate (groups only): the API returned just the first 3 of
+              total_count members. Locked row opens the global ProModal. */}
+          {!loading && gated && totalCount > members.length && (
+            <button
+              className="cd-members-gated"
+              onClick={() => window.dispatchEvent(new Event('jamie:open-pro-modal'))}
+            >
+              <span className="cd-members-gated-lock">🔒</span>
+              <span className="cd-members-gated-text">
+                {t('clubMembers.gatedHint', { count: totalCount - members.length })}
+              </span>
+              <span className="cd-members-gated-cta">{t('clubMembers.gatedCta')}</span>
+            </button>
           )}
         </div>
       </div>

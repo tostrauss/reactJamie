@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useContext, Suspense } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
@@ -12,7 +12,8 @@ import { nextOccurrence } from '../utils/recurrence';
 import '../styles/group-detail.css';
 
 // Lazy-load: pulls Stripe SDK only when the owner opens the modal.
-const BoostModal = lazy(() => import('../components/BoostModal').then(m => ({ default: m.BoostModal })));
+import { lazyWithReload } from '../utils/lazyRetry';
+const BoostModal = lazyWithReload(() => import('../components/BoostModal').then(m => ({ default: m.BoostModal })));
 
 // Stable empty libraries array — recreating this triggers a Google Maps reload
 const MAP_LIBRARIES = [];
@@ -607,11 +608,18 @@ export const GroupDetail = () => {
                   })}
                 </span>
               )}
-              <span className="gd-info-item">
+              {/* Tappable → full roster page (same list UI as clubs) */}
+              <button
+                className="gd-info-item gd-info-item--btn"
+                onClick={() => navigate(`/group/${id}/members`)}
+              >
                 {group.max_members
                   ? t('groups.detail.info.participants', { current: group.members_count ?? members.length, max: group.max_members })
                   : t('groups.detail.info.participantsUnlimited', { current: group.members_count ?? members.length })}
-              </span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 2, flexShrink: 0 }}>
+                  <polyline points="9,6 15,12 9,18" />
+                </svg>
+              </button>
               {(() => {
                 const ageRange = formatAgeRange(group.age_min, group.age_max);
                 return ageRange ? (

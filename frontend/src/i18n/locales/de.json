@@ -481,6 +481,8 @@
     "emptyAll": "Noch keine Mitglieder",
     "ownerTag": "Owner",
     "unknownName": "Mitglied",
+    "gatedHint": "{{count}} weitere Mitglieder mit JAMIE Pro sehen",
+    "gatedCta": "Pro freischalten",
     "toast": {
       "loadError": "Mitglieder konnten nicht geladen werden"
     }

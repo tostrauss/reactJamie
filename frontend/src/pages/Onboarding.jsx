@@ -49,6 +49,10 @@ export const Onboarding = () => {
     avatar_url: null
   });
 
+  // Lets the empty photo tiles open ImageUpload's file picker — testers kept
+  // tapping the tiles expecting them to add photos (they're the obvious target).
+  const uploadTriggerRef = useRef(null);
+
   const fetchLocationSuggestions = useCallback((query) => {
     clearTimeout(locationDebounceRef.current);
     if (!query || query.length < 2) { setLocationSuggestions([]); return; }
@@ -335,7 +339,9 @@ export const Onboarding = () => {
               <div
                 key={index}
                 className={`photo-slot ${formData.photos[index] === formData.avatar_url ? 'main' : ''}`}
-                onClick={() => formData.photos[index] && setMainPhoto(formData.photos[index])}
+                onClick={() => formData.photos[index]
+                  ? setMainPhoto(formData.photos[index])
+                  : uploadTriggerRef.current?.()}
               >
                 {formData.photos[index] ? (
                   <>
@@ -359,6 +365,7 @@ export const Onboarding = () => {
           <div style={{ marginTop: '20px' }}>
             <ImageUpload
               onUpload={handlePhotoUpload}
+              triggerRef={uploadTriggerRef}
               label={t('onboarding.photos.addPhoto', { current: formData.photos.length, total: 6 })}
             />
           </div>

@@ -23,6 +23,7 @@ const getScreenName = (pathname) => {
   if (pathname === '/onboarding') return 'Onboarding';
   if (pathname === '/privacy') return 'Privacy';
   if (pathname.startsWith('/group/') && pathname.endsWith('/requests')) return 'GroupRequests';
+  if (pathname.startsWith('/group/') && pathname.endsWith('/members')) return 'GroupMembers';
   if (pathname.startsWith('/group/')) return 'GroupDetail';
   if (pathname.startsWith('/club/') && pathname.endsWith('/edit')) return 'ClubEdit';
   if (pathname.startsWith('/club/') && pathname.endsWith('/members')) return 'ClubMembers';

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useContext, useRef, useCallback, useMemo, lazy, Suspense } from "react";
+import React, { useState, useEffect, useContext, useRef, useCallback, useMemo, Suspense } from "react";
+import { lazyWithReload } from "../utils/lazyRetry";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import api, { groups, clubs, deals as dealsApi } from "../utils/api";
@@ -14,7 +15,7 @@ import "../styles/home.css";
 // slots don't get in the way when someone is hunting for a specific group.
 const DEAL_INTERVAL_HOME = 8;
 
-const MapView = lazy(() => import("../components/MapView"));
+const MapView = lazyWithReload(() => import("../components/MapView"));
 
 const AgeRangeSlider = ({ value, onChange }) => {
   const MIN = 18, MAX = 70;

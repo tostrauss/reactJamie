@@ -1,4 +1,5 @@
-import React, { useContext, useState, useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useContext, useState, useEffect, useRef, Suspense } from 'react';
+import { lazyWithReload } from './utils/lazyRetry';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
@@ -10,7 +11,7 @@ import { NetworkProvider } from './context/NetworkContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { isNative, isNativeIOS } from './utils/platform';
 import { AppIntro, shouldShowIntro } from './pages/AppIntro';
-const ProModal = lazy(() => import('./components/ProModal').then(m => ({ default: m.ProModal })));
+const ProModal = lazyWithReload(() => import('./components/ProModal').then(m => ({ default: m.ProModal })));
 import { useAnalytics } from './hooks/useAnalytics';
 import { EventReviewModal } from './components/EventReviewModal';
 import { reviews } from './utils/api';
@@ -20,39 +21,39 @@ import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 
 // Lazy-loaded pages (code-split per route)
-const Onboarding = lazy(() => import('./pages/Onboarding'));
-const Home = lazy(() => import('./pages/Home'));
-const Explore = lazy(() => import('./pages/Explore'));
-const Profile = lazy(() => import('./pages/Profile'));
-const ProfileEdit = lazy(() => import('./pages/ProfileEdit'));
-const SettingsPage = lazy(() => import('./pages/SettingsPage'));
-const ChatList = lazy(() => import('./pages/ChatList'));
-const ChatPage = lazy(() => import('./pages/ChatPage'));
-const DirectMessagePage = lazy(() => import('./pages/DirectMessagePage'));
-const GroupDetail = lazy(() => import('./pages/GroupDetail'));
-const ClubDetail = lazy(() => import('./pages/ClubDetail'));
-const ClubMembers = lazy(() => import('./pages/ClubMembers'));
-const CreateGroup = lazy(() => import('./pages/CreateGroup'));
-const CreateClub = lazy(() => import('./pages/CreateClub'));
-const GroupRequests = lazy(() => import('./pages/GroupRequests'));
-const UserProfile = lazy(() => import('./pages/UserProfile'));
-const GroupEdit = lazy(() => import('./pages/GroupEdit'));
-const Notifications = lazy(() => import('./pages/Notifications'));
-const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
-const ResetPassword = lazy(() => import('./pages/ResetPassword'));
-const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
-const SpotifyCallback = lazy(() => import('./pages/SpotifyCallback'));
-const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
-const TermsOfService = lazy(() => import('./pages/TermsOfService'));
-const Impressum = lazy(() => import('./pages/Impressum'));
-const CommunityGuidelines = lazy(() => import('./pages/CommunityGuidelines'));
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
-const OutOfRegion    = lazy(() => import('./pages/OutOfRegion'));
-const Friends        = lazy(() => import('./pages/Friends'));
-const DealDetail     = lazy(() => import('./pages/DealDetail'));
-const DealRedeem     = lazy(() => import('./pages/DealRedeem'));
-const Help           = lazy(() => import('./pages/Help'));
-const BlockedUsers   = lazy(() => import('./pages/BlockedUsers'));
+const Onboarding = lazyWithReload(() => import('./pages/Onboarding'));
+const Home = lazyWithReload(() => import('./pages/Home'));
+const Explore = lazyWithReload(() => import('./pages/Explore'));
+const Profile = lazyWithReload(() => import('./pages/Profile'));
+const ProfileEdit = lazyWithReload(() => import('./pages/ProfileEdit'));
+const SettingsPage = lazyWithReload(() => import('./pages/SettingsPage'));
+const ChatList = lazyWithReload(() => import('./pages/ChatList'));
+const ChatPage = lazyWithReload(() => import('./pages/ChatPage'));
+const DirectMessagePage = lazyWithReload(() => import('./pages/DirectMessagePage'));
+const GroupDetail = lazyWithReload(() => import('./pages/GroupDetail'));
+const ClubDetail = lazyWithReload(() => import('./pages/ClubDetail'));
+const ClubMembers = lazyWithReload(() => import('./pages/ClubMembers'));
+const CreateGroup = lazyWithReload(() => import('./pages/CreateGroup'));
+const CreateClub = lazyWithReload(() => import('./pages/CreateClub'));
+const GroupRequests = lazyWithReload(() => import('./pages/GroupRequests'));
+const UserProfile = lazyWithReload(() => import('./pages/UserProfile'));
+const GroupEdit = lazyWithReload(() => import('./pages/GroupEdit'));
+const Notifications = lazyWithReload(() => import('./pages/Notifications'));
+const ForgotPassword = lazyWithReload(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazyWithReload(() => import('./pages/ResetPassword'));
+const VerifyEmail = lazyWithReload(() => import('./pages/VerifyEmail'));
+const SpotifyCallback = lazyWithReload(() => import('./pages/SpotifyCallback'));
+const PrivacyPolicy = lazyWithReload(() => import('./pages/PrivacyPolicy'));
+const TermsOfService = lazyWithReload(() => import('./pages/TermsOfService'));
+const Impressum = lazyWithReload(() => import('./pages/Impressum'));
+const CommunityGuidelines = lazyWithReload(() => import('./pages/CommunityGuidelines'));
+const AdminDashboard = lazyWithReload(() => import('./pages/AdminDashboard'));
+const OutOfRegion    = lazyWithReload(() => import('./pages/OutOfRegion'));
+const Friends        = lazyWithReload(() => import('./pages/Friends'));
+const DealDetail     = lazyWithReload(() => import('./pages/DealDetail'));
+const DealRedeem     = lazyWithReload(() => import('./pages/DealRedeem'));
+const Help           = lazyWithReload(() => import('./pages/Help'));
+const BlockedUsers   = lazyWithReload(() => import('./pages/BlockedUsers'));
 
 // Styles
 import './styles/global.css';
@@ -589,6 +590,9 @@ function AppRoutes() {
 
           {/* Groups */}
           <Route path="/group/:id" element={<ProtectedRoute><GroupDetail /></ProtectedRoute>} />
+          {/* Groups reuse the ClubMembers page (identical roster UI); it
+              detects the /group/ prefix and uses the groups API + Pro gate. */}
+          <Route path="/group/:id/members" element={<ProtectedRoute><ClubMembers /></ProtectedRoute>} />
           <Route path="/group/:id/requests" element={<ProtectedRoute><GroupRequests /></ProtectedRoute>} />
           <Route path="/group/:id/edit" element={<ProtectedRoute><GroupEdit /></ProtectedRoute>} />
           <Route path="/create-group" element={<ProtectedRoute><CreateGroup /></ProtectedRoute>} />

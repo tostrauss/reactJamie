@@ -1,10 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { upload } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 
-export const ImageUpload = ({ onUpload, label = "Bild hochladen" }) => {
+// triggerRef (optional): parent passes a ref and can then open the file
+// picker from its own UI (e.g. the onboarding photo tiles) via
+// triggerRef.current?.() — keeps validation/upload logic in one place.
+export const ImageUpload = ({ onUpload, label = "Bild hochladen", triggerRef }) => {
   const [uploading, setUploading] = useState(false);
+  const inputRef = useRef(null);
   const toast = useToast();
+
+  useEffect(() => {
+    if (!triggerRef) return;
+    triggerRef.current = () => { if (!uploading) inputRef.current?.click(); };
+    return () => { triggerRef.current = null; };
+  }, [triggerRef, uploading]);
 
   const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
   const MAX_SIZE_MB = 5;
@@ -63,6 +73,7 @@ export const ImageUpload = ({ onUpload, label = "Bild hochladen" }) => {
           </>
         )}
         <input
+          ref={inputRef}
           type="file"
           accept="image/jpeg,image/png,image/webp,image/gif"
           onChange={handleFile}
