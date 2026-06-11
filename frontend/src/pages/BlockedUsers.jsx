@@ -40,7 +40,7 @@ export default function BlockedUsers() {
   };
 
   return (
-    <div className="page" style={{ padding: '24px 20px 80px', maxWidth: 600, margin: '0 auto' }}>
+    <div className="page">
       <div style={{ marginBottom: 24 }}>
         <button
           onClick={() => navigate('/settings')}

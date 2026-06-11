@@ -424,9 +424,11 @@ function useHideKeyboardAccessoryBar() {
 // On iOS (native WKWebView and standalone PWA alike) the visual viewport can
 // stay shifted upward after the keyboard closes: every position:fixed element
 // (bottom nav, modal backdrops) then floats ~50pt above the screen bottom with
-// a dead background band below. Snapping the window scroll position back
-// re-anchors the viewport. Harmless when the bug isn't present — the app
-// scrolls in inner containers, so window scroll is normally 0 anyway.
+// a dead background band below. That stale state is the window being scrolled
+// BEYOND the document's valid range — clamping it back into range re-anchors
+// the viewport. Clamp, never scrollTo(0, 0): pages like ClubDetail/GroupDetail
+// scroll the window, and zeroing threw users to the top of the page after
+// every keyboard close (tester-reported 2026-06-11).
 function useViewportRestore() {
   useEffect(() => {
     const snap = () => {
@@ -434,10 +436,13 @@ function useViewportRestore() {
       // An input still has focus → keyboard is open (or moving to the next
       // field); don't fight it.
       if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      const y = Math.min(window.scrollY, maxScroll);
+      if (y === window.scrollY) return; // position is valid — leave it alone
       // Cover every scroll root WebKit might have offset.
-      window.scrollTo(0, 0);
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
+      window.scrollTo(0, y);
+      document.documentElement.scrollTop = y;
+      document.body.scrollTop = y;
     };
     const deferredSnap = () => setTimeout(snap, 60); // let dismiss animations finish
     const onVisible = () => { if (!document.hidden) deferredSnap(); };

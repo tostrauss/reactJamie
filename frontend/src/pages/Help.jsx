@@ -19,7 +19,7 @@ export default function Help() {
   };
 
   return (
-    <div className="page" style={{ padding: '24px 20px 80px', maxWidth: 700, margin: '0 auto' }}>
+    <div className="page" style={{ maxWidth: 700 }}>
       <div style={{ marginBottom: 24 }}>
         <Link to="/settings" style={{ color: 'var(--coral)', textDecoration: 'none', fontSize: 14 }}>
           ← {t('common.back')}

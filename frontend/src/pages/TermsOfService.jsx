@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 
 export default function TermsOfService() {
   return (
-    <div className="page" style={{ padding: '24px 20px 80px', maxWidth: 760, margin: '0 auto' }}>
+    <div className="page" style={{ maxWidth: 760 }}>
       <div style={{ marginBottom: 24 }}>
         <Link to="/settings" style={{ color: 'var(--coral)', textDecoration: 'none', fontSize: 14 }}>
           ← Back

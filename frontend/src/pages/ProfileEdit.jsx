@@ -454,7 +454,15 @@ export const ProfileEdit = () => {
           </h3>
 
           <div className="pe-interests-grid">
-            {AVAILABLE_INTERESTS.map(({ name, icon }) => (
+            {/* Onboarding bietet eine andere Liste + frei eingetippte Interessen an —
+                gespeicherte Interessen außerhalb von AVAILABLE_INTERESTS müssen trotzdem
+                sichtbar (und abwählbar) sein, sonst stimmt der Zähler nicht mit dem Grid überein. */}
+            {[
+              ...AVAILABLE_INTERESTS,
+              ...formData.interests
+                .filter(name => !AVAILABLE_INTERESTS.some(a => a.name === name))
+                .map(name => ({ name, icon: '✨' }))
+            ].map(({ name, icon }) => (
               <button
                 key={name}
                 type="button"
