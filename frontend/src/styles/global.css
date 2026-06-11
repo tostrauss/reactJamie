@@ -547,8 +547,12 @@ select:focus {
   align-items: center;
   justify-content: center;
   transition: all var(--transition-normal);
-  /* Centered like the other items; being taller than the 48px strip it
-     protrudes slightly past both edges = floating CTA. */
+  /* Anchored to the strip bottom with a small gap so the bottom rounded
+     corners never get clipped by the screen edge; the 54px height then
+     protrudes ~11px above the 48px strip = floating CTA. (Centering it
+     instead pushed 3px below the bar and the bottom edge was cut off.) */
+  align-self: flex-end;
+  margin-bottom: 5px;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
