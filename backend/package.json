@@ -24,6 +24,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@apple/app-store-server-library": "^3.1.0",
     "@aws-sdk/client-s3": "^3.1004.0",
     "@parse/node-apn": "^6.5.0",
     "@sentry/node": "^10.50.0",
@@ -42,6 +43,7 @@
     "helmet": "^8.1.0",
     "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.0",
+    "jwks-rsa": "^4.0.1",
     "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "pg": "^8.17.2",

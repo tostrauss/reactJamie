@@ -47,6 +47,11 @@ let pluginPromise = null;
 async function getPlugin() {
   if (!isNativeIOS()) throw new IapUnavailableError();
   if (!pluginPromise) {
+    // This package is not on npm yet — the StoreKit plugin is still being
+    // chosen (see store/STOREKIT-SETUP.md). It is listed in vite.config.js
+    // build.rollupOptions.external so the build doesn't try to resolve it;
+    // at runtime the .catch below degrades to IapUnavailableError until a
+    // real plugin (e.g. @revenuecat/purchases-capacitor) replaces it.
     pluginPromise = import('@capacitor-community/in-app-purchases')
       .then(m => m.InAppPurchases || m.default || m)
       .catch(err => {
