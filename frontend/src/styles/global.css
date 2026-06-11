@@ -476,17 +476,19 @@ select:focus {
   background: var(--bg-secondary);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 1000;
-  /* The home-indicator inset belongs HERE as bar padding, so the zone below
-     the icons is the bar's own background hugging the screen edge. Baking
-     env() into the items' height instead (previous approach) blew the strip
-     up to 74px+ on home-indicator iPhones and left a dead page-colored band
-     under the icons — the "Footerbar zu hoch" bug. Resolves to 0 on devices
-     without an inset. */
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* Deliberately NO safe-area padding: the team wants the nav flush with the
+     bottom edge — icons as low as possible, no band beneath them. The iOS
+     home indicator may overlap the strip's bottom edge; accepted trade-off
+     (Tobi/Tina). Do not "fix" this by adding env(safe-area-inset-bottom)
+     here — that floats the icons ~46pt up and reads as dead space (tried
+     2026-06-11, reverted same day). The separate "dead band below the bar"
+     bug is a shifted iOS visual viewport after keyboard close, handled by
+     useViewportRestore() in App.jsx — not a CSS issue. */
+  padding-bottom: 0;
 }
 
 .bottom-nav-items {
-  /* Fixed content height — keep env() out of here (see .bottom-nav). */
+  /* Compact fixed-height strip, icons vertically centered. */
   height: 48px;
   display: flex;
   justify-content: space-around;

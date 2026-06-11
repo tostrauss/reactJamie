@@ -433,11 +433,25 @@ function useViewportRestore() {
       // An input still has focus → keyboard is open (or moving to the next
       // field); don't fight it.
       if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      // Cover every scroll root WebKit might have offset.
       window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
     };
-    const onFocusOut = () => setTimeout(snap, 60); // let the dismiss animation finish
+    const deferredSnap = () => setTimeout(snap, 60); // let dismiss animations finish
+    const onVisible = () => { if (!document.hidden) deferredSnap(); };
+
+    // Keyboard close (web + PWA): viewport resizes back / input blurs.
     window.visualViewport?.addEventListener('resize', snap);
-    document.addEventListener('focusout', onFocusOut);
+    // Stale state shows up as a stuck visualViewport offset — catch it directly.
+    window.visualViewport?.addEventListener('scroll', snap);
+    document.addEventListener('focusout', deferredSnap);
+    // iOS can RESTORE the PWA already-shifted (relaunch from saved state,
+    // app-switcher return) without firing any resize — snap on those too.
+    window.addEventListener('pageshow', deferredSnap);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('orientationchange', deferredSnap);
+    deferredSnap(); // and once on mount, in case we loaded into a stale state
 
     // Native shell: Capacitor fires a dedicated event when the keyboard hides.
     let kbListener = null;
@@ -450,7 +464,11 @@ function useViewportRestore() {
 
     return () => {
       window.visualViewport?.removeEventListener('resize', snap);
-      document.removeEventListener('focusout', onFocusOut);
+      window.visualViewport?.removeEventListener('scroll', snap);
+      document.removeEventListener('focusout', deferredSnap);
+      window.removeEventListener('pageshow', deferredSnap);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('orientationchange', deferredSnap);
       kbListener?.remove();
     };
   }, []);
