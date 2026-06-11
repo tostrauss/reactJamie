@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect, useRef, Suspense } from 'react';
+import React, { useContext, useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { lazyWithReload } from './utils/lazyRetry';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { useRegisterSW } from 'virtual:pwa-register/react';
@@ -258,38 +258,87 @@ const Navigation = () => {
     || location.pathname.startsWith('/dm/')
     || /^\/deal\/[^/]+\/redeem$/.test(location.pathname);
 
-  // Fetch initial unread count once on mount / user change
-  useEffect(() => {
+  // Server-truth total across all three chat tabs: DMs + group chats + club
+  // chats (events excluded — they have no row in the chat list). The badge
+  // only drops when a conversation is actually READ (opening it stamps
+  // last_read_at / zeroes dm unread server-side) — NOT when the chat list is
+  // merely viewed. Tester bug 2026-06-11: the old clear-on-/chats hack wiped
+  // the badge before the message was opened, so unread chats got forgotten.
+  const refreshUnread = useCallback(() => {
     if (!user) return;
     import('./utils/api').then(m =>
-      m.directMessages.getConversations()
-        .then(res => {
-          const total = (res.data || []).reduce((sum, c) => sum + (c.unread_count || 0), 0);
-          unreadRef.current = total;
-          setUnreadCount(total);
-        })
-        .catch(() => {})
+      Promise.all([
+        m.directMessages.getConversations(),
+        m.groups.getJoined(true), // fresh — bypass the backend's 15s cache
+      ]).then(([dmRes, grpRes]) => {
+        const dmTotal = (dmRes.data || [])
+          .reduce((sum, c) => sum + (c.unread_count || 0), 0);
+        const grpTotal = (grpRes.data || [])
+          .filter(g => g.type !== 'event')
+          .reduce((sum, g) => sum + (g.unread_count || 0), 0);
+        unreadRef.current = dmTotal + grpTotal;
+        setUnreadCount(unreadRef.current);
+      }).catch(() => {
+        // Network blip / 500: keep the current value. Overwriting with a
+        // partial sum would silently zero a badge that has real unread.
+      })
     );
   }, [user?.id]);
 
-  // Clear badge when user opens the DM list (instead of on every path change)
-  useEffect(() => {
-    if (location.pathname === '/chats') {
-      unreadRef.current = 0;
-      setUnreadCount(0);
-    }
-  }, [location.pathname]);
+  // Initial fetch on mount / user change
+  useEffect(() => { refreshUnread(); }, [refreshUnread]);
 
-  // Increment badge on incoming DM via socket — no polling needed
+  // Re-sync with the server after leaving a conversation — by then the read
+  // marker landed (getMessages stamp + ChatPage unmount markRead). The timer
+  // lives in a ref ON PURPOSE: an effect-cleanup timer would be cancelled by
+  // any second navigation within the delay (e.g. /dm/5 → /chats → /home) and
+  // never rescheduled, silently dropping the resync.
+  const prevPathRef = useRef(location.pathname);
+  const resyncTimerRef = useRef(null);
+  useEffect(() => {
+    const was = prevPathRef.current;
+    prevPathRef.current = location.pathname;
+    if (/^\/(chat|dm)\//.test(was) && was !== location.pathname) {
+      clearTimeout(resyncTimerRef.current);
+      resyncTimerRef.current = setTimeout(refreshUnread, 400);
+    }
+  }, [location.pathname, refreshUnread]);
+  useEffect(() => () => clearTimeout(resyncTimerRef.current), []);
+
+  // Precise resync: ChatPage fires this AFTER its unmount markRead settled,
+  // eliminating the race the 400ms timer can only approximate.
+  useEffect(() => {
+    const onResync = () => {
+      clearTimeout(resyncTimerRef.current);
+      refreshUnread();
+    };
+    window.addEventListener('jamie:unread-resync', onResync);
+    return () => window.removeEventListener('jamie:unread-resync', onResync);
+  }, [refreshUnread]);
+
+  // Live increments via socket. Skip only when the user is INSIDE that very
+  // conversation (they're reading it; the room handler covers the UI there).
   useEffect(() => {
     if (!socket) return;
-    const onNewDm = () => {
-      if (location.pathname === '/chats') return; // already visible, skip
+    const bump = () => {
       unreadRef.current += 1;
       setUnreadCount(unreadRef.current);
     };
+    const onNewDm = (data) => {
+      if (location.pathname === `/dm/${data?.senderId}`) return;
+      bump();
+    };
+    const onGroupMsg = (data) => {
+      if (data?.group_type === 'event') return; // no chat-list row → no badge
+      if (location.pathname === `/chat/${data?.group_id}`) return;
+      bump();
+    };
     socket.on('new_dm_notification', onNewDm);
-    return () => socket.off('new_dm_notification', onNewDm);
+    socket.on('group_message_notification', onGroupMsg);
+    return () => {
+      socket.off('new_dm_notification', onNewDm);
+      socket.off('group_message_notification', onGroupMsg);
+    };
   }, [socket, location.pathname]);
 
   if (!user || hideNavPaths.includes(location.pathname) || hideOnChat) return null;

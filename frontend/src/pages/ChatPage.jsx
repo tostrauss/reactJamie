@@ -76,7 +76,17 @@ export const ChatPage = () => {
     fetchGroup();
     fetchMessages();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      // Stamp read on the way out: messages that arrived WHILE the chat was
+      // open came after the GET's read marker and would otherwise linger as
+      // phantom unreads on the nav badge / chat list. The resync event fires
+      // AFTER the request settles so the nav badge refetch reads the new
+      // marker (success or not — on failure the refetch is still the truth).
+      messages.markRead(groupId)
+        .catch(() => {})
+        .finally(() => window.dispatchEvent(new Event('jamie:unread-resync')));
+    };
   }, [groupId]);
 
   useEffect(() => {

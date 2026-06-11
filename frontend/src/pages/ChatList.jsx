@@ -46,10 +46,15 @@ export const ChatList = () => {
 
   useEffect(() => {
     if (!socket) return;
+    // receive_message is room-scoped (only fires with the chat OPEN, i.e.
+    // never on this page) — group_message_notification is the per-user nudge
+    // the backend sends to every member and is what actually updates rows here.
     socket.on('receive_message', handleNewGroupMessage);
+    socket.on('group_message_notification', handleGroupNotification);
     socket.on('new_dm_notification', handleNewDM);
     return () => {
       socket.off('receive_message', handleNewGroupMessage);
+      socket.off('group_message_notification', handleGroupNotification);
       socket.off('new_dm_notification', handleNewDM);
     };
   }, [socket]);
@@ -116,6 +121,20 @@ export const ChatList = () => {
     setGroupChats(prev => prev.map(chat =>
       chat.id === (data.group_id || data.groupId)
         ? { ...chat, lastMessage: `${data.user_name ? `${data.user_name}: ` : ''}${data.content}`, time: formatTime(new Date().toISOString()), unread: (chat.unread || 0) + 1 }
+        : chat
+    ));
+  };
+
+  // Per-user nudge from the backend (reaches us without being in the room).
+  const handleGroupNotification = (data) => {
+    setGroupChats(prev => prev.map(chat =>
+      chat.id === data.group_id
+        ? {
+            ...chat,
+            lastMessage: `${data.user_name ? `${data.user_name}: ` : ''}${data.content || ''}`,
+            time: formatTime(new Date().toISOString()),
+            unread: (chat.unread || 0) + 1,
+          }
         : chat
     ));
   };

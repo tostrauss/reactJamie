@@ -28,9 +28,16 @@ export function setCached(key, data, ttlMs) {
 /**
  * Delete every entry whose key starts with `prefix`.
  * Call this after any write that mutates the cached data set.
+ * CAUTION with numeric suffixes: `user_groups:1` also matches
+ * `user_groups:12` — when the full key is known, use deleteCached instead.
  */
 export function invalidatePrefix(prefix) {
   for (const k of _store.keys()) {
     if (k.startsWith(prefix)) _store.delete(k);
   }
+}
+
+/** Exact-key eviction — the right tool when the key is fully known. */
+export function deleteCached(key) {
+  _store.delete(key);
 }

@@ -653,6 +653,15 @@ const runStartupMigrations = async () => {
     await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_trusted_user BOOLEAN NOT NULL DEFAULT FALSE`);
     await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trusted_count   INTEGER NOT NULL DEFAULT 0`);
   });
+  // Per-member chat read marker — unread counts for group/club chats are
+  // COUNT(non-system messages newer than COALESCE(last_read_at, joined_at)).
+  // DEFAULT NOW() is load-bearing twice: (1) Postgres fills EXISTING rows with
+  // the default at ALTER time, so the deploy moment counts as "all read" —
+  // without it every long-standing group would flood members with their
+  // entire message history as unread; (2) new members start stamped at join
+  // time, matching the joined_at fallback.
+  await migrate('group_members last_read_at', () =>
+    db.query(`ALTER TABLE group_members ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMP DEFAULT NOW()`));
   await migrate('users google_id col', () =>
     db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT UNIQUE`));
   await migrate('users apple_id col', () =>

@@ -226,8 +226,10 @@ export const groups = {
     axiosInstance.get('/groups/user/favorites'),
   
   // Get user's joined groups
-  getJoined: () => 
-    axiosInstance.get('/groups/user/joined'),
+  // fresh=true bypasses the backend's 15s cache — used by the nav unread
+  // badge, which must reflect read markers immediately.
+  getJoined: (fresh = false) =>
+    axiosInstance.get('/groups/user/joined', { params: fresh ? { fresh: '1' } : {} }),
   
   // Get group members
   getMembers: (id) => 
@@ -376,8 +378,13 @@ export const clubs = {
 
 export const messages = {
   // Send message to group chat
-  send: (groupId, content) => 
+  send: (groupId, content) =>
     axiosInstance.post('/messages', { groupId, content }),
+
+  // Stamp the chat as read (ChatPage unmount — covers messages that arrived
+  // while the chat was open; opening it already stamps via GET)
+  markRead: (groupId) =>
+    axiosInstance.post(`/messages/${groupId}/read`),
   
   // Get messages for a group. Pass `before` (message id) to load older messages.
   get: (groupId, { limit = 50, before } = {}) =>

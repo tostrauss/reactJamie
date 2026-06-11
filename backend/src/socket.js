@@ -198,6 +198,10 @@ const socketHandler = (io) => {
         avatar_url: typeof data.avatar_url === 'string' ? data.avatar_url.slice(0, 1024) : undefined,
       };
       socket.to(roomId).emit('receive_message', safeMessage);
+      // Note: the per-member `group_message_notification` nudge (nav badge,
+      // chat-list rows) is deliberately NOT sent from here — it fires from
+      // the HTTP POST /api/messages persist path (messageController), so it
+      // only ever announces messages that passed moderation + rate limiting.
     });
 
     // Handle typing indicator

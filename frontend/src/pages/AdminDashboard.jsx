@@ -194,7 +194,10 @@ export const AdminDashboard = () => {
           {t('admin.sections.dealRedemptions')}
         </h2>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 32 }}>
-          <KPICard label={t('admin.kpis.redemptionsTotal')} value={d.total} sub={t('admin.kpis.redemptionsTotalSub', { count: d.distinct_deals_redeemed ?? 0 })} />
+          {/* Number(): pg can deliver COUNT as string, and i18next only
+              plural-resolves numeric counts — a string count falls back to
+              the (nonexistent) base key and renders it raw. */}
+          <KPICard label={t('admin.kpis.redemptionsTotal')} value={d.total} sub={t('admin.kpis.redemptionsTotalSub', { count: Number(d.distinct_deals_redeemed) || 0 })} />
           <KPICard label={t('admin.kpis.today')} value={d.today} />
           <KPICard label={t('admin.kpis.thisWeek')} value={d.this_week} />
           <KPICard label={t('admin.kpis.thisMonth')} value={d.this_month} />

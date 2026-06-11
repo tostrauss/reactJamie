@@ -1,5 +1,15 @@
 import db from '../config/database.js';
 import { checkTextSafety } from '../config/moderation.js';
+import { deleteCached } from '../utils/cache.js';
+
+// Stamp the caller's read marker for a group chat and drop their cached
+// joined-groups list (it embeds unread_count, TTL 15s — without the
+// invalidation the nav badge could show stale counts right after reading).
+const stampChatRead = (groupId, userId) =>
+  db.query(
+    'UPDATE group_members SET last_read_at = NOW() WHERE group_id = $1 AND user_id = $2',
+    [groupId, userId]
+  ).then(() => deleteCached(`user_groups:${userId}`));
 
 // ==========================================
 // SEND MESSAGE
@@ -55,6 +65,34 @@ export const sendMessage = async (req, res) => {
       [groupId, req.userId, content]
     );
 
+    // Nudge every member's personal `user_<id>` room (DM pattern) so nav
+    // badges + chat-list rows update for members who do NOT have this chat
+    // open — `receive_message` is room-scoped and never reaches them.
+    // Deliberately HERE and not in the socket send_message handler: this
+    // runs only for messages that passed moderation + rate limit and are
+    // actually persisted, and it works even if the sender's socket is down.
+    // One batched emit (array of rooms) = one adapter publish.
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        const memberRows = await db.query(
+          'SELECT user_id FROM group_members WHERE group_id = $1 AND user_id <> $2',
+          [groupId, req.userId]
+        );
+        const rooms = memberRows.rows.map(r => `user_${r.user_id}`);
+        if (rooms.length) {
+          io.to(rooms).emit('group_message_notification', {
+            group_id: result.rows[0].group_id,
+            group_type: type,
+            user_name: result.rows[0].user_name,
+            content: content.slice(0, 200),
+          });
+        }
+      }
+    } catch {
+      // Best-effort: unread truth lives in the DB, the next refetch catches up
+    }
+
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error sending message:', error);
@@ -107,11 +145,33 @@ export const getMessages = async (req, res) => {
     const hasMore = rows.length > limit;
     if (hasMore) rows.pop(); // remove the extra sentinel row
 
+    // Opening the chat reads it — fire-and-forget so the response isn't
+    // delayed. ("Load earlier" pagination re-stamps too; harmless.)
+    stampChatRead(groupId, req.userId).catch(() => {});
+
     // Return in chronological order so the UI renders oldest→newest
     res.json({ messages: rows.reverse(), has_more: hasMore });
   } catch (error) {
     console.error('Error fetching messages:', error);
     res.status(500).json({ error: 'Nachrichten konnten nicht geladen werden' });
+  }
+};
+
+// ==========================================
+// MARK CHAT READ
+// ==========================================
+// Called by ChatPage on unmount so messages that arrived WHILE the chat was
+// open (after getMessages already stamped) don't linger as phantom unreads.
+// The UPDATE's WHERE doubles as the membership check — 0 rows = not a member.
+export const markChatRead = async (req, res) => {
+  try {
+    const groupId = parseInt(req.params.groupId, 10);
+    if (!groupId) return res.status(400).json({ error: 'Ungültige Gruppen-ID' });
+    await stampChatRead(groupId, req.userId);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error marking chat read:', error);
+    res.status(500).json({ error: 'Chat konnte nicht als gelesen markiert werden' });
   }
 };
 

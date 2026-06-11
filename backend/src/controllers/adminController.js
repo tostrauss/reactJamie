@@ -64,13 +64,16 @@ export const getStats = async (_req, res) => {
       // Deal redemption KPIs. distinct_deals_redeemed tells us how many
       // separate Kooperationen got at least one user — a 50-redemption total
       // spread over 1 deal vs. 25 deals is a very different story for sales.
+      // ::int casts matter: pg returns bare COUNT() as a STRING (int8), and
+      // i18next skips plural resolution for string counts — the KPI subtitle
+      // then renders the raw key (admin.kpis.redemptionsTotalSub, tester bug).
       db.query(`
         SELECT
-          COUNT(*)                                                          AS total,
-          COUNT(*) FILTER (WHERE redeemed_at >= NOW() - INTERVAL '1 day')   AS today,
-          COUNT(*) FILTER (WHERE redeemed_at >= NOW() - INTERVAL '7 days')  AS this_week,
-          COUNT(*) FILTER (WHERE redeemed_at >= NOW() - INTERVAL '30 days') AS this_month,
-          COUNT(DISTINCT deal_id)                                            AS distinct_deals_redeemed
+          COUNT(*)::int                                                          AS total,
+          COUNT(*) FILTER (WHERE redeemed_at >= NOW() - INTERVAL '1 day')::int   AS today,
+          COUNT(*) FILTER (WHERE redeemed_at >= NOW() - INTERVAL '7 days')::int  AS this_week,
+          COUNT(*) FILTER (WHERE redeemed_at >= NOW() - INTERVAL '30 days')::int AS this_month,
+          COUNT(DISTINCT deal_id)::int                                           AS distinct_deals_redeemed
         FROM deal_redemptions
       `),
     ]);

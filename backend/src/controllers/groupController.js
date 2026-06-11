@@ -2,7 +2,7 @@ import db from '../config/database.js';
 import { geocodeLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { sendPushToUser } from './pushController.js';
-import { getCached, setCached, invalidatePrefix } from '../utils/cache.js';
+import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
 import { isUserPro } from './subscriptionController.js';
 
@@ -638,7 +638,7 @@ export const joinGroup = async (req, res) => {
       })
       .catch(() => {});
 
-    invalidatePrefix(`user_groups:${req.userId}`);
+    deleteCached(`user_groups:${req.userId}`);
     res.json({ message: 'Joined group successfully', status: 'joined' });
   } catch (err) {
     console.error('Error joining group:', err);
@@ -702,7 +702,7 @@ export const leaveGroup = async (req, res) => {
       }
     }
 
-    invalidatePrefix(`user_groups:${req.userId}`);
+    deleteCached(`user_groups:${req.userId}`);
     res.json({ message: 'Left group successfully' });
   } catch (err) {
     console.error('Error leaving group:', err);
@@ -860,8 +860,15 @@ export const getGroupMembers = async (req, res) => {
 export const getUserGroups = async (req, res) => {
   try {
     const cacheKey = `user_groups:${req.userId}`;
-    const cached = getCached(cacheKey);
-    if (cached) return res.json(cached);
+    // ?fresh=1 — used by the nav unread badge, which must reflect read
+    // markers immediately. Bypasses the cache in BOTH directions: no stale
+    // read, and no setCached either (writing here could re-cache a result
+    // that raced a concurrent read-stamp invalidation).
+    const fresh = req.query.fresh === '1';
+    if (!fresh) {
+      const cached = getCached(cacheKey);
+      if (cached) return res.json(cached);
+    }
 
     const result = await db.query(
       `SELECT g.id, g.name, g.type, g.category, g.image_url, g.is_private,
@@ -870,7 +877,13 @@ export const getUserGroups = async (req, res) => {
               u.name as owner_name, gm.role,
               lm.content as last_message,
               lm.created_at as last_message_time,
-              lm_user.name as last_message_sender
+              lm_user.name as last_message_sender,
+              (SELECT COUNT(*)::int FROM messages m2
+                WHERE m2.group_id = g.id
+                  AND m2.created_at > COALESCE(gm.last_read_at, gm.joined_at)
+                  AND m2.user_id IS DISTINCT FROM $1
+                  AND m2.message_type IS DISTINCT FROM 'system'
+              ) AS unread_count
        FROM group_members gm
        JOIN groups g ON gm.group_id = g.id
        LEFT JOIN users u ON g.owner_id = u.id
@@ -887,7 +900,7 @@ export const getUserGroups = async (req, res) => {
        ORDER BY lm.created_at DESC NULLS LAST, gm.joined_at DESC`,
       [req.userId]
     );
-    setCached(cacheKey, result.rows, 15_000);
+    if (!fresh) setCached(cacheKey, result.rows, 15_000);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching user groups:', err);
