@@ -9,6 +9,10 @@
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
+  /* Reserve space for the fixed bottom nav (~46px + home indicator) so the
+     Weiter button isn't trapped under it and there's no big void between the
+     form footer and the nav. */
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 46px);
 }
 
 /* Header */
@@ -158,7 +162,9 @@
 }
 
 .create-footer {
-  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 32px);
+  /* Page-level padding-bottom already clears the bottom nav, so the footer
+     itself only needs a tight inset. */
+  padding: 12px 20px 14px;
   border-top: 1px solid rgba(255,255,255,0.06);
   background: var(--bg-primary);
 }

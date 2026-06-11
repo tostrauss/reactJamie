@@ -135,12 +135,34 @@ export const AdminDashboard = () => {
   const u = stats?.users || {};
   const g = stats?.groups || {};
 
+  const d = stats?.deal_redemptions || {};
+
   return (
-    <div style={{ minHeight: '100vh', background: '#1a1a2e', padding: '24px 16px', paddingBottom: 60 }}>
+    <div style={{
+      minHeight: '100dvh',
+      background: '#1a1a2e',
+      // Reserve the iOS Dynamic Island / Android status bar so the back button
+      // and title aren't trapped under the notch — previously the header sat
+      // at y=24 with no inset, which on iPhone 15+ landed under the camera.
+      padding: 'calc(16px + env(safe-area-inset-top, 0px)) 16px calc(60px + env(safe-area-inset-bottom, 0px))',
+    }}>
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-          <h1 style={{ color: '#FD7666', fontSize: 24, fontWeight: 800 }}>{t('admin.title')}</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+          <button
+            onClick={() => navigate(-1)}
+            aria-label={t('admin.backToApp')}
+            style={{
+              background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: '50%',
+              width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: '#fff', flexShrink: 0,
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M15 18l-6-6 6-6"/>
+            </svg>
+          </button>
+          <h1 style={{ color: '#FD7666', fontSize: 24, fontWeight: 800, margin: 0, flex: 1 }}>{t('admin.title')}</h1>
           <button onClick={load} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 13 }}>
             {t('admin.refresh')}
           </button>
@@ -163,6 +185,19 @@ export const AdminDashboard = () => {
           <KPICard label={t('admin.kpis.groups')} value={g.total_groups} />
           <KPICard label={t('admin.kpis.clubs')} value={g.total_clubs} />
           <KPICard label={t('admin.kpis.reviews')} value={stats?.reviews?.total} />
+        </div>
+
+        {/* Cooperation redemption KPIs — sales-facing performance read at a
+            glance. Sits above the deals CRUD list so opening /admin shows
+            the headline number before the admin scrolls. */}
+        <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
+          {t('admin.sections.dealRedemptions')}
+        </h2>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 32 }}>
+          <KPICard label={t('admin.kpis.redemptionsTotal')} value={d.total} sub={t('admin.kpis.redemptionsTotalSub', { count: d.distinct_deals_redeemed ?? 0 })} />
+          <KPICard label={t('admin.kpis.today')} value={d.today} />
+          <KPICard label={t('admin.kpis.thisWeek')} value={d.this_week} />
+          <KPICard label={t('admin.kpis.thisMonth')} value={d.this_month} />
         </div>
 
         {/* Sponsored cooperations (Kooperationen) */}

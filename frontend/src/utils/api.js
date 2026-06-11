@@ -135,6 +135,12 @@ export const auth = {
   googleLogin: (credential) =>
     axiosInstance.post('/auth/google', { credential }),
 
+  // Apple Sign-In. `identity_token` is the JWS from Apple; `user` is
+  // populated only on the very first authorization (first-name/last-name) —
+  // Apple never sends it again, so we forward it once for account creation.
+  appleLogin: (identity_token, user) =>
+    axiosInstance.post('/auth/apple', { identity_token, user }),
+
   refresh: () =>
     axiosInstance.post('/auth/refresh', {}, { _isRefresh: true }),
 
@@ -510,6 +516,15 @@ export const boost = {
 };
 
 // ==========================================
+// IN-APP PURCHASE API (Apple StoreKit only)
+// ==========================================
+
+export const iap = {
+  verifyApple: (payload) => axiosInstance.post('/iap/apple/verify', payload),
+  restoreApple: (payload) => axiosInstance.post('/iap/apple/restore', payload),
+};
+
+// ==========================================
 // PUSH API
 // ==========================================
 
@@ -558,6 +573,10 @@ export const subscription = {
   // plan: 'weekly' | 'monthly' | 'sixmonth' (server validates + falls back to monthly)
   create: (plan) => axiosInstance.post('/subscription/create', plan ? { plan } : {}),
   cancel: () => axiosInstance.post('/subscription/cancel'),
+  // Stripe Billing Portal — returns { url } for browser redirect. Server
+  // rejects with 400 + managed_by:'apple' if the user's subscription was
+  // bought via Apple IAP (App Store handles that path).
+  openPortal: () => axiosInstance.post('/subscription/portal'),
 };
 
 // ==========================================
@@ -592,6 +611,12 @@ export const upload = {
 export const deals = {
   getAll: ()        => axiosInstance.get('/deals'),
   getOne: (id)      => axiosInstance.get(`/deals/${id}`),
+  // Redemption status / one-shot redeem — caller-scoped.
+  getRedemptionStatus: (id) => axiosInstance.get(`/deals/${id}/redemption`),
+  redeem:              (id) => axiosInstance.post(`/deals/${id}/redeem`),
+  // Admin — includes inactive + expired + redemption_count per row.
+  getAllForAdmin:   () => axiosInstance.get('/deals/admin/list'),
+  getRedemptions: (id) => axiosInstance.get(`/deals/admin/${id}/redemptions`),
   create: (data)    => axiosInstance.post('/deals', data),
   update: (id, data)=> axiosInstance.put(`/deals/${id}`, data),
   remove: (id)      => axiosInstance.delete(`/deals/${id}`),

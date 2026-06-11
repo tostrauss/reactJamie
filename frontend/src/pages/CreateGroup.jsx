@@ -41,17 +41,22 @@ export const CreateGroup = () => {
     // calendar day and let members coordinate the rest. The backend tolerates
     // date-only payloads (no `time` key sent → stored as midnight).
     location: '',
+    // Set to 'AT' only when the user picks a place from the Google
+    // autocomplete dropdown that resolves to Austria. Any manual edit to the
+    // location field clears it. step 2 advance is blocked unless this is 'AT'
+    // — that gives a hard guarantee, since restricting the dropdown alone
+    // doesn't stop someone typing/pasting a foreign address by hand.
+    locationCountry: '',
     maxMembers: 20,
     level: 'Alle Levels',
     isPublic: true,
-    isRecurringWeekly: false,
     // Default target age range — Tina's call (2026-06-09): most JAMIE events
     // skew 20-35, so pre-filling reduces friction for the typical creator.
     // Users can clear the fields if they don't want an age restriction.
     targetAgeMin: '20',
     targetAgeMax: '35',
     image: null,
-    imagePreview: null
+    imagePreview: null,
   });
 
   const handleDateChange = (field, value) => {
@@ -84,13 +89,23 @@ export const CreateGroup = () => {
       if (autocompleteRef.current) return;
       if (!locationRef.current) return;
       const ac = new window.google.maps.places.Autocomplete(locationRef.current, {
-        componentRestrictions: { country: ['at', 'de', 'ch'] },
-        fields: ['formatted_address', 'name'],
+        componentRestrictions: { country: ['at'] },
+        fields: ['formatted_address', 'name', 'address_components'],
       });
       ac.addListener('place_changed', () => {
         const place = ac.getPlace();
         const val = place.formatted_address || place.name || '';
-        if (val) setFormData(prev => ({ ...prev, location: val }));
+        const countryComp = (place.address_components || []).find(c => c.types?.includes('country'));
+        const country = countryComp?.short_name || '';
+        if (val && country === 'AT') {
+          setFormData(prev => ({ ...prev, location: val, locationCountry: 'AT' }));
+        } else if (val) {
+          // componentRestrictions usually prevents this, but Place IDs can
+          // still resolve outside the restriction in edge cases — refuse them.
+          toast.error(t('createGroup.step2.locationNotATError'));
+          setFormData(prev => ({ ...prev, location: '', locationCountry: '' }));
+          if (locationRef.current) locationRef.current.value = '';
+        }
       });
       autocompleteRef.current = ac;
     };
@@ -102,7 +117,13 @@ export const CreateGroup = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [name]: value };
+      // Any manual edit to the location field invalidates the verified-AT flag
+      // — user has to re-pick from the dropdown to advance.
+      if (name === 'location') next.locationCountry = '';
+      return next;
+    });
   };
 
   const handleImageUpload = (e) => {
@@ -150,7 +171,10 @@ export const CreateGroup = () => {
         image_url: imageUrl,
         target_age_min: formData.targetAgeMin === '' ? null : parseInt(formData.targetAgeMin, 10),
         target_age_max: formData.targetAgeMax === '' ? null : parseInt(formData.targetAgeMax, 10),
-        is_recurring_weekly: formData.isRecurringWeekly,
+        // Weekly repetition is a club-events-only feature now (Tina, 2026-06-11):
+        // standalone groups never repeat. We send false explicitly so the
+        // backend never reads an undefined field as truthy.
+        is_recurring_weekly: false,
       };
 
       const response = await groups.create(payload);
@@ -175,7 +199,7 @@ export const CreateGroup = () => {
   const canProceed = () => {
     switch (step) {
       case 1: return formData.name && formData.mainCategory && formData.activity;
-      case 2: return formData.date && formData.location && isDateInFuture();
+      case 2: return formData.date && formData.location && formData.locationCountry === 'AT' && isDateInFuture();
       case 3: return true;
       default: return false;
     }
@@ -394,25 +418,6 @@ export const CreateGroup = () => {
 
           <p className="form-hint-row">{t('createGroup.step2.timeInChatHint')}</p>
 
-          {/* Wiederholen — wöchentlich. Picks the same weekday as the chosen
-              start date and lets the user keep the meetup running forever. */}
-          <div className="form-section">
-            <label className="recurring-toggle">
-              <input
-                type="checkbox"
-                checked={formData.isRecurringWeekly}
-                onChange={(e) => setFormData(prev => ({ ...prev, isRecurringWeekly: e.target.checked }))}
-              />
-              <span className="recurring-toggle-content">
-                <span className="recurring-toggle-title">
-                  <span className="form-label-icon" aria-hidden="true">🔁</span>
-                  {t('createGroup.step2.weeklyLabel')}
-                </span>
-                <span className="recurring-toggle-hint">{t('createGroup.step2.weeklyHint')}</span>
-              </span>
-            </label>
-          </div>
-
           <div className="form-section">
             <label className="form-label">
               <span className="form-label-icon">📍</span> {t('createGroup.step2.locationLabel')}
@@ -427,6 +432,7 @@ export const CreateGroup = () => {
               className="input"
               autoComplete="off"
             />
+            <p className="form-hint">{t('createGroup.step2.locationOnlyATHint')}</p>
           </div>
 
           <div className="form-section">

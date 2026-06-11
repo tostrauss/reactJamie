@@ -439,7 +439,10 @@ export const GroupDetail = () => {
           <h1 className="gd-top-title">
             {isEvent
               ? (group.name || group.category)
-              : (headerDate || (group.category || group.name))
+              : (headerDate
+                  || (group.category && group.category.toLowerCase() !== 'sonstiges'
+                        ? group.category
+                        : (group.name || group.category)))
             }
           </h1>
           <button
@@ -451,19 +454,6 @@ export const GroupDetail = () => {
             </svg>
           </button>
         </div>
-
-        {/* "Part of club" chip — shown only for events */}
-        {isEvent && group.parent_club_id && (
-          <button
-            className="gd-club-back-chip"
-            onClick={() => navigate(`/group/${group.parent_club_id}`)}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M19 12H5M12 19l-7-7 7-7"/>
-            </svg>
-            {t('groups.detail.events.backToClub')}
-          </button>
-        )}
 
         {/* Photo grid */}
         <div className="gd-photo-grid-wrapper">
@@ -509,11 +499,15 @@ export const GroupDetail = () => {
         {/* Anfragen / Chat / Waitlist button */}
         {(() => {
           const isFull = group.members_count >= group.max_members;
-          // Event owner sees "Bearbeiten" instead of join/chat CTA — clicking
-          // routes to the event edit page (group edit handles event editing).
+          // Event owner: render both "Chat öffnen" and "Bearbeiten" side by
+          // side. Previously only Bearbeiten showed and the owner had no way
+          // to reach their own event chat.
           if (isEvent && isOwner) {
             return (
-              <div className="gd-anfragen-row">
+              <div className="gd-anfragen-row" style={{ gap: 10 }}>
+                <button className="gd-anfragen-btn joined" onClick={() => navigate(`/chat/${group.id}`)}>
+                  {t('groups.detail.actions.openChat')}
+                </button>
                 <button className="gd-anfragen-btn joined" onClick={() => navigate(`/group/${group.id}/edit`)}>
                   {t('groups.detail.actions.editEvent')}
                 </button>
@@ -628,8 +622,14 @@ export const GroupDetail = () => {
               })()}
             </div>
 
-            {/* Group title */}
-            <h2 className="gd-group-title">{group.category || group.name || group.title}</h2>
+            {/* Group title — for non-Sonstiges groups the category IS the
+                title (e.g. "Beachvolleyball"); when category is "Sonstiges" it
+                says nothing, so fall back to the user's typed activity name. */}
+            <h2 className="gd-group-title">
+              {(group.category && group.category.toLowerCase() !== 'sonstiges'
+                ? group.category
+                : (group.name || group.title || group.category)) || ''}
+            </h2>
 
             {/* Description */}
             {group.description && (
@@ -822,7 +822,12 @@ export const GroupDetail = () => {
           <div className="gd-bottom-actions">
             <button className="gd-action-pill" onClick={() => {
               if (navigator.share) {
-                navigator.share({ title: group.category || group.name, url: window.location.href });
+                navigator.share({
+                  title: (group.category && group.category.toLowerCase() !== 'sonstiges'
+                    ? group.category
+                    : (group.name || group.category)),
+                  url: window.location.href,
+                });
               } else {
                 navigator.clipboard.writeText(window.location.href);
                 toast.success(t('groups.detail.shareLinkCopied'));

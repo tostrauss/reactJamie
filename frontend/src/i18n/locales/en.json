@@ -359,8 +359,7 @@
         "delete": "Delete",
         "joined": "Joined",
         "join": "Join",
-        "participants": "{{current}} / {{max}} participants",
-        "backToClub": "Back to club"
+        "participants": "{{current}} / {{max}} participants"
       }
     }
   },
@@ -368,6 +367,15 @@
     "tabs": {
       "hallOfFame": "Hall of Fame",
       "deals": "Deals"
+    },
+    "timeAgo": {
+      "justNow": "Just now",
+      "minutesAgo_one": "{{count}} min ago",
+      "minutesAgo_other": "{{count}} min ago",
+      "hoursAgo_one": "{{count}} h ago",
+      "hoursAgo_other": "{{count}} h ago",
+      "daysAgo_one": "{{count}} d ago",
+      "daysAgo_other": "{{count}} d ago"
     },
     "suggested": {
       "reasonFriends_one": "{{count}} friend joined",
@@ -819,7 +827,9 @@
       "cancelConfirmYes": "Yes, cancel",
       "cancelConfirmNo": "Keep it",
       "canceledToast": "Your subscription will end at the period close.",
-      "cancelError": "Could not cancel. Please try again or contact support@jamie-app.com."
+      "cancelError": "Could not cancel. Please try again or contact support@jamie-app.com.",
+      "portalBtn": "Manage subscription (payment, invoices)",
+      "portalError": "Could not open portal. Please try again."
     },
     "account": {
       "editProfile": "Edit profile",
@@ -1186,6 +1196,8 @@
       "weeklyHint": "Happens every week on the same weekday — great for regular meetups",
       "locationLabel": "Where? *",
       "locationPlaceholder": "e.g. City park, Vienna",
+      "locationOnlyATHint": "Austrian locations only — please pick from the suggestions.",
+      "locationNotATError": "Please pick a location in Austria.",
       "ageLabel": "Target age range",
       "ageHint": "Only users in this age range can see the group (empty = everyone)",
       "ageFromLabel": "from",
@@ -1240,6 +1252,8 @@
     "step2": {
       "locationLabel": "Location *",
       "locationPlaceholder": "e.g. Vienna",
+      "locationOnlyATHint": "Austrian locations only — please pick from the suggestions.",
+      "locationNotATError": "Please pick a location in Austria.",
       "maxLabel": "Max members",
       "frequencyLabel": "Meeting frequency",
       "frequency": {
@@ -1359,7 +1373,22 @@
   },
   "deal": {
     "titleFmt": "For You – {{category}}",
-    "bookNow": "Book now"
+    "bookNow": "Book now",
+    "redeemCTA": "Redeem now",
+    "redeemedCTA": "Already redeemed",
+    "redemptionCounter": "{{count}}/{{max}} redeemed",
+    "redeemConfirmTitle": "Are you at the venue?",
+    "redeemConfirmBody": "This deal can only be redeemed once and should only be activated on-site with the staff present.",
+    "redeemConfirmYes": "Confirm",
+    "redeemConfirmNo": "Cancel",
+    "redeemError": "Could not redeem. Please try again.",
+    "redeemPage": {
+      "header": "Show this screen at the venue",
+      "subheader": "This deal can only be redeemed once",
+      "brand": "JAMIE",
+      "brandSub": "Deals",
+      "done": "Done"
+    }
   },
   "outOfRegion": {
     "title": "Coming to you soon!",
@@ -1441,6 +1470,12 @@
       "loading": "Loading cooperations…",
       "empty": "No cooperations yet.",
       "untilFmt": "Visible until {{date}}",
+      "expiredFmt": "Expired on {{date}}",
+      "inactiveLabel": "Inactive",
+      "redemptionsCount_one": "{{count}} redeemed",
+      "redemptionsCount_other": "{{count}} redeemed",
+      "redemptionsTooltip": "How many users have redeemed this deal.",
+      "exportCsvBtn": "CSV",
       "fields": {
         "company": "Company",
         "companyPlaceholder": "e.g. Cafe 1070",
@@ -1464,7 +1499,9 @@
         "saved": "Cooperation saved",
         "saveError": "Save failed",
         "deleted": "Cooperation deleted",
-        "deleteError": "Delete failed"
+        "deleteError": "Delete failed",
+        "noRedemptions": "No redemptions for this deal yet",
+        "exportError": "Export failed"
       }
     },
     "refresh": "Refresh",
@@ -1474,6 +1511,7 @@
     "sections": {
       "users": "Users",
       "groupsEvents": "Groups & Events",
+      "dealRedemptions": "Cooperations — redemptions",
       "pendingClubsFmt": "Clubs awaiting approval ({{count}})",
       "topPages": "Top pages (30 days)",
       "categorySuggestions": "Category suggestions",
@@ -1488,7 +1526,10 @@
       "trusted": "Trusted",
       "groups": "Groups (events)",
       "clubs": "Clubs",
-      "reviews": "Reviews"
+      "reviews": "Reviews",
+      "redemptionsTotal": "Total redeemed",
+      "redemptionsTotalSub_one": "across {{count}} deal",
+      "redemptionsTotalSub_other": "across {{count}} deals"
     },
     "pendingClubs": {
       "empty": "No open requests.",

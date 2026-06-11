@@ -417,8 +417,11 @@
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
+  /* Reserve both safe-area insets so the header / progress bar clear the
+     Dynamic Island and the footer Weiter button clears the iOS home
+     indicator pill. */
   padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .onboarding-header {
@@ -544,7 +547,10 @@
 }
 
 .onboarding-footer {
-  padding: 20px;
+  /* Container reserves safe-area-inset-bottom; the footer adds its own
+     20px breathing room on top so the Weiter button sits comfortably
+     above the home indicator regardless of device. */
+  padding: 20px 20px 24px;
   display: flex;
   justify-content: center;
 }

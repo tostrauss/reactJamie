@@ -11,6 +11,8 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
 } from '../utils/pushNotifications';
+import { isNativeIOS } from '../utils/platform';
+import { restorePurchases } from '../utils/iap';
 import '../styles/profile.css';
 
 export const SettingsPage = () => {
@@ -70,6 +72,55 @@ export const SettingsPage = () => {
       toast.error(err.response?.data?.error || t('settings.subscription.cancelError'));
     } finally {
       setCancelLoading(false);
+    }
+  };
+
+  // Stripe Billing Portal — full self-service subscription management
+  // (update card, switch plan, view invoices, cancel). Web + Android only;
+  // iOS users manage via the App Store per Apple Guideline 3.1.1.
+  const [portalLoading, setPortalLoading] = useState(false);
+  const handleOpenPortal = async () => {
+    if (portalLoading) return;
+    setPortalLoading(true);
+    try {
+      const { data } = await subscriptionApi.openPortal();
+      if (data?.url) {
+        // Same-tab redirect: portal will redirect back to /settings on close.
+        // window.open in a new tab would be blocked by mobile popup heuristics
+        // and would lose the auth cookie scope anyway.
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      const apiError = err.response?.data?.error;
+      toast.error(apiError || t('settings.subscription.portalError', { defaultValue: 'Portal konnte nicht geöffnet werden' }));
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
+  // App Review 3.1.1 requires a visible "Restore Purchases" entry point for any
+  // app with auto-renewable subscriptions on iOS. We expose it whenever the user
+  // is on the native iOS build — regardless of Pro state — because the whole
+  // point is to recover purchases the server might have lost (new device,
+  // reinstall, account migration).
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const handleRestorePurchases = async () => {
+    setRestoreLoading(true);
+    try {
+      const { restored } = await restorePurchases();
+      if (restored > 0) {
+        // Re-fetch sub status so the UI flips to "Pro active" immediately.
+        const { data } = await subscriptionApi.getStatus();
+        setSub(data);
+        toast.success(t('settings.subscription.restoreSuccess', { count: restored, defaultValue: '{{count}} Käufe wiederhergestellt' }));
+      } else {
+        toast.info?.(t('settings.subscription.restoreNone', { defaultValue: 'Keine Käufe zum Wiederherstellen' }))
+          || toast.success(t('settings.subscription.restoreNone', { defaultValue: 'Keine Käufe zum Wiederherstellen' }));
+      }
+    } catch (err) {
+      toast.error(err.message || t('settings.subscription.restoreError', { defaultValue: 'Wiederherstellung fehlgeschlagen' }));
+    } finally {
+      setRestoreLoading(false);
     }
   };
 
@@ -377,6 +428,24 @@ export const SettingsPage = () => {
             </div>
           </div>
 
+          {/* Web + Android Pro users: Stripe Billing Portal for self-service
+              card update, invoices, plan switch, cancellation. iOS users
+              manage via App Store → Subscriptions instead (Apple 3.1.1). */}
+          {!isNativeIOS() && (
+            <div className="settings-row" onClick={portalLoading ? undefined : handleOpenPortal}>
+              <div className="settings-row-left">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="5" width="20" height="14" rx="2"/>
+                  <line x1="2" y1="10" x2="22" y2="10"/>
+                </svg>
+                <span>{portalLoading
+                  ? t('common.loading')
+                  : t('settings.subscription.portalBtn', { defaultValue: 'Abo verwalten (Zahlung, Rechnungen)' })}</span>
+              </div>
+              {chevron}
+            </div>
+          )}
+
           {sub.status !== 'canceling' && !showCancelConfirm && (
             <div className="settings-row" onClick={() => setShowCancelConfirm(true)}>
               <div className="settings-row-left">
@@ -418,6 +487,49 @@ export const SettingsPage = () => {
               </div>
             </div>
           )}
+
+          {isNativeIOS() && (
+            <div className="settings-row" onClick={restoreLoading ? undefined : handleRestorePurchases}>
+              <div className="settings-row-left">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="1 4 1 10 7 10"/>
+                  <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                </svg>
+                <span>{restoreLoading
+                  ? t('common.loading')
+                  : t('settings.subscription.restoreBtn', { defaultValue: 'Käufe wiederherstellen' })}</span>
+              </div>
+              {chevron}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Apple Review 3.1.1: "Restore Purchases" must be reachable even when the
+          user is not currently Pro — that's the whole point of restore. Shown
+          here as a standalone section ONLY in the native iOS build. */}
+      {isNativeIOS() && !sub?.is_pro && (
+        <div className="settings-section">
+          <h3 className="settings-section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="1 4 1 10 7 10"/>
+              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+            </svg>
+            {t('settings.sections.iap', { defaultValue: 'Käufe' })}
+          </h3>
+          <div className="settings-row" onClick={restoreLoading ? undefined : handleRestorePurchases}>
+            <div className="settings-row-left">
+              <div className="settings-row-stacked">
+                <span>{restoreLoading
+                  ? t('common.loading')
+                  : t('settings.subscription.restoreBtn', { defaultValue: 'Käufe wiederherstellen' })}</span>
+                <span className="settings-row-detail">
+                  {t('settings.subscription.restoreHelper', { defaultValue: 'Auf neuem Gerät? Stellt aktive Abos und nicht eingelöste Käufe wieder her.' })}
+                </span>
+              </div>
+            </div>
+            {chevron}
+          </div>
         </div>
       )}
 

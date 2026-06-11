@@ -3,6 +3,8 @@ import { useTranslation, Trans } from 'react-i18next';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { boost as boostApi } from '../utils/api';
+import { isNativeIOS } from '../utils/platform';
+import { purchaseBoost } from '../utils/iap';
 import { useToast } from '../context/ToastContext';
 
 // ==========================================
@@ -21,7 +23,9 @@ function StripeForm({ clientSecret, onSuccess, onCancel }) {
     setLoading(true);
     setError('');
 
-    const { error: stripeError } = await stripe.confirmPayment({
+    // redirect:'if_required' lets Stripe handle 3D Secure / SCA inline via
+    // its modal/iframe — covers the EU SCA mandate without a full redirect.
+    const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: { return_url: window.location.href },
       redirect: 'if_required',
@@ -30,9 +34,18 @@ function StripeForm({ clientSecret, onSuccess, onCancel }) {
     if (stripeError) {
       setError(stripeError.message);
       setLoading(false);
-    } else {
-      onSuccess();
+      return;
     }
+    // 'succeeded' = charged + credits granted on webhook. 'processing' is
+    // safe to optimistically close — the boost webhook will credit shortly.
+    // Any other status means we shouldn't claim success.
+    const status = paymentIntent?.status;
+    if (status === 'succeeded' || status === 'processing') {
+      onSuccess();
+      return;
+    }
+    setError(t('boost.stripe.unexpectedStatus', { defaultValue: 'Zahlung konnte nicht abgeschlossen werden. Bitte erneut versuchen.' }));
+    setLoading(false);
   };
 
   return (
@@ -138,6 +151,26 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
     setTab('apply');
   };
 
+  // iOS: route through Apple StoreKit instead of Stripe (App Review 3.1.1).
+  const handleIapPurchase = async () => {
+    if (!selectedPkg) return;
+    setLoading(true);
+    try {
+      const { new_total } = await purchaseBoost(selectedPkg.id);
+      toast.success(t('boost.buy.creditsAddedToast', { count: selectedPkg.credits }));
+      setCredits(typeof new_total === 'number' ? new_total : (c => c + selectedPkg.credits));
+      setSelectedPkg(null);
+      setTab('apply');
+    } catch (err) {
+      // User-cancelled is silent; everything else surfaces.
+      if (!/cancel/i.test(err?.message || '')) {
+        toast.error(err.response?.data?.error || err.message || t('boost.buy.stripeError'));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRedeemCode = async () => {
     if (!redeemCode.trim()) return;
     setLoading(true);
@@ -170,8 +203,10 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
           background: 'var(--bg-card, #1e1e35)',
           borderRadius: '24px 24px 0 0',
           width: '100%', maxWidth: '480px',
-          padding: '24px 20px calc(env(safe-area-inset-bottom, 0px) + 90px)',
-          maxHeight: 'calc(90vh - 70px)',
+          padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 20px calc(env(safe-area-inset-bottom, 0px) + 90px)',
+          // Same safe-area cap as .modal-content / .modal-container so the
+          // sheet top always lands 12px below the status bar.
+          maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 12px)',
           overflowY: 'auto',
         }}
       >
@@ -289,7 +324,7 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
                     <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>{t('boost.buy.choosePayment')}</p>
                     <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
                       <button
-                        onClick={handleStripeStart}
+                        onClick={isNativeIOS() ? handleIapPurchase : handleStripeStart}
                         disabled={loading}
                         style={{ flex: 1, padding: '14px', borderRadius: '14px', background: '#6C63FF', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: loading ? 0.7 : 1 }}
                       >

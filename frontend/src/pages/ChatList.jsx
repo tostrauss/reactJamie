@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { groups, directMessages, friends } from '../utils/api';
 import { SocketContext } from '../context/SocketContext';
@@ -8,7 +8,17 @@ import '../styles/chat.css';
 import '../styles/profile.css';
 
 export const ChatList = () => {
-  const [activeTab, setActiveTab]           = useState('gruppen');
+  // Tab held in the URL (?tab=clubs|freunde) so swiping back from a chat
+  // or DM restores the tab the user was on. replace:true keeps the back stack
+  // clean — switching tabs doesn't pile up history entries.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'gruppen';
+  const setActiveTab = (tab) => setSearchParams(prev => {
+    const sp = new URLSearchParams(prev);
+    if (tab === 'gruppen') sp.delete('tab');
+    else sp.set('tab', tab);
+    return sp;
+  }, { replace: true });
   const [groupChats, setGroupChats]         = useState([]);
   const [privateChats, setPrivateChats]     = useState([]);
   const [friendsList, setFriendsList]       = useState([]);

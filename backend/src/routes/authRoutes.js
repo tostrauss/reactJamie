@@ -1,5 +1,5 @@
 import express from 'express';
-import { register, login, logout, getProfile, updateProfile, completeOnboarding, changePassword, deleteAccount, exportData, forgotPassword, resetPassword, sendVerification, verifyEmail, sendEmailCode, verifyEmailCode, googleLogin, refreshToken } from '../controllers/authController.js';
+import { register, login, logout, getProfile, updateProfile, completeOnboarding, changePassword, deleteAccount, exportData, forgotPassword, resetPassword, sendVerification, verifyEmail, sendEmailCode, verifyEmailCode, googleLogin, appleLogin, refreshToken } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
 import { strictLimiter, authLimiter, registrationLimiter } from '../middleware/rateLimiter.js';
 import { geofenceRegistration } from '../middleware/geofence.js';
@@ -10,6 +10,7 @@ router.post('/register', geofenceRegistration, registrationLimiter, register);
 router.post('/login', authLimiter, login);
 router.post('/logout', logout);
 router.post('/google', strictLimiter, googleLogin);
+router.post('/apple',  strictLimiter, appleLogin);
 // Refresh under the auth limiter (20/15min). Without this, a leaked token
 // can be rotated indefinitely — defeating the lockout + TTL we rely on.
 router.post('/refresh', authLimiter, authenticate, refreshToken);

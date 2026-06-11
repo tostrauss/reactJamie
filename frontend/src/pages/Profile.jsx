@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -43,7 +43,17 @@ export const Profile = () => {
   const toast = useToast();
   const { t, i18n } = useTranslation();
   const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-AT';
-  const [activeTab, setActiveTab] = useState('pinnwand');
+  // Tab held in the URL (?tab=halloffame) so opening a past event from Hall of
+  // Fame and swiping back restores the tab. replace:true so tab clicks don't
+  // pile up history entries.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') === 'halloffame' ? 'halloffame' : 'pinnwand';
+  const setActiveTab = (tab) => setSearchParams(prev => {
+    const sp = new URLSearchParams(prev);
+    if (tab === 'pinnwand') sp.delete('tab');
+    else sp.set('tab', tab);
+    return sp;
+  }, { replace: true });
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [savingSong, setSavingSong] = useState(false);
   const [isPro, setIsPro] = useState(false);

@@ -4,6 +4,8 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { subscription as subscriptionApi } from '../utils/api';
 import { PRO_PLANS, DEFAULT_PLAN_KEY, BASELINE_WEEKLY } from '../utils/proPlans';
+import { isNativeIOS } from '../utils/platform';
+import { subscribePro, restorePurchases } from '../utils/iap';
 import { useToast } from '../context/ToastContext';
 
 // ── Keyframes injected once ──────────────────────────────────────────────
@@ -50,13 +52,31 @@ function StripeSubscribeForm({ onSuccess, onCancel }) {
     if (!stripe || !elements) return;
     setLoading(true);
     setError('');
-    const { error: err } = await stripe.confirmPayment({
+    // redirect:'if_required' lets Stripe handle 3D Secure / SCA challenges
+    // via its in-page modal for cards that support iframe 3DS (most EU
+    // cards). Only the rare full-page-redirect 3DS will navigate away.
+    const { error: err, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: { return_url: window.location.href },
       redirect: 'if_required',
     });
-    if (err) { setError(err.message); setLoading(false); }
-    else       onSuccess();
+    if (err) {
+      setError(err.message);
+      setLoading(false);
+      return;
+    }
+    // 'succeeded' = charged, Pro active. 'processing' = bank still working,
+    // webhook will flip the row to active within a few seconds — close the
+    // modal optimistically since the user can't do anything useful here.
+    // Any other status (requires_action, requires_payment_method) means we
+    // shouldn't claim success; surface it so the user can retry.
+    const status = paymentIntent?.status;
+    if (status === 'succeeded' || status === 'processing') {
+      onSuccess();
+      return;
+    }
+    setError(t('pro.unexpectedStatus', { defaultValue: 'Zahlung konnte nicht abgeschlossen werden. Bitte erneut versuchen.' }));
+    setLoading(false);
   };
 
   return (
@@ -261,13 +281,23 @@ export const ProModal = ({ onClose, onSuccess }) => {
   const startPayment = async () => {
     setLoading(true);
     try {
+      // iOS native build → StoreKit subscription (App Review 3.1.1).
+      // Goes straight to success on Apple's approval; no Stripe sheet.
+      if (isNativeIOS()) {
+        await subscribePro(selectedPlan);
+        setStep('success');
+        setTimeout(() => { onSuccess?.(); onClose?.(); }, 3000);
+        return;
+      }
       const res = await subscriptionApi.create(selectedPlan);
       const { client_secret, publishable_key } = res.data;
       setStripePromise(loadStripe(publishable_key));
       setClientSecret(client_secret);
       setStep('payment');
     } catch (err) {
-      toast.error(err.response?.data?.error || t('pro.startError'));
+      if (!/cancel/i.test(err?.message || '')) {
+        toast.error(err.response?.data?.error || err.message || t('pro.startError'));
+      }
     } finally {
       setLoading(false);
     }
@@ -276,6 +306,27 @@ export const ProModal = ({ onClose, onSuccess }) => {
   const onPaySuccess = () => {
     setStep('success');
     setTimeout(() => { onSuccess?.(); onClose?.(); }, 3000);
+  };
+
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const handleRestore = async () => {
+    setRestoreLoading(true);
+    try {
+      const { restored } = await restorePurchases();
+      if (restored > 0) {
+        setStep('success');
+        setTimeout(() => { onSuccess?.(); onClose?.(); }, 3000);
+      } else {
+        toast.info?.(t('pro.restoreNone', { defaultValue: 'Keine Käufe zum Wiederherstellen gefunden' }))
+          || toast.success(t('pro.restoreNone', { defaultValue: 'Keine Käufe zum Wiederherstellen gefunden' }));
+      }
+    } catch (err) {
+      if (!/cancel/i.test(err?.message || '')) {
+        toast.error(err.message || t('pro.restoreError', { defaultValue: 'Wiederherstellung fehlgeschlagen' }));
+      }
+    } finally {
+      setRestoreLoading(false);
+    }
   };
 
   return (
@@ -300,11 +351,16 @@ export const ProModal = ({ onClose, onSuccess }) => {
             borderRadius:'28px 28px 0 0',
             border:'1px solid rgba(255,215,0,0.18)',
             borderBottom:'none',
-            // Tight bottom padding: just clear the iOS home indicator + minimal
-            // breathing room. The previous "+28px" left ~60px of empty space
-            // below "Vielleicht später" that read as a gap.
-            padding:`24px 22px calc(env(safe-area-inset-bottom,8px) + 8px)`,
-            maxHeight:'92vh', overflowY:'auto',
+            // Padding handles both safe-area insets explicitly:
+            //  - Top: status-bar inset + 16px, so close X never sits under the
+            //    Dynamic Island / notch even when the sheet is at maxHeight.
+            //  - Bottom: home-indicator inset + 20px, prevents last item being
+            //    clipped by the iOS home indicator pill.
+            padding:`calc(env(safe-area-inset-top, 0px) + 16px) 22px calc(env(safe-area-inset-bottom, 0px) + 20px)`,
+            // Cap the sheet so its top edge leaves 12px below the status bar,
+            // matching what users expect from a half-sheet on iOS.
+            maxHeight:'calc(100dvh - env(safe-area-inset-top, 0px) - 12px)',
+            overflowY:'auto',
             animation:'pm-slide-up 0.38s cubic-bezier(.25,.8,.25,1) both',
           }}
         >
@@ -473,6 +529,51 @@ export const ProModal = ({ onClose, onSuccess }) => {
               >
                 {loading ? <><Spinner /> {t('pro.loading')}</> : t('pro.ctaActivate')}
               </button>
+
+              {/* iOS-only: Apple Review 3.1.1 wants Restore Purchases visible
+                  during the purchase flow itself, not buried in Settings. */}
+              {isNativeIOS() && (
+                <button
+                  onClick={restoreLoading ? undefined : handleRestore}
+                  disabled={restoreLoading || loading}
+                  style={{
+                    width:'100%', padding:'12px', borderRadius:'14px',
+                    background:'rgba(255,255,255,0.04)',
+                    border:'1px solid rgba(255,255,255,0.08)',
+                    color:'rgba(255,255,255,0.7)', fontSize:'13px', fontWeight:'600',
+                    cursor: restoreLoading ? 'not-allowed' : 'pointer',
+                    marginBottom:'10px',
+                  }}
+                >
+                  {restoreLoading
+                    ? t('common.loading')
+                    : t('pro.restoreBtn', { defaultValue: 'Käufe wiederherstellen' })}
+                </button>
+              )}
+
+              {/* Apple Guideline 3.1.2 (a): on iOS, the subscription terms —
+                  length, auto-renewal, cancellation — must be visible at the
+                  point of purchase. Plain coal text on a separate line. */}
+              {isNativeIOS() && (
+                <p style={{
+                  fontSize:'11px', lineHeight:1.45,
+                  color:'rgba(255,255,255,0.4)',
+                  margin:'0 0 10px', textAlign:'center',
+                  padding:'0 4px',
+                }}>
+                  {t('pro.iosTerms', { defaultValue:
+                    'JAMIE Pro verlängert sich automatisch zum gewählten Preis am Ende jeder Laufzeit. Kündbar jederzeit über iOS-Einstellungen → Apple-ID → Abos, mindestens 24 Std. vor Ablauf.' })}
+                  {' '}
+                  <a href="/terms" target="_blank" rel="noopener" style={{ color:'#FFD700', textDecoration:'underline' }}>
+                    {t('pro.terms', { defaultValue: 'AGB' })}
+                  </a>
+                  {' · '}
+                  <a href="/privacy" target="_blank" rel="noopener" style={{ color:'#FFD700', textDecoration:'underline' }}>
+                    {t('pro.privacy', { defaultValue: 'Datenschutz' })}
+                  </a>
+                </p>
+              )}
+
               <button onClick={onClose} style={{
                 width:'100%', padding:'13px', borderRadius:'14px',
                 background:'none', border:'none',

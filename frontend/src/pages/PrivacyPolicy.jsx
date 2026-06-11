@@ -444,6 +444,14 @@ export default function PrivacyPolicy() {
           against malicious traffic and attacks.
         </p>
 
+        <h3 style={subhead}>Domain Registration and DNS</h3>
+        <p>
+          <strong>IONOS SE (Germany, EU)</strong> — registers the domain used to operate
+          the Services and provides authoritative DNS resolution. When a user's device
+          resolves the JAMIE domain, the request and the originating IP address are
+          processed by IONOS's DNS infrastructure.
+        </p>
+
         <h3 style={subhead}>Email Delivery</h3>
         <p>
           <strong>Resend, Inc. (USA)</strong> — delivers transactional emails such as

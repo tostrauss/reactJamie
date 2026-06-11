@@ -43,6 +43,43 @@
       "purpose": "any"
     }
   ],
+  "screenshots": [
+    {
+      "src": "/screenshots/01-aktivitaeten.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Finde Leute für Aktivitäten"
+    },
+    {
+      "src": "/screenshots/02-chat.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Chatte in Echtzeit"
+    },
+    {
+      "src": "/screenshots/03-karte.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Karte für Events in deiner Nähe"
+    },
+    {
+      "src": "/screenshots/04-clubs.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Gründe einen Club"
+    },
+    {
+      "src": "/screenshots/05-freunde.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Freunde & Trusted-User-Badge"
+    }
+  ],
   "shortcuts": [
     {
       "name": "Gruppe erstellen",

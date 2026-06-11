@@ -123,8 +123,10 @@ import reviewRoutes from './routes/reviewRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import { subscriptionWebhook } from './controllers/subscriptionController.js';
 import { stripeWebhook as boostStripeWebhook } from './controllers/boostController.js';
+import { appleServerNotification } from './controllers/iapController.js';
 import { sendPushToUser } from './controllers/pushController.js';
 import boostRoutes from './routes/boostRoutes.js';
+import iapRoutes from './routes/iapRoutes.js';
 import mapRoutes from './routes/mapRoutes.js';
 import waitlistRoutes from './routes/waitlistRoutes.js';
 import dealRoutes from './routes/dealRoutes.js';
@@ -286,6 +288,8 @@ if (process.env.NODE_ENV === 'production') {
 // Stripe webhooks — must receive raw body BEFORE express.json() parses it
 app.post('/api/subscription/stripe/webhook', express.raw({ type: 'application/json' }), subscriptionWebhook);
 app.post('/api/boost/stripe/webhook', express.raw({ type: 'application/json' }), boostStripeWebhook);
+// Apple Server Notifications V2 also need the raw body (the payload is itself a JWS).
+app.post('/api/iap/apple/notifications', express.raw({ type: 'application/json', limit: '1mb' }), appleServerNotification);
 
 // Body parsing — text/JSON only; image uploads use multipart (multer). 50 kB covers the largest
 // legitimate payload (full profile update with photo URLs + interests array = ~10 kB).
@@ -342,6 +346,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/subscription', subscriptionRoutes);
 app.use('/api/boost', boostRoutes);
+app.use('/api/iap', iapRoutes);
 app.use('/api/map', mapRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/deals', dealRoutes);
@@ -650,6 +655,8 @@ const runStartupMigrations = async () => {
   });
   await migrate('users google_id col', () =>
     db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT UNIQUE`));
+  await migrate('users apple_id col', () =>
+    db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_id TEXT UNIQUE`));
   await migrate('groups lat/lng cols', async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION`);
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION`);
@@ -1006,6 +1013,46 @@ const runStartupMigrations = async () => {
       ALTER TABLE group_members ADD CONSTRAINT chk_gm_role
         CHECK (role IN ('owner','admin','member'));
     EXCEPTION WHEN duplicate_object THEN NULL; END $$`));
+
+  // ── IAP receipt ledger ────────────────────────────────────────────────────
+  // Folded from iap_migration.sql so fresh Railway deploys self-bootstrap
+  // without an extra manual step.
+  await migrate('iap_receipts', () => db.query(`
+    CREATE TABLE IF NOT EXISTS iap_receipts (
+      id                BIGSERIAL PRIMARY KEY,
+      user_id           BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      platform          TEXT   NOT NULL CHECK (platform IN ('apple', 'google')),
+      product_id        TEXT   NOT NULL,
+      product_type      TEXT   NOT NULL CHECK (product_type IN ('boost', 'subscription')),
+      transaction_id    TEXT   NOT NULL,
+      original_transaction_id TEXT,
+      environment       TEXT,
+      raw_receipt       TEXT NOT NULL,
+      payload           JSONB NOT NULL,
+      credited_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at        TIMESTAMPTZ
+    )`));
+  await migrate('idx_iap_receipts', async () => {
+    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS iap_receipts_platform_txid_idx ON iap_receipts (platform, transaction_id)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS iap_receipts_user_idx           ON iap_receipts (user_id, product_type, credited_at DESC)`);
+    await db.query(`CREATE INDEX IF NOT EXISTS iap_receipts_origtx_idx         ON iap_receipts (original_transaction_id) WHERE original_transaction_id IS NOT NULL`);
+  });
+
+  // ── Deal redemption ledger ───────────────────────────────────────────────
+  // Folded from deal_redemptions_migration.sql so fresh Railway deploys
+  // self-bootstrap. UNIQUE (deal_id, user_id) enforces the "once per user"
+  // cap at the DB level — even a parallel double-tap can't sneak two rows in.
+  await migrate('deal_redemptions', () => db.query(`
+    CREATE TABLE IF NOT EXISTS deal_redemptions (
+      id          BIGSERIAL PRIMARY KEY,
+      deal_id     BIGINT NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+      user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      redeemed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (deal_id, user_id)
+    )`));
+  await migrate('idx_deal_redemptions', () => db.query(
+    `CREATE INDEX IF NOT EXISTS deal_redemptions_user_idx ON deal_redemptions (user_id, redeemed_at DESC)`
+  ));
 
   console.log('✅ Startup migrations done');
 };

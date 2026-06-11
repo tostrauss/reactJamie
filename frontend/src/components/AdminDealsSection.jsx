@@ -37,10 +37,12 @@ export const AdminDealsSection = () => {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  // Admin endpoint returns inactive + expired deals too, plus a
+  // redemption_count per row joined in from deal_redemptions.
   const load = async () => {
     setLoading(true);
     try {
-      const res = await dealsApi.getAll();
+      const res = await dealsApi.getAllForAdmin();
       setList(res.data || []);
     } catch {
       toast.error(t('admin.deals.toast.loadError'));
@@ -50,6 +52,48 @@ export const AdminDealsSection = () => {
   };
 
   useEffect(() => { load(); }, []);
+
+  const [exportingId, setExportingId] = useState(null);
+
+  const exportRedemptions = async (deal) => {
+    setExportingId(deal.id);
+    try {
+      const res = await dealsApi.getRedemptions(deal.id);
+      const rows = res.data || [];
+      if (!rows.length) {
+        toast.error(t('admin.deals.toast.noRedemptions'));
+        return;
+      }
+      // RFC 4180 CSV escaper: wrap every field in quotes, double any internal
+      // quotes, and strip the carriage returns / newlines that Excel + Google
+      // Sheets interpret as a new row mid-field. JSON.stringify was previously
+      // used here but it doesn't escape embedded CR/LF inside a field — a
+      // user_name containing "\n" would break the row count.
+      const csvEscape = (v) => {
+        const s = (v == null ? '' : String(v)).replace(/\r?\n|\r/g, ' ');
+        return `"${s.replace(/"/g, '""')}"`;
+      };
+      const headers = ['user_id', 'user_name', 'user_email', 'redeemed_at'];
+      const csvLines = [
+        headers.join(','),
+        ...rows.map(r => headers.map(h => csvEscape(r[h])).join(',')),
+      ];
+      // CRLF line endings so Excel on Windows opens the file without warnings.
+      // BOM prefix forces UTF-8 detection (umlauts in user_name don't get
+      // mangled when an admin opens the file in Excel-DE).
+      const blob = new Blob(['﻿' + csvLines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `deal-${deal.id}-redemptions.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error(t('admin.deals.toast.exportError'));
+    } finally {
+      setExportingId(null);
+    }
+  };
 
   const onPhotoPick = async (e) => {
     const file = e.target.files?.[0];
@@ -289,25 +333,62 @@ export const AdminDealsSection = () => {
         list.map(deal => {
           const photo = Array.isArray(deal.photos) && deal.photos[0];
           const expiry = deal.visible_until ? new Date(deal.visible_until).toLocaleDateString('de-DE') : null;
+          const isExpired = deal.visible_until && new Date(deal.visible_until) < new Date();
+          const isInactive = deal.is_active === false;
+          const dimmed = isExpired || isInactive;
+          const redemptions = deal.redemption_count ?? 0;
           return (
-            <div key={deal.id} style={cardStyle}>
+            <div key={deal.id} style={{ ...cardStyle, opacity: dimmed ? 0.55 : 1, flexWrap: 'wrap' }}>
               <div style={{ width: 56, height: 56, borderRadius: 10, overflow: 'hidden', background: '#1a1a2e', flexShrink: 0 }}>
                 {photo && <img src={photo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {deal.name}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                  <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
+                    {deal.name}
+                  </div>
+                  {/* Redemption-count badge — coral when >0, ghost when 0,
+                      so an admin can spot well-performing deals at a glance. */}
+                  <span
+                    title={t('admin.deals.redemptionsTooltip')}
+                    style={{
+                      flexShrink: 0,
+                      padding: '3px 9px',
+                      borderRadius: 100,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      background: redemptions > 0 ? 'rgba(253,118,102,0.18)' : 'rgba(255,255,255,0.06)',
+                      color: redemptions > 0 ? '#FD7666' : 'rgba(255,255,255,0.5)',
+                      border: redemptions > 0 ? '1px solid rgba(253,118,102,0.3)' : '1px solid rgba(255,255,255,0.08)',
+                    }}
+                  >
+                    🎟 {t('admin.deals.redemptionsCount', { count: redemptions })}
+                  </span>
                 </div>
                 <div style={{ color: '#FD7666', fontSize: 12, fontWeight: 600 }}>
                   {deal.deal_label}
                 </div>
-                {expiry && (
-                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 2 }}>
-                    {t('admin.deals.untilFmt', { date: expiry })}
-                  </div>
-                )}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 2 }}>
+                  {expiry && (
+                    <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11 }}>
+                      {isExpired ? t('admin.deals.expiredFmt', { date: expiry }) : t('admin.deals.untilFmt', { date: expiry })}
+                    </div>
+                  )}
+                  {isInactive && (
+                    <div style={{ color: '#ff7a7a', fontSize: 11, fontWeight: 600 }}>
+                      {t('admin.deals.inactiveLabel')}
+                    </div>
+                  )}
+                </div>
               </div>
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <button
+                  onClick={() => exportRedemptions(deal)}
+                  disabled={exportingId === deal.id || redemptions === 0}
+                  style={{ ...btnGhost, padding: '8px 12px', fontSize: 12, opacity: redemptions === 0 ? 0.4 : 1 }}
+                >
+                  {exportingId === deal.id ? '…' : t('admin.deals.exportCsvBtn')}
+                </button>
                 <button onClick={() => startEdit(deal)} style={{ ...btnGhost, padding: '8px 12px', fontSize: 12 }}>
                   {t('admin.deals.editBtn')}
                 </button>

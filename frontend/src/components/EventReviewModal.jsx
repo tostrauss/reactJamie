@@ -69,9 +69,11 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
         width: '100%', maxWidth: 480,
         background: '#1e2235',
         borderRadius: '24px 24px 0 0',
-        padding: '28px 20px',
-        paddingBottom: 'calc(28px + env(safe-area-inset-bottom, 0px))',
-        maxHeight: '85vh',
+        padding: 'calc(env(safe-area-inset-top, 0px) + 20px) 20px calc(env(safe-area-inset-bottom, 0px) + 24px)',
+        // Cap the sheet so its top edge stops 12px below the status bar
+        // even when there are many pending reviews to scroll through.
+        maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 12px)',
+        overflowY: 'auto',
         display: 'flex', flexDirection: 'column',
       }}>
         {/* Skip — always visible at top */}

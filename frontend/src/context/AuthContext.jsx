@@ -74,6 +74,17 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  const loginWithApple = useCallback(async (identityToken, appleUser) => {
+    setLoading(true);
+    try {
+      const { data } = await auth.appleLogin(identityToken, appleUser || undefined);
+      storeAuth(data.user, data.token);
+      return data.user;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const loginAsGuest = useCallback(() => {
     const guestUser = { id: 0, name: 'Guest', email: 'guest@example.com', isGuest: true };
     setUser(guestUser);
@@ -150,6 +161,7 @@ export const AuthProvider = ({ children }) => {
         login,
         register,
         loginWithGoogle,
+        loginWithApple,
         loginAsGuest,
         logout,
         refreshProfile

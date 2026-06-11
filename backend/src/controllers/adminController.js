@@ -5,7 +5,7 @@ import db from '../config/database.js';
 // ==========================================
 export const getStats = async (_req, res) => {
   try {
-    const [users, groups, events, reviews, suggestions, topScreens, churn] = await Promise.all([
+    const [users, groups, events, reviews, suggestions, topScreens, churn, dealRedemptions] = await Promise.all([
       // User counts. Aliases match what AdminDashboard renders (`u.this_week`,
       // `u.this_month`) — earlier the SQL was using `week`/`month` and the
       // dashboard fell back to undefined → blank "-" cells.
@@ -61,6 +61,18 @@ export const getStats = async (_req, res) => {
         ORDER BY count DESC
         LIMIT 10
       `),
+      // Deal redemption KPIs. distinct_deals_redeemed tells us how many
+      // separate Kooperationen got at least one user — a 50-redemption total
+      // spread over 1 deal vs. 25 deals is a very different story for sales.
+      db.query(`
+        SELECT
+          COUNT(*)                                                          AS total,
+          COUNT(*) FILTER (WHERE redeemed_at >= NOW() - INTERVAL '1 day')   AS today,
+          COUNT(*) FILTER (WHERE redeemed_at >= NOW() - INTERVAL '7 days')  AS this_week,
+          COUNT(*) FILTER (WHERE redeemed_at >= NOW() - INTERVAL '30 days') AS this_month,
+          COUNT(DISTINCT deal_id)                                            AS distinct_deals_redeemed
+        FROM deal_redemptions
+      `),
     ]);
 
     res.json({
@@ -71,6 +83,7 @@ export const getStats = async (_req, res) => {
       top_screens: topScreens.rows,
       churn_screens: churn.rows,
       category_suggestions: suggestions.rows,
+      deal_redemptions: dealRedemptions.rows[0],
     });
   } catch (err) {
     console.error('Admin stats error:', err);

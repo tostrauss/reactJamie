@@ -16,7 +16,7 @@ const parseUserJSONFields = (user) => {
 
 const SENSITIVE_FIELDS = [
   'password', 'spotify_access_token', 'spotify_refresh_token',
-  'login_attempts', 'locked_until', 'google_id',
+  'login_attempts', 'locked_until', 'google_id', 'apple_id',
 ];
 const sanitizeUserForClient = (user) => {
   for (const f of SENSITIVE_FIELDS) delete user[f];
@@ -1037,6 +1037,128 @@ export const googleLogin = async (req, res) => {
   } catch (err) {
     console.error('Google login error:', err);
     res.status(500).json({ error: 'Google Login fehlgeschlagen' });
+  }
+};
+
+// ==========================================
+// APPLE SIGN-IN
+// ==========================================
+// Apple Review 4.8 mandates "Sign in with Apple" whenever any third-party
+// social login is offered. The iOS Capacitor build sends the native
+// authorization payload (identityToken + givenName/familyName); the web
+// fallback path can use the same JWT-based verification.
+//
+// The identityToken is a JWS signed by Apple. We verify the signature
+// against Apple's published JWKS, then trust the contained claims.
+//
+// Apple intentionally hides the user's real e-mail behind a relay address
+// for "Hide my email" users. We accept those as-is — they're valid SMTP.
+let _appleJwksClient = null;
+async function getAppleJwks() {
+  if (_appleJwksClient) return _appleJwksClient;
+  const jwksLib = await import('jwks-rsa');
+  _appleJwksClient = jwksLib.default({
+    jwksUri: 'https://appleid.apple.com/auth/keys',
+    cache: true, cacheMaxAge: 24 * 60 * 60 * 1000,    // 24h — Apple rotates rarely
+    rateLimit: true, jwksRequestsPerMinute: 10,
+  });
+  return _appleJwksClient;
+}
+
+export const appleLogin = async (req, res) => {
+  try {
+    const { identity_token, user: appleUser } = req.body || {};
+    if (!identity_token) return res.status(400).json({ error: 'Apple identity_token fehlt' });
+
+    // Decode + verify with Apple's JWKS.
+    const jwt = (await import('jsonwebtoken')).default;
+    const decodedHeader = jwt.decode(identity_token, { complete: true });
+    if (!decodedHeader?.header?.kid) return res.status(401).json({ error: 'Apple Token ungültig' });
+
+    const jwks = await getAppleJwks();
+    const key = await new Promise((resolve, reject) => {
+      jwks.getSigningKey(decodedHeader.header.kid, (err, k) => err ? reject(err) : resolve(k));
+    });
+
+    const expectedAud = process.env.APPLE_IAP_BUNDLE_ID || 'jamie.app';
+    let payload;
+    try {
+      payload = jwt.verify(identity_token, key.getPublicKey(), {
+        algorithms: ['RS256'],
+        issuer: 'https://appleid.apple.com',
+        audience: expectedAud,
+      });
+    } catch {
+      return res.status(401).json({ error: 'Apple Token ungültig' });
+    }
+
+    let email = payload.email;
+    const appleId = payload.sub;
+    if (!appleId) return res.status(400).json({ error: 'Kein Apple-Subject' });
+
+    // On a first sign-in Apple returns the user's name in the request body
+    // (NOT the token). After that, the name is gone forever — we have to
+    // persist it the first time we see it.
+    const fullName = appleUser?.givenName || appleUser?.familyName
+      ? [appleUser?.givenName, appleUser?.familyName].filter(Boolean).join(' ')
+      : null;
+
+    if (email) {
+      email = normalizeEmail(email);
+      if (!isValidEmail(email)) email = null;   // fall back to apple_id lookup
+    }
+
+    // Find by apple_id first (stable), then by email if linked.
+    let userResult = await db.query(
+      `SELECT id, apple_id, email, name, avatar_url
+         FROM users
+        WHERE apple_id = $1
+           OR ($2::text IS NOT NULL AND LOWER(email) = $2)`,
+      [appleId, email],
+    );
+
+    let userId;
+    if (userResult.rows.length > 0) {
+      userId = userResult.rows[0].id;
+      if (!userResult.rows[0].apple_id) {
+        await db.query('UPDATE users SET apple_id = $1, updated_at = NOW() WHERE id = $2', [appleId, userId]);
+      }
+    } else {
+      // New account. Apple-only users have no password; their identity is
+      // proved by Apple's signed token on every login. Email may be a
+      // private relay address ("@privaterelay.appleid.com") — that's fine.
+      if (!email) {
+        // Truly anonymous Apple users (rejected sharing email) — synthesize
+        // a placeholder so DB email-NOT-NULL holds. The user can update it
+        // during onboarding.
+        email = `apple_${appleId.replace(/[^a-zA-Z0-9]/g, '')}@apple.local`;
+      }
+      const displayName = fullName || (email.split('@')[0]);
+      const insert = await db.query(
+        `INSERT INTO users (email, name, apple_id, is_verified)
+         VALUES ($1, $2, $3, TRUE) RETURNING id`,
+        [email, displayName, appleId],
+      );
+      userId = insert.rows[0].id;
+
+      await db.query('INSERT INTO boost_credits (user_id) VALUES ($1) ON CONFLICT DO NOTHING', [userId]);
+      const refCode = 'JAMIE-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+      await db.query(
+        'INSERT INTO referral_codes (user_id, code) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+        [userId, refCode],
+      );
+    }
+
+    const fullUser = await db.query(`SELECT ${SAFE_USER_COLS} FROM users WHERE id = $1`, [userId]);
+    const user = fullUser.rows[0];
+    parseUserJSONFields(user);
+
+    const token = generateToken(user.id);
+    setAuthCookie(res, token);
+    res.json({ user, token });
+  } catch (err) {
+    console.error('Apple login error:', err);
+    res.status(500).json({ error: 'Apple Login fehlgeschlagen' });
   }
 };
 

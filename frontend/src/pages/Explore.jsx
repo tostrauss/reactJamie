@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback, useRef, memo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { groups, deals as dealsApi, upload as uploadApi } from '../utils/api';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
@@ -19,15 +19,18 @@ const getCategoryIcon = (catName) => {
   return '✨';
 };
 
-const formatTimeAgo = (dateStr) => {
+// i18n-aware: takes the page's `t` so English users don't see German labels
+// on Hall of Fame card timestamps. Keys live under explore.timeAgo.* and use
+// _one / _other pluralization.
+const formatTimeAgo = (dateStr, t) => {
   if (!dateStr) return '';
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'Gerade eben';
-  if (mins < 60) return `Vor ${mins}m`;
+  if (mins < 1) return t('explore.timeAgo.justNow');
+  if (mins < 60) return t('explore.timeAgo.minutesAgo', { count: mins });
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `Vor ${hrs} h`;
-  return `Vor ${Math.floor(hrs / 24)}d`;
+  if (hrs < 24) return t('explore.timeAgo.hoursAgo', { count: hrs });
+  return t('explore.timeAgo.daysAgo', { count: Math.floor(hrs / 24) });
 };
 
 const formatCameraDate = (dateStr) => {
@@ -56,7 +59,7 @@ const seedColor = (id, offset = 0) =>
 
 const HofCard = memo(({ item, isOwner, isFavorited, onToggleFavorite, onUploadMoment, navigate, t }) => {
   const icon = getCategoryIcon(item.category);
-  const timeAgo = formatTimeAgo(item.created_at);
+  const timeAgo = formatTimeAgo(item.created_at, t);
   const fileInputRef = useRef(null);
 
   const displayPhoto = item.moment_photo_url || item.image_url;
@@ -101,7 +104,7 @@ const HofCard = memo(({ item, isOwner, isFavorited, onToggleFavorite, onUploadMo
       {/* Photo */}
       <div className="ef-media">
         {displayPhoto ? (
-          <img src={displayPhoto} alt={item.name} loading="lazy" className="ef-media-img" />
+          <img src={displayPhoto} alt={item.name} loading="lazy" decoding="async" className="ef-media-img" />
         ) : (
           <div className="ef-media-placeholder">
             <span className="ef-ph-icon">{icon}</span>
@@ -196,7 +199,17 @@ export const Explore = () => {
   const { user } = useContext(AuthContext);
   const toast = useToast();
 
-  const [tab, setTab]                 = useState(TABS.hall);
+  // Tab held in the URL (?tab=deals) so navigating into a detail page and
+  // swiping back restores the tab. replace:true keeps tab switches off the
+  // back stack.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get('tab') === TABS.deals ? TABS.deals : TABS.hall;
+  const setTab = (next) => setSearchParams(prev => {
+    const sp = new URLSearchParams(prev);
+    if (next === TABS.hall) sp.delete('tab');
+    else sp.set('tab', next);
+    return sp;
+  }, { replace: true });
   const [loading, setLoading]         = useState(true);
   const [hallItems, setHallItems]     = useState([]);
   const [dealList, setDealList]       = useState([]);

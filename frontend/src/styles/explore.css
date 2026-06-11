@@ -28,7 +28,9 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
-  padding-bottom: 16px;
+  /* No extra padding-bottom — .explore-container already reserves
+     safe-area + 60px for the bottom nav, doubling it produced a visible
+     16px gap that Home doesn't have. */
 }
 
 /* ── Top bar ─────────────────────────────────────────────────── */
@@ -1297,7 +1299,10 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 14px 16px 14px;
+  /* No bottom padding — the container's safe-area + 60px already reserves
+     space for the bottom nav, doubling it produced a visible gap that Home
+     doesn't have. */
+  padding: 14px 16px 0;
 }
 
 /* ── Feed card (the outer box) ──────────────────────────────────── */

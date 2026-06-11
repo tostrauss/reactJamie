@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { users, friends } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
@@ -18,7 +18,16 @@ export const UserProfile = () => {
 
   const [profile, setProfile]               = useState(null);
   const [loading, setLoading]               = useState(true);
-  const [activeTab, setActiveTab]           = useState('pinnwand');
+  // Tab held in the URL (?tab=halloffame) so opening a past event and swiping
+  // back restores the tab. replace:true keeps the back stack clean.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') === 'halloffame' ? 'halloffame' : 'pinnwand';
+  const setActiveTab = (tab) => setSearchParams(prev => {
+    const sp = new URLSearchParams(prev);
+    if (tab === 'pinnwand') sp.delete('tab');
+    else sp.set('tab', tab);
+    return sp;
+  }, { replace: true });
   const [friendshipStatus, setFriendshipStatus] = useState('none');
   const [friendshipId, setFriendshipId]     = useState(null);
   const [isRequester, setIsRequester]       = useState(false);

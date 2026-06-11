@@ -65,7 +65,10 @@ export const AppIntro = ({ onDone }) => {
       background: slide.gradient,
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'space-between',
-      padding: 'env(safe-area-inset-top, 20px) 24px 16px',
+      // Top + bottom both honour the safe-area insets so the Skip button
+      // never sits under the Dynamic Island and the CTA button never sits
+      // under the iOS home indicator pill.
+      padding: 'env(safe-area-inset-top, 20px) 24px calc(env(safe-area-inset-bottom, 0px) + 16px)',
       transition: 'background 0.5s ease',
       fontFamily: 'inherit',
     }}>

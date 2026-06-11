@@ -203,6 +203,143 @@ export const updateDeal = async (req, res) => {
 };
 
 // ==========================================
+// GET REDEMPTION STATUS  (caller's status for this deal)
+// ==========================================
+// Returns { redeemed, count, max, redeemed_at } so the client can render
+// "0/1 mal eingelöst" before, "1/1 mal eingelöst" after, and disable the
+// redeem CTA once max is reached. max is 1 today (hard cap per user, ever).
+const MAX_REDEMPTIONS_PER_USER = 1;
+
+export const getRedemptionStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(
+      `SELECT redeemed_at FROM deal_redemptions
+       WHERE deal_id = $1 AND user_id = $2`,
+      [id, req.user.id]
+    );
+    const row = result.rows[0];
+    res.json({
+      redeemed: !!row,
+      count: row ? 1 : 0,
+      max: MAX_REDEMPTIONS_PER_USER,
+      redeemed_at: row?.redeemed_at || null,
+    });
+  } catch (err) {
+    console.error('getRedemptionStatus error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// REDEEM DEAL  (one-shot per user)
+// ==========================================
+// UNIQUE(deal_id, user_id) catches concurrent double-taps at the DB level;
+// the unique_violation branch turns that into a 409 instead of a 500.
+export const redeemDeal = async (req, res) => {
+  const { id } = req.params;
+  try {
+    // Confirm the deal is still visible — admins may have disabled or expired
+    // it after the user opened the page.
+    const dealRes = await db.query(
+      `SELECT id FROM deals
+       WHERE id = $1 AND is_active = TRUE
+         AND (visible_until IS NULL OR visible_until > NOW())`,
+      [id]
+    );
+    if (!dealRes.rows.length) return res.status(404).json({ error: 'Deal not found' });
+
+    const inserted = await db.query(
+      `INSERT INTO deal_redemptions (deal_id, user_id) VALUES ($1, $2)
+       RETURNING redeemed_at`,
+      [id, req.user.id]
+    );
+    res.status(201).json({
+      redeemed: true,
+      count: 1,
+      max: MAX_REDEMPTIONS_PER_USER,
+      redeemed_at: inserted.rows[0].redeemed_at,
+    });
+  } catch (err) {
+    if (err.code === '23505') {
+      // Already redeemed — surface as 409 with the existing timestamp so the
+      // client can still render the proof screen if it wants to.
+      const existing = await db.query(
+        `SELECT redeemed_at FROM deal_redemptions
+         WHERE deal_id = $1 AND user_id = $2`,
+        [id, req.user.id]
+      );
+      return res.status(409).json({
+        error: 'Already redeemed',
+        redeemed: true,
+        count: 1,
+        max: MAX_REDEMPTIONS_PER_USER,
+        redeemed_at: existing.rows[0]?.redeemed_at || null,
+      });
+    }
+    console.error('redeemDeal error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// ADMIN — LIST DEALS  (includes expired + inactive, joins redemption count)
+// ==========================================
+// The public getDeals filters by is_active + visible_until; the admin view
+// needs to see every deal that ever existed plus how many users have redeemed
+// each. The LEFT JOIN keeps zero-redemption rows in the result.
+export const getDealsForAdmin = async (_req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT d.id, d.name, d.category, d.deal_label, d.description,
+              d.address, d.lat, d.lng, d.photos, d.booking_url,
+              d.visible_until, d.is_active, d.created_at, d.updated_at,
+              COALESCE(r.cnt, 0)::int AS redemption_count,
+              r.last_redeemed_at
+       FROM deals d
+       LEFT JOIN (
+         SELECT deal_id,
+                COUNT(*)::int AS cnt,
+                MAX(redeemed_at) AS last_redeemed_at
+         FROM deal_redemptions
+         GROUP BY deal_id
+       ) r ON r.deal_id = d.id
+       ORDER BY d.created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('getDealsForAdmin error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// ADMIN — LIST REDEMPTIONS for a single deal
+// ==========================================
+// Returns each redeeming user with their name + email + timestamp. Lets the
+// admin reconcile with the venue if a dispute comes up. Capped at 1000 rows
+// per deal — we'll page if we ever ship a deal big enough to need it.
+export const getDealRedemptions = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await db.query(
+      `SELECT dr.id, dr.redeemed_at,
+              u.id AS user_id, u.name AS user_name, u.email AS user_email
+       FROM deal_redemptions dr
+       JOIN users u ON u.id = dr.user_id
+       WHERE dr.deal_id = $1
+       ORDER BY dr.redeemed_at DESC
+       LIMIT 1000`,
+      [id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('getDealRedemptions error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
 // ADMIN — DELETE DEAL (soft)
 // ==========================================
 export const deleteDeal = async (req, res) => {

@@ -176,7 +176,9 @@ export const WelcomeIntro = () => {
           background: `linear-gradient(160deg, ${slide.bg1} 0%, ${slide.bg2} 100%)`,
           display: 'flex', flexDirection: 'column',
           alignItems: 'center', justifyContent: 'space-between',
-          padding: 'env(safe-area-inset-top,20px) 24px 16px',
+          // Honour both safe-area edges — bottom inset prevents the CTA
+          // button from sitting under the iOS home indicator pill.
+          padding: 'env(safe-area-inset-top,20px) 24px calc(env(safe-area-inset-bottom, 0px) + 16px)',
           transition: 'background 0.55s ease',
           overflow: 'hidden', userSelect: 'none',
         }}

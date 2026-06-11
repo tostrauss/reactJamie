@@ -152,6 +152,62 @@ export const createSubscription = async (req, res) => {
 };
 
 // ==========================================
+// CREATE BILLING PORTAL SESSION
+// ==========================================
+// Returns a short-lived Stripe Billing Portal URL so a Pro user can manage
+// or cancel their subscription, update payment method, view invoices, etc.
+// Web + Android only — iOS users manage their subscription via the App Store
+// (Apple Guideline 3.1.1), the frontend hides this button on isNativeIOS().
+//
+// Why a server-side endpoint rather than a client-side hosted link:
+// the portal needs to be tied to a specific Stripe customer_id, and we
+// don't trust the client to send the right one.
+export const createPortalSession = async (req, res) => {
+  const stripe = getStripe();
+  if (!stripe) return res.status(503).json({ error: 'Stripe not configured' });
+
+  try {
+    // Pull the most recent customer id for this user. Apple-only subscribers
+    // have stripe_customer_id = `apple:<userId>` — those don't correspond to
+    // a real Stripe customer and the portal call would fail, so reject early
+    // with a hint to use App Store settings instead.
+    const result = await db.query(
+      `SELECT stripe_customer_id, stripe_subscription_id, status
+       FROM subscriptions
+       WHERE user_id = $1
+       ORDER BY id DESC LIMIT 1`,
+      [req.userId]
+    );
+    const sub = result.rows[0];
+    if (!sub) return res.status(404).json({ error: 'Kein Abonnement gefunden' });
+    if (!sub.stripe_customer_id || sub.stripe_customer_id.startsWith('apple:')) {
+      return res.status(400).json({
+        error: 'Apple-Abonnement — bitte in den App Store Einstellungen verwalten',
+        managed_by: 'apple',
+      });
+    }
+
+    const returnUrl = process.env.FRONTEND_URL?.split(',')[0] || 'https://app.jamie-app.com';
+    const session = await stripe.billingPortal.sessions.create({
+      customer: sub.stripe_customer_id,
+      return_url: `${returnUrl}/settings`,
+    });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    // The Stripe error most commonly seen here is "No configuration provided
+    // and your test mode default configuration has not been created" — admins
+    // must visit https://dashboard.stripe.com/test/settings/billing/portal
+    // (or /settings/billing/portal in live mode) and activate the portal once.
+    if (err?.message?.includes('No configuration provided')) {
+      return res.status(503).json({ error: 'Stripe Customer Portal ist im Dashboard noch nicht aktiviert' });
+    }
+    console.error('createPortalSession error:', err);
+    res.status(500).json({ error: 'Stripe error' });
+  }
+};
+
+// ==========================================
 // CANCEL SUBSCRIPTION (at period end)
 // ==========================================
 export const cancelSubscription = async (req, res) => {

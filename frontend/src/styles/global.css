@@ -633,6 +633,11 @@ select:focus {
   background: var(--bg-secondary);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   padding: 20px 24px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  /* Cap the sheet so its top edge always stops 12px below the iOS status
+     bar / Dynamic Island even when content is tall. Without this, a long
+     modal would draw under the notch. */
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 12px);
+  overflow-y: auto;
   animation: slideUp 0.3s ease;
 }
 
@@ -650,7 +655,11 @@ select:focus {
   width: 100%;
   background: var(--bg-secondary);
   border-radius: 20px;
-  padding: 20px 20px 24px;
+  /* Bottom inset clears the iOS home-indicator pill; max-height keeps the
+     top edge below the status bar even when content overflows. */
+  padding: 20px 20px calc(env(safe-area-inset-bottom, 0px) + 24px);
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 12px);
+  overflow-y: auto;
   animation: slideUp 0.25s ease;
 }
 
@@ -869,7 +878,10 @@ select:focus {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 2px);
+  /* Reserve nav-height + safe-area at the bottom so the last item isn't
+     trapped under the fixed bottom nav. Matches the +60px pattern Home,
+     Explore, Friends, etc. all use. */
+  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 60px);
   min-height: 100%;
 }
 

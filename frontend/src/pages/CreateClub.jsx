@@ -26,6 +26,11 @@ export const CreateClub = () => {
     mainCategory: '',
     category: '',
     location: '',
+    // 'AT' only after the user picks an Austrian place from the autocomplete
+    // dropdown. Manual edits to the location input clear it. step 2 advance
+    // is blocked unless this is 'AT' — restricting the dropdown alone doesn't
+    // stop someone typing/pasting a foreign address by hand.
+    locationCountry: '',
     max_members: 50,
     is_public: true,
     requires_approval: false,
@@ -50,7 +55,7 @@ export const CreateClub = () => {
   }, []);
 
   // Attach Places Autocomplete to the Standort input once it renders.
-  // Restricted to AT/DE/CH to match the app's geofence.
+  // Restricted to Austria — clubs are an Austrian product for now.
   useEffect(() => {
     if (step !== 2) return;
     const attach = () => {
@@ -58,13 +63,23 @@ export const CreateClub = () => {
       if (autocompleteRef.current) return;
       if (!locationRef.current) return;
       const ac = new window.google.maps.places.Autocomplete(locationRef.current, {
-        componentRestrictions: { country: ['at', 'de', 'ch'] },
-        fields: ['formatted_address', 'name'],
+        componentRestrictions: { country: ['at'] },
+        fields: ['formatted_address', 'name', 'address_components'],
       });
       ac.addListener('place_changed', () => {
         const place = ac.getPlace();
         const val = place.formatted_address || place.name || '';
-        if (val) setFormData(prev => ({ ...prev, location: val }));
+        const countryComp = (place.address_components || []).find(c => c.types?.includes('country'));
+        const country = countryComp?.short_name || '';
+        if (val && country === 'AT') {
+          setFormData(prev => ({ ...prev, location: val, locationCountry: 'AT' }));
+        } else if (val) {
+          // componentRestrictions usually prevents this, but Place IDs can
+          // still resolve outside the restriction in edge cases — refuse them.
+          toast.error(t('createClub.step2.locationNotATError'));
+          setFormData(prev => ({ ...prev, location: '', locationCountry: '' }));
+          if (locationRef.current) locationRef.current.value = '';
+        }
       });
       autocompleteRef.current = ac;
     };
@@ -74,7 +89,13 @@ export const CreateClub = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      const next = { ...prev, [name]: value };
+      // Manual edits to the location field invalidate the verified-AT flag
+      // — user has to re-pick from the dropdown to advance.
+      if (name === 'location') next.locationCountry = '';
+      return next;
+    });
   };
 
   const handleImageUpload = async (e) => {
@@ -144,7 +165,7 @@ export const CreateClub = () => {
   const canProceed = () => {
     switch(step) {
       case 1: return formData.title.trim() && formData.mainCategory && formData.category && !uploading;
-      case 2: return formData.location.trim();
+      case 2: return formData.location.trim() && formData.locationCountry === 'AT';
       case 3: return true;
       default: return false;
     }
@@ -268,6 +289,7 @@ export const CreateClub = () => {
               className="input"
               autoComplete="off"
             />
+            <p className="form-hint">{t('createClub.step2.locationOnlyATHint')}</p>
           </div>
 
           <div className="form-section">

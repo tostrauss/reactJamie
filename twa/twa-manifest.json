@@ -4,41 +4,56 @@
   "name": "JAMIE - Social Activity App",
   "launcherName": "JAMIE",
   "display": "standalone",
-  "orientation": "portrait",
-  "themeColor": "#1a1a2e",
-  "navigationColor": "#1a1a2e",
-  "navigationColorDark": "#1a1a2e",
-  "navigationDividerColor": "#1a1a2e",
-  "navigationDividerColorDark": "#1a1a2e",
-  "backgroundColor": "#1a1a2e",
+  "themeColor": "#231B43",
+  "themeColorDark": "#000000",
+  "navigationColor": "#231B43",
+  "navigationColorDark": "#231B43",
+  "navigationDividerColor": "#231B43",
+  "navigationDividerColorDark": "#231B43",
+  "backgroundColor": "#231B43",
+  "enableNotifications": true,
   "startUrl": "/",
   "iconUrl": "https://app.jamie-app.com/pwa-512x512.png",
   "maskableIconUrl": "https://app.jamie-app.com/maskable-icon-512x512.png",
   "monochromeIconUrl": "https://app.jamie-app.com/pwa-512x512.png",
-  "appVersionName": "1.0.0",
-  "appVersionCode": 1,
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./keystore/jamie-release.jks",
+    "alias": "jamie-key"
+  },
+  "appVersionName": "1",
+  "appVersionCode": 4,
   "shortcuts": [
     {
       "name": "Gruppe erstellen",
-      "short_name": "Gruppe",
+      "shortName": "Gruppe",
       "url": "/create-group",
-      "icons": [{ "src": "/pwa-192x192.png", "sizes": "192x192" }]
+      "chosenIconUrl": "https://app.jamie-app.com/pwa-192x192.png"
     }
   ],
-  "signing": {
-    "keystore": "keystore/jamie-release.jks",
-    "keyAlias": "jamie-key"
-  },
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "https://app.jamie-app.com/manifest.json",
   "fallbackType": "customtabs",
   "features": {
-    "locationDelegation": { "enabled": false },
-    "playBilling": { "enabled": false }
+    "locationDelegation": {
+      "enabled": false
+    },
+    "playBilling": {
+      "enabled": false
+    }
   },
-  "alphaDependencies": false,
-  "enableNotifications": true,
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "fullScopeUrl": "https://app.jamie-app.com/"
+  "fullScopeUrl": "https://app.jamie-app.com/",
+  "minSdkVersion": 21,
+  "orientation": "portrait",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "displayOverride": [],
+  "appVersion": "1"
 }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useRef, useCallback, useMemo, lazy, Suspense } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import api, { groups, clubs, deals as dealsApi } from "../utils/api";
 import { GroupCard } from "../components/GroupCard";
@@ -75,7 +75,11 @@ export const Home = () => {
   const [clubList, setClubList] = useState([]);
   const [dealList, setDealList] = useState([]);
   const [myClubs, setMyClubs] = useState([]);
-  const [activeTab, setActiveTab] = useState("gruppen");
+  // Tab held in the URL (?tab=clubs) so swiping back from a club/group detail
+  // restores the tab the user was on. `replace: true` keeps the back stack tidy
+  // — tab switches don't add history entries, only cross-page navigations do.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") || "gruppen";
   const [searchQuery, setSearchQuery] = useState("");
   const [favorites, setFavorites] = useState(new Set());
   const [joined, setJoined] = useState(new Set());
@@ -240,14 +244,24 @@ export const Home = () => {
     return false;
   };
 
+  // Search matches both the user-entered name and the category (e.g.
+  // "Beachvolleyball") because the visible card title comes from category for
+  // non-Sonstiges groups — typing the visible word has to find the group.
+  const matchesSearch = (item) => {
+    const q = searchQuery.toLowerCase();
+    if (!q) return true;
+    return (item.name || '').toLowerCase().includes(q)
+        || (item.category || '').toLowerCase().includes(q);
+  };
+
   const filteredGroups = useMemo(() => groupList.filter(g =>
-    (g.name || '').toLowerCase().includes(searchQuery.toLowerCase()) &&
+    matchesSearch(g) &&
     matchesZeit(g) && matchesAlter(g) && matchesSicht(g) && matchesKategorie(g)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [groupList, searchQuery, zeitFilter, zeitFrom, zeitTo, alterFilter, sichtFilter, kategorieFilter]);
 
   const filteredClubs = useMemo(() => clubList.filter(c =>
-    (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) &&
+    matchesSearch(c) &&
     matchesAlter(c) && matchesSicht(c) && matchesKategorie(c)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [clubList, searchQuery, alterFilter, sichtFilter, kategorieFilter]);
@@ -353,7 +367,12 @@ export const Home = () => {
     navigate(type === 'club' ? `/club/${id}` : `/group/${id}`);
 
   const handleTabSwitch = (tab) => {
-    setActiveTab(tab);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (tab === 'gruppen') next.delete('tab');
+      else next.set('tab', tab);
+      return next;
+    }, { replace: true });
     if (tab !== 'karte') setSearchQuery('');
   };
 

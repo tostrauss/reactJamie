@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { deals } from '../utils/api';
+import { useToast } from '../context/ToastContext';
 import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
 
 const LIBRARIES = [];
@@ -45,20 +46,57 @@ export const DealDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const toast = useToast();
   const [deal, setDeal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [photoIndex, setPhotoIndex] = useState(0);
+  // Redemption status: { redeemed, count, max }. null while loading — we
+  // disable the CTA in that window so a double-tap can't race the fetch.
+  const [redemption, setRedemption] = useState(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [redeeming, setRedeeming] = useState(false);
 
   useEffect(() => {
-    deals.getOne(id)
-      .then(res => setDeal(res.data))
-      .catch(() => navigate(-1))
-      .finally(() => setLoading(false));
+    // Parallel fetch: the deal payload is what blocks render, the redemption
+    // status only blocks the CTA — but fetching both together keeps the page
+    // fully interactive a tick after mount.
+    Promise.allSettled([
+      deals.getOne(id),
+      deals.getRedemptionStatus(id),
+    ]).then(([dealRes, redRes]) => {
+      if (dealRes.status === 'fulfilled') setDeal(dealRes.value.data);
+      else { navigate(-1); return; }
+      if (redRes.status === 'fulfilled') setRedemption(redRes.value.data);
+    }).finally(() => setLoading(false));
   }, [id, navigate]);
+
+  const handleConfirmRedeem = async () => {
+    if (redeeming) return;
+    setRedeeming(true);
+    try {
+      const res = await deals.redeem(id);
+      setRedemption(res.data);
+      setShowConfirm(false);
+      navigate(`/deal/${id}/redeem`);
+    } catch (err) {
+      // 409 — already redeemed in a parallel tab or after a back-button
+      // race. Surface the existing redemption and let the user proceed to
+      // the proof screen anyway.
+      if (err.response?.status === 409) {
+        setRedemption(err.response.data);
+        setShowConfirm(false);
+        navigate(`/deal/${id}/redeem`);
+        return;
+      }
+      toast.error(t('deal.redeemError'));
+    } finally {
+      setRedeeming(false);
+    }
+  };
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100dvh', background: '#12132b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100dvh', background: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div className="loading-spinner" />
       </div>
     );
@@ -70,12 +108,19 @@ export const DealDetail = () => {
   const hasMap = deal.lat && deal.lng;
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#12132b', paddingBottom: 100 }}>
+    <div style={{
+      minHeight: '100dvh',
+      background: 'var(--bg-primary)',
+      // Reserve the status-bar inset on the outer container so the sticky
+      // header below sits cleanly under iOS Dynamic Island / notch. Using
+      // max() guarantees a sane minimum even if env() ever returns 0.
+      paddingTop: 'max(env(safe-area-inset-top, 0px), 20px)',
+      paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 60px)',
+    }}>
       {/* ── Top bar ──────────────────────────────────────────────── */}
       <div style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: '#12132b',
-        paddingTop: 'env(safe-area-inset-top, 0px)',
+        position: 'sticky', top: 'env(safe-area-inset-top, 0px)', zIndex: 50,
+        background: 'var(--bg-primary)',
         display: 'flex', alignItems: 'center',
         padding: '14px 20px',
         gap: 12,
@@ -133,6 +178,36 @@ export const DealDetail = () => {
         )}
       </div>
 
+      {/* ── Redeem CTA + counter ────────────────────────────────── */}
+      {/* Sits right under the photo so it's the first thing thumbs reach. */}
+      <div style={{ textAlign: 'center', marginTop: -22 }}>
+        <button
+          type="button"
+          disabled={!redemption || redemption.redeemed || redeeming}
+          onClick={() => setShowConfirm(true)}
+          style={{
+            background: redemption?.redeemed ? 'rgba(255,255,255,0.08)' : '#FD7666',
+            color: redemption?.redeemed ? 'rgba(255,255,255,0.55)' : '#fff',
+            border: 'none',
+            borderRadius: 100,
+            padding: '13px 32px',
+            fontSize: 15,
+            fontWeight: 800,
+            letterSpacing: 0.3,
+            boxShadow: redemption?.redeemed ? 'none' : '0 8px 24px rgba(253,118,102,0.35)',
+            cursor: redemption?.redeemed ? 'default' : 'pointer',
+            opacity: !redemption ? 0.7 : 1,
+          }}
+        >
+          {redemption?.redeemed ? t('deal.redeemedCTA') : t('deal.redeemCTA')}
+        </button>
+        {redemption && (
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, margin: '8px 0 0' }}>
+            {t('deal.redemptionCounter', { count: redemption.count, max: redemption.max })}
+          </p>
+        )}
+      </div>
+
       {/* ── Deal label pill ──────────────────────────────────────── */}
       <div style={{ textAlign: 'center', marginTop: 20 }}>
         <span style={{
@@ -147,6 +222,80 @@ export const DealDetail = () => {
           {deal.deal_label}
         </span>
       </div>
+
+      {/* ── Redeem confirmation modal ────────────────────────────── */}
+      {showConfirm && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => !redeeming && setShowConfirm(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 100,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20,
+            paddingTop: 'calc(20px + env(safe-area-inset-top, 0px))',
+            paddingBottom: 'calc(20px + env(safe-area-inset-bottom, 0px))',
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 360,
+              background: '#1e2235',
+              borderRadius: 20,
+              padding: '24px 22px',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+            }}
+          >
+            <h3 style={{ color: '#fff', fontSize: 19, fontWeight: 800, margin: '0 0 10px' }}>
+              {t('deal.redeemConfirmTitle')}
+            </h3>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, lineHeight: 1.5, margin: '0 0 22px' }}>
+              {t('deal.redeemConfirmBody')}
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                disabled={redeeming}
+                onClick={() => setShowConfirm(false)}
+                style={{
+                  flex: 1,
+                  padding: '13px 0',
+                  borderRadius: 100,
+                  background: 'rgba(255,255,255,0.08)',
+                  color: '#fff',
+                  border: 'none',
+                  fontSize: 15, fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {t('deal.redeemConfirmNo')}
+              </button>
+              <button
+                type="button"
+                disabled={redeeming}
+                onClick={handleConfirmRedeem}
+                style={{
+                  flex: 1,
+                  padding: '13px 0',
+                  borderRadius: 100,
+                  background: '#FD7666',
+                  color: '#fff',
+                  border: 'none',
+                  fontSize: 15, fontWeight: 800,
+                  cursor: 'pointer',
+                  opacity: redeeming ? 0.6 : 1,
+                }}
+              >
+                {redeeming ? '…' : t('deal.redeemConfirmYes')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Booking CTA ──────────────────────────────────────────── */}
       {deal.booking_url && (

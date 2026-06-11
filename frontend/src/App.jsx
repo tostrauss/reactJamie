@@ -50,6 +50,7 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const OutOfRegion    = lazy(() => import('./pages/OutOfRegion'));
 const Friends        = lazy(() => import('./pages/Friends'));
 const DealDetail     = lazy(() => import('./pages/DealDetail'));
+const DealRedeem     = lazy(() => import('./pages/DealRedeem'));
 const Help           = lazy(() => import('./pages/Help'));
 const BlockedUsers   = lazy(() => import('./pages/BlockedUsers'));
 
@@ -249,7 +250,12 @@ const Navigation = () => {
   const unreadRef = useRef(0);
 
   const hideNavPaths = ['/login', '/register', '/onboarding', '/welcome'];
-  const hideOnChat = location.pathname.startsWith('/chat/') || location.pathname.startsWith('/dm/');
+  // Routes that own the whole screen and shouldn't render the bottom nav.
+  // Includes the deal redemption proof screen — staff is supposed to glance
+  // at the brand + deal card, the nav would just be visual noise.
+  const hideOnChat = location.pathname.startsWith('/chat/')
+    || location.pathname.startsWith('/dm/')
+    || /^\/deal\/[^/]+\/redeem$/.test(location.pathname);
 
   // Fetch initial unread count once on mount / user change
   useEffect(() => {
@@ -396,6 +402,22 @@ function useGeoFence() {
 }
 
 // ==========================================
+// HIDE iOS KEYBOARD ACCESSORY BAR
+// ==========================================
+// iOS WKWebView shows a Done/Previous/Next toolbar above the keyboard for
+// every form input. Users read the ✓ as a "submit" button and tap it on the
+// search field expecting it to do something — it just dismisses the keyboard,
+// which is confusing. Hide it on native iOS; web/Android don't render it.
+function useHideKeyboardAccessoryBar() {
+  useEffect(() => {
+    if (!isNativeIOS()) return;
+    import('@capacitor/keyboard').then(({ Keyboard }) => {
+      Keyboard.setAccessoryBarVisible({ isVisible: false }).catch(() => {});
+    }).catch(() => {});
+  }, []);
+}
+
+// ==========================================
 // NATIVE IOS PUSH REGISTRATION
 // ==========================================
 function useNativePush(user) {
@@ -426,6 +448,7 @@ function AppRoutes() {
   const { user } = useContext(AuthContext);
   const { t } = useTranslation();
   useNativePush(user);
+  useHideKeyboardAccessoryBar();
   useAnalytics();
   const [showIntro, setShowIntro] = useState(() => !!user && !user?.isGuest && shouldShowIntro());
   const [showProModal, setShowProModal] = useState(false);
@@ -523,6 +546,7 @@ function AppRoutes() {
 
           {/* Für Dich Deals */}
           <Route path="/deal/:id" element={<ProtectedRoute><DealDetail /></ProtectedRoute>} />
+          <Route path="/deal/:id/redeem" element={<ProtectedRoute><DealRedeem /></ProtectedRoute>} />
 
           {/* User */}
           <Route path="/user/:id" element={<ProtectedRoute><UserProfile /></ProtectedRoute>} />

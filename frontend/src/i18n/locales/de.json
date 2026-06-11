@@ -359,8 +359,7 @@
         "delete": "Löschen",
         "joined": "Dabei",
         "join": "Mitmachen",
-        "participants": "{{current}} / {{max}} Teilnehmer",
-        "backToClub": "Zum Club"
+        "participants": "{{current}} / {{max}} Teilnehmer"
       }
     }
   },
@@ -368,6 +367,15 @@
     "tabs": {
       "hallOfFame": "Hall of Fame",
       "deals": "Deals"
+    },
+    "timeAgo": {
+      "justNow": "Gerade eben",
+      "minutesAgo_one": "Vor {{count}} min",
+      "minutesAgo_other": "Vor {{count}} min",
+      "hoursAgo_one": "Vor {{count}} h",
+      "hoursAgo_other": "Vor {{count}} h",
+      "daysAgo_one": "Vor {{count}} d",
+      "daysAgo_other": "Vor {{count}} d"
     },
     "suggested": {
       "reasonFriends_one": "{{count}} Freund dabei",
@@ -819,7 +827,9 @@
       "cancelConfirmYes": "Ja, kündigen",
       "cancelConfirmNo": "Doch nicht",
       "canceledToast": "Dein Abonnement wird zum Periodenende gekündigt.",
-      "cancelError": "Kündigung fehlgeschlagen. Bitte erneut versuchen oder support@jamie-app.com kontaktieren."
+      "cancelError": "Kündigung fehlgeschlagen. Bitte erneut versuchen oder support@jamie-app.com kontaktieren.",
+      "portalBtn": "Abo verwalten (Zahlung, Rechnungen)",
+      "portalError": "Portal konnte nicht geöffnet werden. Bitte erneut versuchen."
     },
     "account": {
       "editProfile": "Profil bearbeiten",
@@ -1186,6 +1196,8 @@
       "weeklyHint": "Findet jede Woche am gleichen Wochentag statt — perfekt für regelmäßige Treffs",
       "locationLabel": "Wo? *",
       "locationPlaceholder": "z.B. Stadtpark, Wien",
+      "locationOnlyATHint": "Nur Standorte in Österreich — bitte aus den Vorschlägen auswählen.",
+      "locationNotATError": "Bitte einen Standort in Österreich wählen.",
       "ageLabel": "Für welches Alter?",
       "ageHint": "Nur Nutzer in dieser Altersspanne sehen die Gruppe (leer = alle)",
       "ageFromLabel": "von",
@@ -1240,6 +1252,8 @@
     "step2": {
       "locationLabel": "Standort *",
       "locationPlaceholder": "z.B. Wien",
+      "locationOnlyATHint": "Nur Standorte in Österreich — bitte aus den Vorschlägen auswählen.",
+      "locationNotATError": "Bitte einen Standort in Österreich wählen.",
       "maxLabel": "Maximale Mitglieder",
       "frequencyLabel": "Treffhäufigkeit",
       "frequency": {
@@ -1359,7 +1373,22 @@
   },
   "deal": {
     "titleFmt": "Für Dich – {{category}}",
-    "bookNow": "Jetzt buchen"
+    "bookNow": "Jetzt buchen",
+    "redeemCTA": "Jetzt einlösen",
+    "redeemedCTA": "Bereits eingelöst",
+    "redemptionCounter": "{{count}}/{{max}} mal eingelöst",
+    "redeemConfirmTitle": "Bist du im Geschäft?",
+    "redeemConfirmBody": "Dieser Deal ist nur einmal einlösbar und sollte nur vor Ort beim Personal aktiviert werden.",
+    "redeemConfirmYes": "Bestätigen",
+    "redeemConfirmNo": "Abbrechen",
+    "redeemError": "Einlösen fehlgeschlagen. Bitte erneut versuchen.",
+    "redeemPage": {
+      "header": "Zeige diese Seite in dem Geschäft vor",
+      "subheader": "Dieser Deal ist nur einmal einlösbar",
+      "brand": "JAMIE",
+      "brandSub": "Deals",
+      "done": "Fertig"
+    }
   },
   "outOfRegion": {
     "title": "Bald auch bei dir!",
@@ -1441,6 +1470,12 @@
       "loading": "Lade Kooperationen…",
       "empty": "Noch keine Kooperationen angelegt.",
       "untilFmt": "Sichtbar bis {{date}}",
+      "expiredFmt": "Abgelaufen am {{date}}",
+      "inactiveLabel": "Inaktiv",
+      "redemptionsCount_one": "{{count}} eingelöst",
+      "redemptionsCount_other": "{{count}} eingelöst",
+      "redemptionsTooltip": "So oft wurde dieser Deal von Nutzern eingelöst.",
+      "exportCsvBtn": "CSV",
       "fields": {
         "company": "Unternehmen",
         "companyPlaceholder": "z.B. Cafe 1070",
@@ -1464,7 +1499,9 @@
         "saved": "Kooperation gespeichert",
         "saveError": "Speichern fehlgeschlagen",
         "deleted": "Kooperation gelöscht",
-        "deleteError": "Löschen fehlgeschlagen"
+        "deleteError": "Löschen fehlgeschlagen",
+        "noRedemptions": "Noch keine Einlösungen für diesen Deal",
+        "exportError": "Export fehlgeschlagen"
       }
     },
     "refresh": "Aktualisieren",
@@ -1474,6 +1511,7 @@
     "sections": {
       "users": "Nutzer",
       "groupsEvents": "Gruppen & Events",
+      "dealRedemptions": "Kooperationen — Einlösungen",
       "pendingClubsFmt": "Clubs warten auf Freischaltung ({{count}})",
       "topPages": "Top Seiten (30 Tage)",
       "categorySuggestions": "Kategorie-Vorschläge",
@@ -1488,7 +1526,10 @@
       "trusted": "Vertrauenswürdig",
       "groups": "Gruppen (Events)",
       "clubs": "Clubs",
-      "reviews": "Bewertungen"
+      "reviews": "Bewertungen",
+      "redemptionsTotal": "Gesamt eingelöst",
+      "redemptionsTotalSub_one": "über {{count}} Deal",
+      "redemptionsTotalSub_other": "über {{count}} Deals"
     },
     "pendingClubs": {
       "empty": "Keine offenen Anfragen.",
