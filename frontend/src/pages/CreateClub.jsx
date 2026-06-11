@@ -172,7 +172,9 @@ export const CreateClub = () => {
   };
 
   return (
-    <div className="page create-page">
+    // NOT className="page" — see CreateGroup: .page + .create-header would
+    // double-count the safe-area inset and leave a dead band above the header.
+    <div className="create-page">
       {/* Header */}
       <div className="create-header">
         <button className="back-btn" onClick={() => step > 1 ? setStep(step - 1) : navigate(-1)}>

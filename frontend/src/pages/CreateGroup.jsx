@@ -212,7 +212,10 @@ export const CreateGroup = () => {
   const stepLabels = t('createGroup.stepsTitles', { returnObjects: true });
 
   return (
-    <div className="page create-page">
+    // NOT className="page": .page adds its own safe-area top padding and the
+    // .create-header inside adds another — stacked, that pushed the header
+    // ~150pt down the screen (huge dead band above "Gruppe erstellen").
+    <div className="create-page">
 
       {/* Header */}
       <div className="create-header">
