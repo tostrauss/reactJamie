@@ -175,6 +175,10 @@ export const GroupDetail = () => {
 
   const [group, setGroup] = useState(null);
   const [members, setMembers] = useState([]);
+  // Pro gate (parity with the Home card): non-Pro non-members get only the
+  // first 3 members + total_count; the next grid slot renders as a locked tile.
+  const [membersGated, setMembersGated] = useState(false);
+  const [membersTotal, setMembersTotal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isJoined, setIsJoined] = useState(false);
   const [joinRequestStatus, setJoinRequestStatus] = useState(null);
@@ -220,7 +224,15 @@ export const GroupDetail = () => {
         // Groups endpoint returns { members, total_count, gated } for Pro-gating;
         // clubs endpoint still returns a flat array. Normalize to an array.
         const memberData = membersRes.data;
-        setMembers(Array.isArray(memberData) ? memberData : (memberData?.members || []));
+        if (Array.isArray(memberData)) {
+          setMembers(memberData);
+          setMembersGated(false);
+          setMembersTotal(null);
+        } else {
+          setMembers(memberData?.members || []);
+          setMembersGated(!!memberData?.gated);
+          setMembersTotal(memberData?.total_count ?? null);
+        }
 
         if (isClubType) {
           setEventsLoading(true);
@@ -252,6 +264,26 @@ export const GroupDetail = () => {
     }
   };
 
+  // Re-fetch the roster and re-derive the Pro-gate state. Hand-patching the
+  // members array after join/leave left gated/total stale: an ex-member kept
+  // seeing the full ungated roster, and a fresh member saw a synthetic self
+  // entry without age/trusted fields instead of the real ungated list.
+  const refreshMembers = async (isClub) => {
+    try {
+      const res = isClub ? await clubs.getMembers(id) : await groups.getMembers(id);
+      const data = res.data;
+      if (Array.isArray(data)) {
+        setMembers(data);
+        setMembersGated(false);
+        setMembersTotal(null);
+      } else {
+        setMembers(data?.members || []);
+        setMembersGated(!!data?.gated);
+        setMembersTotal(data?.total_count ?? null);
+      }
+    } catch { /* keep the optimistic local state */ }
+  };
+
   const handleJoinToggle = async () => {
     try {
       const isClub = group?.type === 'club';
@@ -262,6 +294,7 @@ export const GroupDetail = () => {
         setMembers(prev => prev.filter(m => m.id !== user.id));
         const response = isClub ? await clubs.getById(id) : await groups.getById(id);
         setGroup(response.data);
+        await refreshMembers(isClub);
       } else {
         const res = isClub ? await clubs.join(id) : await groups.join(id);
         if (res.data?.status === 'pending') {
@@ -272,6 +305,7 @@ export const GroupDetail = () => {
           setMembers(prev => [...prev, { id: user.id, name: user.name, avatar_url: user.avatar_url }]);
           const response = isClub ? await clubs.getById(id) : await groups.getById(id);
           setGroup(response.data);
+          await refreshMembers(isClub);
         }
       }
     } catch (error) {
@@ -417,7 +451,11 @@ export const GroupDetail = () => {
   const canCreateEvent = isClub && user && isMember;
   const maxSlots = Math.min(group.max_members || 4, 4);
   const filledSlots = members.slice(0, maxSlots);
-  const emptySlots = Math.max(0, maxSlots - filledSlots.length);
+  // Locked tile in the next free slot when the roster is Pro-gated and more
+  // members exist than were returned — same rule as the Home card's 4th tile.
+  const showGateSlot =
+    membersGated && (membersTotal ?? 0) > filledSlots.length && filledSlots.length < maxSlots;
+  const emptySlots = Math.max(0, maxSlots - filledSlots.length - (showGateSlot ? 1 : 0));
   // Recurring events show the *next* occurrence everywhere (header chip,
   // info row) so "Wann?" never reads as a date in the past.
   const displayDateISO = (() => {
@@ -488,6 +526,22 @@ export const GroupDetail = () => {
                   </div>
                 </div>
               ))}
+              {showGateSlot && (
+                <button
+                  type="button"
+                  className="gd-photo-slot gd-pro-gate"
+                  onClick={() => window.dispatchEvent(new Event('jamie:open-pro-modal'))}
+                  aria-label={t('groups.card.proGateAria')}
+                >
+                  <span className="gd-pro-gate-blur" aria-hidden="true" />
+                  <span className="gd-pro-gate-lock" aria-hidden="true">
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="4" y="11" width="16" height="10" rx="2.5" />
+                      <path d="M8 11V8a4 4 0 1 1 8 0v3" />
+                    </svg>
+                  </span>
+                </button>
+              )}
               {[...Array(emptySlots)].map((_, i) => (
                 <div key={`empty-${i}`} className="gd-photo-slot empty">
                   <span className="gd-photo-plus">+</span>

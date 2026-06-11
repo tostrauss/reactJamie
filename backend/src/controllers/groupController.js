@@ -778,11 +778,13 @@ export const getGroupMembers = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Privacy gate: members of a private group are hidden from non-members.
-    // Public groups (the default) let any authenticated user see the roster
-    // so the GroupDetail page works while browsing before joining.
+    // No is_private 403 for GROUPS here: the Home feed embeds member_previews
+    // for private groups to every viewer, so hiding the same people on the
+    // detail page only rendered an empty photo grid (tester bug 2026-06-11).
+    // "Privat" gates JOINING (request flow), not the member preview — the
+    // Pro gate below limits what non-members see either way.
     const groupRes = await db.query(
-      'SELECT is_private FROM groups WHERE id = $1 AND deleted_at IS NULL',
+      'SELECT type, is_private FROM groups WHERE id = $1 AND deleted_at IS NULL',
       [id]
     );
     if (groupRes.rows.length === 0) {
@@ -794,12 +796,17 @@ export const getGroupMembers = async (req, res) => {
       [id, req.userId]
     )).rows.length > 0;
 
-    if (groupRes.rows[0].is_private && !isCallerMember) {
+    // CLUBS resolve through this route too (legacy /group/:id links — same
+    // table). Their roster privacy is owned by getClubMembers, which 403s
+    // private clubs to non-members; mirror that here so the club rule cannot
+    // be bypassed by swapping /clubs/ for /groups/ in the URL.
+    if (groupRes.rows[0].type === 'club' && groupRes.rows[0].is_private && !isCallerMember) {
       return res.status(403).json({ error: 'Keine Berechtigung' });
     }
 
     const fullList = await db.query(
-      `SELECT u.id, u.name, u.avatar_url, u.bio, u.location, gm.role, gm.joined_at,
+      `SELECT u.id, u.name, u.avatar_url, u.bio, u.location, u.is_trusted_user,
+              gm.role, gm.joined_at,
               EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS age
        FROM group_members gm
        JOIN users u ON gm.user_id = u.id
@@ -811,12 +818,27 @@ export const getGroupMembers = async (req, res) => {
 
     // #1 Pro gate: members of the group always see the whole roster (they're
     // already in the group). Non-members who are NOT Pro see only the first
-    // 3 entries; the frontend renders remaining slots as blurred placeholders
-    // with a ProModal CTA. Pro users always see everyone.
+    // 3 entries; the frontend renders the next slot as a blurred locked tile
+    // with a ProModal CTA. Pro non-members get the full roster (that is the
+    // ProModal's literal promise, "alle Mitglieder sehen" — note this is more
+    // than the Home feed's 4-preview cap); admins bypass like staff everywhere.
     const callerIsPro = req.userId ? await isUserPro(req.userId) : false;
-    if (!isCallerMember && !callerIsPro) {
+    let callerIsAdmin = false;
+    if (!isCallerMember && !callerIsPro && req.userId) {
+      const adm = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);
+      callerIsAdmin = !!adm.rows[0]?.is_admin;
+    }
+    if (!isCallerMember && !callerIsPro && !callerIsAdmin) {
       return res.json({
-        members: fullList.rows.slice(0, 3),
+        // Same field set the Home feed previews expose (+ the trusted badge
+        // the grids render). bio/location/role/joined_at stay members-only.
+        members: fullList.rows.slice(0, 3).map(m => ({
+          id: m.id,
+          name: m.name,
+          avatar_url: m.avatar_url,
+          age: m.age,
+          is_trusted_user: m.is_trusted_user,
+        })),
         total_count: total,
         gated: true,
       });

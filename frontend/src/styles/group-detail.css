@@ -140,6 +140,52 @@
   border-radius: 10px;
 }
 
+/* Pro-gate tile — detail-page twin of the Home card's locked 4th tile
+   (.avatar-slot.pro-gate in home.css): blurred silhouette + plain coral
+   lock, opens the ProModal. */
+.gd-photo-slot.gd-pro-gate {
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gd-pro-gate-blur {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 38%, #4a3d70 0%, #2e2452 28%, transparent 55%),
+    radial-gradient(ellipse at 50% 120%, rgba(253, 118, 102, 0.22) 0%, transparent 55%),
+    linear-gradient(180deg, #271e44 0%, #15102a 100%);
+  filter: blur(12px);
+  transform: scale(1.3);
+  pointer-events: none;
+}
+
+.gd-pro-gate-lock {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  color: #FD7666;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45));
+  transition: transform 0.18s ease;
+}
+
+.gd-photo-slot.gd-pro-gate:hover .gd-pro-gate-lock,
+.gd-photo-slot.gd-pro-gate:focus-visible .gd-pro-gate-lock {
+  transform: scale(1.08);
+}
+
+/* Inset ring — the grid's overflow:hidden would clip the global outward
+   button outline on the tile's outer edges. */
+.gd-photo-slot.gd-pro-gate:focus-visible {
+  outline: 2px solid #FD7666;
+  outline-offset: -2px;
+}
+
 .gd-photo-plus {
   font-size: 36px;
   font-weight: 300;

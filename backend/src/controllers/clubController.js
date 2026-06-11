@@ -607,7 +607,8 @@ export const getClubMembers = async (req, res) => {
     }
 
     const result = await db.query(
-      `SELECT u.id, u.name, u.avatar_url, u.bio, u.location, gm.role, gm.joined_at,
+      `SELECT u.id, u.name, u.avatar_url, u.bio, u.location, u.is_trusted_user,
+              gm.role, gm.joined_at,
               EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS age
        FROM group_members gm
        JOIN users u ON gm.user_id = u.id
