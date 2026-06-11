@@ -919,7 +919,7 @@ export const createClubEvent = async (req, res) => {
 
   try {
     const club = await db.query(
-      'SELECT id, name, category, owner_id, events_owner_only FROM groups WHERE id = $1 AND type = $2',
+      'SELECT id, name, category, owner_id, events_owner_only, location FROM groups WHERE id = $1 AND type = $2',
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club nicht gefunden' });
@@ -942,7 +942,11 @@ export const createClubEvent = async (req, res) => {
     if (!safe) return res.status(422).json({ error: reason });
 
     const dateTime = date && time ? `${date}T${time}` : date;
-    const coords = await geocodeLocation(location || club.rows[0].location || null);
+    // Ort is optional in the event form — an empty field inherits the CLUB's
+    // location (text AND coords). The inherited text must be stored too, not
+    // just geocoded: otherwise the event renders without any address line.
+    const eventLocation = (location && location.trim()) || club.rows[0].location || null;
+    const coords = await geocodeLocation(eventLocation);
 
     const result = await db.query(
       `INSERT INTO groups
@@ -955,7 +959,7 @@ export const createClubEvent = async (req, res) => {
         description || null,
         club.rows[0].category || null,
         dateTime,
-        location || null,
+        eventLocation,
         max_members || 20,
         userId,
         parseInt(id, 10),

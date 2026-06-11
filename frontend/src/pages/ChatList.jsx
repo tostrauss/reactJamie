@@ -117,34 +117,56 @@ export const ChatList = () => {
     return date.toLocaleDateString(dateLocale, { day: '2-digit', month: '2-digit' });
   };
 
+  // Patch a chat row AND move it to the top — the lists are ordered by
+  // last-message time (backend: updated_at / lm.created_at DESC), so a chat
+  // that just received a message belongs at position 0. Updating in place
+  // left the order stale while the list was open (tester feedback).
+  const bumpToTop = (list, id, patch) => {
+    const idx = list.findIndex(c => c.id === id);
+    if (idx === -1) return list;
+    return [
+      { ...list[idx], ...patch },
+      ...list.slice(0, idx),
+      ...list.slice(idx + 1),
+    ];
+  };
+
   const handleNewGroupMessage = (data) => {
-    setGroupChats(prev => prev.map(chat =>
-      chat.id === (data.group_id || data.groupId)
-        ? { ...chat, lastMessage: `${data.user_name ? `${data.user_name}: ` : ''}${data.content}`, time: formatTime(new Date().toISOString()), unread: (chat.unread || 0) + 1 }
-        : chat
-    ));
+    setGroupChats(prev => {
+      const id = data.group_id || data.groupId;
+      const row = prev.find(c => c.id === id);
+      if (!row) return prev;
+      return bumpToTop(prev, id, {
+        lastMessage: `${data.user_name ? `${data.user_name}: ` : ''}${data.content}`,
+        time: formatTime(new Date().toISOString()),
+        unread: (row.unread || 0) + 1,
+      });
+    });
   };
 
   // Per-user nudge from the backend (reaches us without being in the room).
   const handleGroupNotification = (data) => {
-    setGroupChats(prev => prev.map(chat =>
-      chat.id === data.group_id
-        ? {
-            ...chat,
-            lastMessage: `${data.user_name ? `${data.user_name}: ` : ''}${data.content || ''}`,
-            time: formatTime(new Date().toISOString()),
-            unread: (chat.unread || 0) + 1,
-          }
-        : chat
-    ));
+    setGroupChats(prev => {
+      const row = prev.find(c => c.id === data.group_id);
+      if (!row) return prev;
+      return bumpToTop(prev, data.group_id, {
+        lastMessage: `${data.user_name ? `${data.user_name}: ` : ''}${data.content || ''}`,
+        time: formatTime(new Date().toISOString()),
+        unread: (row.unread || 0) + 1,
+      });
+    });
   };
 
   const handleNewDM = (data) => {
-    setPrivateChats(prev => prev.map(chat =>
-      chat.id === data.senderId
-        ? { ...chat, lastMessage: data.message?.content, time: formatTime(new Date().toISOString()), unread: (chat.unread || 0) + 1 }
-        : chat
-    ));
+    setPrivateChats(prev => {
+      const row = prev.find(c => c.id === data.senderId);
+      if (!row) return prev;
+      return bumpToTop(prev, data.senderId, {
+        lastMessage: data.message?.content,
+        time: formatTime(new Date().toISOString()),
+        unread: (row.unread || 0) + 1,
+      });
+    });
   };
 
   const handleChatClick = (chat) => {
