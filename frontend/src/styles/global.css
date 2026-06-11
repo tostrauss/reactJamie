@@ -222,10 +222,28 @@ button, a, [role="button"], label {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Prevent text selection on long-press of buttons (Android behavior) */
-button, [role="button"] {
+/* App-like behavior: no long-press text selection on app chrome. On iOS, a
+   slightly-long press mid-scroll otherwise selects card text and leaves the
+   system-blue selection handle floating at the text edge (the "blue stripe"
+   seen while scrolling Explore/Home). Selection stays enabled below for
+   everything users genuinely copy; the referral code has its own copy button. */
+html {
   -webkit-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Form fields must stay selectable/editable */
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Chat + DM message text remains copyable (long-press to copy a message) */
+.message-content, .message-content * {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
 }
 
 /* Visible keyboard-only focus ring — required for App Store accessibility review.
