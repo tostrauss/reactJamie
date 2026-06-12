@@ -115,7 +115,7 @@
     },
     "forgot": {
       "subtitle": "Enter your email address and we'll send you a link to reset your password.",
-      "backToLogin": "← Back to login",
+      "backToLogin": "Back to login",
       "submit": "Send link",
       "sentTitle": "Email sent!",
       "sentBodyPrefix": "If an account exists for",

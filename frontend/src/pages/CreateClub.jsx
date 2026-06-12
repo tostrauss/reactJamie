@@ -179,7 +179,9 @@ export const CreateClub = () => {
     <div className="create-page">
       {/* Header */}
       <div className="create-header">
-        <button className="back-btn" onClick={() => step > 1 ? setStep(step - 1) : navigate(-1)}>
+        {/* create-back-btn (create.css) — "back-btn" exists in no stylesheet
+            this page loads; CreateGroup uses the styled circle button. */}
+        <button className="create-back-btn" onClick={() => step > 1 ? setStep(step - 1) : navigate(-1)}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>

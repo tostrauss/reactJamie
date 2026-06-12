@@ -115,7 +115,7 @@
     },
     "forgot": {
       "subtitle": "Gib deine E-Mail-Adresse ein und wir senden dir einen Link zum Zurücksetzen deines Passworts.",
-      "backToLogin": "← Zurück zum Login",
+      "backToLogin": "Zurück zum Login",
       "submit": "Link senden",
       "sentTitle": "E-Mail gesendet!",
       "sentBodyPrefix": "Falls ein Konto mit",

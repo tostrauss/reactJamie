@@ -104,12 +104,12 @@ function StripeSubscribeForm({ onSuccess, onCancel }) {
         <button type="submit" disabled={loading || !stripe} style={{
           flex:2, padding:'15px', borderRadius:'14px', border:'none',
           background: loading
-            ? 'rgba(255,215,0,0.3)'
-            : 'linear-gradient(135deg, #FFD700 0%, #FFAA00 100%)',
-          color: loading ? 'rgba(255,255,255,0.5)' : '#1a1100',
+            ? 'rgba(253,118,102,0.3)'
+            : 'linear-gradient(135deg, #FD7666 0%, #e5574a 100%)',
+          color: loading ? 'rgba(255,255,255,0.5)' : '#fff',
           fontWeight:'800', fontSize:'15px',
           cursor: loading ? 'not-allowed' : 'pointer',
-          boxShadow: loading ? 'none' : '0 6px 20px rgba(255,215,0,0.35)',
+          boxShadow: loading ? 'none' : '0 6px 20px rgba(253,118,102,0.35)',
         }}>
           {loading
             ? <span style={{ display:'inline-flex', gap:'6px', alignItems:'center' }}>
@@ -168,7 +168,10 @@ function Confetto({ i }) {
 // ── Plan tile ──────────────────────────────────────────────────────────────
 // One selectable row in the Hinge-style pricing grid. Per-week price is the
 // headline; the struck-through baseline + green "X% sparen" chip drive the
-// "Sparfaktor". Selected tile gets a gold border + check.
+// "Sparfaktor". Selected tile gets a coral border + check.
+// Palette (Tina, 2026-06-12): brand tones — purple base, coral accents,
+// white headlines. Yellow only as a rare highlight (crown emoji, confetti);
+// the old all-gold look read as "Burger King".
 function PlanTile({ plan, selected, onSelect, t }) {
   const badge = plan.badgeKey ? t(`pro.plans.badges.${plan.badgeKey}`) : null;
   return (
@@ -188,9 +191,9 @@ function PlanTile({ plan, selected, onSelect, t }) {
         borderRadius: '16px',
         cursor: 'pointer',
         background: selected
-          ? 'linear-gradient(135deg, rgba(255,215,0,0.14), rgba(255,165,0,0.06))'
+          ? 'linear-gradient(135deg, rgba(253,118,102,0.14), rgba(253,118,102,0.05))'
           : 'rgba(255,255,255,0.04)',
-        border: selected ? '1.5px solid #FFD700' : '1.5px solid rgba(255,255,255,0.1)',
+        border: selected ? '1.5px solid #FD7666' : '1.5px solid rgba(255,255,255,0.1)',
         transition: 'background 0.15s, border-color 0.15s',
       }}
     >
@@ -199,10 +202,10 @@ function PlanTile({ plan, selected, onSelect, t }) {
         <span style={{
           position: 'absolute', top: '-10px', left: '14px',
           padding: '3px 10px', borderRadius: '20px',
-          background: 'linear-gradient(135deg, #FFD700, #FFAA00)',
-          color: '#1a1100', fontSize: '11px', fontWeight: '800',
+          background: 'linear-gradient(135deg, #FD7666, #e5574a)',
+          color: '#fff', fontSize: '11px', fontWeight: '800',
           letterSpacing: '0.2px', whiteSpace: 'nowrap',
-          boxShadow: '0 4px 12px rgba(255,215,0,0.4)',
+          boxShadow: '0 4px 12px rgba(253,118,102,0.4)',
         }}>
           {badge}
         </span>
@@ -213,12 +216,12 @@ function PlanTile({ plan, selected, onSelect, t }) {
         <span style={{
           flexShrink: 0, width: '22px', height: '22px', borderRadius: '50%',
           border: selected ? 'none' : '2px solid rgba(255,255,255,0.25)',
-          background: selected ? '#FFD700' : 'transparent',
+          background: selected ? '#FD7666' : 'transparent',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           {selected && (
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-              stroke="#1a1100" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+              stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20,6 9,17 4,12" />
             </svg>
           )}
@@ -244,7 +247,7 @@ function PlanTile({ plan, selected, onSelect, t }) {
               {BASELINE_WEEKLY} €
             </span>
           )}
-          <span style={{ color: '#FFD700', fontWeight: '900', fontSize: '19px', lineHeight: 1 }}>
+          <span style={{ color: '#fff', fontWeight: '900', fontSize: '19px', lineHeight: 1 }}>
             {plan.perWeek} €
           </span>
         </div>
@@ -347,9 +350,9 @@ export const ProModal = ({ onClose, onSuccess }) => {
           style={{
             position:'relative',
             width:'100%', maxWidth:'500px',
-            background:'linear-gradient(175deg, #1c1400 0%, #0d0d22 60%)',
+            background:'linear-gradient(175deg, #2E2455 0%, #1A1433 60%)',
             borderRadius:'28px 28px 0 0',
-            border:'1px solid rgba(255,215,0,0.18)',
+            border:'1px solid rgba(253,118,102,0.22)',
             borderBottom:'none',
             // Padding handles both safe-area insets explicitly:
             //  - Top: status-bar inset + 16px, so close X never sits under the
@@ -378,13 +381,13 @@ export const ProModal = ({ onClose, onSuccess }) => {
               <div style={{ position:'relative', display:'inline-block', marginBottom:'20px' }}>
                 <div style={{
                   position:'absolute', inset:'-20px', borderRadius:'50%',
-                  border:'2px solid #FFD700',
+                  border:'2px solid #FD7666',
                   animation:'pm-pulse-ring 1.2s ease-out infinite',
                 }} />
                 <div style={{
                   width:'90px', height:'90px', borderRadius:'50%',
-                  background:'linear-gradient(135deg, #FFD70022, #FFD70008)',
-                  border:'2px solid #FFD70055',
+                  background:'linear-gradient(135deg, #FD766622, #FD766608)',
+                  border:'2px solid #FD766655',
                   display:'flex', alignItems:'center', justifyContent:'center',
                   fontSize:'44px',
                   animation:'pm-crown 0.6s cubic-bezier(.34,1.56,.64,1) both',
@@ -405,7 +408,7 @@ export const ProModal = ({ onClose, onSuccess }) => {
                   </svg>
                 </div>
               </div>
-              <h2 style={{ fontSize:'26px', fontWeight:'900', color:'#FFD700', margin:'0 0 10px' }}>
+              <h2 style={{ fontSize:'26px', fontWeight:'900', color:'#fff', margin:'0 0 10px' }}>
                 {t('pro.successTitle')}
               </h2>
               <p style={{ color:'rgba(255,255,255,0.6)', fontSize:'15px', lineHeight:1.7, maxWidth:'280px', margin:'0 auto' }}>
@@ -439,7 +442,7 @@ export const ProModal = ({ onClose, onSuccess }) => {
                 }}>
                   👑
                 </div>
-                <h2 style={{ fontSize:'28px', fontWeight:'900', color:'#FFD700', margin:'0 0 8px' }}>
+                <h2 style={{ fontSize:'28px', fontWeight:'900', color:'#fff', margin:'0 0 8px' }}>
                   {t('pro.title')}
                 </h2>
                 {/* "NEU – Spare bis zu XX%" pill */}
@@ -471,17 +474,17 @@ export const ProModal = ({ onClose, onSuccess }) => {
                 {FEATURE_KEYS.map((f, i) => (
                   <div key={i} style={{
                     display:'flex', alignItems:'center', gap:'14px',
-                    background:'linear-gradient(135deg, rgba(255,215,0,0.07), rgba(255,165,0,0.03))',
-                    border:'1px solid rgba(255,215,0,0.14)',
+                    background:'rgba(255,255,255,0.04)',
+                    border:'1px solid rgba(255,255,255,0.09)',
                     borderRadius:'16px', padding:'14px 16px',
                   }}>
                     <div style={{
                       width:'44px', height:'44px', borderRadius:'12px', flexShrink:0,
-                      background:'rgba(255,215,0,0.12)',
-                      border:'1px solid rgba(255,215,0,0.2)',
+                      background:'rgba(253,118,102,0.12)',
+                      border:'1px solid rgba(253,118,102,0.22)',
                       display:'flex', alignItems:'center', justifyContent:'center',
                       fontSize: f.icon === '∞' ? '22px' : '22px',
-                      fontWeight:'900', color:'#FFD700',
+                      fontWeight:'900', color:'#FD7666',
                     }}>
                       {f.icon}
                     </div>
@@ -496,11 +499,11 @@ export const ProModal = ({ onClose, onSuccess }) => {
                     {/* Checkmark */}
                     <div style={{
                       marginLeft:'auto', width:'22px', height:'22px', borderRadius:'50%',
-                      background:'rgba(255,215,0,0.15)', flexShrink:0,
+                      background:'rgba(253,118,102,0.15)', flexShrink:0,
                       display:'flex', alignItems:'center', justifyContent:'center',
                     }}>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                        stroke="#FFD700" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        stroke="#FD7666" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="20,6 9,17 4,12" />
                       </svg>
                     </div>
@@ -515,14 +518,14 @@ export const ProModal = ({ onClose, onSuccess }) => {
                 style={{
                   width:'100%', padding:'19px', borderRadius:'18px', border:'none',
                   background: loading
-                    ? 'rgba(255,215,0,0.25)'
-                    : 'linear-gradient(270deg, #FFD700, #FFAA00, #FFD700)',
+                    ? 'rgba(253,118,102,0.25)'
+                    : 'linear-gradient(270deg, #FD7666, #e5574a, #FD7666)',
                   backgroundSize:'200% auto',
                   animation: loading ? 'none' : 'pm-shimmer 2.5s linear infinite',
-                  color: loading ? 'rgba(255,255,255,0.4)' : '#1a1100',
+                  color: loading ? 'rgba(255,255,255,0.4)' : '#fff',
                   fontSize:'17px', fontWeight:'900', letterSpacing:'0.2px',
                   cursor: loading ? 'not-allowed' : 'pointer',
-                  boxShadow: loading ? 'none' : '0 10px 32px rgba(255,215,0,0.4), 0 2px 8px rgba(0,0,0,0.3)',
+                  boxShadow: loading ? 'none' : '0 10px 32px rgba(253,118,102,0.4), 0 2px 8px rgba(0,0,0,0.3)',
                   marginBottom:'10px',
                   display:'flex', alignItems:'center', justifyContent:'center', gap:'8px',
                 }}
@@ -564,11 +567,11 @@ export const ProModal = ({ onClose, onSuccess }) => {
                   {t('pro.iosTerms', { defaultValue:
                     'JAMIE Pro verlängert sich automatisch zum gewählten Preis am Ende jeder Laufzeit. Kündbar jederzeit über iOS-Einstellungen → Apple-ID → Abos, mindestens 24 Std. vor Ablauf.' })}
                   {' '}
-                  <a href="/terms" target="_blank" rel="noopener" style={{ color:'#FFD700', textDecoration:'underline' }}>
+                  <a href="/terms" target="_blank" rel="noopener" style={{ color:'#FD7666', textDecoration:'underline' }}>
                     {t('pro.terms', { defaultValue: 'AGB' })}
                   </a>
                   {' · '}
-                  <a href="/privacy" target="_blank" rel="noopener" style={{ color:'#FFD700', textDecoration:'underline' }}>
+                  <a href="/privacy" target="_blank" rel="noopener" style={{ color:'#FD7666', textDecoration:'underline' }}>
                     {t('pro.privacy', { defaultValue: 'Datenschutz' })}
                   </a>
                 </p>
@@ -613,7 +616,7 @@ export const ProModal = ({ onClose, onSuccess }) => {
                 return (
                   <div style={{
                     display:'flex', alignItems:'center', justifyContent:'space-between',
-                    background:'rgba(255,215,0,0.07)', border:'1px solid rgba(255,215,0,0.18)',
+                    background:'rgba(253,118,102,0.08)', border:'1px solid rgba(253,118,102,0.22)',
                     borderRadius:'14px', padding:'12px 16px', marginBottom:'18px',
                   }}>
                     <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
@@ -627,8 +630,8 @@ export const ProModal = ({ onClose, onSuccess }) => {
                         </div>
                       </div>
                     </div>
-                    <div style={{ color:'#FFD700', fontWeight:'900', fontSize:'18px', whiteSpace:'nowrap' }}>
-                      {sel.perWeek} €<span style={{ fontSize:'11px', fontWeight:'600', color:'rgba(255,215,0,0.6)' }}>/{t('pro.plans.wkShort')}</span>
+                    <div style={{ color:'#fff', fontWeight:'900', fontSize:'18px', whiteSpace:'nowrap' }}>
+                      {sel.perWeek} €<span style={{ fontSize:'11px', fontWeight:'600', color:'rgba(255,255,255,0.5)' }}>/{t('pro.plans.wkShort')}</span>
                     </div>
                   </div>
                 );
@@ -641,8 +644,8 @@ export const ProModal = ({ onClose, onSuccess }) => {
                   appearance: {
                     theme:'night',
                     variables: {
-                      colorPrimary:'#FFD700',
-                      colorBackground:'#1c1400',
+                      colorPrimary:'#FD7666',
+                      colorBackground:'#2A2150',
                       colorText:'#ffffff',
                       colorTextSecondary:'rgba(255,255,255,0.5)',
                       colorDanger:'#ff8a8a',
@@ -651,8 +654,8 @@ export const ProModal = ({ onClose, onSuccess }) => {
                       spacingUnit:'4px',
                     },
                     rules: {
-                      '.Input': { border:'1px solid rgba(255,215,0,0.2)', boxShadow:'none' },
-                      '.Input:focus': { border:'1px solid rgba(255,215,0,0.55)', boxShadow:'0 0 0 3px rgba(255,215,0,0.12)' },
+                      '.Input': { border:'1px solid rgba(253,118,102,0.22)', boxShadow:'none' },
+                      '.Input:focus': { border:'1px solid rgba(253,118,102,0.6)', boxShadow:'0 0 0 3px rgba(253,118,102,0.12)' },
                     },
                   },
                 }}

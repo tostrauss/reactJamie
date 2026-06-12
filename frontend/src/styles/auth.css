@@ -198,6 +198,7 @@
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
+  text-decoration: none; /* used as <Link> on ForgotPassword */
   padding: 0 12px 0 8px;
   min-height: 44px; /* Apple HIG minimum touch target */
   -webkit-tap-highlight-color: transparent;

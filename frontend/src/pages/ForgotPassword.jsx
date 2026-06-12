@@ -54,7 +54,13 @@ const ForgotPassword = () => {
             </p>
 
             <form onSubmit={handleSubmit} className="auth-form">
-              <Link to="/login" className="back-btn">
+              {/* auth-back-btn (Login's small chip) — the old "back-btn" class
+                  doesn't exist in auth.css, so the link inherited leaked
+                  styles from other pages and rendered headline-sized. */}
+              <Link to="/login" className="auth-back-btn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
                 {t('auth.forgot.backToLogin')}
               </Link>
 
