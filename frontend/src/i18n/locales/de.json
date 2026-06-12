@@ -302,6 +302,11 @@
         "participantsUnlimited": "Teilnehmer: {{current}}/∞",
         "age": "Alter: {{range}}"
       },
+      "membersTeaser": {
+        "count_one": "{{count}} Teilnehmer",
+        "count_other": "{{count}} Teilnehmer",
+        "seeAll": "Alle sehen"
+      },
       "delete": {
         "club": "Club löschen",
         "event": "Veranstaltung löschen",

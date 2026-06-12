@@ -178,7 +178,9 @@ export const CreateGroup = () => {
       };
 
       const response = await groups.create(payload);
-      navigate(`/group/${response.data.id}`);
+      // replace, don't push: the create flow must not stay in the history —
+      // back on the new group's page should lead home, not into the wizard.
+      navigate(`/group/${response.data.id}`, { replace: true });
     } catch (err) {
       const msg = err.response?.data?.error || err.message || t('createGroup.createError');
       setError(msg);

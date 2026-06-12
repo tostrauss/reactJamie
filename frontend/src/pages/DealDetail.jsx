@@ -117,7 +117,9 @@ export const DealDetail = () => {
       // header below sits cleanly under iOS Dynamic Island / notch. Using
       // max() guarantees a sane minimum even if env() ever returns 0.
       paddingTop: 'max(env(safe-area-inset-top, 0px), 20px)',
-      paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 60px)',
+      // Flat nav clearance (flush 48px strip + "+" protrusion, no safe-area
+      // — see .bottom-nav in global.css)
+      paddingBottom: '68px',
     }}>
       {/* ── Top bar ──────────────────────────────────────────────── */}
       <div style={{

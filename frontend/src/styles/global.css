@@ -276,7 +276,9 @@ select:focus-visible {
    ========================================== */
 .update-banner {
   position: fixed;
-  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  /* Flat offset above the flush 48px nav (no safe-area, see .bottom-nav) —
+     the env() term floated the banner ~34px too high on iOS. */
+  bottom: 68px;
   left: 50%;
   transform: translateX(-50%);
   background: var(--bg-card);
@@ -312,7 +314,8 @@ select:focus-visible {
    ========================================== */
 .install-banner {
   position: fixed;
-  bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 8px);
+  /* Flat offset above the flush 48px nav (no safe-area, see .bottom-nav). */
+  bottom: 76px;
   left: 12px;
   right: 12px;
   background: var(--bg-card);
@@ -830,7 +833,9 @@ select:focus {
   flex: 1;
   padding: 20px;
   padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 60px);
+  /* Nav clearance: flush 48px strip + 11px "+" protrusion + gap — no
+     safe-area here, the nav ignores it (see .bottom-nav). */
+  padding-bottom: 68px;
   max-width: 600px;
   margin: 0 auto;
   width: 100%;
@@ -917,10 +922,9 @@ select:focus {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  /* Reserve nav-height + safe-area at the bottom so the last item isn't
-     trapped under the fixed bottom nav. Matches the +60px pattern Home,
-     Explore, Friends, etc. all use. */
-  padding: 16px 20px calc(env(safe-area-inset-bottom, 0px) + 60px);
+  /* Nav clearance: flush 48px strip + 11px "+" protrusion + gap — no
+     safe-area here, the nav ignores it (see .bottom-nav). */
+  padding: 16px 20px 68px;
   min-height: 100%;
 }
 

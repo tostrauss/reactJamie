@@ -250,7 +250,10 @@ export const GroupRequests = () => {
         .request-date { font-size: 12px; color: var(--text-muted); }
         .next-card-preview { position: absolute; bottom: -60px; left: 50%; transform: translateX(-50%); width: 80%; height: 60px; border-radius: 20px 20px 0 0; overflow: hidden; opacity: 0.5; z-index: -1; }
         .next-card-preview img { width: 100%; height: 100%; object-fit: cover; filter: blur(2px); }
-        .requests-actions { display: flex; justify-content: center; gap: 40px; padding: 24px; padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 24px); }
+        /* 92px = 24px gap + 68px nav clearance (flush 48px strip + 11px "+"
+           protrusion, NO safe-area — see .bottom-nav). The old env()-based
+           value left the buttons' lower halves under the nav on 0-inset devices. */
+        .requests-actions { display: flex; justify-content: center; gap: 40px; padding: 24px; padding-bottom: 92px; }
         .action-btn { width: 70px; height: 70px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
         .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .action-btn:not(:disabled):hover { transform: scale(1.1); }

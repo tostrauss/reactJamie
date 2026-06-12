@@ -147,11 +147,13 @@ export const CreateClub = () => {
       // Backend stamps approval_status='pending' for non-admin owners.
       // Route them home with an explanatory toast instead of into the
       // newly-created (but invisible to everyone else) club detail page.
+      // replace, don't push: the create flow must not stay in the history —
+      // back on the destination page should lead home, not into the wizard.
       if (response.data?.approval_status === 'pending') {
         toast.success(t('createClub.pendingToast'));
-        navigate('/home');
+        navigate('/home', { replace: true });
       } else {
-        navigate(`/group/${response.data.id}`);
+        navigate(`/group/${response.data.id}`, { replace: true });
       }
     } catch (err) {
       const msg = err.response?.data?.error || t('createClub.createError');

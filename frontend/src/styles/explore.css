@@ -6,8 +6,11 @@
 .explore-container {
   height: 100vh; /* fallback */
   height: 100dvh;
-  /* Reserve space for the fixed bottom nav so flex children never extend behind it */
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 60px);
+  /* Clearance for the fixed bottom nav: 48px flush strip + 11px "+"-button
+     protrusion + breathing room. NO env(safe-area-inset-bottom) here — the
+     nav deliberately ignores it (see .bottom-nav); adding it double-counts
+     ~34px and showed as a dead band clipping the feed above the nav. */
+  padding-bottom: 68px;
   box-sizing: border-box;
   background: var(--bg-primary);
   display: flex;

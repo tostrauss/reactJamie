@@ -8,8 +8,9 @@
   min-height: 100vh;
   background: var(--bg-primary);
   color: var(--text-light);
-  /* Reserve bottom nav height so the last action button isn't covered. */
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+  /* Nav clearance: flush 48px strip + 11px "+" protrusion + gap — no
+     safe-area here, the nav ignores it (see .bottom-nav). */
+  padding-bottom: 68px;
 }
 
 .cd-loading {

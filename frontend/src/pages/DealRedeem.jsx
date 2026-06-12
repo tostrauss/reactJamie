@@ -21,9 +21,14 @@ export const DealRedeem = () => {
       .finally(() => setLoading(false));
   }, [id, navigate]);
 
+  // Slightly lighter/bluer than the app's #231B43 — per Tina's design mock
+  // the proof screen stands apart from the rest of the app so staff
+  // recognize it at a glance.
+  const PAGE_BG = '#2C2960';
+
   if (loading || !deal) {
     return (
-      <div style={{ minHeight: '100dvh', background: '#231B43', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100dvh', background: PAGE_BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div className="loading-spinner" />
       </div>
     );
@@ -34,7 +39,7 @@ export const DealRedeem = () => {
   return (
     <div style={{
       minHeight: '100dvh',
-      background: '#231B43',
+      background: PAGE_BG,
       display: 'flex',
       flexDirection: 'column',
       paddingTop: 'calc(24px + env(safe-area-inset-top, 0px))',
@@ -52,7 +57,7 @@ export const DealRedeem = () => {
         </p>
       </div>
 
-      {/* ── Brand + proof card ── */}
+      {/* ── Brand + proof card — on a subtly lighter rounded panel (mock) ── */}
       <div style={{
         flex: 1,
         display: 'flex',
@@ -60,6 +65,10 @@ export const DealRedeem = () => {
         alignItems: 'center',
         justifyContent: 'center',
         gap: 28,
+        background: 'rgba(255,255,255,0.045)',
+        borderRadius: 28,
+        padding: '32px 18px',
+        marginTop: 12,
       }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{

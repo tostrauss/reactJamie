@@ -15,10 +15,10 @@
   max-width: 600px;
   margin: 0 auto;
   width: 100%;
-  /* Reserve space for the fixed bottom nav (~46px + home indicator) so the
-     Weiter button isn't trapped under it and there's no big void between the
-     form footer and the nav. */
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 46px);
+  /* Nav clearance: flush 48px strip + 11px "+" protrusion + gap — no
+     safe-area here, the nav ignores it (see .bottom-nav). Keeps the Weiter
+     footer fully above the nav without a void between them. */
+  padding-bottom: 68px;
 }
 
 /* Header */

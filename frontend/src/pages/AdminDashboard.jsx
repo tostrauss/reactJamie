@@ -144,7 +144,9 @@ export const AdminDashboard = () => {
       // Reserve the iOS Dynamic Island / Android status bar so the back button
       // and title aren't trapped under the notch — previously the header sat
       // at y=24 with no inset, which on iPhone 15+ landed under the camera.
-      padding: 'calc(16px + env(safe-area-inset-top, 0px)) 16px calc(60px + env(safe-area-inset-bottom, 0px))',
+      // bottom 68px = flat nav clearance (flush 48px strip + "+" protrusion,
+      // no safe-area — see .bottom-nav in global.css)
+      padding: 'calc(16px + env(safe-area-inset-top, 0px)) 16px 68px',
     }}>
       <div style={{ maxWidth: 800, margin: '0 auto' }}>
 

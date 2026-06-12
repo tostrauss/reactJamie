@@ -31,7 +31,9 @@
 
 /* ── Content: normal page flow, clears fixed bottom nav ── */
 .home-content {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 60px);
+  /* Nav clearance: flush 48px strip + 11px "+" protrusion + gap — no
+     safe-area here, the nav ignores it (see .bottom-nav). */
+  padding-bottom: 68px;
 }
 
 /* Map tab: fill remaining flex space, no scroll, no padding */
@@ -1481,7 +1483,8 @@
   min-height: 100vh;
   background: var(--bg-primary);
   color: white;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 60px);
+  /* Nav clearance — flat, see .bottom-nav (no safe-area by design). */
+  padding-bottom: 68px;
 }
 
 .edit-header {
@@ -1741,7 +1744,9 @@ input:checked + .slider:before {
 /* Locate me button (floating, bottom-right) */
 .map-locate-btn {
   position: absolute;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
+  /* Flat offset above the flush 48px nav — the env() term compensated the
+     OLD nav's safe-area height and floated the button ~34px too high on iOS. */
+  bottom: 84px;
   right: 16px;
   z-index: 1000;
   width: 48px;

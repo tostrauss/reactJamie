@@ -262,7 +262,14 @@ export const ChatList = () => {
   const onlyGroups     = groupChats.filter(c => c.type !== 'club');
   const onlyClubs      = groupChats.filter(c => c.type === 'club');
   const currentChats   = activeTab === 'gruppen' ? onlyGroups : activeTab === 'clubs' ? onlyClubs : privateChats;
-  const totalUnread    = [...groupChats, ...privateChats].reduce((sum, c) => sum + (c.unread || 0), 0);
+  // Tab pills show UNREAD sums, not chat counts: a number next to a tab
+  // universally reads as "new messages" — testers kept asking why "Gruppen 10"
+  // never went away (it was the number of group chats). Pills vanish at 0.
+  const sumUnread      = (list) => list.reduce((sum, c) => sum + (c.unread || 0), 0);
+  const groupsUnread   = sumUnread(onlyGroups);
+  const clubsUnread    = sumUnread(onlyClubs);
+  const dmsUnread      = sumUnread(privateChats);
+  const totalUnread    = groupsUnread + clubsUnread + dmsUnread;
   const isGroupOrClub  = activeTab === 'gruppen' || activeTab === 'clubs';
 
   return (
@@ -282,22 +289,22 @@ export const ChatList = () => {
             onClick={() => setActiveTab('gruppen')}
           >
             {t('chat.list.tabs.groups')}
-            {onlyGroups.length > 0 && <span className="tab-count">{onlyGroups.length}</span>}
+            {groupsUnread > 0 && <span className="tab-count">{groupsUnread}</span>}
           </button>
           <button
             className={`tab ${activeTab === 'clubs' ? 'active' : ''}`}
             onClick={() => setActiveTab('clubs')}
           >
             {t('chat.list.tabs.clubs')}
-            {onlyClubs.length > 0 && <span className="tab-count">{onlyClubs.length}</span>}
+            {clubsUnread > 0 && <span className="tab-count">{clubsUnread}</span>}
           </button>
           <button
             className={`tab ${activeTab === 'freunde' ? 'active' : ''}`}
             onClick={() => setActiveTab('freunde')}
           >
             {t('chat.list.tabs.chats')}
-            {privateChats.length > 0 && (
-              <span className="tab-count">{privateChats.length}</span>
+            {dmsUnread > 0 && (
+              <span className="tab-count">{dmsUnread}</span>
             )}
           </button>
         </div>

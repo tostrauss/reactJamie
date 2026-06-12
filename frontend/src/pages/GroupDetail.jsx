@@ -631,6 +631,46 @@ export const GroupDetail = () => {
           );
         })()}
 
+        {/* Teilnehmer-Bubbles — small Meetup-style teaser under the action
+            button (Tina, 2026-06-12): visible avatars + "+N" + "Alle sehen".
+            Gated viewers with hidden members go straight to the ProModal —
+            this row is the active Pro tease; everyone else gets the list. */}
+        {members.length > 0 && (() => {
+          const teaserTotal = membersTotal ?? group.members_count ?? members.length;
+          const bubbleMembers = members.slice(0, 3);
+          const teaserExtra = Math.max(0, teaserTotal - bubbleMembers.length);
+          return (
+            <button
+              type="button"
+              className="gd-members-teaser"
+              onClick={() =>
+                membersGated && teaserExtra > 0
+                  ? window.dispatchEvent(new Event('jamie:open-pro-modal'))
+                  : navigate(`/group/${id}/members`)
+              }
+            >
+              <span className="gd-members-teaser-bubbles" aria-hidden="true">
+                {bubbleMembers.map(m =>
+                  m.avatar_url ? (
+                    <img key={m.id} src={m.avatar_url} alt="" className="gd-members-teaser-bubble" loading="lazy" />
+                  ) : (
+                    <span key={m.id} className="gd-members-teaser-bubble gd-members-teaser-bubble--ph">
+                      {(m.name || '?')[0]?.toUpperCase()}
+                    </span>
+                  )
+                )}
+                {teaserExtra > 0 && (
+                  <span className="gd-members-teaser-bubble gd-members-teaser-bubble--more">+{teaserExtra}</span>
+                )}
+              </span>
+              <span className="gd-members-teaser-label">
+                {t('groups.detail.membersTeaser.count', { count: teaserTotal })}
+              </span>
+              <span className="gd-members-teaser-cta">{t('groups.detail.membersTeaser.seeAll')}</span>
+            </button>
+          );
+        })()}
+
         <div className="gd-body">
           <div className="gd-content-card">
             {/* Info row */}

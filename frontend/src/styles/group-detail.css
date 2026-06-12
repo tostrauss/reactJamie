@@ -84,7 +84,9 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 60px);
+  /* Nav clearance: flush 48px strip + 11px "+" protrusion + gap — no
+     safe-area here, the nav ignores it (see .bottom-nav). */
+  padding-bottom: 68px;
 }
 
 /* ── Photo grid ── */
@@ -247,6 +249,73 @@
   margin-top: -18px;
   position: relative;
   z-index: 2;
+}
+
+/* Teilnehmer-Bubbles-Teaser unter dem Action-Button (Meetup-Style, bewusst
+   klein/dezent — Tina 2026-06-12). Für gated Viewer der aktive Pro-Tease:
+   Tap öffnet das Pro-Modal, sonst die Teilnehmerliste. */
+.gd-members-teaser {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: calc(100% - 40px);
+  margin: 12px 20px 0;
+  padding: 6px 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  font-family: inherit;
+}
+
+.gd-members-teaser:active { opacity: 0.7; }
+
+.gd-members-teaser-bubbles {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.gd-members-teaser-bubble {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--bg-primary);
+  margin-left: -8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: content-box;
+}
+
+.gd-members-teaser-bubble:first-child { margin-left: 0; }
+
+.gd-members-teaser-bubble--ph {
+  background: var(--bg-input);
+  color: var(--text-light);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.gd-members-teaser-bubble--more {
+  background: var(--accent-coral);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+
+.gd-members-teaser-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.gd-members-teaser-cta {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-coral);
+  white-space: nowrap;
 }
 
 .gd-anfragen-btn {
