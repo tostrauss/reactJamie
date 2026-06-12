@@ -146,13 +146,19 @@ export const GroupCard = memo(({
             )}
             {!isClub && group.is_private && <span className="card-private-badge">🔒</span>}
             {!isClub && isFull && <span className="card-private-badge">{t('groups.card.full')}</span>}
+            {/* Icon-only like the sibling badges (🔒/🚀): the "Wöchentlich"
+                text overflowed the narrow card column and got clipped. The
+                detail page spells out "Jeden <Wochentag>" in full. */}
             {!isClub && group.is_recurring_weekly && (
-              <span className="card-private-badge card-recurring-badge" title={t('groups.card.weeklyTitle')}>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <span
+                className="card-private-badge card-recurring-badge"
+                title={t('groups.card.weeklyTitle')}
+                aria-label={t('groups.card.weeklyTitle')}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <polyline points="23 4 23 10 17 10"/>
                   <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
                 </svg>
-                {t('groups.card.weekly')}
               </span>
             )}
             {group.is_boosted && <span className="card-private-badge">🚀</span>}

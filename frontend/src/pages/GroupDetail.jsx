@@ -664,7 +664,9 @@ export const GroupDetail = () => {
                 )}
               </span>
               <span className="gd-members-teaser-label">
-                {t('groups.detail.membersTeaser.count', { count: teaserTotal })}
+                {group.max_members
+                  ? t('groups.detail.membersTeaser.countWithMax', { current: teaserTotal, max: group.max_members })
+                  : t('groups.detail.membersTeaser.count', { count: teaserTotal })}
               </span>
               <span className="gd-members-teaser-cta">{t('groups.detail.membersTeaser.seeAll')}</span>
             </button>
@@ -702,18 +704,9 @@ export const GroupDetail = () => {
                   })}
                 </span>
               )}
-              {/* Tappable → full roster page (same list UI as clubs) */}
-              <button
-                className="gd-info-item gd-info-item--btn"
-                onClick={() => navigate(`/group/${id}/members`)}
-              >
-                {group.max_members
-                  ? t('groups.detail.info.participants', { current: group.members_count ?? members.length, max: group.max_members })
-                  : t('groups.detail.info.participantsUnlimited', { current: group.members_count ?? members.length })}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 2, flexShrink: 0 }}>
-                  <polyline points="9,6 15,12 9,18" />
-                </svg>
-              </button>
+              {/* No Teilnehmer item here — the bubbles teaser above the info
+                  card is the single participants element (incl. capacity);
+                  two of them read as clutter (Tobi, 2026-06-12). */}
               {(() => {
                 const ageRange = formatAgeRange(group.age_min, group.age_max);
                 return ageRange ? (

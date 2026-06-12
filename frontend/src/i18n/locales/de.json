@@ -305,6 +305,7 @@
       "membersTeaser": {
         "count_one": "{{count}} Teilnehmer",
         "count_other": "{{count}} Teilnehmer",
+        "countWithMax": "{{current}}/{{max}} Teilnehmer",
         "seeAll": "Alle sehen"
       },
       "delete": {

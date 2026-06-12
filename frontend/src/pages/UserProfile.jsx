@@ -161,12 +161,20 @@ export const UserProfile = () => {
 
   // Age now comes from the API as a computed integer; DOB is never sent.
   const age = profile.age;
-  const heroImg = profile.photos?.[0] || profile.avatar_url;
-  const extraPhotos = profile.photos?.slice(1) || [];
-  // The lightbox shows every real photo (hero first, then the grid), so a
-  // tapped grid thumbnail maps to index i+1. Falls back to [avatar] when the
-  // user only has an avatar and no photos array.
-  const allPhotos = (profile.photos?.length ? profile.photos : (profile.avatar_url ? [profile.avatar_url] : []));
+  // Hero = the PROFILE photo (avatar). Wall photos are only the fallback —
+  // the old photos-first order showed the first Pinnwand upload as the big
+  // hero instead of the actual profile picture (tester bug 2026-06-12).
+  const heroImg = profile.avatar_url || profile.photos?.[0];
+  // Pinnwand grid: all wall photos. Only when the hero had to fall back to
+  // photos[0] (no avatar set) does the grid skip that first one.
+  const extraPhotos = profile.avatar_url
+    ? (profile.photos || [])
+    : (profile.photos?.slice(1) || []);
+  // Lightbox order mirrors the page: hero first, then the wall photos.
+  const allPhotos = [
+    ...(profile.avatar_url ? [profile.avatar_url] : []),
+    ...(profile.photos || []),
+  ];
   const song = profile.favorite_song;
 
   const renderBottomAction = () => {
