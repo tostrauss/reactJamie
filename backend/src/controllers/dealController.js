@@ -182,17 +182,36 @@ export const updateDeal = async (req, res) => {
     if (isNaN(d.getTime())) return res.status(400).json({ error: 'visible_until ist kein gültiges Datum' });
     visibleUntilParsed = d.toISOString();
   }
+  // PARTIAL update: only columns the client actually sent are written. The
+  // admin edit form sends a subset (no category/address/lat/lng/...) — the
+  // old full-column UPDATE turned every absent field into NULL, which 500'd
+  // on category (NOT NULL) and silently wiped address/coords/booking_url.
+  // `undefined` = untouched; explicit `null` = clear (description, expiry).
+  const fields = {};
+  if (name !== undefined)        fields.name = name;
+  if (category !== undefined)    fields.category = category;
+  if (deal_label !== undefined)  fields.deal_label = deal_label;
+  if (description !== undefined) fields.description = description;
+  if (address !== undefined)     fields.address = address;
+  if (lat !== undefined)         fields.lat = lat;
+  if (lng !== undefined)         fields.lng = lng;
+  if (photos !== undefined)      fields.photos = JSON.stringify(Array.isArray(photos) ? photos : []);
+  if (booking_url !== undefined) fields.booking_url = booking_url || null;
+  if (is_active !== undefined)   fields.is_active = !!is_active;
+  if (visible_until !== undefined) fields.visible_until = visibleUntilParsed;
+
+  const keys = Object.keys(fields);
+  if (!keys.length) return res.status(400).json({ error: 'Keine Änderungen übergeben' });
+
   try {
+    // Column names come from the fixed allowlist above — not user input.
+    const setSql = keys.map((k, i) => `${k}=$${i + 1}`).join(', ');
+    const values = keys.map(k => fields[k]);
+    values.push(id);
     const result = await db.query(
-      `UPDATE deals
-       SET name=$1, category=$2, deal_label=$3, description=$4,
-           address=$5, lat=$6, lng=$7, photos=$8, booking_url=$9, is_active=$10,
-           visible_until=$11,
-           updated_at=CURRENT_TIMESTAMP
-       WHERE id=$12 RETURNING *`,
-      [name, category, deal_label, description, address, lat ?? null, lng ?? null,
-       JSON.stringify(Array.isArray(photos) ? photos : []), booking_url || null,
-       is_active ?? true, visibleUntilParsed, id]
+      `UPDATE deals SET ${setSql}, updated_at=CURRENT_TIMESTAMP
+       WHERE id=$${keys.length + 1} RETURNING *`,
+      values
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Deal not found' });
     res.json(result.rows[0]);
