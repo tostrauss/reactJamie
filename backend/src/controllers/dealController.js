@@ -1,5 +1,5 @@
 import db from '../config/database.js';
-import { sendPushToUser } from './pushController.js';
+import { sendPushToUsers } from './pushController.js';
 
 // Try to extract the city from a free-form address. Most DACH addresses end in
 // "PLZ City" (e.g. "Hauptstraße 1, 1010 Wien"). We take the last comma-separated
@@ -30,14 +30,14 @@ async function notifyNearbyUsersAboutDeal(deal) {
        LIMIT 500`,
       [`%${city}%`]
     );
-    for (const row of result.rows) {
-      sendPushToUser(
-        row.id,
-        `Neues Angebot in ${city}`,
-        `${deal.name} — ${deal.deal_label}`,
-        `/deal/${deal.id}`
-      );
-    }
+    // One bulk send (single subscriptions SELECT) instead of up to 500
+    // sequential per-user sends.
+    await sendPushToUsers(
+      result.rows.map(r => r.id),
+      `Neues Angebot in ${city}`,
+      `${deal.name} — ${deal.deal_label}`,
+      `/deal/${deal.id}`
+    );
   } catch (err) {
     console.error('[deals] notifyNearbyUsersAboutDeal failed:', err.message);
   }

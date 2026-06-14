@@ -1504,3 +1504,65 @@ select:focus {
   padding: 0;
   text-decoration: underline;
 }
+
+/* ── Profile photo carousel (Tinder-style swipe gallery) ──────────────────
+   Drops in as an absolute-fill background inside a position:relative header.
+   The host page keeps its own gradient/buttons layered on top. */
+.ppc {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+.ppc-track {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;   /* swiping the gallery never pulls the page */
+  scrollbar-width: none;            /* Firefox */
+}
+.ppc-track::-webkit-scrollbar { display: none; }
+
+.ppc-slide {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.ppc-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Segmented indicator bars, one per photo, just under the status bar. */
+.ppc-bars {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: 12px;
+  right: 12px;
+  display: flex;
+  gap: 4px;
+  z-index: 2;
+  pointer-events: none;             /* never block the overlaid buttons */
+}
+.ppc-bar {
+  flex: 1 1 0;
+  height: 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: background 0.2s ease;
+}
+.ppc-bar.is-active { background: rgba(255, 255, 255, 0.95); }

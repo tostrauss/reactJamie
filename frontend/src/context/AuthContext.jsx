@@ -94,8 +94,12 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const logout = useCallback(async () => {
-    try { await auth.logout?.(); } catch { /* ignore */ }
+    // Clear local auth state FIRST so the UI updates instantly. Awaiting the
+    // network call meant a slow/offline request left the app looking logged-in
+    // for up to the 10s axios timeout. The server still clears the httpOnly
+    // cookie via the best-effort call below.
     clearAuth();
+    auth.logout?.().catch(() => {});
   }, []);
 
   const refreshProfile = useCallback(async () => {

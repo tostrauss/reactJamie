@@ -464,17 +464,22 @@ export const completeOnboarding = async (req, res) => {
     const photosStr = JSON.stringify(photos || []);
     const songStr = favorite_song ? JSON.stringify(favorite_song) : null;
 
+    // Preserve values the onboarding form doesn't re-send: location is captured
+    // at registration, avatar_url comes from the Google/Apple profile picture.
+    // An unconditional SET nuked both (empty string / NULL) — COALESCE/NULLIF
+    // keeps the existing value when the field arrives empty, and photos only
+    // overwrite when a non-empty array was actually uploaded.
     await db.query(
-      `UPDATE users 
-       SET gender = $1, 
-           location = $2, 
-           interests = $3, 
-           bio = $4, 
-           photos = $5, 
-           avatar_url = $6, 
-           favorite_song = $7, 
-           onboarding_completed = TRUE, 
-           updated_at = CURRENT_TIMESTAMP 
+      `UPDATE users
+       SET gender = $1,
+           location = COALESCE(NULLIF($2, ''), location),
+           interests = $3,
+           bio = $4,
+           photos = CASE WHEN $5::jsonb = '[]'::jsonb THEN photos ELSE $5::jsonb END,
+           avatar_url = COALESCE($6, avatar_url),
+           favorite_song = $7,
+           onboarding_completed = TRUE,
+           updated_at = CURRENT_TIMESTAMP
        WHERE id = $8`,
       [gender, location, interestsStr, bio, photosStr, avatar_url, songStr, req.userId]
     );
@@ -560,9 +565,14 @@ export const deleteAccount = async (req, res) => {
     }
 
     const user = result.rows[0];
-    const isGoogleOnly = user.auth_provider === 'google' && !user.password;
+    // Passwordless accounts (Google/Apple sign-in) have password = NULL and
+    // can't supply one. Gate on the password's existence, NOT on auth_provider
+    // — auth_provider is never written by googleLogin/appleLogin, so it stays
+    // 'email' for every social account and the old check locked them all out
+    // of deletion (Apple 5.1.1(v) + GDPR Art. 17 violation).
+    const isPasswordless = !user.password;
 
-    if (!isGoogleOnly) {
+    if (!isPasswordless) {
       if (!password) {
         return res.status(400).json({ error: 'Password required to delete account' });
       }
@@ -1009,8 +1019,8 @@ export const googleLogin = async (req, res) => {
       // New user — create account (no password, Google-only).
       // date_of_birth is intentionally NULL; onboarding collects and validates it (18+ gate).
       const insert = await db.query(
-        `INSERT INTO users (email, name, avatar_url, google_id, is_verified)
-         VALUES ($1, $2, $3, $4, TRUE) RETURNING id`,
+        `INSERT INTO users (email, name, avatar_url, google_id, is_verified, auth_provider)
+         VALUES ($1, $2, $3, $4, TRUE, 'google') RETURNING id`,
         [email, name || email.split('@')[0], picture || null, googleId]
       );
       userId = insert.rows[0].id;
@@ -1135,8 +1145,8 @@ export const appleLogin = async (req, res) => {
       }
       const displayName = fullName || (email.split('@')[0]);
       const insert = await db.query(
-        `INSERT INTO users (email, name, apple_id, is_verified)
-         VALUES ($1, $2, $3, TRUE) RETURNING id`,
+        `INSERT INTO users (email, name, apple_id, is_verified, auth_provider)
+         VALUES ($1, $2, $3, TRUE, 'apple') RETURNING id`,
         [email, displayName, appleId],
       );
       userId = insert.rows[0].id;

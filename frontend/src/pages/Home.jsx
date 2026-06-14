@@ -5,9 +5,11 @@ import { useTranslation } from "react-i18next";
 import api, { groups, clubs, deals as dealsApi } from "../utils/api";
 import { GroupCard } from "../components/GroupCard";
 import { DealCard } from "../components/DealCard";
+import { EventCard } from "../components/EventCard";
 import { AuthContext } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { CATEGORY_HIERARCHY } from "../utils/categories";
+import { nextOccurrence } from "../utils/recurrence";
 import "../styles/home.css";
 
 // Robert's spec: every 8th group on the Home/Gruppen tab is a sponsored deal.
@@ -76,6 +78,7 @@ export const Home = () => {
   const [clubList, setClubList] = useState([]);
   const [dealList, setDealList] = useState([]);
   const [myClubs, setMyClubs] = useState([]);
+  const [discoverEvents, setDiscoverEvents] = useState([]);
   // Tab held in the URL (?tab=clubs) so swiping back from a club/group detail
   // restores the tab the user was on. `replace: true` keeps the back stack tidy
   // — tab switches don't add history entries, only cross-page navigations do.
@@ -108,7 +111,9 @@ export const Home = () => {
   const { t } = useTranslation();
 
   const activeFilterCount = [
-    zeitFilter !== 'alle',
+    // Zeit only applies to the Gruppen/Karte feeds — clubs have no date filter,
+    // so it must not inflate the badge on the Clubs tab.
+    activeTab !== 'clubs' && zeitFilter !== 'alle',
     alterFilter[0] !== 18 || alterFilter[1] !== 70,
     sichtFilter !== 'alle',
     kategorieFilter.size > 0,
@@ -119,6 +124,9 @@ export const Home = () => {
   }, [activeTab]);
 
   const loadData = async () => {
+    // The Karte tab renders MapView, which fetches its own pins — the four
+    // club/group calls below were fired and their results thrown away.
+    if (activeTab === 'karte') { setLoading(false); return; }
     setLoading(true);
     try {
       if (activeTab === "gruppen") {
@@ -137,14 +145,18 @@ export const Home = () => {
           ...(joinedClubsRes.data || []).map(c => c.id),
         ]));
       } else {
-        const [allClubsRes, myClubsRes, favClubsRes, joinedGroupsRes] = await Promise.all([
-          clubs.getAll(),
+        const [allClubsRes, myClubsRes, favClubsRes, joinedGroupsRes, eventsRes] = await Promise.all([
+          // Default server limit is 20; the client-side search/filter then can
+          // never reach clubs 21+. Pull a full page so local filtering is real.
+          clubs.getAll({ limit: 100 }),
           clubs.getJoined().catch(() => ({ data: [] })),
           clubs.getFavorites().catch(() => ({ data: [] })),
           groups.getJoined().catch(() => ({ data: [] })),
+          clubs.discoverEvents().catch(() => ({ data: [] })),
         ]);
         setClubList(allClubsRes.data || []);
         setMyClubs(myClubsRes.data || []);
+        setDiscoverEvents(eventsRes.data || []);
         setFavorites(new Set((favClubsRes.data || []).map(c => c.id)));
         setJoined(new Set([
           ...(joinedGroupsRes.data || []).map(g => g.id),
@@ -166,7 +178,10 @@ export const Home = () => {
   const matchesZeit = (item) => {
     if (zeitFilter === 'alle') return true;
     if (!item.date) return true;
-    const d = new Date(item.date);
+    // Use the NEXT occurrence so weekly-recurring groups (whose stored date is
+    // in the past but whose card badge reads "Heute"/"Morgen") are matched by
+    // the date filters instead of silently dropped.
+    const d = nextOccurrence(item) || new Date(item.date);
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -208,8 +223,10 @@ export const Home = () => {
       return d >= today && d < monthEnd;
     }
     if (zeitFilter === 'ganztags') {
-      if (!item.date) return true;
-      return d.getHours() === 0 && d.getMinutes() === 0;
+      // Date-only events are stored at UTC midnight; local getHours() shifts by
+      // the Vienna offset and made every all-day event fail this check (empty
+      // list). UTC accessors correctly identify "no specific time" events.
+      return d.getUTCHours() === 0 && d.getUTCMinutes() === 0;
     }
     return true;
   };
@@ -217,10 +234,13 @@ export const Home = () => {
   const matchesAlter = (item) => {
     const [filterMin, filterMax] = alterFilter;
     if (filterMin === 18 && filterMax === 70) return true;
-    if (!item.min_age && !item.max_age) return true;
-    const gMin = item.min_age || 0;
-    const gMax = item.max_age || 150;
-    return gMin <= filterMax && gMax >= filterMin;
+    // The API never returns min_age/max_age — it returns the group's target
+    // range (target_age_min/max) and the actual member-age range (age_min/max).
+    // The old code read the non-existent fields, so the slider did nothing.
+    const gMin = item.target_age_min ?? item.age_min;
+    const gMax = item.target_age_max ?? item.age_max;
+    if (gMin == null && gMax == null) return true;
+    return (gMin ?? 0) <= filterMax && (gMax ?? 150) >= filterMin;
   };
 
   const matchesSicht = (item) => {
@@ -240,7 +260,13 @@ export const Home = () => {
       const cat = CATEGORY_HIERARCHY.find(c => c.id === mainCatId);
       if (!cat) continue;
       if (cat.label.toLowerCase() === itemCat) return true;
-      if (cat.subs.some(s => s.name.toLowerCase() === itemCat)) return true;
+      // Every main category has a generic "Sonstiges" sub, so a group literally
+      // categorized "Sonstiges" would match ANY selected main category. Only
+      // the dedicated 'sonstiges' main category should claim those.
+      if (cat.subs.some(s =>
+        (s.name !== 'Sonstiges' || cat.id === 'sonstiges') &&
+        s.name.toLowerCase() === itemCat
+      )) return true;
     }
     return false;
   };
@@ -385,6 +411,22 @@ export const Home = () => {
     >
       {label}
     </button>
+  );
+
+  // Shared so the discover-clubs grid can render in two halves (before and
+  // after the "Events für dich" rail) without duplicating the card markup.
+  const renderClubCard = (club) => (
+    <GroupCard
+      key={club.id}
+      group={{ ...club, members_count: club.member_count || club.members_count || 0 }}
+      isFavorite={favorites.has(club.id)}
+      isJoined={joined.has(club.id)}
+      onFavorite={handleFavorite}
+      onJoin={handleJoin}
+      onChat={handleChat}
+      onWaitlist={handleWaitlist}
+      onClick={() => handleCardClick(club.id, 'club')}
+    />
   );
 
   return (
@@ -550,6 +592,16 @@ export const Home = () => {
               </div>
             )}
 
+            {/* Robert's spec: discover events from public clubs — a prominent
+                CTA plus an "Events für dich" rail wedged after the first 3
+                clubs. Both lead to the standalone /events page. */}
+            <button className="club-events-cta" onClick={() => navigate('/events')}>
+              {t('home.clubEventsDiscover')}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+
             <div className="clubs-section">
               <div className="section-header">
                 <h2 className="section-heading">{t('home.sections.trending')}</h2>
@@ -559,21 +611,31 @@ export const Home = () => {
                   <div className="home-spinner" />
                 </div>
               ) : filteredClubs.length > 0 ? (
-                <div className="groups-grid clubs-grid">
-                  {filteredClubs.map(club => (
-                    <GroupCard
-                      key={club.id}
-                      group={{ ...club, members_count: club.member_count || club.members_count || 0 }}
-                      isFavorite={favorites.has(club.id)}
-                      isJoined={joined.has(club.id)}
-                      onFavorite={handleFavorite}
-                      onJoin={handleJoin}
-                      onChat={handleChat}
-                      onWaitlist={handleWaitlist}
-                      onClick={() => handleCardClick(club.id, 'club')}
-                    />
-                  ))}
-                </div>
+                <>
+                  <div className="groups-grid clubs-grid">
+                    {filteredClubs.slice(0, 3).map(renderClubCard)}
+                  </div>
+
+                  {discoverEvents.length > 0 && (
+                    <div className="events-foryou-section">
+                      <div className="events-foryou-header">
+                        <h2 className="section-heading">{t('home.sections.eventsForYou')}</h2>
+                        <button className="events-foryou-seeall" onClick={() => navigate('/events')}>
+                          {t('home.sections.seeAll')}
+                        </button>
+                      </div>
+                      <div className="events-foryou-scroll">
+                        {discoverEvents.slice(0, 10).map(ev => <EventCard key={ev.id} event={ev} />)}
+                      </div>
+                    </div>
+                  )}
+
+                  {filteredClubs.length > 3 && (
+                    <div className="groups-grid clubs-grid">
+                      {filteredClubs.slice(3).map(renderClubCard)}
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="empty-state">
                   <div className="empty-icon">🏆</div>

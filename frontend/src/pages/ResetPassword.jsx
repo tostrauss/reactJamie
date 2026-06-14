@@ -15,13 +15,25 @@ const ResetPassword = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Full client-side policy check (mirrors the backend) — without it, every
+  // policy violation round-trips to /auth/reset-password, which sits behind the
+  // 5/hour strict limiter shared with /forgot-password. A few retries used to
+  // 429-lock the user out before the 1h reset token even expired.
+  const validatePassword = (pwd) => {
+    if (pwd.length < 6)            return t('auth.reset.errorMin');
+    if (!/[A-Z]/.test(pwd))        return t('auth.register.validation.passwordUpper');
+    if (!/[a-z]/.test(pwd))        return t('auth.register.validation.passwordLower');
+    if (!/[0-9]/.test(pwd))        return t('auth.register.validation.passwordDigit');
+    if (!/[^A-Za-z0-9]/.test(pwd)) return t('auth.register.validation.passwordSpecial');
+    return null;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
-    if (password.length < 6) {
-      return setError(t('auth.reset.errorMin'));
-    }
+    const pwdError = validatePassword(password);
+    if (pwdError) return setError(pwdError);
     if (password !== confirmPassword) {
       return setError(t('auth.reset.errorMismatch'));
     }

@@ -146,6 +146,43 @@ export const saveApnsToken = async (req, res) => {
 // ==========================================
 // INTERNAL: SEND PUSH TO USER (called from notificationController)
 // ==========================================
+// Dispatch one already-fetched subscription row. apnCtxRef is a holder object
+// ({ ctx }) so a whole batch resolves the APNs provider at most once.
+async function dispatchToSubscription(sub, title, body, url, apnCtxRef) {
+  if (sub.platform === 'web' && sub.endpoint) {
+    if (!process.env.VAPID_PUBLIC_KEY) return;
+    const pushSub = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } };
+    webpush.sendNotification(pushSub, JSON.stringify({ title, body, url })).catch((err) => {
+      // 410 Gone = subscription expired, clean it up
+      if (err.statusCode === 410) {
+        db.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]).catch(() => {});
+      } else {
+        console.error('Push send error:', err.statusCode, err.message);
+      }
+    });
+  } else if (sub.platform === 'apns' && sub.device_token) {
+    if (apnCtxRef.ctx === undefined) apnCtxRef.ctx = await getApnContext();
+    if (!apnCtxRef.ctx) return;
+    const { apn, provider } = apnCtxRef.ctx;
+    const notification = new apn.Notification();
+    notification.alert = { title, body };
+    notification.topic = process.env.APNS_BUNDLE_ID;
+    notification.sound = 'default';
+    notification.payload = { url };
+    notification.priority = 10; // display immediately
+    provider.send(notification, sub.device_token).then((result) => {
+      for (const failure of (result.failed || [])) {
+        const reason = failure.response?.reason || '';
+        if (reason === 'BadDeviceToken' || reason === 'Unregistered' || failure.status === '410') {
+          db.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]).catch(() => {});
+        } else if (reason) {
+          console.error('[APNs] send failure:', reason, 'status', failure.status);
+        }
+      }
+    }).catch((err) => console.error('[APNs] send error:', err.message));
+  }
+}
+
 export const sendPushToUser = async (userId, title, body, url = '/notifications') => {
   // No web AND no APNs configured — nothing to send. (If only one is configured
   // we still proceed; sends to the other platform will silently no-op.)
@@ -164,48 +201,31 @@ export const sendPushToUser = async (userId, title, body, url = '/notifications'
     return;
   }
 
-  const webPayload = JSON.stringify({ title, body, url });
-  let apnCtx = null; // resolved lazily on the first APNs subscription we see
+  const apnCtxRef = {};
+  for (const sub of subs) await dispatchToSubscription(sub, title, body, url, apnCtxRef);
+};
 
-  for (const sub of subs) {
-    if (sub.platform === 'web' && sub.endpoint) {
-      if (!process.env.VAPID_PUBLIC_KEY) continue;
-      const pushSub = {
-        endpoint: sub.endpoint,
-        keys: { p256dh: sub.p256dh, auth: sub.auth_key }
-      };
-      webpush.sendNotification(pushSub, webPayload).catch((err) => {
-        // 410 Gone = subscription expired, clean it up
-        if (err.statusCode === 410) {
-          db.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]).catch(() => {});
-        } else {
-          console.error('Push send error:', err.statusCode, err.message);
-        }
-      });
-    } else if (sub.platform === 'apns' && sub.device_token) {
-      apnCtx = apnCtx ?? await getApnContext();
-      if (!apnCtx) continue;
-      const { apn, provider } = apnCtx;
-      const notification = new apn.Notification();
-      notification.alert = { title, body };
-      notification.topic = process.env.APNS_BUNDLE_ID;
-      notification.sound = 'default';
-      notification.payload = { url };
-      // Use 'alert' priority so the OS displays the notification immediately
-      notification.priority = 10;
-      provider.send(notification, sub.device_token).then((result) => {
-        for (const failure of (result.failed || [])) {
-          const reason = failure.response?.reason || '';
-          // Token is dead / app uninstalled — purge so we don't keep retrying
-          if (reason === 'BadDeviceToken' || reason === 'Unregistered' || failure.status === '410') {
-            db.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]).catch(() => {});
-          } else if (reason) {
-            console.error('[APNs] send failure:', reason, 'status', failure.status);
-          }
-        }
-      }).catch((err) => {
-        console.error('[APNs] send error:', err.message);
-      });
-    }
+// Bulk variant: ONE subscriptions SELECT for all recipients instead of N
+// (deal fan-out queried up to 500 users, then sendPushToUser ran its own
+// SELECT per user → up to 500 sequential round trips). Same per-sub dispatch.
+export const sendPushToUsers = async (userIds, title, body, url = '/notifications') => {
+  if (!process.env.VAPID_PUBLIC_KEY && !process.env.APNS_KEY_ID) return;
+  const ids = [...new Set((userIds || []).map(Number).filter(Boolean))];
+  if (!ids.length) return;
+
+  let subs;
+  try {
+    const result = await db.query(
+      `SELECT id, platform, endpoint, p256dh, auth_key, device_token
+       FROM push_subscriptions WHERE user_id = ANY($1::int[])`,
+      [ids]
+    );
+    subs = result.rows;
+  } catch (err) {
+    console.error('Push bulk fetch error:', err);
+    return;
   }
+
+  const apnCtxRef = {};
+  for (const sub of subs) await dispatchToSubscription(sub, title, body, url, apnCtxRef);
 };

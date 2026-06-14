@@ -2,6 +2,7 @@ import db from '../config/database.js';
 import Stripe from 'stripe';
 import crypto from 'crypto';
 import { isUserPro } from './subscriptionController.js';
+import { invalidatePrefix } from '../utils/cache.js';
 
 // Execute a function inside a real DB transaction on a single dedicated connection.
 // This is required because db.query() pulls from a pool — consecutive calls may land
@@ -126,6 +127,11 @@ export const applyBoost = async (req, res) => {
         [req.userId, target_type, target_id, isPro ? 0 : 1, boostedUntil]
       );
     });
+
+    // Drop the feed caches so the new top-placement appears immediately
+    // instead of after the 30s TTL (both group + club feeds are cached).
+    invalidatePrefix('groups:');
+    invalidatePrefix('clubs:');
 
     res.json({ success: true, boosted_until: boostedUntil, pro_boost: isPro });
   } catch (err) {

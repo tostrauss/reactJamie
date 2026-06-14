@@ -878,6 +878,28 @@ const runStartupMigrations = async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_prt_token            ON password_reset_tokens(token)`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_prt_expires          ON password_reset_tokens(expires_at) WHERE used = FALSE`);
   });
+  // ── Index hygiene + preview-ordering index ─────────────────────────────────
+  // schema.sql (the production bootstrap) and the 'performance indexes' block
+  // above both create overlapping indexes on the hottest WRITE tables, so every
+  // INSERT maintained 3 indexes where 1 suffices. Drop the duplicates/redundant
+  // prefixes and add idx_gm_group_joined so the member-preview subqueries
+  // (ORDER BY joined_at LIMIT 3/4) stop early instead of scan+sort.
+  await migrate('index dedup 2026-06', async () => {
+    // messages: keep idx_msg_group_created(group_id, created_at DESC); the other
+    // two are an exact dup and a redundant (group_id) prefix.
+    await db.query(`DROP INDEX IF EXISTS idx_messages_group`);
+    await db.query(`DROP INDEX IF EXISTS idx_msg_group`);
+    // group_members: PK is (group_id, user_id) and the new joined index covers
+    // group_id-prefix lookups; keep idx_gm_user for the user_id direction only.
+    await db.query(`DROP INDEX IF EXISTS idx_group_members_user`);
+    await db.query(`DROP INDEX IF EXISTS idx_group_members_group`);
+    await db.query(`DROP INDEX IF EXISTS idx_gm_group`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_gm_group_joined ON group_members(group_id, joined_at)`);
+    // groups: idx_groups_is_active (partial) + idx_groups_type_active cover
+    // these; the bare (is_active) and (type) indexes are redundant.
+    await db.query(`DROP INDEX IF EXISTS idx_groups_active`);
+    await db.query(`DROP INDEX IF EXISTS idx_groups_type`);
+  });
   // ── Hot-path join/favorites/waitlist indexes ──────────────────────────────
   // Every group detail page fires 3+ lookups against these tables. Without
   // composite indexes they are sequential scans even on small tables.
@@ -987,7 +1009,13 @@ const runStartupMigrations = async () => {
         UNIQUE (user_id, other_user_id)
       )
     `);
-    await db.query(`CREATE INDEX IF NOT EXISTS idx_dmc_user ON dm_conversations(user_id, updated_at DESC)`);
+    // getConversations does WHERE user_id = $1 ORDER BY updated_at DESC. The
+    // intended composite was historically created as `idx_dmc_user`, which
+    // collides with schema.sql's idx_dmc_user(user_id) — IF NOT EXISTS then
+    // silently skipped it, so the ORDER BY fell back to a sort. Recreate under
+    // a distinct name (table is guaranteed to exist at this point).
+    await db.query(`DROP INDEX IF EXISTS idx_dmc_user`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_dmc_user_updated ON dm_conversations(user_id, updated_at DESC)`);
   });
   await migrate('idx_groups_category_lower', () =>
     db.query(`CREATE INDEX IF NOT EXISTS idx_groups_category_lower ON groups(LOWER(category))`));

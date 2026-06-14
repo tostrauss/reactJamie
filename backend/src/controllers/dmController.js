@@ -214,9 +214,14 @@ export const getConversation = async (req, res) => {
       LEFT JOIN users r ON dm.receiver_id = r.id
       WHERE LEAST(dm.sender_id, dm.receiver_id)    = LEAST($1::int, $2::int)
         AND GREATEST(dm.sender_id, dm.receiver_id) = GREATEST($1::int, $2::int)
-      ORDER BY dm.created_at ASC
+      ORDER BY dm.created_at DESC
       LIMIT $3 OFFSET $4
     `;
+    // NOTE: fetch the NEWEST page (DESC + LIMIT) then reverse to chronological
+    // before responding — the old ASC LIMIT returned the 50 OLDEST messages,
+    // so any thread past 50 messages never showed recent ones after reload.
+    // Mirrors the group-chat getMessages pattern. The .reverse() is applied
+    // to result.rows just before res.json below.
     let result;
     try {
       result = await db.query(querySql, [req.userId, userId, limit, offset]);
@@ -231,7 +236,9 @@ export const getConversation = async (req, res) => {
       throw err;
     }
 
-    res.json(result.rows);
+    // Reverse to chronological (oldest→newest) for the client; the query
+    // fetched the newest page in DESC order.
+    res.json(result.rows.reverse());
   } catch (error) {
     console.error('Error fetching conversation:', error);
     res.status(500).json({

@@ -163,6 +163,11 @@ export const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Pressing Enter in any earlier step's input submits the form and used to
+    // fire the final registration prematurely (with errors that step doesn't
+    // render). Only the last step performs the actual submit; the visible
+    // per-step "Weiter" buttons drive navigation.
+    if (step !== TOTAL_STEPS) return;
     setError('');
     if (!dateOfBirth) { setError(t('auth.register.validation.dobRequired')); return; }
     if (dateOfBirth > maxDOB) { setError(t('auth.register.validation.ageMin')); return; }
@@ -175,7 +180,9 @@ export const Register = () => {
         try { await auth.updateProfile({ location: location.trim() }); } catch (_) {}
       }
       localStorage.setItem('jamie_new_registration', '1');
-      navigate('/onboarding');
+      // replace: the registration wizard must not stay in history — back from
+      // onboarding should not re-enter the (now consumed) signup form.
+      navigate('/onboarding', { replace: true });
     } catch (err) {
       setError(err.response?.data?.error || t('auth.register.validation.registerFailed'));
     }
@@ -321,7 +328,10 @@ export const Register = () => {
           {/* ── Step 4: Geburtsdatum ─────────────────────────────────────── */}
           {step === 4 && (
             <>
-              <BackBtn onClick={() => setStep(3)} />
+              {/* Back to the EMAIL step, not the OTP step: the code was already
+                  consumed at step 3, so returning there would dead-end on a
+                  verify screen. Re-sending from step 2 issues a fresh code. */}
+              <BackBtn onClick={() => { setStep(2); setOtpCode(''); setOtpError(''); }} />
               <div className="reg-step-heading">
                 <h2 className="reg-title">{t('auth.register.step4.title')}</h2>
                 <p className="reg-hint">{t('auth.register.step4.hint')}</p>

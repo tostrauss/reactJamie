@@ -357,7 +357,7 @@ export const GroupEdit = () => {
                   <span className="ge-step-val">{formData.max_members}</span>
                   <button
                     className="ge-step-btn"
-                    onClick={() => setFormData(p => ({ ...p, max_members: Math.min(100, p.max_members + 1) }))}
+                    onClick={() => setFormData(p => ({ ...p, max_members: Math.min(isClub ? 500 : 100, p.max_members + 1) }))}
                   >+</button>
                 </div>
               </div>

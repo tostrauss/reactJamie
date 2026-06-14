@@ -42,12 +42,6 @@ export const ProfileEdit = () => {
   const toast = useToast();
   const { t } = useTranslation();
   const DE_MONTHS = t('profileEdit.months', { returnObjects: true });
-  const fileInputRef = useRef(null);
-  const avatarBlobRef = useRef(null);
-
-  useEffect(() => {
-    return () => { if (avatarBlobRef.current) URL.revokeObjectURL(avatarBlobRef.current); };
-  }, []);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -56,14 +50,15 @@ export const ProfileEdit = () => {
     date_of_birth: '',
     gender: '',
     interests: [],
+    // Unified photo model: avatar_url is the first photo (= profile picture),
+    // `photos` holds the rest. The header gallery swipes [avatar_url, ...photos].
+    avatar_url: '',
     photos: []
   });
   const [dobParts, setDobParts] = useState({ y: '', m: '', d: '' });
   const [favoriteSong, setFavoriteSong] = useState(null);
-  const [avatarPreview, setAvatarPreview] = useState(null);
   const photoInputRef = useRef(null);
   const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [spotifyConnected, setSpotifyConnected] = useState(false);
   const [spotifyLoading, setSpotifyLoading] = useState(false);
@@ -82,6 +77,17 @@ export const ProfileEdit = () => {
         d = parts[2] || '';
       }
       setDobParts({ y, m, d });
+      // Normalise to the unified model: avatar_url is always the first photo.
+      // Legacy profiles with photos but no avatar → promote photos[0]. Dedupe
+      // the avatar out of `photos` in case it was stored in both places.
+      const existingPhotos = user.photos || [];
+      let avatar = user.avatar_url || '';
+      let rest = existingPhotos;
+      if (!avatar && existingPhotos.length) {
+        avatar = existingPhotos[0];
+        rest = existingPhotos.slice(1);
+      }
+      rest = rest.filter(p => p && p !== avatar);
       setFormData({
         name: user.name || '',
         bio: user.bio || '',
@@ -89,10 +95,10 @@ export const ProfileEdit = () => {
         date_of_birth: y && m && d ? `${y}-${m}-${d}` : '',
         gender: user.gender || '',
         interests: user.interests || [],
-        photos: user.photos || []
+        avatar_url: avatar,
+        photos: rest
       });
       setFavoriteSong(user.favorite_song || null);
-      setAvatarPreview(user.avatar_url || null);
     }
   }, [user]);
 
@@ -174,29 +180,6 @@ export const ProfileEdit = () => {
     }
   };
 
-  const handleAvatarUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (avatarBlobRef.current) URL.revokeObjectURL(avatarBlobRef.current);
-    const blobUrl = URL.createObjectURL(file);
-    avatarBlobRef.current = blobUrl;
-    setAvatarPreview(blobUrl);
-    setUploading(true);
-
-    try {
-      const res = await upload.image(file);
-      await auth.updateProfile({ avatar_url: res.data.url });
-      setUser(prev => ({ ...prev, avatar_url: res.data.url }));
-      toast.success(t('profileEdit.toast.avatarUpdated'));
-    } catch (err) {
-      toast.error(t('profileEdit.toast.avatarError'));
-      setAvatarPreview(user?.avatar_url || null);
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const handleInterestToggle = (interest) => {
     setFormData(prev => ({
       ...prev,
@@ -247,7 +230,10 @@ export const ProfileEdit = () => {
     setPhotoUploading(true);
     try {
       const res = await upload.image(file);
-      setFormData(prev => ({ ...prev, photos: [...(prev.photos || []), res.data.url] }));
+      // First photo becomes the profile picture (avatar); the rest fill `photos`.
+      setFormData(prev => prev.avatar_url
+        ? { ...prev, photos: [...(prev.photos || []), res.data.url] }
+        : { ...prev, avatar_url: res.data.url });
     } catch (err) {
       // Surface the backend's reason if present — moderation rejection, format,
       // size, etc. — so the user knows WHY the upload failed.
@@ -263,6 +249,15 @@ export const ProfileEdit = () => {
     setFormData(prev => ({ ...prev, photos: prev.photos.filter((_, i) => i !== index) }));
   };
 
+  // Removing the profile picture promotes the next photo to be the new one,
+  // so the first slot is never left empty while other photos remain.
+  const handleProfilePhotoRemove = () => {
+    setFormData(prev => {
+      const [next, ...rest] = prev.photos || [];
+      return { ...prev, avatar_url: next || '', photos: rest };
+    });
+  };
+
   return (
     <div className="settings-page">
       {/* Header */}
@@ -276,37 +271,6 @@ export const ProfileEdit = () => {
       </div>
 
       <div className="settings-body">
-      {/* Avatar Section */}
-      <div className="pe-avatar-section" onClick={() => fileInputRef.current?.click()}>
-        <div className="pe-avatar-wrapper">
-          <div className="pe-avatar">
-            {avatarPreview ? (
-              <img src={avatarPreview} alt="Avatar" decoding="async" />
-            ) : (
-              <span>{(user?.name || '?')[0].toUpperCase()}</span>
-            )}
-          </div>
-          <div className="pe-avatar-overlay">
-            {uploading ? (
-              <span className="pe-avatar-uploading">...</span>
-            ) : (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-              </svg>
-            )}
-          </div>
-        </div>
-        <span className="pe-avatar-hint">{t('profileEdit.avatarHint')}</span>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleAvatarUpload}
-          hidden
-        />
-      </div>
-
       <form onSubmit={handleSubmit}>
         {/* Pers\u00f6nliche Daten */}
         <div className="settings-section">
@@ -546,7 +510,7 @@ export const ProfileEdit = () => {
           </div>
         </div>
 
-        {/* Fotos */}
+        {/* Fotos / Pinnwand — first photo is the profile picture */}
         <div className="settings-section">
           <h3 className="settings-section-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -554,10 +518,29 @@ export const ProfileEdit = () => {
               <circle cx="12" cy="13" r="4"/>
             </svg>
             {t('profileEdit.sections.photos')}
-            <span className="pe-interest-count">{t('profileEdit.photosCountFmt', { current: (formData.photos || []).length, total: 6 })}</span>
+            <span className="pe-interest-count">{t('profileEdit.photosCountFmt', { current: (formData.avatar_url ? 1 : 0) + (formData.photos || []).length, total: 6 })}</span>
           </h3>
 
+          <p className="pe-photo-hint">{t('profileEdit.photosFirstHint')}</p>
+
           <div className="pe-photo-grid">
+            {/* Profile picture — always the first photo */}
+            {formData.avatar_url && (
+              <div className="pe-photo-cell pe-photo-cell--profile">
+                <img src={formData.avatar_url} alt="" loading="lazy" decoding="async" />
+                <span className="pe-photo-badge">{t('profileEdit.photosProfileBadge')}</span>
+                <button
+                  type="button"
+                  className="pe-photo-remove"
+                  onClick={handleProfilePhotoRemove}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+            )}
+
             {(formData.photos || []).map((url, i) => (
               <div key={i} className="pe-photo-cell">
                 <img src={url} alt="" loading="lazy" decoding="async" />
@@ -572,7 +555,8 @@ export const ProfileEdit = () => {
                 </button>
               </div>
             ))}
-            {(formData.photos || []).length < 6 && (
+
+            {((formData.avatar_url ? 1 : 0) + (formData.photos || []).length) < 6 && (
               <button
                 type="button"
                 className="pe-photo-add"
@@ -581,9 +565,12 @@ export const ProfileEdit = () => {
               >
                 {photoUploading
                   ? <div className="pe-photo-spinner" />
-                  : <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M12 5v14M5 12h14"/>
-                    </svg>
+                  : <>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 5v14M5 12h14"/>
+                      </svg>
+                      {!formData.avatar_url && <span className="pe-photo-add-label">{t('profileEdit.photosProfileBadge')}</span>}
+                    </>
                 }
               </button>
             )}
@@ -598,7 +585,7 @@ export const ProfileEdit = () => {
         </div>
 
         {/* Save Button */}
-        <button type="submit" className="pe-save-btn" disabled={loading || uploading}>
+        <button type="submit" className="pe-save-btn" disabled={loading || photoUploading}>
           {loading ? (
             t('profileEdit.saveLoading')
           ) : (

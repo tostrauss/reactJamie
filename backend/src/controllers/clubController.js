@@ -164,7 +164,12 @@ export const getClubs = async (req, res) => {
                  ORDER BY gm.joined_at ASC
                  LIMIT 8
                ) sub
-             ) AS member_previews
+             ) AS member_previews,
+             EXISTS (
+               SELECT 1 FROM boosts b
+               WHERE b.target_id = g.id AND b.target_type = g.type
+                 AND b.boosted_until > NOW()
+             ) AS is_boosted
       FROM groups g
       LEFT JOIN users u ON g.owner_id = u.id
       WHERE g.is_active = TRUE
@@ -195,7 +200,8 @@ export const getClubs = async (req, res) => {
       query += ` AND g.is_featured = TRUE`;
     }
 
-    query += ` ORDER BY g.created_at DESC`;
+    // Boosted clubs first (paid 24h "Top-Platzierung"), then newest.
+    query += ` ORDER BY is_boosted DESC, g.created_at DESC`;
 
     const safeLimit = Math.min(parseInt(limit, 10) || 20, 100);
     query += ` LIMIT $${paramIndex++}`;
@@ -434,8 +440,14 @@ export const joinClub = async (req, res) => {
         return res.status(400).json({ error: 'Join request already pending' });
       }
 
+      // UPSERT: a prior rejected/withdrawn request leaves a row with the same
+      // (group_id, user_id) — a plain INSERT then hits the unique constraint
+      // and 500s forever. Reset it to pending instead (mirrors joinGroup).
       await db.query(
-        'INSERT INTO group_join_requests (group_id, user_id, message) VALUES ($1, $2, $3)',
+        `INSERT INTO group_join_requests (group_id, user_id, message)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (group_id, user_id)
+         DO UPDATE SET status = 'pending', message = $3, updated_at = CURRENT_TIMESTAMP`,
         [id, req.userId, message || null]
       );
       // Notify the club owner about the new request (fire-and-forget)
@@ -901,6 +913,39 @@ export const getClubEvents = async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching club events:', err);
+    res.status(500).json({ error: 'Veranstaltungen konnten nicht geladen werden' });
+  }
+};
+
+// ==========================================
+// DISCOVER EVENTS — upcoming events from PUBLIC clubs
+// ==========================================
+// Powers the "Events für dich" row + the standalone Events page. Unlike
+// getClubEvents (members-only), this is open discovery, but deliberately
+// limited to events whose parent club is public (is_private = FALSE) so we
+// never leak a private club's agenda.
+export const getDiscoverEvents = async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT e.id, e.name, e.description, e.date, e.time, e.location,
+              e.category, e.max_members, e.is_recurring_weekly, e.image_url,
+              c.id AS club_id, c.name AS club_name, c.image_url AS club_image
+       FROM groups e
+       JOIN groups c ON e.parent_club_id = c.id
+       WHERE e.type = 'event'
+         AND e.is_active = TRUE
+         AND e.deleted_at IS NULL
+         AND (e.date IS NULL OR e.date >= NOW())
+         AND c.type = $1
+         AND c.is_private = FALSE
+         AND c.deleted_at IS NULL
+       ORDER BY e.date ASC NULLS LAST
+       LIMIT 60`,
+      [CLUB_TYPE]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching discover events:', err);
     res.status(500).json({ error: 'Veranstaltungen konnten nicht geladen werden' });
   }
 };

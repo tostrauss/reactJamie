@@ -2511,3 +2511,194 @@ input:checked + .slider:before {
   font-size: 18px;
   color: rgba(255, 255, 255, 0.7);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CLUB EVENTS — discover CTA, "Events für dich" row, event cards, Events page
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* "Club Events entdecken" CTA (Clubs tab, under Meine Clubs) */
+.club-events-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: calc(100% - 40px);
+  margin: 4px 20px 20px;
+  padding: 15px 18px;
+  border-radius: 16px;
+  background: rgba(253, 118, 102, 0.10);
+  border: 1px solid rgba(253, 118, 102, 0.30);
+  color: var(--text-white);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.15s, transform 0.15s;
+}
+.club-events-cta:active { transform: scale(0.98); background: rgba(253, 118, 102, 0.16); }
+.club-events-cta svg { flex-shrink: 0; color: var(--accent-coral); }
+
+/* "Events für dich" section header (with "Alle anzeigen") */
+.events-foryou-section { margin-bottom: 8px; }
+.events-foryou-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0 20px;
+  margin-bottom: 12px;
+}
+.events-foryou-seeall {
+  background: none;
+  border: none;
+  color: var(--accent-coral);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Horizontal scroll row of event cards */
+.events-foryou-scroll {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 2px 20px 10px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.events-foryou-scroll::-webkit-scrollbar { display: none; }
+.events-foryou-scroll .event-card { flex: 0 0 200px; scroll-snap-align: start; }
+
+/* Reusable event card */
+.event-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  padding: 12px;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform 0.15s;
+}
+.event-card:active { transform: scale(0.97); }
+
+.event-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.event-card-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--accent-coral);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.event-card-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-light);
+}
+.event-card-club {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-coral);
+  opacity: 0.8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.event-card-media {
+  margin-top: 4px;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-input);
+}
+.event-card-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.event-card-media-ph {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+}
+
+/* ── Standalone Events page (/events) ── */
+.events-page {
+  min-height: 100dvh;
+  background: var(--bg-primary);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 90px);
+}
+.events-page-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px 12px;
+}
+.events-page-back {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  color: var(--text-white);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.events-page-title {
+  flex: 1;
+  text-align: center;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-white);
+}
+.events-search-wrap { padding: 4px 20px 16px; }
+.events-search {
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 14px;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-white);
+  font-family: inherit;
+  font-size: 15px;
+}
+.events-section-title {
+  margin: 0 20px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.events-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 0 20px;
+}

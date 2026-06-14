@@ -133,6 +133,88 @@ const CATEGORY_MESSAGES = {
 
 const DEFAULT_TEXT_BLOCK_MESSAGE = 'Deine Nachricht verstößt gegen unsere Richtlinien und kann nicht gesendet werden.';
 
+// =============================================================================
+// DETERMINISTIC WORD BLOCKLIST — always on, no API key required
+// =============================================================================
+// The OpenAI moderation above is the smart, context-aware layer, but it is
+// fail-open (no key → allow) and does not reliably block a bare group/club name
+// like "Sex". This blocklist is the hard floor: a curated set of clearly
+// inappropriate terms that must never appear in a group name, club name, event
+// title, or chat message in this 16+ app. It runs first, with zero config.
+//
+// Matching rules (see normalizeForMatch + findBlockedTerm):
+//   - case-insensitive
+//   - diacritics + ß folded (ä→a, ö→o, ü→u, ß→ss) so accents can't bypass it
+//   - light leetspeak folding (0→o, 1→i, 3→e, 4→a, 5→s, 7→t, 8→b, @→a, $→s)
+//   - WHOLE-WORD match (\b…\b) so legitimate words that merely *contain* a
+//     blocked substring still pass — e.g. "Sexten" (the town), "Sussex",
+//     "Sexualität", "unisex" are all fine; standalone "Sex" / "S3x" is blocked.
+//
+// Team note: this list is the place to add/remove blocked words. Every entry
+// MUST be lowercase ASCII (no umlauts/ß) because matching happens against the
+// folded form — write "hurensohne", "scheisse", "arschlocher", not "hurensöhne".
+const BLOCKED_TERMS = [
+  // ── Sexual / explicit (DE) ──
+  'sex', 'sexparty', 'sexpartys', 'sextreffen', 'sexdate', 'sexkontakt', 'sexkontakte',
+  'porno', 'pornos', 'pornografie', 'pornographie', 'pornhub',
+  'fick', 'ficken', 'fickt', 'fickst', 'ficker', 'gefickt', 'arschfick', 'arschficker',
+  'fotze', 'fotzen', 'votze', 'muschi', 'muschis', 'pimmel', 'schwanzlutscher',
+  'wichser', 'wichsen', 'wichst', 'abwichsen',
+  'nutte', 'nutten', 'hure', 'huren', 'hurensohn', 'hurensohne',
+  'schlampe', 'schlampen', 'titten', 'analsex', 'analverkehr',
+  'orgasmus', 'orgasmen', 'masturbieren', 'masturbation',
+  'penis', 'vagina', 'sperma', 'nacktbild', 'nacktbilder', 'nacktfoto', 'nacktfotos',
+  'kinderporno', 'kinderpornos', 'inzest', 'orgie',
+  // ── Sexual / explicit (EN) ──
+  'porn', 'pornography', 'blowjob', 'cumshot', 'handjob', 'deepthroat',
+  'dildo', 'milf', 'gangbang', 'nudes', 'nsfw', 'bdsm', 'anal',
+  'pussy', 'cock', 'cunt', 'whore', 'slut', 'boobs', 'titties',
+  'creampie', 'onlyfans', 'orgy', 'rape', 'incest',
+  // ── Slurs / hate (DE) ──
+  'nazi', 'nazis', 'hitler', 'hakenkreuz', 'sieg heil', 'heil hitler',
+  'judensau', 'judenschwein', 'neger', 'negerin', 'nigger', 'nigga',
+  'kanake', 'kanaken', 'schwuchtel', 'schwuchteln', 'zigeuner',
+  'untermensch', 'untermenschen', 'spast', 'spasti', 'missgeburt',
+  // ── Slurs / hate (EN) ──
+  'niggers', 'faggot', 'faggots', 'retard', 'retarded',
+  'tranny', 'chink', 'gook', 'spic', 'wetback', 'kike', 'white power',
+  // ── Strong profanity / insults ──
+  'fuck', 'fucking', 'fucker', 'motherfucker', 'shit', 'bitch', 'bitches',
+  'asshole', 'bastard', 'scheisse', 'scheiss', 'arschloch', 'arschlocher',
+  'vollidiot', 'drecksau',
+];
+
+// Fold digits/symbols commonly used to disguise letters back to letters.
+const LEET_MAP = { '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '@': 'a', '$': 's' };
+
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// One compiled regex for all terms, anchored to word boundaries.
+const BLOCKED_REGEX = new RegExp(`\\b(?:${BLOCKED_TERMS.map(escapeRegex).join('|')})\\b`);
+
+const normalizeForMatch = (text) =>
+  text
+    .toLowerCase()
+    .replace(/ß/g, 'ss')
+    .normalize('NFKD')                  // split accented chars into base + combining mark
+    .replace(/[̀-ͯ]/g, '')    // strip the combining diacritical marks
+    .replace(/[0134578@$]/g, (c) => LEET_MAP[c] ?? c);
+
+/**
+ * Returns the first blocked term found in `text`, or null if the text is clean.
+ * Pure + synchronous — safe to call anywhere, no network, no API key.
+ *
+ * @param {string} text
+ * @returns {string|null}
+ */
+export const findBlockedTerm = (text) => {
+  if (!text) return null;
+  const match = normalizeForMatch(text).match(BLOCKED_REGEX);
+  return match ? match[0] : null;
+};
+
+const BLOCKED_WORD_MESSAGE = 'Dieser Text enthält ein nicht erlaubtes Wort und kann nicht verwendet werden.';
+
 /**
  * Check a text string for hate speech, harassment, sexual content, etc.
  *
@@ -141,6 +223,12 @@ const DEFAULT_TEXT_BLOCK_MESSAGE = 'Deine Nachricht verstößt gegen unsere Rich
  */
 export const checkTextSafety = async (text) => {
   if (!text || !text.trim()) return { safe: true, reason: null };
+
+  // Deterministic blocklist first — always on, even without an OpenAI key.
+  if (findBlockedTerm(text)) {
+    return { safe: false, reason: BLOCKED_WORD_MESSAGE };
+  }
+
   if (!isTextModerationEnabled()) return { safe: true, reason: null };
 
   // Fail-open: if OpenAI is unreachable, allow the message through.

@@ -26,7 +26,16 @@ export const DealCard = memo(({ deal, variant = 'explore' }) => {
   // ── Home/Gruppen variant: matches GroupCard footprint ──────────
   if (variant === 'home') {
     return (
-      <div className="group-card deal-card-home" onClick={onClick}>
+      // role/tabIndex/keydown rather than a real <button> so the .group-card
+      // grid styles (shared with GroupCard, a div) aren't disturbed, while the
+      // card stays keyboard- and screen-reader-operable.
+      <div
+        className="group-card deal-card-home"
+        onClick={onClick}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+      >
         <span className="card-badge deal-card-home-badge">
           {t('deals.card.badge')}
         </span>

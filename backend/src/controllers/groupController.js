@@ -205,19 +205,44 @@ export const getGroups = async (req, res) => {
     // #1 Pro gate: non-Pro, non-admin callers see only 3 member previews per
     // group; Pro users AND admins see up to 4. The frontend blurs just the 4th
     // (bottom-right) tile as the "unlock with Pro" gate for the gated audience.
-    const callerIsPro = req.userId ? await isUserPro(req.userId) : false;
-
-    // Caller age (target-age filter) + admin flag come from one user lookup.
-    // Users without DOB are included in everything (friendly default, Tina).
+    //
+    // Pro flag + caller age + admin flag in ONE round trip (was two: a separate
+    // isUserPro subscriptions SELECT + a users SELECT, both before the cache
+    // check). EXISTS predicate mirrors isUserPro exactly. Users without DOB are
+    // included in everything (friendly default, Tina).
     let callerAge = null;
     let callerIsAdmin = false;
+    let callerIsPro = false;
     if (req.userId) {
-      const r = await db.query(
-        'SELECT EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age, is_admin FROM users WHERE id = $1',
-        [req.userId]
-      );
-      callerAge = r.rows[0]?.age ?? null;
-      callerIsAdmin = !!r.rows[0]?.is_admin;
+      try {
+        const r = await db.query(
+          `SELECT EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age,
+                  is_admin,
+                  EXISTS(
+                    SELECT 1 FROM subscriptions s
+                    WHERE s.user_id = users.id
+                      AND (s.status = 'active' OR s.status = 'canceling')
+                      AND s.current_period_end > NOW()
+                  ) AS is_pro
+           FROM users WHERE id = $1`,
+          [req.userId]
+        );
+        callerAge = r.rows[0]?.age ?? null;
+        callerIsAdmin = !!r.rows[0]?.is_admin;
+        callerIsPro = !!r.rows[0]?.is_pro;
+      } catch (err) {
+        // subscriptions table not bootstrapped yet → no Pro; still need age/admin
+        if (err.code === '42P01') {
+          const r = await db.query(
+            'SELECT EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age, is_admin FROM users WHERE id = $1',
+            [req.userId]
+          );
+          callerAge = r.rows[0]?.age ?? null;
+          callerIsAdmin = !!r.rows[0]?.is_admin;
+        } else {
+          throw err;
+        }
+      }
     }
 
     // Admins bypass the gate entirely → full 4 previews like Pro.
@@ -251,20 +276,22 @@ export const getGroups = async (req, res) => {
                  LIMIT ${previewLimit}
                ) sub
              ) AS member_previews,
-             (
-               SELECT MIN(EXTRACT(YEAR FROM AGE(u3.date_of_birth))::int)
-               FROM group_members gm2
-               JOIN users u3 ON gm2.user_id = u3.id
-               WHERE gm2.group_id = g.id AND u3.date_of_birth IS NOT NULL
-             ) AS age_min,
-             (
-               SELECT MAX(EXTRACT(YEAR FROM AGE(u4.date_of_birth))::int)
-               FROM group_members gm3
-               JOIN users u4 ON gm3.user_id = u4.id
-               WHERE gm3.group_id = g.id AND u4.date_of_birth IS NOT NULL
-             ) AS age_max
+             ages.age_min,
+             ages.age_max,
+             EXISTS (
+               SELECT 1 FROM boosts b
+               WHERE b.target_id = g.id AND b.target_type = g.type
+                 AND b.boosted_until > NOW()
+             ) AS is_boosted
       FROM groups g
       LEFT JOIN users u ON g.owner_id = u.id
+      LEFT JOIN LATERAL (
+        SELECT MIN(EXTRACT(YEAR FROM AGE(uu.date_of_birth))::int) AS age_min,
+               MAX(EXTRACT(YEAR FROM AGE(uu.date_of_birth))::int) AS age_max
+        FROM group_members gmx
+        JOIN users uu ON gmx.user_id = uu.id
+        WHERE gmx.group_id = g.id AND uu.date_of_birth IS NOT NULL
+      ) ages ON TRUE
       WHERE g.is_active = TRUE AND g.deleted_at IS NULL AND g.type IN ('group', 'club')
     `;
     const params = [];
@@ -302,7 +329,10 @@ export const getGroups = async (req, res) => {
       query += ` AND (g.date >= CURRENT_TIMESTAMP OR g.is_recurring_weekly = TRUE)`;
     }
 
-    query += ` ORDER BY is_full ASC, g.created_at DESC`;
+    // Boosted entries float to the top (paid "Top-Platzierung", 24h) — the
+    // EXISTS probe is served by idx_boosts_target. Then full groups sink,
+    // newest first within each tier.
+    query += ` ORDER BY is_boosted DESC, is_full ASC, g.created_at DESC`;
 
     const safeLimit = Math.min(parseInt(limit, 10) || 100, 100);
     const safeOffset = Math.max(parseInt(offset, 10) || 0, 0);

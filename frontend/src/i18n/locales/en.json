@@ -1,4 +1,12 @@
 {
+  "events": {
+    "title": "Events",
+    "searchPlaceholder": "Search",
+    "forYou": "Events for you",
+    "todayBadge": "Today",
+    "empty": "No events from public clubs yet.",
+    "emptySearch": "No events found."
+  },
   "common": {
     "back": "Back",
     "save": "Save",
@@ -25,6 +33,8 @@
     },
     "login": {
       "continueWithEmail": "Continue with email",
+      "continueWithApple": "Sign in with Apple",
+      "errorApple": "Apple sign-in failed",
       "appleSoon": "(Coming soon)",
       "demoMode": "🚀 Demo mode (no login)",
       "emailLabel": "Email",
@@ -516,8 +526,11 @@
     },
     "sections": {
       "myClubs": "My clubs",
-      "trending": "Trending"
+      "trending": "Trending",
+      "eventsForYou": "Events for you",
+      "seeAll": "See all"
     },
+    "clubEventsDiscover": "Discover club events",
     "filter": {
       "title": "Filter",
       "categories": "Categories",
@@ -762,7 +775,7 @@
       "interests": "Interests",
       "song": "Favorite song",
       "spotify": "Spotify",
-      "photos": "My photos"
+      "photos": "Wall"
     },
     "fields": {
       "name": "Name",
@@ -795,6 +808,8 @@
       "connecting": "Connecting..."
     },
     "photosCountFmt": "{{current}} / {{total}}",
+    "photosProfileBadge": "Profile picture",
+    "photosFirstHint": "Your first photo is your profile picture. Add up to 6 photos that others can swipe through.",
     "saveBtn": "Save changes",
     "saveLoading": "Saving...",
     "toast": {
@@ -1039,6 +1054,8 @@
       "boostGroupsDesc": "Free & unlimited for your events",
       "boostClubs": "Boost clubs",
       "boostClubsDesc": "More members for your community",
+      "seeMembers": "See all members",
+      "seeMembersDesc": "See everyone in groups & clubs",
       "topPlacement": "Top placement",
       "topPlacementDesc": "Always on top of the Explore list",
       "deals": "For You – exclusive deals",
@@ -1138,6 +1155,7 @@
     "tomorrow": "📅 Tomorrow",
     "categoryAll": "All categories",
     "locateTitle": "Show my location",
+    "locateError": "Could not determine your location",
     "popupGroup": "Group",
     "popupClub": "Club",
     "popupMembersFmt": "{{current}} / {{max}} members",

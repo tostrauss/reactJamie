@@ -9,10 +9,15 @@ import { redisClient } from './config/redis.js';
 const _memberCache = new Map();
 const MEMBER_CACHE_TTL = 10_000;
 
+// Single sweep covers every TTL Map below (all share the 10s TTL semantics).
+// _groupCtxCache + _friendCache were previously never swept → unbounded growth.
+const _sweepCaches = [_memberCache];
 setInterval(() => {
   const now = Date.now();
-  for (const [k, v] of _memberCache) {
-    if (now > v.exp) _memberCache.delete(k);
+  for (const cache of _sweepCaches) {
+    for (const [k, v] of cache) {
+      if (now > v.exp) cache.delete(k);
+    }
   }
 }, 60_000).unref();
 
@@ -32,6 +37,7 @@ async function checkMembership(groupId, userId) {
 // Mirrors the HTTP /api/messages chat_only_owner rule (messageController.js:40-45)
 // so a non-owner can't bypass the restriction by emitting send_message directly.
 const _groupCtxCache = new Map();
+_sweepCaches.push(_groupCtxCache);
 async function canChatInGroup(groupId, userId) {
   const key = `ctx:${groupId}:${userId}`;
   const cached = _groupCtxCache.get(key);
@@ -61,7 +67,16 @@ async function canChatInGroup(groupId, userId) {
 // Used by DM socket events to gate room-join + typing on friendship.
 // Without this, any authenticated user can join_dm_room with a guessed
 // userId and eavesdrop on real-time DMs.
+// Cached like _memberCache (10s TTL): dm_typing/dm_stop_typing/send_dm all
+// gate on this, so two people actively chatting otherwise fire one identical
+// friendship SELECT per keystroke. 10s stale window on unfriend/block matches
+// the accepted staleness of the membership cache.
+const _friendCache = new Map();
+_sweepCaches.push(_friendCache);
 async function areFriends(a, b) {
+  const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+  const cached = _friendCache.get(key);
+  if (cached !== undefined && Date.now() < cached.exp) return cached.result;
   try {
     const { rows } = await db.query(
       `SELECT 1 FROM friendships WHERE status = 'accepted'
@@ -69,9 +84,11 @@ async function areFriends(a, b) {
          OR (requester_id = $2 AND addressee_id = $1)) LIMIT 1`,
       [a, b]
     );
-    return rows.length > 0;
+    const result = rows.length > 0;
+    _friendCache.set(key, { result, exp: Date.now() + MEMBER_CACHE_TTL });
+    return result;
   } catch {
-    return false; // fail closed
+    return false; // fail closed (not cached — retry next event)
   }
 }
 

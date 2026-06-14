@@ -59,6 +59,11 @@ export const CreateGroup = () => {
     imagePreview: null,
   });
 
+  // Skill level only makes sense for sport — a Bar-Hopping or Brunch group has
+  // no "Anfänger/Experte". Show the picker (and submit a real level) only for
+  // the Sport category; everything else stays 'Alle Levels' (hidden everywhere).
+  const showLevel = formData.mainCategory === 'sport';
+
   const handleDateChange = (field, value) => {
     setFormData(prev => {
       const next = { ...prev, [field]: value };
@@ -165,7 +170,7 @@ export const CreateGroup = () => {
         date: formData.date,
         location: formData.location,
         max_members: formData.maxMembers,
-        skill_level: formData.level,
+        skill_level: showLevel ? formData.level : 'Alle Levels',
         is_private: !formData.isPublic,
         type: 'group',
         image_url: imageUrl,
@@ -462,22 +467,24 @@ export const CreateGroup = () => {
             </div>
           </div>
 
-          <div className="form-section">
-            <label className="form-label">
-              <span className="form-label-icon">⚡</span> {t('createGroup.step2.levelLabel')}
-            </label>
-            <div className="level-options">
-              {LEVELS.map(({ value, key }) => (
-                <button
-                  key={key}
-                  className={`level-chip ${formData.level === value ? 'active' : ''}`}
-                  onClick={() => setFormData(prev => ({ ...prev, level: value }))}
-                >
-                  {t(`createGroup.step2.levels.${key}`)}
-                </button>
-              ))}
+          {showLevel && (
+            <div className="form-section">
+              <label className="form-label">
+                <span className="form-label-icon">⚡</span> {t('createGroup.step2.levelLabel')}
+              </label>
+              <div className="level-options">
+                {LEVELS.map(({ value, key }) => (
+                  <button
+                    key={key}
+                    className={`level-chip ${formData.level === value ? 'active' : ''}`}
+                    onClick={() => setFormData(prev => ({ ...prev, level: value }))}
+                  >
+                    {t(`createGroup.step2.levels.${key}`)}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="form-section">
             <label className="form-label">
@@ -567,7 +574,7 @@ export const CreateGroup = () => {
                 {formData.date && <span className="preview-detail">📅 {new Date(formData.date).toLocaleDateString(dateLocale, { day: '2-digit', month: '2-digit', year: 'numeric' })}{formData.time ? ` · ${formData.time} ${t('createGroup.step2.uhr')}` : ''}</span>}
                 {formData.location && <span className="preview-detail">📍 {formData.location}</span>}
                 <span className="preview-detail">👥 {t('createGroup.step3.participantsFmt', { count: formData.maxMembers })}</span>
-                <span className="preview-detail">⚡ {t(`createGroup.step2.levels.${(LEVELS.find(l => l.value === formData.level) || { key: 'all' }).key}`)}</span>
+                {showLevel && <span className="preview-detail">⚡ {t(`createGroup.step2.levels.${(LEVELS.find(l => l.value === formData.level) || { key: 'all' }).key}`)}</span>}
               </div>
             </div>
           </div>

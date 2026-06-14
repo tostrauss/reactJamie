@@ -142,6 +142,7 @@ function Spinner() {
 const FEATURE_KEYS = [
   { icon:'⚡', titleKey:'boostGroups',   descKey:'boostGroupsDesc' },
   { icon:'🏆', titleKey:'boostClubs',    descKey:'boostClubsDesc' },
+  { icon:'👥', titleKey:'seeMembers',    descKey:'seeMembersDesc' },
   { icon:'🔝', titleKey:'topPlacement', descKey:'topPlacementDesc' },
   { icon:'⭐', titleKey:'deals',         descKey:'dealsDesc' },
 ];
@@ -354,12 +355,11 @@ export const ProModal = ({ onClose, onSuccess }) => {
             borderRadius:'28px 28px 0 0',
             border:'1px solid rgba(253,118,102,0.22)',
             borderBottom:'none',
-            // Padding handles both safe-area insets explicitly:
-            //  - Top: status-bar inset + 16px, so close X never sits under the
-            //    Dynamic Island / notch even when the sheet is at maxHeight.
-            //  - Bottom: home-indicator inset + 20px, prevents last item being
-            //    clipped by the iOS home indicator pill.
-            padding:`calc(env(safe-area-inset-top, 0px) + 16px) 22px calc(env(safe-area-inset-bottom, 0px) + 20px)`,
+            // Top padding is a plain 18px (NOT safe-area + 16): maxHeight below
+            // already caps the sheet's top edge at safe-area + 12px, so adding
+            // the inset here too double-counted it and left a big empty gap.
+            // Bottom keeps the home-indicator inset so the last row isn't clipped.
+            padding:`18px 22px calc(env(safe-area-inset-bottom, 0px) + 20px)`,
             // Cap the sheet so its top edge leaves 12px below the status bar,
             // matching what users expect from a half-sheet on iOS.
             maxHeight:'calc(100dvh - env(safe-area-inset-top, 0px) - 12px)',
@@ -367,13 +367,6 @@ export const ProModal = ({ onClose, onSuccess }) => {
             animation:'pm-slide-up 0.38s cubic-bezier(.25,.8,.25,1) both',
           }}
         >
-          {/* Handle bar */}
-          <div style={{
-            width:'44px', height:'4px',
-            background:'rgba(255,255,255,0.13)',
-            borderRadius:'2px', margin:'0 auto 20px',
-          }} />
-
           {/* ── SUCCESS ─────────────────────────── */}
           {step === 'success' && (
             <div style={{ textAlign:'center', padding:'30px 0 20px', position:'relative' }}>

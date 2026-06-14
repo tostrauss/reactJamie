@@ -2221,6 +2221,10 @@
   border: none;
   cursor: pointer;
   padding: 0;
+  /* min-width:0 lets the 1fr column hold its share — without it the
+     nowrap label below forces the cell wider than 1fr, squeezing the
+     other columns and making the grid look uneven. */
+  min-width: 0;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   transition: transform 0.15s;
@@ -2347,4 +2351,47 @@
   border-top-color: var(--accent-coral);
   border-radius: 50%;
   animation: fr-spin 0.7s linear infinite;
+}
+
+/* ── Unified photo manager: first photo = profile picture ── */
+.pe-photo-hint {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin: 0 4px 10px;
+  line-height: 1.4;
+}
+
+/* The profile-picture cell gets a coral ring so it reads as "the main one". */
+.pe-photo-cell--profile {
+  outline: 2px solid var(--accent-coral);
+  outline-offset: -2px;
+}
+
+.pe-photo-badge {
+  position: absolute;
+  left: 5px;
+  bottom: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--accent-coral);
+  color: #fff;
+  pointer-events: none;
+}
+
+/* Stack the + icon above its "Profilbild" label in the first empty slot. */
+.pe-photo-add {
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pe-photo-add-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
+  color: var(--accent-coral);
 }

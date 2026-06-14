@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
 import { UserName } from '../components/UserName';
 import { PhotoLightbox } from '../components/PhotoLightbox';
+import { ProfilePhotoCarousel } from '../components/ProfilePhotoCarousel';
 import '../styles/user-profile.css';
 
 export const UserProfile = () => {
@@ -161,20 +162,15 @@ export const UserProfile = () => {
 
   // Age now comes from the API as a computed integer; DOB is never sent.
   const age = profile.age;
-  // Hero = the PROFILE photo (avatar). Wall photos are only the fallback —
-  // the old photos-first order showed the first Pinnwand upload as the big
-  // hero instead of the actual profile picture (tester bug 2026-06-12).
-  const heroImg = profile.avatar_url || profile.photos?.[0];
-  // Pinnwand grid: all wall photos. Only when the hero had to fall back to
-  // photos[0] (no avatar set) does the grid skip that first one.
+  // Header gallery, swiped Tinder-style — profile picture (avatar) first, then
+  // wall photos. Deduped so an avatar also saved as photos[0] (new unified
+  // model) isn't shown twice. First photo IS the profile picture.
+  const allPhotos = [...new Set([profile.avatar_url, ...(profile.photos || [])].filter(Boolean))];
+  // Pinnwand grid below: all wall photos. When there's no avatar, photos[0] is
+  // the hero, so the grid skips it to avoid duplicating the hero.
   const extraPhotos = profile.avatar_url
     ? (profile.photos || [])
     : (profile.photos?.slice(1) || []);
-  // Lightbox order mirrors the page: hero first, then the wall photos.
-  const allPhotos = [
-    ...(profile.avatar_url ? [profile.avatar_url] : []),
-    ...(profile.photos || []),
-  ];
   const song = profile.favorite_song;
 
   const renderBottomAction = () => {
@@ -227,16 +223,13 @@ export const UserProfile = () => {
     <div className="up-page">
     <div className="up-scroll-body">
 
-      {/* ── Hero image ── */}
+      {/* ── Hero image / swipeable photo gallery ── */}
       <div className="up-hero">
-        {heroImg
-          ? <img
-              src={heroImg}
-              alt={profile.name}
-              className="up-hero-img"
-              loading="lazy"
-              onClick={() => allPhotos.length > 0 && setLightboxIndex(0)}
-              style={{ cursor: allPhotos.length > 0 ? 'pointer' : 'default' }}
+        {allPhotos.length > 0
+          ? <ProfilePhotoCarousel
+              photos={allPhotos}
+              imgClassName="up-hero-img"
+              onPhotoTap={(i) => setLightboxIndex(i)}
             />
           : <div className="up-hero-placeholder">
               <span>{profile.name?.[0]?.toUpperCase()}</span>

@@ -143,6 +143,21 @@ export const ClubDetail = () => {
     catch { setIsFavorited(wasFav); toast.error(t('clubDetail.toast.favError')); }
   };
 
+  // Events are members-only (backend 403s non-members). Re-run after join/leave
+  // so the section unlocks immediately instead of staying locked until reload.
+  const loadEvents = async () => {
+    setEventsLoading(true);
+    try {
+      const r = await clubs.getEvents(id);
+      setEvents(r.data || []);
+      setEventsLocked(false);
+    } catch (err) {
+      if (err?.response?.status === 403) setEventsLocked(true);
+    } finally {
+      setEventsLoading(false);
+    }
+  };
+
   const handleJoinToggle = async () => {
     try {
       if (isJoined) {
@@ -152,6 +167,7 @@ export const ClubDetail = () => {
         setMembers(prev => prev.filter(m => m.id !== user.id));
         const r = await clubs.getById(id);
         setClub(r.data);
+        await loadEvents();
       } else {
         const res = await clubs.join(id);
         if (res.data?.status === 'pending') {
@@ -162,6 +178,7 @@ export const ClubDetail = () => {
           setMembers(prev => [...prev, { id: user.id, name: user.name, avatar_url: user.avatar_url }]);
           const r = await clubs.getById(id);
           setClub(r.data);
+          await loadEvents();
         }
       }
     } catch (e) {
@@ -463,7 +480,7 @@ export const ClubDetail = () => {
                     onChange={e => setEventForm(f => ({ ...f, is_recurring_weekly: e.target.checked }))}
                   />
                   <span className="cd-event-recurring-text">
-                    <span className="cd-event-recurring-title">🔁 {t('clubDetail.events.weeklyLabel')}</span>
+                    <span className="cd-event-recurring-title">{t('clubDetail.events.weeklyLabel')}</span>
                     <span className="cd-event-recurring-hint">{t('clubDetail.events.weeklyHint')}</span>
                   </span>
                 </label>
@@ -674,8 +691,9 @@ export const ClubDetail = () => {
       {showBoostModal && (
         <Suspense fallback={null}>
           <BoostModal
-            groupId={parseInt(id, 10)}
-            groupName={club.name}
+            targetType="club"
+            targetId={parseInt(id, 10)}
+            targetName={club.name}
             onClose={() => setShowBoostModal(false)}
           />
         </Suspense>

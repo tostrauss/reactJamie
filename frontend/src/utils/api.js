@@ -366,6 +366,9 @@ export const clubs = {
   // Club events
   getEvents: (clubId, past = false) =>
     axiosInstance.get(`/clubs/${clubId}/events`, { params: past ? { past: 'true' } : {} }),
+  // Discover events from public clubs (Events feed + Events page)
+  discoverEvents: () =>
+    axiosInstance.get('/clubs/events/discover'),
   createEvent: (clubId, data) =>
     axiosInstance.post(`/clubs/${clubId}/events`, data),
   deleteEvent: (clubId, eventId) =>

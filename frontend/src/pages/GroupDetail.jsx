@@ -129,20 +129,37 @@ const openCalendar = (group) => {
   }
 };
 
-const formatHeaderDate = (dateStr, locale) => {
+// "Heute"/"Morgen" instead of the literal date when the event is that close
+// (Tina, 2026-06-12) — same behavior the Home cards already have. Reuses the
+// groups.card.* keys so card and detail page always say the same word.
+const relativeDayLabel = (d, t) => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diff = Math.round((day - today) / 86400000);
+  if (diff === 0) return t('groups.card.dateHeute');
+  if (diff === 1) return t('groups.card.dateMorgen');
+  return null;
+};
+
+const formatHeaderDate = (dateStr, locale, t) => {
   if (!dateStr) return null;
   const d = new Date(dateStr);
   if (isNaN(d)) return null;
+  const rel = relativeDayLabel(d, t);
+  if (rel) return rel;
   const weekday = d.toLocaleDateString(locale, { weekday: 'long' });
   const day = d.getDate();
   const month = d.getMonth() + 1;
   return `${weekday} - ${day}.${month}.`;
 };
 
-const formatShortDate = (dateStr) => {
+const formatShortDate = (dateStr, t) => {
   if (!dateStr) return null;
   const d = new Date(dateStr);
   if (isNaN(d)) return null;
+  const rel = relativeDayLabel(d, t);
+  if (rel) return rel;
   return `${d.getDate()}.${d.getMonth() + 1}.`;
 };
 
@@ -462,8 +479,8 @@ export const GroupDetail = () => {
     const d = nextOccurrence(group);
     return d ? d.toISOString() : group.date;
   })();
-  const headerDate = formatHeaderDate(displayDateISO, dateLocale);
-  const shortDate = formatShortDate(displayDateISO);
+  const headerDate = formatHeaderDate(displayDateISO, dateLocale, t);
+  const shortDate = formatShortDate(displayDateISO, t);
 
   return (
     <div className="gd-page">

@@ -7,6 +7,7 @@ import { auth, subscription as subscriptionApi, groups as groupsApi, clubs as cl
 import SpotifySongPicker from '../components/SpotifySongPicker';
 import { ProModal } from '../components/ProModal';
 import { PhotoLightbox } from '../components/PhotoLightbox';
+import { ProfilePhotoCarousel } from '../components/ProfilePhotoCarousel';
 import '../styles/home.css';
 import '../styles/profile.css';
 
@@ -138,16 +139,28 @@ export const Profile = () => {
 
   const profilePhotos = user?.photos || [];
   const interests     = user?.interests || [];
-  const coverPhoto    = user?.avatar_url || 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800';
+  // Unified header gallery — profile picture (avatar) first, then wall photos.
+  // Dedupe so a user whose avatar is also saved as photos[0] (new model) doesn't
+  // see it twice; works for both old (avatar separate) and new data.
+  const galleryPhotos = [...new Set([user?.avatar_url, ...profilePhotos].filter(Boolean))];
+  const coverFallback = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=800';
   const completion    = user?.profile_completion || 0;
 
   return (
     <>
       <div className="profile-page">
 
-        {/* ── Cover image ───────────────────────────────────────────── */}
+        {/* ── Cover image / swipeable photo gallery ─────────────────── */}
         <div className="profile-header-image">
-          <img src={coverPhoto} alt={user?.name} className="profile-cover" loading="lazy" />
+          {galleryPhotos.length > 0 ? (
+            <ProfilePhotoCarousel
+              photos={galleryPhotos}
+              imgClassName="profile-cover"
+              onPhotoTap={(i) => setLightboxIndex(i)}
+            />
+          ) : (
+            <img src={coverFallback} alt={user?.name} className="profile-cover" loading="lazy" />
+          )}
           <div className="profile-cover-gradient" />
           <div className="profile-cover-top-gradient" />
 
@@ -299,7 +312,7 @@ export const Profile = () => {
                       key={photo}
                       type="button"
                       className={`pinnwand-item${i === 0 ? ' pinnwand-item--large' : ''}`}
-                      onClick={() => setLightboxIndex(i)}
+                      onClick={() => setLightboxIndex(galleryPhotos.indexOf(photo))}
                       aria-label={t('userProfile.viewPhotoAria')}
                     >
                       <img src={photo} alt={`Foto ${i + 1}`} loading="lazy" />
@@ -389,7 +402,7 @@ export const Profile = () => {
       )}
 
       <PhotoLightbox
-        photos={profilePhotos}
+        photos={galleryPhotos}
         index={lightboxIndex}
         onIndex={setLightboxIndex}
         onClose={() => setLightboxIndex(null)}

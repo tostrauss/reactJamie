@@ -203,16 +203,15 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
           background: 'var(--bg-card, #1e1e35)',
           borderRadius: '24px 24px 0 0',
           width: '100%', maxWidth: '480px',
-          padding: 'calc(env(safe-area-inset-top, 0px) + 16px) 20px calc(env(safe-area-inset-bottom, 0px) + 90px)',
-          // Same safe-area cap as .modal-content / .modal-container so the
-          // sheet top always lands 12px below the status bar.
+          // Top is a plain 18px (NOT safe-area + 16): maxHeight already caps the
+          // sheet top at safe-area + 12px, so adding the inset here too left a
+          // big empty gap. Bottom trimmed 90px → safe-area + 24px (the sheet
+          // sits above the nav via its own z-index, so it never needed 90px).
+          padding: '18px 20px calc(env(safe-area-inset-bottom, 0px) + 24px)',
           maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 12px)',
           overflowY: 'auto',
         }}
       >
-        {/* Handle */}
-        <div style={{ width: '40px', height: '4px', background: 'rgba(255,255,255,0.2)', borderRadius: '2px', margin: '0 auto 20px' }} />
-
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
           <div>

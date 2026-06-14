@@ -1,4 +1,12 @@
 {
+  "events": {
+    "title": "Events",
+    "searchPlaceholder": "Suchen",
+    "forYou": "Events für dich",
+    "todayBadge": "Heute",
+    "empty": "Noch keine Events von öffentlichen Clubs.",
+    "emptySearch": "Keine Events gefunden."
+  },
   "common": {
     "back": "Zurück",
     "save": "Speichern",
@@ -25,6 +33,8 @@
     },
     "login": {
       "continueWithEmail": "Mit E-Mail fortfahren",
+      "continueWithApple": "Mit Apple anmelden",
+      "errorApple": "Apple-Anmeldung fehlgeschlagen",
       "appleSoon": "(Demnächst)",
       "demoMode": "🚀 Demo-Modus (Ohne Login)",
       "emailLabel": "E-Mail",
@@ -516,8 +526,11 @@
     },
     "sections": {
       "myClubs": "Meine Clubs",
-      "trending": "Im Trend"
+      "trending": "Im Trend",
+      "eventsForYou": "Events für dich",
+      "seeAll": "Alle anzeigen"
     },
+    "clubEventsDiscover": "Club Events entdecken",
     "filter": {
       "title": "Filter",
       "categories": "Kategorien",
@@ -762,7 +775,7 @@
       "interests": "Interessen",
       "song": "Lieblingssong",
       "spotify": "Spotify",
-      "photos": "Meine Fotos"
+      "photos": "Pinnwand"
     },
     "fields": {
       "name": "Name",
@@ -795,6 +808,8 @@
       "connecting": "Verbinde..."
     },
     "photosCountFmt": "{{current}} / {{total}}",
+    "photosProfileBadge": "Profilbild",
+    "photosFirstHint": "Dein erstes Foto ist dein Profilbild. Du kannst bis zu 6 Fotos hinzufügen, durch die andere swipen können.",
     "saveBtn": "Änderungen speichern",
     "saveLoading": "Speichern...",
     "toast": {
@@ -1039,6 +1054,8 @@
       "boostGroupsDesc": "Kostenlos & unbegrenzt für deine Events",
       "boostClubs": "Clubs boosten",
       "boostClubsDesc": "Mehr Mitglieder für deine Community",
+      "seeMembers": "Alle Mitglieder sehen",
+      "seeMembersDesc": "Sieh alle Teilnehmer in Gruppen & Clubs",
       "topPlacement": "Top-Platzierung",
       "topPlacementDesc": "Immer ganz oben in der Entdecken-Liste",
       "deals": "Für Dich – exklusive Deals",
@@ -1138,6 +1155,7 @@
     "tomorrow": "📅 Morgen",
     "categoryAll": "Alle Kategorien",
     "locateTitle": "Meinen Standort anzeigen",
+    "locateError": "Standort konnte nicht ermittelt werden",
     "popupGroup": "Gruppe",
     "popupClub": "Club",
     "popupMembersFmt": "{{current}} / {{max}} Mitglieder",

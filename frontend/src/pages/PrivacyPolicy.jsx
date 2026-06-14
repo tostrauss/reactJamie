@@ -11,7 +11,7 @@ export default function PrivacyPolicy() {
 
       <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 8 }}>JAMIE Privacy Policy</h1>
       <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 32 }}>
-        Last updated: 09.06.2026
+        Last updated: 12.06.2026
       </p>
 
       <Section title="1. Introduction">
@@ -33,7 +33,9 @@ export default function PrivacyPolicy() {
           including the General Data Protection Regulation (EU) 2016/679 ("GDPR") and
           applicable Austrian data protection legislation.
         </p>
-        <p>By using JAMIE, you acknowledge that you have read this Privacy Policy.</p>
+        {/* "By using JAMIE you acknowledge..." removed 2026-06-12 (Tina):
+            users accept the policy actively at signup — implied-consent-by-use
+            wording is unnecessary and legally weaker. Same in section 18. */}
       </Section>
 
       <Section title="2. Who We Are">
@@ -681,9 +683,8 @@ export default function PrivacyPolicy() {
           most recent update.
         </p>
         <p>
-          Continued use of the Services following the effective date of an updated Privacy
-          Policy constitutes acknowledgement of the updated version, except where applicable
-          law requires additional consent.
+          Where required by applicable law, we will obtain your consent before processing
+          personal data for new purposes requiring such consent.
         </p>
       </Section>
 

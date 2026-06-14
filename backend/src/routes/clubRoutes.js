@@ -17,6 +17,7 @@ import {
   cancelClub,
   getCategories,
   getClubEvents,
+  getDiscoverEvents,
   createClubEvent,
   deleteClubEvent,
 } from '../controllers/clubController.js';
@@ -37,6 +38,9 @@ const router = express.Router();
 // ==========================================
 router.get('/', optionalAuth, getClubs);
 router.get('/categories', generalLimiter, getCategories);
+// Discover events from public clubs — declared before '/:id' so the literal
+// path is never swallowed by the club-by-id param route.
+router.get('/events/discover', optionalAuth, getDiscoverEvents);
 
 // ==========================================
 // USER-SPECIFIC ROUTES (require auth)

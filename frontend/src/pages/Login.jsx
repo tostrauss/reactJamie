@@ -159,6 +159,11 @@ export const Login = () => {
             >
               {t('auth.login.demoMode')}
             </button>
+
+            {/* Social-login failures set `error` but the only renderer used to
+                live inside the email form — a failed Google/Apple sign-in gave
+                zero feedback. Render it here too. */}
+            {error && <p className="error-message">{error}</p>}
           </div>
         ) : (
           <form onSubmit={handleEmailLogin} className="auth-form">

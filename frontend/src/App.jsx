@@ -32,6 +32,7 @@ const ChatPage = lazyWithReload(() => import('./pages/ChatPage'));
 const DirectMessagePage = lazyWithReload(() => import('./pages/DirectMessagePage'));
 const GroupDetail = lazyWithReload(() => import('./pages/GroupDetail'));
 const ClubDetail = lazyWithReload(() => import('./pages/ClubDetail'));
+const Events = lazyWithReload(() => import('./pages/Events'));
 const ClubMembers = lazyWithReload(() => import('./pages/ClubMembers'));
 const CreateGroup = lazyWithReload(() => import('./pages/CreateGroup'));
 const CreateClub = lazyWithReload(() => import('./pages/CreateClub'));
@@ -660,6 +661,9 @@ function AppRoutes() {
           {/* Clubs reuse the GroupEdit component (identical layout); it
               renders club-only fields based on type. URL stays /club/:id/edit. */}
           <Route path="/club/:id/edit" element={<ProtectedRoute><GroupEdit /></ProtectedRoute>} />
+
+          {/* Club events discovery */}
+          <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
 
           {/* Friends */}
           <Route path="/friends" element={<ProtectedRoute><Friends /></ProtectedRoute>} />

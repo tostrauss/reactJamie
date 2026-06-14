@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { map as mapApi } from '../utils/api';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
+import { useToast } from '../context/ToastContext';
 
 // Must be a stable reference — recreating it triggers a full Maps reload
 const LIBRARIES = [];
@@ -83,9 +84,11 @@ export default function MapView({ typeFilter }) {
   const { t, i18n } = useTranslation();
   const mapLanguage = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en' : 'de';
   const mapRef = useRef(null);
+  const toast = useToast();
 
   const [pins,             setPins]            = useState([]);
   const [loading,          setLoading]         = useState(true);
+  const [mapReady,         setMapReady]        = useState(false);
   const [selectedPin,      setSelectedPin]     = useState(null);
   const [selectedDate,     setSelectedDate]    = useState(null); // null | 'heute' | 'morgen'
   const [selectedCategory, setSelectedCategory] = useState(() => {
@@ -159,9 +162,11 @@ export default function MapView({ typeFilter }) {
     const bounds = new window.google.maps.LatLngBounds();
     usable.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
     mapRef.current.fitBounds(bounds, 60);
-  }, [pins]);
+    // mapReady in deps: pins often resolve before the map finishes loading, in
+    // which case mapRef.current was null and the fit never ran. Re-run on load.
+  }, [pins, mapReady]);
 
-  const onMapLoad = useCallback((map) => { mapRef.current = map; }, []);
+  const onMapLoad = useCallback((map) => { mapRef.current = map; setMapReady(true); }, []);
 
   const updateCategory = (cat) => {
     setSelectedCategory(cat);
@@ -173,14 +178,19 @@ export default function MapView({ typeFilter }) {
   };
 
   const handleLocate = () => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      toast.error(t('map.locateError'));
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         if (!mapRef.current) return;
         mapRef.current.panTo({ lat: coords.latitude, lng: coords.longitude });
         mapRef.current.setZoom(14);
       },
-      () => {}
+      // Denied / unavailable / timeout used to fail silently — give feedback.
+      () => toast.error(t('map.locateError')),
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
     );
   };
 
@@ -274,7 +284,7 @@ export default function MapView({ typeFilter }) {
                 maxWidth: 240,
               }}
             >
-              <div className="map-popup" onClick={() => navigate(`/group/${selectedPin.id}`)}>
+              <div className="map-popup" onClick={() => navigate(selectedPin.type === 'club' ? `/club/${selectedPin.id}` : `/group/${selectedPin.id}`)}>
                 {selectedPin.image_url && (
                   <img src={selectedPin.image_url} alt={selectedPin.name} className="map-popup-img" loading="lazy" decoding="async" />
                 )}
