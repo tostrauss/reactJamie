@@ -842,7 +842,7 @@ export const SettingsPage = () => {
 
         <div className="settings-row static">
           <div className="settings-row-left" style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', gap: 6 }}>
-            <span>{t('settings.legal.legalContact')}: <a href="mailto:legal@jamie-app.com" style={{ color: 'var(--coral)' }}>legal@jamie-app.com</a></span>
+            <span>{t('settings.legal.legalContact')}: <a href="mailto:office@jamie-app.com" style={{ color: 'var(--coral)' }}>office@jamie-app.com</a></span>
           </div>
         </div>
       </div>
