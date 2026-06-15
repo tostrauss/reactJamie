@@ -89,6 +89,12 @@ export const applyBoost = async (req, res) => {
   if (!['group', 'club'].includes(target_type)) {
     return res.status(400).json({ error: 'target_type must be group or club' });
   }
+  // Validate & clamp client-supplied duration: one credit buys at most 24h.
+  // Without this a user could send hours=100000 for an ~11-year boost.
+  const hoursNum = Number(hours);
+  if (!Number.isFinite(hoursNum) || hoursNum <= 0 || hoursNum > 24) {
+    return res.status(400).json({ error: 'hours must be a number between 1 and 24' });
+  }
 
   try {
     // Verify ownership first (cheap check, no lock needed)
@@ -101,7 +107,7 @@ export const applyBoost = async (req, res) => {
     }
 
     const isPro = await isUserPro(req.userId);
-    const boostedUntil = new Date(Date.now() + hours * 60 * 60 * 1000);
+    const boostedUntil = new Date(Date.now() + hoursNum * 60 * 60 * 1000);
 
     await withTransaction(async (client) => {
       if (!isPro) {

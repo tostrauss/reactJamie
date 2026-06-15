@@ -391,12 +391,17 @@ export const updateProfile = async (req, res) => {
     // favorite_song: allow explicit null to clear it
     const hasFavSong = 'favorite_song' in req.body;
     const songStr = favorite_song ? JSON.stringify(favorite_song) : (hasFavSong ? null : undefined);
+    // bio/location: when the key is present (ProfileEdit always sends it, as ''
+    // → null when cleared) write it directly so the user CAN clear the field;
+    // COALESCE would keep the old value and the clear silently reverted.
+    const hasBio = 'bio' in req.body;
+    const hasLocation = 'location' in req.body;
 
     await db.query(
       `UPDATE users
        SET name = COALESCE($1, name),
-           location = COALESCE($2, location),
-           bio = COALESCE($3, bio),
+           location = ${hasLocation ? '$2' : 'COALESCE($2, location)'},
+           bio = ${hasBio ? '$3' : 'COALESCE($3, bio)'},
            gender = COALESCE($4, gender),
            interests = COALESCE($5, interests),
            photos = COALESCE($6, photos),
@@ -582,8 +587,62 @@ export const deleteAccount = async (req, res) => {
       }
     }
 
-    // Delete user — cascades to all related data via FK ON DELETE CASCADE
-    await db.query('DELETE FROM users WHERE id = $1', [req.userId]);
+    // Cancel any live Stripe subscription BEFORE deleting (the subscriptions
+    // row cascade-deletes with the user, but Stripe keeps billing the saved
+    // card otherwise). Best-effort — never block the GDPR deletion on Stripe.
+    try {
+      if (process.env.STRIPE_SECRET_KEY) {
+        const subs = await db.query(
+          `SELECT stripe_subscription_id FROM subscriptions
+           WHERE user_id = $1 AND stripe_subscription_id IS NOT NULL
+             AND (status = 'active' OR status = 'canceling')`,
+          [req.userId]
+        );
+        if (subs.rows.length) {
+          const { default: Stripe } = await import('stripe');
+          const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+          for (const s of subs.rows) {
+            try { await stripe.subscriptions.cancel(s.stripe_subscription_id); }
+            catch (e) { console.error('Stripe cancel on delete failed:', e.message); }
+          }
+        }
+      }
+    } catch (e) { console.error('Stripe cancel block failed:', e.message); }
+
+    // groups.owner_id is ON DELETE CASCADE, so deleting an owner would DELETE
+    // their groups/clubs — destroying communities for every other member.
+    // Transfer ownership of any multi-member group to its earliest other
+    // member first; solo-owned groups then cascade away harmlessly.
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `WITH transfer AS (
+           SELECT DISTINCT ON (gm.group_id) gm.group_id, gm.user_id AS new_owner
+           FROM group_members gm
+           JOIN groups g ON g.id = gm.group_id
+           WHERE g.owner_id = $1 AND gm.user_id <> $1
+           ORDER BY gm.group_id, gm.joined_at ASC
+         ),
+         upd_groups AS (
+           UPDATE groups g SET owner_id = t.new_owner
+           FROM transfer t WHERE g.id = t.group_id
+           RETURNING g.id, t.new_owner
+         )
+         UPDATE group_members gm SET role = 'owner'
+         FROM upd_groups u
+         WHERE gm.group_id = u.id AND gm.user_id = u.new_owner`,
+        [req.userId]
+      );
+      // Delete user — remaining (solo-owned) groups + all other rows cascade.
+      await client.query('DELETE FROM users WHERE id = $1', [req.userId]);
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
 
     clearAuthCookie(res);
     res.json({ message: 'Account deleted successfully' });
@@ -980,15 +1039,35 @@ export const googleLogin = async (req, res) => {
         return res.status(401).json({ error: 'Google Token ungültig' });
       }
     } else {
-      // Access token path: exchange for user info via Google userinfo endpoint.
-      // Used when frontend sends an OAuth2 access_token (useGoogleLogin implicit flow)
-      // or when GOOGLE_CLIENT_ID is not configured.
+      // Access token path (useGoogleLogin implicit flow). SECURITY: Google's
+      // userinfo endpoint returns the token owner's profile for ANY valid
+      // access token, regardless of which OAuth client minted it — so an access
+      // token issued for a DIFFERENT app would be accepted here and let an
+      // attacker sign in as that user. We MUST verify the token's audience
+      // (aud/azp) matches OUR client id before trusting it.
+      const expectedAud = process.env.GOOGLE_CLIENT_ID;
+      if (!expectedAud) {
+        return res.status(503).json({ error: 'Google-Login ist nicht konfiguriert' });
+      }
+      const tokenInfoRes = await fetch(
+        `https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${encodeURIComponent(credential)}`
+      );
+      if (!tokenInfoRes.ok) return res.status(401).json({ error: 'Google Token ungültig' });
+      const tokenInfo = await tokenInfoRes.json();
+      if (tokenInfo.aud !== expectedAud && tokenInfo.azp !== expectedAud) {
+        return res.status(401).json({ error: 'Google Token ungültig' });
+      }
+
       const googleRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { Authorization: `Bearer ${credential}` },
       });
       if (!googleRes.ok) return res.status(401).json({ error: 'Google Token ungültig' });
       const data = await googleRes.json();
       if (!data.email) return res.status(401).json({ error: 'Google Token ungültig' });
+      // Defense in depth: tokeninfo.sub must match the userinfo subject.
+      if (tokenInfo.sub && data.sub && tokenInfo.sub !== data.sub) {
+        return res.status(401).json({ error: 'Google Token ungültig' });
+      }
       email    = data.email;
       name     = data.name;
       picture  = data.picture;

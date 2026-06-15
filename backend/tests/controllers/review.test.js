@@ -41,6 +41,11 @@ vi.mock('../../src/config/database.js', () => {
   return {
     default: {
       query: vi.fn(async (text /*, params */) => {
+        // Reviewer membership + event date (joins groups). Return a date 24h in
+        // the past so submitReview's "event must have ended" guard passes.
+        if (text.includes('FROM group_members gm') && text.includes('JOIN groups g')) {
+          return { rows: [{ date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() }] };
+        }
         // group_members membership check for the REVIEWER (outside the txn)
         if (text.includes('SELECT 1 FROM group_members')) return { rows: [{ '?column?': 1 }] };
         // Duplicate-submission check

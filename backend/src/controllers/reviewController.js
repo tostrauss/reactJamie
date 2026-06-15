@@ -75,13 +75,24 @@ export const submitReview = async (req, res) => {
   }
 
   try {
-    // Verify reviewer was a member
+    // Verify reviewer was a member AND fetch the event date in one go.
     const memberCheck = await db.query(
-      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+      `SELECT g.date
+       FROM group_members gm
+       JOIN groups g ON g.id = gm.group_id
+       WHERE gm.group_id = $1 AND gm.user_id = $2`,
       [group_id, req.userId]
     );
     if (!memberCheck.rows.length) {
       return res.status(403).json({ error: 'Nur Mitglieder können bewerten' });
+    }
+
+    // Only allow reviews AFTER the event ended (6h grace) — submitReview had no
+    // date guard, so a member could review a future/just-created event. Mirrors
+    // the window used by getPendingReviews.
+    const eventDate = memberCheck.rows[0].date;
+    if (!eventDate || new Date(eventDate).getTime() + 6 * 60 * 60 * 1000 > Date.now()) {
+      return res.status(400).json({ error: 'Bewertung erst nach dem Event möglich' });
     }
 
     // Prevent duplicate submission

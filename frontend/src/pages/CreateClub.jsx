@@ -120,6 +120,12 @@ export const CreateClub = () => {
     } catch (err) {
       setError(t('createClub.imageUploadError'));
       toast.error(t('createClub.imageUploadError'));
+      // Clear the phantom preview so the user doesn't believe a failed upload
+      // attached — formData.image_url stayed null, so the club would be created
+      // imageless while the tile still showed the photo.
+      if (imageBlobRef.current) { URL.revokeObjectURL(imageBlobRef.current); imageBlobRef.current = null; }
+      setImagePreview(null);
+      e.target.value = '';
     } finally {
       setUploading(false);
     }
@@ -335,17 +341,10 @@ export const CreateClub = () => {
             </div>
           </div>
 
-          <div className="form-section">
-            <label className="form-label">{t('createClub.step2.rulesLabel')}</label>
-            <textarea
-              name="rules"
-              value={formData.rules}
-              onChange={handleInputChange}
-              placeholder={t('createClub.step2.rulesPlaceholder')}
-              className="input textarea"
-              rows={3}
-            />
-          </div>
+          {/* Regeln textarea removed 2026-06: the value was collected into
+              formData.rules but never sent to the backend (no rules column),
+              so users lost what they typed. Re-add as a real feature (rules
+              column + createClub/updateClub + ClubDetail render) when wanted. */}
 
           <div className="form-section" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.04)', borderRadius: 12, padding: '14px 16px' }}>
             <div>

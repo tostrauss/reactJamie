@@ -327,8 +327,8 @@ export const UserProfile = () => {
       {/* ── Favorite song ── */}
       {song && (
         <div className="up-song-card">
-          {song.image
-            ? <img src={song.image} alt="" className="up-song-art" loading="lazy" decoding="async" />
+          {(song.cover || song.image)
+            ? <img src={song.cover || song.image} alt="" className="up-song-art" loading="lazy" decoding="async" />
             : <div className="up-song-art up-song-art-placeholder">♪</div>
           }
           <div className="up-song-info">

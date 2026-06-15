@@ -1228,6 +1228,8 @@
       "ageToLabel": "to",
       "ageFromPlaceholder": "e.g. 22",
       "ageToPlaceholder": "e.g. 30",
+      "dateInvalid": "That date doesn't exist",
+      "ageRangeInvalid": "Invalid age range (14–99, from ≤ to)",
       "maxLabel": "Max participants",
       "peopleUnit": "people",
       "levelLabel": "Level",

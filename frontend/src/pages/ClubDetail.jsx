@@ -389,9 +389,13 @@ export const ClubDetail = () => {
                 <button className="cd-btn cd-btn-primary" onClick={() => navigate(`/chat/${id}`)}>
                   💬 {t('clubDetail.actions.openChat')}
                 </button>
-                <button className="cd-btn cd-btn-ghost" onClick={handleJoinToggle}>
-                  {t('clubDetail.actions.leave')}
-                </button>
+                {/* Owner can't leave their own club (backend rejects it) — they
+                    have Löschen in the owner actions instead. */}
+                {!isOwner && (
+                  <button className="cd-btn cd-btn-ghost" onClick={handleJoinToggle}>
+                    {t('clubDetail.actions.leave')}
+                  </button>
+                )}
               </>
             ) : joinRequestStatus === 'pending' ? (
               <button className="cd-btn cd-btn-disabled" disabled>

@@ -169,8 +169,8 @@ export const users = {
   getById: (id) => 
     axiosInstance.get(`/users/${id}`),
   
-  search: (query) => 
-    axiosInstance.get('/users/search', { params: { q: query } })
+  search: (query, config = {}) =>
+    axiosInstance.get('/users/search', { params: { q: query }, ...config })
 };
 
 // ==========================================

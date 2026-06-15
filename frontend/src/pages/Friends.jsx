@@ -42,7 +42,7 @@ export const Friends = () => {
       abortRef.current = new AbortController();
       setSearching(true);
       try {
-        const res = await usersApi.search(q);
+        const res = await usersApi.search(q, { signal: abortRef.current.signal });
         const rows = (res.data || []).filter(u => u.id !== currentUser?.id);
         setSearchResults(rows);
       } catch (err) {

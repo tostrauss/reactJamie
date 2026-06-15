@@ -75,6 +75,7 @@
   font-family: 'Archivo', -apple-system, sans-serif;
   font-size: 32px;
   font-weight: 900;
+  font-style: italic; /* Archivo Black italic — matches the brand wordmark (auth screen) */
   color: var(--accent-coral);
   letter-spacing: -0.5px;
 }

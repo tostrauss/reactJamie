@@ -92,7 +92,9 @@ async function areFriends(a, b) {
   }
 }
 
-const DM_LIMIT = 60;
+// Keep in sync with the HTTP dmSendLimiter (dmRoutes.js, 10/min) — a looser
+// socket cap let the real-time path bypass the anti-spam limit.
+const DM_LIMIT = 10;
 const DM_WINDOW_MS = 60_000;
 
 // In-memory fallback (single-instance only) — used when Redis is absent

@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import db from '../config/database.js';
 
 // Guest access only allowed when explicitly enabled via env var
 const isGuestAllowed = () => process.env.ALLOW_GUEST_TOKEN === 'true';
@@ -102,7 +103,6 @@ export const clearAuthCookie = (res) => {
 export const requireAdmin = async (req, res, next) => {
   if (!req.userId) return res.status(401).json({ error: 'Authentication required' });
   try {
-    const { default: db } = await import('../config/database.js');
     const result = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);
     if (!result.rows[0]?.is_admin) return res.status(403).json({ error: 'Admin access required' });
     next();
@@ -116,7 +116,6 @@ export const requireCompleteProfile = async (req, res, next) => {
   try {
     if (req.isGuest) return res.status(403).json({ error: 'Guests cannot join groups. Please register.' });
 
-    const { default: db } = await import('../config/database.js');
     const result = await db.query('SELECT onboarding_completed FROM users WHERE id = $1', [req.userId]);
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });

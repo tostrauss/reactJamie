@@ -41,11 +41,20 @@ export const sendFriendRequest = async (req, res) => {
     }
 
     // Create new friend request — expires after 30 days
-    await db.query(
-      `INSERT INTO friendships (requester_id, addressee_id, status, expires_at)
-       VALUES ($1, $2, 'pending', NOW() + INTERVAL '30 days')`,
-      [req.userId, userId]
-    );
+    try {
+      await db.query(
+        `INSERT INTO friendships (requester_id, addressee_id, status, expires_at)
+         VALUES ($1, $2, 'pending', NOW() + INTERVAL '30 days')`,
+        [req.userId, userId]
+      );
+    } catch (e) {
+      // 23505 = the uniq_friend_pair index caught a concurrent reverse-direction
+      // request landing at the same instant — treat as already pending.
+      if (e.code === '23505') {
+        return res.status(400).json({ error: 'Friend request already pending' });
+      }
+      throw e;
+    }
 
     notifyFriendRequest(req.userId, userId).catch(() => {});
     res.status(201).json({ message: 'Friend request sent' });

@@ -39,6 +39,11 @@ export const ChatPage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // Set before a "load earlier" prepend so the [messageList] auto-scroll effect
+  // skips once — otherwise loading older messages instantly yanks the user back
+  // to the newest message and the history can never be read.
+  const skipAutoScrollRef = useRef(false);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -107,6 +112,7 @@ export const ChatPage = () => {
   }, [socket, groupId]);
 
   useEffect(() => {
+    if (skipAutoScrollRef.current) { skipAutoScrollRef.current = false; return; }
     scrollToBottom();
   }, [messageList]);
 
@@ -118,6 +124,7 @@ export const ChatPage = () => {
       const response = await messages.get(groupId, { before: oldestId });
       const data = response.data;
       const older = Array.isArray(data) ? data : (data?.messages ?? []);
+      skipAutoScrollRef.current = true; // prepend shouldn't trigger scroll-to-bottom
       setMessageList(prev => [...older, ...prev]);
       setHasMore(Array.isArray(data) ? false : (data?.has_more ?? false));
     } catch (error) {

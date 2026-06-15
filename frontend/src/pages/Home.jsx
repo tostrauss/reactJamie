@@ -131,7 +131,9 @@ export const Home = () => {
     try {
       if (activeTab === "gruppen") {
         const [groupsRes, favGroupsRes, joinedGroupsRes, joinedClubsRes, dealsRes] = await Promise.all([
-          api.get("/groups", { params: { type: "group" } }),
+          // upcoming:true so past one-off events leave the feed (the backend
+          // keeps weekly-recurring groups via their next occurrence).
+          api.get("/groups", { params: { type: "group", upcoming: "true" } }),
           groups.getFavorites().catch(() => ({ data: [] })),
           groups.getJoined().catch(() => ({ data: [] })),
           clubs.getJoined().catch(() => ({ data: [] })),
@@ -145,18 +147,24 @@ export const Home = () => {
           ...(joinedClubsRes.data || []).map(c => c.id),
         ]));
       } else {
-        const [allClubsRes, myClubsRes, favClubsRes, joinedGroupsRes, eventsRes] = await Promise.all([
+        // Discover-events loads on its own promise — NOT inside the Promise.all
+        // that gates the loading spinner. A slow events query must never hold
+        // the whole clubs list hostage; the "Events für dich" row just pops in
+        // when ready.
+        clubs.discoverEvents()
+          .then(res => setDiscoverEvents(res.data || []))
+          .catch(() => setDiscoverEvents([]));
+
+        const [allClubsRes, myClubsRes, favClubsRes, joinedGroupsRes] = await Promise.all([
           // Default server limit is 20; the client-side search/filter then can
           // never reach clubs 21+. Pull a full page so local filtering is real.
           clubs.getAll({ limit: 100 }),
           clubs.getJoined().catch(() => ({ data: [] })),
           clubs.getFavorites().catch(() => ({ data: [] })),
           groups.getJoined().catch(() => ({ data: [] })),
-          clubs.discoverEvents().catch(() => ({ data: [] })),
         ]);
         setClubList(allClubsRes.data || []);
         setMyClubs(myClubsRes.data || []);
-        setDiscoverEvents(eventsRes.data || []);
         setFavorites(new Set((favClubsRes.data || []).map(c => c.id)));
         setJoined(new Set([
           ...(joinedGroupsRes.data || []).map(g => g.id),

@@ -203,17 +203,43 @@ export const CreateGroup = () => {
     return formData.date >= todayStr;
   };
 
+  // The day select always offers 01–31, so impossible combos (31 Sept, 30 Feb)
+  // can be assembled. Re-construct via the local Date constructor and confirm
+  // each component round-trips (tz-safe: local constructor + local getters).
+  const isValidCalendarDate = () => {
+    if (!formData.date) return true;
+    const [y, m, d] = formData.date.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+  };
+
+  // Optional target-age range — both empty is fine; otherwise both must be
+  // 14–99 and min ≤ max. Mirrors the backend so it can't fail only at submit.
+  const ageRangeValid = () => {
+    const min = formData.targetAgeMin === '' || formData.targetAgeMin == null ? null : Number(formData.targetAgeMin);
+    const max = formData.targetAgeMax === '' || formData.targetAgeMax == null ? null : Number(formData.targetAgeMax);
+    if (min == null && max == null) return true;
+    if (min == null || max == null) return false;
+    if (Number.isNaN(min) || Number.isNaN(max)) return false;
+    return min >= 14 && max <= 99 && min <= max;
+  };
+
   const canProceed = () => {
     switch (step) {
       case 1: return formData.name && formData.mainCategory && formData.activity;
-      case 2: return formData.date && formData.location && formData.locationCountry === 'AT' && isDateInFuture();
+      case 2: return formData.date && formData.location && formData.locationCountry === 'AT'
+        && isDateInFuture() && isValidCalendarDate() && ageRangeValid();
       case 3: return true;
       default: return false;
     }
   };
 
-  const dateError = step === 2 && formData.date && !isDateInFuture()
+  const dateError = step === 2 && formData.date && !isValidCalendarDate()
+    ? t('createGroup.step2.dateInvalid')
+    : step === 2 && formData.date && !isDateInFuture()
     ? t('groups.detail.events.errorDateFuture')
+    : step === 2 && !ageRangeValid()
+    ? t('createGroup.step2.ageRangeInvalid')
     : '';
 
   const stepLabels = t('createGroup.stepsTitles', { returnObjects: true });
@@ -277,6 +303,7 @@ export const CreateGroup = () => {
               onChange={handleInputChange}
               placeholder={t('createGroup.step1.titlePlaceholder')}
               className="input"
+              maxLength={100}
             />
           </div>
 

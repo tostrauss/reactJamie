@@ -121,19 +121,36 @@ export const getRecentUsers = async (req, res) => {
 export const getScreenTime = async (req, res) => {
   const days = Math.min(parseInt(req.query.days) || 30, 90);
   try {
+    // Views come from 'screen_view' events; duration_ms is only recorded on
+    // 'screen_leave' (the client can't know dwell time until the user leaves).
+    // Averaging duration over screen_view rows was always NULL → the Ø-Dauer
+    // column showed '—'. Pull duration from screen_leave and join.
     const result = await db.query(`
       SELECT
-        screen_name,
-        COUNT(*)              AS views,
-        COUNT(DISTINCT user_id) AS unique_users,
-        AVG(duration_ms)::INT   AS avg_duration_ms,
-        SUM(duration_ms)::BIGINT AS total_duration_ms
-      FROM analytics_events
-      WHERE event_type = 'screen_view'
-        AND screen_name IS NOT NULL
-        AND created_at >= NOW() - make_interval(days => $1::int)
-      GROUP BY screen_name
-      ORDER BY views DESC
+        v.screen_name,
+        v.views,
+        v.unique_users,
+        d.avg_duration_ms,
+        d.total_duration_ms
+      FROM (
+        SELECT screen_name, COUNT(*) AS views, COUNT(DISTINCT user_id) AS unique_users
+        FROM analytics_events
+        WHERE event_type = 'screen_view'
+          AND screen_name IS NOT NULL
+          AND created_at >= NOW() - make_interval(days => $1::int)
+        GROUP BY screen_name
+      ) v
+      LEFT JOIN (
+        SELECT screen_name, AVG(duration_ms)::INT AS avg_duration_ms,
+               SUM(duration_ms)::BIGINT AS total_duration_ms
+        FROM analytics_events
+        WHERE event_type = 'screen_leave'
+          AND screen_name IS NOT NULL
+          AND duration_ms IS NOT NULL
+          AND created_at >= NOW() - make_interval(days => $1::int)
+        GROUP BY screen_name
+      ) d ON d.screen_name = v.screen_name
+      ORDER BY v.views DESC
     `, [days]);
     res.json(result.rows);
   } catch (err) {

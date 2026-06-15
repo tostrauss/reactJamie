@@ -62,11 +62,13 @@ export const ChatList = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [joinedRes, dmsRes, friendsRes, pendingRes] = await Promise.all([
+      // friends.getAll()/getPending() were fetched here but never rendered —
+      // the friends UI lives in the profile area now, and the group-request
+      // swipe modal loads its own data via groups.getRequests. Dropped to save
+      // two requests on every chat-list open.
+      const [joinedRes, dmsRes] = await Promise.all([
         groups.getJoined().catch(() => null),
         directMessages.getConversations().catch(() => null),
-        friends.getAll().catch(() => null),
-        friends.getPending().catch(() => null)
       ]);
 
       // Events (type='event') live under a parent club and shouldn't surface
@@ -92,15 +94,14 @@ export const ChatList = () => {
         id: dm.other_user_id,
         name: dm.other_user_name,
         lastMessage: dm.last_message_text || '',
-        time: dm.updated_at ? formatTime(dm.updated_at) : '',
+        // last_message_at = the last message's timestamp (sent/received), not
+        // dc.updated_at which the read-trigger bumps when you merely open a chat.
+        time: dm.last_message_at ? formatTime(dm.last_message_at) : '',
         unread: dm.unread_count || 0,
         avatar: dm.other_user_avatar,
         isOnline: false,
         isDM: true
       })));
-
-      if (friendsRes?.data) setFriendsList(friendsRes.data);
-      if (pendingRes?.data) setPendingRequests(pendingRes.data);
     } catch (err) {
     } finally {
       setLoading(false);
@@ -158,11 +159,18 @@ export const ChatList = () => {
   };
 
   const handleNewDM = (data) => {
+    // new_dm_notification sends `message` as a plain string (socket.js); the
+    // old `data.message?.content` was always undefined → blank preview row.
+    const preview = typeof data.message === 'string'
+      ? data.message
+      : (data.message?.content || '');
     setPrivateChats(prev => {
       const row = prev.find(c => c.id === data.senderId);
-      if (!row) return prev;
+      // First-ever DM from a new friend has no row yet — refetch so it appears
+      // instead of being silently dropped until a manual reload.
+      if (!row) { loadData(); return prev; }
       return bumpToTop(prev, data.senderId, {
-        lastMessage: data.message?.content,
+        lastMessage: preview,
         time: formatTime(new Date().toISOString()),
         unread: (row.unread || 0) + 1,
       });

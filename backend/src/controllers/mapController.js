@@ -44,6 +44,9 @@ export const getMapPins = async (req, res) => {
         AND g.lat IS NOT NULL
         AND g.lng IS NOT NULL
         AND g.approval_status = 'approved'
+        -- Don't expose private groups' exact coordinates on the public,
+        -- unauthenticated map (mirrors suggestionController's filter).
+        AND g.is_private IS NOT TRUE
         ${dateCondition}
     `;
     const params = [];

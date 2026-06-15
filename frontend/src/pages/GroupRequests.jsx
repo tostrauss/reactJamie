@@ -225,7 +225,10 @@ export const GroupRequests = () => {
       )}
 
       <style>{`
-        .requests-page { display: flex; flex-direction: column; height: 100vh; padding-bottom: 0; }
+        /* padding-top:0 — the .page base class already adds safe-area top, and
+           .requests-header below adds it again; without this the header double-
+           stacked the inset and sat too low on iOS. */
+        .requests-page { display: flex; flex-direction: column; height: 100vh; padding-top: 0; padding-bottom: 0; }
         .requests-header { display: flex; align-items: center; justify-content: space-between; padding: 16px; padding-top: calc(env(safe-area-inset-top, 20px) + 16px); }
         .back-btn { background: none; border: none; color: var(--text-white); cursor: pointer; padding: 8px; }
         .requests-title { font-size: 18px; font-weight: 600; color: var(--text-white); }

@@ -123,7 +123,16 @@ export default function MapView({ typeFilter }) {
         if (typeFilter && typeFilter !== 'all') params.type = typeFilter;
         if (selectedCategory) {
           const cat = CATEGORY_HIERARCHY.find(c => c.id === selectedCategory);
-          if (cat) params.categories = cat.subs.map(s => s.name).join(',');
+          if (cat) {
+            // Include the main label AND subs, but drop the generic "Sonstiges"
+            // sub (every category has one) unless this IS the Sonstiges category
+            // — otherwise selecting Sport also matched all "Sonstiges" groups.
+            // Matches Home's matchesKategorie logic so the two surfaces agree.
+            const subNames = cat.subs
+              .filter(s => s.name !== 'Sonstiges' || cat.id === 'sonstiges')
+              .map(s => s.name);
+            params.categories = [cat.label, ...subNames].join(',');
+          }
         }
         if (selectedDate) params.dateFilter = selectedDate;
         const res = await mapApi.getPins(params);

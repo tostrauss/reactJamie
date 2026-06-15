@@ -916,6 +916,21 @@ const runStartupMigrations = async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_fs_requester_status  ON friendships(requester_id, status)`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_fs_addressee_status  ON friendships(addressee_id, status)`);
   });
+  // The only uniqueness was directional UNIQUE(requester_id, addressee_id), so a
+  // symmetric race (A→B and B→A at once) could create two rows for one pair.
+  // Dedupe any existing unordered-pair duplicates (keep the earliest id), then
+  // add a normalized unique index so the reverse direction collides at the DB.
+  await migrate('uniq_friend_pair', async () => {
+    await db.query(`
+      DELETE FROM friendships f
+      USING friendships f2
+      WHERE f.id > f2.id
+        AND LEAST(f.requester_id, f.addressee_id)    = LEAST(f2.requester_id, f2.addressee_id)
+        AND GREATEST(f.requester_id, f.addressee_id) = GREATEST(f2.requester_id, f2.addressee_id)`);
+    await db.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS uniq_friend_pair
+      ON friendships (LEAST(requester_id, addressee_id), GREATEST(requester_id, addressee_id))`);
+  });
   await migrate('groups.chat_only_owner', async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS chat_only_owner BOOLEAN DEFAULT FALSE`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_chat_only_owner ON groups(chat_only_owner) WHERE chat_only_owner = TRUE`);

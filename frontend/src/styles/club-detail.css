@@ -232,6 +232,7 @@
   letter-spacing: -0.4px;
   color: var(--accent-coral);
   line-height: 1.15;
+  overflow-wrap: break-word;
 }
 .cd-category {
   display: inline-block;
@@ -252,6 +253,7 @@
   line-height: 1.55;
   color: var(--text-light);
   white-space: pre-wrap;
+  overflow-wrap: break-word;
 }
 
 /* ── Action buttons ───────────────────────────────────── */
@@ -919,8 +921,10 @@
   flex-shrink: 0;
 }
 .cd-event-cal-btn {
-  width: 32px;
-  height: 32px;
+  /* 44px min hit area (Apple HIG); the visible circle stays compact via the
+     icon size, but the tappable box must reach 44. */
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   background: var(--bg-input);
   border: 1px solid rgba(255, 255, 255, 0.05);
@@ -932,6 +936,7 @@
 }
 .cd-event-join-btn {
   padding: 7px 12px;
+  min-height: 44px; /* Apple HIG min touch target */
   border-radius: var(--radius-sm);
   background: var(--accent-coral);
   color: white;

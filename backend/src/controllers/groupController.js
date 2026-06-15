@@ -656,7 +656,7 @@ export const joinGroup = async (req, res) => {
 
     // Notify group owner (fire-and-forget)
     if (g.owner_id && Number(g.owner_id) !== Number(req.userId)) {
-      notifyGroupJoin(req.userId, g.owner_id, g.name || '').catch(() => {});
+      notifyGroupJoin(req.userId, g.owner_id, g.name || '', id).catch(() => {});
     }
 
     // Post a "X ist beigetreten 🎉" system message, broadcast live to anyone
@@ -841,8 +841,15 @@ export const getGroupMembers = async (req, res) => {
        FROM group_members gm
        JOIN users u ON gm.user_id = u.id
        WHERE gm.group_id = $1
+         -- Hide blocked users from each other (bidirectional), same rule the
+         -- user-search surface enforces.
+         AND u.id NOT IN (
+           SELECT CASE WHEN requester_id = $2 THEN addressee_id ELSE requester_id END
+           FROM friendships
+           WHERE status = 'blocked' AND (requester_id = $2 OR addressee_id = $2)
+         )
        ORDER BY gm.joined_at ASC`,
-      [id]
+      [id, req.userId]
     );
     const total = fullList.rows.length;
 
@@ -1377,11 +1384,13 @@ export async function notifyJoinRequest(requesterUserId, ownerUserId, groupName,
   } catch { /* non-critical */ }
 }
 
-async function notifyGroupJoin(joinerUserId, ownerUserId, groupName) {
+async function notifyGroupJoin(joinerUserId, ownerUserId, groupName, groupId) {
   try {
     const { rows } = await db.query('SELECT name FROM users WHERE id = $1', [joinerUserId]);
     const name = rows[0]?.name || 'Jemand';
-    sendPushToUser(ownerUserId, 'Neues Mitglied', `${name} ist "${groupName}" beigetreten`, '/my-groups');
+    // Link to the group itself — '/my-groups' is not a real route (the SW
+    // opened it on tap and the owner landed on the 404 page).
+    sendPushToUser(ownerUserId, 'Neues Mitglied', `${name} ist "${groupName}" beigetreten`, groupId ? `/group/${groupId}` : '/chats');
   } catch { /* non-critical */ }
 }
 

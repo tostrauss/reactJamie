@@ -396,6 +396,7 @@
   color: var(--accent-coral);
   margin: 0 0 14px;
   line-height: 1.1;
+  overflow-wrap: break-word;
 }
 
 /* Description */
@@ -404,6 +405,7 @@
   line-height: 1.7;
   color: var(--text-light);
   margin-bottom: 24px;
+  overflow-wrap: break-word;
 }
 
 /* Location mini-map */

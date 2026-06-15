@@ -1113,7 +1113,8 @@ select:focus {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 16px;
+  /* +safe-area so the banner clears the iOS status bar / notch in standalone. */
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px;
   background: rgba(239, 68, 68, 0.95);
   color: white;
   font-size: 13px;

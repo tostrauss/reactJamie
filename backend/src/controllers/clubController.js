@@ -625,8 +625,14 @@ export const getClubMembers = async (req, res) => {
        FROM group_members gm
        JOIN users u ON gm.user_id = u.id
        WHERE gm.group_id = $1
+         -- Hide blocked users from each other (bidirectional).
+         AND u.id NOT IN (
+           SELECT CASE WHEN requester_id = $2 THEN addressee_id ELSE requester_id END
+           FROM friendships
+           WHERE status = 'blocked' AND (requester_id = $2 OR addressee_id = $2)
+         )
        ORDER BY gm.joined_at ASC`,
-      [id]
+      [id, req.userId]
     );
     res.json(result.rows);
   } catch (err) {

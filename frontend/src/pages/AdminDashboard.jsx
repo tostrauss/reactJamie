@@ -313,7 +313,7 @@ export const AdminDashboard = () => {
                       <td style={{ padding: '12px 16px', color: '#fff' }}>{s.screen_name}</td>
                       <td style={{ padding: '12px 16px', textAlign: 'right', color: '#FD7666', fontWeight: 700 }}>{s.views}</td>
                       <td style={{ padding: '12px 16px', textAlign: 'right', color: 'rgba(255,255,255,0.6)' }}>
-                        {s.avg_duration_sec != null ? `${Math.round(s.avg_duration_sec)}s` : '—'}
+                        {s.avg_duration_ms != null ? `${Math.round(s.avg_duration_ms / 1000)}s` : '—'}
                       </td>
                     </tr>
                   ))}
@@ -323,18 +323,21 @@ export const AdminDashboard = () => {
           </div>
         )}
 
-        {stats?.suggestions?.length > 0 && (
+        {/* Backend returns `category_suggestions` rows of { suggestion, votes };
+            the old `suggestions`/`count` keys never matched, so this section
+            was always empty. */}
+        {stats?.category_suggestions?.length > 0 && (
           <div style={{ marginBottom: 32 }}>
             <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
               {t('admin.sections.categorySuggestions')}
             </h2>
             <div style={{ background: 'var(--bg-card, #1e2235)', borderRadius: 16, padding: '16px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {stats.suggestions.map((s, i) => (
+              {stats.category_suggestions.map((s, i) => (
                 <span key={i} style={{
                   background: 'rgba(255,255,255,0.08)', borderRadius: 8,
                   padding: '6px 12px', fontSize: 13, color: '#fff',
                 }}>
-                  {s.suggestion} <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11 }}>×{s.count}</span>
+                  {s.suggestion} <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11 }}>×{s.votes}</span>
                 </span>
               ))}
             </div>

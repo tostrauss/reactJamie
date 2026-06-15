@@ -987,4 +987,7 @@
 .message-content {
   font-size: 15px;
   line-height: 1.4;
+  /* Break inside long unbroken tokens (pasted URLs, "aaaa…") so they wrap
+     inside the bubble instead of overflowing/clipping. */
+  overflow-wrap: anywhere;
 }

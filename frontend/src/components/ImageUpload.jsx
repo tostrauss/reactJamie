@@ -17,7 +17,9 @@ export const ImageUpload = ({ onUpload, label = "Bild hochladen", triggerRef }) 
   }, [triggerRef, uploading]);
 
   const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-  const MAX_SIZE_MB = 5;
+  // 10 MB to match the other uploaders + the 15 MB backend limit. At 5 MB this
+  // rejected normal 6–10 MB iPhone camera photos client-side for no reason.
+  const MAX_SIZE_MB = 10;
 
   const handleFile = async (e) => {
     const file = e.target.files[0];

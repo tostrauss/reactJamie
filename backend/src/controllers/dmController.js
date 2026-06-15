@@ -160,8 +160,6 @@ export const sendDM = async (req, res) => {
     console.error('Error sending DM:', error);
     res.status(500).json({
       error: 'Nachricht konnte nicht gesendet werden',
-      detail: error.message,
-      code: error.code,
     });
   }
 };
@@ -243,8 +241,6 @@ export const getConversation = async (req, res) => {
     console.error('Error fetching conversation:', error);
     res.status(500).json({
       error: 'Konversation konnte nicht geladen werden',
-      detail: error.message,
-      code: error.code,
     });
   }
 };
@@ -261,7 +257,12 @@ export const getConversations = async (req, res) => {
       JOIN users u ON dc.other_user_id = u.id
       LEFT JOIN direct_messages dm ON dc.last_message_id = dm.id
       WHERE dc.user_id = $1::int
-      ORDER BY dc.updated_at DESC
+      -- Order by the actual last MESSAGE time, not dc.updated_at. A trigger
+      -- (trg_dm_conversations_updated) bumps updated_at on ANY update, so just
+      -- opening a chat (markDMRead → UPDATE unread_count) used to shoot it to
+      -- the top. last_message_id only changes on send/receive, so dm.created_at
+      -- reflects exactly "last sent or received".
+      ORDER BY COALESCE(dm.created_at, dc.updated_at) DESC
       LIMIT 100
     `;
     let result;
@@ -280,8 +281,6 @@ export const getConversations = async (req, res) => {
     console.error('Error fetching conversations:', error);
     res.status(500).json({
       error: 'Konversationen konnten nicht geladen werden',
-      detail: error.message,
-      code: error.code,
     });
   }
 };
@@ -320,6 +319,6 @@ export const markDMRead = async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Error marking DM read:', error);
-    res.status(500).json({ error: 'Internal server error', detail: error.message, code: error.code });
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
