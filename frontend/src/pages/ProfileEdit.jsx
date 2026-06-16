@@ -50,16 +50,20 @@ export const ProfileEdit = () => {
     date_of_birth: '',
     gender: '',
     interests: [],
-    // Unified photo model: avatar_url is the first photo (= profile picture),
-    // `photos` holds the rest. The header gallery swipes [avatar_url, ...photos].
+    // PROFILFOTOS (carousel): avatar_url is the first photo (= profile picture
+    // shown in chats/groups), `photos` holds the rest. Header swipes [avatar, ...photos].
     avatar_url: '',
-    photos: []
+    photos: [],
+    // PINNWAND: separate Pinterest-style gallery for the "vibe check".
+    pinnwand: []
   });
   const [dobParts, setDobParts] = useState({ y: '', m: '', d: '' });
   const [favoriteSong, setFavoriteSong] = useState(null);
   const photoInputRef = useRef(null);
+  const pinnwandInputRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [pinnwandUploading, setPinnwandUploading] = useState(false);
   const [spotifyConnected, setSpotifyConnected] = useState(false);
   const [spotifyLoading, setSpotifyLoading] = useState(false);
   const [locationSuggestions, setLocationSuggestions] = useState([]);
@@ -96,7 +100,8 @@ export const ProfileEdit = () => {
         gender: user.gender || '',
         interests: user.interests || [],
         avatar_url: avatar,
-        photos: rest
+        photos: rest,
+        pinnwand: user.pinnwand || []
       });
       setFavoriteSong(user.favorite_song || null);
     }
@@ -106,6 +111,26 @@ export const ProfileEdit = () => {
     spotify.getStatus().then(res => {
       setSpotifyConnected(res.data.connected);
     }).catch(() => {});
+  }, []);
+
+  // The Spotify connect opens an in-app browser (iOS PWA) and the main page
+  // stays put — so when the user returns, re-check the status and clear the
+  // stuck "Verbinde…" state. This is what flips the button to "connected"
+  // after the OAuth flow completes in that separate window.
+  useEffect(() => {
+    const recheck = () => {
+      if (document.visibilityState !== 'visible') return;
+      spotify.getStatus()
+        .then(res => setSpotifyConnected(res.data.connected))
+        .catch(() => {})
+        .finally(() => setSpotifyLoading(false));
+    };
+    document.addEventListener('visibilitychange', recheck);
+    window.addEventListener('focus', recheck);
+    return () => {
+      document.removeEventListener('visibilitychange', recheck);
+      window.removeEventListener('focus', recheck);
+    };
   }, []);
 
   const handleDobChange = (field, value) => {
@@ -127,14 +152,19 @@ export const ProfileEdit = () => {
           setSpotifyLoading(false);
           toast.success(data?.message || t('profileEdit.toast.spotifyConnected'));
         },
-        onError: () => {
+        onError: (e) => {
           setSpotifyLoading(false);
-          toast.error(t('profileEdit.toast.spotifyConnectError'));
+          // Surface the backend's reason (e.g. "Spotify nicht konfiguriert",
+          // "Ungültiger State", "Token-Austausch fehlgeschlagen") so a config
+          // problem is obvious instead of a generic "didn't work".
+          toast.error(e?.response?.data?.error || e?.message || t('profileEdit.toast.spotifyConnectError'));
         },
         onCancel: () => setSpotifyLoading(false),
       });
     } catch (err) {
-      toast.error(t('profileEdit.toast.spotifyConnectError'));
+      // getAuthUrl failure (most often missing SPOTIFY_CLIENT_ID → 500
+      // "Spotify nicht konfiguriert"). Show it verbatim.
+      toast.error(err?.response?.data?.error || err?.message || t('profileEdit.toast.spotifyConnectError'));
       setSpotifyLoading(false);
     }
   };
@@ -256,6 +286,31 @@ export const ProfileEdit = () => {
       const [next, ...rest] = prev.photos || [];
       return { ...prev, avatar_url: next || '', photos: rest };
     });
+  };
+
+  // ── Pinnwand (separate Pinterest-style gallery) ──
+  const handlePinnwandAdd = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error(t('profileEdit.toast.photoTooLarge'));
+      e.target.value = '';
+      return;
+    }
+    setPinnwandUploading(true);
+    try {
+      const res = await upload.image(file);
+      setFormData(prev => ({ ...prev, pinnwand: [...(prev.pinnwand || []), res.data.url] }));
+    } catch (err) {
+      toast.error(err?.response?.data?.error || err?.message || t('profileEdit.toast.photoError'));
+    } finally {
+      setPinnwandUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handlePinnwandRemove = (index) => {
+    setFormData(prev => ({ ...prev, pinnwand: prev.pinnwand.filter((_, i) => i !== index) }));
   };
 
   return (
@@ -584,8 +639,62 @@ export const ProfileEdit = () => {
           </div>
         </div>
 
+        {/* Pinnwand — separate Pinterest-style gallery (vibe check) */}
+        <div className="settings-section">
+          <h3 className="settings-section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+              <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+            </svg>
+            {t('profileEdit.sections.pinnwand')}
+            <span className="pe-interest-count">{t('profileEdit.photosCountFmt', { current: (formData.pinnwand || []).length, total: 12 })}</span>
+          </h3>
+
+          <p className="pe-photo-hint">{t('profileEdit.pinnwandHint')}</p>
+
+          <div className="pe-photo-grid">
+            {(formData.pinnwand || []).map((url, i) => (
+              <div key={i} className="pe-photo-cell">
+                <img src={url} alt="" loading="lazy" decoding="async" />
+                <button
+                  type="button"
+                  className="pe-photo-remove"
+                  onClick={() => handlePinnwandRemove(i)}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+            ))}
+
+            {(formData.pinnwand || []).length < 12 && (
+              <button
+                type="button"
+                className="pe-photo-add"
+                onClick={() => pinnwandInputRef.current?.click()}
+                disabled={pinnwandUploading}
+              >
+                {pinnwandUploading
+                  ? <div className="pe-photo-spinner" />
+                  : <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                }
+              </button>
+            )}
+            <input
+              ref={pinnwandInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handlePinnwandAdd}
+              hidden
+            />
+          </div>
+        </div>
+
         {/* Save Button */}
-        <button type="submit" className="pe-save-btn" disabled={loading || photoUploading}>
+        <button type="submit" className="pe-save-btn" disabled={loading || photoUploading || pinnwandUploading}>
           {loading ? (
             t('profileEdit.saveLoading')
           ) : (

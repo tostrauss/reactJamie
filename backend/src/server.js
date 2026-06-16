@@ -700,6 +700,10 @@ const runStartupMigrations = async () => {
   // ── Schema additions ───────────────────────────────────────────────────────
   await migrate('users.last_seen col', () =>
     db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMPTZ`));
+  // Pinnwand = separate Pinterest-style gallery, distinct from the profile
+  // carousel `photos`. JSON array of image URLs.
+  await migrate('users.pinnwand col', () =>
+    db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS pinnwand JSONB NOT NULL DEFAULT '[]'::jsonb`));
   await migrate('groups.deleted_at', async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_deleted_at ON groups(deleted_at) WHERE deleted_at IS NULL`);
@@ -1038,6 +1042,10 @@ const runStartupMigrations = async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_feed ON groups(type, created_at DESC) WHERE is_active = TRUE AND deleted_at IS NULL`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_map  ON groups(type, category, created_at DESC) WHERE is_active = TRUE AND deleted_at IS NULL AND lat IS NOT NULL AND lng IS NOT NULL`);
   });
+  // Discover-events feed: lets Postgres walk upcoming events in date order and
+  // stop at LIMIT 60 without sorting the whole events set (clubController.getDiscoverEvents).
+  await migrate('idx_groups_event_date', () =>
+    db.query(`CREATE INDEX IF NOT EXISTS idx_groups_event_date ON groups(date) WHERE type = 'event' AND is_active = TRUE AND deleted_at IS NULL`));
 
   // ── Full-text search (requires pg_trgm extension) ─────────────────────────
   await migrate('pg_trgm + gin indexes', async () => {

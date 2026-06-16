@@ -279,6 +279,9 @@ export const ProModal = ({ onClose, onSuccess }) => {
   const [stripePromise, setStripePromise] = useState(null);
   const [clientSecret,  setClientSecret]  = useState(null);
   const [loading,       setLoading]       = useState(false);
+  // §18 FAGG: the consumer must actively consent to immediate performance and
+  // the resulting loss of the 14-day withdrawal right BEFORE purchase.
+  const [consented,     setConsented]     = useState(false);
 
   const maxSavings = Math.max(...PRO_PLANS.map(p => p.savings || 0));
 
@@ -504,21 +507,37 @@ export const ProModal = ({ onClose, onSuccess }) => {
                 ))}
               </div>
 
+              {/* §18 FAGG consent — must be actively ticked before purchase */}
+              <label style={{
+                display:'flex', alignItems:'flex-start', gap:'10px',
+                margin:'0 0 12px', cursor:'pointer',
+              }}>
+                <input
+                  type="checkbox"
+                  checked={consented}
+                  onChange={e => setConsented(e.target.checked)}
+                  style={{ marginTop:'2px', width:'18px', height:'18px', accentColor:'#FD7666', flexShrink:0 }}
+                />
+                <span style={{ fontSize:'11.5px', lineHeight:1.45, color:'rgba(255,255,255,0.6)', textAlign:'left' }}>
+                  {t('pro.withdrawalConsent')}
+                </span>
+              </label>
+
               {/* CTA */}
               <button
                 onClick={startPayment}
-                disabled={loading}
+                disabled={loading || !consented}
                 style={{
                   width:'100%', padding:'19px', borderRadius:'18px', border:'none',
-                  background: loading
+                  background: (loading || !consented)
                     ? 'rgba(253,118,102,0.25)'
                     : 'linear-gradient(270deg, #FD7666, #e5574a, #FD7666)',
                   backgroundSize:'200% auto',
-                  animation: loading ? 'none' : 'pm-shimmer 2.5s linear infinite',
-                  color: loading ? 'rgba(255,255,255,0.4)' : '#fff',
+                  animation: (loading || !consented) ? 'none' : 'pm-shimmer 2.5s linear infinite',
+                  color: (loading || !consented) ? 'rgba(255,255,255,0.4)' : '#fff',
                   fontSize:'17px', fontWeight:'900', letterSpacing:'0.2px',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  boxShadow: loading ? 'none' : '0 10px 32px rgba(253,118,102,0.4), 0 2px 8px rgba(0,0,0,0.3)',
+                  cursor: (loading || !consented) ? 'not-allowed' : 'pointer',
+                  boxShadow: (loading || !consented) ? 'none' : '0 10px 32px rgba(253,118,102,0.4), 0 2px 8px rgba(0,0,0,0.3)',
                   marginBottom:'10px',
                   display:'flex', alignItems:'center', justifyContent:'center', gap:'8px',
                 }}

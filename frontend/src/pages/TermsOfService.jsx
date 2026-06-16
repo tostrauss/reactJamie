@@ -1,14 +1,45 @@
 import { Link } from 'react-router-dom';
+import { useRef } from 'react';
 
 export default function TermsOfService() {
+  const contentRef = useRef(null);
+
+  // Download the rendered terms as plain text (jus-student feedback 2026-06-14:
+  // the AGB should be downloadable).
+  const downloadTerms = () => {
+    const text = contentRef.current?.innerText || '';
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'JAMIE-Terms-of-Service.txt';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="page" style={{ maxWidth: 760 }}>
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 24 }}>
         <Link to="/settings" style={{ color: 'var(--coral)', textDecoration: 'none', fontSize: 14 }}>
           ← Back
         </Link>
+        <button
+          type="button"
+          onClick={downloadTerms}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: 'rgba(253,118,102,0.12)', border: '1px solid rgba(253,118,102,0.35)',
+            color: 'var(--coral)', borderRadius: 10, padding: '8px 14px',
+            fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          ⬇ Download
+        </button>
       </div>
 
+      <div ref={contentRef}>
       <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 8 }}>JAMIE Terms of Service</h1>
       <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 32 }}>
         Version 1.0 · Last updated: 09.06.2026
@@ -228,7 +259,7 @@ export default function TermsOfService() {
 
       <Section title="11. Premium Features, Subscriptions and Boosts">
         <p>JAMIE may offer premium memberships, digital boosts and additional digital features.</p>
-        <p>Subscriptions may be offered on a monthly or annual basis.</p>
+        <p>Subscriptions may be offered on a weekly, monthly, six-month or annual basis. The available billing periods and prices are shown in the app at the time of purchase.</p>
         <p>
           Subscriptions purchased through Apple App Store or Google Play Store are subject
           to the terms and billing rules of the respective platform provider.
@@ -242,11 +273,36 @@ export default function TermsOfService() {
         <p>Users are solely responsible for managing, modifying or cancelling subscriptions through the platform on which the purchase was made.</p>
         <p>JAMIE may offer digital boosts and similar digital products.</p>
         <p>Digital boosts are non-transferable and may only be used within the JAMIE platform.</p>
+        {/* ⚠️ DRAFT — jus-student feedback 2026-06-14. Reflects §18 FAGG /
+            Directive 2011/83/EU on digital content + a more balanced point 3.
+            HAVE A LAWYER CONFIRM THE EXACT WORDING BEFORE LAUNCH. The
+            withdrawal-waiver below is only effective if the matching consent is
+            actively obtained at checkout (see the purchase consent checkbox). */}
         <p>
-          To the extent permitted by applicable law, purchases of digital boosts and similar
-          digital features are non-refundable once made available to the user.
+          Premium features, subscriptions and digital boosts are digital content and digital
+          services that are made available to you immediately after purchase. When you complete
+          such a purchase, you expressly request and consent to the immediate commencement of
+          performance, and you acknowledge that — in accordance with the Austrian Fern- und
+          Auswärts-Geschäfte-Gesetz (FAGG, implementing Directive 2011/83/EU) — you thereby lose
+          your statutory 14-day right of withdrawal once performance has begun. This consent is
+          obtained from you at the point of purchase.
         </p>
-        <p>JAMIE reserves the right to modify, discontinue or replace premium features, subscriptions and boosts at any time.</p>
+        <p>
+          To the extent permitted by applicable law and subject to the consent described above,
+          purchases of digital boosts and similar one-off digital features are non-refundable
+          once made available to you. This does not affect any mandatory statutory rights you may
+          have, in particular in the event of defective digital content or services.
+        </p>
+        <p>
+          JAMIE may modify, discontinue or replace premium features, subscriptions and boosts
+          for good cause — for example to comply with legal or regulatory requirements, to
+          address security or technical issues, to discontinue features that are no longer
+          technically or economically viable, or to improve the service. Where such a change
+          materially reduces a paid feature you have already purchased, JAMIE will, where
+          required by applicable law, give you reasonable advance notice and offer you either a
+          pro-rata refund of the prepaid amount for the unused remaining term or an equivalent
+          replacement feature.
+        </p>
       </Section>
 
       <Section title="12. Advertising and Sponsored Content">
@@ -448,6 +504,7 @@ export default function TermsOfService() {
           Email: <a href="mailto:office@jamie-app.com" style={{ color: 'var(--coral)' }}>office@jamie-app.com</a>
         </p>
       </Section>
+      </div>
     </div>
   );
 }

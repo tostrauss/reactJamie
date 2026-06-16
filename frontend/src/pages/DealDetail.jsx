@@ -77,17 +77,18 @@ export const DealDetail = () => {
     setRedeeming(true);
     try {
       const res = await deals.redeem(id);
+      // Reflect the redeemed state on THIS page immediately (CTA + "1/1
+      // eingelöst" counter) instead of whisking the user off to the voucher
+      // page — the proof screen stays reachable via the redeemed button.
       setRedemption(res.data);
       setShowConfirm(false);
-      navigate(`/deal/${id}/redeem`);
+      toast.success(t('deal.redeemedToast'));
     } catch (err) {
-      // 409 — already redeemed in a parallel tab or after a back-button
-      // race. Surface the existing redemption and let the user proceed to
-      // the proof screen anyway.
+      // 409 — already redeemed in a parallel tab or after a back-button race.
+      // Surface the existing redemption so the page shows it as redeemed.
       if (err.response?.status === 409) {
         setRedemption(err.response.data);
         setShowConfirm(false);
-        navigate(`/deal/${id}/redeem`);
         return;
       }
       toast.error(t('deal.redeemError'));
@@ -187,23 +188,23 @@ export const DealDetail = () => {
       <div style={{ textAlign: 'center', marginTop: -22 }}>
         <button
           type="button"
-          disabled={!redemption || redemption.redeemed || redeeming}
-          onClick={() => setShowConfirm(true)}
+          disabled={!redemption || redeeming}
+          onClick={() => redemption?.redeemed ? navigate(`/deal/${id}/redeem`) : setShowConfirm(true)}
           style={{
-            background: redemption?.redeemed ? 'rgba(255,255,255,0.08)' : '#FD7666',
-            color: redemption?.redeemed ? 'rgba(255,255,255,0.55)' : '#fff',
-            border: 'none',
+            background: redemption?.redeemed ? 'rgba(255,255,255,0.12)' : '#FD7666',
+            color: '#fff',
+            border: redemption?.redeemed ? '1px solid rgba(255,255,255,0.18)' : 'none',
             borderRadius: 100,
             padding: '13px 32px',
             fontSize: 15,
             fontWeight: 800,
             letterSpacing: 0.3,
             boxShadow: redemption?.redeemed ? 'none' : '0 8px 24px rgba(253,118,102,0.35)',
-            cursor: redemption?.redeemed ? 'default' : 'pointer',
+            cursor: redemption ? 'pointer' : 'default',
             opacity: !redemption ? 0.7 : 1,
           }}
         >
-          {redemption?.redeemed ? t('deal.redeemedCTA') : t('deal.redeemCTA')}
+          {redemption?.redeemed ? t('deal.viewVoucherCTA') : t('deal.redeemCTA')}
         </button>
         {redemption && (
           <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, margin: '8px 0 0' }}>

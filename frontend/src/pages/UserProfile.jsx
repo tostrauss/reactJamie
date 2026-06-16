@@ -37,6 +37,7 @@ export const UserProfile = () => {
   const [showBlockConfirm, setShowBlockConfirm] = useState(false);
   // Index into `allPhotos` for the fullscreen viewer; null = closed.
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  const [pinnwandLightboxIndex, setPinnwandLightboxIndex] = useState(null);
 
   useEffect(() => {
     if (currentUser && currentUser.id === parseInt(id)) {
@@ -166,11 +167,9 @@ export const UserProfile = () => {
   // wall photos. Deduped so an avatar also saved as photos[0] (new unified
   // model) isn't shown twice. First photo IS the profile picture.
   const allPhotos = [...new Set([profile.avatar_url, ...(profile.photos || [])].filter(Boolean))];
-  // Pinnwand grid below: all wall photos. When there's no avatar, photos[0] is
-  // the hero, so the grid skips it to avoid duplicating the hero.
-  const extraPhotos = profile.avatar_url
-    ? (profile.photos || [])
-    : (profile.photos?.slice(1) || []);
+  // Pinnwand = the separate Pinterest-style "vibe check" gallery (NOT the
+  // profile-photo carousel above).
+  const pinnwandPhotos = profile.pinnwand || [];
   const song = profile.favorite_song;
 
   const renderBottomAction = () => {
@@ -299,23 +298,25 @@ export const UserProfile = () => {
 
       {/* ── Photo grid ── */}
       {activeTab === 'pinnwand' && (
-        <div className="up-photo-grid">
-          {extraPhotos.length > 0 ? (
-            extraPhotos.map((photo, i) => (
+        pinnwandPhotos.length > 0 ? (
+          <div className="pinnwand-masonry">
+            {pinnwandPhotos.map((photo, i) => (
               <button
                 key={i}
                 type="button"
-                className="up-photo-cell"
-                onClick={() => setLightboxIndex(allPhotos.indexOf(photo) === -1 ? i + 1 : allPhotos.indexOf(photo))}
+                className="pinnwand-masonry-item"
+                onClick={() => setPinnwandLightboxIndex(i)}
                 aria-label={t('userProfile.viewPhotoAria')}
               >
                 <img src={photo} alt="" loading="lazy" />
               </button>
-            ))
-          ) : (
+            ))}
+          </div>
+        ) : (
+          <div className="up-photo-grid">
             <p className="up-empty-photos">{t('userProfile.emptyPhotos')}</p>
-          )}
-        </div>
+          </div>
+        )
       )}
 
       {activeTab === 'halloffame' && (
@@ -388,6 +389,12 @@ export const UserProfile = () => {
         index={lightboxIndex}
         onIndex={setLightboxIndex}
         onClose={() => setLightboxIndex(null)}
+      />
+      <PhotoLightbox
+        photos={pinnwandPhotos}
+        index={pinnwandLightboxIndex}
+        onIndex={setPinnwandLightboxIndex}
+        onClose={() => setPinnwandLightboxIndex(null)}
       />
     </div>
   );

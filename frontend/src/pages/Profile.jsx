@@ -56,6 +56,7 @@ export const Profile = () => {
     return sp;
   }, { replace: true });
   const [lightboxIndex, setLightboxIndex] = useState(null);
+  const [pinnwandLightboxIndex, setPinnwandLightboxIndex] = useState(null);
   const [savingSong, setSavingSong] = useState(false);
   const [isPro, setIsPro] = useState(false);
   const [showProModal, setShowProModal] = useState(false);
@@ -138,6 +139,7 @@ export const Profile = () => {
   };
 
   const profilePhotos = user?.photos || [];
+  const pinnwandPhotos = user?.pinnwand || [];
   const interests     = user?.interests || [];
   // Unified header gallery — profile picture (avatar) first, then wall photos.
   // Dedupe so a user whose avatar is also saved as photos[0] (new model) doesn't
@@ -306,19 +308,26 @@ export const Profile = () => {
           <div className="profile-tab-content">
             {activeTab === 'pinnwand' ? (
               <>
-                <div className="pinnwand-grid">
-                  {profilePhotos.map((photo, i) => (
+                {/* Pinnwand = Pinterest-style masonry (separate from the
+                    Profilfoto-Carousel above). */}
+                <div className="pinnwand-masonry">
+                  {pinnwandPhotos.map((photo, i) => (
                     <button
-                      key={photo}
+                      key={i}
                       type="button"
-                      className={`pinnwand-item${i === 0 ? ' pinnwand-item--large' : ''}`}
-                      onClick={() => setLightboxIndex(galleryPhotos.indexOf(photo))}
+                      className="pinnwand-masonry-item"
+                      onClick={() => setPinnwandLightboxIndex(i)}
                       aria-label={t('userProfile.viewPhotoAria')}
                     >
-                      <img src={photo} alt={`Foto ${i + 1}`} loading="lazy" />
+                      <img src={photo} alt={`Pinnwand ${i + 1}`} loading="lazy" />
                     </button>
                   ))}
-                  <button className="pinnwand-item add-photo" onClick={() => navigate('/profile/edit')}>
+                  <button
+                    type="button"
+                    className="pinnwand-masonry-add"
+                    onClick={() => navigate('/profile/edit')}
+                    aria-label={t('profile.addPhoto')}
+                  >
                     <span>+</span>
                     <p>{t('profile.addPhoto')}</p>
                   </button>
@@ -406,6 +415,12 @@ export const Profile = () => {
         index={lightboxIndex}
         onIndex={setLightboxIndex}
         onClose={() => setLightboxIndex(null)}
+      />
+      <PhotoLightbox
+        photos={pinnwandPhotos}
+        index={pinnwandLightboxIndex}
+        onIndex={setPinnwandLightboxIndex}
+        onClose={() => setPinnwandLightboxIndex(null)}
       />
     </>
   );

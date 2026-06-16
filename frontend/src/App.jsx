@@ -679,7 +679,11 @@ function AppRoutes() {
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
 
           {/* Spotify */}
-          <Route path="/spotify/callback" element={<ProtectedRoute><SpotifyCallback /></ProtectedRoute>} />
+          {/* PUBLIC on purpose: in the iOS home-screen PWA, Spotify's redirect
+              lands in an isolated in-app browser with no auth cookie. Wrapping
+              this in ProtectedRoute bounced it to /login. The page completes
+              the OAuth exchange via the state nonce (no session needed). */}
+          <Route path="/spotify/callback" element={<SpotifyCallback />} />
 
           {/* Admin — requires login + is_admin flag in DB */}
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />

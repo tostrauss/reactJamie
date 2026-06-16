@@ -6,6 +6,8 @@ import { postSystemMessage } from '../utils/systemMessage.js';
 import { notifyJoinRequest } from './groupController.js';
 
 const CLUBS_TTL = 30_000; // 30 s
+const DISCOVER_EVENTS_KEY = 'discover_events';
+const DISCOVER_EVENTS_TTL = 60_000; // 60 s — discover feed needn't be real-time
 
 // Helper to ensure we always target clubs
 const CLUB_TYPE = 'club';
@@ -932,8 +934,15 @@ export const getClubEvents = async (req, res) => {
 // never leak a private club's agenda.
 export const getDiscoverEvents = async (req, res) => {
   try {
+    // Same feed for everyone → cache it. A discover list doesn't need to be
+    // real-time; createClubEvent/deleteClubEvent bust the cache so new/removed
+    // events still appear instantly. This turns the Events page into an instant
+    // load for everyone after the first request each minute.
+    const cached = getCached(DISCOVER_EVENTS_KEY);
+    if (cached) return res.json(cached);
+
     const result = await db.query(
-      `SELECT e.id, e.name, e.description, e.date, e.time, e.location,
+      `SELECT e.id, e.name, e.date, e.time, e.location,
               e.category, e.max_members, e.is_recurring_weekly, e.image_url,
               c.id AS club_id, c.name AS club_name, c.image_url AS club_image
        FROM groups e
@@ -949,6 +958,7 @@ export const getDiscoverEvents = async (req, res) => {
        LIMIT 60`,
       [CLUB_TYPE]
     );
+    setCached(DISCOVER_EVENTS_KEY, result.rows, DISCOVER_EVENTS_TTL);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching discover events:', err);
@@ -1027,6 +1037,7 @@ export const createClubEvent = async (req, res) => {
     );
 
     invalidatePrefix('clubs:');
+    invalidatePrefix(DISCOVER_EVENTS_KEY);
     res.status(201).json(event);
   } catch (err) {
     console.error('Error creating club event:', err);
@@ -1060,6 +1071,8 @@ export const deleteClubEvent = async (req, res) => {
       [eventId]
     );
 
+    invalidatePrefix('clubs:');
+    invalidatePrefix(DISCOVER_EVENTS_KEY);
     res.json({ message: 'Veranstaltung gelöscht' });
   } catch (err) {
     console.error('Error deleting club event:', err);

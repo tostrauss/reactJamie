@@ -8,7 +8,7 @@ import {
   disconnect,
   getStatus
 } from '../controllers/spotifyController.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, optionalAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -17,7 +17,9 @@ router.get('/search', authenticate, searchTracks);
 
 // Authorization Code Flow
 router.get('/auth-url', authenticate, getAuthUrl);
-router.post('/callback', authenticate, handleCallback);
+// optionalAuth: identity is derived from the OAuth state, so this completes
+// even from an isolated in-app browser (iOS PWA) that lacks the auth cookie.
+router.post('/callback', optionalAuth, handleCallback);
 
 // User-specific endpoints (require Spotify connection)
 router.get('/top-tracks', authenticate, getTopTracks);

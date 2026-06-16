@@ -78,6 +78,7 @@
   font-style: italic; /* Archivo Black italic — matches the brand wordmark (auth screen) */
   color: var(--accent-coral);
   letter-spacing: -0.5px;
+  line-height: 1; /* match .ef-logo so the glyph lands at the same height on both tabs */
 }
 
 /* ========================================

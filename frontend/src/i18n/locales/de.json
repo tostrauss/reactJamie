@@ -387,8 +387,8 @@
       "minutesAgo_other": "Vor {{count}} min",
       "hoursAgo_one": "Vor {{count}} h",
       "hoursAgo_other": "Vor {{count}} h",
-      "daysAgo_one": "Vor {{count}} d",
-      "daysAgo_other": "Vor {{count}} d"
+      "daysAgo_one": "Vor {{count}} Tag",
+      "daysAgo_other": "Vor {{count}} Tagen"
     },
     "suggested": {
       "reasonFriends_one": "{{count}} Freund dabei",
@@ -416,6 +416,8 @@
     "notFound": "Club nicht gefunden",
     "back": "Zurück",
     "favorite": "Favorit",
+    "share": "Club teilen",
+    "shareLinkCopied": "Club-Link kopiert!",
     "membersLabel": "Mitglieder",
     "toast": {
       "loadError": "Club konnte nicht geladen werden",
@@ -775,7 +777,8 @@
       "interests": "Interessen",
       "song": "Lieblingssong",
       "spotify": "Spotify",
-      "photos": "Pinnwand"
+      "photos": "Profilfotos",
+      "pinnwand": "Pinnwand"
     },
     "fields": {
       "name": "Name",
@@ -810,6 +813,7 @@
     "photosCountFmt": "{{current}} / {{total}}",
     "photosProfileBadge": "Profilbild",
     "photosFirstHint": "Dein erstes Foto ist dein Profilbild. Du kannst bis zu 6 Fotos hinzufügen, durch die andere swipen können.",
+    "pinnwandHint": "Deine Pinnwand im Pinterest-Stil – sammle Fotos, die deinen Vibe zeigen. Bis zu 12.",
     "saveBtn": "Änderungen speichern",
     "saveLoading": "Speichern...",
     "toast": {
@@ -1065,6 +1069,7 @@
     "priceMonth": "/ Monat",
     "newSaveBadge": "NEU · Spare bis zu {{pct}}%",
     "ctaActivate": "👑 Pro freischalten",
+    "withdrawalConsent": "Ich stimme ausdrücklich zu, dass die Ausführung sofort beginnt, und nehme zur Kenntnis, dass ich dadurch mein 14-tägiges Rücktrittsrecht (§ 18 FAGG) verliere.",
     "loading": "Wird geladen…",
     "later": "Vielleicht später",
     "startError": "Fehler beim Starten des Abonnements",
@@ -1093,6 +1098,7 @@
   },
   "boost": {
     "title": "🚀 Boost",
+    "withdrawalConsent": "Ich stimme ausdrücklich zu, dass die Ausführung sofort beginnt, und nehme zur Kenntnis, dass ich dadurch mein 14-tägiges Rücktrittsrecht (§ 18 FAGG) verliere.",
     "creditsAvailable_one": "{{count}} Credit verfügbar",
     "creditsAvailable_other": "{{count}} Credits verfügbar",
     "tabs": {
@@ -1402,6 +1408,8 @@
     "bookNow": "Jetzt buchen",
     "redeemCTA": "Jetzt einlösen",
     "redeemedCTA": "Bereits eingelöst",
+    "viewVoucherCTA": "Gutschein anzeigen",
+    "redeemedToast": "Erfolgreich eingelöst! ✅",
     "redemptionCounter": "{{count}}/{{max}} mal eingelöst",
     "redeemConfirmTitle": "Bist du im Geschäft?",
     "redeemConfirmBody": "Dieser Deal ist nur einmal einlösbar und sollte nur vor Ort beim Personal aktiviert werden.",
@@ -1464,6 +1472,7 @@
       "pleaseWait": "Bitte warten",
       "successTitle": "Spotify verbunden!",
       "redirecting": "Du wirst weitergeleitet...",
+      "closeWindow": "Du kannst dieses Fenster jetzt schließen und zur App zurückkehren.",
       "errorTitle": "Verbindung fehlgeschlagen"
     },
     "songPicker": {

@@ -387,8 +387,8 @@
       "minutesAgo_other": "{{count}} min ago",
       "hoursAgo_one": "{{count}} h ago",
       "hoursAgo_other": "{{count}} h ago",
-      "daysAgo_one": "{{count}} d ago",
-      "daysAgo_other": "{{count}} d ago"
+      "daysAgo_one": "{{count}} day ago",
+      "daysAgo_other": "{{count}} days ago"
     },
     "suggested": {
       "reasonFriends_one": "{{count}} friend joined",
@@ -416,6 +416,8 @@
     "notFound": "Club not found",
     "back": "Back",
     "favorite": "Favorite",
+    "share": "Share club",
+    "shareLinkCopied": "Club link copied!",
     "membersLabel": "members",
     "toast": {
       "loadError": "Club could not be loaded",
@@ -775,7 +777,8 @@
       "interests": "Interests",
       "song": "Favorite song",
       "spotify": "Spotify",
-      "photos": "Wall"
+      "photos": "Profile photos",
+      "pinnwand": "Wall"
     },
     "fields": {
       "name": "Name",
@@ -810,6 +813,7 @@
     "photosCountFmt": "{{current}} / {{total}}",
     "photosProfileBadge": "Profile picture",
     "photosFirstHint": "Your first photo is your profile picture. Add up to 6 photos that others can swipe through.",
+    "pinnwandHint": "Your Pinterest-style wall — collect photos that show your vibe. Up to 12.",
     "saveBtn": "Save changes",
     "saveLoading": "Saving...",
     "toast": {
@@ -1065,6 +1069,7 @@
     "priceMonth": "/ month",
     "newSaveBadge": "NEW · Save up to {{pct}}%",
     "ctaActivate": "👑 Unlock Pro",
+    "withdrawalConsent": "I expressly agree that performance begins immediately and acknowledge that I thereby lose my 14-day right of withdrawal (§ 18 FAGG).",
     "loading": "Loading…",
     "later": "Maybe later",
     "startError": "Could not start subscription",
@@ -1093,6 +1098,7 @@
   },
   "boost": {
     "title": "🚀 Boost",
+    "withdrawalConsent": "I expressly agree that performance begins immediately and acknowledge that I thereby lose my 14-day right of withdrawal (§ 18 FAGG).",
     "creditsAvailable_one": "{{count}} credit available",
     "creditsAvailable_other": "{{count}} credits available",
     "tabs": {
@@ -1402,6 +1408,8 @@
     "bookNow": "Book now",
     "redeemCTA": "Redeem now",
     "redeemedCTA": "Already redeemed",
+    "viewVoucherCTA": "Show voucher",
+    "redeemedToast": "Redeemed successfully! ✅",
     "redemptionCounter": "{{count}}/{{max}} redeemed",
     "redeemConfirmTitle": "Are you at the venue?",
     "redeemConfirmBody": "This deal can only be redeemed once and should only be activated on-site with the staff present.",
@@ -1464,6 +1472,7 @@
       "pleaseWait": "Please wait",
       "successTitle": "Spotify connected!",
       "redirecting": "Redirecting...",
+      "closeWindow": "You can close this window now and return to the app.",
       "errorTitle": "Connection failed"
     },
     "songPicker": {

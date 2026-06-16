@@ -74,6 +74,10 @@
 .fr-search-input {
   flex: 1;
   min-width: 0;
+  /* Strip the iOS native field chrome — without this, WebKit draws its own
+     inset/rounded box inside .fr-search-wrap, producing a "box-in-a-box". */
+  -webkit-appearance: none;
+  appearance: none;
   background: transparent;
   border: none;
   color: var(--text-white);

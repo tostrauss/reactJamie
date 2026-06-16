@@ -277,7 +277,6 @@ export const ChatList = () => {
   const groupsUnread   = sumUnread(onlyGroups);
   const clubsUnread    = sumUnread(onlyClubs);
   const dmsUnread      = sumUnread(privateChats);
-  const totalUnread    = groupsUnread + clubsUnread + dmsUnread;
   const isGroupOrClub  = activeTab === 'gruppen' || activeTab === 'clubs';
 
   return (
@@ -285,12 +284,8 @@ export const ChatList = () => {
 
       {/* ── Sticky header ───────────────────────────────────────────── */}
       <div className="home-sticky-header">
-        {totalUnread > 0 && (
-          <div className="chat-header">
-            <span className="total-badge">{totalUnread}</span>
-          </div>
-        )}
-
+        {/* The total-unread badge that used to float here was redundant with
+            the per-tab counts below + the bottom-nav chat badge — removed. */}
         <div className="tabs-container chat-tabs-container">
           <button
             className={`tab ${activeTab === 'gruppen' ? 'active' : ''}`}

@@ -94,6 +94,8 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
   const [stripePromise, setStripePromise] = useState(null);
   const [loading, setLoading] = useState(false);
   const [redeemCode, setRedeemCode] = useState('');
+  // §18 FAGG: active consent to immediate performance + loss of withdrawal right.
+  const [consented, setConsented] = useState(false);
 
   useEffect(() => {
     boostApi.getCredits().then(res => {
@@ -324,11 +326,23 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
                 {selectedPkg && (
                   <div>
                     <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>{t('boost.buy.choosePayment')}</p>
+                    {/* §18 FAGG consent — required before purchase */}
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', margin: '0 0 12px', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={consented}
+                        onChange={e => setConsented(e.target.checked)}
+                        style={{ marginTop: '2px', width: '18px', height: '18px', accentColor: '#FD7666', flexShrink: 0 }}
+                      />
+                      <span style={{ fontSize: '11.5px', lineHeight: 1.45, color: 'var(--text-muted)', textAlign: 'left' }}>
+                        {t('boost.withdrawalConsent')}
+                      </span>
+                    </label>
                     <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
                       <button
                         onClick={isNativeIOS() ? handleIapPurchase : handleStripeStart}
-                        disabled={loading}
-                        style={{ flex: 1, padding: '14px', borderRadius: '14px', background: '#6C63FF', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: loading ? 0.7 : 1 }}
+                        disabled={loading || !consented}
+                        style={{ flex: 1, padding: '14px', borderRadius: '14px', background: '#6C63FF', border: 'none', color: '#fff', fontWeight: '700', cursor: (loading || !consented) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: (loading || !consented) ? 0.5 : 1 }}
                       >
                         {t('boost.buy.applePay')}
                       </button>

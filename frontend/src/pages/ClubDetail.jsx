@@ -143,6 +143,25 @@ export const ClubDetail = () => {
     catch { setIsFavorited(wasFav); toast.error(t('clubDetail.toast.favError')); }
   };
 
+  // Share the club via its deep link (/club/:id). Native share sheet where
+  // available, clipboard fallback otherwise. The link opens straight on this
+  // club — e.g. to drop into an Instagram bio.
+  const handleShare = async () => {
+    const url = window.location.href;
+    const title = club?.name || club?.title || 'JAMIE Club';
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast.success(t('clubDetail.shareLinkCopied'));
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') return; // user dismissed the share sheet
+      try { await navigator.clipboard.writeText(url); toast.success(t('clubDetail.shareLinkCopied')); } catch { /* ignore */ }
+    }
+  };
+
   // Events are members-only (backend 403s non-members). Re-run after join/leave
   // so the section unlocks immediately instead of staying locked until reload.
   const loadEvents = async () => {
@@ -303,6 +322,17 @@ export const ClubDetail = () => {
             </svg>
           </button>
           <h1 className="cd-top-title">{club.name || club.title}</h1>
+          <button
+            className="cd-fav-btn"
+            onClick={handleShare}
+            aria-label={t('clubDetail.share')}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+              <polyline points="16 6 12 2 8 6"/>
+              <line x1="12" y1="2" x2="12" y2="15"/>
+            </svg>
+          </button>
           <button
             className={`cd-fav-btn${isFavorited ? ' active' : ''}`}
             onClick={handleFavoriteToggle}

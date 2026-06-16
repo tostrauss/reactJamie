@@ -1567,3 +1567,55 @@ select:focus {
   transition: background 0.2s ease;
 }
 .ppc-bar.is-active { background: rgba(255, 255, 255, 0.95); }
+
+/* ── Pinnwand (Pinterest-style masonry) ───────────────────────────────────
+   Separate from the profile-photo carousel (.ppc). Variable-height tiles in
+   CSS columns give the staggered Pinterest "vibe wall" look. */
+.pinnwand-masonry {
+  column-count: 2;
+  column-gap: 10px;
+  padding: 4px 20px 8px;
+}
+@media (min-width: 480px) {
+  .pinnwand-masonry { column-count: 3; }
+}
+
+.pinnwand-masonry-item,
+.pinnwand-masonry-add {
+  display: block;
+  width: 100%;
+  margin: 0 0 10px;
+  break-inside: avoid;                 /* keep a tile within one column */
+  -webkit-column-break-inside: avoid;
+  border: none;
+  border-radius: 14px;
+  overflow: hidden;
+  padding: 0;
+  background: var(--bg-card);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.pinnwand-masonry-item { transition: transform 0.12s ease; }
+.pinnwand-masonry-item:active { transform: scale(0.97); }
+.pinnwand-masonry-item img {
+  display: block;
+  width: 100%;
+  height: auto;                        /* natural aspect ratio = staggered look */
+}
+
+/* Add tile (own profile) — a square dashed prompt that flows with the columns */
+.pinnwand-masonry-add {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.2);
+  color: var(--text-muted);
+  font-size: 28px;
+  line-height: 1;
+}
+.pinnwand-masonry-add p { margin: 0; font-size: 12px; }
+.pinnwand-masonry-add:active { border-color: var(--accent-coral); color: var(--accent-coral); }

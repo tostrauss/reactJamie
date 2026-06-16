@@ -36,13 +36,16 @@ const issueState = (userId) => {
   _pendingStates.set(state, { userId, exp: Date.now() + 10 * 60_000 });
   return state;
 };
-const consumeState = (state, userId) => {
-  if (!state || typeof state !== 'string') return false;
+// Returns the userId the state was issued to (or null if invalid/expired).
+// Deriving identity from the server-side state mapping is what lets the OAuth
+// flow complete inside an isolated in-app browser (iOS home-screen PWA) that
+// doesn't carry the auth cookie.
+const consumeState = (state) => {
+  if (!state || typeof state !== 'string') return null;
   const entry = _pendingStates.get(state);
-  if (!entry || Date.now() > entry.exp) return false;
-  if (entry.userId !== userId) return false;
+  if (!entry || Date.now() > entry.exp) return null;
   _pendingStates.delete(state);
-  return true;
+  return entry.userId;
 };
 
 const SCOPES = [
@@ -134,10 +137,17 @@ export const handleCallback = async (req, res) => {
     return res.status(400).json({ error: 'Autorisierungscode fehlt' });
   }
 
-  // Verify the CSRF state — must match a token issued to THIS userId.
-  // Reject any callback that wasn't initiated by getAuthUrl on this user.
-  if (!consumeState(state, req.userId)) {
+  // Identity comes from the state's server-side mapping, NOT the request auth.
+  // The state is a single-use, 10-min, per-user nonce issued by getAuthUrl, so
+  // a valid one proves the initiating user — this is what lets the callback
+  // finish from an isolated in-app browser (iOS PWA) with no auth cookie.
+  const stateUserId = consumeState(state);
+  if (!stateUserId) {
     return res.status(400).json({ error: 'Ungültiger oder abgelaufener State-Parameter' });
+  }
+  // Defense in depth: if the caller IS authenticated, it must be the same user.
+  if (req.userId && Number(req.userId) !== Number(stateUserId)) {
+    return res.status(400).json({ error: 'State stimmt nicht mit dem angemeldeten Nutzer überein' });
   }
 
   const clientId = process.env.SPOTIFY_CLIENT_ID;
@@ -168,9 +178,7 @@ export const handleCallback = async (req, res) => {
 
     const tokenData = await tokenRes.json();
 
-    // Always use the JWT-authenticated userId — never trust the state parameter for identity.
-    // The state is an OAuth CSRF nonce, not an identity claim.
-    const userId = req.userId;
+    const userId = stateUserId;
 
     // Store tokens in database
     await db.query(

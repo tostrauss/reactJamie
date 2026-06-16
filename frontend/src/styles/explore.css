@@ -1124,9 +1124,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Safe-area-inset-top keeps "JAMIE" clear of the iOS notch / status bar
-     now that the bar lives inside the scroll region. */
-  padding: calc(env(safe-area-inset-top, 0px) + 22px) 20px 14px;
+  /* Safe-area-inset-top keeps "JAMIE" clear of the iOS notch / status bar.
+     Top offset = safe-area + 10px to match Home's header (.home-sticky-header
+     safe-area + .home-header 10px) so the JAMIE logo sits at the SAME screen
+     height on both tabs. */
+  padding: calc(env(safe-area-inset-top, 0px) + 10px) 20px 14px;
 }
 
 /* ── Tab strip (Hall of Fame · Deals) ────────────────────────────── */

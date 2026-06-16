@@ -676,11 +676,24 @@ export default function PrivacyPolicy() {
           We may update this Privacy Policy from time to time to reflect changes in our
           Services, technology, legal requirements or business operations.
         </p>
+        {/* ⚠️ DRAFT — jus-student feedback 2026-06-14: "where appropriate" and
+            "significant changes" were too vague. Defined below; have a lawyer
+            confirm the wording. */}
         <p>
-          Where appropriate, users will be informed of significant changes through the
-          platform or by other suitable means. The latest version of this Privacy Policy
-          will always be made available through JAMIE and will indicate the date of the
-          most recent update.
+          A change is considered <strong>"significant"</strong> if it materially affects your
+          rights or the way your personal data is processed — for example: collecting a new
+          category of personal data, processing for a new purpose, sharing data with a new
+          category of recipient or processor, transferring data to a new country, changing the
+          legal basis of processing, or extending data-retention periods. Purely editorial,
+          clarifying or minor technical changes are not considered significant.
+        </p>
+        <p>
+          For significant changes we will inform you in advance through clearly visible means —
+          in particular an in-app notice and/or an email to the address linked to your account —
+          and, where the change requires your consent, we will obtain it before the change takes
+          effect. ("Where appropriate" means we select the notification channel reasonably
+          suited to reliably reach you.) The latest version of this Privacy Policy is always
+          available through JAMIE and indicates the date of the most recent update.
         </p>
         <p>
           Where required by applicable law, we will obtain your consent before processing

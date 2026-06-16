@@ -9,6 +9,7 @@ const parseUserJSONFields = (user) => {
   try {
     if (user.interests && typeof user.interests === 'string') user.interests = JSON.parse(user.interests);
     if (user.photos && typeof user.photos === 'string') user.photos = JSON.parse(user.photos);
+    if (user.pinnwand && typeof user.pinnwand === 'string') user.pinnwand = JSON.parse(user.pinnwand);
     if (user.favorite_song && typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song);
   } catch (e) { console.error('Failed to parse user JSON fields:', e.message); }
   return user;
@@ -54,7 +55,7 @@ const DUMMY_BCRYPT_HASH = bcrypt.hashSync('jamie-dummy-password-not-used-anywher
 // Used where we don't need sensitive fields (getProfile, post-register, post-Google-login).
 const SAFE_USER_COLS = `
   id, email, auth_provider, auth_provider_id, name, username, gender,
-  date_of_birth, bio, location, avatar_url, photos, interests, favorite_song,
+  date_of_birth, bio, location, avatar_url, photos, pinnwand, interests, favorite_song,
   pinterest_url, spotify_token_expiry, spotify_connected, onboarding_completed,
   onboarding_step, profile_completion, is_verified, is_active, last_seen,
   is_admin, created_at, updated_at, is_pioneer, is_trusted_user, trusted_count
@@ -351,7 +352,7 @@ export const getProfile = async (req, res) => {
 // ==========================================
 export const updateProfile = async (req, res) => {
   try {
-    const { name, location, bio, gender, interests, photos, avatar_url, favorite_song, date_of_birth } = req.body;
+    const { name, location, bio, gender, interests, photos, pinnwand, avatar_url, favorite_song, date_of_birth } = req.body;
 
     if (name !== undefined && (!name || typeof name !== 'string' || !name.trim() || name.length > 100)) {
       return res.status(400).json({ error: 'Name darf nicht leer sein (max. 100 Zeichen)' });
@@ -385,8 +386,20 @@ export const updateProfile = async (req, res) => {
       return res.status(400).json({ error: 'Ungültige Geschlechtsangabe' });
     }
 
+    // Pinnwand = separate Pinterest-style gallery (distinct from the carousel
+    // `photos`). More images allowed for the "vibe check".
+    if (pinnwand !== undefined && pinnwand !== null) {
+      if (!Array.isArray(pinnwand) || pinnwand.length > 12) {
+        return res.status(400).json({ error: 'Maximal 12 Pinnwand-Fotos erlaubt' });
+      }
+      if (pinnwand.some(p => typeof p !== 'string' || p.length > 1024)) {
+        return res.status(400).json({ error: 'Ungültige Pinnwand-URL' });
+      }
+    }
+
     const interestsStr = interests ? JSON.stringify(interests) : null;
     const photosStr = photos ? JSON.stringify(photos) : null;
+    const pinnwandStr = pinnwand ? JSON.stringify(pinnwand) : null;
 
     // favorite_song: allow explicit null to clear it
     const hasFavSong = 'favorite_song' in req.body;
@@ -408,9 +421,10 @@ export const updateProfile = async (req, res) => {
            avatar_url = COALESCE($7, avatar_url),
            favorite_song = ${hasFavSong ? '$8' : 'COALESCE($8, favorite_song)'},
            date_of_birth = CASE WHEN $10::text IS NOT NULL THEN $10::date ELSE date_of_birth END,
+           pinnwand = COALESCE($11, pinnwand),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $9`,
-      [name, location, bio, gender, interestsStr, photosStr, avatar_url, songStr || null, req.userId, date_of_birth || null]
+      [name, location, bio, gender, interestsStr, photosStr, avatar_url, songStr || null, req.userId, date_of_birth || null, pinnwandStr]
     );
 
     // Return updated profile
@@ -676,7 +690,11 @@ export const exportData = async (req, res) => {
         [req.userId]
       ),
       db.query(
-        `SELECT u.name, u.email, f.status, f.created_at
+        // GDPR data portability covers the requesting user's OWN data. A
+        // friend's email is the FRIEND's personal data, not the exporter's, so
+        // it must NOT be included (jus-student feedback, 2026-06-14). We keep
+        // only the friendship relationship: the friend's display name + status.
+        `SELECT u.name AS friend_name, f.status, f.created_at
          FROM friendships f
          JOIN users u ON u.id = CASE
            WHEN f.requester_id = $1 THEN f.addressee_id
@@ -689,6 +707,8 @@ export const exportData = async (req, res) => {
     ]);
 
     res.json({
+      // Note: all timestamps are UTC (ISO-8601 "Z"). Local time = UTC + your
+      // timezone offset (e.g. Austria is UTC+2 in summer).
       exported_at: new Date().toISOString(),
       profile: userRes.rows[0] || null,
       groups: groupsRes.rows,
