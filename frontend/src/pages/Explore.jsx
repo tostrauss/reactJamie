@@ -7,6 +7,7 @@ import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { DealCard } from '../components/DealCard';
 import { UserName } from '../components/UserName';
+import { JamieWordmark } from '../components/JamieWordmark';
 import '../styles/explore.css';
 
 const getCategoryIcon = (catName) => {
@@ -307,7 +308,7 @@ export const Explore = () => {
       <div className="explore-content">
 
         <div className="ef-top">
-          <h1 className="ef-logo">JAMIE</h1>
+          <JamieWordmark size="header" />
         </div>
 
         <div className="ef-sticky">

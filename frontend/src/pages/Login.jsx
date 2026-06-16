@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useGoogleLogin } from '@react-oauth/google';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
+import { JamieWordmark } from '../components/JamieWordmark';
 import { isNativeIOS } from '../utils/platform';
 import '../styles/auth.css';
 
@@ -126,7 +127,7 @@ export const Login = () => {
     <div className="auth-screen">
       {/* Top — logo + tagline */}
       <div className="auth-top">
-        <h1 className="auth-wordmark">{t('auth.appName')}</h1>
+        <JamieWordmark size="splash" />
         <p className="auth-tagline">
           {t('auth.tagline')}
         </p>

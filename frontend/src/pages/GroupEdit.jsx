@@ -27,7 +27,7 @@ export const GroupEdit = () => {
     name: '', description: '', max_members: 10, date: '',
     target_age_min: '', target_age_max: '',
     chat_only_owner: false, events_owner_only: false,
-    is_recurring_weekly: false,
+    is_recurring_weekly: false, is_private: false,
   });
 
   useEffect(() => { loadData(); }, [id]);
@@ -66,6 +66,7 @@ export const GroupEdit = () => {
         chat_only_owner: !!g.chat_only_owner,
         events_owner_only: !!g.events_owner_only,
         is_recurring_weekly: !!g.is_recurring_weekly,
+        is_private: !!g.is_private,
       });
       // Load favorite status from the API that matches the entity type so
       // the heart in the header reflects the user's current state on mount.
@@ -381,6 +382,33 @@ export const GroupEdit = () => {
                 </>
               )}
             </div>
+
+            {/* Visibility (public ⇄ private) — editable after creation for
+                groups and clubs. A one-off event has no join flow, so hide it
+                there. Toggle ON = private (join by request only). */}
+            {group?.type !== 'event' && (
+              <>
+                <div className="ge-divider" />
+                <div className="ge-field ge-toggle-field">
+                  <div>
+                    <label className="ge-label">{t('groupEdit.fields.visibility')}</label>
+                    <p className="ge-hint">
+                      {formData.is_private
+                        ? t('groupEdit.fields.visibilityPrivate')
+                        : t('groupEdit.fields.visibilityPublic')}
+                    </p>
+                  </div>
+                  <label className="ge-toggle">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_private}
+                      onChange={e => setFormData(p => ({ ...p, is_private: e.target.checked }))}
+                    />
+                    <span className="ge-toggle-slider" />
+                  </label>
+                </div>
+              </>
+            )}
 
             {/* Weekly recurrence — only meaningful for type='group' events. */}
             {!isClub && (

@@ -207,9 +207,9 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
           width: '100%', maxWidth: '480px',
           // Top is a plain 18px (NOT safe-area + 16): maxHeight already caps the
           // sheet top at safe-area + 12px, so adding the inset here too left a
-          // big empty gap. Bottom trimmed 90px → safe-area + 24px (the sheet
+          // big empty gap. Bottom trimmed 90px → safe-area + 12px (the sheet
           // sits above the nav via its own z-index, so it never needed 90px).
-          padding: '18px 20px calc(env(safe-area-inset-bottom, 0px) + 24px)',
+          padding: '18px 20px calc(env(safe-area-inset-bottom, 0px) + 12px)',
           maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 12px)',
           overflowY: 'auto',
         }}

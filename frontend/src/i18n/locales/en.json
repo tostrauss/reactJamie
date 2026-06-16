@@ -288,6 +288,7 @@
       "notFound": "Group not found",
       "share": "Share",
       "shareEvent": "Share event",
+      "manage": "Manage",
       "calendar": "Calendar",
       "shareLinkCopied": "Link copied!",
       "actions": {
@@ -411,12 +412,21 @@
       "savedToast": "Your JAMIE moment is live! ✨"
     }
   },
+  "imageCrop": {
+    "title": "Crop image",
+    "hint": "Drag to move, slider to zoom",
+    "zoom": "Zoom",
+    "cancel": "Cancel",
+    "confirm": "Apply",
+    "processing": "…"
+  },
   "clubDetail": {
     "loading": "Loading club…",
     "notFound": "Club not found",
     "back": "Back",
     "favorite": "Favorite",
     "share": "Share club",
+    "manage": "Manage",
     "shareLinkCopied": "Club link copied!",
     "membersLabel": "members",
     "toast": {
@@ -812,6 +822,7 @@
     },
     "photosCountFmt": "{{current}} / {{total}}",
     "photosProfileBadge": "Profile picture",
+    "cropPhotoTitle": "Crop profile photo",
     "photosFirstHint": "Your first photo is your profile picture. Add up to 6 photos that others can swipe through.",
     "pinnwandHint": "Your Pinterest-style wall — collect photos that show your vibe. Up to 12.",
     "saveBtn": "Save changes",
@@ -1298,7 +1309,7 @@
       "public": "Public",
       "publicDesc": "Anyone can join",
       "private": "Private",
-      "privateDesc": "Invite only",
+      "privateDesc": "By request only",
       "rulesLabel": "Club rules (optional)",
       "rulesPlaceholder": "Rules for your members...",
       "chatTitle": "Chat permissions",
@@ -1363,7 +1374,10 @@
       "chatAll": "All club members can post",
       "eventPermissions": "Who can create events?",
       "eventsOwnerOnly": "Only you as founder",
-      "eventsAll": "All club members"
+      "eventsAll": "All club members",
+      "visibility": "Visibility",
+      "visibilityPrivate": "Private — by request only",
+      "visibilityPublic": "Public — anyone can join"
     },
     "favoriteAria": "Add to favourites",
     "favError": "Could not save favourite",

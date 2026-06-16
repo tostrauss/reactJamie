@@ -166,12 +166,10 @@ export const Profile = () => {
           <div className="profile-cover-gradient" />
           <div className="profile-cover-top-gradient" />
 
-          <div className="profile-header-actions">
-            <button className="profile-action-btn" onClick={() => navigate(-1)} aria-label={t('profile.header.backAria')}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
-              </svg>
-            </button>
+          {/* Back arrow removed (Robert 2026-06-16): it led to the chat page and
+              wasn't needed — Profile is reached via the bottom nav. Settings
+              gear stays top-right. */}
+          <div className="profile-header-actions profile-header-actions--end">
             <div style={{ display: 'flex', gap: '8px' }}>
               <button className="profile-action-btn" onClick={() => navigate('/settings')} aria-label={t('profile.header.settingsAria')}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

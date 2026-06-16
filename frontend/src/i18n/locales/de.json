@@ -288,6 +288,7 @@
       "notFound": "Gruppe nicht gefunden",
       "share": "Teilen",
       "shareEvent": "Event teilen",
+      "manage": "Verwalten",
       "calendar": "Kalender",
       "shareLinkCopied": "Link kopiert!",
       "actions": {
@@ -411,12 +412,21 @@
       "savedToast": "Dein JAMIE Moment ist live! ✨"
     }
   },
+  "imageCrop": {
+    "title": "Bild zuschneiden",
+    "hint": "Ziehen zum Verschieben, Regler zum Zoomen",
+    "zoom": "Zoom",
+    "cancel": "Abbrechen",
+    "confirm": "Übernehmen",
+    "processing": "…"
+  },
   "clubDetail": {
     "loading": "Lade Club…",
     "notFound": "Club nicht gefunden",
     "back": "Zurück",
     "favorite": "Favorit",
     "share": "Club teilen",
+    "manage": "Verwalten",
     "shareLinkCopied": "Club-Link kopiert!",
     "membersLabel": "Mitglieder",
     "toast": {
@@ -812,6 +822,7 @@
     },
     "photosCountFmt": "{{current}} / {{total}}",
     "photosProfileBadge": "Profilbild",
+    "cropPhotoTitle": "Profilfoto zuschneiden",
     "photosFirstHint": "Dein erstes Foto ist dein Profilbild. Du kannst bis zu 6 Fotos hinzufügen, durch die andere swipen können.",
     "pinnwandHint": "Deine Pinnwand im Pinterest-Stil – sammle Fotos, die deinen Vibe zeigen. Bis zu 12.",
     "saveBtn": "Änderungen speichern",
@@ -1298,7 +1309,7 @@
       "public": "Öffentlich",
       "publicDesc": "Jeder kann beitreten",
       "private": "Privat",
-      "privateDesc": "Nur mit Einladung",
+      "privateDesc": "Nur auf Anfrage",
       "rulesLabel": "Club Regeln (optional)",
       "rulesPlaceholder": "Regeln für deine Mitglieder...",
       "chatTitle": "Chat-Schreibrechte",
@@ -1363,7 +1374,10 @@
       "chatAll": "Alle Clubmitglieder können schreiben",
       "eventPermissions": "Wer darf Events erstellen?",
       "eventsOwnerOnly": "Nur du als Gründer",
-      "eventsAll": "Alle Clubmitglieder"
+      "eventsAll": "Alle Clubmitglieder",
+      "visibility": "Sichtbarkeit",
+      "visibilityPrivate": "Privat — nur auf Anfrage",
+      "visibilityPublic": "Öffentlich — jeder kann beitreten"
     },
     "favoriteAria": "Zu Favoriten hinzufügen",
     "favError": "Favorit konnte nicht gespeichert werden",

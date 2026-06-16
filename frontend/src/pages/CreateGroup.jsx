@@ -5,6 +5,7 @@ import { groups, api as axiosInstance } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
+import { ImageCropModal } from '../components/ImageCropModal';
 import '../styles/create.css';
 
 const LEVELS = [
@@ -28,6 +29,8 @@ export const CreateGroup = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Picked cover photo awaiting crop to the 16:9 banner frame.
+  const [cropFile, setCropFile] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     mainCategory: '',
@@ -133,17 +136,21 @@ export const CreateGroup = () => {
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error(t('createGroup.imageTooLarge'));
-        e.target.value = '';
-        return;
-      }
-      if (imageBlobRef.current) URL.revokeObjectURL(imageBlobRef.current);
-      const blobUrl = URL.createObjectURL(file);
-      imageBlobRef.current = blobUrl;
-      setFormData(prev => ({ ...prev, image: file, imagePreview: blobUrl }));
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error(t('createGroup.imageTooLarge'));
+      return;
     }
+    // Crop to the 16:9 banner before storing it for upload at submit.
+    setCropFile(file);
+  };
+
+  const applyCover = (file) => {
+    if (imageBlobRef.current) URL.revokeObjectURL(imageBlobRef.current);
+    const blobUrl = URL.createObjectURL(file);
+    imageBlobRef.current = blobUrl;
+    setFormData(prev => ({ ...prev, image: file, imagePreview: blobUrl }));
   };
 
   const handleSubmit = async () => {
@@ -631,6 +638,15 @@ export const CreateGroup = () => {
           </button>
         )}
       </div>
+
+      {cropFile && (
+        <ImageCropModal
+          file={cropFile}
+          aspect={16 / 9}
+          onConfirm={(cropped) => { setCropFile(null); applyCover(cropped); }}
+          onCancel={() => setCropFile(null)}
+        />
+      )}
     </div>
   );
 };

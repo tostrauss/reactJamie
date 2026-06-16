@@ -5,6 +5,7 @@ import { clubs, upload } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
+import { ImageCropModal } from '../components/ImageCropModal';
 import '../styles/create.css';
 
 export const CreateClub = () => {
@@ -16,6 +17,8 @@ export const CreateClub = () => {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  // Picked cover photo awaiting crop to the 16:9 banner frame.
+  const [cropFile, setCropFile] = useState(null);
 
   const locationRef     = useRef(null);
   const autocompleteRef = useRef(null);
@@ -98,22 +101,27 @@ export const CreateClub = () => {
     });
   };
 
-  const handleImageUpload = async (e) => {
+  const handleImageUpload = (e) => {
     const file = e.target.files[0];
+    e.target.value = '';
     if (!file) return;
 
     if (file.size > 10 * 1024 * 1024) {
       toast.error(t('createClub.imageTooLarge'));
-      e.target.value = '';
       return;
     }
 
+    // Let the user frame it in the 16:9 banner before uploading.
+    setCropFile(file);
+  };
+
+  const uploadCover = async (file) => {
     if (imageBlobRef.current) URL.revokeObjectURL(imageBlobRef.current);
     const blobUrl = URL.createObjectURL(file);
     imageBlobRef.current = blobUrl;
     setImagePreview(blobUrl);
     setUploading(true);
-    
+
     try {
       const res = await upload.image(file);
       setFormData(prev => ({ ...prev, image_url: res.data.url }));
@@ -125,7 +133,6 @@ export const CreateClub = () => {
       // imageless while the tile still showed the photo.
       if (imageBlobRef.current) { URL.revokeObjectURL(imageBlobRef.current); imageBlobRef.current = null; }
       setImagePreview(null);
-      e.target.value = '';
     } finally {
       setUploading(false);
     }
@@ -434,6 +441,15 @@ export const CreateClub = () => {
           </button>
         )}
       </div>
+
+      {cropFile && (
+        <ImageCropModal
+          file={cropFile}
+          aspect={16 / 9}
+          onConfirm={(cropped) => { setCropFile(null); uploadCover(cropped); }}
+          onCancel={() => setCropFile(null)}
+        />
+      )}
     </div>
   );
 };export default CreateClub;

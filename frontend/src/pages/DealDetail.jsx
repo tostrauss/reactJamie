@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { deals } from '../utils/api';
 import { useToast } from '../context/ToastContext';
+import { AuthContext } from '../context/AuthContext';
 import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
 
 const LIBRARIES = [];
@@ -47,6 +48,7 @@ export const DealDetail = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const toast = useToast();
+  const { user } = useContext(AuthContext);
   const [deal, setDeal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -186,26 +188,39 @@ export const DealDetail = () => {
       {/* ── Redeem CTA + counter ────────────────────────────────── */}
       {/* Sits right under the photo so it's the first thing thumbs reach. */}
       <div style={{ textAlign: 'center', marginTop: -22 }}>
-        <button
-          type="button"
-          disabled={!redemption || redeeming}
-          onClick={() => redemption?.redeemed ? navigate(`/deal/${id}/redeem`) : setShowConfirm(true)}
-          style={{
-            background: redemption?.redeemed ? 'rgba(255,255,255,0.12)' : '#FD7666',
-            color: '#fff',
-            border: redemption?.redeemed ? '1px solid rgba(255,255,255,0.18)' : 'none',
-            borderRadius: 100,
-            padding: '13px 32px',
-            fontSize: 15,
-            fontWeight: 800,
-            letterSpacing: 0.3,
-            boxShadow: redemption?.redeemed ? 'none' : '0 8px 24px rgba(253,118,102,0.35)',
-            cursor: redemption ? 'pointer' : 'default',
-            opacity: !redemption ? 0.7 : 1,
-          }}
-        >
-          {redemption?.redeemed ? t('deal.viewVoucherCTA') : t('deal.redeemCTA')}
-        </button>
+        {(() => {
+          const redeemed = !!redemption?.redeemed;
+          const isAdmin = !!user?.is_admin;
+          // Once redeemed the voucher is locked — only admins may re-open it
+          // (for testing/demos). Everyone else just sees "Bereits eingelöst";
+          // the "1/1 mal eingelöst" counter below is the proof for staff.
+          const voucherLocked = redeemed && !isAdmin;
+          return (
+            <button
+              type="button"
+              disabled={!redemption || redeeming || voucherLocked}
+              onClick={() => {
+                if (redeemed) { if (isAdmin) navigate(`/deal/${id}/redeem`); }
+                else setShowConfirm(true);
+              }}
+              style={{
+                background: redeemed ? 'rgba(255,255,255,0.10)' : '#FD7666',
+                color: voucherLocked ? 'rgba(255,255,255,0.55)' : '#fff',
+                border: redeemed ? '1px solid rgba(255,255,255,0.15)' : 'none',
+                borderRadius: 100,
+                padding: '13px 32px',
+                fontSize: 15,
+                fontWeight: 800,
+                letterSpacing: 0.3,
+                boxShadow: redeemed ? 'none' : '0 8px 24px rgba(253,118,102,0.35)',
+                cursor: (!redemption || voucherLocked) ? 'default' : 'pointer',
+                opacity: !redemption ? 0.7 : 1,
+              }}
+            >
+              {redeemed ? (isAdmin ? t('deal.viewVoucherCTA') : t('deal.redeemedCTA')) : t('deal.redeemCTA')}
+            </button>
+          );
+        })()}
         {redemption && (
           <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, margin: '8px 0 0' }}>
             {t('deal.redemptionCounter', { count: redemption.count, max: redemption.max })}

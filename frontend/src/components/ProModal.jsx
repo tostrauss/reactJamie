@@ -362,7 +362,7 @@ export const ProModal = ({ onClose, onSuccess }) => {
             // already caps the sheet's top edge at safe-area + 12px, so adding
             // the inset here too double-counted it and left a big empty gap.
             // Bottom keeps the home-indicator inset so the last row isn't clipped.
-            padding:`18px 22px calc(env(safe-area-inset-bottom, 0px) + 20px)`,
+            padding:`18px 22px calc(env(safe-area-inset-bottom, 0px) + 12px)`,
             // Cap the sheet so its top edge leaves 12px below the status bar,
             // matching what users expect from a half-sheet on iOS.
             maxHeight:'calc(100dvh - env(safe-area-inset-top, 0px) - 12px)',

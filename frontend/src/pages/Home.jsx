@@ -6,6 +6,7 @@ import api, { groups, clubs, deals as dealsApi } from "../utils/api";
 import { GroupCard } from "../components/GroupCard";
 import { DealCard } from "../components/DealCard";
 import { EventCard } from "../components/EventCard";
+import { JamieWordmark } from "../components/JamieWordmark";
 import { AuthContext } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { CATEGORY_HIERARCHY } from "../utils/categories";
@@ -443,7 +444,7 @@ export const Home = () => {
       {/* ── Sticky header (logo + tabs + search + categories) ──────── */}
       <div className="home-sticky-header">
         <div className="home-header">
-          <span className="logo-text">JAMIE</span>
+          <JamieWordmark size="header" />
         </div>
         <div className="tabs-container">
           <button

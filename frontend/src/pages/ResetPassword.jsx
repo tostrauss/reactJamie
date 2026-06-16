@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { auth } from '../utils/api';
+import { JamieWordmark } from '../components/JamieWordmark';
 import '../styles/auth.css';
 
 const ResetPassword = () => {
@@ -54,7 +55,7 @@ const ResetPassword = () => {
       <div className="auth-container">
         <div className="auth-content" style={{ textAlign: 'center' }}>
           <div className="auth-logo">
-            <h1 className="logo-text">{t('auth.appName')}</h1>
+            <JamieWordmark size="splash" />
           </div>
           <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔗</div>
           <h2 style={{ marginBottom: '12px' }}>{t('auth.reset.invalidTitle')}</h2>
@@ -73,7 +74,7 @@ const ResetPassword = () => {
     <div className="auth-container">
       <div className="auth-content">
         <div className="auth-logo">
-          <h1 className="logo-text">{t('auth.appName')}</h1>
+          <JamieWordmark size="splash" />
         </div>
 
         {success ? (

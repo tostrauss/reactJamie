@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { waitlist as waitlistApi } from '../utils/api';
+import { JamieWordmark } from '../components/JamieWordmark';
 
 // Summer solstice 2026 — international launch target
 const LAUNCH_DATE = new Date('2026-06-21T00:00:00');
@@ -83,7 +84,7 @@ export default function OutOfRegion() {
       <div className="oor-glow oor-glow-2" />
 
       <div className="oor-content">
-        <h1 className="oor-logo">jamie</h1>
+        <JamieWordmark size="splash" />
 
         <div className="oor-hero">
           <div className="oor-globe">🌍</div>

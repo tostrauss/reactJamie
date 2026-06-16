@@ -1619,3 +1619,18 @@ select:focus {
 }
 .pinnwand-masonry-add p { margin: 0; font-size: 12px; }
 .pinnwand-masonry-add:active { border-color: var(--accent-coral); color: var(--accent-coral); }
+
+/* ── JAMIE wordmark (official logo image, identical everywhere) ── */
+.jamie-wordmark {
+  display: block;
+  width: auto;
+  margin: 0 auto;                 /* horizontally centred in its container */
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.jamie-wordmark--header { height: 30px; }
+.jamie-wordmark--splash {
+  height: 56px;
+  margin-bottom: 14px;
+  filter: drop-shadow(0 4px 24px rgba(253, 118, 102, 0.35)); /* brand glow */
+}

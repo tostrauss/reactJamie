@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation, Trans } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { auth } from '../utils/api';
+import { JamieWordmark } from '../components/JamieWordmark';
 import '../styles/auth.css';
 
 const OTP_RESEND_SECONDS = 60;
@@ -201,7 +202,7 @@ export const Register = () => {
     <div className="auth-screen auth-screen--scroll">
       {/* Top — logo + progress */}
       <div className="auth-top auth-top--compact">
-        <h1 className="auth-wordmark">{t('auth.appName')}</h1>
+        <JamieWordmark size="splash" />
         <div className="reg-steps">
           {Array.from({ length: TOTAL_STEPS }, (_, i) => (
             <div

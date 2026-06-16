@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { auth } from '../utils/api';
+import { JamieWordmark } from '../components/JamieWordmark';
 import '../styles/auth.css';
 
 const VerifyEmail = () => {
@@ -36,7 +37,7 @@ const VerifyEmail = () => {
     <div className="auth-container">
       <div className="auth-content" style={{ textAlign: 'center' }}>
         <div className="auth-logo">
-          <h1 className="logo-text">{t('auth.appName')}</h1>
+          <JamieWordmark size="splash" />
         </div>
 
         {status === 'verifying' && (

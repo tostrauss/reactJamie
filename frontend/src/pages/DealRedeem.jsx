@@ -28,7 +28,7 @@ export const DealRedeem = () => {
 
   if (loading || !deal) {
     return (
-      <div style={{ minHeight: '100dvh', background: PAGE_BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ position: 'fixed', inset: 0, background: PAGE_BG, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div className="loading-spinner" />
       </div>
     );
@@ -37,11 +37,17 @@ export const DealRedeem = () => {
   const photo = Array.isArray(deal.photos) && deal.photos.length ? deal.photos[0] : null;
 
   return (
+    // Edge-to-edge (fixed inset:0, not minHeight:100dvh): on iOS standalone the
+    // dvh box can fall ~1 home-indicator short of the physical screen, letting
+    // the darker body (#231B43) show as a seam below this lighter page (#2C2960).
+    // A fixed full-bleed layer paints PAGE_BG into every safe-area zone instead.
     <div style={{
-      minHeight: '100dvh',
+      position: 'fixed',
+      inset: 0,
       background: PAGE_BG,
       display: 'flex',
       flexDirection: 'column',
+      overflowY: 'auto',
       paddingTop: 'calc(24px + env(safe-area-inset-top, 0px))',
       paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
       paddingLeft: 20,

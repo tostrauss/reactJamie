@@ -6,6 +6,7 @@ import { auth, upload, spotify } from '../utils/api';
 import { connectSpotify } from '../utils/spotifyAuth';
 import { useToast } from '../context/ToastContext';
 import SpotifySongPicker from '../components/SpotifySongPicker';
+import { ImageCropModal } from '../components/ImageCropModal';
 import '../styles/profile.css';
 
 const AVAILABLE_INTERESTS = [
@@ -64,6 +65,9 @@ export const ProfileEdit = () => {
   const [loading, setLoading] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [pinnwandUploading, setPinnwandUploading] = useState(false);
+  // Pending crop: the picked profile photo waits in the crop modal until the
+  // user frames it, then we upload the cropped result. { file, onConfirm }.
+  const [cropPhoto, setCropPhoto] = useState(null);
   const [spotifyConnected, setSpotifyConnected] = useState(false);
   const [spotifyLoading, setSpotifyLoading] = useState(false);
   const [locationSuggestions, setLocationSuggestions] = useState([]);
@@ -244,23 +248,11 @@ export const ProfileEdit = () => {
     }, 350);
   };
 
-  const handlePhotoAdd = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    // Client-side guard so the user sees an instant error instead of waiting
-    // for the upload to round-trip and the backend to reject with 413.
-    const MAX_BYTES = 15 * 1024 * 1024;
-    if (file.size > MAX_BYTES) {
-      toast.error(t('profileEdit.toast.photoTooLarge'));
-      e.target.value = '';
-      return;
-    }
-
+  // Upload a (already cropped) profile photo. First photo becomes the avatar.
+  const uploadProfilePhoto = async (file) => {
     setPhotoUploading(true);
     try {
       const res = await upload.image(file);
-      // First photo becomes the profile picture (avatar); the rest fill `photos`.
       setFormData(prev => prev.avatar_url
         ? { ...prev, photos: [...(prev.photos || []), res.data.url] }
         : { ...prev, avatar_url: res.data.url });
@@ -271,8 +263,27 @@ export const ProfileEdit = () => {
       toast.error(msg);
     } finally {
       setPhotoUploading(false);
-      e.target.value = '';
     }
+  };
+
+  const handlePhotoAdd = (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+
+    // Client-side guard so the user sees an instant error instead of waiting
+    // for the upload to round-trip and the backend to reject with 413.
+    const MAX_BYTES = 15 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      toast.error(t('profileEdit.toast.photoTooLarge'));
+      return;
+    }
+
+    // Crop to the portrait frame the profile carousel uses before uploading.
+    setCropPhoto({
+      file,
+      onConfirm: (cropped) => { setCropPhoto(null); uploadProfilePhoto(cropped); },
+    });
   };
 
   const handlePhotoRemove = (index) => {
@@ -710,6 +721,16 @@ export const ProfileEdit = () => {
         </button>
       </form>
       </div>{/* settings-body */}
+
+      {cropPhoto && (
+        <ImageCropModal
+          file={cropPhoto.file}
+          aspect={4 / 5}
+          title={t('profileEdit.cropPhotoTitle')}
+          onConfirm={cropPhoto.onConfirm}
+          onCancel={() => setCropPhoto(null)}
+        />
+      )}
     </div>
   );
 };

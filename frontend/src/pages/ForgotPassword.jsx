@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { auth } from '../utils/api';
+import { JamieWordmark } from '../components/JamieWordmark';
 import '../styles/auth.css';
 
 const ForgotPassword = () => {
@@ -30,7 +31,7 @@ const ForgotPassword = () => {
     <div className="auth-container">
       <div className="auth-content">
         <div className="auth-logo">
-          <h1 className="logo-text">{t('auth.appName')}</h1>
+          <JamieWordmark size="splash" />
         </div>
 
         {sent ? (
