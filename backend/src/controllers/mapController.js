@@ -47,6 +47,10 @@ export const getMapPins = async (req, res) => {
         -- Don't expose private groups' exact coordinates on the public,
         -- unauthenticated map (mirrors suggestionController's filter).
         AND g.is_private IS NOT TRUE
+        -- Hide PAST dated entries always (even on "Alle"): groups + club events
+        -- have a date, so once it's in the past the pin is stale. Clubs have no
+        -- date (NULL) → always shown as ongoing venues. Future events appear.
+        AND (g.date IS NULL OR g.date >= CURRENT_DATE)
         ${dateCondition}
     `;
     const params = [];

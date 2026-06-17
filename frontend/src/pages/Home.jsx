@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import api, { groups, clubs, deals as dealsApi } from "../utils/api";
 import { GroupCard } from "../components/GroupCard";
 import { DealCard } from "../components/DealCard";
-import { EventCard } from "../components/EventCard";
 import { JamieWordmark } from "../components/JamieWordmark";
 import { AuthContext } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -79,7 +78,6 @@ export const Home = () => {
   const [clubList, setClubList] = useState([]);
   const [dealList, setDealList] = useState([]);
   const [myClubs, setMyClubs] = useState([]);
-  const [discoverEvents, setDiscoverEvents] = useState([]);
   // Tab held in the URL (?tab=clubs) so swiping back from a club/group detail
   // restores the tab the user was on. `replace: true` keeps the back stack tidy
   // — tab switches don't add history entries, only cross-page navigations do.
@@ -148,14 +146,6 @@ export const Home = () => {
           ...(joinedClubsRes.data || []).map(c => c.id),
         ]));
       } else {
-        // Discover-events loads on its own promise — NOT inside the Promise.all
-        // that gates the loading spinner. A slow events query must never hold
-        // the whole clubs list hostage; the "Events für dich" row just pops in
-        // when ready.
-        clubs.discoverEvents()
-          .then(res => setDiscoverEvents(res.data || []))
-          .catch(() => setDiscoverEvents([]));
-
         const [allClubsRes, myClubsRes, favClubsRes, joinedGroupsRes] = await Promise.all([
           // Default server limit is 20; the client-side search/filter then can
           // never reach clubs 21+. Pull a full page so local filtering is real.
@@ -620,31 +610,9 @@ export const Home = () => {
                   <div className="home-spinner" />
                 </div>
               ) : filteredClubs.length > 0 ? (
-                <>
-                  <div className="groups-grid clubs-grid">
-                    {filteredClubs.slice(0, 3).map(renderClubCard)}
-                  </div>
-
-                  {discoverEvents.length > 0 && (
-                    <div className="events-foryou-section">
-                      <div className="events-foryou-header">
-                        <h2 className="section-heading">{t('home.sections.eventsForYou')}</h2>
-                        <button className="events-foryou-seeall" onClick={() => navigate('/events')}>
-                          {t('home.sections.seeAll')}
-                        </button>
-                      </div>
-                      <div className="events-foryou-scroll">
-                        {discoverEvents.slice(0, 10).map(ev => <EventCard key={ev.id} event={ev} />)}
-                      </div>
-                    </div>
-                  )}
-
-                  {filteredClubs.length > 3 && (
-                    <div className="groups-grid clubs-grid">
-                      {filteredClubs.slice(3).map(renderClubCard)}
-                    </div>
-                  )}
-                </>
+                <div className="groups-grid clubs-grid">
+                  {filteredClubs.map(renderClubCard)}
+                </div>
               ) : (
                 <div className="empty-state">
                   <div className="empty-icon">🏆</div>

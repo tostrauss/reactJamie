@@ -605,6 +605,8 @@ export const getUserFavoriteClubs = async (req, res) => {
        JOIN groups g ON gf.group_id = g.id
        LEFT JOIN users u ON g.owner_id = u.id
        WHERE gf.user_id = $1 AND g.type = $2
+         AND g.deleted_at IS NULL
+         AND g.is_active = TRUE
        ORDER BY gf.created_at DESC`,
       [req.userId, CLUB_TYPE]
     );
@@ -1154,6 +1156,7 @@ export const createClubEvent = async (req, res) => {
 
     invalidatePrefix('clubs:');
     invalidatePrefix(DISCOVER_EVENTS_KEY);
+    invalidatePrefix('map:'); // a geocoded event is a new map pin
     res.status(201).json(event);
   } catch (err) {
     console.error('Error creating club event:', err);
@@ -1190,6 +1193,7 @@ export const deleteClubEvent = async (req, res) => {
 
     invalidatePrefix('clubs:');
     invalidatePrefix(DISCOVER_EVENTS_KEY);
+    invalidatePrefix('map:'); // removed event → drop its map pin
     res.json({ message: 'Veranstaltung gelöscht' });
   } catch (err) {
     console.error('Error deleting club event:', err);

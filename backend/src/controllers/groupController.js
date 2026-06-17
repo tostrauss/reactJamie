@@ -794,6 +794,7 @@ export const getUserFavorites = async (req, res) => {
        LEFT JOIN users u ON g.owner_id = u.id
        WHERE gf.user_id = $1
          AND g.deleted_at IS NULL
+         AND g.is_active = TRUE
          AND g.type = 'group'
        ORDER BY gf.created_at DESC`,
       [req.userId]
