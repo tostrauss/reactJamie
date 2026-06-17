@@ -2647,9 +2647,9 @@ input:checked + .slider:before {
 
 /* ── Standalone Events page (/events) ── */
 .events-page {
-  min-height: 100dvh;
+  min-height: 100%; /* fills .app-viewport; nav is a flex sibling below */
   background: var(--bg-primary);
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 90px);
+  padding-bottom: 16px;
 }
 .events-page-header {
   display: flex;
@@ -2689,6 +2689,43 @@ input:checked + .slider:before {
   color: var(--text-white);
   font-family: inherit;
   font-size: 15px;
+}
+
+/* ── Events filters (time + category pills) ── */
+.events-filter-row {
+  display: flex;
+  gap: 8px;
+  padding: 0 20px 12px;
+  flex-wrap: wrap;
+}
+.events-filter-row--scroll {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.events-filter-row--scroll::-webkit-scrollbar { display: none; }
+.events-filter-pill {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-light);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.events-filter-pill:active { transform: scale(0.96); }
+.events-filter-pill.active {
+  background: var(--accent-coral);
+  border-color: var(--accent-coral);
+  color: #fff;
 }
 .events-section-title {
   margin: 0 20px 12px;

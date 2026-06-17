@@ -1039,72 +1039,37 @@ export const getClubEvents = async (req, res) => {
 // never leak a private club's agenda.
 export const getDiscoverEvents = async (req, res) => {
   try {
-    // Same feed for everyone → cache it. A discover list doesn't need to be
-    // real-time; createClubEvent/deleteClubEvent bust the cache so new/removed
-    // events still appear instantly. This turns the Events page into an instant
-    // load for everyone after the first request each minute.
-    // Date filter compares by DAY, not NOW(): a date-only event ("today") is
-    // stored at 00:00, so `>= NOW()` wrongly dropped events happening later the
-    // same day. `>= CURRENT_DATE` keeps today's events visible until midnight.
-    const SELECT_COLS = `e.id, e.name, e.date, e.time, e.location,
+    // Robert (2026-06-17): the Events page ("Club Events entdecken") shows EVERY
+    // upcoming club event — from PUBLIC *and* PRIVATE clubs — to everyone. This
+    // is an explicit product decision that reverses the earlier public-only
+    // privacy gate (a private club's event titles are now discoverable).
+    //
+    // Same list for everyone → cached; createClubEvent/deleteClubEvent bust the
+    // cache so new/removed events appear instantly. Date compares by DAY
+    // (CURRENT_DATE) so an event happening later today isn't dropped at midnight.
+    // Category + time ("today"/"this week") filtering is done client-side on the
+    // Events page off this single feed.
+    const cached = getCached(DISCOVER_EVENTS_KEY);
+    if (cached) return res.json(cached);
+
+    const result = await db.query(
+      `SELECT e.id, e.name, e.date, e.time, e.location,
               e.category, e.max_members, e.is_recurring_weekly, e.image_url,
-              c.id AS club_id, c.name AS club_name, c.image_url AS club_image`;
-
-    // Public feed — identical for everyone, so it's cached.
-    let publicEvents = getCached(DISCOVER_EVENTS_KEY);
-    if (!publicEvents) {
-      const result = await db.query(
-        `SELECT ${SELECT_COLS}
-         FROM groups e
-         JOIN groups c ON e.parent_club_id = c.id
-         WHERE e.type = 'event'
-           AND e.is_active = TRUE
-           AND e.deleted_at IS NULL
-           AND (e.date IS NULL OR e.date >= CURRENT_DATE)
-           AND c.type = $1
-           AND c.is_private = FALSE
-           AND c.deleted_at IS NULL
-         ORDER BY e.date ASC NULLS LAST
-         LIMIT 60`,
-        [CLUB_TYPE]
-      );
-      publicEvents = result.rows;
-      setCached(DISCOVER_EVENTS_KEY, publicEvents, DISCOVER_EVENTS_TTL);
-    }
-
-    // Personalize: also surface events from clubs the viewer belongs to — even
-    // PRIVATE ones, since seeing your own club's agenda is no leak. Without this,
-    // a member who creates an event in their (private) club never sees it on the
-    // "Events für dich" page and thinks it failed. Per-user, so not cached;
-    // merged + deduped against the public feed.
-    if (req.userId) {
-      const mine = await db.query(
-        `SELECT ${SELECT_COLS}
-         FROM groups e
-         JOIN groups c ON e.parent_club_id = c.id
-         JOIN group_members gm ON gm.group_id = c.id AND gm.user_id = $2
-         WHERE e.type = 'event'
-           AND e.is_active = TRUE
-           AND e.deleted_at IS NULL
-           AND (e.date IS NULL OR e.date >= CURRENT_DATE)
-           AND c.type = $1
-           AND c.deleted_at IS NULL
-         ORDER BY e.date ASC NULLS LAST
-         LIMIT 60`,
-        [CLUB_TYPE, req.userId]
-      );
-      const seen = new Set(publicEvents.map(e => e.id));
-      const merged = [...publicEvents, ...mine.rows.filter(e => !seen.has(e.id))];
-      // Re-sort the merged list by date (NULLs last) so own + public interleave.
-      merged.sort((a, b) => {
-        if (a.date == null) return b.date == null ? 0 : 1;
-        if (b.date == null) return -1;
-        return new Date(a.date) - new Date(b.date);
-      });
-      return res.json(merged);
-    }
-
-    res.json(publicEvents);
+              c.id AS club_id, c.name AS club_name, c.image_url AS club_image, c.is_private
+       FROM groups e
+       JOIN groups c ON e.parent_club_id = c.id
+       WHERE e.type = 'event'
+         AND e.is_active = TRUE
+         AND e.deleted_at IS NULL
+         AND (e.date IS NULL OR e.date >= CURRENT_DATE)
+         AND c.type = $1
+         AND c.deleted_at IS NULL
+       ORDER BY e.date ASC NULLS LAST
+       LIMIT 200`,
+      [CLUB_TYPE]
+    );
+    setCached(DISCOVER_EVENTS_KEY, result.rows, DISCOVER_EVENTS_TTL);
+    res.json(result.rows);
   } catch (err) {
     console.error('Error fetching discover events:', err);
     res.status(500).json({ error: 'Veranstaltungen konnten nicht geladen werden' });

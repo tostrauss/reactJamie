@@ -4,8 +4,16 @@
     "searchPlaceholder": "Search",
     "forYou": "Events for you",
     "todayBadge": "Today",
-    "empty": "No events from public clubs yet.",
-    "emptySearch": "No events found."
+    "empty": "No events yet.",
+    "emptySearch": "No events found.",
+    "emptyFiltered": "No events match these filters.",
+    "filters": {
+      "all": "All",
+      "today": "Today",
+      "weekend": "This weekend",
+      "week": "This week",
+      "allCategories": "All categories"
+    }
   },
   "common": {
     "back": "Back",
