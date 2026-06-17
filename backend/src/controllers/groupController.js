@@ -916,7 +916,7 @@ export const getUserGroups = async (req, res) => {
       `SELECT g.id, g.name, g.type, g.category, g.image_url, g.is_private,
               g.max_members, g.members_count, g.location, g.date, g.deleted_at,
               g.chat_only_owner, g.parent_club_id,
-              u.name as owner_name, gm.role,
+              u.name as owner_name, gm.role, gm.archived,
               lm.content as last_message,
               lm.created_at as last_message_time,
               lm_user.name as last_message_sender,
@@ -947,6 +947,30 @@ export const getUserGroups = async (req, res) => {
   } catch (err) {
     console.error('Error fetching user groups:', err);
     res.status(500).json({ error: 'Gruppen konnten nicht geladen werden' });
+  }
+};
+
+// ==========================================
+// ARCHIVE / UNARCHIVE A GROUP-OR-CLUB CHAT (per-user "hide")
+// ==========================================
+export const setGroupChatArchived = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const archived = req.body.archived === true || req.body.archived === 'true';
+    const result = await db.query(
+      'UPDATE group_members SET archived = $1 WHERE group_id = $2 AND user_id = $3 RETURNING group_id',
+      [archived, id, req.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Nicht Mitglied dieser Gruppe' });
+    }
+    // The chat list caches the joined-chats query for 15s — bust it so the row
+    // moves into/out of the "Ausgeblendet" section immediately.
+    deleteCached(`user_groups:${req.userId}`);
+    res.json({ archived });
+  } catch (err) {
+    console.error('Error archiving group chat:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
 

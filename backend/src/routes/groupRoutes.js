@@ -21,7 +21,8 @@ import {
   getWaitlist,
   getUserWaitlistStatus,
   getGroupMemberAvatars,
-  inviteMember
+  inviteMember,
+  setGroupChatArchived
 } from '../controllers/groupController.js';
 import { authenticate, optionalAuth, requireCompleteProfile } from '../middleware/auth.js';
 import { generalLimiter } from '../middleware/rateLimiter.js';
@@ -39,6 +40,8 @@ router.get('/categories', generalLimiter, getCategories);
 // ==========================================
 router.get('/user/favorites', authenticate, getUserFavorites);
 router.get('/user/joined', authenticate, getUserGroups);
+// Hide/unhide a group-or-club chat from the chat list (per-user)
+router.put('/:id/archive', authenticate, setGroupChatArchived);
 
 // ==========================================
 // GROUP CRUD ROUTES

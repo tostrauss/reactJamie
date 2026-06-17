@@ -322,3 +322,29 @@ export const markDMRead = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+// ==========================================
+// ARCHIVE / UNARCHIVE A DM CONVERSATION (per-user "hide")
+// ==========================================
+export const setConversationArchived = async (req, res) => {
+  try {
+    const otherUserId = parseInt(req.params.userId, 10);
+    if (isNaN(otherUserId) || otherUserId <= 0) {
+      return res.status(400).json({ error: 'Ungültige Nutzer-ID' });
+    }
+    const archived = req.body.archived === true || req.body.archived === 'true';
+    // No conversation row yet (no message ever sent) → nothing to hide; the
+    // chat wouldn't appear in the list anyway, so treat as a no-op success.
+    await db.query(
+      `UPDATE dm_conversations SET is_archived = $1 WHERE user_id = $2::int AND other_user_id = $3::int`,
+      [archived, req.userId, otherUserId]
+    ).catch(async (err) => {
+      if (isMissingRelationError(err)) { await ensureDmTables(); return; }
+      throw err;
+    });
+    res.json({ archived });
+  } catch (error) {
+    console.error('Error archiving conversation:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

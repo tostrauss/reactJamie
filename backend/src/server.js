@@ -662,6 +662,10 @@ const runStartupMigrations = async () => {
   // time, matching the joined_at fallback.
   await migrate('group_members last_read_at', () =>
     db.query(`ALTER TABLE group_members ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMP DEFAULT NOW()`));
+  // Per-user "hide chat" flag for group/club chats (mirrors dm_conversations.is_archived
+  // for DMs). The chat list moves archived rows into the "Ausgeblendet" section.
+  await migrate('group_members archived', () =>
+    db.query(`ALTER TABLE group_members ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE`));
   await migrate('users google_id col', () =>
     db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT UNIQUE`));
   await migrate('users apple_id col', () =>

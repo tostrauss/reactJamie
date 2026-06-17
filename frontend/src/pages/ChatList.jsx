@@ -25,6 +25,8 @@ export const ChatList = () => {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [loading, setLoading]               = useState(true);
   const [showHidden, setShowHidden]         = useState(false);
+  const [menuChat, setMenuChat]             = useState(null); // long-pressed chat: { chat, kind }
+  const longPress                           = useRef({ timer: null, fired: false, x: 0, y: 0 });
   const [requestsModal, setRequestsModal]   = useState(null); // { groupId, groupName }
   const [modalRequests, setModalRequests]   = useState([]);
   const [modalIndex, setModalIndex]         = useState(0);
@@ -86,7 +88,8 @@ export const ChatList = () => {
             unread: g.unread_count || 0,
             avatar: g.image_url,
             type: g.type,
-            isOwner: g.role === 'owner'
+            isOwner: g.role === 'owner',
+            archived: !!g.archived,
           };
         }));
 
@@ -100,7 +103,8 @@ export const ChatList = () => {
         unread: dm.unread_count || 0,
         avatar: dm.other_user_avatar,
         isOnline: false,
-        isDM: true
+        isDM: true,
+        archived: !!dm.is_archived,
       })));
     } catch (err) {
     } finally {
@@ -267,9 +271,101 @@ export const ChatList = () => {
     }
   };
 
+  // ── Long-press to hide ────────────────────────────────────────────────
+  // Press-and-hold any chat row (~450ms) opens the hide menu. A move >10px or
+  // an early release cancels it, so scrolling and normal taps are unaffected.
+  const startPress = (chat, kind, e) => {
+    longPress.current.fired = false;
+    const pt = e.touches?.[0] || e;
+    longPress.current.x = pt?.clientX ?? 0;
+    longPress.current.y = pt?.clientY ?? 0;
+    clearTimeout(longPress.current.timer);
+    longPress.current.timer = setTimeout(() => {
+      longPress.current.fired = true;
+      if (navigator.vibrate) { try { navigator.vibrate(15); } catch { /* ignore */ } }
+      setMenuChat({ chat, kind });
+    }, 450);
+  };
+  const movePress = (e) => {
+    const pt = e.touches?.[0] || e;
+    if (Math.abs((pt?.clientX ?? 0) - longPress.current.x) > 10 ||
+        Math.abs((pt?.clientY ?? 0) - longPress.current.y) > 10) {
+      clearTimeout(longPress.current.timer);
+    }
+  };
+  const endPress = () => clearTimeout(longPress.current.timer);
+  // Swallow the click that follows a long-press so the row doesn't also open.
+  const guardedOpen = (chat) => () => {
+    if (longPress.current.fired) { longPress.current.fired = false; return; }
+    openChat(chat);
+  };
+  const pressProps = (chat, kind) => ({
+    onPointerDown: (e) => startPress(chat, kind, e),
+    onPointerMove: movePress,
+    onPointerUp: endPress,
+    onPointerLeave: endPress,
+  });
+
+  const openChat = (chat) => chat.isDM ? navigate(`/dm/${chat.id}`) : handleChatClick(chat);
+
+  const setChatArchivedLocal = (chat, archived) => {
+    if (chat.isDM) setPrivateChats(prev => prev.map(c => c.id === chat.id ? { ...c, archived } : c));
+    else setGroupChats(prev => prev.map(c => c.id === chat.id ? { ...c, archived } : c));
+  };
+
+  const archiveChat = async (chat, archived) => {
+    setMenuChat(null);
+    setChatArchivedLocal(chat, archived); // optimistic
+    try {
+      if (chat.isDM) await directMessages.archiveConversation(chat.id, archived);
+      else await groups.archiveChat(chat.id, archived);
+    } catch {
+      setChatArchivedLocal(chat, !archived); // revert
+      toast.error(t('chat.list.toast.archiveError'));
+    }
+  };
+
   const onlyGroups     = groupChats.filter(c => c.type !== 'club');
   const onlyClubs      = groupChats.filter(c => c.type === 'club');
   const currentChats   = activeTab === 'gruppen' ? onlyGroups : activeTab === 'clubs' ? onlyClubs : privateChats;
+  const visibleChats   = currentChats.filter(c => !c.archived);
+  const hiddenChats    = currentChats.filter(c => c.archived);
+
+  // Collapsible "Ausgeblendet" section — shared by all tabs, shows the current
+  // tab's hidden chats with an inline unhide button.
+  const renderHiddenSection = () => hiddenChats.length > 0 && (
+    <div className="hidden-chats">
+      <button className="hidden-chats-toggle" onClick={() => setShowHidden(s => !s)}>
+        <span>{t('chat.list.sections.hidden')} ({hiddenChats.length})</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+             className={showHidden ? 'chevron-up' : ''}>
+          <path d="M6 9l6 6 6-6"/>
+        </svg>
+      </button>
+      {showHidden && (
+        <div className="hidden-chats-content">
+          {hiddenChats.map(chat => (
+            <div key={chat.id} className="chat-item chat-item--hidden">
+              <div className="chat-item-main" onClick={() => openChat(chat)}>
+                <div className="chat-avatar-wrapper">
+                  {chat.avatar
+                    ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" loading="lazy" />
+                    : <div className="chat-avatar-placeholder">{(chat.name || '?')[0].toUpperCase()}</div>}
+                </div>
+                <div className="chat-info">
+                  <div className="chat-top-row"><span className="chat-name">{chat.name}</span></div>
+                  <div className="chat-bottom-row"><p className="chat-last-message">{chat.lastMessage}</p></div>
+                </div>
+              </div>
+              <button className="chat-unhide-btn" onClick={() => archiveChat(chat, false)}>
+                {t('chat.list.unhide')}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
   // Tab pills show UNREAD sums, not chat counts: a number next to a tab
   // universally reads as "new messages" — testers kept asking why "Gruppen 10"
   // never went away (it was the number of group chats). Pills vanish at 0.
@@ -323,32 +419,9 @@ export const ChatList = () => {
           <div className="chat-friends-section">
 
             {/* Private DM conversations */}
-            {privateChats.length > 0 ? (
-              <div className="chat-list">
-                {privateChats.map(chat => (
-                  <div key={chat.id} className="chat-item" onClick={() => navigate(`/dm/${chat.id}`)}>
-                    <div className="chat-avatar-wrapper">
-                      {chat.avatar
-                        ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" loading="lazy" />
-                        : <div className="chat-avatar-placeholder">{(chat.name || '?')[0].toUpperCase()}</div>
-                      }
-                    </div>
-                    <div className="chat-info">
-                      <div className="chat-top-row">
-                        <span className="chat-name">{chat.name}</span>
-                        <span className="chat-time">{chat.time}</span>
-                      </div>
-                      <div className="chat-bottom-row">
-                        <p className="chat-last-message">{chat.lastMessage}</p>
-                        {chat.unread > 0 && <span className="unread-badge">{chat.unread}</span>}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : loading ? (
+            {loading ? (
               <div className="home-loading"><div className="home-spinner" /></div>
-            ) : (
+            ) : currentChats.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">💬</div>
                 <p>{t('chat.list.empty.noChats')}</p>
@@ -356,6 +429,32 @@ export const ChatList = () => {
                   {t('chat.list.empty.toFriends')}
                 </button>
               </div>
+            ) : (
+              <>
+                <div className="chat-list">
+                  {visibleChats.map(chat => (
+                    <div key={chat.id} className="chat-item" {...pressProps(chat, 'dm')} onClick={guardedOpen(chat)}>
+                      <div className="chat-avatar-wrapper">
+                        {chat.avatar
+                          ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" loading="lazy" />
+                          : <div className="chat-avatar-placeholder">{(chat.name || '?')[0].toUpperCase()}</div>
+                        }
+                      </div>
+                      <div className="chat-info">
+                        <div className="chat-top-row">
+                          <span className="chat-name">{chat.name}</span>
+                          <span className="chat-time">{chat.time}</span>
+                        </div>
+                        <div className="chat-bottom-row">
+                          <p className="chat-last-message">{chat.lastMessage}</p>
+                          {chat.unread > 0 && <span className="unread-badge">{chat.unread}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {renderHiddenSection()}
+              </>
             )}
           </div>
         )}
@@ -376,8 +475,8 @@ export const ChatList = () => {
             ) : (
               <>
                 {(() => {
-                  const owned = currentChats.filter(c => c.isOwner);
-                  const others = currentChats.filter(c => !c.isOwner);
+                  const owned = visibleChats.filter(c => c.isOwner);
+                  const others = visibleChats.filter(c => !c.isOwner);
                   return (
                     <>
                       {owned.length > 0 && (
@@ -385,7 +484,7 @@ export const ChatList = () => {
                           <div className="chat-section-label">{t('chat.list.sections.createdByYou')}</div>
                           {owned.map(chat => (
                             <div key={chat.id} className="chat-item chat-item--owner">
-                              <div className="chat-item-main" onClick={() => handleChatClick(chat)}>
+                              <div className="chat-item-main" {...pressProps(chat, 'group')} onClick={guardedOpen(chat)}>
                                 <div className="chat-avatar-wrapper">
                                   {chat.avatar
                                     ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" loading="lazy" />
@@ -433,7 +532,7 @@ export const ChatList = () => {
                         <>
                           {owned.length > 0 && <div className="chat-section-label">{t('chat.list.sections.others')}</div>}
                           {others.map(chat => (
-                            <div key={chat.id} className="chat-item" onClick={() => handleChatClick(chat)}>
+                            <div key={chat.id} className="chat-item" {...pressProps(chat, 'group')} onClick={guardedOpen(chat)}>
                               <div className="chat-avatar-wrapper">
                                 {chat.avatar
                                   ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" loading="lazy" />
@@ -461,28 +560,31 @@ export const ChatList = () => {
                     </>
                   );
                 })()}
-
-                <button className="hidden-chats-toggle" onClick={() => setShowHidden(!showHidden)}>
-                  <span>{t('chat.list.sections.hidden')}</span>
-                  <svg
-                    width="16" height="16" viewBox="0 0 24 24"
-                    fill="none" stroke="currentColor" strokeWidth="2"
-                    className={showHidden ? 'chevron-up' : ''}
-                  >
-                    <path d="M6 9l6 6 6-6"/>
-                  </svg>
-                </button>
-                {showHidden && (
-                  <div className="hidden-chats-content">
-                    <p className="hidden-empty-text">{t('chat.list.empty.noHidden')}</p>
-                  </div>
-                )}
+                {renderHiddenSection()}
               </>
             )}
           </div>
         )}
 
       </div>
+
+      {/* ── Long-press action sheet (hide chat) ─────────────────────── */}
+      {menuChat && (
+        <div className="chat-menu-overlay" onClick={() => setMenuChat(null)}>
+          <div className="chat-menu-sheet" onClick={e => e.stopPropagation()}>
+            <p className="chat-menu-title">{menuChat.chat.name}</p>
+            <button className="chat-menu-action" onClick={() => archiveChat(menuChat.chat, true)}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" />
+              </svg>
+              {t('chat.list.hide')}
+            </button>
+            <button className="chat-menu-cancel" onClick={() => setMenuChat(null)}>
+              {t('common.cancel')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Anfragen Modal ──────────────────────────────────────────── */}
       {requestsModal && (

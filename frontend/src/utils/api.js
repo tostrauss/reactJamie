@@ -249,7 +249,11 @@ export const groups = {
   // badge, which must reflect read markers immediately.
   getJoined: (fresh = false) =>
     axiosInstance.get('/groups/user/joined', { params: fresh ? { fresh: '1' } : {} }),
-  
+
+  // Hide/unhide a group-or-club chat from the chat list (per-user)
+  archiveChat: (id, archived) =>
+    axiosInstance.put(`/groups/${id}/archive`, { archived }),
+
   // Get group members
   getMembers: (id) => 
     axiosInstance.get(`/groups/${id}/members`),
@@ -437,8 +441,12 @@ export const directMessages = {
     axiosInstance.get(`/dm/${userId}`, { params: { limit, offset } }),
   
   // Get all conversations list
-  getConversations: () => 
+  getConversations: () =>
     axiosInstance.get('/dm/conversations'),
+
+  // Hide/unhide a DM conversation from the chat list (per-user)
+  archiveConversation: (userId, archived) =>
+    axiosInstance.put(`/dm/${userId}/archive`, { archived }),
   
   // Mark as read
   markRead: (userId) => 

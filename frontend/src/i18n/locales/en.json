@@ -602,6 +602,8 @@
         "chats": "Friends"
       },
       "dateYesterday": "Yesterday",
+      "hide": "Hide",
+      "unhide": "Unhide",
       "sections": {
         "friendRequests": "Friend requests",
         "createdByYou": "Created by you",
@@ -632,7 +634,8 @@
         "requestAccepted": "{{name}} accepted!",
         "requestAcceptError": "Could not accept",
         "requestDeclined": "{{name}} declined",
-        "requestDeclineError": "Could not decline"
+        "requestDeclineError": "Could not decline",
+        "archiveError": "Could not hide chat"
       },
       "requestsModal": {
         "loading": "Loading…",

@@ -602,6 +602,8 @@
         "chats": "Freunde"
       },
       "dateYesterday": "Gestern",
+      "hide": "Ausblenden",
+      "unhide": "Einblenden",
       "sections": {
         "friendRequests": "Freundschaftsanfragen",
         "createdByYou": "Von dir Erstellt",
@@ -632,7 +634,8 @@
         "requestAccepted": "{{name}} wurde angenommen!",
         "requestAcceptError": "Fehler beim Annehmen",
         "requestDeclined": "{{name}} wurde abgelehnt",
-        "requestDeclineError": "Fehler beim Ablehnen"
+        "requestDeclineError": "Fehler beim Ablehnen",
+        "archiveError": "Chat konnte nicht ausgeblendet werden"
       },
       "requestsModal": {
         "loading": "Lade…",
