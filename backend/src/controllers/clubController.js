@@ -1053,7 +1053,10 @@ export const getDiscoverEvents = async (req, res) => {
     if (cached) return res.json(cached);
 
     const result = await db.query(
-      `SELECT e.id, e.name, e.date, e.time, e.location,
+      // NB: groups has NO `time` column — date+time live in `date` (TIMESTAMP).
+      // Selecting e.time threw "column does not exist" → 500 → the Events page
+      // silently showed "Noch keine Events" even when events existed. Fixed.
+      `SELECT e.id, e.name, e.date, e.location,
               e.category, e.max_members, e.is_recurring_weekly, e.image_url,
               c.id AS club_id, c.name AS club_name, c.image_url AS club_image, c.is_private
        FROM groups e
