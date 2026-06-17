@@ -5,7 +5,7 @@
 .ge-page {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  min-height: 100%; /* fills .app-viewport; scrolls there, nav sits below */
   background: var(--bg-primary);
   overflow-x: hidden;
 }
@@ -227,6 +227,47 @@
   color: var(--accent-coral);
   font-weight: 500;
   margin: 2px 0 0;
+}
+
+/* Co-manager badge — distinct from the coral "Gründer" role label. */
+.ge-member-role--manager {
+  display: inline-block;
+  color: #4ade80;
+  background: rgba(34,197,94,0.14);
+  border: 1px solid rgba(34,197,94,0.3);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-weight: 700;
+}
+
+/* Right-side actions cluster (promote/demote manager + remove). */
+.ge-member-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ge-role-btn {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text-light);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 7px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.15s, transform 0.1s;
+}
+.ge-role-btn:active { transform: scale(0.95); }
+.ge-role-btn--promote {
+  background: rgba(34,197,94,0.14);
+  border-color: rgba(34,197,94,0.3);
+  color: #4ade80;
 }
 
 .ge-remove-btn {

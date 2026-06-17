@@ -4,13 +4,12 @@
 
 /* ── Container / layout ──────────────────────────────────────── */
 .explore-container {
-  height: 100vh; /* fallback */
-  height: 100dvh;
+  height: 100%; /* fills .app-viewport; nav is a flex sibling below */
   /* Clearance for the fixed bottom nav: 48px flush strip + 11px "+"-button
      protrusion + breathing room. NO env(safe-area-inset-bottom) here — the
      nav deliberately ignores it (see .bottom-nav); adding it double-counts
      ~34px and showed as a dead band clipping the feed above the nav. */
-  padding-bottom: 68px;
+  padding-bottom: 16px;
   box-sizing: border-box;
   background: var(--bg-primary);
   display: flex;

@@ -758,6 +758,15 @@ const runStartupMigrations = async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_deals_visible_until ON deals(visible_until) WHERE is_active = TRUE`);
   });
 
+  // Global redemption cap: once this many distinct users have redeemed a deal it
+  // auto-goes-offline (dropped from the public feed + no further redemptions) —
+  // Robert (2026-06-17): "nach 100 Leuten nehmen wir den deal offline". DEFAULT 100
+  // applies the rule to all deals (incl. existing rows); admins can raise it or set
+  // NULL for unlimited per deal. Per-user cap (1) is separate, see dealController.
+  await migrate('deals.max_redemptions', async () => {
+    await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS max_redemptions INTEGER DEFAULT 100`);
+  });
+
   // ── Subscriptions table (Stripe Pro) ─────────────────────────────────────────
   await migrate('subscriptions', () => db.query(`
     CREATE TABLE IF NOT EXISTS subscriptions (

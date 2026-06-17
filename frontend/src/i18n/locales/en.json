@@ -51,6 +51,7 @@
     },
     "register": {
       "stepLabel": "Step {{current}} of {{total}}",
+      "guestBlocked": "Create a free account to found clubs, create events and upload photos.",
       "step1": {
         "title": "What's your name?",
         "hint": "This is how you'll appear in the app",
@@ -1413,6 +1414,12 @@
     },
     "membersTitle": "Members",
     "memberRole": "Founder",
+    "managerBadge": "Manager",
+    "makeManager": "Make manager",
+    "removeManager": "Remove manager",
+    "managerAdded": "Manager added",
+    "managerRemoved": "Manager removed",
+    "managerError": "Action failed",
     "inviteTitle": "Invite friends",
     "noFriends": "No friends available to invite",
     "inviteBtn": "Invite"
@@ -1521,6 +1528,7 @@
       "untilFmt": "Visible until {{date}}",
       "expiredFmt": "Expired on {{date}}",
       "inactiveLabel": "Inactive",
+      "capReachedLabel": "Limit reached – offline",
       "redemptionsCount_one": "{{count}} redeemed",
       "redemptionsCount_other": "{{count}} redeemed",
       "redemptionsTooltip": "How many users have redeemed this deal.",
@@ -1536,6 +1544,8 @@
         "descriptionHint": "User sees this only after tapping the card",
         "visibleUntil": "Visible until",
         "visibleUntilHint": "Auto-hidden after this date (empty = no expiry)",
+        "maxRedemptions": "Max redemptions",
+        "maxRedemptionsHint": "Deal auto-goes-offline once this many people have redeemed it (empty = unlimited)",
         "photo": "Company photo",
         "photoPick": "Pick photo",
         "photoUploading": "Uploading…",

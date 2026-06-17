@@ -37,6 +37,15 @@ export const Register = () => {
   const [referralCode, setReferralCode]       = useState('');
   const [consentGiven, setConsentGiven]       = useState(false);
   const [error, setError]                     = useState('');
+  // Set by the API layer when a guest is bounced here from an account-only
+  // action (create club, upload, …). One-shot: read then clear.
+  const [guestBlocked, setGuestBlocked]       = useState(false);
+  useEffect(() => {
+    if (sessionStorage.getItem('jamie_guest_blocked')) {
+      setGuestBlocked(true);
+      sessionStorage.removeItem('jamie_guest_blocked');
+    }
+  }, []);
 
   const { register, loading } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -213,6 +222,23 @@ export const Register = () => {
         </div>
         <p className="reg-step-label">{t('auth.register.stepLabel', { current: step, total: TOTAL_STEPS })}</p>
       </div>
+
+      {guestBlocked && (
+        <div style={{
+          margin: '0 20px 12px',
+          padding: '12px 16px',
+          background: 'rgba(253,118,102,0.12)',
+          border: '1px solid rgba(253,118,102,0.35)',
+          borderRadius: 14,
+          color: '#FD7666',
+          fontSize: 13.5,
+          fontWeight: 600,
+          lineHeight: 1.45,
+          textAlign: 'center',
+        }}>
+          {t('auth.register.guestBlocked')}
+        </div>
+      )}
 
       {/* Middle — step content */}
       <div className="auth-mid">

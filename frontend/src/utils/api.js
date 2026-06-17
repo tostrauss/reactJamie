@@ -74,6 +74,25 @@ axiosInstance.interceptors.response.use(
     // before the user could see it.
     const reqUrl = error.config?.url || '';
     const isAuthAttempt = /\/auth\/(login|register|google|refresh|apple)/.test(reqUrl);
+
+    // Guest dead-end rescue: a guest who taps an account-only WRITE action
+    // (create club, upload photo, create event, join…) gets a 401 "Guest access
+    // is disabled" from the backend. Left alone the calling screen shows that
+    // raw English error and the user is stuck (a club partner hit exactly this).
+    // Bounce them to registration with a flag the auth screen surfaces, so the
+    // dead-end becomes a clear "create a free account to continue" path. Scoped
+    // to write methods so background GETs never yank a browsing guest away.
+    const reqMethod = (error.config?.method || '').toLowerCase();
+    const isWriteMethod = !SAFE_METHODS.has(reqMethod);
+    if (!isAuthAttempt && isWriteMethod && error.response?.status === 401 && _memToken === 'guest_token') {
+      try { sessionStorage.setItem('jamie_guest_blocked', '1'); } catch { /* private mode */ }
+      const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
+      if (!publicPaths.some(p => window.location.pathname === p || window.location.pathname.startsWith(p + '/'))) {
+        window.location.href = '/register';
+      }
+      return Promise.reject(error);
+    }
+
     if (!isAuthAttempt && error.response?.status === 401 && _memToken !== 'guest_token') {
       clearMemToken();
       const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
@@ -358,6 +377,12 @@ export const clubs = {
   // Kick/remove member (owner only)
   kickMember: (clubId, userId) =>
     axiosInstance.delete(`/clubs/${clubId}/members/${userId}`),
+
+  // Co-managers (owner only) — promote a member to / demote from shared management
+  addManager: (clubId, userId) =>
+    axiosInstance.post(`/clubs/${clubId}/managers`, { userId }),
+  removeManager: (clubId, userId) =>
+    axiosInstance.delete(`/clubs/${clubId}/managers/${userId}`),
 
   // Get member avatars for card display
   getMemberAvatars: (id, limit = 4) =>

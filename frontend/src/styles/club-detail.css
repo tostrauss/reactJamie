@@ -5,12 +5,12 @@
    ======================================== */
 
 .cd-page {
-  min-height: 100vh;
+  min-height: 100%; /* fills .app-viewport; scrolls there, nav sits below */
   background: var(--bg-primary);
   color: var(--text-light);
   /* Nav clearance: flush 48px strip + 11px "+" protrusion + gap — no
      safe-area here, the nav ignores it (see .bottom-nav). */
-  padding-bottom: 68px;
+  padding-bottom: 16px;
 }
 
 .cd-loading {

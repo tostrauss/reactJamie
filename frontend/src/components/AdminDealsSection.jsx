@@ -21,6 +21,7 @@ const emptyForm = () => ({
   description: '',
   visible_until: '', // YYYY-MM-DD in the input
   photo_url: '',
+  max_redemptions: '100', // global cap; empty = unlimited (auto-offline at cap)
 });
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -125,6 +126,7 @@ export const AdminDealsSection = () => {
       description: deal.description || '',
       visible_until: deal.visible_until ? deal.visible_until.slice(0, 10) : '',
       photo_url: Array.isArray(deal.photos) && deal.photos.length > 0 ? deal.photos[0] : '',
+      max_redemptions: deal.max_redemptions == null ? '' : String(deal.max_redemptions),
     });
     setShowForm(true);
   };
@@ -148,6 +150,8 @@ export const AdminDealsSection = () => {
         description: form.description.trim() || null,
         photos: form.photo_url ? [form.photo_url] : [],
         visible_until: form.visible_until || null,
+        // Empty input = unlimited (null); otherwise the global redemption cap.
+        max_redemptions: form.max_redemptions.trim() === '' ? null : form.max_redemptions.trim(),
       };
       if (form.id) {
         await dealsApi.update(form.id, payload);
@@ -274,6 +278,22 @@ export const AdminDealsSection = () => {
             </p>
           </div>
 
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>{t('admin.deals.fields.maxRedemptions')}</label>
+            <input
+              type="number"
+              min={1}
+              inputMode="numeric"
+              placeholder="100"
+              value={form.max_redemptions}
+              onChange={e => setForm(p => ({ ...p, max_redemptions: e.target.value }))}
+              style={inputStyle}
+            />
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4 }}>
+              {t('admin.deals.fields.maxRedemptionsHint')}
+            </p>
+          </div>
+
           <div style={{ marginBottom: 16 }}>
             <label style={labelStyle}>{t('admin.deals.fields.photo')}</label>
             {form.photo_url ? (
@@ -335,8 +355,10 @@ export const AdminDealsSection = () => {
           const expiry = deal.visible_until ? new Date(deal.visible_until).toLocaleDateString('de-DE') : null;
           const isExpired = deal.visible_until && new Date(deal.visible_until) < new Date();
           const isInactive = deal.is_active === false;
-          const dimmed = isExpired || isInactive;
           const redemptions = deal.redemption_count ?? 0;
+          const cap = deal.max_redemptions ?? null; // null = unlimited
+          const capReached = cap != null && redemptions >= cap;
+          const dimmed = isExpired || isInactive || capReached;
           return (
             <div key={deal.id} style={{ ...cardStyle, opacity: dimmed ? 0.55 : 1, flexWrap: 'wrap' }}>
               <div style={{ width: 56, height: 56, borderRadius: 10, overflow: 'hidden', background: '#1a1a2e', flexShrink: 0 }}>
@@ -362,7 +384,7 @@ export const AdminDealsSection = () => {
                       border: redemptions > 0 ? '1px solid rgba(253,118,102,0.3)' : '1px solid rgba(255,255,255,0.08)',
                     }}
                   >
-                    🎟 {t('admin.deals.redemptionsCount', { count: redemptions })}
+                    🎟 {cap != null ? `${redemptions} / ${cap}` : t('admin.deals.redemptionsCount', { count: redemptions })}
                   </span>
                 </div>
                 <div style={{ color: '#FD7666', fontSize: 12, fontWeight: 600 }}>
@@ -377,6 +399,11 @@ export const AdminDealsSection = () => {
                   {isInactive && (
                     <div style={{ color: '#ff7a7a', fontSize: 11, fontWeight: 600 }}>
                       {t('admin.deals.inactiveLabel')}
+                    </div>
+                  )}
+                  {capReached && (
+                    <div style={{ color: '#ff7a7a', fontSize: 11, fontWeight: 600 }}>
+                      {t('admin.deals.capReachedLabel')}
                     </div>
                   )}
                 </div>

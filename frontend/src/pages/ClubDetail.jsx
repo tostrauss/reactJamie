@@ -302,10 +302,13 @@ export const ClubDetail = () => {
   if (!club) return <div className="cd-loading">{t('clubDetail.notFound')}</div>;
 
   const isOwner = user && club.owner_id === user.id;
+  // Co-manager (paid managed clubs): owner OR a member promoted to role='admin'.
+  // Managers get the manage gear + can edit/create events like the owner.
+  const canManage = isOwner || !!club.is_manager;
   const isMember = isJoined;
   // Owner-only setting (from the founder's club settings) restricts event
-  // creation to the owner. Members can still see the events list.
-  const canCreateEvent = user && isMember && (!club.events_owner_only || isOwner);
+  // creation to the owner — but a co-manager may always create events.
+  const canCreateEvent = user && isMember && (!club.events_owner_only || canManage);
   const membersCount = club.members_count || members.length || 0;
   const visibleMembers = members.slice(0, 20);
   const overflowMembers = Math.max(0, membersCount - visibleMembers.length);
@@ -322,9 +325,9 @@ export const ClubDetail = () => {
             </svg>
           </button>
           <h1 className="cd-top-title">{club.name || club.title}</h1>
-          {/* Manage (gear) — owner only, opens club verwalten. Share moved into
-              the body so every visitor still has it (Robert 2026-06-16). */}
-          {isOwner && (
+          {/* Manage (gear) — owner OR co-manager, opens club verwalten. Share
+              moved into the body so every visitor still has it (Robert 2026-06-16). */}
+          {canManage && (
             <button
               className="cd-fav-btn"
               onClick={() => navigate(`/club/${id}/edit`)}

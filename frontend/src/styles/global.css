@@ -401,10 +401,26 @@ select:focus-visible {
 }
 
 #root {
-  min-height: 100vh;
-  min-height: 100dvh; /* iOS Safari: excludes browser chrome from viewport height */
+  /* App shell: bound to the visible viewport (dvh) so the bottom nav — a flex
+     child below — lands on the TRUE physical bottom. Was min-height:100dvh with
+     a position:fixed nav, which floated ~60pt up in the iOS standalone PWA
+     (the fixed bottom anchored above the home indicator). Layout-positioning
+     the nav inside a dvh-bounded flex column sidesteps that quirk entirely. */
+  height: 100vh; /* fallback */
+  height: 100dvh;
   display: flex;
   flex-direction: column;
+  overflow: hidden; /* the .app-viewport child scrolls, never #root itself */
+}
+
+/* The single scroll region for routed pages. Fixed-height pages (height:100%)
+   fill it exactly and scroll internally; document-flow pages scroll here. */
+.app-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 /* Typography */
@@ -493,21 +509,16 @@ select:focus {
    Bottom Navigation
    ======================================== */
 .bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  /* Flex child at the bottom of the #root shell (no longer position:fixed —
+     that floated ~60pt above the home indicator in the iOS standalone PWA).
+     Sitting in normal flow at the end of a dvh-bounded flex column pins it to
+     the true screen bottom. Still NO safe-area padding: the team wants the
+     icons as low as possible (home indicator may overlap the strip's bottom —
+     accepted trade-off, Tobi/Tina). */
+  flex-shrink: 0;
   background: var(--bg-secondary);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 1000;
-  /* Deliberately NO safe-area padding: the team wants the nav flush with the
-     bottom edge — icons as low as possible, no band beneath them. The iOS
-     home indicator may overlap the strip's bottom edge; accepted trade-off
-     (Tobi/Tina). Do not "fix" this by adding env(safe-area-inset-bottom)
-     here — that floats the icons ~46pt up and reads as dead space (tried
-     2026-06-11, reverted same day). The separate "dead band below the bar"
-     bug is a shifted iOS visual viewport after keyboard close, handled by
-     useViewportRestore() in App.jsx — not a CSS issue. */
   padding-bottom: 0;
 }
 
@@ -835,7 +846,7 @@ select:focus {
   padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
   /* Nav clearance: flush 48px strip + 11px "+" protrusion + gap — no
      safe-area here, the nav ignores it (see .bottom-nav). */
-  padding-bottom: 68px;
+  padding-bottom: 16px;
   max-width: 600px;
   margin: 0 auto;
   width: 100%;

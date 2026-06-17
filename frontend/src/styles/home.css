@@ -3,8 +3,7 @@
    ======================================== */
 
 .home-container {
-  min-height: 100vh; /* fallback */
-  min-height: 100dvh;
+  min-height: 100%; /* fills .app-viewport; scrolls there, nav sits below */
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
@@ -12,8 +11,7 @@
 
 /* Map tab: locked height so the map fills exactly the remaining space */
 .home-container--map {
-  height: 100vh; /* fallback */
-  height: 100dvh;
+  height: 100%; /* fills .app-viewport */
   overflow: hidden;
 }
 
@@ -33,7 +31,7 @@
 .home-content {
   /* Nav clearance: flush 48px strip + 11px "+" protrusion + gap — no
      safe-area here, the nav ignores it (see .bottom-nav). */
-  padding-bottom: 68px;
+  padding-bottom: 16px;
 }
 
 /* Map tab: fill remaining flex space, no scroll, no padding */
@@ -1486,7 +1484,7 @@
   background: var(--bg-primary);
   color: white;
   /* Nav clearance — flat, see .bottom-nav (no safe-area by design). */
-  padding-bottom: 68px;
+  padding-bottom: 16px;
 }
 
 .edit-header {

@@ -3,8 +3,7 @@
    ============================================ */
 
 .up-page {
-  height: 100vh; /* fallback */
-  height: 100dvh;
+  height: 100%; /* fills .app-viewport; nav is a flex sibling below */
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;

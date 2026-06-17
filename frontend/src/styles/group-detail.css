@@ -3,8 +3,7 @@
    ======================================== */
 
 .gd-page {
-  height: 100vh;
-  height: 100dvh;
+  height: 100%; /* fills .app-viewport; nav is a flex sibling below */
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
@@ -86,7 +85,7 @@
   overscroll-behavior-y: contain;
   /* Nav clearance: flush 48px strip + 11px "+" protrusion + gap — no
      safe-area here, the nav ignores it (see .bottom-nav). */
-  padding-bottom: 68px;
+  padding-bottom: 16px;
 }
 
 /* ── Photo grid ── */

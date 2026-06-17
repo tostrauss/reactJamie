@@ -12,6 +12,24 @@ const DISCOVER_EVENTS_TTL = 60_000; // 60 s — discover feed needn't be real-ti
 // Helper to ensure we always target clubs
 const CLUB_TYPE = 'club';
 
+// Shared club management access. A club has ONE owner (groups.owner_id) plus any
+// number of co-managers — members with group_members.role = 'admin'. This powers
+// the paid "managed club" cooperation: JAMIE staff and the partner co-manage the
+// same club (edit profile, create/delete events, handle join requests, remove
+// regular members). DESTRUCTIVE / ownership actions (delete or cancel the club,
+// assign/revoke managers) stay owner-only — see those handlers.
+//
+// Owner is checked first so the common case costs no extra query; the membership
+// lookup only runs for non-owners.
+const userManagesClub = async (clubId, ownerId, userId) => {
+  if (ownerId != null && Number(ownerId) === Number(userId)) return true;
+  const r = await db.query(
+    "SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2 AND role = 'admin' LIMIT 1",
+    [clubId, userId]
+  );
+  return r.rows.length > 0;
+};
+
 // ==========================================
 // CREATE CLUB
 // ==========================================
@@ -246,7 +264,7 @@ export const getClubById = async (req, res) => {
 
     if (req.userId) {
       const [memberCheck, favCheck, requestCheck, waitlistCheck] = await Promise.all([
-        db.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
+        db.query('SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
         db.query('SELECT 1 FROM group_favorites WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
         db.query(
           `SELECT status FROM group_join_requests WHERE group_id = $1 AND user_id = $2 ORDER BY updated_at DESC LIMIT 1`,
@@ -258,6 +276,11 @@ export const getClubById = async (req, res) => {
         ),
       ]);
       club.is_member = memberCheck.rows.length > 0;
+      // Co-manager flag: owner OR a member promoted to role='admin'. The client
+      // uses this to show the manage gear + edit access to managers, not just
+      // the owner. (owner_id comes from the SELECT g.* above.)
+      club.my_role = memberCheck.rows[0]?.role || null;
+      club.is_manager = Number(club.owner_id) === Number(req.userId) || memberCheck.rows[0]?.role === 'admin';
       club.is_favorite = favCheck.rows.length > 0;
       club.join_request_status = requestCheck.rows[0]?.status || null;
       club.waitlist_status = waitlistCheck.rows[0]?.status || null;
@@ -307,10 +330,9 @@ export const updateClub = async (req, res) => {
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    // Cast both sides to Number — req.userId from JWT may come back as string
-    // depending on how the token was signed; strict !== would lock the owner
-    // out of their own club.
-    if (Number(club.rows[0].owner_id) !== Number(req.userId)) {
+    // Owner OR co-manager (role='admin') may edit the club profile. userManagesClub
+    // casts to Number internally (req.userId from JWT may be a string).
+    if (!(await userManagesClub(id, club.rows[0].owner_id, req.userId))) {
       return res.status(403).json({ error: 'Keine Berechtigung' });
     }
 
@@ -654,6 +676,7 @@ export const getUserClubs = async (req, res) => {
        JOIN groups g ON gm.group_id = g.id
        LEFT JOIN users u ON g.owner_id = u.id
        WHERE gm.user_id = $1 AND g.type = $2
+         AND g.deleted_at IS NULL
        ORDER BY gm.joined_at DESC`,
       [req.userId, CLUB_TYPE]
     );
@@ -676,7 +699,7 @@ export const getClubJoinRequests = async (req, res) => {
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    if (Number(club.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (!(await userManagesClub(id, club.rows[0].owner_id, req.userId))) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     const result = await db.query(
       `SELECT jr.*, u.name as user_name, u.avatar_url as user_avatar, u.bio as user_bio,
@@ -708,7 +731,7 @@ export const handleClubJoinRequest = async (req, res) => {
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    if (Number(club.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (!(await userManagesClub(id, club.rows[0].owner_id, req.userId))) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     const request = await db.query(
       'SELECT * FROM group_join_requests WHERE id = $1 AND group_id = $2',
@@ -789,7 +812,7 @@ export const kickClubMember = async (req, res) => {
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    if (Number(club.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (!(await userManagesClub(id, club.rows[0].owner_id, req.userId))) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     if (parseInt(userId, 10) === req.userId) {
       return res.status(400).json({
@@ -797,8 +820,11 @@ export const kickClubMember = async (req, res) => {
       });
     }
 
+    // Only regular members can be kicked — never the owner or a co-manager
+    // (role='admin'). Managers are removed via the dedicated demote endpoint, so
+    // a co-manager can't kick the owner or another manager out from under them.
     const result = await db.query(
-      'DELETE FROM group_members WHERE group_id = $1 AND user_id = $2',
+      "DELETE FROM group_members WHERE group_id = $1 AND user_id = $2 AND role = 'member'",
       [id, userId]
     );
 
@@ -810,6 +836,85 @@ export const kickClubMember = async (req, res) => {
   } catch (err) {
     console.error('Error kicking club member:', err);
     res.status(500).json({ error: 'Mitglied konnte nicht entfernt werden' });
+  }
+};
+
+// ==========================================
+// ADD CO-MANAGER (owner only) — promote an existing member to role='admin'.
+// Powers the paid "managed club" cooperation: the owner grants a second party
+// (JAMIE staff or the partner) shared management of the club. The target must
+// already be a member, so the flow is: they join → owner promotes them here.
+// ==========================================
+export const addClubManager = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const targetUserId = parseInt(req.body.userId, 10);
+    if (!targetUserId || targetUserId <= 0) {
+      return res.status(400).json({ error: 'Ungültige Nutzer-ID' });
+    }
+
+    const club = await db.query(
+      'SELECT owner_id FROM groups WHERE id = $1 AND type = $2 AND deleted_at IS NULL',
+      [id, CLUB_TYPE]
+    );
+    if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
+    // Only the OWNER assigns/revokes managers — co-managers cannot mint more.
+    if (Number(club.rows[0].owner_id) !== Number(req.userId)) {
+      return res.status(403).json({ error: 'Nur der Eigentümer kann Manager verwalten' });
+    }
+    if (targetUserId === Number(club.rows[0].owner_id)) {
+      return res.status(400).json({ error: 'Der Eigentümer ist bereits Manager' });
+    }
+
+    // Promote member → admin. The role filter makes this idempotent-safe and
+    // ensures the target is genuinely a normal member (not already a manager).
+    const upd = await db.query(
+      "UPDATE group_members SET role = 'admin' WHERE group_id = $1 AND user_id = $2 AND role = 'member' RETURNING user_id",
+      [id, targetUserId]
+    );
+    if (upd.rows.length === 0) {
+      return res.status(404).json({ error: 'Nutzer ist kein normales Mitglied dieses Clubs' });
+    }
+
+    invalidatePrefix('clubs:');
+    res.json({ message: 'Manager hinzugefügt', userId: targetUserId });
+  } catch (err) {
+    console.error('Error adding club manager:', err);
+    res.status(500).json({ error: 'Manager konnte nicht hinzugefügt werden' });
+  }
+};
+
+// ==========================================
+// REMOVE CO-MANAGER (owner only) — demote role='admin' back to 'member'.
+// Keeps their club membership; only revokes management rights.
+// ==========================================
+export const removeClubManager = async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    const targetUserId = parseInt(userId, 10);
+
+    const club = await db.query(
+      'SELECT owner_id FROM groups WHERE id = $1 AND type = $2 AND deleted_at IS NULL',
+      [id, CLUB_TYPE]
+    );
+    if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
+    if (Number(club.rows[0].owner_id) !== Number(req.userId)) {
+      return res.status(403).json({ error: 'Nur der Eigentümer kann Manager verwalten' });
+    }
+
+    const upd = await db.query(
+      "UPDATE group_members SET role = 'member' WHERE group_id = $1 AND user_id = $2 AND role = 'admin' RETURNING user_id",
+      [id, targetUserId]
+    );
+    if (upd.rows.length === 0) {
+      return res.status(404).json({ error: 'Nutzer ist kein Manager dieses Clubs' });
+    }
+
+    invalidatePrefix('clubs:');
+    res.json({ message: 'Manager entfernt', userId: targetUserId });
+  } catch (err) {
+    console.error('Error removing club manager:', err);
+    res.status(500).json({ error: 'Manager konnte nicht entfernt werden' });
   }
 };
 
@@ -938,28 +1043,68 @@ export const getDiscoverEvents = async (req, res) => {
     // real-time; createClubEvent/deleteClubEvent bust the cache so new/removed
     // events still appear instantly. This turns the Events page into an instant
     // load for everyone after the first request each minute.
-    const cached = getCached(DISCOVER_EVENTS_KEY);
-    if (cached) return res.json(cached);
-
-    const result = await db.query(
-      `SELECT e.id, e.name, e.date, e.time, e.location,
+    // Date filter compares by DAY, not NOW(): a date-only event ("today") is
+    // stored at 00:00, so `>= NOW()` wrongly dropped events happening later the
+    // same day. `>= CURRENT_DATE` keeps today's events visible until midnight.
+    const SELECT_COLS = `e.id, e.name, e.date, e.time, e.location,
               e.category, e.max_members, e.is_recurring_weekly, e.image_url,
-              c.id AS club_id, c.name AS club_name, c.image_url AS club_image
-       FROM groups e
-       JOIN groups c ON e.parent_club_id = c.id
-       WHERE e.type = 'event'
-         AND e.is_active = TRUE
-         AND e.deleted_at IS NULL
-         AND (e.date IS NULL OR e.date >= NOW())
-         AND c.type = $1
-         AND c.is_private = FALSE
-         AND c.deleted_at IS NULL
-       ORDER BY e.date ASC NULLS LAST
-       LIMIT 60`,
-      [CLUB_TYPE]
-    );
-    setCached(DISCOVER_EVENTS_KEY, result.rows, DISCOVER_EVENTS_TTL);
-    res.json(result.rows);
+              c.id AS club_id, c.name AS club_name, c.image_url AS club_image`;
+
+    // Public feed — identical for everyone, so it's cached.
+    let publicEvents = getCached(DISCOVER_EVENTS_KEY);
+    if (!publicEvents) {
+      const result = await db.query(
+        `SELECT ${SELECT_COLS}
+         FROM groups e
+         JOIN groups c ON e.parent_club_id = c.id
+         WHERE e.type = 'event'
+           AND e.is_active = TRUE
+           AND e.deleted_at IS NULL
+           AND (e.date IS NULL OR e.date >= CURRENT_DATE)
+           AND c.type = $1
+           AND c.is_private = FALSE
+           AND c.deleted_at IS NULL
+         ORDER BY e.date ASC NULLS LAST
+         LIMIT 60`,
+        [CLUB_TYPE]
+      );
+      publicEvents = result.rows;
+      setCached(DISCOVER_EVENTS_KEY, publicEvents, DISCOVER_EVENTS_TTL);
+    }
+
+    // Personalize: also surface events from clubs the viewer belongs to — even
+    // PRIVATE ones, since seeing your own club's agenda is no leak. Without this,
+    // a member who creates an event in their (private) club never sees it on the
+    // "Events für dich" page and thinks it failed. Per-user, so not cached;
+    // merged + deduped against the public feed.
+    if (req.userId) {
+      const mine = await db.query(
+        `SELECT ${SELECT_COLS}
+         FROM groups e
+         JOIN groups c ON e.parent_club_id = c.id
+         JOIN group_members gm ON gm.group_id = c.id AND gm.user_id = $2
+         WHERE e.type = 'event'
+           AND e.is_active = TRUE
+           AND e.deleted_at IS NULL
+           AND (e.date IS NULL OR e.date >= CURRENT_DATE)
+           AND c.type = $1
+           AND c.deleted_at IS NULL
+         ORDER BY e.date ASC NULLS LAST
+         LIMIT 60`,
+        [CLUB_TYPE, req.userId]
+      );
+      const seen = new Set(publicEvents.map(e => e.id));
+      const merged = [...publicEvents, ...mine.rows.filter(e => !seen.has(e.id))];
+      // Re-sort the merged list by date (NULLs last) so own + public interleave.
+      merged.sort((a, b) => {
+        if (a.date == null) return b.date == null ? 0 : 1;
+        if (b.date == null) return -1;
+        return new Date(a.date) - new Date(b.date);
+      });
+      return res.json(merged);
+    }
+
+    res.json(publicEvents);
   } catch (err) {
     console.error('Error fetching discover events:', err);
     res.status(500).json({ error: 'Veranstaltungen konnten nicht geladen werden' });
@@ -994,9 +1139,12 @@ export const createClubEvent = async (req, res) => {
     }
 
     // Owner-only gate: when the club founder restricted event creation, only
-    // the founder (owner) may add events. Members can still see them.
-    if (club.rows[0].events_owner_only && club.rows[0].owner_id !== userId) {
-      return res.status(403).json({ error: 'Nur der Club-Gründer darf Events erstellen' });
+    // the founder (owner) OR a co-manager (role='admin') may add events — regular
+    // members still just see them. Reuses the role already fetched above.
+    const canManageEvents =
+      Number(club.rows[0].owner_id) === Number(userId) || membership.rows[0]?.role === 'admin';
+    if (club.rows[0].events_owner_only && !canManageEvents) {
+      return res.status(403).json({ error: 'Nur Gründer oder Manager dürfen Events erstellen' });
     }
 
     const { safe, reason } = await checkTextSafety([name, description].filter(Boolean).join('\n'));
@@ -1059,10 +1207,11 @@ export const deleteClubEvent = async (req, res) => {
     if (event.rows.length === 0) return res.status(404).json({ error: 'Veranstaltung nicht gefunden' });
 
     const club = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
-    const isClubOwner = Number(club.rows[0]?.owner_id) === Number(req.userId);
     const isEventOwner = Number(event.rows[0].owner_id) === Number(req.userId);
+    // Club owner / co-manager (role='admin'), or the member who created the event.
+    const canManage = await userManagesClub(id, club.rows[0]?.owner_id, req.userId);
 
-    if (!isClubOwner && !isEventOwner) {
+    if (!canManage && !isEventOwner) {
       return res.status(403).json({ error: 'Keine Berechtigung' });
     }
 

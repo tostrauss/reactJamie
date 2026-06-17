@@ -14,6 +14,8 @@ import {
   updateClub,
   deleteClub,
   kickClubMember,
+  addClubManager,
+  removeClubManager,
   cancelClub,
   getCategories,
   getClubEvents,
@@ -89,6 +91,12 @@ router.get('/:id/members/avatars', optionalAuth, getGroupMemberAvatars);
 router.get('/:id/events', optionalAuth, getClubEvents);
 router.post('/:id/events', authenticate, requireCompleteProfile, createClubEvent);
 router.delete('/:id/events/:eventId', authenticate, deleteClubEvent);
+
+// ==========================================
+// CO-MANAGER ROUTES (owner only) — shared management for paid managed clubs
+// ==========================================
+router.post('/:id/managers', authenticate, addClubManager);
+router.delete('/:id/managers/:userId', authenticate, removeClubManager);
 
 // ==========================================
 // ADMIN ACTIONS (owner only)

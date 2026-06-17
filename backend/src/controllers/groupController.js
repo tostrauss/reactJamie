@@ -388,7 +388,7 @@ export const getGroupById = async (req, res) => {
     // Check if current user is member/favorite/pending (if authenticated)
     if (req.userId) {
       const [memberCheck, favCheck, requestCheck, waitlistCheck] = await Promise.all([
-        db.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
+        db.query('SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
         db.query('SELECT 1 FROM group_favorites WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
         db.query(
           `SELECT status FROM group_join_requests WHERE group_id = $1 AND user_id = $2 ORDER BY updated_at DESC LIMIT 1`,
@@ -400,6 +400,10 @@ export const getGroupById = async (req, res) => {
         ),
       ]);
       group.is_member = memberCheck.rows.length > 0;
+      // Co-manager (clubs): owner OR a member promoted to role='admin'. Lets the
+      // edit page + manage UI grant access to managers, not just the owner.
+      group.my_role = memberCheck.rows[0]?.role || null;
+      group.is_manager = Number(group.owner_id) === Number(req.userId) || memberCheck.rows[0]?.role === 'admin';
       group.is_favorite = favCheck.rows.length > 0;
       group.join_request_status = requestCheck.rows[0]?.status || null;
       group.waitlist_status = waitlistCheck.rows[0]?.status || null;

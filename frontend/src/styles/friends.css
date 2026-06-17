@@ -3,8 +3,9 @@
    ================================================================ */
 
 .fr-page {
-  height: 100vh; /* fallback */
-  height: 100dvh;
+  /* Fills the .app-viewport scroll region (not the viewport directly) so the
+     bottom nav — now a flex sibling — keeps its own space below this page. */
+  height: 100%;
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
@@ -166,7 +167,7 @@
   overscroll-behavior-y: contain;
   /* Nav clearance: flush 48px strip + 11px "+" protrusion + gap — no
      safe-area here, the nav ignores it (see .bottom-nav). */
-  padding-bottom: 68px;
+  padding-bottom: 16px;
 }
 
 .fr-loading {

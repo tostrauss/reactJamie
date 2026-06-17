@@ -10,9 +10,20 @@ const makeStore = (prefix) =>
     ? new RedisStore({ prefix, sendCommand: (...args) => redisClient.call(...args) })
     : undefined; // undefined = in-memory store (single instance only)
 
-// If Redis goes down mid-flight the store throws — degrade gracefully by
-// passing the request through instead of returning 500.
+// If Redis goes down mid-flight the store throws. Two postures:
+//
+//  SHARED (fail-OPEN): pass the request through on store error. Used for
+//  availability-first limiters (general API, chat, uploads) where a brief
+//  Redis hiccup blocking traffic is worse than the limit not applying.
 const SHARED = { passOnStoreError: true };
+//
+//  SHARED_STRICT (fail-CLOSED): on store error, let the error propagate so the
+//  request is REJECTED (500) rather than waved through. Used for the
+//  credential-attack surfaces (login, password reset, account deletion): a
+//  Redis outage must never silently disable brute-force protection. Rejecting
+//  auth during a (rare, short) Redis outage is the safer trade-off than handing
+//  an attacker an unlimited-attempts window.
+const SHARED_STRICT = { passOnStoreError: false };
 
 // General API rate limit: 2000 req/15min per IP. Bumped from 500 for launch
 // scenarios where 100s of users share one NAT (event WiFi, mobile carrier
@@ -32,7 +43,7 @@ export const generalLimiter = rateLimit({
 // OTP, which alone burns 2 calls per user. 100 is still well below the
 // 6+ attempts/sec a botnet would need to be effective.
 export const authLimiter = rateLimit({
-  ...SHARED,
+  ...SHARED_STRICT, // fail-closed: never let a Redis error unlock login brute-force
   windowMs: 15 * 60 * 1000,
   max: disabled ? 10000 : 100,
   standardHeaders: true,
@@ -43,7 +54,7 @@ export const authLimiter = rateLimit({
 
 // Strict rate limit: 5 attempts/hour (password reset, account deletion, etc.)
 export const strictLimiter = rateLimit({
-  ...SHARED,
+  ...SHARED_STRICT, // fail-closed: password reset / account deletion must stay capped even if Redis errors
   windowMs: 60 * 60 * 1000,
   max: disabled ? 10000 : 5,
   standardHeaders: true,

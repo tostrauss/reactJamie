@@ -51,6 +51,7 @@
     },
     "register": {
       "stepLabel": "Schritt {{current}} von {{total}}",
+      "guestBlocked": "Erstelle ein kostenloses Konto, um Clubs zu gründen, Events zu erstellen und Fotos hochzuladen.",
       "step1": {
         "title": "Wie heißt du?",
         "hint": "So wirst du in der App angezeigt",
@@ -1413,6 +1414,12 @@
     },
     "membersTitle": "Mitglieder",
     "memberRole": "Gründer",
+    "managerBadge": "Manager",
+    "makeManager": "Zum Manager",
+    "removeManager": "Manager entfernen",
+    "managerAdded": "Manager hinzugefügt",
+    "managerRemoved": "Manager entfernt",
+    "managerError": "Aktion fehlgeschlagen",
     "inviteTitle": "Freunde einladen",
     "noFriends": "Keine Freunde zum Einladen verfügbar",
     "inviteBtn": "Einladen"
@@ -1521,6 +1528,7 @@
       "untilFmt": "Sichtbar bis {{date}}",
       "expiredFmt": "Abgelaufen am {{date}}",
       "inactiveLabel": "Inaktiv",
+      "capReachedLabel": "Limit erreicht – offline",
       "redemptionsCount_one": "{{count}} eingelöst",
       "redemptionsCount_other": "{{count}} eingelöst",
       "redemptionsTooltip": "So oft wurde dieser Deal von Nutzern eingelöst.",
@@ -1536,6 +1544,8 @@
         "descriptionHint": "Sieht der User erst nach dem Klick auf die Karte",
         "visibleUntil": "Sichtbar bis",
         "visibleUntilHint": "Nach diesem Datum wird die Kooperation automatisch ausgeblendet (leer = unbefristet)",
+        "maxRedemptions": "Max. Einlösungen",
+        "maxRedemptionsHint": "Deal geht automatisch offline, sobald so viele Personen ihn eingelöst haben (leer = unbegrenzt)",
         "photo": "Foto des Unternehmens",
         "photoPick": "Foto auswählen",
         "photoUploading": "Wird hochgeladen…",

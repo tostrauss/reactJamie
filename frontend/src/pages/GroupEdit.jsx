@@ -41,10 +41,12 @@ export const GroupEdit = () => {
         friendsApi.getAll().catch(() => ({ data: [] }))
       ]);
       const g = groupRes.data;
-      // Defense-in-depth: also block non-owners on the frontend so a guest who
-      // pastes a /group/:id/edit URL doesn't see a form they can't actually
-      // save. Backend still rejects the PUT with 403 either way.
-      if (user && g.owner_id && Number(g.owner_id) !== Number(user.id)) {
+      // Defense-in-depth: also block non-managers on the frontend so a guest who
+      // pastes a /group/:id/edit URL doesn't see a form they can't actually save.
+      // Co-managers (clubs, role='admin') ARE allowed — g.is_manager covers both
+      // owner and manager. Backend still enforces it on every write either way.
+      const mayManage = g.is_manager || (user && g.owner_id && Number(g.owner_id) === Number(user.id));
+      if (user && !mayManage) {
         toast.error(t('groupEdit.notOwner'));
         navigate(-1);
         return;
@@ -137,6 +139,32 @@ export const GroupEdit = () => {
     }
   };
 
+  // Co-manager promote/demote (clubs only, owner only). Updates the local role
+  // optimistically so the badge + buttons flip without a refetch.
+  const setMemberRole = (memberId, role) =>
+    setMembers(prev => prev.map(m =>
+      (m.id === memberId || m.user_id === memberId) ? { ...m, role } : m));
+
+  const handlePromoteManager = async (memberId) => {
+    try {
+      await clubs.addManager(id, memberId);
+      setMemberRole(memberId, 'admin');
+      toast.success(t('groupEdit.managerAdded'));
+    } catch (err) {
+      toast.error(err.response?.data?.error || t('groupEdit.managerError'));
+    }
+  };
+
+  const handleDemoteManager = async (memberId) => {
+    try {
+      await clubs.removeManager(id, memberId);
+      setMemberRole(memberId, 'member');
+      toast.success(t('groupEdit.managerRemoved'));
+    } catch (err) {
+      toast.error(err.response?.data?.error || t('groupEdit.managerError'));
+    }
+  };
+
   const handleInviteFriend = async (friendId, friendName) => {
     try {
       await groups.invite(id, friendId);
@@ -177,6 +205,9 @@ export const GroupEdit = () => {
   // fields (chat/event permission toggles) and group-only fields (date,
   // target age) are conditionally rendered on group.type below.
   const isClub = group?.type === 'club';
+  // Only the club OWNER may assign/revoke co-managers (a manager viewing this
+  // page can edit + invite + remove members, but not mint more managers).
+  const viewerIsOwner = !!(group && user && Number(group.owner_id) === Number(user.id));
 
   const groupName = group?.name || group?.title || t('groupEdit.fallbackName');
   const displayDate = formData.date
@@ -233,9 +264,12 @@ export const GroupEdit = () => {
           <div className="ge-card">
             {members.map((member, idx) => {
               const mid = member.user_id || member.id;
-              const isOwner = member.role === 'owner';
-              const canRemove = !isOwner && mid !== user?.id;
+              const isMemberOwner = member.role === 'owner';
+              const isMemberManager = member.role === 'admin';
               const isSelf = mid === user?.id;
+              // Regular members can be removed; the owner/managers are not kicked
+              // (managers are demoted instead — backend also enforces this).
+              const canRemove = member.role === 'member' && !isSelf;
               return (
                 <div key={mid} className={`ge-member-row ${idx < members.length - 1 ? 'ge-row-divider' : ''}`}>
                   <div
@@ -254,16 +288,30 @@ export const GroupEdit = () => {
                     onClick={() => !isSelf && navigate(`/user/${mid}`)}
                   >
                     <p className="ge-member-name"><UserName name={member.name} age={member.age} /></p>
-                    {isOwner && <p className="ge-member-role">{t('groupEdit.memberRole')}</p>}
+                    {isMemberOwner && <p className="ge-member-role">{t('groupEdit.memberRole')}</p>}
+                    {isMemberManager && <p className="ge-member-role ge-member-role--manager">{t('groupEdit.managerBadge')}</p>}
                   </div>
-                  {canRemove && (
-                    <button className="ge-remove-btn" onClick={() => handleRemoveMember(mid)}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                        <path d="M18 6L6 18M6 6l12 12"/>
-                      </svg>
-                      <span>{t('groupEdit.removeBtn')}</span>
-                    </button>
-                  )}
+                  <div className="ge-member-actions">
+                    {/* Manager assignment — clubs only, owner only. */}
+                    {isClub && viewerIsOwner && isMemberManager && (
+                      <button className="ge-role-btn" onClick={() => handleDemoteManager(mid)}>
+                        {t('groupEdit.removeManager')}
+                      </button>
+                    )}
+                    {isClub && viewerIsOwner && member.role === 'member' && (
+                      <button className="ge-role-btn ge-role-btn--promote" onClick={() => handlePromoteManager(mid)}>
+                        {t('groupEdit.makeManager')}
+                      </button>
+                    )}
+                    {canRemove && (
+                      <button className="ge-remove-btn" onClick={() => handleRemoveMember(mid)}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                          <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                        <span>{t('groupEdit.removeBtn')}</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}

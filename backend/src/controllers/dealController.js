@@ -93,6 +93,9 @@ export const getDeals = async (req, res) => {
        FROM deals
        WHERE is_active = TRUE
          AND (visible_until IS NULL OR visible_until > NOW())
+         -- Auto-offline once the global redemption cap is hit (NULL = unlimited).
+         AND (max_redemptions IS NULL
+              OR (SELECT COUNT(*) FROM deal_redemptions dr WHERE dr.deal_id = deals.id) < max_redemptions)
        ORDER BY created_at DESC`
     );
     res.json(result.rows);
@@ -127,9 +130,18 @@ export const getDeal = async (req, res) => {
 // ADMIN — CREATE DEAL
 // ==========================================
 export const createDeal = async (req, res) => {
-  const { name, category, deal_label, description, address, lat, lng, photos, booking_url, visible_until } = req.body;
+  const { name, category, deal_label, description, address, lat, lng, photos, booking_url, visible_until, max_redemptions } = req.body;
   if (!name || !deal_label) {
     return res.status(400).json({ error: 'name and deal_label are required' });
+  }
+  // Global redemption cap. undefined → DB default (100); ''/null → unlimited.
+  let maxRedemptionsParsed = 100;
+  if (max_redemptions === null || max_redemptions === '') {
+    maxRedemptionsParsed = null;
+  } else if (max_redemptions !== undefined) {
+    const n = parseInt(max_redemptions, 10);
+    if (Number.isNaN(n) || n < 1) return res.status(400).json({ error: 'max_redemptions muss eine positive Zahl sein' });
+    maxRedemptionsParsed = n;
   }
   const validationError = validateDealInputs({ lat, lng, booking_url, photos, name, deal_label, description, address });
   if (validationError) return res.status(400).json({ error: validationError });
@@ -142,8 +154,8 @@ export const createDeal = async (req, res) => {
   }
   try {
     const result = await db.query(
-      `INSERT INTO deals (name, category, deal_label, description, address, lat, lng, photos, booking_url, visible_until)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      `INSERT INTO deals (name, category, deal_label, description, address, lat, lng, photos, booking_url, visible_until, max_redemptions)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
       [
         name,
         category || 'Lokal',
@@ -155,6 +167,7 @@ export const createDeal = async (req, res) => {
         JSON.stringify(Array.isArray(photos) ? photos : []),
         booking_url || null,
         visibleUntilParsed,
+        maxRedemptionsParsed,
       ]
     );
     const newDeal = result.rows[0];
@@ -173,7 +186,7 @@ export const createDeal = async (req, res) => {
 // ==========================================
 export const updateDeal = async (req, res) => {
   const { id } = req.params;
-  const { name, category, deal_label, description, address, lat, lng, photos, booking_url, is_active, visible_until } = req.body;
+  const { name, category, deal_label, description, address, lat, lng, photos, booking_url, is_active, visible_until, max_redemptions } = req.body;
   const validationError = validateDealInputs({ lat, lng, booking_url, photos, name, deal_label, description, address });
   if (validationError) return res.status(400).json({ error: validationError });
   let visibleUntilParsed = null;
@@ -199,6 +212,16 @@ export const updateDeal = async (req, res) => {
   if (booking_url !== undefined) fields.booking_url = booking_url || null;
   if (is_active !== undefined)   fields.is_active = !!is_active;
   if (visible_until !== undefined) fields.visible_until = visibleUntilParsed;
+  if (max_redemptions !== undefined) {
+    // ''/null → unlimited; otherwise a positive int.
+    if (max_redemptions === null || max_redemptions === '') {
+      fields.max_redemptions = null;
+    } else {
+      const n = parseInt(max_redemptions, 10);
+      if (Number.isNaN(n) || n < 1) return res.status(400).json({ error: 'max_redemptions muss eine positive Zahl sein' });
+      fields.max_redemptions = n;
+    }
+  }
 
   const keys = Object.keys(fields);
   if (!keys.length) return res.status(400).json({ error: 'Keine Änderungen übergeben' });
@@ -268,34 +291,44 @@ export const redeemDeal = async (req, res) => {
     );
     if (!dealRes.rows.length) return res.status(404).json({ error: 'Deal not found' });
 
+    // Atomic redeem with global-cap guard: insert ONLY while the deal is still
+    // under its max_redemptions (NULL = unlimited). ON CONFLICT covers the
+    // per-user double-tap. 0 rows back ⇒ already redeemed (conflict) OR cap hit.
     const inserted = await db.query(
-      `INSERT INTO deal_redemptions (deal_id, user_id) VALUES ($1, $2)
+      `INSERT INTO deal_redemptions (deal_id, user_id)
+       SELECT $1, $2
+       WHERE (SELECT COUNT(*) FROM deal_redemptions WHERE deal_id = $1)
+             < (SELECT COALESCE(max_redemptions, 2147483647) FROM deals WHERE id = $1)
+       ON CONFLICT (deal_id, user_id) DO NOTHING
        RETURNING redeemed_at`,
       [id, req.userId]
     );
-    res.status(201).json({
-      redeemed: true,
-      count: 1,
-      max: MAX_REDEMPTIONS_PER_USER,
-      redeemed_at: inserted.rows[0].redeemed_at,
-    });
-  } catch (err) {
-    if (err.code === '23505') {
-      // Already redeemed — surface as 409 with the existing timestamp so the
-      // client can still render the proof screen if it wants to.
-      const existing = await db.query(
-        `SELECT redeemed_at FROM deal_redemptions
-         WHERE deal_id = $1 AND user_id = $2`,
-        [id, req.userId]
-      );
+    if (inserted.rows.length) {
+      return res.status(201).json({
+        redeemed: true,
+        count: 1,
+        max: MAX_REDEMPTIONS_PER_USER,
+        redeemed_at: inserted.rows[0].redeemed_at,
+      });
+    }
+
+    // No row inserted — tell apart "this user already redeemed" (keep their
+    // proof, 409) from "global cap reached" (deal is now offline, 410 Gone).
+    const existing = await db.query(
+      `SELECT redeemed_at FROM deal_redemptions WHERE deal_id = $1 AND user_id = $2`,
+      [id, req.userId]
+    );
+    if (existing.rows.length) {
       return res.status(409).json({
         error: 'Already redeemed',
         redeemed: true,
         count: 1,
         max: MAX_REDEMPTIONS_PER_USER,
-        redeemed_at: existing.rows[0]?.redeemed_at || null,
+        redeemed_at: existing.rows[0].redeemed_at,
       });
     }
+    return res.status(410).json({ error: 'Dieser Deal ist nicht mehr verfügbar.', code: 'DEAL_SOLD_OUT' });
+  } catch (err) {
     console.error('redeemDeal error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -312,7 +345,7 @@ export const getDealsForAdmin = async (_req, res) => {
     const result = await db.query(
       `SELECT d.id, d.name, d.category, d.deal_label, d.description,
               d.address, d.lat, d.lng, d.photos, d.booking_url,
-              d.visible_until, d.is_active, d.created_at, d.updated_at,
+              d.visible_until, d.is_active, d.max_redemptions, d.created_at, d.updated_at,
               COALESCE(r.cnt, 0)::int AS redemption_count,
               r.last_redeemed_at
        FROM deals d

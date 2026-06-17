@@ -3,12 +3,11 @@
    ======================================== */
 
 .profile-page {
-  min-height: 100vh; /* fallback */
-  min-height: 100dvh;
+  min-height: 100%; /* fills .app-viewport; scrolls there, nav sits below */
   background: var(--bg-primary);
   /* Nav clearance: flush 48px strip + 11px "+" protrusion + gap — no
      safe-area here, the nav ignores it (see .bottom-nav). */
-  padding-bottom: 68px;
+  padding-bottom: 16px;
 }
 
 /* Profile Header Image */
@@ -734,7 +733,7 @@
 .profile-edit-page {
   padding: 20px;
   /* Nav clearance — flat, see .bottom-nav (no safe-area by design). */
-  padding-bottom: 68px;
+  padding-bottom: 16px;
 }
 
 /* Header */
@@ -1059,8 +1058,7 @@
    Settings Page (redesigned)
    ======================================== */
 .settings-page {
-  height: 100vh;
-  height: 100dvh;
+  height: 100%; /* fills .app-viewport; nav is a flex sibling below */
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
@@ -1085,7 +1083,7 @@
   overscroll-behavior-y: contain;
   padding: 20px;
   /* Nav clearance — flat, see .bottom-nav (no safe-area by design). */
-  padding-bottom: 68px;
+  padding-bottom: 16px;
 }
 
 .settings-back {

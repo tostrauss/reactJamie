@@ -620,6 +620,7 @@ function AppRoutes() {
     <>
       {!isNative() && <UpdateBanner />}
       {!isNative() && <InstallBanner />}
+      <div className="app-viewport">
       <ErrorBoundary>
       <Suspense fallback={<PageLoader />}>
         <Routes>
@@ -713,6 +714,7 @@ function AppRoutes() {
         </Routes>
       </Suspense>
       </ErrorBoundary>
+      </div>
       <Navigation />
       {pendingReviews && (
         <EventReviewModal
