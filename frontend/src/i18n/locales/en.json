@@ -10,7 +10,7 @@
     "filters": {
       "all": "All",
       "today": "Today",
-      "weekend": "This weekend",
+      "weekend": "Weekend",
       "week": "This week",
       "allCategories": "All categories"
     }

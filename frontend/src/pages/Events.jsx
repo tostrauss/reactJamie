@@ -37,9 +37,23 @@ export const Events = () => {
   const [category, setCategory] = useState(null);  // category name, or null = all
 
   useEffect(() => {
+    // Stale-while-revalidate: paint the last-seen list instantly on revisit
+    // (no spinner), then refresh in the background. sessionStorage clears on
+    // app close so it never goes badly stale. First-ever visit still waits for
+    // the network — that latency is the backend/connection, not the page.
+    let hadCache = false;
+    try {
+      const cached = sessionStorage.getItem('jamie_discover_events');
+      if (cached) { setEvents(JSON.parse(cached)); setLoading(false); hadCache = true; }
+    } catch { /* private mode / bad JSON — ignore */ }
+
     clubsApi.discoverEvents()
-      .then(res => setEvents(res.data || []))
-      .catch(() => setEvents([]))
+      .then(res => {
+        const data = res.data || [];
+        setEvents(data);
+        try { sessionStorage.setItem('jamie_discover_events', JSON.stringify(data)); } catch { /* ignore */ }
+      })
+      .catch(() => { if (!hadCache) setEvents([]); }) // keep cached list on error
       .finally(() => setLoading(false));
   }, []);
 
@@ -109,8 +123,8 @@ export const Events = () => {
         />
       </div>
 
-      {/* Time filter */}
-      <div className="events-filter-row">
+      {/* Time filter — single scrollable row */}
+      <div className="events-filter-row events-filter-row--scroll">
         {TIME_FILTERS.map(f => (
           <button
             key={f.key}

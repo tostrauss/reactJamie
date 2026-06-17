@@ -2707,13 +2707,13 @@ input:checked + .slider:before {
 .events-filter-row--scroll::-webkit-scrollbar { display: none; }
 .events-filter-pill {
   flex-shrink: 0;
-  padding: 8px 14px;
+  padding: 6px 12px;
   border-radius: 999px;
   background: var(--bg-card);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-light);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
