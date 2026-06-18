@@ -530,28 +530,30 @@ export const GroupEdit = () => {
                 </div>
               </div>
 
-              {/* Clubs have no event date — show only the size control for them. */}
+              {/* Clubs have no event date — show only the size control for them.
+                  Date + time share ONE block (time stacked under date) so the
+                  3rd field never overflows the row on narrow phones. */}
               {!isClub && (
                 <>
                   <div className="ge-control-divider" />
                   <div className="ge-control-block">
-                    <span className="ge-control-label">{t('groupEdit.fields.date')}</span>
-                    <div className="ge-date-wrap">
-                      <span className="ge-date-display">{displayDate}</span>
-                      <input
-                        type="date"
-                        className="ge-date-overlay"
-                        value={formData.date}
-                        onChange={e => setFormData(p => ({ ...p, date: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  {/* Uhrzeit — only events carry a time-of-day (groups set it in chat). */}
-                  {isEvent && (
-                    <>
-                      <div className="ge-control-divider" />
-                      <div className="ge-control-block">
-                        <span className="ge-control-label">{t('groupEdit.fields.time', { defaultValue: 'Uhrzeit' })}</span>
+                    <span className="ge-control-label">
+                      {isEvent
+                        ? `${t('groupEdit.fields.date')} & ${t('groupEdit.fields.time', { defaultValue: 'Uhrzeit' })}`
+                        : t('groupEdit.fields.date')}
+                    </span>
+                    <div className="ge-datetime-stack">
+                      <div className="ge-date-wrap">
+                        <span className="ge-date-display">{displayDate}</span>
+                        <input
+                          type="date"
+                          className="ge-date-overlay"
+                          value={formData.date}
+                          onChange={e => setFormData(p => ({ ...p, date: e.target.value }))}
+                        />
+                      </div>
+                      {/* Uhrzeit — only events carry a time-of-day (groups set it in chat). */}
+                      {isEvent && (
                         <div className="ge-date-wrap">
                           <span className="ge-date-display">{formData.time || '—'}</span>
                           <input
@@ -561,9 +563,9 @@ export const GroupEdit = () => {
                             onChange={e => setFormData(p => ({ ...p, time: e.target.value }))}
                           />
                         </div>
-                      </div>
-                    </>
-                  )}
+                      )}
+                    </div>
+                  </div>
                 </>
               )}
             </div>

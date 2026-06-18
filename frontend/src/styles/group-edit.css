@@ -461,10 +461,18 @@
 
 .ge-control-block {
   flex: 1;
+  min-width: 0; /* allow shrinking so the date/time value can't overflow the row */
   padding: 16px 18px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* Date + time stacked inside one control block (event edit). */
+.ge-datetime-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .ge-control-divider {
