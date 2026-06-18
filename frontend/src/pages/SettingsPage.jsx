@@ -11,7 +11,7 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
 } from '../utils/pushNotifications';
-import { isNativeIOS } from '../utils/platform';
+import { isNativeIOS, IOS_IAP_ENABLED } from '../utils/platform';
 import { restorePurchases } from '../utils/iap';
 import '../styles/profile.css';
 
@@ -488,7 +488,7 @@ export const SettingsPage = () => {
             </div>
           )}
 
-          {isNativeIOS() && (
+          {isNativeIOS() && IOS_IAP_ENABLED && (
             <div className="settings-row" onClick={restoreLoading ? undefined : handleRestorePurchases}>
               <div className="settings-row-left">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -507,8 +507,9 @@ export const SettingsPage = () => {
 
       {/* Apple Review 3.1.1: "Restore Purchases" must be reachable even when the
           user is not currently Pro — that's the whole point of restore. Shown
-          here as a standalone section ONLY in the native iOS build. */}
-      {isNativeIOS() && !sub?.is_pro && (
+          here as a standalone section ONLY in the native iOS build, and only
+          once IAP actually ships (nothing to restore otherwise). */}
+      {isNativeIOS() && IOS_IAP_ENABLED && !sub?.is_pro && (
         <div className="settings-section">
           <h3 className="settings-section-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

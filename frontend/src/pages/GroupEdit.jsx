@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { groups, clubs, friends as friendsApi } from '../utils/api';
+import { groups, clubs, upload, friends as friendsApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { UserName } from '../components/UserName';
+import { ImageCropModal } from '../components/ImageCropModal';
 import '../styles/group-edit.css';
 
 export const GroupEdit = () => {
@@ -24,11 +25,13 @@ export const GroupEdit = () => {
   const [isFavorited, setIsFavorited] = useState(false);
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [formData, setFormData]     = useState({
-    name: '', description: '', max_members: 10, date: '',
+    name: '', description: '', max_members: 10, date: '', time: '', image_url: null,
     target_age_min: '', target_age_max: '',
     chat_only_owner: false, events_owner_only: false,
     is_recurring_weekly: false, is_private: false,
   });
+  const [uploading, setUploading]   = useState(false);
+  const [cropFile, setCropFile]     = useState(null);
 
   useEffect(() => { loadData(); }, [id]);
 
@@ -58,11 +61,23 @@ export const GroupEdit = () => {
       setMembers(memberList);
       const memberIds = new Set(memberList.map(m => m.id || m.user_id));
       setFriends((friendsRes.data || []).filter(f => !memberIds.has(f.friend_id)));
+      // Events carry a real time-of-day; split it into local date + time for
+      // the two inputs (local getters match how the event is displayed
+      // everywhere else). Groups set their time in chat, so they keep the
+      // date-only field and no time input.
+      const dt = g.date ? new Date(g.date) : null;
+      const validDt = dt && !isNaN(dt.getTime());
+      const pad = (n) => String(n).padStart(2, '0');
+      const isEventType = g.type === 'event';
       setFormData({
         name: g.name || g.title || '',
         description: g.description || '',
         max_members: g.max_members || 10,
-        date: g.date ? g.date.slice(0, 10) : '',
+        date: isEventType && validDt
+          ? `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`
+          : (g.date ? g.date.slice(0, 10) : ''),
+        time: isEventType && validDt ? `${pad(dt.getHours())}:${pad(dt.getMinutes())}` : '',
+        image_url: g.image_url || null,
         target_age_min: g.target_age_min ?? '',
         target_age_max: g.target_age_max ?? '',
         chat_only_owner: !!g.chat_only_owner,
@@ -100,6 +115,26 @@ export const GroupEdit = () => {
     }
   };
 
+  // Cover photo edit — same flow as CreateClub: pick → crop (16:9) → upload →
+  // store the returned URL in formData. Persisted on Save with the rest.
+  const handleImagePick = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (file) setCropFile(file);
+  };
+
+  const uploadCover = async (file) => {
+    setUploading(true);
+    try {
+      const res = await upload.image(file);
+      setFormData(prev => ({ ...prev, image_url: res.data.url }));
+    } catch {
+      toast.error(t('groupEdit.imageUploadError', { defaultValue: 'Bild konnte nicht hochgeladen werden' }));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -107,19 +142,41 @@ export const GroupEdit = () => {
       // chat_only_owner and events_owner_only actually persist — the generic
       // groups.update ignores those columns.
       const isClubType = group?.type === 'club';
-      // Strip empty strings for nullable backend fields. Postgres can't cast
-      // '' to TIMESTAMP/INT — converting to null lets COALESCE in the SQL
-      // update keep the existing column value instead of throwing.
-      const payload = {
-        ...formData,
-        date: formData.date === '' ? null : formData.date,
-        target_age_min: formData.target_age_min === '' ? null : formData.target_age_min,
-        target_age_max: formData.target_age_max === '' ? null : formData.target_age_max,
-      };
-      if (isClubType) {
-        await clubs.update(id, payload);
+      const isEventType = group?.type === 'event';
+
+      if (isEventType && group?.parent_club_id) {
+        // Club events use the dedicated endpoint: correct permissions (club
+        // owner/manager OR event creator) + cache busting (club page, discover
+        // feed, map). date + time are sent separately and combined server-side.
+        await clubs.updateEvent(group.parent_club_id, id, {
+          name: formData.name,
+          description: formData.description || undefined,
+          date: formData.date || undefined,
+          time: formData.time || undefined,
+          max_members: formData.max_members,
+          is_recurring_weekly: formData.is_recurring_weekly,
+          image_url: formData.image_url || undefined,
+        });
       } else {
-        await groups.update(id, payload);
+        // Strip empty strings for nullable backend fields. Postgres can't cast
+        // '' to TIMESTAMP/INT — converting to null lets COALESCE in the SQL
+        // update keep the existing column value instead of throwing.
+        // Events store a full timestamp — recombine the date + time inputs.
+        // Groups stay date-only (their time lives in the chat).
+        const dateValue = formData.date === ''
+          ? null
+          : (isEventType && formData.time ? `${formData.date}T${formData.time}` : formData.date);
+        const payload = {
+          ...formData,
+          date: dateValue,
+          target_age_min: formData.target_age_min === '' ? null : formData.target_age_min,
+          target_age_max: formData.target_age_max === '' ? null : formData.target_age_max,
+        };
+        if (isClubType) {
+          await clubs.update(id, payload);
+        } else {
+          await groups.update(id, payload);
+        }
       }
       toast.success(t('groupEdit.saved'));
       navigate(-1);
@@ -205,6 +262,7 @@ export const GroupEdit = () => {
   // fields (chat/event permission toggles) and group-only fields (date,
   // target age) are conditionally rendered on group.type below.
   const isClub = group?.type === 'club';
+  const isEvent = group?.type === 'event';
   // Only the club OWNER may assign/revoke co-managers (a manager viewing this
   // page can edit + invite + remove members, but not mint more managers).
   const viewerIsOwner = !!(group && user && Number(group.owner_id) === Number(user.id));
@@ -219,11 +277,23 @@ export const GroupEdit = () => {
 
       {/* ── Cover + Header ── */}
       <div className="ge-cover">
-        {group?.image_url
-          ? <img src={group.image_url} alt="" className="ge-cover-img" decoding="async" fetchpriority="high" />
+        {formData.image_url
+          ? <img src={formData.image_url} alt="" className="ge-cover-img" decoding="async" fetchpriority="high" />
           : <div className="ge-cover-placeholder" />
         }
         <div className="ge-cover-overlay" />
+        {/* Cover photo edit — change the club/event/group image right here. */}
+        <label className="ge-cover-edit" title={t('groupEdit.changePhoto', { defaultValue: 'Foto ändern' })}>
+          <input type="file" accept="image/*" onChange={handleImagePick} hidden disabled={uploading} />
+          {uploading ? (
+            <span className="ge-cover-edit-text">{t('groupEdit.uploading', { defaultValue: 'Lädt…' })}</span>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+          )}
+        </label>
         <div className="ge-header">
           <button className="ge-back-btn" onClick={() => navigate(-1)}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -427,6 +497,24 @@ export const GroupEdit = () => {
                       />
                     </div>
                   </div>
+                  {/* Uhrzeit — only events carry a time-of-day (groups set it in chat). */}
+                  {isEvent && (
+                    <>
+                      <div className="ge-control-divider" />
+                      <div className="ge-control-block">
+                        <span className="ge-control-label">{t('groupEdit.fields.time', { defaultValue: 'Uhrzeit' })}</span>
+                        <div className="ge-date-wrap">
+                          <span className="ge-date-display">{formData.time || '—'}</span>
+                          <input
+                            type="time"
+                            className="ge-date-overlay"
+                            value={formData.time}
+                            onChange={e => setFormData(p => ({ ...p, time: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -593,6 +681,15 @@ export const GroupEdit = () => {
           {saving ? t('groupEdit.saving') : t('groupEdit.save')}
         </button>
       </div>
+
+      {cropFile && (
+        <ImageCropModal
+          file={cropFile}
+          aspect={16 / 9}
+          onConfirm={(cropped) => { setCropFile(null); uploadCover(cropped); }}
+          onCancel={() => setCropFile(null)}
+        />
+      )}
     </div>
   );
 };

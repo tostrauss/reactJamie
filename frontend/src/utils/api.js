@@ -400,6 +400,8 @@ export const clubs = {
     axiosInstance.get('/clubs/events/discover'),
   createEvent: (clubId, data) =>
     axiosInstance.post(`/clubs/${clubId}/events`, data),
+  updateEvent: (clubId, eventId, data) =>
+    axiosInstance.put(`/clubs/${clubId}/events/${eventId}`, data),
   deleteEvent: (clubId, eventId) =>
     axiosInstance.delete(`/clubs/${clubId}/events/${eventId}`),
 };

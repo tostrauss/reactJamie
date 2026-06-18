@@ -3,7 +3,7 @@ import { useTranslation, Trans } from 'react-i18next';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { boost as boostApi } from '../utils/api';
-import { isNativeIOS } from '../utils/platform';
+import { isNativeIOS, purchasesEnabled } from '../utils/platform';
 import { purchaseBoost } from '../utils/iap';
 import { useToast } from '../context/ToastContext';
 
@@ -229,7 +229,8 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
         <div style={{ display: 'flex', background: 'var(--bg-input, rgba(255,255,255,0.05))', borderRadius: '12px', padding: '4px', marginBottom: '20px' }}>
           {[
             { key: 'apply', tKey: 'apply' },
-            { key: 'buy', tKey: 'buy' },
+            // "Kaufen"-Tab nur, wenn Käufe verfügbar sind (auf iOS ohne IAP weg).
+            ...(purchasesEnabled() ? [{ key: 'buy', tKey: 'buy' }] : []),
             { key: 'referral', tKey: 'referral' },
           ].map(({ key, tKey }) => (
             <button
@@ -270,8 +271,9 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
             {credits < 1 ? (
               <div style={{ textAlign: 'center', padding: '16px' }}>
                 <p style={{ color: 'var(--text-muted)', marginBottom: '12px' }}>{t('boost.apply.noCredits')}</p>
-                <button onClick={() => setTab('buy')} style={{ padding: '12px 24px', borderRadius: '12px', background: '#FD7666', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer' }}>
-                  {t('boost.apply.buyBtn')}
+                {/* Ohne Kauf-Möglichkeit (iOS) zur Empfehlung leiten — dort gibt es Gratis-Credits. */}
+                <button onClick={() => setTab(purchasesEnabled() ? 'buy' : 'referral')} style={{ padding: '12px 24px', borderRadius: '12px', background: '#FD7666', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer' }}>
+                  {t(purchasesEnabled() ? 'boost.apply.buyBtn' : 'boost.tabs.referral')}
                 </button>
               </div>
             ) : (
@@ -287,7 +289,7 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
         )}
 
         {/* ---- BUY TAB ---- */}
-        {tab === 'buy' && (
+        {tab === 'buy' && purchasesEnabled() && (
           <div>
             {/* Package selection */}
             {!paymentMethod && (

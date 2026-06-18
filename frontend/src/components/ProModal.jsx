@@ -4,7 +4,7 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { subscription as subscriptionApi } from '../utils/api';
 import { PRO_PLANS, DEFAULT_PLAN_KEY, BASELINE_WEEKLY } from '../utils/proPlans';
-import { isNativeIOS } from '../utils/platform';
+import { isNativeIOS, IOS_IAP_ENABLED, purchasesEnabled } from '../utils/platform';
 import { subscribePro, restorePurchases } from '../utils/iap';
 import { useToast } from '../context/ToastContext';
 
@@ -286,6 +286,9 @@ export const ProModal = ({ onClose, onSuccess }) => {
   const maxSavings = Math.max(...PRO_PLANS.map(p => p.savings || 0));
 
   const startPayment = async () => {
+    // Safety net: iOS purchases are hidden until StoreKit IAP ships. The CTA
+    // shouldn't render in that state, but never start a purchase if it somehow does.
+    if (!purchasesEnabled()) return;
     setLoading(true);
     try {
       // iOS native build → StoreKit subscription (App Review 3.1.1).
@@ -507,47 +510,62 @@ export const ProModal = ({ onClose, onSuccess }) => {
                 ))}
               </div>
 
-              {/* §18 FAGG consent — must be actively ticked before purchase */}
-              <label style={{
-                display:'flex', alignItems:'flex-start', gap:'10px',
-                margin:'0 0 12px', cursor:'pointer',
-              }}>
-                <input
-                  type="checkbox"
-                  checked={consented}
-                  onChange={e => setConsented(e.target.checked)}
-                  style={{ marginTop:'2px', width:'18px', height:'18px', accentColor:'#FD7666', flexShrink:0 }}
-                />
-                <span style={{ fontSize:'11.5px', lineHeight:1.45, color:'rgba(255,255,255,0.6)', textAlign:'left' }}>
-                  {t('pro.withdrawalConsent')}
-                </span>
-              </label>
+              {/* Kauf-Flow nur zeigen, wenn Käufe verfügbar sind. Auf iOS ohne
+                  fertiges StoreKit-IAP zeigen wir stattdessen eine neutrale Info
+                  (KEIN Hinweis auf Web/Android-Kauf — Apple-Anti-Steering 3.1.1). */}
+              {purchasesEnabled() ? (
+                <>
+                  {/* §18 FAGG consent — must be actively ticked before purchase */}
+                  <label style={{
+                    display:'flex', alignItems:'flex-start', gap:'10px',
+                    margin:'0 0 12px', cursor:'pointer',
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={consented}
+                      onChange={e => setConsented(e.target.checked)}
+                      style={{ marginTop:'2px', width:'18px', height:'18px', accentColor:'#FD7666', flexShrink:0 }}
+                    />
+                    <span style={{ fontSize:'11.5px', lineHeight:1.45, color:'rgba(255,255,255,0.6)', textAlign:'left' }}>
+                      {t('pro.withdrawalConsent')}
+                    </span>
+                  </label>
 
-              {/* CTA */}
-              <button
-                onClick={startPayment}
-                disabled={loading || !consented}
-                style={{
-                  width:'100%', padding:'19px', borderRadius:'18px', border:'none',
-                  background: (loading || !consented)
-                    ? 'rgba(253,118,102,0.25)'
-                    : 'linear-gradient(270deg, #FD7666, #e5574a, #FD7666)',
-                  backgroundSize:'200% auto',
-                  animation: (loading || !consented) ? 'none' : 'pm-shimmer 2.5s linear infinite',
-                  color: (loading || !consented) ? 'rgba(255,255,255,0.4)' : '#fff',
-                  fontSize:'17px', fontWeight:'900', letterSpacing:'0.2px',
-                  cursor: (loading || !consented) ? 'not-allowed' : 'pointer',
-                  boxShadow: (loading || !consented) ? 'none' : '0 10px 32px rgba(253,118,102,0.4), 0 2px 8px rgba(0,0,0,0.3)',
-                  marginBottom:'10px',
-                  display:'flex', alignItems:'center', justifyContent:'center', gap:'8px',
-                }}
-              >
-                {loading ? <><Spinner /> {t('pro.loading')}</> : t('pro.ctaActivate')}
-              </button>
+                  {/* CTA */}
+                  <button
+                    onClick={startPayment}
+                    disabled={loading || !consented}
+                    style={{
+                      width:'100%', padding:'19px', borderRadius:'18px', border:'none',
+                      background: (loading || !consented)
+                        ? 'rgba(253,118,102,0.25)'
+                        : 'linear-gradient(270deg, #FD7666, #e5574a, #FD7666)',
+                      backgroundSize:'200% auto',
+                      animation: (loading || !consented) ? 'none' : 'pm-shimmer 2.5s linear infinite',
+                      color: (loading || !consented) ? 'rgba(255,255,255,0.4)' : '#fff',
+                      fontSize:'17px', fontWeight:'900', letterSpacing:'0.2px',
+                      cursor: (loading || !consented) ? 'not-allowed' : 'pointer',
+                      boxShadow: (loading || !consented) ? 'none' : '0 10px 32px rgba(253,118,102,0.4), 0 2px 8px rgba(0,0,0,0.3)',
+                      marginBottom:'10px',
+                      display:'flex', alignItems:'center', justifyContent:'center', gap:'8px',
+                    }}
+                  >
+                    {loading ? <><Spinner /> {t('pro.loading')}</> : t('pro.ctaActivate')}
+                  </button>
+                </>
+              ) : (
+                <p style={{
+                  fontSize:'13px', lineHeight:1.5, textAlign:'center',
+                  color:'rgba(255,255,255,0.6)', margin:'4px 0 14px', padding:'0 4px',
+                }}>
+                  {t('pro.iosUnavailable', { defaultValue: 'JAMIE Pro ist auf dem iPhone derzeit nicht verfügbar.' })}
+                </p>
+              )}
 
               {/* iOS-only: Apple Review 3.1.1 wants Restore Purchases visible
-                  during the purchase flow itself, not buried in Settings. */}
-              {isNativeIOS() && (
+                  during the purchase flow itself, not buried in Settings.
+                  Only relevant once IAP ships — nothing to restore otherwise. */}
+              {isNativeIOS() && IOS_IAP_ENABLED && (
                 <button
                   onClick={restoreLoading ? undefined : handleRestore}
                   disabled={restoreLoading || loading}
@@ -568,8 +586,8 @@ export const ProModal = ({ onClose, onSuccess }) => {
 
               {/* Apple Guideline 3.1.2 (a): on iOS, the subscription terms —
                   length, auto-renewal, cancellation — must be visible at the
-                  point of purchase. Plain coal text on a separate line. */}
-              {isNativeIOS() && (
+                  point of purchase. Only shown when IAP is actually live. */}
+              {isNativeIOS() && IOS_IAP_ENABLED && (
                 <p style={{
                   fontSize:'11px', lineHeight:1.45,
                   color:'rgba(255,255,255,0.4)',

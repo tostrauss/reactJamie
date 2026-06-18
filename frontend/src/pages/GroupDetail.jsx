@@ -501,9 +501,10 @@ export const GroupDetail = () => {
                         : (group.name || group.category)))
             }
           </h1>
-          {/* Manage (gear) — owner only, opens the edit/verwalten page. Sits
-              next to the favourite heart per Robert (2026-06-16). */}
-          {isOwner && (
+          {/* Manage (gear) — opens the edit/verwalten page. Shows for the owner
+              AND, for club events, the parent club's owner/managers (backend
+              sets group.is_manager). Sits next to the favourite heart. */}
+          {(isOwner || group.is_manager) && (
             <button
               className="gd-fav-top"
               onClick={() => navigate(`/group/${group.id}/edit`)}

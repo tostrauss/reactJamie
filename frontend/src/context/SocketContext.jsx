@@ -13,9 +13,10 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     if (user && token) {
-      // In production the frontend and backend are on different domains,
-      // so VITE_SOCKET_URL must point to the backend (e.g. https://your-backend.railway.app).
-      // In dev it's left empty so io() connects to the same host (proxied by Vite).
+      // Frontend and backend are served by the SAME Railway service (one origin),
+      // so VITE_SOCKET_URL stays empty and io() connects to the same host.
+      // In dev that same-host connection is proxied by Vite. Only set
+      // VITE_SOCKET_URL if you ever split frontend/backend onto separate domains.
       const socketUrl = import.meta.env.VITE_SOCKET_URL || undefined;
 
       const newSocket = io(socketUrl, {

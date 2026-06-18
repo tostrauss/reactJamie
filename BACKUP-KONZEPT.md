@@ -4,30 +4,69 @@ Stand: 2026-06-18 · Verantwortlich: Tobi (Technik), Tina (Inhaberin)
 
 Dieses Dokument beschreibt, **was** gesichert wird, **wie oft**, **wie lange**,
 **wo**, **wie unveränderbar** und **wie die Wiederherstellung getestet** wird.
-Es ist so aufgebaut, dass es als **Nachweis gegenüber der (Cyber-)Versicherung**
-dient: Abschnitt 0 bildet jede Versicherungs-Anforderung direkt auf ihre
-technische Umsetzung ab.
+Es ist so aufgebaut, dass es als **Nachweis gegenüber der Cyber-Versicherung**
+dient: Abschnitt 0 zitiert den **wörtlichen Police-Fragebogen** und bildet jede
+Klausel direkt auf ihre technische Umsetzung ab.
 
 ---
 
 ## 0. Versicherungs-Anforderungen → Nachweis
 
-> Maßgeblich ist der Wortlaut der Police. Die folgende Tabelle bildet die
-> üblichen Backup-Klauseln einer Cyber-/Inhaltsversicherung ab. Sollte die
-> Police abweichende Zahlen nennen, **gewinnt die Police** — die Werte hier
-> (30-Tage-Tresor) sind so gewählt, dass sie die Standardvorgabe erfüllen
-> oder übertreffen.
+### ⚠️ Wichtig: Wir haben „Ja" zugesichert — das ist eine Obliegenheit
 
-| # | Anforderung der Versicherung | Umsetzung bei JAMIE | Beleg / Ort | Status |
+Im Cyber-Versicherungs-Fragebogen wurden die Fragen 2 und 3 mit **„Ja"**
+beantwortet. Damit hat JAMIE dem Versicherer **verbindlich zugesichert**, die
+unten zitierten Maßnahmen zu betreiben. Im Schadensfall prüft der Versicherer
+das. Wird eine zugesicherte Maßnahme **nicht** tatsächlich betrieben, kann er
+die Leistung **kürzen oder verweigern** (Obliegenheitsverletzung).
+
+> 🔴 **Aktueller Stand:** Das Konzept passt, aber die Einrichtung steht noch aus
+> (Abschnitt 8, alle ⬜). **Bis die Checkliste abgehakt ist, ist die „Ja"-Antwort
+> nicht durch die Realität gedeckt.** Das hat Priorität.
+
+### 0.1 Wörtlicher Police-Text (Frage 2 + 3, beide mit „Ja" beantwortet)
+
+> **Frage 2 — „Betreiben Sie mindestens die folgenden IT-Schutzmaßnahmen?"**
+>
+> - Ihre Datensicherung erfüllt **sämtliche** der folgenden Anforderungen:
+>   - **Vollständige wöchentliche Datensicherung**
+>   - **Aufbewahrung der vollständigen Datensicherung über mind. 30 Tage**
+>   - Nutzung einer **Offline**-Datensicherung mit dauerhafter physischer
+>     Trennung von den IT-Systemen **ODER** Nutzung einer **unveränderbaren
+>     Online**-Datensicherung, auf welche die Administratoren nur mit einer
+>     **von der betreffenden Domäne unabhängigen Zwei-Faktor-Authentifizierung
+>     oder aus einer separaten Domäne** zugreifen können.
+> - Einspielen von **Sicherheitsupdates** auf Servern und Clients (mobile Geräte,
+>   Desktops, Terminals) sowie auf Netzwerkgeräten und Sicherheitssystemen
+>   (z. B. Firewalls, Virenschutz) **innerhalb von 30 Tagen** nach Veröffentlichung.
+> - Sie nutzen **keine Alt-Betriebssysteme** ohne Sicherheitsupdates **ODER**
+>   betreiben diese ausschließlich isoliert ohne direkten Internetzugang.
+>
+> **Frage 3 —** „Verwenden Sie ein **abgestuftes Berechtigungskonzept** mit
+> administrativen Kennungen, die **ausschließlich durch IT-Verantwortliche**
+> verwendet werden?"
+
+### 0.2 Mapping: Police-Klausel → Umsetzung bei JAMIE
+
+| # | Police-Klausel (verbatim sinngemäß) | Umsetzung bei JAMIE | Beleg / Ort | Status |
 |---|---|---|---|---|
-| V1 | Vollständiges Backup **mind. 1× pro Woche** | **Täglicher** `pg_dump` (Schema **+** Daten) + Railway-Snapshots | `backup-db.sh`, `backup.yml` | ⬜ einzurichten |
-| V2 | Backups **mind. 30 Tage** aufbewahren | **30-Tage-Backup-Tresor** (Object-Lock 30 T) + Lifecycle-Löschung Tag 37 | Abschnitt 3 + 5 | ⬜ |
-| V3 | **Unveränderbares** Backup (offline ODER WORM) **mit separater 2FA** | R2-Bucket mit **Object Lock (Compliance/WORM)** in **eigenem** Cloudflare-Konto **mit 2FA** | Abschnitt 3 | ⬜ |
-| V4 | Backup **verschlüsselt** abgelegt | **AES-256** vor Upload, kein Klartext in der Cloud | Abschnitt 4 | ⬜ |
-| V5 | Managed-Backup **+ externe** Sicherung (getrennte Anbieter) | Railway Managed Backups **+** R2 (anderes Konto) → **3-2-1-Regel** | Abschnitt 2 | ⬜ |
-| V6 | **Wiederherstellung regelmäßig testen** & protokollieren | **Vierteljährlicher** Restore-Drill, Protokoll-Tabelle | Abschnitt 6 | ⬜ |
-| V7 | Definierte **Wiederanlaufzeit / max. Datenverlust** | **RTO ≤ 4 h**, **RPO ≤ 24 h** (extern, unveränderbar) | Abschnitt 1.1 | ✅ definiert |
-| V8 | **Alarmierung** bei fehlgeschlagenem Backup | GitHub-Action schlägt fehl → Mail an Repo-Admins; 48-h-SLA | Abschnitt 7 | ⬜ |
+| V1 | **Vollständige wöchentliche** Datensicherung | **Täglicher** `pg_dump` (Schema **+** alle Daten) → übertrifft „wöchentlich" | `backup-db.sh`, `backup.yml` | ⬜ einzurichten |
+| V2 | Aufbewahrung der vollständigen Sicherung **über mind. 30 Tage** | Object-Lock-Retention **30 Tage** + Lifecycle-Löschung Tag 37 (jeder Tagesstand ≥ 30 T) | Abschnitt 3 + 5 | ⬜ |
+| V3 | **Unveränderbare Online**-Sicherung, Zugriff nur mit **domänen-unabhängiger 2FA / aus separater Domäne** | R2 **Object Lock (Compliance/WORM)** in **eigenem, getrenntem** Cloudflare-Konto mit **eigener 2FA** (≠ Produktions-Identität) | Abschnitt 3 | ⬜ |
+| V4 | (verschärfend, Best Practice) Sicherung verschlüsselt | **AES-256** vor Upload, kein Klartext in der Cloud | Abschnitt 4 | ⬜ |
+| V5 | (3-2-1) Managed **+ externe** Sicherung | Railway Managed Backups **+** R2 (anderes Konto/Anbieter) | Abschnitt 2 | ⬜ |
+| V6 | (Best Practice) Restore testen | **Vierteljährlicher** Restore-Drill mit Protokoll | Abschnitt 6 | ⬜ |
+| V7 | Definierte Wiederanlaufzeit / max. Datenverlust | **RTO ≤ 4 h**, **RPO ≤ 24 h** | Abschnitt 1.1 | ✅ definiert |
+| V8 | Alarmierung bei fehlgeschlagenem Backup | GitHub-Action wird rot → Mail an Admins; 48-h-SLA | Abschnitt 7 | ⬜ |
+| **P1** | **Sicherheitsupdates innerhalb 30 Tagen** | Patch-Prozess (Deps/Plattform) | Abschnitt 10.1 | 🟡 prüfen |
+| **P2** | **Keine Alt-/EOL-Betriebssysteme** | Railway + Cloudflare (managed, aktuell); keine selbst-betriebenen Altsysteme | Abschnitt 10.2 | ✅ erfüllt |
+| **P3** | **Abgestuftes Berechtigungskonzept**, Admin-Kennungen nur für IT-Verantwortliche (Frage 3) | Infra-Adminrechte (Railway/Cloudflare/GitHub) einschränken | Abschnitt 10.3 | 🟡 prüfen |
+
+> **Kritischster Einzelpunkt (V3):** Der Backup-Bucket **darf nicht** im selben
+> Cloudflare-Konto liegen wie die Live-Uploads (`STORAGE_*`). Sonst erreicht ein
+> Admin die Backups mit derselben Anmeldung wie die Produktion → die Klausel
+> „separate Domäne / unabhängige 2FA" wäre **verletzt**. Daher: **eigenes
+> Cloudflare-Konto, eigene 2FA.**
 
 > **3-2-1-Regel erfüllt:** 3 Kopien (Live-DB, Railway-Snapshot, R2-Dump),
 > 2 getrennte Anbieter, 1 davon ausgelagert **und unveränderbar**.
@@ -117,9 +156,12 @@ Statt eines physisch getrennten Offline-Backups setzen wir auf einen
    30 Tage **unveränderlich und unlöschbar** — auch nicht durch einen Angreifer
    mit den Upload-Keys, und auch nicht durch uns selbst. **Das ist der
    „30-Tage-Safe" der Versicherung.**
-4. Die R2-API-Keys für den Upload haben **nur Schreibrechte** (`PutObject`),
-   keine Lösch-/Überschreibrechte → ein geleakter CI-Key kann Backups weder
-   zerstören noch verändern.
+4. Das R2-API-Token ist **auf den einen Backup-Bucket beschränkt** (Scope:
+   nur `jamie-backups`). R2 bietet keine feinere „nur PutObject"-Stufe — das
+   ist aber unkritisch, weil die **eigentliche** Unveränderbarkeit vom
+   **Object Lock (Compliance)** kommt: selbst ein geleaktes Token, das
+   `DeleteObject` aufruft, kann ein Backup innerhalb der 30-Tage-Sperrfrist
+   **nicht** löschen oder überschreiben.
 
 > **Betriebshinweis zum Compliance-Mode:** Objekte lassen sich vor Ablauf der
 > 30 Tage durch **niemanden** löschen (das ist der Zweck). Ein versehentlich
@@ -199,6 +241,10 @@ aws s3 cp "s3://$BACKUP_S3_BUCKET/db/jamie-db-<STAMP>.sql.gz.enc" - \
 
 ## 8. Einmalige Einrichtung (Checkliste)
 
+> 👉 **Klick-für-Klick-Anleitung mit allen Befehlen:**
+> [BACKUP-SETUP-ANLEITUNG.md](BACKUP-SETUP-ANLEITUNG.md). Die folgende Liste ist
+> die Kurzfassung zum Abhaken.
+
 - [ ] Separates **Cloudflare-Konto** für Backups anlegen, **2FA** aktivieren.
 - [ ] R2-Bucket `jamie-backups` erstellen, **Object Lock (Compliance, 30 T Default-Retention)** + **Lifecycle-Löschung Tag 37** setzen.
 - [ ] R2-API-Token (nur `PutObject`) erstellen.
@@ -220,3 +266,50 @@ aws s3 cp "s3://$BACKUP_S3_BUCKET/db/jamie-db-<STAMP>.sql.gz.enc" - \
 - **Eskalation bei fehlgeschlagenem Backup:** GitHub-Action schlägt fehl
   (rote Mail an die Repo-Admins) → innerhalb von 48 h beheben.
 - **Versicherungs-Nachweis / Police-Abgleich:** Tina, mit Zuarbeit von Tobi.
+
+---
+
+## 10. Weitere zugesicherte Maßnahmen (Frage 2 + 3, über Backup hinaus)
+
+Mit „Ja" wurden im Fragebogen auch Punkte **außerhalb der Datensicherung**
+zugesichert. Sie gehören hier dokumentiert, damit nichts Zugesichertes
+unbelegt bleibt.
+
+### 10.1 Sicherheitsupdates innerhalb 30 Tagen (P1) — 🟡 prüfen
+
+- **Plattform/OS:** Railway (Backend + Postgres) und Cloudflare sind **managed**
+  → Betriebssystem- und Plattform-Patches spielt der Anbieter laufend ein.
+  Kein selbst betriebener Server, der manuell gepatcht werden müsste.
+- **Anwendungs-Abhängigkeiten:** Backend-Deps wurden zuletzt auf **0 bekannte
+  Schwachstellen** gebracht (Audit 06/2026). Zu etablieren: **fester Rhythmus**
+  (z. B. monatlich `npm audit` + Dependabot/Renovate), damit neue CVEs **binnen
+  30 Tagen** behoben werden — genau das fordert die Police.
+- **To-do:** Dependabot/Renovate aktivieren ODER monatlichen `npm audit`-Termin
+  fixieren und protokollieren.
+
+### 10.2 Keine Alt-/EOL-Betriebssysteme (P2) — ✅ erfüllt
+
+- Es werden **keine** veralteten, nicht mehr mit Updates versorgten
+  Betriebssysteme betrieben. Backend/DB laufen auf der aktuellen,
+  herstellergepflegten Railway-/Cloudflare-Plattform. Damit ist die Klausel
+  erfüllt (die „isolierte Umgebung"-Alternative wird nicht benötigt).
+
+### 10.3 Abgestuftes Berechtigungskonzept, Admin nur für IT (Frage 3 / P3) — 🟡 prüfen
+
+Hier ist **zwischen zwei Ebenen zu trennen:**
+
+- **Infrastruktur-Admin (gemeint von der Police):** Vollzugriff auf
+  **Railway, Cloudflare, GitHub, Domain/DNS** ist eine *administrative Kennung*
+  i. S. d. Frage 3 und sollte **ausschließlich bei IT-Verantwortlichen** (Tobi)
+  liegen. **To-do/Prüfen:** Haben Robert/Arno (oder Tina) Voll-Adminrechte auf
+  diesen Plattformen? Falls ja → auf das nötige Minimum reduzieren, sonst ist
+  die „Ja"-Antwort zu Frage 3 angreifbar.
+- **Anwendungs-Admin (NICHT von der Police gemeint):** Das `is_admin`-Flag der
+  JAMIE-App (Dashboard `/admin`) ist **Anwendungs-RBAC**, keine System-
+  administration. Dass Tina/Robert/Arno hier Zugriff haben, ist fachlich
+  begründet und berührt Frage 3 nicht — gehört aber sauber abgegrenzt
+  dokumentiert, damit im Audit keine Verwechslung entsteht.
+
+> **Empfehlung:** Kurze Liste „Wer hat wo Admin?" (Railway/Cloudflare/GitHub vs.
+> App-`is_admin`) führen und bei den Infra-Plattformen das Least-Privilege-Prinzip
+> durchsetzen.

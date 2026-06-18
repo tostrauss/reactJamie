@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext';
 import { auth, subscription as subscriptionApi, groups as groupsApi, clubs as clubsApi } from '../utils/api';
 import SpotifySongPicker from '../components/SpotifySongPicker';
 import { ProModal } from '../components/ProModal';
+import { purchasesEnabled } from '../utils/platform';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { ProfilePhotoCarousel } from '../components/ProfilePhotoCarousel';
 import '../styles/home.css';
@@ -230,8 +231,8 @@ export const Profile = () => {
             </div>
           )}
 
-          {/* Pro CTA */}
-          {!isPro && (
+          {/* Pro CTA — hidden on iOS until in-app purchases ship (no dead-end upsell). */}
+          {!isPro && purchasesEnabled() && (
             <button className="pro-cta-card" onClick={() => setShowProModal(true)}>
               <div className="pro-card-icon">👑</div>
               <div className="pro-card-body">

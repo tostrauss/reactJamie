@@ -21,6 +21,7 @@ import {
   getClubEvents,
   getDiscoverEvents,
   createClubEvent,
+  updateClubEvent,
   deleteClubEvent,
 } from '../controllers/clubController.js';
 import {
@@ -90,6 +91,7 @@ router.get('/:id/members/avatars', optionalAuth, getGroupMemberAvatars);
 // ==========================================
 router.get('/:id/events', optionalAuth, getClubEvents);
 router.post('/:id/events', authenticate, requireCompleteProfile, createClubEvent);
+router.put('/:id/events/:eventId', authenticate, requireCompleteProfile, updateClubEvent);
 router.delete('/:id/events/:eventId', authenticate, deleteClubEvent);
 
 // ==========================================

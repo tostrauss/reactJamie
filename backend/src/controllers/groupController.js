@@ -404,6 +404,18 @@ export const getGroupById = async (req, res) => {
       // edit page + manage UI grant access to managers, not just the owner.
       group.my_role = memberCheck.rows[0]?.role || null;
       group.is_manager = Number(group.owner_id) === Number(req.userId) || memberCheck.rows[0]?.role === 'admin';
+      // Club events: the parent club's owner / co-managers may also manage the
+      // event (edit time, photo, …), not only the member who created it — so the
+      // edit gear shows for them on the event page too.
+      if (!group.is_manager && group.type === 'event' && group.parent_club_id) {
+        const clubMgr = await db.query(
+          `SELECT 1 FROM groups c
+             LEFT JOIN group_members gm ON gm.group_id = c.id AND gm.user_id = $2
+           WHERE c.id = $1 AND (c.owner_id = $2 OR gm.role = 'admin') LIMIT 1`,
+          [group.parent_club_id, req.userId]
+        );
+        if (clubMgr.rowCount > 0) group.is_manager = true;
+      }
       group.is_favorite = favCheck.rows.length > 0;
       group.join_request_status = requestCheck.rows[0]?.status || null;
       group.waitlist_status = waitlistCheck.rows[0]?.status || null;

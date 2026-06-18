@@ -1201,6 +1201,91 @@ export const deleteClubEvent = async (req, res) => {
   }
 };
 
+// ==========================================
+// UPDATE CLUB EVENT (club owner/manager or event owner)
+// ==========================================
+// Partial update — only fields present in the body change (COALESCE keeps the
+// rest). Same permission model as deleteClubEvent (club owner/manager OR the
+// member who created the event) and the same cache busts so the club page,
+// the discover feed, and the map all reflect the edit immediately.
+export const updateClubEvent = async (req, res) => {
+  const { id, eventId } = req.params;
+  const { name, description, date, time, location, max_members, is_recurring_weekly, image_url } = req.body;
+  const userId = req.userId;
+
+  if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
+  if (name !== undefined && !String(name).trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
+
+  try {
+    const event = await db.query(
+      `SELECT owner_id, parent_club_id FROM groups WHERE id = $1 AND parent_club_id = $2 AND type = 'event'`,
+      [eventId, id]
+    );
+    if (event.rows.length === 0) return res.status(404).json({ error: 'Veranstaltung nicht gefunden' });
+
+    const club = await db.query('SELECT owner_id, location FROM groups WHERE id = $1', [id]);
+    const isEventOwner = Number(event.rows[0].owner_id) === Number(userId);
+    const canManage = await userManagesClub(id, club.rows[0]?.owner_id, userId);
+    if (!canManage && !isEventOwner) {
+      return res.status(403).json({ error: 'Keine Berechtigung' });
+    }
+
+    const textToCheck = [name, description].filter(Boolean).join('\n');
+    if (textToCheck) {
+      const { safe, reason } = await checkTextSafety(textToCheck);
+      if (!safe) return res.status(422).json({ error: reason });
+    }
+
+    // date/time only rebuilt when a date is supplied (mirrors createClubEvent).
+    const dateTime = date !== undefined ? (date && time ? `${date}T${time}` : date) : null;
+
+    // Re-geocode only when location changes. Empty string inherits the club's
+    // location (text + coords) — same fallback as createClubEvent.
+    let eventLocation = null;
+    let coords = null;
+    if (location !== undefined) {
+      eventLocation = (location && location.trim()) || club.rows[0]?.location || null;
+      coords = await geocodeLocation(eventLocation);
+    }
+
+    const result = await db.query(
+      `UPDATE groups
+         SET name                = COALESCE($1, name),
+             description         = COALESCE($2, description),
+             date                = COALESCE($3, date),
+             location            = COALESCE($4, location),
+             max_members         = COALESCE($5, max_members),
+             is_recurring_weekly = COALESCE($6, is_recurring_weekly),
+             image_url           = COALESCE($10, image_url),
+             lat = CASE WHEN $4 IS NOT NULL THEN $7 ELSE lat END,
+             lng = CASE WHEN $4 IS NOT NULL THEN $8 ELSE lng END,
+             updated_at = CURRENT_TIMESTAMP
+       WHERE id = $9
+       RETURNING *`,
+      [
+        name !== undefined ? String(name).trim() : null,
+        description !== undefined ? (description || null) : null,
+        dateTime,
+        eventLocation,
+        max_members !== undefined ? (parseInt(max_members, 10) || null) : null,
+        is_recurring_weekly === undefined ? null : !!is_recurring_weekly,
+        coords?.lat ?? null,
+        coords?.lng ?? null,
+        eventId,
+        image_url !== undefined ? (image_url || null) : null,
+      ]
+    );
+
+    invalidatePrefix('clubs:');
+    invalidatePrefix(DISCOVER_EVENTS_KEY);
+    invalidatePrefix('map:'); // location/coords may have moved the pin
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating club event:', err);
+    res.status(500).json({ error: 'Veranstaltung konnte nicht aktualisiert werden' });
+  }
+};
+
 // Reuse shared categories endpoint from groups
 export { getCategories } from './groupController.js';
 
