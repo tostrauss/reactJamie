@@ -524,6 +524,9 @@
   background: rgba(253, 118, 102, 0.1);
   border-radius: 50%;
   flex-shrink: 0;
+  /* Coral, monochrome symbols (♂ ♀ ⚧) — uniform with the brand. The text
+     variation selector in the JSX keeps ⚧ from rendering as a colour emoji. */
+  color: var(--accent-coral);
 }
 
 .onboarding-option.selected .option-icon {

@@ -21,10 +21,14 @@ const TOTAL_STEPS = 5;
 
 // value: backend enum (en) — must match GENDER_VALUES in authController.js.
 // labelKey: i18n key for the user-facing label.
+// The trailing ︎ (text variation selector) forces monochrome text
+// rendering — without it iOS shows ⚧ as a full-colour emoji (blue square),
+// clashing with the coral ♂/♀ glyphs. With it, all three render uniformly and
+// pick up the coral colour from .option-icon.
 const GENDER_OPTION_KEYS = [
-  { value: 'male',    labelKey: 'onboarding.gender.male',    icon: '♂' },
-  { value: 'female',  labelKey: 'onboarding.gender.female',  icon: '♀' },
-  { value: 'diverse', labelKey: 'onboarding.gender.diverse', icon: '⚧' },
+  { value: 'male',    labelKey: 'onboarding.gender.male',    icon: '♂︎' },
+  { value: 'female',  labelKey: 'onboarding.gender.female',  icon: '♀︎' },
+  { value: 'diverse', labelKey: 'onboarding.gender.diverse', icon: '⚧︎' },
 ];
 
 export const Onboarding = () => {
