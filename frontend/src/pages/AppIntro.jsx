@@ -7,20 +7,23 @@ const NEW_REG_KEY = 'jamie_new_registration';
 
 // Visual style data — kept outside the component since it never changes.
 // Text content lives inside the component and pulls from i18n.
+// On-brand JAMIE palette: purple background family (--bg-primary #231B43) +
+// coral accent throughout. A subtle gradient progression keeps the three
+// slides visually distinct without drifting off-brand into navy/indigo.
 const SLIDE_THEMES = [
   {
     emoji: '👋',
-    gradient: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+    gradient: 'linear-gradient(135deg, #231B43 0%, #2D1B69 100%)',
     accent: '#FD7666',
   },
   {
     emoji: '🔍',
-    gradient: 'linear-gradient(135deg, #16213e 0%, #0f3460 100%)',
-    accent: '#6C63FF',
+    gradient: 'linear-gradient(135deg, #2D1B69 0%, #3A2080 100%)',
+    accent: '#FD7666',
   },
   {
     emoji: '🚀',
-    gradient: 'linear-gradient(135deg, #0f3460 0%, #1a1a2e 100%)',
+    gradient: 'linear-gradient(135deg, #3A2080 0%, #231B43 100%)',
     accent: '#FD7666',
   },
 ];
@@ -140,7 +143,7 @@ export const AppIntro = ({ onDone }) => {
             width: '100%',
             maxWidth: '340px',
             padding: '18px',
-            borderRadius: '16px',
+            borderRadius: 'var(--radius-full, 999px)',
             background: slide.accent,
             color: '#fff',
             fontSize: '17px',
