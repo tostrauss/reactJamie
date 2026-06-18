@@ -625,6 +625,15 @@ const runStartupMigrations = async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_analytics_screen  ON analytics_events(screen_name)`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics_events(created_at DESC)`);
   });
+  // subject_id: nullable FK-ish reference to whatever the screen is "about"
+  // (e.g. the group/club id for ClubDetail/GroupDetail). Lets the admin
+  // dashboard answer "which specific club is viewed most?" instead of just
+  // "how many ClubDetail views total". Plain INTEGER (no FK) so analytics
+  // survive group deletion.
+  await migrate('analytics_subject_id', async () => {
+    await db.query(`ALTER TABLE analytics_events ADD COLUMN IF NOT EXISTS subject_id INTEGER`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_analytics_subject ON analytics_events(screen_name, subject_id) WHERE subject_id IS NOT NULL`);
+  });
 
   await migrate('category_suggestions', () => db.query(`
     CREATE TABLE IF NOT EXISTS category_suggestions (

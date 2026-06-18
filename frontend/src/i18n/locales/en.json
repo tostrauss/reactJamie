@@ -1584,6 +1584,7 @@
       "dealRedemptions": "Cooperations — redemptions",
       "pendingClubsFmt": "Clubs awaiting approval ({{count}})",
       "topPages": "Top pages (30 days)",
+      "topClubs": "Top clubs & groups (30 days)",
       "categorySuggestions": "Category suggestions",
       "newUsers": "New users",
       "csvExport": "CSV export"
@@ -1617,6 +1618,15 @@
       "page": "Page",
       "views": "Views",
       "avgDuration": "Avg duration"
+    },
+    "topClubs": {
+      "name": "Name",
+      "views": "Views",
+      "uniqueUsers": "Unique",
+      "deleted": "(deleted)",
+      "club": "Club",
+      "group": "Group",
+      "empty": "No views in the last 30 days yet."
     },
     "export": {
       "users": "Export users",

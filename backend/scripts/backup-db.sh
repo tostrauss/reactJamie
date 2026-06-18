@@ -38,12 +38,27 @@ FILE="jamie-db-${STAMP}.sql.gz.enc"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+# Mindestgröße des verschlüsselten Dumps in Bytes. Ein leeres/abgebrochenes
+# pg_dump (z. B. DB nicht erreichbar, nur Schema) ergibt eine winzige Datei —
+# die darf NICHT in den unveränderbaren Tresor wandern (sie wäre dort 30 Tage
+# nicht löschbar und würde ein gutes Backup vortäuschen). Wert konservativ;
+# bei Bedarf an die reale DB-Größe anpassen.
+MIN_BYTES="${BACKUP_MIN_BYTES:-10240}"   # 10 KiB
+
 echo "[backup] Dump → gzip → AES-256 …"
 # Streaming-Pipeline: zu keinem Zeitpunkt liegt ein unverschlüsselter Dump auf der Platte.
 pg_dump --no-owner --no-privileges --format=plain "$DATABASE_URL" \
   | gzip -9 \
   | openssl enc -aes-256-cbc -pbkdf2 -salt -pass "pass:${BACKUP_ENCRYPTION_KEY}" \
   > "${TMP}/${FILE}"
+
+# Plausibilitätsprüfung VOR dem Upload — bricht den Lauf (rote CI-Mail) ab,
+# statt ein nutzloses Backup hochzuladen.
+BYTES="$(wc -c < "${TMP}/${FILE}")"
+if [ "$BYTES" -lt "$MIN_BYTES" ]; then
+  echo "[backup] ❌ Dump zu klein (${BYTES} B < ${MIN_BYTES} B) — Abbruch, kein Upload." >&2
+  exit 1
+fi
 
 SIZE="$(du -h "${TMP}/${FILE}" | cut -f1)"
 echo "[backup] Upload → s3://${BACKUP_S3_BUCKET}/db/${FILE} (${SIZE})"

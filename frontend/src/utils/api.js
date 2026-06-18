@@ -583,8 +583,8 @@ export const push = {
 // ==========================================
 
 export const analytics = {
-  trackEvent: (event_type, screen_name, duration_ms, metadata) =>
-    axiosInstance.post('/analytics/event', { event_type, screen_name, duration_ms, metadata }),
+  trackEvent: (event_type, screen_name, duration_ms, metadata, subject_id) =>
+    axiosInstance.post('/analytics/event', { event_type, screen_name, duration_ms, metadata, subject_id }),
   suggestCategory: (suggestion) =>
     axiosInstance.post('/analytics/suggest-category', { suggestion }),
 };
@@ -605,6 +605,9 @@ export const admin = {
   getPendingClubs: () => axiosInstance.get('/admin/clubs/pending'),
   approveClub: (id) => axiosInstance.post(`/admin/clubs/${id}/approve`),
   rejectClub: (id) => axiosInstance.post(`/admin/clubs/${id}/reject`),
+  // Per-club / per-group view rankings (analytics_events.subject_id ⨯ groups)
+  getTopClubs: (days = 30, limit = 20) =>
+    axiosInstance.get('/admin/top-clubs', { params: { days, limit } }),
 };
 
 // ==========================================

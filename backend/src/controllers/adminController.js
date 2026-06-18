@@ -19,20 +19,28 @@ export const getStats = async (_req, res) => {
         FROM users
       `),
       // Group/club counts. Frontend reads `g.total_groups` / `g.total_clubs`.
+      // Excludes soft-deleted rows (deleted_at IS NOT NULL) — otherwise owner
+      // deletions would keep inflating the dashboard KPI forever.
       db.query(`
         SELECT
           COUNT(*)                                          AS total,
           COUNT(*) FILTER (WHERE type = 'group')            AS total_groups,
           COUNT(*) FILTER (WHERE type = 'club')             AS total_clubs,
-          COUNT(*) FILTER (WHERE is_active = TRUE)          AS active
+          COUNT(*) FILTER (WHERE is_active = TRUE)          AS active,
+          COUNT(*) FILTER (WHERE is_active = FALSE)         AS cancelled
         FROM groups
+        WHERE deleted_at IS NULL
       `),
-      // Event counts (groups with a date)
+      // Event counts (groups with a date). Same soft-delete filter; also
+      // excludes cancelled events (is_active = FALSE) from upcoming/past
+      // because they're no longer real on the timeline.
       db.query(`
         SELECT
           COUNT(*) FILTER (WHERE date > NOW())              AS upcoming,
           COUNT(*) FILTER (WHERE date <= NOW())             AS past
-        FROM groups WHERE type = 'group' AND date IS NOT NULL
+        FROM groups
+        WHERE type = 'group' AND date IS NOT NULL
+          AND deleted_at IS NULL AND is_active = TRUE
       `),
       // Review counts
       db.query(`SELECT COUNT(*) AS total FROM event_reviews`),
@@ -310,6 +318,45 @@ export const deleteUser = async (req, res) => {
   } catch (err) {
     console.error('Admin deleteUser error:', err);
     res.status(500).json({ error: 'Nutzer konnte nicht gelöscht werden', detail: err.message });
+  }
+};
+
+// ==========================================
+// TOP CLUBS / GROUPS BY VIEWS
+// ==========================================
+// Answers Tina's "wie oft wird ein einzelner Club aufgerufen?" — joins
+// analytics_events to groups via subject_id so a row is one club/group with
+// total views + unique viewers in the window. Deleted entities are kept
+// (subject_id stays in analytics_events after group soft-delete) but the
+// LEFT JOIN labels them so the admin can see post-mortem popularity too.
+export const getTopClubs = async (req, res) => {
+  const days = Math.min(Math.max(parseInt(req.query.days, 10) || 30, 1), 365);
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 100);
+  try {
+    const result = await db.query(`
+      SELECT
+        ae.subject_id                                                AS id,
+        ae.screen_name,
+        COALESCE(g.name, '—')                                        AS name,
+        g.type                                                       AS type,
+        g.category                                                   AS category,
+        (g.deleted_at IS NOT NULL)                                   AS is_deleted,
+        COUNT(*)::int                                                AS views,
+        COUNT(DISTINCT ae.user_id)::int                              AS unique_users
+      FROM analytics_events ae
+      LEFT JOIN groups g ON g.id = ae.subject_id
+      WHERE ae.event_type = 'screen_view'
+        AND ae.subject_id IS NOT NULL
+        AND ae.screen_name IN ('ClubDetail', 'GroupDetail')
+        AND ae.created_at >= NOW() - make_interval(days => $1::int)
+      GROUP BY ae.subject_id, ae.screen_name, g.name, g.type, g.category, g.deleted_at
+      ORDER BY views DESC
+      LIMIT $2
+    `, [days, limit]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Admin top clubs error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 

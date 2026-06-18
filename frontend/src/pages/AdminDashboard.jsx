@@ -43,6 +43,7 @@ export const AdminDashboard = () => {
   const [screens, setScreens] = useState([]);
   const [recentUsers, setRecentUsers] = useState([]);
   const [pendingClubs, setPendingClubs] = useState([]);
+  const [topClubs, setTopClubs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [exportLoading, setExportLoading] = useState('');
@@ -73,16 +74,19 @@ export const AdminDashboard = () => {
     setLoading(true);
     setError('');
     try {
-      const [statsRes, screensRes, usersRes, clubsRes] = await Promise.all([
+      const [statsRes, screensRes, usersRes, clubsRes, topClubsRes] = await Promise.all([
         admin.getStats(),
         admin.getScreenTime(),
         admin.getUsers(20),
         admin.getPendingClubs().catch(() => ({ data: [] })),
+        // Tolerant of missing route on old backends: returns []
+        admin.getTopClubs(30, 20).catch(() => ({ data: [] })),
       ]);
       setStats(statsRes.data);
       setScreens(screensRes.data || []);
       setRecentUsers(usersRes.data || []);
       setPendingClubs(clubsRes.data || []);
+      setTopClubs(topClubsRes.data || []);
     } catch (err) {
       if (err.response?.status === 401) {
         navigate('/login');
@@ -315,6 +319,55 @@ export const AdminDashboard = () => {
                       <td style={{ padding: '12px 16px', textAlign: 'right', color: 'rgba(255,255,255,0.6)' }}>
                         {s.avg_duration_ms != null ? `${Math.round(s.avg_duration_ms / 1000)}s` : '—'}
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Top Clubs / Groups by per-entity view count (subject_id ⨯ groups).
+            Answers "wie oft wird *ein* Club aufgerufen" — the Top Seiten
+            table above only shows ClubDetail in aggregate. */}
+        {topClubs.length > 0 && (
+          <div style={{ marginBottom: 32 }}>
+            <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
+              {t('admin.sections.topClubs')}
+            </h2>
+            <div style={{ background: 'var(--bg-card, #1e2235)', borderRadius: 16, overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>{t('admin.topClubs.name')}</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>{t('admin.topClubs.views')}</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'right', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>{t('admin.topClubs.uniqueUsers')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topClubs.map((c) => (
+                    <tr key={`${c.screen_name}-${c.id}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <td style={{ padding: '12px 16px', color: '#fff' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{
+                            fontSize: 10, padding: '2px 6px', borderRadius: 6,
+                            background: c.type === 'club' ? 'rgba(253, 118, 102, 0.18)' : 'rgba(96, 165, 250, 0.18)',
+                            color: c.type === 'club' ? '#FD7666' : '#60a5fa',
+                            textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700,
+                          }}>
+                            {t(c.type === 'club' ? 'admin.topClubs.club' : 'admin.topClubs.group')}
+                          </span>
+                          <span style={{ opacity: c.is_deleted ? 0.5 : 1 }}>{c.name}</span>
+                          {c.is_deleted && (
+                            <span style={{ fontSize: 11, color: 'rgba(248,113,113,0.85)' }}>{t('admin.topClubs.deleted')}</span>
+                          )}
+                          {c.category && !c.is_deleted && (
+                            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>· {c.category}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px 16px', textAlign: 'right', color: '#FD7666', fontWeight: 700 }}>{c.views}</td>
+                      <td style={{ padding: '12px 16px', textAlign: 'right', color: 'rgba(255,255,255,0.6)' }}>{c.unique_users}</td>
                     </tr>
                   ))}
                 </tbody>

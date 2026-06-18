@@ -11,6 +11,7 @@ import {
   approveClub,
   rejectClub,
   deleteUser,
+  getTopClubs,
 } from '../controllers/adminController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 
@@ -35,6 +36,7 @@ router.get('/stats',       getStats);
 router.get('/users',       getRecentUsers);
 router.delete('/users/:id', deleteUser);
 router.get('/screen-time', getScreenTime);
+router.get('/top-clubs',   getTopClubs);
 router.get('/export/users',       exportUsers);
 router.get('/export/screens',     exportScreens);
 router.get('/export/suggestions', exportSuggestions);

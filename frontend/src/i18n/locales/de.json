@@ -1584,6 +1584,7 @@
       "dealRedemptions": "Kooperationen — Einlösungen",
       "pendingClubsFmt": "Clubs warten auf Freischaltung ({{count}})",
       "topPages": "Top Seiten (30 Tage)",
+      "topClubs": "Top Clubs & Gruppen (30 Tage)",
       "categorySuggestions": "Kategorie-Vorschläge",
       "newUsers": "Neue Nutzer",
       "csvExport": "CSV Export"
@@ -1617,6 +1618,15 @@
       "page": "Seite",
       "views": "Aufrufe",
       "avgDuration": "Ø Dauer"
+    },
+    "topClubs": {
+      "name": "Name",
+      "views": "Aufrufe",
+      "uniqueUsers": "Unique",
+      "deleted": "(gelöscht)",
+      "club": "Club",
+      "group": "Gruppe",
+      "empty": "Noch keine Aufrufe in den letzten 30 Tagen."
     },
     "export": {
       "users": "Nutzer exportieren",
