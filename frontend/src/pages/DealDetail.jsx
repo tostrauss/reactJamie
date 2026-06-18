@@ -191,9 +191,17 @@ export const DealDetail = () => {
         {(() => {
           const redeemed = !!redemption?.redeemed;
           const isAdmin = !!user?.is_admin;
-          // Once redeemed the voucher is locked — only admins may re-open it
-          // (for testing/demos). Everyone else just sees "Bereits eingelöst";
-          // the "1/1 mal eingelöst" counter below is the proof for staff.
+          const interval = redemption?.redeem_interval || 'once';
+          // For recurring deals "redeemed" means redeemed THIS period — the
+          // status endpoint resets it next day/week, so the CTA re-enables on
+          // its own. Label reflects the period so it doesn't read as "forever".
+          const redeemedLabel = interval === 'weekly'
+            ? t('deal.redeemedWeekCTA', { defaultValue: 'Diese Woche eingelöst ✓' })
+            : interval === 'daily'
+            ? t('deal.redeemedDayCTA', { defaultValue: 'Heute eingelöst ✓' })
+            : t('deal.redeemedCTA');
+          // Once redeemed the voucher is locked for the current period — only
+          // admins may re-open it (testing/demos).
           const voucherLocked = redeemed && !isAdmin;
           return (
             <button
@@ -217,13 +225,17 @@ export const DealDetail = () => {
                 opacity: !redemption ? 0.7 : 1,
               }}
             >
-              {redeemed ? (isAdmin ? t('deal.viewVoucherCTA') : t('deal.redeemedCTA')) : t('deal.redeemCTA')}
+              {redeemed ? (isAdmin ? t('deal.viewVoucherCTA') : redeemedLabel) : t('deal.redeemCTA')}
             </button>
           );
         })()}
         {redemption && (
           <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, margin: '8px 0 0' }}>
-            {t('deal.redemptionCounter', { count: redemption.count, max: redemption.max })}
+            {redemption.redeem_interval === 'weekly'
+              ? t('deal.cadenceWeekly', { defaultValue: '🔁 1× pro Woche einlösbar' })
+              : redemption.redeem_interval === 'daily'
+              ? t('deal.cadenceDaily', { defaultValue: '🔁 1× pro Tag einlösbar' })
+              : t('deal.redemptionCounter', { count: redemption.count, max: redemption.max })}
           </p>
         )}
       </div>

@@ -1450,9 +1450,13 @@
     "bookNow": "Book now",
     "redeemCTA": "Redeem now",
     "redeemedCTA": "Already redeemed",
+    "redeemedWeekCTA": "Redeemed this week ✓",
+    "redeemedDayCTA": "Redeemed today ✓",
     "viewVoucherCTA": "Show voucher",
     "redeemedToast": "Redeemed successfully! ✅",
     "redemptionCounter": "{{count}}/{{max}} redeemed",
+    "cadenceWeekly": "🔁 Redeemable once per week",
+    "cadenceDaily": "🔁 Redeemable once per day",
     "redeemConfirmTitle": "Are you at the venue?",
     "redeemConfirmBody": "This deal can only be redeemed once and should only be activated on-site with the staff present.",
     "redeemConfirmYes": "Confirm",
@@ -1567,10 +1571,17 @@
         "visibleUntilHint": "Auto-hidden after this date (empty = no expiry)",
         "maxRedemptions": "Max redemptions",
         "maxRedemptionsHint": "Deal auto-goes-offline once this many people have redeemed it (empty = unlimited)",
+        "redeemInterval": "How often redeemable?",
+        "redeemIntervalHint": "Recurring (e.g. weekly) for standing perks like a \"Welcome Shot every Thursday\". The global cap below then does not apply.",
         "photo": "Company photo",
         "photoPick": "Pick photo",
         "photoUploading": "Uploading…",
         "photoRemove": "Remove"
+      },
+      "intervals": {
+        "once": "Once per user",
+        "weekly": "Once per week",
+        "daily": "Once per day"
       },
       "toast": {
         "loadError": "Could not load cooperations",

@@ -780,6 +780,23 @@ const runStartupMigrations = async () => {
     await db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS max_redemptions INTEGER DEFAULT 100`);
   });
 
+  // Recurring deals: a perk can be redeemable once per day / week instead of
+  // once-ever — e.g. SOHO's "Welcome Shot jeden Donnerstag". redeem_interval
+  // ('once' | 'daily' | 'weekly') drives a period_key on each redemption; the
+  // UNIQUE(deal_id, user_id, period_key) then enforces "once per period"
+  // atomically (replaces the old once-ever UNIQUE(deal_id, user_id)).
+  await migrate('deals.redeem_interval', () =>
+    db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS redeem_interval TEXT NOT NULL DEFAULT 'once'`));
+  await migrate('deal_redemptions.period_key', async () => {
+    await db.query(`ALTER TABLE deal_redemptions ADD COLUMN IF NOT EXISTS period_key TEXT NOT NULL DEFAULT 'once'`);
+    // Drop the once-ever uniqueness (auto-named by Postgres) and replace it with
+    // a per-period one. Existing rows all carry period_key='once', so they map
+    // 1:1 onto the new index without conflict.
+    await db.query(`ALTER TABLE deal_redemptions DROP CONSTRAINT IF EXISTS deal_redemptions_deal_id_user_id_key`);
+    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS deal_redemptions_period_uq
+                    ON deal_redemptions (deal_id, user_id, period_key)`);
+  });
+
   // ── Subscriptions table (Stripe Pro) ─────────────────────────────────────────
   await migrate('subscriptions', () => db.query(`
     CREATE TABLE IF NOT EXISTS subscriptions (

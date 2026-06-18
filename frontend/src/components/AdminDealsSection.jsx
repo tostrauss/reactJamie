@@ -22,6 +22,7 @@ const emptyForm = () => ({
   visible_until: '', // YYYY-MM-DD in the input
   photo_url: '',
   max_redemptions: '100', // global cap; empty = unlimited (auto-offline at cap)
+  redeem_interval: 'once', // once | daily | weekly — how often a user may redeem
 });
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -127,6 +128,7 @@ export const AdminDealsSection = () => {
       visible_until: deal.visible_until ? deal.visible_until.slice(0, 10) : '',
       photo_url: Array.isArray(deal.photos) && deal.photos.length > 0 ? deal.photos[0] : '',
       max_redemptions: deal.max_redemptions == null ? '' : String(deal.max_redemptions),
+      redeem_interval: deal.redeem_interval || 'once',
     });
     setShowForm(true);
   };
@@ -152,6 +154,7 @@ export const AdminDealsSection = () => {
         visible_until: form.visible_until || null,
         // Empty input = unlimited (null); otherwise the global redemption cap.
         max_redemptions: form.max_redemptions.trim() === '' ? null : form.max_redemptions.trim(),
+        redeem_interval: form.redeem_interval || 'once',
       };
       if (form.id) {
         await dealsApi.update(form.id, payload);
@@ -261,6 +264,22 @@ export const AdminDealsSection = () => {
             />
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4 }}>
               {t('admin.deals.fields.descriptionHint')}
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>{t('admin.deals.fields.redeemInterval', { defaultValue: 'Wie oft einlösbar?' })}</label>
+            <select
+              value={form.redeem_interval}
+              onChange={e => setForm(p => ({ ...p, redeem_interval: e.target.value }))}
+              style={inputStyle}
+            >
+              <option value="once">{t('admin.deals.intervals.once', { defaultValue: 'Einmalig pro Nutzer' })}</option>
+              <option value="weekly">{t('admin.deals.intervals.weekly', { defaultValue: '1× pro Woche' })}</option>
+              <option value="daily">{t('admin.deals.intervals.daily', { defaultValue: '1× pro Tag' })}</option>
+            </select>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4 }}>
+              {t('admin.deals.fields.redeemIntervalHint', { defaultValue: 'Wiederkehrend (z.B. wöchentlich) für Stamm-Angebote wie „Welcome Shot jeden Donnerstag". Das globale Limit unten gilt dann nicht.' })}
             </p>
           </div>
 

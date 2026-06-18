@@ -129,11 +129,14 @@ export const getDeal = async (req, res) => {
 // ==========================================
 // ADMIN — CREATE DEAL
 // ==========================================
+const REDEEM_INTERVALS = ['once', 'daily', 'weekly'];
+
 export const createDeal = async (req, res) => {
-  const { name, category, deal_label, description, address, lat, lng, photos, booking_url, visible_until, max_redemptions } = req.body;
+  const { name, category, deal_label, description, address, lat, lng, photos, booking_url, visible_until, max_redemptions, redeem_interval } = req.body;
   if (!name || !deal_label) {
     return res.status(400).json({ error: 'name and deal_label are required' });
   }
+  const intervalParsed = REDEEM_INTERVALS.includes(redeem_interval) ? redeem_interval : 'once';
   // Global redemption cap. undefined → DB default (100); ''/null → unlimited.
   let maxRedemptionsParsed = 100;
   if (max_redemptions === null || max_redemptions === '') {
@@ -154,8 +157,8 @@ export const createDeal = async (req, res) => {
   }
   try {
     const result = await db.query(
-      `INSERT INTO deals (name, category, deal_label, description, address, lat, lng, photos, booking_url, visible_until, max_redemptions)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      `INSERT INTO deals (name, category, deal_label, description, address, lat, lng, photos, booking_url, visible_until, max_redemptions, redeem_interval)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
       [
         name,
         category || 'Lokal',
@@ -168,6 +171,7 @@ export const createDeal = async (req, res) => {
         booking_url || null,
         visibleUntilParsed,
         maxRedemptionsParsed,
+        intervalParsed,
       ]
     );
     const newDeal = result.rows[0];
@@ -186,7 +190,10 @@ export const createDeal = async (req, res) => {
 // ==========================================
 export const updateDeal = async (req, res) => {
   const { id } = req.params;
-  const { name, category, deal_label, description, address, lat, lng, photos, booking_url, is_active, visible_until, max_redemptions } = req.body;
+  const { name, category, deal_label, description, address, lat, lng, photos, booking_url, is_active, visible_until, max_redemptions, redeem_interval } = req.body;
+  if (redeem_interval !== undefined && !REDEEM_INTERVALS.includes(redeem_interval)) {
+    return res.status(400).json({ error: 'redeem_interval muss once, daily oder weekly sein' });
+  }
   const validationError = validateDealInputs({ lat, lng, booking_url, photos, name, deal_label, description, address });
   if (validationError) return res.status(400).json({ error: validationError });
   let visibleUntilParsed = null;
@@ -211,6 +218,7 @@ export const updateDeal = async (req, res) => {
   if (photos !== undefined)      fields.photos = JSON.stringify(Array.isArray(photos) ? photos : []);
   if (booking_url !== undefined) fields.booking_url = booking_url || null;
   if (is_active !== undefined)   fields.is_active = !!is_active;
+  if (redeem_interval !== undefined) fields.redeem_interval = redeem_interval;
   if (visible_until !== undefined) fields.visible_until = visibleUntilParsed;
   if (max_redemptions !== undefined) {
     // ''/null → unlimited; otherwise a positive int.
@@ -252,20 +260,39 @@ export const updateDeal = async (req, res) => {
 // redeem CTA once max is reached. max is 1 today (hard cap per user, ever).
 const MAX_REDEMPTIONS_PER_USER = 1;
 
+// SQL fragment deriving the CURRENT period key from a deals row aliased `d`.
+// 'once' deals key on a constant (→ once ever); daily/weekly key on the
+// calendar day / ISO week so a user may redeem again next period. Computed in
+// Postgres (handles ISO weeks correctly) and reused by status + redeem so both
+// always agree. No user input — safe to interpolate.
+const PERIOD_KEY_SQL = `CASE d.redeem_interval
+    WHEN 'daily'  THEN 'd:' || to_char(now(), 'YYYY-MM-DD')
+    WHEN 'weekly' THEN 'w:' || to_char(now(), 'IYYY-IW')
+    ELSE 'once' END`;
+
 export const getRedemptionStatus = async (req, res) => {
   try {
     const { id } = req.params;
+    // redeemed = redeemed in the CURRENT period (not ever) for periodic deals.
     const result = await db.query(
-      `SELECT redeemed_at FROM deal_redemptions
-       WHERE deal_id = $1 AND user_id = $2`,
+      `SELECT d.redeem_interval,
+              dr.redeemed_at
+       FROM deals d
+       LEFT JOIN deal_redemptions dr
+         ON dr.deal_id = d.id AND dr.user_id = $2 AND dr.period_key = (${PERIOD_KEY_SQL})
+       WHERE d.id = $1
+       ORDER BY dr.redeemed_at DESC
+       LIMIT 1`,
       [id, req.userId]
     );
+    if (!result.rows.length) return res.status(404).json({ error: 'Deal not found' });
     const row = result.rows[0];
     res.json({
-      redeemed: !!row,
-      count: row ? 1 : 0,
+      redeemed: !!row.redeemed_at,
+      count: row.redeemed_at ? 1 : 0,
       max: MAX_REDEMPTIONS_PER_USER,
-      redeemed_at: row?.redeemed_at || null,
+      redeemed_at: row.redeemed_at || null,
+      redeem_interval: row.redeem_interval || 'once',
     });
   } catch (err) {
     console.error('getRedemptionStatus error:', err);
@@ -291,15 +318,23 @@ export const redeemDeal = async (req, res) => {
     );
     if (!dealRes.rows.length) return res.status(404).json({ error: 'Deal not found' });
 
-    // Atomic redeem with global-cap guard: insert ONLY while the deal is still
-    // under its max_redemptions (NULL = unlimited). ON CONFLICT covers the
-    // per-user double-tap. 0 rows back ⇒ already redeemed (conflict) OR cap hit.
+    // Atomic redeem. period_key is derived per the deal's interval (once/daily/
+    // weekly) so UNIQUE(deal_id,user_id,period_key) enforces "once per period"
+    // and absorbs concurrent double-taps. The global max_redemptions cap applies
+    // ONLY to 'once' deals — recurring deals are meant to run on schedule, so a
+    // lifetime cap would wrongly take them offline. 0 rows ⇒ already redeemed
+    // this period (conflict) OR ('once') cap hit.
     const inserted = await db.query(
-      `INSERT INTO deal_redemptions (deal_id, user_id)
-       SELECT $1, $2
-       WHERE (SELECT COUNT(*) FROM deal_redemptions WHERE deal_id = $1)
-             < (SELECT COALESCE(max_redemptions, 2147483647) FROM deals WHERE id = $1)
-       ON CONFLICT (deal_id, user_id) DO NOTHING
+      `INSERT INTO deal_redemptions (deal_id, user_id, period_key)
+       SELECT d.id, $2, (${PERIOD_KEY_SQL})
+       FROM deals d
+       WHERE d.id = $1
+         AND (
+           d.redeem_interval <> 'once'
+           OR (SELECT COUNT(*) FROM deal_redemptions WHERE deal_id = d.id)
+                < COALESCE(d.max_redemptions, 2147483647)
+         )
+       ON CONFLICT (deal_id, user_id, period_key) DO NOTHING
        RETURNING redeemed_at`,
       [id, req.userId]
     );
@@ -312,10 +347,16 @@ export const redeemDeal = async (req, res) => {
       });
     }
 
-    // No row inserted — tell apart "this user already redeemed" (keep their
+    // No row inserted — tell apart "already redeemed THIS period" (keep their
     // proof, 409) from "global cap reached" (deal is now offline, 410 Gone).
     const existing = await db.query(
-      `SELECT redeemed_at FROM deal_redemptions WHERE deal_id = $1 AND user_id = $2`,
+      `SELECT dr.redeemed_at
+       FROM deals d
+       JOIN deal_redemptions dr
+         ON dr.deal_id = d.id AND dr.user_id = $2 AND dr.period_key = (${PERIOD_KEY_SQL})
+       WHERE d.id = $1
+       ORDER BY dr.redeemed_at DESC
+       LIMIT 1`,
       [id, req.userId]
     );
     if (existing.rows.length) {

@@ -1450,9 +1450,13 @@
     "bookNow": "Jetzt buchen",
     "redeemCTA": "Jetzt einlösen",
     "redeemedCTA": "Bereits eingelöst",
+    "redeemedWeekCTA": "Diese Woche eingelöst ✓",
+    "redeemedDayCTA": "Heute eingelöst ✓",
     "viewVoucherCTA": "Gutschein anzeigen",
     "redeemedToast": "Erfolgreich eingelöst! ✅",
     "redemptionCounter": "{{count}}/{{max}} mal eingelöst",
+    "cadenceWeekly": "🔁 1× pro Woche einlösbar",
+    "cadenceDaily": "🔁 1× pro Tag einlösbar",
     "redeemConfirmTitle": "Bist du im Geschäft?",
     "redeemConfirmBody": "Dieser Deal ist nur einmal einlösbar und sollte nur vor Ort beim Personal aktiviert werden.",
     "redeemConfirmYes": "Bestätigen",
@@ -1567,10 +1571,17 @@
         "visibleUntilHint": "Nach diesem Datum wird die Kooperation automatisch ausgeblendet (leer = unbefristet)",
         "maxRedemptions": "Max. Einlösungen",
         "maxRedemptionsHint": "Deal geht automatisch offline, sobald so viele Personen ihn eingelöst haben (leer = unbegrenzt)",
+        "redeemInterval": "Wie oft einlösbar?",
+        "redeemIntervalHint": "Wiederkehrend (z.B. wöchentlich) für Stamm-Angebote wie „Welcome Shot jeden Donnerstag\". Das globale Limit gilt dann nicht.",
         "photo": "Foto des Unternehmens",
         "photoPick": "Foto auswählen",
         "photoUploading": "Wird hochgeladen…",
         "photoRemove": "Entfernen"
+      },
+      "intervals": {
+        "once": "Einmalig pro Nutzer",
+        "weekly": "1× pro Woche",
+        "daily": "1× pro Tag"
       },
       "toast": {
         "loadError": "Kooperationen konnten nicht geladen werden",
