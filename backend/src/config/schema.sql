@@ -310,13 +310,14 @@ INSERT INTO categories (name, icon, color, sort_order, parent_id) VALUES
     ('Tennis',          '🎾', '#FD7666', 1,  (SELECT id FROM categories WHERE name = 'Sport')),
     ('Golf',            '⛳', '#FD7666', 2,  (SELECT id FROM categories WHERE name = 'Sport')),
     ('Beachvolleyball', '🏐', '#FD7666', 3,  (SELECT id FROM categories WHERE name = 'Sport')),
-    ('Running',         '🏃', '#FD7666', 4,  (SELECT id FROM categories WHERE name = 'Sport')),
+    ('Laufen',          '🏃', '#FD7666', 4,  (SELECT id FROM categories WHERE name = 'Sport')),
     ('Volleyball',      '🏐', '#FD7666', 5,  (SELECT id FROM categories WHERE name = 'Sport')),
     ('Fußball',         '⚽', '#FD7666', 6,  (SELECT id FROM categories WHERE name = 'Sport')),
     ('Basketball',      '🏀', '#FD7666', 7,  (SELECT id FROM categories WHERE name = 'Sport')),
     ('Yoga',            '🧘', '#FD7666', 8,  (SELECT id FROM categories WHERE name = 'Sport')),
     ('Schwimmen',       '🏊', '#FD7666', 9,  (SELECT id FROM categories WHERE name = 'Sport')),
-    ('Fitness',         '💪', '#FD7666', 10, (SELECT id FROM categories WHERE name = 'Sport'))
+    ('Fitness',         '💪', '#FD7666', 10, (SELECT id FROM categories WHERE name = 'Sport')),
+    ('Laufklub',        '👟', '#FD7666', 11, (SELECT id FROM categories WHERE name = 'Sport'))
 ON CONFLICT (name) DO NOTHING;
 
 -- Night Out — Unterkategorien

@@ -6,7 +6,13 @@ import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { UserName } from '../components/UserName';
 import { ImageCropModal } from '../components/ImageCropModal';
+import { CATEGORY_HIERARCHY } from '../utils/categories';
 import '../styles/group-edit.css';
+
+// Which main category contains a given subcategory name (for pre-selecting the
+// main chip when editing). '' if the stored category isn't in the hierarchy.
+const mainCategoryOf = (subName) =>
+  CATEGORY_HIERARCHY.find(c => c.subs.some(s => s.name === subName))?.id || '';
 
 export const GroupEdit = () => {
   const { id } = useParams();
@@ -26,6 +32,7 @@ export const GroupEdit = () => {
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [formData, setFormData]     = useState({
     name: '', description: '', max_members: 10, date: '', time: '', image_url: null,
+    category: '', mainCategory: '',
     target_age_min: '', target_age_max: '',
     chat_only_owner: false, events_owner_only: false,
     is_recurring_weekly: false, is_private: false,
@@ -78,6 +85,8 @@ export const GroupEdit = () => {
           : (g.date ? g.date.slice(0, 10) : ''),
         time: isEventType && validDt ? `${pad(dt.getHours())}:${pad(dt.getMinutes())}` : '',
         image_url: g.image_url || null,
+        category: g.category || '',
+        mainCategory: mainCategoryOf(g.category),
         target_age_min: g.target_age_min ?? '',
         target_age_max: g.target_age_max ?? '',
         chat_only_owner: !!g.chat_only_owner,
@@ -464,6 +473,46 @@ export const GroupEdit = () => {
             </div>
 
             <div className="ge-divider" />
+
+            {/* Kategorie — Haupt- + Unterkategorie ändern. Nicht für Events:
+                die erben die Kategorie ihres Clubs. */}
+            {group?.type !== 'event' && (
+              <>
+                <div className="ge-field">
+                  <label className="ge-label">{t('groupEdit.fields.category', { defaultValue: 'Kategorie' })}</label>
+                  <div className="ge-cat-grid">
+                    {CATEGORY_HIERARCHY.map(cat => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        className={`ge-cat-chip${formData.mainCategory === cat.id ? ' active' : ''}`}
+                        onClick={() => setFormData(p => ({ ...p, mainCategory: cat.id, category: '' }))}
+                      >
+                        <span className="ge-cat-icon">{cat.icon}</span>
+                        <span>{cat.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {formData.mainCategory && (
+                    <div className="ge-cat-grid ge-cat-grid--subs">
+                      {CATEGORY_HIERARCHY.find(c => c.id === formData.mainCategory)?.subs.map(sub => (
+                        <button
+                          key={sub.name}
+                          type="button"
+                          className={`ge-cat-chip${formData.category === sub.name ? ' active' : ''}`}
+                          onClick={() => setFormData(p => ({ ...p, category: sub.name }))}
+                        >
+                          <span className="ge-cat-icon">{sub.icon}</span>
+                          <span>{sub.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="ge-divider" />
+              </>
+            )}
 
             <div className="ge-controls-row">
               <div className="ge-control-block">

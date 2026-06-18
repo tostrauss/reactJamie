@@ -45,6 +45,34 @@
   background: linear-gradient(135deg, #2d2b55 0%, #1e1d3d 100%);
 }
 
+/* Cover photo edit button (bottom-right of the cover). */
+.ge-cover-edit {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: var(--radius-full, 999px);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.ge-cover-edit-text {
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .ge-cover-overlay {
   position: absolute;
   inset: 0;
@@ -553,6 +581,48 @@
   transform: scale(0.98);
   opacity: 0.9;
   box-shadow: 0 4px 12px rgba(255, 107, 107, 0.25);
+}
+
+/* ── Category picker (edit) ── */
+.ge-cat-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ge-cat-grid--subs {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.ge-cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: var(--radius-full, 999px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-white, #fff);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ge-cat-chip.active {
+  background: rgba(253, 118, 102, 0.18);
+  border-color: var(--accent-coral, #FD7666);
+  color: var(--accent-coral, #FD7666);
+}
+
+.ge-cat-icon {
+  font-size: 15px;
 }
 
 .ge-save-btn:disabled {
