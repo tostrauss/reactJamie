@@ -131,12 +131,21 @@ export const getDeal = async (req, res) => {
 // ==========================================
 const REDEEM_INTERVALS = ['once', 'daily', 'weekly'];
 
+// Sanitize a weekday array → sorted unique ISO weekday ints (1=Mon … 7=Sun).
+// Empty / absent / invalid → null (no weekday restriction).
+function parseRedeemDays(input) {
+  if (!Array.isArray(input)) return null;
+  const days = [...new Set(input.map(Number).filter(d => Number.isInteger(d) && d >= 1 && d <= 7))].sort((a, b) => a - b);
+  return days.length ? days : null;
+}
+
 export const createDeal = async (req, res) => {
-  const { name, category, deal_label, description, address, lat, lng, photos, booking_url, visible_until, max_redemptions, redeem_interval } = req.body;
+  const { name, category, deal_label, description, address, lat, lng, photos, booking_url, visible_until, max_redemptions, redeem_interval, redeem_days } = req.body;
   if (!name || !deal_label) {
     return res.status(400).json({ error: 'name and deal_label are required' });
   }
   const intervalParsed = REDEEM_INTERVALS.includes(redeem_interval) ? redeem_interval : 'once';
+  const redeemDaysParsed = parseRedeemDays(redeem_days);
   // Global redemption cap. undefined → DB default (100); ''/null → unlimited.
   let maxRedemptionsParsed = 100;
   if (max_redemptions === null || max_redemptions === '') {
@@ -157,8 +166,8 @@ export const createDeal = async (req, res) => {
   }
   try {
     const result = await db.query(
-      `INSERT INTO deals (name, category, deal_label, description, address, lat, lng, photos, booking_url, visible_until, max_redemptions, redeem_interval)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+      `INSERT INTO deals (name, category, deal_label, description, address, lat, lng, photos, booking_url, visible_until, max_redemptions, redeem_interval, redeem_days)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
       [
         name,
         category || 'Lokal',
@@ -172,6 +181,7 @@ export const createDeal = async (req, res) => {
         visibleUntilParsed,
         maxRedemptionsParsed,
         intervalParsed,
+        redeemDaysParsed,
       ]
     );
     const newDeal = result.rows[0];
@@ -190,7 +200,7 @@ export const createDeal = async (req, res) => {
 // ==========================================
 export const updateDeal = async (req, res) => {
   const { id } = req.params;
-  const { name, category, deal_label, description, address, lat, lng, photos, booking_url, is_active, visible_until, max_redemptions, redeem_interval } = req.body;
+  const { name, category, deal_label, description, address, lat, lng, photos, booking_url, is_active, visible_until, max_redemptions, redeem_interval, redeem_days } = req.body;
   if (redeem_interval !== undefined && !REDEEM_INTERVALS.includes(redeem_interval)) {
     return res.status(400).json({ error: 'redeem_interval muss once, daily oder weekly sein' });
   }
@@ -219,6 +229,7 @@ export const updateDeal = async (req, res) => {
   if (booking_url !== undefined) fields.booking_url = booking_url || null;
   if (is_active !== undefined)   fields.is_active = !!is_active;
   if (redeem_interval !== undefined) fields.redeem_interval = redeem_interval;
+  if (redeem_days !== undefined) fields.redeem_days = parseRedeemDays(redeem_days);
   if (visible_until !== undefined) fields.visible_until = visibleUntilParsed;
   if (max_redemptions !== undefined) {
     // ''/null → unlimited; otherwise a positive int.
@@ -270,12 +281,21 @@ const PERIOD_KEY_SQL = `CASE d.redeem_interval
     WHEN 'weekly' THEN 'w:' || to_char(now(), 'IYYY-IW')
     ELSE 'once' END`;
 
+// True when the deal has no weekday restriction OR today (ISO weekday 1=Mon …
+// 7=Sun, in the DB's timezone) is one of the allowed days. Reused by status +
+// redeem so the displayed gate and the enforced gate always agree.
+const REDEEMABLE_TODAY_SQL = `(d.redeem_days IS NULL
+    OR cardinality(d.redeem_days) = 0
+    OR EXTRACT(ISODOW FROM now())::int = ANY(d.redeem_days))`;
+
 export const getRedemptionStatus = async (req, res) => {
   try {
     const { id } = req.params;
     // redeemed = redeemed in the CURRENT period (not ever) for periodic deals.
     const result = await db.query(
       `SELECT d.redeem_interval,
+              d.redeem_days,
+              ${REDEEMABLE_TODAY_SQL} AS redeemable_today,
               dr.redeemed_at
        FROM deals d
        LEFT JOIN deal_redemptions dr
@@ -293,6 +313,8 @@ export const getRedemptionStatus = async (req, res) => {
       max: MAX_REDEMPTIONS_PER_USER,
       redeemed_at: row.redeemed_at || null,
       redeem_interval: row.redeem_interval || 'once',
+      redeem_days: row.redeem_days || null,
+      redeemable_today: row.redeemable_today !== false,
     });
   } catch (err) {
     console.error('getRedemptionStatus error:', err);
@@ -309,14 +331,25 @@ export const redeemDeal = async (req, res) => {
   const { id } = req.params;
   try {
     // Confirm the deal is still visible — admins may have disabled or expired
-    // it after the user opened the page.
+    // it after the user opened the page. Also fetch the weekday gate.
     const dealRes = await db.query(
-      `SELECT id FROM deals
-       WHERE id = $1 AND is_active = TRUE
-         AND (visible_until IS NULL OR visible_until > NOW())`,
+      `SELECT d.id, d.redeem_days, ${REDEEMABLE_TODAY_SQL} AS redeemable_today
+       FROM deals d
+       WHERE d.id = $1 AND d.is_active = TRUE
+         AND (d.visible_until IS NULL OR d.visible_until > NOW())`,
       [id]
     );
     if (!dealRes.rows.length) return res.status(404).json({ error: 'Deal not found' });
+
+    // Weekday gate: e.g. "nur donnerstags einlösbar". Distinct 422 so the
+    // client can show the allowed days instead of a generic error.
+    if (dealRes.rows[0].redeemable_today === false) {
+      return res.status(422).json({
+        error: 'Dieser Deal ist heute nicht einlösbar.',
+        code: 'WRONG_DAY',
+        redeem_days: dealRes.rows[0].redeem_days || [],
+      });
+    }
 
     // Atomic redeem. period_key is derived per the deal's interval (once/daily/
     // weekly) so UNIQUE(deal_id,user_id,period_key) enforces "once per period"

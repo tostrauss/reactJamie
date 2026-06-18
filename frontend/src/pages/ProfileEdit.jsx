@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect, useRef, useCallback } from 'react';
+import { useState, useContext, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';

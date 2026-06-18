@@ -516,8 +516,8 @@ export const ChatList = () => {
                                   className="chat-owner-btn chat-owner-btn--manage"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    // Clubs have a dedicated edit page (ClubEdit);
-                                    // groups/events use GroupEdit. Route by type.
+                                    // Clubs and groups/events are all edited via GroupEdit;
+                                    // keep the type-specific URL so deep links + analytics stay correct.
                                     navigate(chat.type === 'club' ? `/club/${chat.id}/edit` : `/group/${chat.id}/edit`);
                                   }}
                                 >

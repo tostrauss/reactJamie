@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useContext, useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { lazyWithReload } from './utils/lazyRetry';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { useRegisterSW } from 'virtual:pwa-register/react';
@@ -378,7 +378,7 @@ const Navigation = () => {
           <Link to="/profile" className={`nav-item ${isActive('/profile') ? 'active' : ''}`}>
             <div className="nav-icon">
               {user.avatar_url
-                ? <img src={user.avatar_url} alt={t('app.nav.profileAlt')} className="nav-avatar" decoding="async" fetchpriority="high" />
+                ? <img src={user.avatar_url} alt={t('app.nav.profileAlt')} className="nav-avatar" decoding="async" fetchPriority="high" />
                 : <ProfileIcon active={isActive('/profile')} />
               }
             </div>
@@ -583,15 +583,6 @@ function AppRoutes() {
     reviews.getPending()
       .then(res => { if (res.data?.length) setPendingReviews(res.data); })
       .catch(() => {});
-  }, [user?.id]);
-
-  // Show Pro modal if flagged from WelcomeIntro
-  useEffect(() => {
-    if (!user) return;
-    if (localStorage.getItem('jamie_show_pro_modal') === '1') {
-      localStorage.removeItem('jamie_show_pro_modal');
-      setShowProModal(true);
-    }
   }, [user?.id]);
 
   // Global Pro-modal trigger — fired by GroupCard's Pro lock and any other

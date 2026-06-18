@@ -1,0 +1,6 @@
+# JAMIE — security disclosure policy (RFC 9116)
+# Served at https://app.jamie-app.com/.well-known/security.txt
+Contact: mailto:security@jamie-app.com
+Expires: 2027-06-18T00:00:00.000Z
+Preferred-Languages: de, en
+Canonical: https://app.jamie-app.com/.well-known/security.txt

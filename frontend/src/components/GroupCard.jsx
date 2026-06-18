@@ -1,4 +1,4 @@
-import React, { memo, useState, useContext } from 'react';
+import { memo, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';

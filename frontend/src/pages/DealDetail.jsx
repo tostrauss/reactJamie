@@ -1,10 +1,18 @@
-import React, { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { deals } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { AuthContext } from '../context/AuthContext';
 import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
+
+// ISO weekday (1=Mon … 7=Sun) → short label, for weekday-restricted deals.
+const WEEKDAY_LABELS = {
+  de: { 1: 'Mo', 2: 'Di', 3: 'Mi', 4: 'Do', 5: 'Fr', 6: 'Sa', 7: 'So' },
+  en: { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat', 7: 'Sun' },
+};
+const formatRedeemDays = (days, lang) =>
+  (days || []).map(n => WEEKDAY_LABELS[lang]?.[n] || n).join(', ');
 
 const LIBRARIES = [];
 const DEAL_MAP_STYLES = [
@@ -46,7 +54,8 @@ function DealMiniMap({ lat, lng }) {
 export const DealDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en' : 'de';
   const toast = useToast();
   const { user } = useContext(AuthContext);
   const [deal, setDeal] = useState(null);
@@ -91,6 +100,17 @@ export const DealDetail = () => {
       if (err.response?.status === 409) {
         setRedemption(err.response.data);
         setShowConfirm(false);
+        return;
+      }
+      // 422 WRONG_DAY — day rolled over between page load and tap.
+      if (err.response?.status === 422 && err.response.data?.code === 'WRONG_DAY') {
+        setShowConfirm(false);
+        toast.error(t('deal.onlyDaysCTA', {
+          days: formatRedeemDays(err.response.data.redeem_days, lang),
+          defaultValue: 'Nur {{days}} einlösbar',
+        }));
+        // Refresh status so the button reflects the new day.
+        deals.getRedemptionStatus(id).then(r => setRedemption(r.data)).catch(() => {});
         return;
       }
       toast.error(t('deal.redeemError'));
@@ -159,7 +179,7 @@ export const DealDetail = () => {
             fontSize: 48,
           }}>🍵</div>
         ) : photos.length === 1 ? (
-          <img src={photos[0]} alt={deal.name} style={{ width: '100%', height: 280, objectFit: 'cover', display: 'block' }} decoding="async" fetchpriority="high" />
+          <img src={photos[0]} alt={deal.name} style={{ width: '100%', height: 280, objectFit: 'cover', display: 'block' }} decoding="async" fetchPriority="high" />
         ) : (
           <div style={{
             display: 'grid',
@@ -192,6 +212,11 @@ export const DealDetail = () => {
           const redeemed = !!redemption?.redeemed;
           const isAdmin = !!user?.is_admin;
           const interval = redemption?.redeem_interval || 'once';
+          // Weekday gate: e.g. "nur donnerstags". Blocked → disable + relabel
+          // (admins bypass for testing). The backend enforces it too.
+          const redeemDays = Array.isArray(redemption?.redeem_days) ? redemption.redeem_days : [];
+          const blockedByDay = redeemDays.length > 0 && redemption?.redeemable_today === false && !isAdmin;
+          const daysLabel = formatRedeemDays(redeemDays, lang);
           // For recurring deals "redeemed" means redeemed THIS period — the
           // status endpoint resets it next day/week, so the CTA re-enables on
           // its own. Label reflects the period so it doesn't read as "forever".
@@ -203,29 +228,34 @@ export const DealDetail = () => {
           // Once redeemed the voucher is locked for the current period — only
           // admins may re-open it (testing/demos).
           const voucherLocked = redeemed && !isAdmin;
+          const label = redeemed
+            ? (isAdmin ? t('deal.viewVoucherCTA') : redeemedLabel)
+            : blockedByDay
+            ? t('deal.onlyDaysCTA', { days: daysLabel, defaultValue: 'Nur {{days}} einlösbar' })
+            : t('deal.redeemCTA');
           return (
             <button
               type="button"
-              disabled={!redemption || redeeming || voucherLocked}
+              disabled={!redemption || redeeming || voucherLocked || blockedByDay}
               onClick={() => {
                 if (redeemed) { if (isAdmin) navigate(`/deal/${id}/redeem`); }
-                else setShowConfirm(true);
+                else if (!blockedByDay) setShowConfirm(true);
               }}
               style={{
-                background: redeemed ? 'rgba(255,255,255,0.10)' : '#FD7666',
-                color: voucherLocked ? 'rgba(255,255,255,0.55)' : '#fff',
-                border: redeemed ? '1px solid rgba(255,255,255,0.15)' : 'none',
+                background: (redeemed || blockedByDay) ? 'rgba(255,255,255,0.10)' : '#FD7666',
+                color: (voucherLocked || blockedByDay) ? 'rgba(255,255,255,0.55)' : '#fff',
+                border: (redeemed || blockedByDay) ? '1px solid rgba(255,255,255,0.15)' : 'none',
                 borderRadius: 100,
                 padding: '13px 32px',
                 fontSize: 15,
                 fontWeight: 800,
                 letterSpacing: 0.3,
-                boxShadow: redeemed ? 'none' : '0 8px 24px rgba(253,118,102,0.35)',
-                cursor: (!redemption || voucherLocked) ? 'default' : 'pointer',
+                boxShadow: (redeemed || blockedByDay) ? 'none' : '0 8px 24px rgba(253,118,102,0.35)',
+                cursor: (!redemption || voucherLocked || blockedByDay) ? 'default' : 'pointer',
                 opacity: !redemption ? 0.7 : 1,
               }}
             >
-              {redeemed ? (isAdmin ? t('deal.viewVoucherCTA') : redeemedLabel) : t('deal.redeemCTA')}
+              {label}
             </button>
           );
         })()}
@@ -236,6 +266,11 @@ export const DealDetail = () => {
               : redemption.redeem_interval === 'daily'
               ? t('deal.cadenceDaily', { defaultValue: '🔁 1× pro Tag einlösbar' })
               : t('deal.redemptionCounter', { count: redemption.count, max: redemption.max })}
+          </p>
+        )}
+        {Array.isArray(redemption?.redeem_days) && redemption.redeem_days.length > 0 && (
+          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 12, margin: '4px 0 0' }}>
+            {t('deal.onlyDaysInfo', { days: formatRedeemDays(redemption.redeem_days, lang), defaultValue: '📅 Nur {{days}} einlösbar' })}
           </p>
         )}
       </div>

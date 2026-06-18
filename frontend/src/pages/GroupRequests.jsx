@@ -165,7 +165,7 @@ export const GroupRequests = () => {
             <div className="request-card">
               <div className="request-image-container">
                 {currentRequest.user_avatar ? (
-                  <img src={currentRequest.user_avatar} alt={currentRequest.user_name} className="request-user-image" decoding="async" fetchpriority="high" />
+                  <img src={currentRequest.user_avatar} alt={currentRequest.user_name} className="request-user-image" decoding="async" fetchPriority="high" />
                 ) : (
                   <div className="request-avatar-placeholder">
                     {(currentRequest.user_name || '?')[0].toUpperCase()}

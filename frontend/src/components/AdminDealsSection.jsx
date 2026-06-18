@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { deals as dealsApi, upload } from '../utils/api';
 import { useToast } from '../context/ToastContext';
@@ -23,9 +23,16 @@ const emptyForm = () => ({
   photo_url: '',
   max_redemptions: '100', // global cap; empty = unlimited (auto-offline at cap)
   redeem_interval: 'once', // once | daily | weekly — how often a user may redeem
+  redeem_days: [], // ISO weekdays (1=Mon … 7=Sun); empty = any day
 });
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
+
+// ISO weekday chips for the "nur an bestimmten Tagen einlösbar" picker.
+const WEEKDAYS = [
+  { n: 1, label: 'Mo' }, { n: 2, label: 'Di' }, { n: 3, label: 'Mi' },
+  { n: 4, label: 'Do' }, { n: 5, label: 'Fr' }, { n: 6, label: 'Sa' }, { n: 7, label: 'So' },
+];
 
 export const AdminDealsSection = () => {
   const { t } = useTranslation();
@@ -129,6 +136,7 @@ export const AdminDealsSection = () => {
       photo_url: Array.isArray(deal.photos) && deal.photos.length > 0 ? deal.photos[0] : '',
       max_redemptions: deal.max_redemptions == null ? '' : String(deal.max_redemptions),
       redeem_interval: deal.redeem_interval || 'once',
+      redeem_days: Array.isArray(deal.redeem_days) ? deal.redeem_days : [],
     });
     setShowForm(true);
   };
@@ -155,6 +163,7 @@ export const AdminDealsSection = () => {
         // Empty input = unlimited (null); otherwise the global redemption cap.
         max_redemptions: form.max_redemptions.trim() === '' ? null : form.max_redemptions.trim(),
         redeem_interval: form.redeem_interval || 'once',
+        redeem_days: form.redeem_days,
       };
       if (form.id) {
         await dealsApi.update(form.id, payload);
@@ -280,6 +289,37 @@ export const AdminDealsSection = () => {
             </select>
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4 }}>
               {t('admin.deals.fields.redeemIntervalHint', { defaultValue: 'Wiederkehrend (z.B. wöchentlich) für Stamm-Angebote wie „Welcome Shot jeden Donnerstag". Das globale Limit unten gilt dann nicht.' })}
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>{t('admin.deals.fields.redeemDays', { defaultValue: 'Nur an bestimmten Tagen einlösbar?' })}</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {WEEKDAYS.map(({ n, label }) => {
+                const active = form.redeem_days.includes(n);
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setForm(p => ({
+                      ...p,
+                      redeem_days: active ? p.redeem_days.filter(d => d !== n) : [...p.redeem_days, n].sort((a, b) => a - b),
+                    }))}
+                    style={{
+                      minWidth: 40, padding: '8px 10px', borderRadius: 10, cursor: 'pointer',
+                      border: `1px solid ${active ? '#FD7666' : 'rgba(255,255,255,0.15)'}`,
+                      background: active ? 'rgba(253,118,102,0.18)' : 'transparent',
+                      color: active ? '#FD7666' : 'rgba(255,255,255,0.7)',
+                      fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4 }}>
+              {t('admin.deals.fields.redeemDaysHint', { defaultValue: 'Leer = jeden Tag einlösbar. Sonst nur an den gewählten Tagen (z.B. nur Do).' })}
             </p>
           </div>
 

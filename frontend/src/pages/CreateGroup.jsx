@@ -34,7 +34,7 @@ export const CreateGroup = () => {
   const [formData, setFormData] = useState({
     name: '',
     mainCategory: '',
-    activity: '',
+    categories: [], // up to 3 subcategory names; categories[0] = primary
     description: '',
     date: '',
     dateDay: '',
@@ -172,7 +172,8 @@ export const CreateGroup = () => {
       // Step 2: create group as JSON
       const payload = {
         name: formData.name,
-        category: formData.activity,
+        categories: formData.categories,
+        category: formData.categories[0],
         description: formData.description,
         date: formData.date,
         location: formData.location,
@@ -233,7 +234,7 @@ export const CreateGroup = () => {
 
   const canProceed = () => {
     switch (step) {
-      case 1: return formData.name && formData.mainCategory && formData.activity;
+      case 1: return formData.name && formData.categories.length > 0;
       case 2: return formData.date && formData.location && formData.locationCountry === 'AT'
         && isDateInFuture() && isValidCalendarDate() && ageRangeValid();
       case 3: return true;
@@ -324,7 +325,7 @@ export const CreateGroup = () => {
                   key={cat.id}
                   type="button"
                   className={`main-category-chip ${formData.mainCategory === cat.id ? 'active' : ''}`}
-                  onClick={() => setFormData(prev => ({ ...prev, mainCategory: cat.id, activity: '' }))}
+                  onClick={() => setFormData(prev => ({ ...prev, mainCategory: cat.id }))}
                 >
                   <span className="chip-icon">{cat.icon}</span>
                   <span>{cat.label}</span>
@@ -337,18 +338,27 @@ export const CreateGroup = () => {
             <div className="form-section">
               <label className="form-label">
                 <span className="form-label-icon">🎯</span> {t('createGroup.step1.subCategoryLabel')}
+                {' '}<span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({formData.categories.length}/3)</span>
               </label>
               <div className="activity-grid">
-                {CATEGORY_HIERARCHY.find(c => c.id === formData.mainCategory)?.subs.map(sub => (
-                  <button
-                    key={sub.name}
-                    type="button"
-                    className={`activity-chip ${formData.activity === sub.name ? 'active' : ''}`}
-                    onClick={() => setFormData(prev => ({ ...prev, activity: sub.name }))}
-                  >
-                    {sub.icon} {sub.name}
-                  </button>
-                ))}
+                {CATEGORY_HIERARCHY.find(c => c.id === formData.mainCategory)?.subs.map(sub => {
+                  const selected = formData.categories.includes(sub.name);
+                  return (
+                    <button
+                      key={sub.name}
+                      type="button"
+                      className={`activity-chip ${selected ? 'active' : ''}`}
+                      onClick={() => setFormData(prev => {
+                        // Toggle; cap at 3. Selections persist across main categories.
+                        if (selected) return { ...prev, categories: prev.categories.filter(c => c !== sub.name) };
+                        if (prev.categories.length >= 3) return prev;
+                        return { ...prev, categories: [...prev.categories, sub.name] };
+                      })}
+                    >
+                      {sub.icon} {sub.name}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

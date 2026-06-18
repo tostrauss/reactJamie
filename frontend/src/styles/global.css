@@ -1642,5 +1642,7 @@ select:focus {
 .jamie-wordmark--splash {
   height: 56px;
   margin-bottom: 14px;
-  filter: drop-shadow(0 4px 24px rgba(253, 118, 102, 0.35)); /* brand glow */
+  /* No CSS drop-shadow: the PNG already carries a faint baked coral glow, and
+     stacking a 24px coral shadow on top rendered as a visible orange box behind
+     the wordmark on the dark login background. */
 }

@@ -67,9 +67,17 @@ async function checkAndAwardPioneer(userId, groupId, lat, lng) {
 // ==========================================
 // CREATE GROUP / CLUB
 // ==========================================
+// Sanitize a multi-category selection → deduped, trimmed, max-3 string array
+// (mirrors clubController). The singular `category` stays the primary.
+function normalizeCategories(categories, category) {
+  const src = Array.isArray(categories) ? categories : (category ? [category] : []);
+  return [...new Set(src.filter(c => typeof c === 'string' && c.trim()).map(c => c.trim()))].slice(0, 3);
+}
+
 export const createGroup = async (req, res) => {
-  const { name, description, type, category, date, time, location, image_url, max_members, is_private, skill_level, chat_only_owner, target_age_min, target_age_max, is_recurring_weekly } = req.body;
+  const { name, description, type, category, categories, date, time, location, image_url, max_members, is_private, skill_level, chat_only_owner, target_age_min, target_age_max, is_recurring_weekly } = req.body;
   const userId = req.userId; // JWT auth (not session)
+  const catList = normalizeCategories(categories, category);
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
@@ -158,10 +166,10 @@ export const createGroup = async (req, res) => {
     const recurringWeekly = !!is_recurring_weekly && (type === 'group' || !type);
 
     const result = await db.query(
-      `INSERT INTO groups (name, description, type, category, date, location, image_url, max_members, is_private, skill_level, owner_id, lat, lng, chat_only_owner, target_age_min, target_age_max, is_recurring_weekly)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      `INSERT INTO groups (name, description, type, category, categories, date, location, image_url, max_members, is_private, skill_level, owner_id, lat, lng, chat_only_owner, target_age_min, target_age_max, is_recurring_weekly)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
        RETURNING *`,
-      [name, description, type || 'group', category, dateTime, location, image_url, max_members || 10, is_private || false, skill_level, userId, coords?.lat ?? null, coords?.lng ?? null, chat_only_owner || false, ageMin, ageMax, recurringWeekly]
+      [name, description, type || 'group', (catList[0] || category), (catList.length ? catList : null), dateTime, location, image_url, max_members || 10, is_private || false, skill_level, userId, coords?.lat ?? null, coords?.lng ?? null, chat_only_owner || false, ageMin, ageMax, recurringWeekly]
     );
 
     const newGroup = result.rows[0];
@@ -316,8 +324,10 @@ export const getGroups = async (req, res) => {
       paramIndex++;
     }
     if (category) {
-      query += ` AND g.category ILIKE $${paramIndex++}`;
+      // OR-match across the multi-category array, falling back to the primary.
+      query += ` AND (g.category ILIKE $${paramIndex} OR $${paramIndex} = ANY(g.categories))`;
       params.push(category);
+      paramIndex++;
     }
     if (location) {
       query += ` AND g.location ILIKE $${paramIndex++}`;
@@ -435,7 +445,10 @@ export const getGroupById = async (req, res) => {
 export const updateGroup = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, category, date, location, image_url, max_members, is_private, skill_level, chat_only_owner, target_age_min, target_age_max, is_recurring_weekly, moment_photo_url } = req.body;
+    const { name, description, category, categories, date, location, image_url, max_members, is_private, skill_level, chat_only_owner, target_age_min, target_age_max, is_recurring_weekly, moment_photo_url } = req.body;
+    // Multi-category: catList = full set; category column = primary. Empty
+    // (neither sent) → null params → COALESCE keeps existing values.
+    const catList = normalizeCategories(categories, category);
 
     if (name !== undefined && name.length > 100) return res.status(400).json({ error: 'Name darf maximal 100 Zeichen lang sein' });
     if (description !== undefined && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
@@ -529,7 +542,7 @@ export const updateGroup = async (req, res) => {
     }
 
     invalidatePrefix('groups:');
-    if (location !== undefined) invalidatePrefix('map:');
+    invalidatePrefix('map:');
 
     // Sentinels: ageMin/MaxU is `undefined` when client didn't touch the field
     // (keep existing), `null` when explicitly clearing, integer when setting.
@@ -538,6 +551,7 @@ export const updateGroup = async (req, res) => {
        SET name = COALESCE($1, name),
            description = COALESCE($2, description),
            category = COALESCE($3, category),
+           categories = COALESCE($18, categories),
            date = COALESCE($4, date),
            location = COALESCE($5, location),
            image_url = COALESCE($6, image_url),
@@ -555,12 +569,13 @@ export const updateGroup = async (req, res) => {
        WHERE id = $10
        RETURNING *`,
       [
-        name, description, category, date, location, image_url, max_members, is_private, skill_level,
+        name, description, (catList.length ? catList[0] : null), date, location, image_url, max_members, is_private, skill_level,
         id, latUpdate, lngUpdate, chat_only_owner ?? null,
         ageMinU === undefined ? '__keep__' : (ageMinU === null ? '__null__' : String(ageMinU)),
         ageMaxU === undefined ? '__keep__' : (ageMaxU === null ? '__null__' : String(ageMaxU)),
         is_recurring_weekly === undefined ? null : !!is_recurring_weekly,
         moment_photo_url ?? null,
+        catList.length ? catList : null,
       ]
     );
 

@@ -66,8 +66,11 @@ export const getMapPins = async (req, res) => {
       }
       const list = categories.split(',').map(c => c.trim()).filter(Boolean).slice(0, 20);
       if (list.length > 0) {
-        query += ` AND g.category ILIKE ANY($${paramIndex++}::text[])`;
+        // OR-match: primary category (ILIKE) OR any of the multi-category array
+        // overlaps the requested list (&&). NULL categories falls back to primary.
+        query += ` AND (g.category ILIKE ANY($${paramIndex}::text[]) OR g.categories && $${paramIndex}::text[])`;
         params.push(list);
+        paramIndex++;
       }
     }
 

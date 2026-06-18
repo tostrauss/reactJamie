@@ -1,4 +1,3 @@
-import React from 'react';
 
 /**
  * Renders a user's display name with their age as a small superscript:

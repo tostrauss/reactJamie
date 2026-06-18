@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, lazy, Suspense } from 'react';
+import { useState, useEffect, useContext, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { clubs } from '../utils/api';
@@ -412,7 +412,16 @@ export const ClubDetail = () => {
         <div className="cd-body">
           <div className="cd-title-row">
             <h2 className="cd-title">{club.name || club.title}</h2>
-            {club.category && <span className="cd-category">{club.category}</span>}
+            {/* Multi-category: one chip per category (falls back to the single
+                primary `category`), wrapped so they sit in a row. */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {(Array.isArray(club.categories) && club.categories.length
+                ? club.categories
+                : (club.category ? [club.category] : [])
+              ).map(cat => (
+                <span key={cat} className="cd-category">{cat}</span>
+              ))}
+            </div>
           </div>
           {club.description && (
             <p className="cd-description">{club.description}</p>

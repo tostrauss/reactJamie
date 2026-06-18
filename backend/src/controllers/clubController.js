@@ -33,11 +33,20 @@ const userManagesClub = async (clubId, ownerId, userId) => {
 // ==========================================
 // CREATE CLUB
 // ==========================================
+// Sanitize a multi-category selection → deduped, trimmed, max-3 string array.
+// Falls back to the single `category` when no array is given (legacy clients).
+// Returns [] when nothing valid is provided.
+export function normalizeCategories(categories, category) {
+  const src = Array.isArray(categories) ? categories : (category ? [category] : []);
+  return [...new Set(src.filter(c => typeof c === 'string' && c.trim()).map(c => c.trim()))].slice(0, 3);
+}
+
 export const createClub = async (req, res) => {
   const {
     name,
     description,
     category,
+    categories,
     date,
     time,
     location,
@@ -48,6 +57,10 @@ export const createClub = async (req, res) => {
     events_owner_only
   } = req.body;
   const userId = req.userId;
+  // Multi-category: `categories` is the full set (max 3, deduped); `category`
+  // stays the PRIMARY (= categories[0]) for all single-category code paths.
+  const catList = normalizeCategories(categories, category);
+  const primaryCategory = catList[0] || category || null;
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
@@ -85,6 +98,7 @@ export const createClub = async (req, res) => {
         description,
         type,
         category,
+        categories,
         date,
         location,
         image_url,
@@ -97,13 +111,14 @@ export const createClub = async (req, res) => {
         approval_status,
         events_owner_only
       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        RETURNING *`,
       [
         name,
         description,
         CLUB_TYPE,
-        category,
+        primaryCategory,
+        catList.length ? catList : null,
         dateTime,
         location,
         image_url,
@@ -209,8 +224,11 @@ export const getClubs = async (req, res) => {
       paramIndex++;
     }
     if (category) {
-      query += ` AND g.category ILIKE $${paramIndex++}`;
+      // OR-match: a club appears under any of its categories (multi-category),
+      // falling back to the primary `category` for rows without an array.
+      query += ` AND (g.category ILIKE $${paramIndex} OR $${paramIndex} = ANY(g.categories))`;
       params.push(category);
+      paramIndex++;
     }
     if (location) {
       query += ` AND g.location ILIKE $${paramIndex++}`;
@@ -304,6 +322,7 @@ export const updateClub = async (req, res) => {
       name,
       description,
       category,
+      categories,
       date,
       location,
       image_url,
@@ -313,6 +332,9 @@ export const updateClub = async (req, res) => {
       events_owner_only,
       chat_only_owner
     } = req.body;
+    // Multi-category: catList = full set; category column tracks the primary.
+    // Empty (neither sent) → null params → COALESCE keeps existing values.
+    const catList = normalizeCategories(categories, category);
 
     if (name !== undefined && name.length > 100) return res.status(400).json({ error: 'Name darf maximal 100 Zeichen lang sein' });
     if (name !== undefined && !/[\p{L}\p{N}]/u.test(name)) {
@@ -356,6 +378,7 @@ export const updateClub = async (req, res) => {
        SET name = COALESCE($1, name),
            description = COALESCE($2, description),
            category = COALESCE($3, category),
+           categories = COALESCE($16, categories),
            date = COALESCE($4, date),
            location = COALESCE($5, location),
            image_url = COALESCE($6, image_url),
@@ -372,7 +395,7 @@ export const updateClub = async (req, res) => {
       [
         name,
         description,
-        category,
+        catList.length ? catList[0] : null,
         dateValue,
         location,
         image_url,
@@ -384,12 +407,13 @@ export const updateClub = async (req, res) => {
         latUpdate,
         lngUpdate,
         events_owner_only ?? null,
-        chat_only_owner ?? null
+        chat_only_owner ?? null,
+        catList.length ? catList : null
       ]
     );
 
     invalidatePrefix('clubs:');
-    if (location !== undefined) invalidatePrefix('map:');
+    invalidatePrefix('map:');
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating club:', err);

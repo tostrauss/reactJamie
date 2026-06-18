@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback, useRef, memo } from 'react';
+import { useState, useEffect, useContext, useCallback, useRef, memo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { groups, deals as dealsApi, upload as uploadApi } from '../utils/api';

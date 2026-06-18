@@ -565,6 +565,13 @@ const runStartupMigrations = async () => {
               WHEN check_violation THEN NULL;
     END $$`));
 
+  // Multi-category: a club/group can belong to several (sub)categories. The
+  // singular `category` stays the PRIMARY (= categories[0]) so all existing
+  // single-category display + filter code keeps working unchanged; `categories`
+  // holds the full set for OR-match discovery.
+  await migrate('groups.categories', () =>
+    db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS categories text[]`));
+
   // Lat/lng must be within valid earth bounds. Without this, app-layer
   // validation can be bypassed by any insert path that forgets to call
   // the validator, and a row with lat=999 silently breaks Haversine.
@@ -796,6 +803,13 @@ const runStartupMigrations = async () => {
     await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS deal_redemptions_period_uq
                     ON deal_redemptions (deal_id, user_id, period_key)`);
   });
+
+  // Weekday-restricted deals: a bar can limit redemption to specific weekdays
+  // (e.g. "nur donnerstags"). redeem_days holds ISO weekday numbers (1=Mon …
+  // 7=Sun); NULL/empty = any day. Redemption is gated server-side; the client
+  // disables the button + labels it on other days.
+  await migrate('deals.redeem_days', () =>
+    db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS redeem_days INTEGER[]`));
 
   // ── Subscriptions table (Stripe Pro) ─────────────────────────────────────────
   await migrate('subscriptions', () => db.query(`

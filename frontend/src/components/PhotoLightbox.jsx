@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 
 /**
  * Full-screen photo viewer. Tap a thumbnail anywhere → see the photo large.

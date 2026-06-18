@@ -20,7 +20,6 @@
  * Install dependency first:   cd backend && npm install @apple/app-store-server-library
  */
 
-import crypto from 'crypto';
 import db from '../config/database.js';
 
 // Mirror of the iOS app's product catalogue. Server is authoritative on

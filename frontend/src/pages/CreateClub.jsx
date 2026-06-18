@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { clubs, upload } from '../utils/api';
@@ -27,7 +27,7 @@ export const CreateClub = () => {
     title: '',
     description: '',
     mainCategory: '',
-    category: '',
+    categories: [], // up to 3 subcategory names; categories[0] = primary
     location: '',
     // 'AT' only after the user picks an Austrian place from the autocomplete
     // dropdown. Manual edits to the location input clear it. step 2 advance
@@ -147,7 +147,8 @@ export const CreateClub = () => {
       const response = await clubs.create({
         name: formData.title,
         description: formData.description,
-        category: formData.category,
+        categories: formData.categories,
+        category: formData.categories[0],
         location: formData.location,
         max_members: formData.max_members,
         is_private: !formData.is_public,
@@ -179,7 +180,7 @@ export const CreateClub = () => {
 
   const canProceed = () => {
     switch(step) {
-      case 1: return formData.title.trim() && formData.mainCategory && formData.category && !uploading;
+      case 1: return formData.title.trim() && formData.categories.length > 0 && !uploading;
       case 2: return formData.location.trim() && formData.locationCountry === 'AT';
       case 3: return true;
       default: return false;
@@ -233,7 +234,7 @@ export const CreateClub = () => {
                   key={cat.id}
                   type="button"
                   className={`main-category-chip ${formData.mainCategory === cat.id ? 'active' : ''}`}
-                  onClick={() => setFormData(prev => ({ ...prev, mainCategory: cat.id, category: '' }))}
+                  onClick={() => setFormData(prev => ({ ...prev, mainCategory: cat.id }))}
                 >
                   <span className="chip-icon">{cat.icon}</span>
                   <span>{cat.label}</span>
@@ -244,19 +245,30 @@ export const CreateClub = () => {
 
           {formData.mainCategory && (
             <div className="form-section">
-              <label className="form-label">{t('createClub.step1.subCategoryLabel')}</label>
+              <label className="form-label">
+                {t('createClub.step1.subCategoryLabel')}
+                {' '}<span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({formData.categories.length}/3)</span>
+              </label>
               <div className="category-grid">
-                {CATEGORY_HIERARCHY.find(c => c.id === formData.mainCategory)?.subs.map(sub => (
-                  <button
-                    key={sub.name}
-                    type="button"
-                    className={`category-chip ${formData.category === sub.name ? 'active' : ''}`}
-                    onClick={() => setFormData(prev => ({ ...prev, category: sub.name }))}
-                  >
-                    <span className="chip-icon">{sub.icon}</span>
-                    <span>{sub.name}</span>
-                  </button>
-                ))}
+                {CATEGORY_HIERARCHY.find(c => c.id === formData.mainCategory)?.subs.map(sub => {
+                  const selected = formData.categories.includes(sub.name);
+                  return (
+                    <button
+                      key={sub.name}
+                      type="button"
+                      className={`category-chip ${selected ? 'active' : ''}`}
+                      onClick={() => setFormData(prev => {
+                        // Toggle; cap at 3. Selections persist across main categories.
+                        if (selected) return { ...prev, categories: prev.categories.filter(c => c !== sub.name) };
+                        if (prev.categories.length >= 3) return prev;
+                        return { ...prev, categories: [...prev.categories, sub.name] };
+                      })}
+                    >
+                      <span className="chip-icon">{sub.icon}</span>
+                      <span>{sub.name}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

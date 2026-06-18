@@ -74,7 +74,7 @@ self.addEventListener('push', (event) => {
 
   // Use the target URL as the tag so each distinct destination gets its own
   // notification slot — DMs to different users don't replace each other.
-  const tag = `jamie-${url.replace(/\//g, '-').replace(/^-/, '')}` || 'jamie-notification';
+  const tag = `jamie-${url.replace(/\//g, '-').replace(/^-/, '')}`;
 
   event.waitUntil(
     self.registration.showNotification(title, {

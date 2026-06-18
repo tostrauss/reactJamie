@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, Suspense } from 'react';
+import { useState, useEffect, useContext, Suspense } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
@@ -365,10 +365,21 @@ export const GroupDetail = () => {
 
   const handleDelete = async () => {
     const isClubType = group?.type === 'club';
+    const isEventType = group?.type === 'event';
     const confirmMsg = isClubType ? t('groups.detail.delete.confirmClub') : t('groups.detail.delete.confirmGroup');
     if (!window.confirm(confirmMsg)) return;
     try {
-      isClubType ? await clubs.delete(id) : await groups.delete(id);
+      if (isClubType) {
+        await clubs.delete(id);
+      } else if (isEventType && group?.parent_club_id) {
+        // Club events: dedicated endpoint so the club owner/manager (not only
+        // the creator) may delete, and it busts the clubs/discover/MAP caches
+        // — groups.delete is owner-only and would 403 a manager, leaving a
+        // ghost pin on the map.
+        await clubs.deleteEvent(group.parent_club_id, id);
+      } else {
+        await groups.delete(id);
+      }
       toast.success(isClubType ? t('groups.detail.delete.deletedClub') : t('groups.detail.delete.deletedGroup'));
       navigate('/home');
     } catch (error) {
@@ -778,7 +789,9 @@ export const GroupDetail = () => {
                     {t('groups.detail.actions.boost')}
                   </button>
                 )}
-                {isOwner
+                {/* Club events: the parent club's owner/managers may delete too
+                    (group.is_manager), not just the creator — mirrors the edit gear. */}
+                {(isOwner || (isEvent && group.is_manager))
                   ? <button className="gd-btn-leave" onClick={handleDelete}>{isClub ? t('groups.detail.delete.club') : isEvent ? t('groups.detail.delete.event') : t('groups.detail.delete.group')}</button>
                   : <button className="gd-btn-leave" onClick={handleJoinToggle}>{t('groups.detail.delete.leave')}</button>
                 }

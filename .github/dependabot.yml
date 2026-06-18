@@ -1,0 +1,28 @@
+version: 2
+updates:
+  # Frontend npm deps — weekly, non-major updates grouped into one PR to cut
+  # noise; majors come as individual PRs so breaking changes get reviewed alone.
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      frontend-minor-patch:
+        update-types: [minor, patch]
+
+  # Backend npm deps
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      backend-minor-patch:
+        update-types: [minor, patch]
+
+  # Keep GitHub Actions (CI/backup workflows) pinned versions fresh.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { groups, clubs, upload, friends as friendsApi } from '../utils/api';
@@ -32,7 +32,7 @@ export const GroupEdit = () => {
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [formData, setFormData]     = useState({
     name: '', description: '', max_members: 10, date: '', time: '', image_url: null,
-    category: '', mainCategory: '',
+    categories: [], mainCategory: '',
     target_age_min: '', target_age_max: '',
     chat_only_owner: false, events_owner_only: false,
     is_recurring_weekly: false, is_private: false,
@@ -85,8 +85,8 @@ export const GroupEdit = () => {
           : (g.date ? g.date.slice(0, 10) : ''),
         time: isEventType && validDt ? `${pad(dt.getHours())}:${pad(dt.getMinutes())}` : '',
         image_url: g.image_url || null,
-        category: g.category || '',
-        mainCategory: mainCategoryOf(g.category),
+        categories: (Array.isArray(g.categories) && g.categories.length) ? g.categories : (g.category ? [g.category] : []),
+        mainCategory: mainCategoryOf((Array.isArray(g.categories) && g.categories[0]) || g.category),
         target_age_min: g.target_age_min ?? '',
         target_age_max: g.target_age_max ?? '',
         chat_only_owner: !!g.chat_only_owner,
@@ -287,7 +287,7 @@ export const GroupEdit = () => {
       {/* ── Cover + Header ── */}
       <div className="ge-cover">
         {formData.image_url
-          ? <img src={formData.image_url} alt="" className="ge-cover-img" decoding="async" fetchpriority="high" />
+          ? <img src={formData.image_url} alt="" className="ge-cover-img" decoding="async" fetchPriority="high" />
           : <div className="ge-cover-placeholder" />
         }
         <div className="ge-cover-overlay" />
@@ -479,14 +479,17 @@ export const GroupEdit = () => {
             {group?.type !== 'event' && (
               <>
                 <div className="ge-field">
-                  <label className="ge-label">{t('groupEdit.fields.category', { defaultValue: 'Kategorie' })}</label>
+                  <label className="ge-label">
+                    {t('groupEdit.fields.category', { defaultValue: 'Kategorie' })}
+                    {' '}<span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({formData.categories.length}/3)</span>
+                  </label>
                   <div className="ge-cat-grid">
                     {CATEGORY_HIERARCHY.map(cat => (
                       <button
                         key={cat.id}
                         type="button"
                         className={`ge-cat-chip${formData.mainCategory === cat.id ? ' active' : ''}`}
-                        onClick={() => setFormData(p => ({ ...p, mainCategory: cat.id, category: '' }))}
+                        onClick={() => setFormData(p => ({ ...p, mainCategory: cat.id }))}
                       >
                         <span className="ge-cat-icon">{cat.icon}</span>
                         <span>{cat.label}</span>
@@ -495,17 +498,25 @@ export const GroupEdit = () => {
                   </div>
                   {formData.mainCategory && (
                     <div className="ge-cat-grid ge-cat-grid--subs">
-                      {CATEGORY_HIERARCHY.find(c => c.id === formData.mainCategory)?.subs.map(sub => (
-                        <button
-                          key={sub.name}
-                          type="button"
-                          className={`ge-cat-chip${formData.category === sub.name ? ' active' : ''}`}
-                          onClick={() => setFormData(p => ({ ...p, category: sub.name }))}
-                        >
-                          <span className="ge-cat-icon">{sub.icon}</span>
-                          <span>{sub.name}</span>
-                        </button>
-                      ))}
+                      {CATEGORY_HIERARCHY.find(c => c.id === formData.mainCategory)?.subs.map(sub => {
+                        const selected = formData.categories.includes(sub.name);
+                        return (
+                          <button
+                            key={sub.name}
+                            type="button"
+                            className={`ge-cat-chip${selected ? ' active' : ''}`}
+                            onClick={() => setFormData(p => {
+                              // Toggle; cap at 3. Selections persist across main categories.
+                              if (selected) return { ...p, categories: p.categories.filter(c => c !== sub.name) };
+                              if (p.categories.length >= 3) return p;
+                              return { ...p, categories: [...p.categories, sub.name] };
+                            })}
+                          >
+                            <span className="ge-cat-icon">{sub.icon}</span>
+                            <span>{sub.name}</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

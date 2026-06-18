@@ -253,19 +253,22 @@ export const Home = () => {
   // names + main label and check membership case-insensitively.
   const matchesKategorie = (item) => {
     if (kategorieFilter.size === 0) return true;
-    if (!item.category) return false;
-    const itemCat = item.category.toLowerCase();
+    // Multi-category: match if ANY of the item's categories falls under a
+    // selected main category. Falls back to the single primary `category`.
+    const itemCats = (Array.isArray(item.categories) && item.categories.length ? item.categories : [item.category])
+      .filter(Boolean).map(c => c.toLowerCase());
+    if (itemCats.length === 0) return false;
     for (const mainCatId of kategorieFilter) {
       const cat = CATEGORY_HIERARCHY.find(c => c.id === mainCatId);
       if (!cat) continue;
-      if (cat.label.toLowerCase() === itemCat) return true;
+      const label = cat.label.toLowerCase();
       // Every main category has a generic "Sonstiges" sub, so a group literally
       // categorized "Sonstiges" would match ANY selected main category. Only
       // the dedicated 'sonstiges' main category should claim those.
-      if (cat.subs.some(s =>
-        (s.name !== 'Sonstiges' || cat.id === 'sonstiges') &&
-        s.name.toLowerCase() === itemCat
-      )) return true;
+      const subNames = cat.subs
+        .filter(s => s.name !== 'Sonstiges' || cat.id === 'sonstiges')
+        .map(s => s.name.toLowerCase());
+      if (itemCats.some(ic => ic === label || subNames.includes(ic))) return true;
     }
     return false;
   };

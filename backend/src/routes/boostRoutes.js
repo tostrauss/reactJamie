@@ -4,7 +4,6 @@ import {
   getPackages,
   applyBoost,
   createStripeIntent,
-  stripeWebhook,
   redeemReferral,
 } from '../controllers/boostController.js';
 import { authenticate } from '../middleware/auth.js';

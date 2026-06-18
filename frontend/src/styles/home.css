@@ -1063,32 +1063,6 @@
   background: rgba(253,118,102,0.1);
 }
 
-/* ========================================
-   Club Edit Page
-   ======================================== */
-.club-edit-page {
-  min-height: 100vh;
-  background: var(--bg-primary);
-  color: white;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 84px);
-}
-
-.club-edit-page .edit-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: calc(env(safe-area-inset-top, 0px) + 16px) 20px 16px;
-  background: rgba(0, 0, 0, 0.2);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.club-edit-page .edit-header h1 {
-  font-size: 18px;
-  font-weight: 600;
-}
-
 .edit-content {
   padding: 20px;
 }
