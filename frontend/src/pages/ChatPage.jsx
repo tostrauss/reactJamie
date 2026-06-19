@@ -52,7 +52,7 @@ export const ChatPage = () => {
         const response = await groups.getById(groupId);
         if (cancelled) return;
         setGroup(response.data);
-        if (response.data.type === 'club' && response.data.chat_only_owner && response.data.owner_id !== user?.id) {
+        if (response.data.type === 'club' && response.data.chat_only_owner && Number(response.data.owner_id) !== Number(user?.id)) {
           setCanSendMessages(false);
           setPermissionMessage(t('chat.page.permissionOwnerOnly'));
         }
@@ -141,12 +141,14 @@ export const ChatPage = () => {
     const sentContent = content.trim();
     if (!sentContent || !canSendMessages || isSendingRef.current) return;
 
-    // Optimistic send (mirrors DirectMessagePage): render the bubble + fire
-    // the socket emit in parallel to the HTTP persist. Without this, the
-    // sender's own bubble waits on the full HTTP roundtrip, and so does the
-    // recipient's. Backend's `send_message` socket handler only broadcasts
-    // (does NOT persist) and re-checks chat_only_owner, so emitting before
-    // the HTTP completes is safe.
+    // Optimistic send (mirrors DirectMessagePage): render the SENDER's own
+    // bubble immediately, but broadcast to the rest of the room only AFTER the
+    // HTTP persist succeeds. The `send_message` socket handler re-checks
+    // membership + chat_only_owner but runs NO text moderation (that lives on
+    // the HTTP path — messageController.checkTextSafety), so emitting in
+    // parallel broadcast banned/unmoderated content to everyone in the room
+    // live even when the message was about to be rejected. Sender keeps the
+    // instant bubble; other members see it ~1 DB round-trip later, moderated.
     isSendingRef.current = true;
     setContent('');
 
@@ -163,10 +165,6 @@ export const ChatPage = () => {
 
     setMessageList(prev => [...prev, optimistic]);
 
-    if (socket) {
-      socket.emit('send_message', { ...optimistic, group_id: groupId, groupId });
-    }
-
     try {
       const response = await messages.send(groupId, sentContent);
       const real = {
@@ -176,6 +174,12 @@ export const ChatPage = () => {
         user_id: user.id,
       };
       setMessageList(prev => prev.map(m => (m.id === tempId ? real : m)));
+      // Broadcast to the rest of the room ONLY after moderation + persistence
+      // succeeded — the persisted row carries the real id so other members
+      // dedupe correctly on a later refetch.
+      if (socket) {
+        socket.emit('send_message', { ...real, group_id: groupId, groupId });
+      }
     } catch (error) {
       if (error.response?.data?.isOwnerOnly) {
         // Permission revoked between page-load and send — pull the bubble.
@@ -184,9 +188,9 @@ export const ChatPage = () => {
         setPermissionMessage('Nur der Club-Gründer kann Nachrichten senden');
         setContent(sentContent);
       } else {
-        // Persist failed (rate limit, server error). Keep the bubble visible
-        // but mark it failed — recipients may have already seen it via
-        // socket; this is the same trade-off as DMs.
+        // Persist failed (rate limit, server error, moderation 422). Keep the
+        // bubble visible but mark it failed. Other members never saw it (the
+        // socket broadcast now fires only after a successful persist).
         setMessageList(prev =>
           prev.map(m => (m.id === tempId ? { ...m, _pending: false, _failed: true } : m))
         );

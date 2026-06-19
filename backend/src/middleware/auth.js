@@ -73,10 +73,19 @@ export const optionalAuth = (req, res, next) => {
   }
 };
 
+// 30-day session. Was 7d, which logged users out after a week of not opening
+// the app ("no app does that" — Tina). The frontend rolls this forward on every
+// launch via POST /auth/refresh, so an at-least-monthly user effectively never
+// gets logged out. Trade-off: a leaked token stays valid up to 30d (we have no
+// server-side revocation list) — acceptable for a consumer social app given the
+// httpOnly cookie + login lockout. Raise to '90d' if you want it longer.
+const TOKEN_TTL = '30d';
+const COOKIE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
 export const generateToken = (userId) =>
   jwt.sign({ id: userId }, process.env.JWT_SECRET, {
     algorithm: 'HS256',
-    expiresIn: '7d',
+    expiresIn: TOKEN_TTL,
     issuer: JWT_ISSUER,
     audience: JWT_AUDIENCE,
   });
@@ -87,7 +96,7 @@ export const setAuthCookie = (res, token) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    maxAge: COOKIE_MAX_AGE_MS, // 30 days — matches the JWT TTL above
   });
 };
 

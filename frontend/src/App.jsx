@@ -47,6 +47,7 @@ const SpotifyCallback = lazyWithReload(() => import('./pages/SpotifyCallback'));
 const PrivacyPolicy = lazyWithReload(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazyWithReload(() => import('./pages/TermsOfService'));
 const Impressum = lazyWithReload(() => import('./pages/Impressum'));
+const Widerruf = lazyWithReload(() => import('./pages/Widerruf'));
 const CommunityGuidelines = lazyWithReload(() => import('./pages/CommunityGuidelines'));
 const AdminDashboard = lazyWithReload(() => import('./pages/AdminDashboard'));
 const OutOfRegion    = lazyWithReload(() => import('./pages/OutOfRegion'));
@@ -689,6 +690,7 @@ function AppRoutes() {
           <Route path="/terms" element={<TermsOfService />} />
           <Route path="/guidelines" element={<CommunityGuidelines />} />
           <Route path="/impressum" element={<Impressum />} />
+          <Route path="/widerruf" element={<Widerruf />} />
 
           {/* Redirects */}
           <Route path="/" element={<Navigate to={user ? "/home" : "/login"} replace />} />

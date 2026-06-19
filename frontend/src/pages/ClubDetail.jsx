@@ -301,7 +301,7 @@ export const ClubDetail = () => {
   if (loading) return <div className="cd-loading">{t('clubDetail.loading')}</div>;
   if (!club) return <div className="cd-loading">{t('clubDetail.notFound')}</div>;
 
-  const isOwner = user && club.owner_id === user.id;
+  const isOwner = user && Number(club.owner_id) === Number(user.id);
   // Co-manager (paid managed clubs): owner OR a member promoted to role='admin'.
   // Managers get the manage gear + can edit/create events like the owner.
   const canManage = isOwner || !!club.is_manager;
@@ -575,7 +575,7 @@ export const ClubDetail = () => {
                   // shows a past date once the first week has passed.
                   const displayDate = (nextOccurrence(ev) || new Date(ev.date)).toISOString();
                   const dateParts = formatEventDate(displayDate, dateLocale);
-                  const evIsOwner = user && ev.owner_id === user.id;
+                  const evIsOwner = user && Number(ev.owner_id) === Number(user.id);
                   return (
                     <div key={ev.id} className="cd-event-card" onClick={() => navigate(`/group/${ev.id}`)}>
                       {dateParts ? (

@@ -5,11 +5,23 @@ import { admin } from '../utils/api';
 import { AdminDealsSection } from '../components/AdminDealsSection';
 import { UserName } from '../components/UserName';
 
+// Neutralize CSV/formula injection. A cell whose value starts with = + - @ (or
+// tab/CR) is evaluated as a formula by Excel/Google Sheets EVEN when the field
+// is quoted — so a user who sets their name/location to `=HYPERLINK(...)` could
+// run code in an admin's spreadsheet. Prefix those values with a single quote
+// so the spreadsheet renders them as literal text. JSON.stringify still handles
+// comma/quote/newline escaping for valid CSV.
+const csvCell = (val) => {
+  let s = val === null || val === undefined ? '' : String(val);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return JSON.stringify(s);
+};
+
 const downloadCSV = (data, filename) => {
   if (!data?.length) return;
   const headers = Object.keys(data[0]);
   const rows = data.map(row =>
-    headers.map(h => JSON.stringify(row[h] ?? '')).join(',')
+    headers.map(h => csvCell(row[h])).join(',')
   );
   const csv = [headers.join(','), ...rows].join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });

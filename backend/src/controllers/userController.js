@@ -10,11 +10,23 @@ export const getUserById = async (req, res) => {
       `SELECT id, name, bio, location, avatar_url, interests, photos, pinnwand, gender, favorite_song, created_at,
               is_trusted_user,
               EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age
-       FROM users WHERE id = $1`,
-      [id]
+       FROM users
+       WHERE id = $1
+         -- Block is bidirectional: a user the caller blocked (or who blocked the
+         -- caller) is invisible on the direct profile route too, mirroring the
+         -- searchUsers + group-roster rules. Without this, a blocked/harassing
+         -- user could still load the blocker's full profile via /user/:id.
+         AND id NOT IN (
+           SELECT CASE WHEN requester_id = $2 THEN addressee_id ELSE requester_id END
+           FROM friendships
+           WHERE status = 'blocked' AND (requester_id = $2 OR addressee_id = $2)
+         )`,
+      [id, req.userId]
     );
 
     if (result.rows.length === 0) {
+      // Same 404 whether the user doesn't exist or a block hides them — never
+      // reveal to a blocked user that they were specifically blocked.
       return res.status(404).json({ error: 'Benutzer nicht gefunden' });
     }
 

@@ -329,21 +329,32 @@ export const getRedemptionStatus = async (req, res) => {
 // the unique_violation branch turns that into a 409 instead of a 500.
 export const redeemDeal = async (req, res) => {
   const { id } = req.params;
+  const client = await db.pool.connect();
   try {
-    // Confirm the deal is still visible — admins may have disabled or expired
-    // it after the user opened the page. Also fetch the weekday gate.
-    const dealRes = await db.query(
+    await client.query('BEGIN');
+    // Lock the deal row so concurrent redeems of the SAME deal serialize. This
+    // makes the 'once' global max_redemptions cap exact — without the lock two
+    // users redeeming at the cap boundary could both pass the COUNT check below
+    // and overshoot by 1-2. Mirrors the FOR UPDATE capacity pattern used for
+    // group joins. Also confirms the deal is still visible (admins may have
+    // disabled/expired it after the page opened) + fetches the weekday gate.
+    const dealRes = await client.query(
       `SELECT d.id, d.redeem_days, ${REDEEMABLE_TODAY_SQL} AS redeemable_today
        FROM deals d
        WHERE d.id = $1 AND d.is_active = TRUE
-         AND (d.visible_until IS NULL OR d.visible_until > NOW())`,
+         AND (d.visible_until IS NULL OR d.visible_until > NOW())
+       FOR UPDATE`,
       [id]
     );
-    if (!dealRes.rows.length) return res.status(404).json({ error: 'Deal not found' });
+    if (!dealRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Deal not found' });
+    }
 
     // Weekday gate: e.g. "nur donnerstags einlösbar". Distinct 422 so the
     // client can show the allowed days instead of a generic error.
     if (dealRes.rows[0].redeemable_today === false) {
+      await client.query('ROLLBACK');
       return res.status(422).json({
         error: 'Dieser Deal ist heute nicht einlösbar.',
         code: 'WRONG_DAY',
@@ -351,13 +362,13 @@ export const redeemDeal = async (req, res) => {
       });
     }
 
-    // Atomic redeem. period_key is derived per the deal's interval (once/daily/
-    // weekly) so UNIQUE(deal_id,user_id,period_key) enforces "once per period"
-    // and absorbs concurrent double-taps. The global max_redemptions cap applies
-    // ONLY to 'once' deals — recurring deals are meant to run on schedule, so a
-    // lifetime cap would wrongly take them offline. 0 rows ⇒ already redeemed
-    // this period (conflict) OR ('once') cap hit.
-    const inserted = await db.query(
+    // Atomic redeem under the deal-row lock. period_key is derived per the
+    // deal's interval (once/daily/weekly) so UNIQUE(deal_id,user_id,period_key)
+    // enforces "once per period" and absorbs concurrent double-taps. The global
+    // max_redemptions cap applies ONLY to 'once' deals — recurring deals run on
+    // schedule, so a lifetime cap would wrongly take them offline. 0 rows ⇒
+    // already redeemed this period (conflict) OR ('once') cap hit.
+    const inserted = await client.query(
       `INSERT INTO deal_redemptions (deal_id, user_id, period_key)
        SELECT d.id, $2, (${PERIOD_KEY_SQL})
        FROM deals d
@@ -372,6 +383,7 @@ export const redeemDeal = async (req, res) => {
       [id, req.userId]
     );
     if (inserted.rows.length) {
+      await client.query('COMMIT');
       return res.status(201).json({
         redeemed: true,
         count: 1,
@@ -382,7 +394,7 @@ export const redeemDeal = async (req, res) => {
 
     // No row inserted — tell apart "already redeemed THIS period" (keep their
     // proof, 409) from "global cap reached" (deal is now offline, 410 Gone).
-    const existing = await db.query(
+    const existing = await client.query(
       `SELECT dr.redeemed_at
        FROM deals d
        JOIN deal_redemptions dr
@@ -392,6 +404,7 @@ export const redeemDeal = async (req, res) => {
        LIMIT 1`,
       [id, req.userId]
     );
+    await client.query('COMMIT');
     if (existing.rows.length) {
       return res.status(409).json({
         error: 'Already redeemed',
@@ -403,8 +416,11 @@ export const redeemDeal = async (req, res) => {
     }
     return res.status(410).json({ error: 'Dieser Deal ist nicht mehr verfügbar.', code: 'DEAL_SOLD_OUT' });
   } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('redeemDeal error:', err);
     res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
   }
 };
 

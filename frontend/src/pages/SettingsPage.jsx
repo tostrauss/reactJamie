@@ -53,6 +53,10 @@ export const SettingsPage = () => {
   const [sub, setSub] = useState(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
+  // 14-day Widerruf (right of withdrawal) — immediate end + refund. Shown only
+  // when the server says withdrawal_eligible (within the window, Stripe-billed).
+  const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
 
   useEffect(() => {
     subscriptionApi.getStatus()
@@ -72,6 +76,23 @@ export const SettingsPage = () => {
       toast.error(err.response?.data?.error || t('settings.subscription.cancelError'));
     } finally {
       setCancelLoading(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    setWithdrawLoading(true);
+    try {
+      const { data } = await subscriptionApi.withdraw();
+      const { data: status } = await subscriptionApi.getStatus();
+      setSub(status);
+      setShowWithdrawConfirm(false);
+      toast.success(data?.refunded
+        ? t('settings.subscription.withdrawDoneToast')
+        : t('settings.subscription.withdrawDoneNoRefundToast'));
+    } catch (err) {
+      toast.error(err.response?.data?.error || t('settings.subscription.withdrawError'));
+    } finally {
+      setWithdrawLoading(false);
     }
   };
 
@@ -446,14 +467,60 @@ export const SettingsPage = () => {
             </div>
           )}
 
-          {sub.status !== 'canceling' && !showCancelConfirm && (
+          {/* 14-day Widerruf (right of withdrawal) — only within the window and
+              only for Stripe-billed subs (server returns withdrawal_eligible).
+              Distinct from "kündigen": ends the plan immediately + full refund. */}
+          {sub.withdrawal_eligible && !isNativeIOS() && !showWithdrawConfirm && !showCancelConfirm && (
+            <div className="settings-row" onClick={() => setShowWithdrawConfirm(true)}>
+              <div className="settings-row-left">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-coral)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                  <path d="M3 3v5h5"/>
+                </svg>
+                <div className="settings-row-stacked">
+                  <span style={{ color: 'var(--accent-coral)', fontWeight: 600 }}>{t('settings.subscription.withdrawBtn')}</span>
+                  <span className="settings-row-detail">{t('settings.subscription.withdrawHint')}</span>
+                </div>
+              </div>
+              {chevron}
+            </div>
+          )}
+
+          {showWithdrawConfirm && (
+            <div className="settings-expand">
+              <p className="delete-warning" style={{ fontWeight: 600, marginBottom: 6 }}>
+                {t('settings.subscription.withdrawConfirmTitle')}
+              </p>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 12 }}>
+                {t('settings.subscription.withdrawConfirmBody')}
+              </p>
+              <div className="settings-form-actions">
+                <button type="button" className="danger-btn" onClick={handleWithdraw} disabled={withdrawLoading}>
+                  {withdrawLoading ? t('common.loading') : t('settings.subscription.withdrawConfirmYes')}
+                </button>
+                <button type="button" className="settings-action-btn" onClick={() => setShowWithdrawConfirm(false)} disabled={withdrawLoading}>
+                  {t('settings.subscription.withdrawConfirmNo')}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {sub.status !== 'canceling' && !showCancelConfirm && !showWithdrawConfirm && (
             <div className="settings-row" onClick={() => setShowCancelConfirm(true)}>
               <div className="settings-row-left">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-coral)" strokeWidth="2">
                   <circle cx="12" cy="12" r="10"/>
                   <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
                 </svg>
-                <span>{t('settings.subscription.cancelBtn')}</span>
+                {/* Prominent, clearly-labeled cancellation entry point (EU
+                    Kündigungsbutton intent: easy to find, not buried, not
+                    discouraged). Coral accent matches the admin shortcut so it
+                    stands out from the neutral rows; the subline clarifies when
+                    it takes effect. */}
+                <div className="settings-row-stacked">
+                  <span style={{ color: 'var(--accent-coral)', fontWeight: 600 }}>{t('settings.subscription.cancelBtn')}</span>
+                  <span className="settings-row-detail">{t('settings.subscription.cancelHint')}</span>
+                </div>
               </div>
               {chevron}
             </div>
@@ -805,6 +872,17 @@ export const SettingsPage = () => {
               <line x1="12" y1="8" x2="12.01" y2="8"/>
             </svg>
             <span>{t('settings.legal.imprint')}</span>
+          </div>
+          {chevron}
+        </Link>
+
+        <Link to="/widerruf" className="settings-row" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="settings-row-left">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+              <path d="M3 3v5h5"/>
+            </svg>
+            <span>{t('settings.legal.widerruf')}</span>
           </div>
           {chevron}
         </Link>

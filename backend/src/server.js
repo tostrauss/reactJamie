@@ -66,6 +66,11 @@ if (process.env.NODE_ENV === 'production') {
     ['SIGHTENGINE_API_SECRET', 'image moderation (nudity/gore) will be DISABLED'],
     ['OPENAI_API_KEY',         'text moderation will be DISABLED — unsafe content may pass through'],
     ['STRIPE_SUBSCRIPTION_WEBHOOK_SECRET', 'Stripe subscription webhook signature validation will FAIL'],
+    // Boost credit purchases: without this secret the /api/boost webhook returns
+    // 503, so a customer's card IS charged but credits are NEVER applied. Warned
+    // (not required) so the app still boots when boosts aren't sold yet.
+    ['STRIPE_WEBHOOK_SECRET',  'Boost credit purchases will be CHARGED but never credited — webhook signature validation will FAIL'],
+    ['STRIPE_PUBLISHABLE_KEY', 'Stripe checkout cannot render on the client — boost + Pro purchases will be unbuyable'],
     ['GOOGLE_CLIENT_ID',                   'Google OAuth will use unverified userinfo endpoint (reduced security)'],
     // APNs (iOS push) — without these, all iOS Capacitor users get zero push notifications.
     // Listed in WARNED rather than REQUIRED so the backend can still boot before iOS keys are issued.

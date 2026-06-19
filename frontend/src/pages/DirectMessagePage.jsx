@@ -115,13 +115,14 @@ export const DirectMessagePage = () => {
     const content = newMessage.trim();
     if (!content) return;
 
-    // Optimistic send: render the bubble immediately and emit the socket
-    // event in parallel to the HTTP persist. Without this every keystroke
-    // sit-and-wait on a ~150–500ms HTTP roundtrip before the message
-    // appeared and before the recipient's socket fired — the "Verzögerung"
-    // users were feeling. The backend's `send_dm` socket handler already
-    // gates on friendship + rate-limits + truncates, so emitting before
-    // the HTTP returns is safe.
+    // Optimistic send: render the SENDER's own bubble immediately, but deliver
+    // to the recipient over the socket only AFTER the HTTP persist succeeds.
+    // The `send_dm` socket handler runs NO text moderation (that lives on the
+    // HTTP path — dmController.checkTextSafety), so emitting in parallel
+    // delivered banned/unmoderated content to the recipient live even when the
+    // message was about to be rejected. The sender still gets an instant
+    // bubble; the recipient sees it ~1 DB round-trip later, and only if it
+    // passed moderation.
     const receiverIdInt = parseInt(otherUserId, 10);
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const optimistic = {
@@ -139,17 +140,9 @@ export const DirectMessagePage = () => {
     setNewMessage('');
     stopTyping();
 
-    // Recipient delivery via socket — fires before HTTP completes so it
-    // hits their UI in ~30ms instead of waiting on our DB write.
-    if (socket) {
-      socket.emit('send_dm', {
-        senderId: user.id,
-        receiverId: receiverIdInt,
-        message: optimistic,
-      });
-    }
-
-    // Persist + reconcile in the background.
+    // Persist FIRST, then deliver. Reconcile the sender's optimistic bubble
+    // with the persisted row, and only THEN emit to the recipient — so the
+    // recipient never receives a message that moderation rejected.
     try {
       const res = await directMessages.send(receiverIdInt, content);
       const real = {
@@ -158,6 +151,14 @@ export const DirectMessagePage = () => {
         sender_avatar: user.avatar_url,
       };
       setMessagesList(prev => prev.map(m => (m.id === tempId ? real : m)));
+      // Deliver to the recipient ONLY after moderation + persistence succeeded.
+      if (socket) {
+        socket.emit('send_dm', {
+          senderId: user.id,
+          receiverId: receiverIdInt,
+          message: real,
+        });
+      }
     } catch (err) {
       if (err.response?.data?.requiresFriendship) {
         // Friendship dropped between page-load and send. Pull the
@@ -167,10 +168,10 @@ export const DirectMessagePage = () => {
         setError(t('chat.dm.errorNotFriends'));
         setErrorIsFriendship(true);
       } else {
-        // Persist failed (rate limit, server error, etc.) — keep the
-        // bubble visible but mark it failed so the sender knows it
-        // didn't go through. Recipient may have already seen it via
-        // socket; acceptable trade-off for the latency win.
+        // Persist failed (rate limit, server error, moderation 422, etc.) —
+        // keep the bubble visible but mark it failed so the sender knows it
+        // didn't go through. The recipient never received it (socket emit now
+        // happens only after a successful persist), so nothing to retract.
         setMessagesList(prev =>
           prev.map(m => (m.id === tempId ? { ...m, _pending: false, _failed: true } : m))
         );

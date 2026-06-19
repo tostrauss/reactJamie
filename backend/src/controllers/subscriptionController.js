@@ -24,13 +24,18 @@ export const PRO_PLANS = {
 };
 const DEFAULT_PLAN = 'monthly';
 
+// 14-day right of withdrawal (Widerruf — FAGG § 11, Variante A). Used by
+// getStatus (button visibility) AND withdrawSubscription (server-side enforce).
+const WITHDRAWAL_WINDOW_DAYS = 14;
+const WITHDRAWAL_WINDOW_MS = WITHDRAWAL_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
 // ==========================================
 // GET SUBSCRIPTION STATUS
 // ==========================================
 export const getStatus = async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT status, current_period_end, stripe_subscription_id, stripe_customer_id
+      `SELECT status, current_period_end, created_at, stripe_subscription_id, stripe_customer_id
        FROM subscriptions WHERE user_id = $1 ORDER BY id DESC LIMIT 1`,
       [req.userId]
     );
@@ -40,10 +45,18 @@ export const getStatus = async (req, res) => {
       sub?.current_period_end &&
       new Date(sub.current_period_end) > new Date();
 
+    // 14-day Widerruf eligibility (Variante A): within the window of the original
+    // sign-up AND Stripe-billed (Apple IAP refunds go through the App Store).
+    // The withdraw endpoint re-checks this — the flag only drives button visibility.
+    const isAppleManaged = !!sub?.stripe_customer_id?.startsWith?.('apple:');
+    const withinWindow = !!sub?.created_at &&
+      (Date.now() - new Date(sub.created_at).getTime()) <= WITHDRAWAL_WINDOW_MS;
+
     res.json({
       is_pro: !!isActive,
       status: sub?.status || 'none',
       current_period_end: sub?.current_period_end || null,
+      withdrawal_eligible: !!isActive && !isAppleManaged && withinWindow,
     });
   } catch (err) {
     console.error('getStatus error:', err);
@@ -238,6 +251,81 @@ export const cancelSubscription = async (req, res) => {
   } catch (err) {
     console.error('cancelSubscription error:', err);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// WIDERRUF — 14-day right of withdrawal (FAGG § 11, Variante A)
+// ==========================================
+// Distinct from cancelSubscription (which ends the plan at period close). A
+// Widerruf UNDOES the contract within 14 days: cancel immediately + full refund
+// of the last payment. Full refund (rather than the § 16 proportionate minimum)
+// is a deliberate, always-compliant choice — refunding more than required is
+// never a legal problem and keeps the flow simple. Apple-billed subscriptions
+// are refunded through the App Store, not here.
+export const withdrawSubscription = async (req, res) => {
+  const stripe = getStripe();
+  if (!stripe) return res.status(503).json({ error: 'Stripe not configured' });
+
+  try {
+    const result = await db.query(
+      `SELECT id, stripe_subscription_id, stripe_customer_id, status, created_at
+       FROM subscriptions
+       WHERE user_id = $1 AND (status = 'active' OR status = 'canceling')
+       ORDER BY id DESC LIMIT 1`,
+      [req.userId]
+    );
+    const sub = result.rows[0];
+    if (!sub) return res.status(404).json({ error: 'Kein aktives Abonnement gefunden' });
+
+    // Apple IAP subscriptions can't be refunded via Stripe.
+    if (sub.stripe_customer_id?.startsWith?.('apple:')) {
+      return res.status(400).json({
+        error: 'Apple-Abonnement — Widerruf/Erstattung bitte über den App Store anfordern.',
+        managed_by: 'apple',
+      });
+    }
+
+    // Enforce the 14-day window server-side (never trust the client flag).
+    if (Date.now() - new Date(sub.created_at).getTime() > WITHDRAWAL_WINDOW_MS) {
+      return res.status(403).json({
+        error: 'Die 14-tägige Widerrufsfrist ist abgelaufen. Du kannst dein Abo aber jederzeit kündigen.',
+        code: 'WITHDRAWAL_EXPIRED',
+      });
+    }
+
+    // Refund the latest payment in full, then cancel immediately. Refund is
+    // best-effort: if it fails we still cancel so the user isn't trapped in a
+    // paid plan, and return refunded:false so support can reconcile.
+    let refunded = false;
+    try {
+      const stripeSub = await stripe.subscriptions.retrieve(sub.stripe_subscription_id, {
+        expand: ['latest_invoice.payment_intent'],
+      });
+      const pi = stripeSub.latest_invoice?.payment_intent;
+      if (pi?.id && pi.amount_received > 0) {
+        await stripe.refunds.create({ payment_intent: pi.id });
+        refunded = true;
+      }
+    } catch (refErr) {
+      console.error('Widerruf refund failed:', refErr.message);
+    }
+
+    try {
+      await stripe.subscriptions.cancel(sub.stripe_subscription_id);
+    } catch (cancelErr) {
+      console.error('Widerruf cancel failed:', cancelErr.message);
+    }
+
+    await db.query(
+      `UPDATE subscriptions SET status = 'canceled', updated_at = NOW() WHERE id = $1`,
+      [sub.id]
+    );
+
+    res.json({ success: true, refunded });
+  } catch (err) {
+    console.error('withdrawSubscription error:', err);
+    res.status(500).json({ error: 'Widerruf fehlgeschlagen. Bitte kontaktiere office@jamie-app.com.' });
   }
 };
 

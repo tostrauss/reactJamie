@@ -474,7 +474,7 @@ export const GroupDetail = () => {
 
   const isClub = group.type === 'club';
   const isEvent = group.type === 'event';
-  const isOwner = user && group.owner_id === user.id;
+  const isOwner = user && Number(group.owner_id) === Number(user.id);
   const isMember = isJoined;
   const canCreateEvent = isClub && user && isMember;
   const maxSlots = Math.min(group.max_members || 4, 4);
@@ -888,7 +888,7 @@ export const GroupDetail = () => {
                 <div className="gd-events-list">
                   {events.map(ev => {
                     const dateParts = formatEventDate(ev.date, dateLocale);
-                    const evIsOwner = user && ev.owner_id === user.id;
+                    const evIsOwner = user && Number(ev.owner_id) === Number(user.id);
                     return (
                       <div key={ev.id} className="gd-event-card" onClick={() => navigate(`/group/${ev.id}`)}>
                         {dateParts ? (

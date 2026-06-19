@@ -11,6 +11,11 @@ export const sendFriendRequest = async (req, res) => {
     if (!userId || isNaN(userId) || userId <= 0) return res.status(400).json({ error: 'Ungültige Nutzer-ID' });
     if (userId === req.userId) return res.status(400).json({ error: 'Du kannst dir selbst keine Freundschaftsanfrage schicken' });
 
+    // Target must exist — otherwise the INSERT trips an addressee_id FK violation
+    // and falls through to a generic 500. blockUser already does this check.
+    const target = await db.query('SELECT 1 FROM users WHERE id = $1', [userId]);
+    if (target.rows.length === 0) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+
     // Check if friendship already exists (in either direction)
     const existing = await db.query(
       `SELECT id, status, requester_id FROM friendships

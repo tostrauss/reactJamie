@@ -621,6 +621,8 @@ export const subscription = {
   // plan: 'weekly' | 'monthly' | 'sixmonth' (server validates + falls back to monthly)
   create: (plan) => axiosInstance.post('/subscription/create', plan ? { plan } : {}),
   cancel: () => axiosInstance.post('/subscription/cancel'),
+  // 14-day right of withdrawal (Widerruf) — immediate cancel + full refund.
+  withdraw: () => axiosInstance.post('/subscription/withdraw'),
   // Stripe Billing Portal — returns { url } for browser redirect. Server
   // rejects with 400 + managed_by:'apple' if the user's subscription was
   // bought via Apple IAP (App Store handles that path).
