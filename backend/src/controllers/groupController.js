@@ -602,6 +602,10 @@ export const deleteGroup = async (req, res) => {
     await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [id]);
     invalidatePrefix('groups:');
     invalidatePrefix('map:');
+    // Drop the per-member chat-list cache too, so the deleted group disappears
+    // from every member's "Chats" immediately instead of lingering for the 15s
+    // user_groups TTL (the query already filters deleted_at, this kills the lag).
+    invalidatePrefix('user_groups:');
     res.json({ message: 'Group deleted successfully' });
   } catch (err) {
     console.error('Error deleting group:', err);
@@ -1164,6 +1168,7 @@ export const cancelGroup = async (req, res) => {
     );
     invalidatePrefix('groups:');
     invalidatePrefix('map:');
+    invalidatePrefix('user_groups:'); // reflect the cancellation in chat lists now
 
     const groupName = groupRes.rows[0].name;
     const io = req.app?.get('io');

@@ -444,6 +444,11 @@ export const deleteClub = async (req, res) => {
     await db.query('UPDATE groups SET deleted_at = NOW(), is_active = FALSE WHERE id = $1', [id]);
     invalidatePrefix('clubs:');
     invalidatePrefix('map:');
+    // Chat-list + discover caches: drop the deleted club from every member's
+    // "Chats" and from the public Events feed immediately (queries already
+    // filter deleted_at — this removes the cache-staleness window).
+    invalidatePrefix('user_groups:');
+    invalidatePrefix(DISCOVER_EVENTS_KEY);
     res.json({ message: 'Club deleted successfully' });
   } catch (err) {
     console.error('Error deleting club:', err);
@@ -966,6 +971,8 @@ export const cancelClub = async (req, res) => {
     );
     invalidatePrefix('clubs:');
     invalidatePrefix('map:');
+    invalidatePrefix('user_groups:');     // reflect closure in chat lists now
+    invalidatePrefix(DISCOVER_EVENTS_KEY); // and drop its events from discovery
 
     const clubName = club.rows[0].name;
     const io = req.app?.get('io');
