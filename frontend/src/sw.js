@@ -10,6 +10,15 @@ import { ExpirationPlugin } from 'workbox-expiration';
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 
+// Take over immediately on every update. Without this a redeploy left returning
+// visitors on the OLD worker until all tabs closed — and because the cached
+// index.html referenced eager chunk hashes (vendor-sentry/-socket) that no
+// longer existed on the server, the entry module 404'd and the app booted to a
+// blank screen (only the cached CSS painted the background). skipWaiting + claim
+// make each new worker activate and control open pages on the next load.
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+
 // Runtime: Unsplash images — long-lived, cache-first
 registerRoute(
   ({ url }) => url.origin === 'https://images.unsplash.com',

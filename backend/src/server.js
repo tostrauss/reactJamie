@@ -283,6 +283,12 @@ if (process.env.NODE_ENV === 'production') {
       } else if (filePath.endsWith('index.html')) {
         // Always revalidate the entry point so clients pick up new deployments immediately
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      } else if (filePath.endsWith('sw.js') || filePath.endsWith('sw.mjs') || filePath.endsWith('manifest.json') || filePath.endsWith('manifest.webmanifest')) {
+        // The service worker + manifest must NEVER be served stale: a cached old
+        // worker is exactly what strands returning visitors on a broken shell.
+        // no-cache forces revalidation on every visit so worker updates (and the
+        // skipWaiting fix) propagate on the next load instead of after ~24h.
+        res.setHeader('Cache-Control', 'no-cache');
       } else {
         res.setHeader('Cache-Control', 'public, max-age=86400');
       }

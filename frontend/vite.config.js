@@ -20,14 +20,17 @@ export default defineConfig({
       includeAssets: ['icon.svg', 'favicon.ico', 'pwa-64x64.png', 'pwa-192x192.png', 'pwa-512x512.png', 'maskable-icon-512x512.png', 'apple-touch-icon-180x180.png'],
       manifest: false, // Use our custom manifest.json in public/
       injectManifest: {
-        // Only precache the shell: HTML + CSS + React core + main entry
-        // All page chunks are lazy-loaded on-demand — no need to prefetch 900 kB upfront
-        globPatterns: [
-          '**/*.{html,css}',
-          'assets/vendor-react-*.js',
-          'assets/index-*.js',
-        ],
-        maximumFileSizeToCacheInBytes: 500 * 1024, // skip files >500 kB (main bundle is ~360 kB)
+        // Precache the FULL build, not just a hand-picked "shell". The old
+        // shell list (index + vendor-react + css) left the eagerly-imported
+        // vendor-sentry & vendor-socket chunks OUT of the precache. After a
+        // redeploy a stale worker served its cached index.html, which referenced
+        // those old chunk hashes — now 404 on the server — so the entry module
+        // failed and the app rendered blank. Precaching every chunk keeps the
+        // cached shell self-consistent (and gives full offline support).
+        globPatterns: ['**/*.{html,css,js,woff,woff2}'],
+        // Raise the per-file cap so no chunk is silently skipped (which would
+        // reintroduce the same "referenced but not cached" 404 → blank bug).
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       }
     }),
     // Uploads source maps to Sentry during CI builds — no-op if auth token absent
