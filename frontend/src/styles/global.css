@@ -1646,3 +1646,70 @@ select:focus {
      stacking a 24px coral shadow on top rendered as a visible orange box behind
      the wordmark on the dark login background. */
 }
+
+/* ── Password show/hide toggle (PasswordInput component) ──────────────────
+   Wraps a password <input>; the eye button sits inside the field's right
+   edge. The input reserves padding-right inline so text never slips under
+   the icon regardless of which stylesheet styles the input. */
+.password-input-wrap {
+  position: relative;
+  width: 100%;
+}
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted, rgba(255, 255, 255, 0.5));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.password-toggle:hover { color: var(--text-light, rgba(255, 255, 255, 0.85)); }
+.password-toggle:active { color: var(--accent-coral, #FD7666); }
+
+/* ── Selected category chips (Create/Edit group) ─────────────────────────
+   Shows the currently-chosen categories as removable pills so a selection
+   made under one main category stays visible after switching to another.
+   The first chip is the primary (displayed) category. */
+.cat-selected-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 14px;
+}
+.cat-selected-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border-radius: 20px;
+  border: 1.5px solid var(--accent-coral, #FD7666);
+  background: rgba(253, 118, 102, 0.14);
+  color: var(--accent-coral, #FD7666);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.cat-selected-chip__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-coral, #FD7666);
+  flex-shrink: 0;
+}
+.cat-selected-chip__x {
+  font-size: 12px;
+  opacity: 0.7;
+}
+.cat-selected-chip:active { opacity: 0.7; }

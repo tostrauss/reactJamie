@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { auth, subscription as subscriptionApi, groups as groupsApi, clubs as clubsApi } from '../utils/api';
+import { auth, subscription as subscriptionApi, groups as groupsApi, clubs as clubsApi, friends as friendsApi } from '../utils/api';
 import SpotifySongPicker from '../components/SpotifySongPicker';
 import { ProModal } from '../components/ProModal';
 import { purchasesEnabled } from '../utils/platform';
@@ -64,6 +64,7 @@ export const Profile = () => {
   const [pastEvents, setPastEvents] = useState([]);
   const [hofLoading, setHofLoading] = useState(false);
   const [favItems, setFavItems] = useState([]);
+  const [pendingFriends, setPendingFriends] = useState(0);
 
   const handleShareProfile = async () => {
     if (!user?.id) return;
@@ -88,6 +89,14 @@ export const Profile = () => {
   useEffect(() => {
     subscriptionApi.getStatus()
       .then(res => setIsPro(res.data?.is_pro || false))
+      .catch(() => {});
+  }, []);
+
+  // Incoming friend-request count — drives the badge on the Freunde shortcut so
+  // requests are discoverable without opening the Friends page.
+  useEffect(() => {
+    friendsApi.getPending()
+      .then(res => setPendingFriends((res.data || []).length))
       .catch(() => {});
   }, []);
 
@@ -244,7 +253,7 @@ export const Profile = () => {
           )}
 
           {/* Friends shortcut */}
-          <button className="profile-friends-btn" onClick={() => navigate('/friends')}>
+          <button className="profile-friends-btn" onClick={() => navigate('/friends?tab=pending')}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
               <circle cx="9" cy="7" r="4"/>
@@ -252,7 +261,10 @@ export const Profile = () => {
               <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
             </svg>
             {t('profile.friendsBtn')}
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            {pendingFriends > 0 && (
+              <span className="profile-friends-badge">{pendingFriends}</span>
+            )}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ marginLeft: 'auto' }}>
               <path d="M9 18l6-6-6-6"/>
             </svg>
           </button>
@@ -271,7 +283,7 @@ export const Profile = () => {
                   <button
                     key={`${item.type || 'group'}-${item.id}`}
                     className="profile-fav-card"
-                    onClick={() => navigate(`/group/${item.id}`)}
+                    onClick={() => navigate(item.type === 'club' ? `/club/${item.id}` : `/group/${item.id}`)}
                   >
                     <div className="profile-fav-img-wrap">
                       {item.image_url

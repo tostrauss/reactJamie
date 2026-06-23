@@ -7,6 +7,8 @@ import {
   leaveGroup,
   toggleFavorite,
   getUserFavorites,
+  toggleLike,
+  getMyLikes,
   getGroupMembers,
   getUserGroups,
   getJoinRequests,
@@ -39,6 +41,7 @@ router.get('/categories', generalLimiter, getCategories);
 // USER-SPECIFIC ROUTES (require auth)
 // ==========================================
 router.get('/user/favorites', authenticate, getUserFavorites);
+router.get('/likes/mine', authenticate, getMyLikes);
 router.get('/user/joined', authenticate, getUserGroups);
 // Hide/unhide a group-or-club chat from the chat list (per-user)
 router.put('/:id/archive', authenticate, setGroupChatArchived);
@@ -58,6 +61,7 @@ router.get('/:id/members', authenticate, getGroupMembers);
 router.post('/:id/join', authenticate, requireCompleteProfile, joinGroup);
 router.post('/:id/leave', authenticate, leaveGroup);
 router.post('/:id/favorite', authenticate, toggleFavorite);
+router.post('/:id/like', authenticate, toggleLike);
 
 // ==========================================
 // JOIN REQUEST ROUTES (for private groups)

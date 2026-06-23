@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { auth } from '../utils/api';
 import { JamieWordmark } from '../components/JamieWordmark';
+import { PasswordInput } from '../components/PasswordInput';
 import '../styles/auth.css';
 
 const ResetPassword = () => {
@@ -97,8 +98,7 @@ const ResetPassword = () => {
             <form onSubmit={handleSubmit} className="auth-form">
               <div className="form-group">
                 <label>{t('auth.reset.newPasswordLabel')}</label>
-                <input
-                  type="password"
+                <PasswordInput
                   placeholder={t('auth.shared.newPasswordPlaceholder')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -109,8 +109,7 @@ const ResetPassword = () => {
 
               <div className="form-group">
                 <label>{t('auth.reset.confirmLabel')}</label>
-                <input
-                  type="password"
+                <PasswordInput
                   placeholder={t('auth.shared.confirmPasswordPlaceholder')}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}

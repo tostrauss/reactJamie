@@ -369,7 +369,11 @@ async function notifyFriendRequest(fromUserId, toUserId) {
   try {
     const { rows } = await db.query('SELECT name FROM users WHERE id = $1', [fromUserId]);
     const name = rows[0]?.name || 'Jemand';
-    sendPushToUser(toUserId, 'Neue Freundschaftsanfrage', `${name} möchte dein Freund sein`, '/friends');
+    // Deep-link straight to the requester's profile — UserProfile shows the
+    // Accept/Reject buttons for an incoming pending request, so the recipient
+    // can act on it in one tap. (Was '/friends', which only opened the default
+    // "Freunde" tab and never surfaced the request or the sender's profile.)
+    sendPushToUser(toUserId, 'Neue Freundschaftsanfrage', `${name} möchte dein Freund sein`, `/user/${fromUserId}`);
   } catch { /* non-critical */ }
 }
 
@@ -377,6 +381,8 @@ async function notifyFriendAccepted(fromUserId, toUserId) {
   try {
     const { rows } = await db.query('SELECT name FROM users WHERE id = $1', [fromUserId]);
     const name = rows[0]?.name || 'Jemand';
-    sendPushToUser(toUserId, 'Freundschaft bestätigt', `${name} hat deine Anfrage angenommen`, '/friends');
+    // Open the profile of the person who accepted (now a friend) — from there
+    // the recipient can message them directly.
+    sendPushToUser(toUserId, 'Freundschaft bestätigt', `${name} hat deine Anfrage angenommen`, `/user/${fromUserId}`);
   } catch { /* non-critical */ }
 }

@@ -2186,6 +2186,22 @@
 .profile-friends-btn svg:first-child { color: var(--accent-coral); flex-shrink: 0; }
 .profile-friends-btn svg:last-child  { color: var(--text-muted); margin-left: auto; }
 
+/* Incoming friend-request count badge on the Freunde shortcut */
+.profile-friends-badge {
+  background: var(--accent-coral);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
 /* ── Favoriten section ── */
 .profile-favs {
   width: calc(100% - 40px);

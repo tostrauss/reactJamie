@@ -241,9 +241,13 @@ export const groups = {
     axiosInstance.post(`/groups/${id}/favorite`),
   
   // Get user's favorites
-  getFavorites: () => 
+  getFavorites: () =>
     axiosInstance.get('/groups/user/favorites'),
-  
+
+  // Public likes (Hall-of-Fame moments) — distinct from favorites.
+  toggleLike: (id) => axiosInstance.post(`/groups/${id}/like`),
+  getMyLikes: () => axiosInstance.get('/groups/likes/mine'),
+
   // Get user's joined groups
   // fresh=true bypasses the backend's 15s cache — used by the nav unread
   // badge, which must reflect read markers immediately.
@@ -597,8 +601,13 @@ export const analytics = {
 
 export const admin = {
   getStats: () => axiosInstance.get('/admin/stats'),
-  getUsers: (limit = 50) => axiosInstance.get('/admin/users', { params: { limit } }),
+  // Searchable + paginated user list. Returns { users, total, limit, offset }.
+  getUsers: ({ limit = 50, offset = 0, search = '' } = {}) =>
+    axiosInstance.get('/admin/users', { params: { limit, offset, search } }),
   deleteUser: (id) => axiosInstance.delete(`/admin/users/${id}`),
+  // Toggle roles. Send only the fields you want to change, e.g.
+  // { is_admin: true } or { is_trusted_user: false }.
+  setUserRole: (id, roles) => axiosInstance.patch(`/admin/users/${id}/role`, roles),
   getScreenTime: () => axiosInstance.get('/admin/screen-time'),
   exportUsers: () => axiosInstance.get('/admin/export/users'),
   exportScreens: () => axiosInstance.get('/admin/export/screens'),
@@ -682,6 +691,8 @@ export const deals = {
 
 export const map = {
   getPins: (params) => axiosInstance.get('/map/pins', { params }),
+  // Austria geocode verifier — fallback when Google Places shows no dropdown.
+  geocode: (q) => axiosInstance.get('/map/geocode', { params: { q } }),
 };
 
 // ==========================================

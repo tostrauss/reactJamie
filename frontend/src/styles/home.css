@@ -29,9 +29,10 @@
 
 /* ── Content: normal page flow, clears fixed bottom nav ── */
 .home-content {
-  /* Nav clearance: flush 48px strip + 11px "+" protrusion + gap — no
-     safe-area here, the nav ignores it (see .bottom-nav). */
-  padding-bottom: 16px;
+  /* Nav clearance: the in-flow nav sits below, but the floating "+" button
+     protrudes ~11px above the 48px strip — keep a comfortable gap so the last
+     row / CTA never sits under it. No safe-area; the nav ignores it. */
+  padding-bottom: 28px;
 }
 
 /* Map tab: fill remaining flex space, no scroll, no padding */

@@ -60,6 +60,8 @@ export const CATEGORY_HIERARCHY = [
       { name: 'Kanufahren', icon: '🛶' },
       { name: 'Segeln', icon: '⛵' },
       { name: 'Picknick', icon: '🧺' },
+      { name: 'Baden', icon: '🏖️' },
+      { name: 'Chillen', icon: '😎' },
       { name: 'Sonstiges', icon: '✨' },
     ],
   },

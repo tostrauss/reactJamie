@@ -1,5 +1,28 @@
 import db from '../config/database.js';
 import { getCached, setCached } from '../utils/cache.js';
+import { geocodeAustria } from '../utils/geocode.js';
+
+/**
+ * GET /api/map/geocode?q=...
+ * Austria-only geocode used by the create-group/club location field as a
+ * fallback when Google Places doesn't surface a dropdown to pick from. Returns
+ * { ok: true, lat, lng, label } when the text resolves to a place in Austria,
+ * or { ok: false } otherwise.
+ */
+export const geocodeQuery = async (req, res) => {
+  try {
+    const q = (req.query.q || '').toString().trim();
+    if (q.length < 2 || q.length > 200) {
+      return res.status(400).json({ ok: false, error: 'invalid query' });
+    }
+    const result = await geocodeAustria(q);
+    if (!result) return res.json({ ok: false });
+    res.json({ ok: true, lat: result.lat, lng: result.lng, label: result.label });
+  } catch (err) {
+    console.error('Geocode query error:', err);
+    res.status(500).json({ ok: false, error: 'geocode failed' });
+  }
+};
 
 /**
  * GET /api/map/pins

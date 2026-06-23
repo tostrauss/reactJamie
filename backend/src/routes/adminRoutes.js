@@ -11,6 +11,7 @@ import {
   approveClub,
   rejectClub,
   deleteUser,
+  updateUserRole,
   getTopClubs,
 } from '../controllers/adminController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
@@ -34,6 +35,7 @@ router.use(adminLimiter, authenticate, requireAdmin);
 
 router.get('/stats',       getStats);
 router.get('/users',       getRecentUsers);
+router.patch('/users/:id/role', updateUserRole);
 router.delete('/users/:id', deleteUser);
 router.get('/screen-time', getScreenTime);
 router.get('/top-clubs',   getTopClubs);

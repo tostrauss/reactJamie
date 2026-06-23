@@ -83,9 +83,10 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
-  /* Nav clearance: flush 48px strip + 11px "+" protrusion + gap — no
-     safe-area here, the nav ignores it (see .bottom-nav). */
-  padding-bottom: 16px;
+  /* Nav clearance: the in-flow nav sits below, but the floating "+" button
+     protrudes ~11px above the 48px strip — keep a comfortable gap so the last
+     content / CTA never sits under it. No safe-area; the nav ignores it. */
+  padding-bottom: 28px;
 }
 
 /* ── Photo grid ── */
@@ -385,6 +386,20 @@
 }
 .gd-info-item--btn:active {
   color: var(--text-light);
+}
+
+/* Category eyebrow — small uppercase label above the title */
+.gd-category-eyebrow {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 4px 10px;
+  margin-bottom: 8px;
 }
 
 /* Group title */

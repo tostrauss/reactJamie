@@ -1,5 +1,5 @@
 import db from '../config/database.js';
-import { geocodeLocation } from '../utils/geocode.js';
+import { geocodeLocation, geocodeAustria } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { sendPushToUser } from './pushController.js';
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
@@ -160,7 +160,10 @@ export const createGroup = async (req, res) => {
     }
 
     // Geocode location (non-blocking on failure)
-    const coords = await geocodeLocation(location);
+    // Prefer the Austria-restricted match so coords agree with the frontend's
+    // AT verification (and the group lands on the AT map); fall back to the
+    // unrestricted lookup so we never resolve fewer places than before.
+    const coords = await geocodeAustria(location) || await geocodeLocation(location);
 
     // Weekly recurrence only applies to events (type='group'); silently ignored for clubs.
     const recurringWeekly = !!is_recurring_weekly && (type === 'group' || !type);
@@ -290,7 +293,8 @@ export const getGroups = async (req, res) => {
                SELECT 1 FROM boosts b
                WHERE b.target_id = g.id AND b.target_type = g.type
                  AND b.boosted_until > NOW()
-             ) AS is_boosted
+             ) AS is_boosted,
+             (SELECT COUNT(*) FROM event_likes el WHERE el.group_id = g.id)::int AS like_count
       FROM groups g
       LEFT JOIN users u ON g.owner_id = u.id
       LEFT JOIN LATERAL (
@@ -536,7 +540,10 @@ export const updateGroup = async (req, res) => {
     let latUpdate = null;
     let lngUpdate = null;
     if (location !== undefined) {
-      const coords = await geocodeLocation(location);
+      // Prefer the Austria-restricted match so coords agree with the frontend's
+    // AT verification (and the group lands on the AT map); fall back to the
+    // unrestricted lookup so we never resolve fewer places than before.
+    const coords = await geocodeAustria(location) || await geocodeLocation(location);
       latUpdate = coords?.lat ?? null;
       lngUpdate = coords?.lng ?? null;
     }
@@ -808,6 +815,71 @@ export const toggleFavorite = async (req, res) => {
     res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
+
+// ==========================================
+// TOGGLE LIKE (public, Hall-of-Fame moments)
+// ==========================================
+// Distinct from favorites: a like is public (counts on the card) and pushes the
+// poster (group owner). Returns the new { liked, like_count } so the frontend
+// can sync the count without a refetch.
+export const toggleLike = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await db.query(
+      'SELECT 1 FROM event_likes WHERE group_id = $1 AND user_id = $2',
+      [id, req.userId]
+    );
+
+    let liked;
+    if (existing.rows.length > 0) {
+      await db.query('DELETE FROM event_likes WHERE group_id = $1 AND user_id = $2', [id, req.userId]);
+      liked = false;
+    } else {
+      // ON CONFLICT guards a double-tap race; the group FK guards a bad id.
+      const ins = await db.query(
+        `INSERT INTO event_likes (group_id, user_id) VALUES ($1, $2)
+         ON CONFLICT (group_id, user_id) DO NOTHING`,
+        [id, req.userId]
+      );
+      liked = true;
+      // Notify the poster (owner) only on a genuinely new like, never self.
+      if (ins.rowCount > 0) {
+        const g = await db.query('SELECT owner_id, name FROM groups WHERE id = $1', [id]);
+        const ownerId = g.rows[0]?.owner_id;
+        if (ownerId && Number(ownerId) !== Number(req.userId)) {
+          notifyEventLike(req.userId, ownerId, g.rows[0].name || '').catch(() => {});
+        }
+      }
+    }
+
+    const countRes = await db.query('SELECT COUNT(*)::int AS c FROM event_likes WHERE group_id = $1', [id]);
+    res.json({ liked, like_count: countRes.rows[0].c });
+  } catch (err) {
+    console.error('Error toggling like:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+};
+
+// Group ids the caller has liked — mirrors the favorites-id pattern the Explore
+// page uses to render filled hearts on load.
+export const getMyLikes = async (req, res) => {
+  try {
+    const result = await db.query('SELECT group_id FROM event_likes WHERE user_id = $1', [req.userId]);
+    res.json(result.rows.map(r => r.group_id));
+  } catch (err) {
+    console.error('Error fetching likes:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+};
+
+async function notifyEventLike(likerId, ownerId, groupName) {
+  try {
+    const { rows } = await db.query('SELECT name FROM users WHERE id = $1', [likerId]);
+    const name = rows[0]?.name || 'Jemand';
+    const label = groupName ? `„${groupName}"` : 'deinen Moment';
+    sendPushToUser(ownerId, 'Neuer Like ❤️', `${name} hat ${label} geliked`, '/explore');
+  } catch { /* non-critical */ }
+}
 
 // ==========================================
 // GET USER FAVORITES

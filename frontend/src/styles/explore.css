@@ -1343,18 +1343,20 @@
   cursor: default;
 }
 
-/* ── Heart toggle (top-right corner of the media) ────────────────── */
+/* ── Like toggle (top-right corner of the media) — heart + count pill ── */
 .ef-heart-btn {
   position: absolute;
   top: 10px;
   right: 10px;
   z-index: 3;
-  width: 40px;
+  min-width: 40px;
   height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  gap: 5px;
+  padding: 0 12px;
+  border-radius: 20px;
   border: none;
   background: rgba(0, 0, 0, 0.45);
   backdrop-filter: blur(6px);
@@ -1364,6 +1366,14 @@
   transition: transform 0.15s, background 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
+
+.ef-like-count {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+}
+.ef-heart-btn.is-active .ef-like-count { color: #FD7666; }
 
 .ef-heart-btn:hover {
   background: rgba(0, 0, 0, 0.6);

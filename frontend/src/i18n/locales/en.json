@@ -1,4 +1,11 @@
 {
+  "feedback": {
+    "title": "How do you like JAMIE?",
+    "body": "Your feedback helps us make JAMIE better. Rate us in the store or send us your suggestions.",
+    "rate": "Rate the app ⭐",
+    "suggest": "Feedback & suggestions",
+    "later": "Later"
+  },
   "events": {
     "title": "Events",
     "searchPlaceholder": "Search",
@@ -24,6 +31,9 @@
     "loading": "Loading...",
     "loadingShort": "Loading…",
     "sending": "Sending…",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "viewProfile": "View profile",
     "languageDe": "German",
     "languageEn": "English",
     "or": "or"
@@ -412,6 +422,12 @@
     },
     "loginToFavorite": "Please log in to save favorites.",
     "favoriteError": "Couldn't save favorite.",
+    "loginToLike": "Please log in to like.",
+    "likeError": "Couldn't save like.",
+    "like": {
+      "add": "Like",
+      "remove": "Unlike"
+    },
     "moment": {
       "cta": "📸 Share your JAMIE moment",
       "hint": "Upload a photo from the event — it becomes the cover in your Hall of Fame.",
@@ -609,6 +625,9 @@
       "dateYesterday": "Yesterday",
       "hide": "Hide",
       "unhide": "Unhide",
+      "searchPlaceholder": "Search…",
+      "searchClear": "Clear search",
+      "noResults": "No matches.",
       "sections": {
         "friendRequests": "Friend requests",
         "createdByYou": "Created by you",
@@ -1034,6 +1053,8 @@
       "groupDesc": "Plan an activity with 3-10 people",
       "clubTitle": "Found a club",
       "clubDesc": "Start a lasting community",
+      "friendsTitle": "Find friends",
+      "friendsDesc": "Search people and send friend requests",
       "cancel": "Cancel"
     },
     "nav": {
@@ -1241,8 +1262,8 @@
     "imageTooLarge": "Image is too large (max 10 MB)",
     "imageUploadError": "Image could not be uploaded",
     "step1": {
-      "titleLabel": "Activity *",
-      "titlePlaceholder": "e.g. Yoga",
+      "titleLabel": "Title *",
+      "titlePlaceholder": "e.g. Sunset Yoga",
       "categoryLabel": "Category *",
       "subCategoryLabel": "Subcategory *",
       "descLabel": "Description",
@@ -1267,6 +1288,9 @@
       "locationPlaceholder": "e.g. City park, Vienna",
       "locationOnlyATHint": "Austrian locations only — please pick from the suggestions.",
       "locationNotATError": "Please pick a location in Austria.",
+      "locationNotInAT": "Couldn't find that place in Austria. Please check the spelling.",
+      "locationCheckError": "Couldn't verify the location. Please try again.",
+      "locationChecking": "Checking location…",
       "ageLabel": "Target age range",
       "ageHint": "Only users in this age range can see the group (empty = everyone)",
       "ageFromLabel": "from",
@@ -1325,6 +1349,9 @@
       "locationPlaceholder": "e.g. Vienna",
       "locationOnlyATHint": "Austrian locations only — please pick from the suggestions.",
       "locationNotATError": "Please pick a location in Austria.",
+      "locationNotInAT": "Couldn't find that place in Austria. Please check the spelling.",
+      "locationCheckError": "Couldn't verify the location. Please try again.",
+      "locationChecking": "Checking location…",
       "maxLabel": "Max members",
       "frequencyLabel": "Meeting frequency",
       "frequency": {
@@ -1623,6 +1650,7 @@
       "topClubs": "Top clubs & groups (30 days)",
       "categorySuggestions": "Category suggestions",
       "newUsers": "New users",
+      "allUsersFmt": "All users ({{count}})",
       "csvExport": "CSV export"
     },
     "kpis": {
@@ -1674,7 +1702,29 @@
     "users": {
       "deleteBtn": "Delete",
       "confirmDelete": "Really delete account \"{{name}}\"? All groups, clubs, messages and friendships created by this user will be deleted too.",
-      "deleteError": "User could not be deleted"
+      "deleteError": "User could not be deleted",
+      "searchPlaceholder": "Search by name, email or location…",
+      "clearSearch": "Clear search",
+      "loading": "Loading…",
+      "empty": "No users found.",
+      "loadMoreFmt": "Load more ({{shown}} of {{total}})"
+    },
+    "userModal": {
+      "title": "Manage user",
+      "manage": "Manage",
+      "adminLabel": "Admin",
+      "adminHint": "Full access to this dashboard and all admin features.",
+      "adminSelfHint": "You can't remove your own admin rights.",
+      "trustedLabel": "Trusted",
+      "trustedHint": "Shows the green verified check on the profile.",
+      "roleSaved": "Role updated",
+      "roleError": "Could not change role",
+      "deleteBtn": "Delete account",
+      "deleteConfirm": "Really delete account \"{{name}}\"? All groups, clubs, messages and friendships created by this user will be deleted too. This cannot be undone.",
+      "deleteConfirmBtn": "Yes, delete",
+      "deleting": "Deleting…",
+      "deleted": "User deleted",
+      "cancel": "Cancel"
     }
   }
 }

@@ -122,6 +122,59 @@
   padding: 0 20px;
 }
 
+/* Search bar — filters the active tab's joined groups / clubs / chats */
+.chat-search-wrap {
+  position: relative;
+  margin: 4px 20px 14px;
+}
+.chat-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.chat-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 12px 38px 12px 40px;
+  color: var(--text-white);
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+}
+.chat-search-input:focus { border-color: var(--accent-coral); }
+.chat-search-input::placeholder { color: var(--text-muted); }
+.chat-search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-light);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.chat-search-empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 24px 20px;
+  margin: 0;
+}
+
 /* Friends section wrapper */
 .chat-friends-section {
   padding: 0 20px 20px;

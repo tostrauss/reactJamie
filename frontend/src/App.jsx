@@ -14,6 +14,7 @@ import { AppIntro, shouldShowIntro } from './pages/AppIntro';
 const ProModal = lazyWithReload(() => import('./components/ProModal').then(m => ({ default: m.ProModal })));
 import { useAnalytics } from './hooks/useAnalytics';
 import { EventReviewModal } from './components/EventReviewModal';
+import { FeedbackModal } from './components/FeedbackModal';
 import { reviews } from './utils/api';
 
 // Auth Pages (eagerly loaded - needed at startup)
@@ -230,6 +231,15 @@ const CreateModal = ({ isOpen, onClose }) => {
             <div className="modal-option-text">
               <h3>{t('app.createModal.clubTitle')}</h3>
               <p>{t('app.createModal.clubDesc')}</p>
+            </div>
+            <div className="modal-option-arrow">→</div>
+          </button>
+
+          <button className="modal-option" onClick={() => handleOption('/friends')}>
+            <div className="modal-option-icon">🔍</div>
+            <div className="modal-option-text">
+              <h3>{t('app.createModal.friendsTitle')}</h3>
+              <p>{t('app.createModal.friendsDesc')}</p>
             </div>
             <div className="modal-option-arrow">→</div>
           </button>
@@ -572,6 +582,29 @@ function AppRoutes() {
   const [showIntro, setShowIntro] = useState(() => !!user && !user?.isGuest && shouldShowIntro());
   const [showProModal, setShowProModal] = useState(false);
   const [pendingReviews, setPendingReviews] = useState(null);
+  const [showFeedback, setShowFeedback] = useState(false);
+
+  // Periodic feedback prompt: first one ~2 weeks in, then every ~3 months.
+  // Stores the next-due timestamp in localStorage so it survives reloads and
+  // never nags more than once per interval.
+  useEffect(() => {
+    if (!user || user.isGuest) return;
+    const KEY = 'jamie_feedback_next';
+    const DAY = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const next = parseInt(localStorage.getItem(KEY) || '0', 10);
+    if (!next) { localStorage.setItem(KEY, String(now + 14 * DAY)); return; }
+    if (now >= next) {
+      // Delay so it doesn't stack on top of the intro / review modals.
+      const tid = setTimeout(() => setShowFeedback(true), 1500);
+      return () => clearTimeout(tid);
+    }
+  }, [user?.id]);
+
+  const dismissFeedback = () => {
+    localStorage.setItem('jamie_feedback_next', String(Date.now() + 90 * 24 * 60 * 60 * 1000));
+    setShowFeedback(false);
+  };
 
   // Show intro when user first logs in
   useEffect(() => {
@@ -722,6 +755,10 @@ function AppRoutes() {
             onSuccess={() => setShowProModal(false)}
           />
         </Suspense>
+      )}
+      {/* Feedback prompt — suppressed while the intro / review modals are up. */}
+      {showFeedback && !pendingReviews && !showIntro && (
+        <FeedbackModal onClose={dismissFeedback} />
       )}
     </>
   );

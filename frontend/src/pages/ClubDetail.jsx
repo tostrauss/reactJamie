@@ -89,6 +89,9 @@ export const ClubDetail = () => {
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBoostModal, setShowBoostModal] = useState(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
+  // Pro gate: non-member non-Pro viewers get only the first 3 members + this
+  // flag from the API — clicking the roster opens the ProModal instead.
+  const [membersGated, setMembersGated] = useState(false);
 
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
@@ -116,6 +119,7 @@ export const ClubDetail = () => {
         setIsFavorited((favRes.data || []).some(f => f.id === parseInt(id, 10)));
         const memberData = membersRes.data;
         setMembers(Array.isArray(memberData) ? memberData : (memberData?.members || []));
+        setMembersGated(Array.isArray(memberData) ? false : !!memberData?.gated);
 
         setEventsLoading(true);
         setEventsLocked(false);
@@ -194,9 +198,18 @@ export const ClubDetail = () => {
           toast.success(t('clubDetail.toast.requestSent'));
         } else {
           setIsJoined(true);
-          setMembers(prev => [...prev, { id: user.id, name: user.name, avatar_url: user.avatar_url }]);
           const r = await clubs.getById(id);
           setClub(r.data);
+          // Now a member → the gate lifts; re-fetch the full (ungated) roster.
+          const mres = await clubs.getMembers(id).catch(() => null);
+          if (mres) {
+            const md = mres.data;
+            setMembers(Array.isArray(md) ? md : (md?.members || []));
+            setMembersGated(Array.isArray(md) ? false : !!md?.gated);
+          } else {
+            setMembers(prev => [...prev, { id: user.id, name: user.name, avatar_url: user.avatar_url }]);
+            setMembersGated(false);
+          }
           await loadEvents();
         }
       }
@@ -313,6 +326,13 @@ export const ClubDetail = () => {
   const visibleMembers = members.slice(0, 20);
   const overflowMembers = Math.max(0, membersCount - visibleMembers.length);
 
+  // Gated viewers can't open the full roster — tap routes them to the ProModal
+  // (same global event the /members page uses); everyone else opens the list.
+  const openMembers = () => {
+    if (membersGated) window.dispatchEvent(new Event('jamie:open-pro-modal'));
+    else setShowMembersModal(true);
+  };
+
   return (
     <div className="cd-page">
       <div className="cd-scroll">
@@ -383,7 +403,7 @@ export const ClubDetail = () => {
                 <button
                   key={m.id}
                   className="cd-member-chip"
-                  onClick={() => setShowMembersModal(true)}
+                  onClick={openMembers}
                   aria-label={t('clubDetail.members.openListAria')}
                 >
                   {m.avatar_url ? (
@@ -398,7 +418,7 @@ export const ClubDetail = () => {
               {overflowMembers > 0 && (
                 <button
                   className="cd-member-more"
-                  onClick={() => setShowMembersModal(true)}
+                  onClick={openMembers}
                   aria-label={t('clubDetail.members.openListAria')}
                 >
                   +{overflowMembers}

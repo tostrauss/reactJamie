@@ -1,4 +1,11 @@
 {
+  "feedback": {
+    "title": "Wie gefällt dir JAMIE?",
+    "body": "Dein Feedback hilft uns, JAMIE besser zu machen. Bewerte uns im Store oder schick uns deine Wünsche.",
+    "rate": "App bewerten ⭐",
+    "suggest": "Feedback & Wünsche",
+    "later": "Später"
+  },
   "events": {
     "title": "Events",
     "searchPlaceholder": "Suchen",
@@ -24,6 +31,9 @@
     "loading": "Laden...",
     "loadingShort": "Laden…",
     "sending": "Wird gesendet…",
+    "showPassword": "Passwort anzeigen",
+    "hidePassword": "Passwort verbergen",
+    "viewProfile": "Profil ansehen",
     "languageDe": "Deutsch",
     "languageEn": "Englisch",
     "or": "oder"
@@ -412,6 +422,12 @@
     },
     "loginToFavorite": "Bitte melde dich an, um Favoriten zu speichern.",
     "favoriteError": "Favorit konnte nicht gespeichert werden.",
+    "loginToLike": "Bitte melde dich an, um zu liken.",
+    "likeError": "Like konnte nicht gespeichert werden.",
+    "like": {
+      "add": "Gefällt mir",
+      "remove": "Gefällt mir nicht mehr"
+    },
     "moment": {
       "cta": "📸 Teile deinen JAMIE Moment",
       "hint": "Lade ein Foto vom Event hoch — wird zum Cover in deiner Hall of Fame.",
@@ -609,6 +625,9 @@
       "dateYesterday": "Gestern",
       "hide": "Ausblenden",
       "unhide": "Einblenden",
+      "searchPlaceholder": "Suchen…",
+      "searchClear": "Suche zurücksetzen",
+      "noResults": "Keine Treffer.",
       "sections": {
         "friendRequests": "Freundschaftsanfragen",
         "createdByYou": "Von dir Erstellt",
@@ -1034,6 +1053,8 @@
       "groupDesc": "Plane eine Aktivität mit 3-10 Leuten",
       "clubTitle": "Club gründen",
       "clubDesc": "Starte eine dauerhafte Community",
+      "friendsTitle": "Freunde finden",
+      "friendsDesc": "Suche Leute und schick Freundschaftsanfragen",
       "cancel": "Abbrechen"
     },
     "nav": {
@@ -1241,8 +1262,8 @@
     "imageTooLarge": "Das Bild ist zu groß (max. 10 MB)",
     "imageUploadError": "Bild konnte nicht hochgeladen werden",
     "step1": {
-      "titleLabel": "Aktivität *",
-      "titlePlaceholder": "z.B. Yoga",
+      "titleLabel": "Titel *",
+      "titlePlaceholder": "z.B. Sunset Yoga",
       "categoryLabel": "Kategorie *",
       "subCategoryLabel": "Unterkategorie *",
       "descLabel": "Beschreibung",
@@ -1267,6 +1288,9 @@
       "locationPlaceholder": "z.B. Stadtpark, Wien",
       "locationOnlyATHint": "Nur Standorte in Österreich — bitte aus den Vorschlägen auswählen.",
       "locationNotATError": "Bitte einen Standort in Österreich wählen.",
+      "locationNotInAT": "Dieser Ort konnte in Österreich nicht gefunden werden. Bitte überprüfe die Schreibweise.",
+      "locationCheckError": "Der Ort konnte nicht überprüft werden. Bitte versuche es erneut.",
+      "locationChecking": "Prüfe Ort…",
       "ageLabel": "Für welches Alter?",
       "ageHint": "Nur Nutzer in dieser Altersspanne sehen die Gruppe (leer = alle)",
       "ageFromLabel": "von",
@@ -1325,6 +1349,9 @@
       "locationPlaceholder": "z.B. Wien",
       "locationOnlyATHint": "Nur Standorte in Österreich — bitte aus den Vorschlägen auswählen.",
       "locationNotATError": "Bitte einen Standort in Österreich wählen.",
+      "locationNotInAT": "Dieser Ort konnte in Österreich nicht gefunden werden. Bitte überprüfe die Schreibweise.",
+      "locationCheckError": "Der Ort konnte nicht überprüft werden. Bitte versuche es erneut.",
+      "locationChecking": "Prüfe Ort…",
       "maxLabel": "Maximale Mitglieder",
       "frequencyLabel": "Treffhäufigkeit",
       "frequency": {
@@ -1623,6 +1650,7 @@
       "topClubs": "Top Clubs & Gruppen (30 Tage)",
       "categorySuggestions": "Kategorie-Vorschläge",
       "newUsers": "Neue Nutzer",
+      "allUsersFmt": "Alle Nutzer ({{count}})",
       "csvExport": "CSV Export"
     },
     "kpis": {
@@ -1674,7 +1702,29 @@
     "users": {
       "deleteBtn": "Löschen",
       "confirmDelete": "Account von „{{name}}\" wirklich löschen? Alle erstellten Gruppen, Clubs, Nachrichten und Freundschaften dieses Nutzers werden mit gelöscht.",
-      "deleteError": "Nutzer konnte nicht gelöscht werden"
+      "deleteError": "Nutzer konnte nicht gelöscht werden",
+      "searchPlaceholder": "Suche nach Name, E-Mail oder Ort…",
+      "clearSearch": "Suche zurücksetzen",
+      "loading": "Lädt…",
+      "empty": "Keine Nutzer gefunden.",
+      "loadMoreFmt": "Mehr laden ({{shown}} von {{total}})"
+    },
+    "userModal": {
+      "title": "Nutzer verwalten",
+      "manage": "Verwalten",
+      "adminLabel": "Admin",
+      "adminHint": "Voller Zugriff auf dieses Dashboard und alle Admin-Funktionen.",
+      "adminSelfHint": "Du kannst dir nicht selbst die Admin-Rechte entziehen.",
+      "trustedLabel": "Vertrauenswürdig",
+      "trustedHint": "Zeigt das grüne Verifiziert-Häkchen im Profil.",
+      "roleSaved": "Rolle aktualisiert",
+      "roleError": "Rolle konnte nicht geändert werden",
+      "deleteBtn": "Account löschen",
+      "deleteConfirm": "Account von „{{name}}\" wirklich löschen? Alle erstellten Gruppen, Clubs, Nachrichten und Freundschaften werden mit gelöscht. Das kann nicht rückgängig gemacht werden.",
+      "deleteConfirmBtn": "Ja, löschen",
+      "deleting": "Löscht…",
+      "deleted": "Nutzer gelöscht",
+      "cancel": "Abbrechen"
     }
   }
 }

@@ -13,6 +13,7 @@ import {
 } from '../utils/pushNotifications';
 import { isNativeIOS, IOS_IAP_ENABLED } from '../utils/platform';
 import { restorePurchases } from '../utils/iap';
+import { PasswordInput } from '../components/PasswordInput';
 import '../styles/profile.css';
 
 export const SettingsPage = () => {
@@ -355,9 +356,9 @@ export const SettingsPage = () => {
         ) : (
           <div className="settings-expand">
             <form onSubmit={handleChangePassword} className="settings-form">
-              <input type="password" placeholder={t('settings.account.currentPasswordPlaceholder')} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="settings-input" />
-              <input type="password" placeholder={t('settings.account.newPasswordPlaceholder')} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="settings-input" />
-              <input type="password" placeholder={t('settings.account.confirmPasswordPlaceholder')} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="settings-input" />
+              <PasswordInput placeholder={t('settings.account.currentPasswordPlaceholder')} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="settings-input" autoComplete="current-password" />
+              <PasswordInput placeholder={t('settings.account.newPasswordPlaceholder')} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="settings-input" autoComplete="new-password" />
+              <PasswordInput placeholder={t('settings.account.confirmPasswordPlaceholder')} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="settings-input" autoComplete="new-password" />
               <div className="settings-form-actions">
                 <button type="submit" className="settings-action-btn primary" disabled={passwordLoading}>
                   {passwordLoading ? t('common.loading') : t('common.save')}
@@ -948,7 +949,7 @@ export const SettingsPage = () => {
             {t('settings.deleteConfirm.warning')}
           </p>
           <form onSubmit={handleDeleteAccount} className="settings-form">
-            <input type="password" placeholder={t('settings.deleteConfirm.passwordPlaceholder')} value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} className="settings-input" />
+            <PasswordInput placeholder={t('settings.deleteConfirm.passwordPlaceholder')} value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} className="settings-input" autoComplete="current-password" />
             <div className="settings-form-actions">
               <button type="submit" className="danger-btn" disabled={deleteLoading}>
                 {deleteLoading ? t('common.loading') : t('settings.deleteConfirm.confirm')}

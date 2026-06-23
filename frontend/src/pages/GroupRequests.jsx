@@ -178,6 +178,14 @@ export const GroupRequests = () => {
                   <UserName name={currentRequest.user_name} age={currentRequest.user_age} />
                 </h2>
 
+                <button
+                  type="button"
+                  className="request-profile-link"
+                  onClick={() => navigate(`/user/${currentRequest.user_id}`)}
+                >
+                  {t('common.viewProfile')}
+                </button>
+
                 {currentRequest.user_bio && (
                   <p className="request-bio">{currentRequest.user_bio}</p>
                 )}
@@ -247,6 +255,7 @@ export const GroupRequests = () => {
         .request-avatar-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 64px; font-weight: 700; color: var(--coral); background: var(--bg-input); }
         .request-user-info { padding: 20px; text-align: center; }
         .request-name { font-size: 24px; font-weight: 700; color: var(--text-white); margin-bottom: 8px; }
+        .request-profile-link { background: none; border: none; color: var(--accent-coral); font-size: 14px; font-weight: 600; cursor: pointer; padding: 4px 0; margin-bottom: 8px; text-decoration: underline; text-underline-offset: 3px; }
         .request-bio { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4; }
         .request-message-box { background: var(--bg-input); border-radius: 12px; padding: 12px 16px; margin-bottom: 12px; }
         .request-message { font-size: 14px; color: var(--text-light); font-style: italic; line-height: 1.4; }

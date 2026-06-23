@@ -4,6 +4,7 @@ import { useTranslation, Trans } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { auth } from '../utils/api';
 import { JamieWordmark } from '../components/JamieWordmark';
+import { PasswordInput } from '../components/PasswordInput';
 import '../styles/auth.css';
 
 const OTP_RESEND_SECONDS = 60;
@@ -450,8 +451,7 @@ export const Register = () => {
               </div>
               <div className="form-group">
                 <label>{t('auth.register.step6.label')}</label>
-                <input
-                  type="password"
+                <PasswordInput
                   placeholder={t('auth.register.step6.placeholder')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -477,8 +477,7 @@ export const Register = () => {
               </div>
               <div className="form-group">
                 <label>{t('auth.register.step6.confirmLabel')}</label>
-                <input
-                  type="password"
+                <PasswordInput
                   placeholder={t('auth.shared.confirmPasswordPlaceholder')}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}

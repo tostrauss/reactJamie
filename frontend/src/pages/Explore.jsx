@@ -58,7 +58,7 @@ const seedColor = (id, offset = 0) =>
 // over the media. The prompt persists across days — owners can fill it in
 // whenever they want.
 
-const HofCard = memo(({ item, isOwner, isFavorited, onToggleFavorite, onUploadMoment, navigate, t }) => {
+const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadMoment, navigate, t }) => {
   const icon = getCategoryIcon(item.category);
   const timeAgo = formatTimeAgo(item.created_at, t);
   const fileInputRef = useRef(null);
@@ -66,9 +66,9 @@ const HofCard = memo(({ item, isOwner, isFavorited, onToggleFavorite, onUploadMo
   const displayPhoto = item.moment_photo_url || item.image_url;
   const showMomentPrompt = isOwner && !item.moment_photo_url;
 
-  const handleHeart = (e) => {
+  const handleLike = (e) => {
     e.stopPropagation();
-    onToggleFavorite(item);
+    onToggleLike(item);
   };
 
   const openPicker = (e) => {
@@ -112,20 +112,21 @@ const HofCard = memo(({ item, isOwner, isFavorited, onToggleFavorite, onUploadMo
           </div>
         )}
 
-        {/* Top-right: like heart (always interactive) */}
+        {/* Top-right: public like (heart + count). Always interactive. */}
         <button
           type="button"
-          className={`ef-heart-btn${isFavorited ? ' is-active' : ''}`}
-          onClick={handleHeart}
-          aria-label={isFavorited ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'}
-          aria-pressed={isFavorited}
+          className={`ef-heart-btn${liked ? ' is-active' : ''}`}
+          onClick={handleLike}
+          aria-label={liked ? t('explore.like.remove') : t('explore.like.add')}
+          aria-pressed={liked}
         >
           <svg width="20" height="20" viewBox="0 0 24 24"
-               fill={isFavorited ? '#FD7666' : 'none'}
-               stroke={isFavorited ? '#FD7666' : 'currentColor'}
+               fill={liked ? '#FD7666' : 'none'}
+               stroke={liked ? '#FD7666' : 'currentColor'}
                strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
           </svg>
+          {likeCount > 0 && <span className="ef-like-count">{likeCount}</span>}
         </button>
 
         {/* Moment upload prompt — owner only, until moment_photo_url is set.
@@ -169,9 +170,18 @@ const HofCard = memo(({ item, isOwner, isFavorited, onToggleFavorite, onUploadMo
         </div>
       </div>
 
-      {/* Footer */}
+      {/* Footer — the author block is tappable to the poster's profile (works
+          for every viewer, not just the owner). stopPropagation so it doesn't
+          also trigger the card's group navigation. */}
       <div className="ef-footer">
-        <div className="ef-user">
+        <div
+          className="ef-user"
+          onClick={item.owner_id ? (e) => { e.stopPropagation(); navigate(`/user/${item.owner_id}`); } : undefined}
+          onKeyDown={item.owner_id ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); navigate(`/user/${item.owner_id}`); } } : undefined}
+          role={item.owner_id ? 'button' : undefined}
+          tabIndex={item.owner_id ? 0 : undefined}
+          style={item.owner_id ? { cursor: 'pointer' } : undefined}
+        >
           <div className="ef-user-av">
             {item.owner_avatar
               ? <img src={item.owner_avatar} alt={item.owner_name} loading="lazy" decoding="async" />
@@ -214,7 +224,7 @@ export const Explore = () => {
   const [loading, setLoading]         = useState(true);
   const [hallItems, setHallItems]     = useState([]);
   const [dealList, setDealList]       = useState([]);
-  const [favoriteIds, setFavoriteIds] = useState(() => new Set());
+  const [likedIds, setLikedIds]       = useState(() => new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -222,17 +232,18 @@ export const Explore = () => {
       setLoading(true);
       try {
         const isAuthed = user && !user.isGuest;
-        const [allRes, dealsRes, favRes] = await Promise.all([
+        const [allRes, dealsRes, likesRes] = await Promise.all([
           groups.getAll({ limit: 50 }).catch(() => ({ data: [] })),
           dealsApi.getAll().catch(() => ({ data: [] })),
-          isAuthed ? groups.getFavorites().catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+          isAuthed ? groups.getMyLikes().catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
         ]);
         if (cancelled) return;
 
         const all = allRes.data || [];
         setHallItems(all.filter(g => isPast(g.date)));
         setDealList(dealsRes.data || []);
-        setFavoriteIds(new Set((favRes.data || []).map(g => g.id)));
+        // getMyLikes returns a bare array of group ids the caller has liked.
+        setLikedIds(new Set(likesRes.data || []));
       } catch { /* silent */ }
       finally { if (!cancelled) setLoading(false); }
     })();
@@ -274,31 +285,46 @@ export const Explore = () => {
     }
   }, [toast, t]);
 
-  // Optimistic favorite toggle with rollback on error. Hall-of-Fame items are
-  // all type='group' (clubs have no date, so isPast() drops them), so we use
-  // groups.toggleFavorite for every card.
-  const handleToggleFavorite = useCallback(async (item) => {
+  // Optimistic public-like toggle with rollback. Hall-of-Fame items are all
+  // type='group' (clubs have no date), so groups.toggleLike covers every card.
+  // The card count updates immediately, then syncs to the server's authoritative
+  // count on response.
+  const adjustCount = (id, delta) => setHallItems(prev => prev.map(g =>
+    g.id === id ? { ...g, like_count: Math.max(0, (g.like_count || 0) + delta) } : g));
+
+  const handleToggleLike = useCallback(async (item) => {
     if (!user || user.isGuest) {
-      toast.error(t('explore.loginToFavorite'));
+      toast.error(t('explore.loginToLike'));
       return;
     }
-    setFavoriteIds(prev => {
+    const wasLiked = likedIds.has(item.id);
+    setLikedIds(prev => {
       const next = new Set(prev);
-      next.has(item.id) ? next.delete(item.id) : next.add(item.id);
+      wasLiked ? next.delete(item.id) : next.add(item.id);
       return next;
     });
+    adjustCount(item.id, wasLiked ? -1 : 1);
     try {
-      await groups.toggleFavorite(item.id);
+      const res = await groups.toggleLike(item.id);
+      if (res?.data) {
+        // Sync to the authoritative count + liked state from the server.
+        setHallItems(prev => prev.map(g => g.id === item.id ? { ...g, like_count: res.data.like_count } : g));
+        setLikedIds(prev => {
+          const next = new Set(prev);
+          res.data.liked ? next.add(item.id) : next.delete(item.id);
+          return next;
+        });
+      }
     } catch {
-      // Revert
-      setFavoriteIds(prev => {
+      setLikedIds(prev => {
         const next = new Set(prev);
-        next.has(item.id) ? next.delete(item.id) : next.add(item.id);
+        wasLiked ? next.add(item.id) : next.delete(item.id);
         return next;
       });
-      toast.error(t('explore.favoriteError'));
+      adjustCount(item.id, wasLiked ? 1 : -1);
+      toast.error(t('explore.likeError'));
     }
-  }, [user, toast, t]);
+  }, [user, toast, t, likedIds]);
 
   return (
     <div className="explore-container">
@@ -347,8 +373,9 @@ export const Explore = () => {
                   key={`hof-${item.id}`}
                   item={item}
                   isOwner={user && !user.isGuest && Number(item.owner_id) === Number(user.id)}
-                  isFavorited={favoriteIds.has(item.id)}
-                  onToggleFavorite={handleToggleFavorite}
+                  liked={likedIds.has(item.id)}
+                  likeCount={item.like_count || 0}
+                  onToggleLike={handleToggleLike}
                   onUploadMoment={handleUploadMoment}
                   navigate={navigate}
                   t={t}

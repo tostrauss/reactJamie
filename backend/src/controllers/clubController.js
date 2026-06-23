@@ -1,9 +1,11 @@
 import db from '../config/database.js';
-import { geocodeLocation } from '../utils/geocode.js';
+import { geocodeLocation, geocodeAustria } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { getCached, setCached, invalidatePrefix } from '../utils/cache.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
 import { notifyJoinRequest } from './groupController.js';
+import { isUserPro } from './subscriptionController.js';
+import { sendPushToUser } from './pushController.js';
 
 const CLUBS_TTL = 30_000; // 30 s
 const DISCOVER_EVENTS_KEY = 'discover_events';
@@ -84,7 +86,10 @@ export const createClub = async (req, res) => {
     }
 
     // Geocode location (non-blocking on failure)
-    const coords = await geocodeLocation(location);
+    // Prefer the Austria-restricted match (consistent with the frontend's AT
+    // verification + the AT map); fall back to unrestricted so we never resolve
+    // fewer places than before.
+    const coords = await geocodeAustria(location) || await geocodeLocation(location);
 
     // Approval workflow: clubs created by admins are auto-approved.
     // Everyone else lands in the moderation queue until a human approves.
@@ -368,7 +373,10 @@ export const updateClub = async (req, res) => {
     let latUpdate = null;
     let lngUpdate = null;
     if (location !== undefined) {
-      const coords = await geocodeLocation(location);
+      // Prefer the Austria-restricted match (consistent with the frontend's AT
+    // verification + the AT map); fall back to unrestricted so we never resolve
+    // fewer places than before.
+    const coords = await geocodeAustria(location) || await geocodeLocation(location);
       latUpdate = coords?.lat ?? null;
       lngUpdate = coords?.lng ?? null;
     }
@@ -689,7 +697,37 @@ export const getClubMembers = async (req, res) => {
        ORDER BY gm.joined_at ASC`,
       [id, req.userId]
     );
-    res.json(result.rows);
+    const total = result.rows.length;
+
+    // Pro gate — mirrors getGroupMembers so "alle Mitglieder sehen" is a
+    // uniform Pro perk across groups AND clubs. Members of the club already see
+    // the whole roster; non-member non-Pro non-admins get only the first 3 + a
+    // gated flag (the frontend renders the rest as a locked Pro upsell). The
+    // isCallerMember check was already computed above for private clubs.
+    const isCallerMember = (await db.query(
+      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [id, req.userId]
+    )).rows.length > 0;
+    const callerIsPro = req.userId ? await isUserPro(req.userId) : false;
+    let callerIsAdmin = false;
+    if (!isCallerMember && !callerIsPro && req.userId) {
+      const adm = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);
+      callerIsAdmin = !!adm.rows[0]?.is_admin;
+    }
+    if (!isCallerMember && !callerIsPro && !callerIsAdmin) {
+      return res.json({
+        members: result.rows.slice(0, 3).map(m => ({
+          id: m.id,
+          name: m.name,
+          avatar_url: m.avatar_url,
+          age: m.age,
+          is_trusted_user: m.is_trusted_user,
+        })),
+        total_count: total,
+        gated: true,
+      });
+    }
+    res.json({ members: result.rows, total_count: total, gated: false });
   } catch (err) {
     console.error('Error fetching club members:', err);
     res.status(500).json({ error: 'Interner Serverfehler' });
@@ -758,7 +796,7 @@ export const handleClubJoinRequest = async (req, res) => {
     const { action } = req.body;
 
     const club = await db.query(
-      'SELECT owner_id FROM groups WHERE id = $1 AND type = $2',
+      'SELECT owner_id, name FROM groups WHERE id = $1 AND type = $2',
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
@@ -804,6 +842,9 @@ export const handleClubJoinRequest = async (req, res) => {
       } finally {
         client.release();
       }
+
+      // Notify the requester they're in (parity with group join-accept).
+      sendPushToUser(joinReq.user_id, 'Beitrittsanfrage akzeptiert', `Du bist jetzt Mitglied von "${club.rows[0].name || ''}"`, `/club/${id}`);
 
       // "X ist beigetreten 🎉" — fire-and-forget, live to chat room.
       db.query('SELECT name FROM users WHERE id = $1', [joinReq.user_id])
@@ -1188,6 +1229,18 @@ export const createClubEvent = async (req, res) => {
     invalidatePrefix('clubs:');
     invalidatePrefix(DISCOVER_EVENTS_KEY);
     invalidatePrefix('map:'); // a geocoded event is a new map pin
+
+    // Notify club members about the new event (fire-and-forget, excludes the
+    // creator). Deep-links to the event detail page.
+    db.query('SELECT user_id FROM group_members WHERE group_id = $1 AND user_id <> $2', [id, userId])
+      .then(({ rows }) => {
+        const clubName = club.rows[0].name || 'Dein Club';
+        for (const r of rows) {
+          sendPushToUser(r.user_id, clubName, `Neues Event: ${name.trim()}`, `/group/${event.id}`);
+        }
+      })
+      .catch(() => {});
+
     res.status(201).json(event);
   } catch (err) {
     console.error('Error creating club event:', err);

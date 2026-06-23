@@ -311,6 +311,20 @@
   line-height: 1.6;
 }
 
+/* Native date input — color-scheme:dark makes the value text + calendar
+   indicator legible on the dark field; the indicator gets a coral tint. */
+.create-date-input {
+  color-scheme: dark;
+  min-height: 52px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.create-date-input::-webkit-calendar-picker-indicator {
+  filter: invert(0.6) sepia(1) saturate(4) hue-rotate(-15deg);
+  cursor: pointer;
+  opacity: 0.85;
+}
+
 /* Main Category Grid */
 .main-category-grid {
   display: grid;

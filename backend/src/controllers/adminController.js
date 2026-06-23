@@ -103,22 +103,60 @@ export const getStats = async (_req, res) => {
 };
 
 // ==========================================
-// RECENT USERS
+// USERS LIST (searchable + paginated)
 // ==========================================
+// Powers the admin "Alle Nutzer" panel. Returns a page of users plus the total
+// row count so the frontend can render "X von Y" and a "Mehr laden" button.
+// `search` matches name / email / location (ILIKE) and an exact id when the
+// term is purely numeric. Response shape is { users, total, limit, offset } —
+// not a bare array — so callers must read `.users` (the dashboard does).
 export const getRecentUsers = async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const search = (req.query.search || '').trim();
+
+    // Build a shared WHERE clause + params for both the count and page queries
+    // so totals always agree with the rows returned.
+    const filters = [];
+    const params = [];
+    if (search) {
+      params.push(`%${search}%`);
+      const like = `$${params.length}`;
+      let clause = `(name ILIKE ${like} OR email ILIKE ${like} OR location ILIKE ${like}`;
+      if (/^\d+$/.test(search)) {
+        params.push(parseInt(search, 10));
+        clause += ` OR id = $${params.length}`;
+      }
+      clause += ')';
+      filters.push(clause);
+    }
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+
+    const totalRes = await db.query(
+      `SELECT COUNT(*)::int AS total FROM users ${where}`,
+      params
+    );
+
+    const pageParams = [...params, limit, offset];
     const result = await db.query(`
-      SELECT id, name, email, location, created_at, is_trusted_user, trusted_count,
-             onboarding_completed, is_admin,
+      SELECT id, name, email, location, avatar_url, created_at, last_seen,
+             is_trusted_user, trusted_count, onboarding_completed, is_admin,
              EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age
       FROM users
+      ${where}
       ORDER BY created_at DESC
-      LIMIT $1
-    `, [limit]);
-    res.json(result.rows);
+      LIMIT $${pageParams.length - 1} OFFSET $${pageParams.length}
+    `, pageParams);
+
+    res.json({
+      users: result.rows,
+      total: totalRes.rows[0].total,
+      limit,
+      offset,
+    });
   } catch (err) {
-    console.error('Admin recent users error:', err);
+    console.error('Admin users list error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -318,6 +356,59 @@ export const deleteUser = async (req, res) => {
   } catch (err) {
     console.error('Admin deleteUser error:', err);
     res.status(500).json({ error: 'Nutzer konnte nicht gelöscht werden', detail: err.message });
+  }
+};
+
+// ==========================================
+// UPDATE USER ROLE (admin only)
+// ==========================================
+// Toggles is_admin and/or is_trusted_user for a target user. Only the booleans
+// present in the body are written, so a caller can flip one flag without
+// touching the other. Guards:
+//  - An admin cannot revoke their OWN admin rights here (self-lockout footgun;
+//    flip it via DB if you truly need to step down the last admin).
+export const updateUserRole = async (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(targetId) || targetId <= 0) {
+      return res.status(400).json({ error: 'Ungültige Nutzer-ID' });
+    }
+
+    const { is_admin, is_trusted_user } = req.body || {};
+    const updates = [];
+    const params = [];
+
+    if (typeof is_admin === 'boolean') {
+      if (targetId === req.userId && is_admin === false) {
+        return res.status(400).json({ error: 'Du kannst dir nicht selbst die Admin-Rechte entziehen' });
+      }
+      params.push(is_admin);
+      updates.push(`is_admin = $${params.length}`);
+    }
+    if (typeof is_trusted_user === 'boolean') {
+      params.push(is_trusted_user);
+      updates.push(`is_trusted_user = $${params.length}`);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'Keine gültigen Felder zum Aktualisieren' });
+    }
+
+    params.push(targetId);
+    const result = await db.query(
+      `UPDATE users
+       SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $${params.length}
+       RETURNING id, name, email, is_admin, is_trusted_user`,
+      params
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Nutzer nicht gefunden' });
+    }
+    res.json({ success: true, user: result.rows[0] });
+  } catch (err) {
+    console.error('Admin updateUserRole error:', err);
+    res.status(500).json({ error: 'Rolle konnte nicht aktualisiert werden' });
   }
 };
 

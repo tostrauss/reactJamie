@@ -280,6 +280,9 @@ export const GroupEdit = () => {
   const displayDate = formData.date
     ? new Date(formData.date).toLocaleDateString(dateLocale, { day: '2-digit', month: '2-digit', year: '2-digit' })
     : '—';
+  // Local YYYY-MM-DD today — blocks picking a past date (which would hide the
+  // group/event from the map). Events keep their own date if already set.
+  const todayStr = (() => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; })();
 
   return (
     <div className="ge-page">
@@ -450,12 +453,22 @@ export const GroupEdit = () => {
           <div className="ge-card ge-form-card">
 
             <div className="ge-field">
-              <label className="ge-label">{t('groupEdit.fields.title')}</label>
+              <label className="ge-label">
+                {t('groupEdit.fields.title')}
+                {/* Groups cap the title at 15 chars (clubs/events keep their
+                    longer names). */}
+                {group?.type === 'group' && (
+                  <span style={{ marginLeft: 8, color: 'var(--text-muted)', fontWeight: 400 }}>
+                    {(formData.name || '').length}/15
+                  </span>
+                )}
+              </label>
               <input
                 className="ge-input"
                 placeholder={t('groupEdit.fields.titlePlaceholder')}
                 value={formData.name}
                 onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
+                maxLength={group?.type === 'group' ? 15 : undefined}
               />
             </div>
 
@@ -483,6 +496,31 @@ export const GroupEdit = () => {
                     {t('groupEdit.fields.category', { defaultValue: 'Kategorie' })}
                     {' '}<span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({formData.categories.length}/3)</span>
                   </label>
+
+                  {/* Currently-selected categories as removable chips. Without
+                      this, a sub picked under one main category stays invisibly
+                      in `categories` once you switch to another main — and since
+                      the first entry is the PRIMARY (displayed) category, the
+                      group's category looked unchangeable. The first chip is the
+                      primary; removing it promotes the next one. */}
+                  {formData.categories.length > 0 && (
+                    <div className="cat-selected-row">
+                      {formData.categories.map((cat, i) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          className={`cat-selected-chip${i === 0 ? ' is-primary' : ''}`}
+                          onClick={() => setFormData(p => ({ ...p, categories: p.categories.filter(c => c !== cat) }))}
+                          title={t('groupEdit.fields.categoryRemove', { defaultValue: 'Entfernen' })}
+                        >
+                          {i === 0 && <span className="cat-selected-chip__dot" aria-hidden="true" />}
+                          <span>{cat}</span>
+                          <span className="cat-selected-chip__x" aria-hidden="true">✕</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="ge-cat-grid">
                     {CATEGORY_HIERARCHY.map(cat => (
                       <button
@@ -560,6 +598,7 @@ export const GroupEdit = () => {
                           type="date"
                           className="ge-date-overlay"
                           value={formData.date}
+                          min={todayStr}
                           onChange={e => setFormData(p => ({ ...p, date: e.target.value }))}
                         />
                       </div>

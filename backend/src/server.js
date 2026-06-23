@@ -561,6 +561,34 @@ const runStartupMigrations = async () => {
   await migrate('users LOWER(email) unique', () =>
     db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email))`));
 
+  // Trigram indexes so the admin user search (name / email / location ILIKE
+  // '%term%') uses an index instead of a full table scan as the user base
+  // grows. One GIN index per column matches each ILIKE predicate; the planner
+  // BitmapOrs them. pg_trgm is a trusted extension (installable without
+  // superuser on PG13+). All wrapped in migrate() so a permissions failure on
+  // a locked-down host degrades to a seq scan rather than blocking boot.
+  await migrate('pg_trgm extension', () =>
+    db.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm`));
+  await migrate('idx_users_name_trgm', () =>
+    db.query(`CREATE INDEX IF NOT EXISTS idx_users_name_trgm ON users USING gin (name gin_trgm_ops)`));
+  await migrate('idx_users_email_trgm', () =>
+    db.query(`CREATE INDEX IF NOT EXISTS idx_users_email_trgm ON users USING gin (email gin_trgm_ops)`));
+  await migrate('idx_users_location_trgm', () =>
+    db.query(`CREATE INDEX IF NOT EXISTS idx_users_location_trgm ON users USING gin (location gin_trgm_ops)`));
+
+  // Public likes on Hall-of-Fame "moment" posts. One row per (group, user);
+  // the poster (group owner) gets a push on each new like and the count shows
+  // on the card. Kept separate from group_favorites (private bookmarks).
+  await migrate('event_likes', () => db.query(`
+    CREATE TABLE IF NOT EXISTS event_likes (
+      group_id   INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+      user_id    INTEGER NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (group_id, user_id)
+    )`));
+  await migrate('idx_event_likes_group', () =>
+    db.query(`CREATE INDEX IF NOT EXISTS idx_event_likes_group ON event_likes(group_id)`));
+
   // Pin name length at the DB layer too — the base schema declared
   // VARCHAR with no limit (unbounded), so a single user could push
   // a megabyte-long name through that bypassed app-layer validation.

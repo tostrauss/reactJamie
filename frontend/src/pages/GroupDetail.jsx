@@ -25,6 +25,14 @@ function formatAgeRange(min, max) {
   return min === max ? String(min) : `${Math.max(18, min)}-${capped}`;
 }
 
+// Local YYYY-MM-DD (timezone-safe) — used as the date input `min` so past
+// event dates can't be picked (a past date hides the event from the map).
+const localTodayStr = () => {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+
 const GROUP_MAP_STYLES = [
   { elementType: 'geometry',           stylers: [{ color: '#1a1a2e' }] },
   { elementType: 'labels.icon',        stylers: [{ visibility: 'off' }] },
@@ -506,10 +514,7 @@ export const GroupDetail = () => {
           <h1 className="gd-top-title">
             {isEvent
               ? (group.name || group.category)
-              : (headerDate
-                  || (group.category && group.category.toLowerCase() !== 'sonstiges'
-                        ? group.category
-                        : (group.name || group.category)))
+              : (headerDate || group.name || group.category)
             }
           </h1>
           {/* Manage (gear) — opens the edit/verwalten page. Shows for the owner
@@ -760,13 +765,19 @@ export const GroupDetail = () => {
               })()}
             </div>
 
-            {/* Group title — for non-Sonstiges groups the category IS the
-                title (e.g. "Beachvolleyball"); when category is "Sonstiges" it
-                says nothing, so fall back to the user's typed activity name. */}
+            {/* Category eyebrow above the title — the title is now the
+                user-entered name (see below), so the category is surfaced here
+                as its own label (kept visible per product spec, mirrors the map
+                popup's category chip). */}
+            {group.category && (
+              <span className="gd-category-eyebrow">{group.category}</span>
+            )}
+
+            {/* Group title — the user-entered title (max 15 chars). Falls back
+                to the category only for legacy groups created before titles
+                were shown. */}
             <h2 className="gd-group-title">
-              {(group.category && group.category.toLowerCase() !== 'sonstiges'
-                ? group.category
-                : (group.name || group.title || group.category)) || ''}
+              {group.name || group.title || group.category || ''}
             </h2>
 
             {/* Description */}
@@ -841,6 +852,7 @@ export const GroupDetail = () => {
                       className="gd-event-input"
                       type="date"
                       value={eventForm.date}
+                      min={localTodayStr()}
                       onChange={e => setEventForm(f => ({ ...f, date: e.target.value }))}
                       required
                     />

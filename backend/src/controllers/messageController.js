@@ -1,6 +1,7 @@
 import db from '../config/database.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { deleteCached } from '../utils/cache.js';
+import { sendPushToUser } from './pushController.js';
 
 // Stamp the caller's read marker for a group chat and drop their cached
 // joined-groups list (it embeds unread_count, TTL 15s — without the
@@ -34,7 +35,7 @@ export const sendMessage = async (req, res) => {
     // group_members has a composite PK (group_id, user_id) — no `id` column —
     // so we use gm.user_id as the existence marker.
     const ctx = await db.query(
-      `SELECT g.type, g.owner_id, g.chat_only_owner, gm.user_id AS member_user_id
+      `SELECT g.type, g.name AS group_name, g.owner_id, g.chat_only_owner, gm.user_id AS member_user_id
        FROM groups g
        LEFT JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = $2
        WHERE g.id = $1`,
@@ -43,7 +44,7 @@ export const sendMessage = async (req, res) => {
     if (ctx.rows.length === 0) {
       return res.status(404).json({ error: 'Gruppe nicht gefunden' });
     }
-    const { type, owner_id, chat_only_owner, member_user_id } = ctx.rows[0];
+    const { type, group_name, owner_id, chat_only_owner, member_user_id } = ctx.rows[0];
     if (member_user_id == null) {
       return res.status(403).json({ error: 'Not a member of this group' });
     }
@@ -73,12 +74,14 @@ export const sendMessage = async (req, res) => {
     // actually persisted, and it works even if the sender's socket is down.
     // One batched emit (array of rooms) = one adapter publish.
     try {
+      const memberRows = await db.query(
+        'SELECT user_id FROM group_members WHERE group_id = $1 AND user_id <> $2',
+        [groupId, req.userId]
+      );
+
+      // In-app nudge for connected clients (nav badges + chat-list rows).
       const io = req.app.get('io');
       if (io) {
-        const memberRows = await db.query(
-          'SELECT user_id FROM group_members WHERE group_id = $1 AND user_id <> $2',
-          [groupId, req.userId]
-        );
         const rooms = memberRows.rows.map(r => `user_${r.user_id}`);
         if (rooms.length) {
           io.to(rooms).emit('group_message_notification', {
@@ -88,6 +91,17 @@ export const sendMessage = async (req, res) => {
             content: content.slice(0, 200),
           });
         }
+      }
+
+      // Web push for members with the app closed/backgrounded — the socket emit
+      // above only reaches connected clients. This was the long-standing gap:
+      // group/club chat messages sent no push, so members learned of them only
+      // on next open. Fire-and-forget (no await); the DB unread count is the
+      // source of truth if a push fails.
+      const senderName = result.rows[0].user_name || 'Jemand';
+      const preview = content.slice(0, 120);
+      for (const r of memberRows.rows) {
+        sendPushToUser(r.user_id, group_name || 'Neue Nachricht', `${senderName}: ${preview}`, `/chat/${groupId}`);
       }
     } catch {
       // Best-effort: unread truth lives in the DB, the next refetch catches up

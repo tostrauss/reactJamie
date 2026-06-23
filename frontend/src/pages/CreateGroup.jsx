@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { groups, api as axiosInstance } from '../utils/api';
+import { groups, map as mapApi, api as axiosInstance } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
@@ -15,12 +15,20 @@ const LEVELS = [
   { value: 'Experte',         key: 'expert' },
 ];
 
+// Local YYYY-MM-DD. Avoids the UTC off-by-one that toISOString() causes in
+// timezones ahead of UTC (e.g. Austria in the evening), which would otherwise
+// let the date input's `min` fall a day behind the real local "today".
+const pad2 = (n) => String(n).padStart(2, '0');
+const localISODate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
 export const CreateGroup = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const { t, i18n } = useTranslation();
   const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-AT';
-  const months = t('profileEdit.months', { returnObjects: true });
+  // Native date input bounds: today → +2 years (matches the old year dropdown).
+  const todayStr = localISODate(new Date());
+  const maxDateStr = (() => { const n = new Date(); return localISODate(new Date(n.getFullYear() + 2, n.getMonth(), n.getDate())); })();
   const imageBlobRef    = useRef(null);
   const locationRef     = useRef(null);
   const autocompleteRef = useRef(null);
@@ -29,6 +37,9 @@ export const CreateGroup = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Location-verify fallback state (when Google Places shows no dropdown).
+  const [locationChecking, setLocationChecking] = useState(false);
+  const [locationError, setLocationError] = useState('');
   // Picked cover photo awaiting crop to the 16:9 banner frame.
   const [cropFile, setCropFile] = useState(null);
   const [formData, setFormData] = useState({
@@ -37,9 +48,6 @@ export const CreateGroup = () => {
     categories: [], // up to 3 subcategory names; categories[0] = primary
     description: '',
     date: '',
-    dateDay: '',
-    dateMonth: '',
-    dateYear: '',
     // The exact time is decided in the chat — Tina's call. We keep only the
     // calendar day and let members coordinate the rest. The backend tolerates
     // date-only payloads (no `time` key sent → stored as midnight).
@@ -50,7 +58,9 @@ export const CreateGroup = () => {
     // — that gives a hard guarantee, since restricting the dropdown alone
     // doesn't stop someone typing/pasting a foreign address by hand.
     locationCountry: '',
-    maxMembers: 20,
+    // Default group size — Tobi 2026-06-22: most groups are small meetups, so 5
+    // is a friendlier starting point than 20 (still adjustable 2–20).
+    maxMembers: 5,
     level: 'Alle Levels',
     isPublic: true,
     // Default target age range — Tina's call (2026-06-09): most JAMIE events
@@ -66,17 +76,6 @@ export const CreateGroup = () => {
   // no "Anfänger/Experte". Show the picker (and submit a real level) only for
   // the Sport category; everything else stays 'Alle Levels' (hidden everywhere).
   const showLevel = formData.mainCategory === 'sport';
-
-  const handleDateChange = (field, value) => {
-    setFormData(prev => {
-      const next = { ...prev, [field]: value };
-      const d = field === 'dateDay'   ? value : next.dateDay;
-      const m = field === 'dateMonth' ? value : next.dateMonth;
-      const y = field === 'dateYear'  ? value : next.dateYear;
-      const date = d && m && y ? `${y}-${m}-${d}` : '';
-      return { ...next, date };
-    });
-  };
 
   useEffect(() => {
     return () => { if (imageBlobRef.current) URL.revokeObjectURL(imageBlobRef.current); };
@@ -125,13 +124,41 @@ export const CreateGroup = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'location') setLocationError('');
     setFormData(prev => {
       const next = { ...prev, [name]: value };
       // Any manual edit to the location field invalidates the verified-AT flag
-      // — user has to re-pick from the dropdown to advance.
+      // — re-pick from the dropdown, or the geocode fallback re-verifies on Next.
       if (name === 'location') next.locationCountry = '';
       return next;
     });
+  };
+
+  // Advance from a step. Step 2 verifies the location is in Austria: if Google
+  // Places already confirmed it (locationCountry === 'AT') we go straight on;
+  // otherwise we geocode the typed text server-side so a valid Austrian place is
+  // accepted even when Places never showed a dropdown to pick from.
+  const handleNext = async () => {
+    if (step !== 2) { setStep(step + 1); return; }
+    if (formData.locationCountry === 'AT') { setStep(3); return; }
+
+    const q = formData.location.trim();
+    if (!q) return;
+    setLocationChecking(true);
+    setLocationError('');
+    try {
+      const res = await mapApi.geocode(q);
+      if (res.data?.ok) {
+        setFormData(prev => ({ ...prev, locationCountry: 'AT' }));
+        setStep(3);
+      } else {
+        setLocationError(t('createGroup.step2.locationNotInAT'));
+      }
+    } catch {
+      setLocationError(t('createGroup.step2.locationCheckError'));
+    } finally {
+      setLocationChecking(false);
+    }
   };
 
   const handleImageUpload = (e) => {
@@ -205,9 +232,8 @@ export const CreateGroup = () => {
 
   const isDateInFuture = () => {
     if (!formData.date) return true;
-    // Date-only events: "today" is valid. Compare YYYY-MM-DD against today's
-    // YYYY-MM-DD so a user creating a group on the day-of doesn't get blocked.
-    const todayStr = new Date().toISOString().slice(0, 10);
+    // Date-only events: "today" is valid. Compare YYYY-MM-DD against the local
+    // today so a user creating a group on the day-of doesn't get blocked.
     return formData.date >= todayStr;
   };
 
@@ -235,7 +261,10 @@ export const CreateGroup = () => {
   const canProceed = () => {
     switch (step) {
       case 1: return formData.name && formData.categories.length > 0;
-      case 2: return formData.date && formData.location && formData.locationCountry === 'AT'
+      // locationCountry === 'AT' is no longer hard-required here: a typed
+      // location is verified server-side on "Weiter" (handleNext) so Places
+      // failing to show a dropdown never blocks creation.
+      case 2: return formData.date && formData.location.trim()
         && isDateInFuture() && isValidCalendarDate() && ageRangeValid();
       case 3: return true;
       default: return false;
@@ -303,6 +332,9 @@ export const CreateGroup = () => {
           <div className="form-section">
             <label className="form-label">
               <span className="form-label-icon">✏️</span> {t('createGroup.step1.titleLabel')}
+              <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontWeight: 400, fontSize: 12 }}>
+                {formData.name.length}/15
+              </span>
             </label>
             <input
               type="text"
@@ -311,7 +343,7 @@ export const CreateGroup = () => {
               onChange={handleInputChange}
               placeholder={t('createGroup.step1.titlePlaceholder')}
               className="input"
-              maxLength={100}
+              maxLength={15}
             />
           </div>
 
@@ -340,6 +372,28 @@ export const CreateGroup = () => {
                 <span className="form-label-icon">🎯</span> {t('createGroup.step1.subCategoryLabel')}
                 {' '}<span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>({formData.categories.length}/3)</span>
               </label>
+
+              {/* Selected categories as removable chips — a sub picked under one
+                  main category stays selected when you switch to another main, so
+                  this row keeps them all visible + removable. The first chip is
+                  the PRIMARY (displayed) category. */}
+              {formData.categories.length > 0 && (
+                <div className="cat-selected-row">
+                  {formData.categories.map((cat, i) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      className={`cat-selected-chip${i === 0 ? ' is-primary' : ''}`}
+                      onClick={() => setFormData(prev => ({ ...prev, categories: prev.categories.filter(c => c !== cat) }))}
+                    >
+                      {i === 0 && <span className="cat-selected-chip__dot" aria-hidden="true" />}
+                      <span>{cat}</span>
+                      <span className="cat-selected-chip__x" aria-hidden="true">✕</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div className="activity-grid">
                 {CATEGORY_HIERARCHY.find(c => c.id === formData.mainCategory)?.subs.map(sub => {
                   const selected = formData.categories.includes(sub.name);
@@ -422,49 +476,17 @@ export const CreateGroup = () => {
             <label className="form-label">
               <span className="form-label-icon">📅</span> {t('createGroup.step2.whenLabel')}
             </label>
-            <div className="time-picker-box">
-              <div className="time-picker-col">
-                <select
-                  className="time-picker-select"
-                  value={formData.dateDay}
-                  onChange={e => handleDateChange('dateDay', e.target.value)}
-                >
-                  <option value="">--</option>
-                  {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-                <span className="time-picker-label">{t('createGroup.step2.day')}</span>
-              </div>
-              <span className="time-picker-colon">.</span>
-              <div className="time-picker-col time-picker-col--wide">
-                <select
-                  className="time-picker-select"
-                  value={formData.dateMonth}
-                  onChange={e => handleDateChange('dateMonth', e.target.value)}
-                >
-                  <option value="">--</option>
-                  {months.map((m, i) => (
-                    <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>
-                  ))}
-                </select>
-                <span className="time-picker-label">{t('createGroup.step2.month')}</span>
-              </div>
-              <span className="time-picker-colon">.</span>
-              <div className="time-picker-col">
-                <select
-                  className="time-picker-select time-picker-select--year"
-                  value={formData.dateYear}
-                  onChange={e => handleDateChange('dateYear', e.target.value)}
-                >
-                  <option value="">----</option>
-                  {Array.from({ length: 3 }, (_, i) => new Date().getFullYear() + i).map(y => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-                <span className="time-picker-label">{t('createGroup.step2.year')}</span>
-              </div>
-            </div>
+            {/* Native date picker — opens the OS calendar wheel on iOS/Android.
+                `min` blocks past dates (a past date silently hides the group
+                from the map), `max` caps it at +2 years. */}
+            <input
+              type="date"
+              className="input create-date-input"
+              value={formData.date}
+              min={todayStr}
+              max={maxDateStr}
+              onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+            />
           </div>
 
           {/* Time picker removed (2026-06-09): exact times are coordinated in
@@ -486,7 +508,9 @@ export const CreateGroup = () => {
               className="input"
               autoComplete="off"
             />
-            <p className="form-hint">{t('createGroup.step2.locationOnlyATHint')}</p>
+            {locationError
+              ? <p className="error-message" style={{ marginTop: 8 }}>{locationError}</p>
+              : <p className="form-hint">{t('createGroup.step2.locationOnlyATHint')}</p>}
           </div>
 
           <div className="form-section">
@@ -609,7 +633,7 @@ export const CreateGroup = () => {
             <div className="preview-content">
               <div className="preview-badges">
                 <span className="preview-badge type">{t('map.popupGroup')}</span>
-                {formData.activity && <span className="preview-badge category">{formData.activity}</span>}
+                {formData.categories[0] && <span className="preview-badge category">{formData.categories[0]}</span>}
                 {!formData.isPublic && <span className="preview-badge private">{t('createGroup.step3.privateBadge')}</span>}
               </div>
               <h4 className="preview-name">{formData.name || t('createGroup.step3.fallbackTitle')}</h4>
@@ -630,10 +654,10 @@ export const CreateGroup = () => {
         {step < 3 ? (
           <button
             className="btn btn-primary btn-block"
-            onClick={() => setStep(step + 1)}
-            disabled={!canProceed()}
+            onClick={handleNext}
+            disabled={!canProceed() || locationChecking}
           >
-            {t('createGroup.next')}
+            {locationChecking ? t('createGroup.step2.locationChecking') : t('createGroup.next')}
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M5 12h14M12 5l7 7-7 7"/>
             </svg>

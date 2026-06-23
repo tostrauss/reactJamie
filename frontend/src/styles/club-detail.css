@@ -25,6 +25,10 @@
 .cd-scroll {
   display: flex;
   flex-direction: column;
+  /* Nav clearance: the in-flow bottom nav sits below, but the floating "+"
+     button protrudes ~11px above the 48px strip — reserve room so the last
+     content (events list / report button) never sits under it. */
+  padding-bottom: 28px;
 }
 
 /* ── Top bar ──────────────────────────────────────────── */

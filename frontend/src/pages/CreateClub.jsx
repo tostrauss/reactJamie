@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { clubs, upload } from '../utils/api';
+import { clubs, upload, map as mapApi } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
@@ -19,6 +19,9 @@ export const CreateClub = () => {
   const [error, setError] = useState('');
   // Picked cover photo awaiting crop to the 16:9 banner frame.
   const [cropFile, setCropFile] = useState(null);
+  // Location-verify fallback state (when Google Places shows no dropdown).
+  const [locationChecking, setLocationChecking] = useState(false);
+  const [locationError, setLocationError] = useState('');
 
   const locationRef     = useRef(null);
   const autocompleteRef = useRef(null);
@@ -92,13 +95,41 @@ export const CreateClub = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'location') setLocationError('');
     setFormData(prev => {
       const next = { ...prev, [name]: value };
       // Manual edits to the location field invalidate the verified-AT flag
-      // — user has to re-pick from the dropdown to advance.
+      // — re-pick from the dropdown, or the geocode fallback re-verifies on Next.
       if (name === 'location') next.locationCountry = '';
       return next;
     });
+  };
+
+  // Step 2 → verify the location is in Austria. If Google Places already
+  // confirmed it we advance straight away; otherwise we geocode the typed text
+  // server-side so a valid Austrian place is accepted even when Places never
+  // showed a dropdown.
+  const handleNext = async () => {
+    if (step !== 2) { setStep(step + 1); return; }
+    if (formData.locationCountry === 'AT') { setStep(3); return; }
+
+    const q = formData.location.trim();
+    if (!q) return;
+    setLocationChecking(true);
+    setLocationError('');
+    try {
+      const res = await mapApi.geocode(q);
+      if (res.data?.ok) {
+        setFormData(prev => ({ ...prev, locationCountry: 'AT' }));
+        setStep(3);
+      } else {
+        setLocationError(t('createClub.step2.locationNotInAT'));
+      }
+    } catch {
+      setLocationError(t('createClub.step2.locationCheckError'));
+    } finally {
+      setLocationChecking(false);
+    }
   };
 
   const handleImageUpload = (e) => {
@@ -181,7 +212,9 @@ export const CreateClub = () => {
   const canProceed = () => {
     switch(step) {
       case 1: return formData.title.trim() && formData.categories.length > 0 && !uploading;
-      case 2: return formData.location.trim() && formData.locationCountry === 'AT';
+      // locationCountry === 'AT' is verified server-side on "Weiter"
+      // (handleNext), so Places not showing a dropdown never blocks creation.
+      case 2: return !!formData.location.trim();
       case 3: return true;
       default: return false;
     }
@@ -320,7 +353,9 @@ export const CreateClub = () => {
               className="input"
               autoComplete="off"
             />
-            <p className="form-hint">{t('createClub.step2.locationOnlyATHint')}</p>
+            {locationError
+              ? <p className="error-message" style={{ marginTop: 8 }}>{locationError}</p>
+              : <p className="form-hint">{t('createClub.step2.locationOnlyATHint')}</p>}
           </div>
 
           <div className="form-section">
@@ -444,8 +479,8 @@ export const CreateClub = () => {
       {/* Footer */}
       <div className="create-footer">
         {step < 3 ? (
-          <button className="btn btn-primary btn-block" onClick={() => setStep(step + 1)} disabled={!canProceed()}>
-            {t('createClub.next')}
+          <button className="btn btn-primary btn-block" onClick={handleNext} disabled={!canProceed() || locationChecking}>
+            {locationChecking ? t('createClub.step2.locationChecking') : t('createClub.next')}
           </button>
         ) : (
           <button className="btn btn-primary btn-block" onClick={handleSubmit} disabled={loading}>

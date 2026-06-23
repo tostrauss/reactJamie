@@ -25,6 +25,7 @@ export const ChatList = () => {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [loading, setLoading]               = useState(true);
   const [showHidden, setShowHidden]         = useState(false);
+  const [search, setSearch]                 = useState('');
   const [menuChat, setMenuChat]             = useState(null); // long-pressed chat: { chat, kind }
   const longPress                           = useRef({ timer: null, fired: false, x: 0, y: 0 });
   const [requestsModal, setRequestsModal]   = useState(null); // { groupId, groupName }
@@ -45,6 +46,9 @@ export const ChatList = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Clear the search when switching tabs so each tab starts unfiltered.
+  useEffect(() => { setSearch(''); }, [activeTab]);
 
   useEffect(() => {
     if (!socket) return;
@@ -89,6 +93,7 @@ export const ChatList = () => {
             avatar: g.image_url,
             type: g.type,
             isOwner: g.role === 'owner',
+            is_private: g.is_private,
             archived: !!g.archived,
           };
         }));
@@ -331,6 +336,12 @@ export const ChatList = () => {
   const visibleChats   = currentChats.filter(c => !c.archived);
   const hiddenChats    = currentChats.filter(c => c.archived);
 
+  // Search filters the active tab's visible chats by name (groups/clubs/DMs).
+  const searchQuery     = search.trim().toLowerCase();
+  const filteredVisible = searchQuery
+    ? visibleChats.filter(c => (c.name || '').toLowerCase().includes(searchQuery))
+    : visibleChats;
+
   // Collapsible "Ausgeblendet" section — shared by all tabs, shows the current
   // tab's hidden chats with an inline unhide button.
   const renderHiddenSection = () => hiddenChats.length > 0 && (
@@ -412,6 +423,26 @@ export const ChatList = () => {
       {/* ── Scrollable content ──────────────────────────────────────── */}
       <div className="home-content">
 
+        {/* Search across the active tab's joined groups / clubs / chats */}
+        {!loading && visibleChats.length > 0 && (
+          <div className="chat-search-wrap">
+            <svg className="chat-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+            </svg>
+            <input
+              type="search"
+              className="chat-search-input"
+              placeholder={t('chat.list.searchPlaceholder')}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label={t('chat.list.searchPlaceholder')}
+            />
+            {search && (
+              <button className="chat-search-clear" onClick={() => setSearch('')} aria-label={t('chat.list.searchClear')}>×</button>
+            )}
+          </div>
+        )}
+
         {/* ── Chats (DM) tab ──────────────────────────────────────── */}
         {/* Friend list + pending requests live under Profil → Freunde now —
             this tab only shows real DM conversations to keep it focused. */}
@@ -431,8 +462,11 @@ export const ChatList = () => {
               </div>
             ) : (
               <>
+                {searchQuery && filteredVisible.length === 0 && (
+                  <p className="chat-search-empty">{t('chat.list.noResults')}</p>
+                )}
                 <div className="chat-list">
-                  {visibleChats.map(chat => (
+                  {filteredVisible.map(chat => (
                     <div key={chat.id} className="chat-item" {...pressProps(chat, 'dm')} onClick={guardedOpen(chat)}>
                       <div className="chat-avatar-wrapper">
                         {chat.avatar
@@ -474,9 +508,12 @@ export const ChatList = () => {
               </div>
             ) : (
               <>
+                {searchQuery && filteredVisible.length === 0 && (
+                  <p className="chat-search-empty">{t('chat.list.noResults')}</p>
+                )}
                 {(() => {
-                  const owned = visibleChats.filter(c => c.isOwner);
-                  const others = visibleChats.filter(c => !c.isOwner);
+                  const owned = filteredVisible.filter(c => c.isOwner);
+                  const others = filteredVisible.filter(c => !c.isOwner);
                   return (
                     <>
                       {owned.length > 0 && (
@@ -506,12 +543,17 @@ export const ChatList = () => {
                                 </div>
                               </div>
                               <div className="chat-owner-actions">
-                                <button
-                                  className="chat-owner-btn chat-owner-btn--requests"
-                                  onClick={(e) => { e.stopPropagation(); openRequestsModal(chat.id, chat.name); }}
-                                >
-                                  {t('chat.list.ownerActions.requests')}
-                                </button>
+                                {/* Public groups auto-join (no approval), so they
+                                    never have join requests — only show the
+                                    Requests button for private groups/clubs. */}
+                                {chat.is_private && (
+                                  <button
+                                    className="chat-owner-btn chat-owner-btn--requests"
+                                    onClick={(e) => { e.stopPropagation(); openRequestsModal(chat.id, chat.name); }}
+                                  >
+                                    {t('chat.list.ownerActions.requests')}
+                                  </button>
+                                )}
                                 <button
                                   className="chat-owner-btn chat-owner-btn--manage"
                                   onClick={(e) => {
@@ -658,6 +700,17 @@ export const ChatList = () => {
                           <h2 className="request-name">
                             {req.user_name}{age ? `, ${age}` : ''}
                           </h2>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/user/${req.user_id}`)}
+                            style={{
+                              background: 'none', border: 'none', color: 'var(--accent-coral, #FD7666)',
+                              fontSize: 14, fontWeight: 600, cursor: 'pointer', padding: '4px 0',
+                              marginBottom: 8, textDecoration: 'underline', textUnderlineOffset: 3,
+                            }}
+                          >
+                            {t('common.viewProfile')}
+                          </button>
                           {req.message && (
                             <p className="request-bio">{req.message}</p>
                           )}

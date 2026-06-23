@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { friends as friendsApi, users as usersApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
@@ -12,8 +12,11 @@ export const Friends = () => {
   const toast = useToast();
   const { t } = useTranslation();
   const { user: currentUser } = useContext(AuthContext) || {};
+  const [searchParams] = useSearchParams();
 
-  const [tab, setTab] = useState('friends');
+  // Open straight on the "Eingehende Anfragen" tab when arrived via the
+  // friend-request badge (Profile → Freunde shortcut uses ?tab=pending).
+  const [tab, setTab] = useState(searchParams.get('tab') === 'pending' ? 'pending' : 'friends');
   const [friendsList, setFriendsList] = useState([]);
   const [pending, setPending] = useState([]);
   const [sent, setSent] = useState([]);
@@ -267,7 +270,7 @@ export const Friends = () => {
                         <Avatar src={r.requester_avatar} name={r.requester_name} />
                         <div className="fr-row-info">
                           <p className="fr-row-name"><UserName name={r.requester_name} age={r.requester_age} /></p>
-                          {r.location && <p className="fr-row-sub">{r.location}</p>}
+                          {r.requester_location && <p className="fr-row-sub">{r.requester_location}</p>}
                         </div>
                       </div>
                       <div className="fr-row-actions">

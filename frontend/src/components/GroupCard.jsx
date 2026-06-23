@@ -123,15 +123,12 @@ export const GroupCard = memo(({
       <div className="card-header">
         <div className="card-text-area">
           <h3 className="card-title">
-            {/* "Sonstiges" as a subcategory tells the user nothing about the
-                actual group — fall back to the user-entered title in that case.
-                Hyphens are replaced with U+2011 (non-breaking hyphen) so titles
-                like "Bar-Hopping" don't wrap onto two lines — browsers always
-                allow line breaks at a regular hyphen regardless of CSS. */}
-            {(group.category && group.category.toLowerCase() !== 'sonstiges'
-              ? group.category
-              : (group.name || group.title || group.category) || ''
-            ).replace(/-/g, '‑')}
+            {/* The card title is the user-entered group title (max 15 chars);
+                the category is shown separately on the map + detail page. Fall
+                back to the category only for legacy groups that have no title.
+                Hyphens → U+2011 (non-breaking hyphen) so titles like
+                "Bar-Hopping" don't wrap onto two lines. */}
+            {((group.name || group.title || group.category) || '').replace(/-/g, '‑')}
           </h3>
           <div className="card-subtitle-row">
             {isClub ? (

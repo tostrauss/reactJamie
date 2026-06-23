@@ -4,6 +4,7 @@ import { useGoogleLogin } from '@react-oauth/google';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { JamieWordmark } from '../components/JamieWordmark';
+import { PasswordInput } from '../components/PasswordInput';
 import { isNativeIOS } from '../utils/platform';
 import '../styles/auth.css';
 
@@ -193,8 +194,7 @@ export const Login = () => {
 
             <div className="form-group">
               <label>{t('auth.login.passwordLabel')}</label>
-              <input
-                type="password"
+              <PasswordInput
                 placeholder={t('auth.login.passwordPlaceholder')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
