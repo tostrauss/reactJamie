@@ -4,7 +4,7 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { subscription as subscriptionApi } from '../utils/api';
 import { PRO_PLANS, DEFAULT_PLAN_KEY, BASELINE_WEEKLY } from '../utils/proPlans';
-import { isNativeIOS, IOS_IAP_ENABLED, purchasesEnabled } from '../utils/platform';
+import { isNativeIOS, IOS_IAP_ENABLED, purchasesEnabled, paymentsComingSoon } from '../utils/platform';
 import { subscribePro, restorePurchases } from '../utils/iap';
 import { useToast } from '../context/ToastContext';
 
@@ -553,6 +553,19 @@ export const ProModal = ({ onClose, onSuccess }) => {
                     {loading ? <><Spinner /> {t('pro.loading')}</> : t('pro.ctaActivate')}
                   </button>
                 </>
+              ) : paymentsComingSoon() ? (
+                <div style={{
+                  textAlign:'center', margin:'4px 0 14px', padding:'18px 16px',
+                  background:'rgba(253,118,102,0.08)', border:'1px solid rgba(253,118,102,0.25)',
+                  borderRadius:'16px',
+                }}>
+                  <div style={{ fontSize:'15px', fontWeight:'800', color:'#fff', marginBottom:'4px' }}>
+                    {t('payments.comingSoon.title')}
+                  </div>
+                  <div style={{ fontSize:'13px', lineHeight:1.5, color:'rgba(255,255,255,0.6)' }}>
+                    {t('payments.comingSoon.body')}
+                  </div>
+                </div>
               ) : (
                 <p style={{
                   fontSize:'13px', lineHeight:1.5, textAlign:'center',

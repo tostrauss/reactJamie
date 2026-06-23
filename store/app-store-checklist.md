@@ -195,6 +195,44 @@ Apple requires a visible "Restore Purchases" action for apps with non-consumable
 
 ## Build (Capacitor iOS)
 
+### ⚠️ First-time setup on the Mac (the `ios/` project does NOT exist in the repo yet)
+
+The native iOS project has never been generated. On Tina's Mac, in order:
+
+```bash
+cd frontend
+npm install
+npm run build        # vite build → dist/
+npx cap add ios      # ONE-TIME: creates ios/ (App.xcworkspace, Info.plist, Podfile)
+npx cap sync ios     # copies dist + installs CocoaPods
+npx cap open ios     # opens Xcode
+```
+
+`npx cap sync ios` alone fails until `cap add ios` has run once.
+
+**In Xcode (`ios/App/App.xcworkspace`) → target "App" → Signing & Capabilities:**
+
+- [ ] Select Tina's **Team** (auto-provisions bundle id `jamie.app`).
+- [ ] Add capability **Push Notifications**.
+- [ ] Add capability **Associated Domains** → `applinks:app.jamie-app.com`.
+- [ ] Add capability **Sign in with Apple** (the app uses `@capacitor-community/apple-sign-in`).
+- [ ] Set version `1.0.0`, build `1`.
+
+**Info.plist — REQUIRED usage strings (Apple rejects / the app crashes without them).**
+The app takes photos + picks images (uploads) and reads location (map "Locate me") via the WebView, so add:
+
+- [ ] `NSCameraUsageDescription` — `JAMIE braucht die Kamera, um Profil- und Gruppenfotos aufzunehmen.`
+- [ ] `NSPhotoLibraryUsageDescription` — `JAMIE braucht Zugriff auf deine Fotos, um Bilder hochzuladen.`
+- [ ] `NSLocationWhenInUseUsageDescription` — `JAMIE nutzt deinen Standort, um Aktivitäten in der Nähe zu zeigen.`
+
+**App-Bound Domains:** `limitsNavigationsToAppBoundDomains` is set to **`false`** in `capacitor.config.json` for v1 (avoids the WebView blocking external Google-login redirects). If you re-enable it later (`true`), you MUST also add a `WKAppBoundDomains` array to Info.plist listing `app.jamie-app.com` + the API host (max 10 domains), or navigation/login breaks.
+
+- [ ] **Test login in the TestFlight build** (email, Google, Apple) — this is the #1 thing to verify on the real device.
+
+**Payments are hidden for v1** (`PAYMENTS_ENABLED = false`): Apple sees no IAP, so the StoreKit products and `APPLE_IAP_*` env vars below are **NOT needed for the first submission**. They come with the payments update (1–2 months post-launch).
+
+---
+
 `@capacitor/keyboard` (^8.0.3) was added and requires a native sync before the next iOS build. Skipping the sync ships an out-of-date native project.
 
 PowerShell (Windows) — note: the actual Xcode build still happens on a Mac:

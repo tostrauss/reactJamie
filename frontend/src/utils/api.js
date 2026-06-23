@@ -556,6 +556,8 @@ export const reports = {
 export const boost = {
   getCredits: () => axiosInstance.get('/boost/credits'),
   getPackages: () => axiosInstance.get('/boost/packages'),
+  // Widerruf-eligible boost purchases (Settings → Boost-Käufe).
+  getPurchases: () => axiosInstance.get('/boost/purchases'),
   apply: (target_type, target_id, hours = 24) =>
     axiosInstance.post('/boost/apply', { target_type, target_id, hours }),
   createStripeIntent: (package_id) =>

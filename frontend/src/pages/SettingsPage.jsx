@@ -2,7 +2,7 @@ import { useState, useContext, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
-import { auth, groups as groupsApi, clubs as clubsApi, subscription as subscriptionApi } from '../utils/api';
+import { auth, groups as groupsApi, clubs as clubsApi, subscription as subscriptionApi, boost as boostApi } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import {
   isPushSupported,
@@ -59,10 +59,19 @@ export const SettingsPage = () => {
   const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
   const [withdrawLoading, setWithdrawLoading] = useState(false);
 
+  // Widerruf-eligible boost purchases (Stripe, ≤14 days, credits unused).
+  const [boostPurchases, setBoostPurchases] = useState([]);
+
   useEffect(() => {
     subscriptionApi.getStatus()
       .then(({ data }) => setSub(data))
       .catch(() => setSub({ is_pro: false, status: 'none', current_period_end: null }));
+  }, []);
+
+  useEffect(() => {
+    boostApi.getPurchases()
+      .then(({ data }) => setBoostPurchases(data || []))
+      .catch(() => {});
   }, []);
 
   const handleCancelSubscription = async () => {
@@ -95,6 +104,22 @@ export const SettingsPage = () => {
     } finally {
       setWithdrawLoading(false);
     }
+  };
+
+  // Boost-Kauf Widerruf: build a pre-filled email to office@jamie-app.com with
+  // the purchase details (email-request flow — processed manually).
+  const boostWithdrawHref = (p) => {
+    const date = new Date(p.created_at).toLocaleDateString();
+    const amount = (p.amount_cents / 100).toFixed(2);
+    const subject = t('settings.boostPurchases.mailSubject');
+    const body = t('settings.boostPurchases.mailBody', {
+      credits: p.credits,
+      amount,
+      date,
+      paymentId: p.payment_id || '—',
+      email: user?.email || '',
+    });
+    return `mailto:office@jamie-app.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
   // Stripe Billing Portal — full self-service subscription management
@@ -599,6 +624,40 @@ export const SettingsPage = () => {
             </div>
             {chevron}
           </div>
+        </div>
+      )}
+
+      {/* Boost-Käufe — 14-day Widerruf for unredeemed Stripe boost purchases.
+          Only eligible (≤14d, credits unused) purchases are listed; redeemed
+          ones never appear (Tina's rule). Email-request flow. */}
+      {boostPurchases.length > 0 && (
+        <div className="settings-section">
+          <h3 className="settings-section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+            {t('settings.boostPurchases.title')}
+          </h3>
+          <p style={{ margin: '0 16px 8px', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+            {t('settings.boostPurchases.hint')}
+          </p>
+          {boostPurchases.map(p => (
+            <a key={p.id} href={boostWithdrawHref(p)} className="settings-row" style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div className="settings-row-left">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-coral)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                  <path d="M3 3v5h5"/>
+                </svg>
+                <div className="settings-row-stacked">
+                  <span style={{ color: 'var(--accent-coral)', fontWeight: 600 }}>{t('settings.boostPurchases.withdrawBtn')}</span>
+                  <span className="settings-row-detail">
+                    {t('settings.boostPurchases.itemFmt', { credits: p.credits, amount: (p.amount_cents / 100).toFixed(2), date: new Date(p.created_at).toLocaleDateString() })}
+                  </span>
+                </div>
+              </div>
+              {chevron}
+            </a>
+          ))}
         </div>
       )}
 

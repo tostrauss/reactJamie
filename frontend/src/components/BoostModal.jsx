@@ -3,7 +3,7 @@ import { useTranslation, Trans } from 'react-i18next';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { boost as boostApi } from '../utils/api';
-import { isNativeIOS, purchasesEnabled } from '../utils/platform';
+import { isNativeIOS, purchasesEnabled, paymentsComingSoon } from '../utils/platform';
 import { purchaseBoost } from '../utils/iap';
 import { useToast } from '../context/ToastContext';
 
@@ -229,8 +229,9 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
         <div style={{ display: 'flex', background: 'var(--bg-input, rgba(255,255,255,0.05))', borderRadius: '12px', padding: '4px', marginBottom: '20px' }}>
           {[
             { key: 'apply', tKey: 'apply' },
-            // "Kaufen"-Tab nur, wenn Käufe verfügbar sind (auf iOS ohne IAP weg).
-            ...(purchasesEnabled() ? [{ key: 'buy', tKey: 'buy' }] : []),
+            // "Kaufen"-Tab zeigen, wenn Käufe verfügbar sind ODER wir den
+            // "Bald verfügbar"-Teaser zeigen (Web/Android). Auf iOS ohne IAP weg.
+            ...((purchasesEnabled() || paymentsComingSoon()) ? [{ key: 'buy', tKey: 'buy' }] : []),
             { key: 'referral', tKey: 'referral' },
           ].map(({ key, tKey }) => (
             <button
@@ -289,6 +290,28 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
         )}
 
         {/* ---- BUY TAB ---- */}
+        {tab === 'buy' && !purchasesEnabled() && (
+          <div style={{
+            textAlign: 'center', padding: '28px 16px',
+            background: 'rgba(253,118,102,0.08)', border: '1px solid rgba(253,118,102,0.25)',
+            borderRadius: '16px',
+          }}>
+            <div style={{ fontSize: '40px', marginBottom: '8px' }}>🚀</div>
+            <div style={{ fontSize: '16px', fontWeight: '800', color: '#fff', marginBottom: '6px' }}>
+              {t('payments.comingSoon.title')}
+            </div>
+            <p style={{ fontSize: '13px', lineHeight: 1.5, color: 'var(--text-muted)', margin: '0 0 14px' }}>
+              {t('payments.comingSoon.boostBody')}
+            </p>
+            <button
+              onClick={() => setTab('referral')}
+              style={{ padding: '12px 24px', borderRadius: '12px', background: '#FD7666', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer' }}
+            >
+              {t('payments.comingSoon.referralCta')}
+            </button>
+          </div>
+        )}
+
         {tab === 'buy' && purchasesEnabled() && (
           <div>
             {/* Package selection */}

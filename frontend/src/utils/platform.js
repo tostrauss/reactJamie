@@ -13,6 +13,13 @@ export const isNativeIOS = () =>
 export const isNativeAndroid = () =>
   isNative() && window.Capacitor?.getPlatform?.() === 'android';
 
+// ── Zahlungen (Stripe + IAP) ────────────────────────────────────────────
+// Master-Schalter: Bezahlung wird erst ~1–2 Monate nach dem Launch
+// freigeschaltet. Bis dahin zeigen ALLE Kauf-Flächen (Boost-Kauf, JAMIE Pro)
+// ein „Bald verfügbar" statt einer echten Zahlung. Auf true setzen, sobald
+// die Bezahlung live gehen soll (iOS braucht zusätzlich IOS_IAP_ENABLED).
+export const PAYMENTS_ENABLED = false;
+
 // ── iOS In-App-Käufe ────────────────────────────────────────────────────
 // StoreKit IAP ist noch nicht fertig (Plugin + Apple-Quittungsprüfung offen —
 // siehe store/IAP-iOS-OPTIONEN.md). Bis dahin blenden wir auf iOS ALLE
@@ -21,7 +28,12 @@ export const isNativeAndroid = () =>
 // getestet ist — die Kauf-Logik ist bereits plattformabhängig verdrahtet.
 export const IOS_IAP_ENABLED = false;
 
-// Käufe sollen angeboten werden, wenn:
-//   - Web & Android: immer (Stripe)
-//   - iOS: nur wenn IAP aktiviert
-export const purchasesEnabled = () => !isNativeIOS() || IOS_IAP_ENABLED;
+// Echte Käufe sind möglich, wenn Zahlungen aktiv sind UND die Plattform sie
+// abwickeln kann (Web & Android via Stripe; iOS erst mit fertigem IAP).
+export const purchasesEnabled = () =>
+  PAYMENTS_ENABLED && (!isNativeIOS() || IOS_IAP_ENABLED);
+
+// Zahlungen sind absichtlich noch zurückgehalten → „Bald verfügbar"-Teaser
+// statt die Funktion ganz zu verstecken. Nur Web/Android: iOS bleibt aus
+// Apple-Review-Gründen ohne Bezahl-Fläche, bis IAP steht.
+export const paymentsComingSoon = () => !PAYMENTS_ENABLED && !isNativeIOS();

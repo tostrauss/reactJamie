@@ -17,16 +17,18 @@ Schritt ins Detail geht. Tobi hilft bei allem mit „💻"-Markierung.
 
 ---
 
-## ⚠️ Drei Dinge, die VOR dem iOS-Launch geklärt sein müssen
+## ⚠️ Was VOR dem iOS-Launch geklärt sein muss
 
 Damit es keine bösen Überraschungen gibt — bitte vorher lesen:
 
-1. **In-App-Käufe (Boosts & JAMIE Pro) funktionieren auf iPhone aktuell NICHT.**
-   Apple verlangt, dass digitale Käufe über ihr eigenes System laufen — unser
-   iOS-Kaufmodul ist noch eine Baustelle (💻 Tobi muss das **vor** der Einreichung
-   entweder fertig bauen **oder** die Bezahl-Funktionen auf dem iPhone für die
-   erste Version ausblenden, sonst lehnt Apple die App ab). **Das ist die größte
-   offene Sache.**
+1. **In-App-Käufe: ERLEDIGT ✅ — kein Blocker mehr.**
+   Die Bezahl-Funktionen (Boosts & JAMIE Pro) zeigen seit dem letzten Build
+   überall **„Bald verfügbar"** statt einer echten Zahlung — Stripe **und** der
+   iOS-Kauf sind komplett deaktiviert (`PAYMENTS_ENABLED = false`). Apple sieht
+   also **keine** Kauf-Fläche und kann die App deshalb **nicht** wegen IAP
+   ablehnen. Bezahlung kommt in einem Update 1–2 Monate nach Launch (💻 Tobi
+   stellt dann 1 Zeile um). → Phase 4 Punkt 5 (Kauf-Produkte anlegen) **entfällt**
+   für v1; die `APPLE_IAP_*`-Server-Variablen ebenfalls.
 2. **Apple-Team-ID** (eine 10-stellige Kennung, die du mit dem Account bekommst)
    muss an einer Stelle im Code eingetragen werden, sonst funktionieren
    Passwort-Zurücksetzen & E-Mail-Bestätigung auf dem iPhone nicht (💻 Tobi,
@@ -136,5 +138,8 @@ und JAMIE ist im App Store.
 | 5 | 🍏 Tina | Testkonto, TestFlight, Einreichen |
 
 **Voraussetzung für Phase 1:** Apple-Developer-Account ist freigegeben.
-**Größtes Risiko:** In-App-Käufe (Blocker #1) — am besten klärt Tobi das schon,
-während du auf die Account-Freigabe wartest.
+**Größtes Risiko früher (IAP) ist erledigt** — Bezahlung ist für v1 ausgeblendet.
+**Jetzt wichtigster Technik-Punkt (💻 Tobi, am Mac):** das iOS-Projekt wird
+erstmalig erzeugt (`npx cap add ios`) und braucht 3 Einträge in der Info.plist
+(Kamera-, Fotos-, Standort-Begründung) + die Berechtigungen Push, „Associated
+Domains" und „Sign in with Apple". Siehe app-store-checklist.md → Build.

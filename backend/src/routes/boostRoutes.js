@@ -2,6 +2,7 @@ import express from 'express';
 import {
   getCredits,
   getPackages,
+  getPurchases,
   applyBoost,
   createStripeIntent,
   redeemReferral,
@@ -14,6 +15,8 @@ const router = express.Router();
 // Wallet & packages
 router.get('/credits', authenticate, getCredits);
 router.get('/packages', generalLimiter, getPackages);
+// Widerruf-eligible purchases (Settings → Boost-Käufe)
+router.get('/purchases', authenticate, getPurchases);
 
 // Apply boost (spend a credit)
 router.post('/apply', authenticate, applyBoost);

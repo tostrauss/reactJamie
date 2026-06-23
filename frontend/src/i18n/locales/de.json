@@ -6,6 +6,14 @@
     "suggest": "Feedback & Wünsche",
     "later": "Später"
   },
+  "payments": {
+    "comingSoon": {
+      "title": "Bald verfügbar 🚀",
+      "body": "JAMIE Pro startet in Kürze. Bis dahin kannst du JAMIE komplett kostenlos nutzen.",
+      "boostBody": "Boosts zum Kaufen gibt es bald. Bis dahin bekommst du Gratis-Boosts über Empfehlungen.",
+      "referralCta": "Gratis-Boosts holen"
+    }
+  },
   "events": {
     "title": "Events",
     "searchPlaceholder": "Suchen",
@@ -914,6 +922,14 @@
       "withdrawError": "Widerruf fehlgeschlagen. Bitte erneut versuchen oder office@jamie-app.com kontaktieren.",
       "portalBtn": "Abo verwalten (Zahlung, Rechnungen)",
       "portalError": "Portal konnte nicht geöffnet werden. Bitte erneut versuchen."
+    },
+    "boostPurchases": {
+      "title": "Boost-Käufe",
+      "hint": "Boost-Käufe, die du noch nicht eingelöst hast, kannst du innerhalb von 14 Tagen widerrufen. Bereits eingelöste Boosts sind vom Widerruf ausgenommen.",
+      "withdrawBtn": "Widerruf erklären",
+      "itemFmt": "{{credits}} Credits · {{amount}} € · {{date}}",
+      "mailSubject": "Widerruf Boost-Kauf",
+      "mailBody": "Hiermit widerrufe ich meinen Vertrag über den Kauf von {{credits}} Boost-Credits.\n\nKaufdatum: {{date}}\nBetrag: {{amount}} €\nZahlungs-ID: {{paymentId}}\nAccount: {{email}}\n\nName:\nDatum:"
     },
     "account": {
       "editProfile": "Profil bearbeiten",

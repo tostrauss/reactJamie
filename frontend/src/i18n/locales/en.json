@@ -6,6 +6,14 @@
     "suggest": "Feedback & suggestions",
     "later": "Later"
   },
+  "payments": {
+    "comingSoon": {
+      "title": "Coming soon 🚀",
+      "body": "JAMIE Pro launches shortly. Until then you can use JAMIE completely for free.",
+      "boostBody": "Buying boosts is coming soon. Until then, earn free boosts through referrals.",
+      "referralCta": "Get free boosts"
+    }
+  },
   "events": {
     "title": "Events",
     "searchPlaceholder": "Search",
@@ -914,6 +922,14 @@
       "withdrawError": "Withdrawal failed. Please try again or contact office@jamie-app.com.",
       "portalBtn": "Manage subscription (payment, invoices)",
       "portalError": "Could not open portal. Please try again."
+    },
+    "boostPurchases": {
+      "title": "Boost purchases",
+      "hint": "Boost purchases you haven't redeemed yet can be withdrawn within 14 days. Already-redeemed boosts are excluded from withdrawal.",
+      "withdrawBtn": "Declare withdrawal",
+      "itemFmt": "{{credits}} credits · {{amount}} € · {{date}}",
+      "mailSubject": "Withdrawal of boost purchase",
+      "mailBody": "I hereby withdraw my contract for the purchase of {{credits}} boost credits.\n\nPurchase date: {{date}}\nAmount: {{amount}} €\nPayment ID: {{paymentId}}\nAccount: {{email}}\n\nName:\nDate:"
     },
     "account": {
       "editProfile": "Edit profile",

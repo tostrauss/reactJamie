@@ -38,6 +38,49 @@ export const BOOST_PACKAGES = [
 ];
 
 // ==========================================
+// WIDERRUF-ELIGIBLE BOOST PURCHASES
+// ==========================================
+// Lists the caller's Stripe boost purchases that are still within the 14-day
+// right-of-withdrawal window AND whose credits are unused. Tina's rule: once a
+// boost is redeemed (applied), the purchase can no longer be withdrawn. We
+// approximate "unredeemed" by requiring the wallet to still hold at least the
+// purchased amount of credits. Apple/IAP purchases are excluded — those refund
+// through the App Store, not us. Drives the "Widerruf erklären" buttons in
+// Settings → Boost-Käufe (email-request flow, processed manually).
+const BOOST_WITHDRAWAL_WINDOW_DAYS = 14;
+export const getPurchases = async (req, res) => {
+  try {
+    const [txRes, balRes] = await Promise.all([
+      db.query(
+        `SELECT id, credits, amount_cents, payment_id, created_at
+         FROM boost_transactions
+         WHERE user_id = $1
+           AND status = 'completed'
+           AND payment_provider = 'stripe'
+           AND created_at >= NOW() - make_interval(days => $2)
+         ORDER BY created_at DESC`,
+        [req.userId, BOOST_WITHDRAWAL_WINDOW_DAYS]
+      ),
+      db.query('SELECT credits FROM boost_credits WHERE user_id = $1', [req.userId]),
+    ]);
+    const balance = balRes.rows[0]?.credits ?? 0;
+    const purchases = txRes.rows
+      .filter(t => balance >= t.credits)
+      .map(t => ({
+        id: t.id,
+        credits: t.credits,
+        amount_cents: t.amount_cents,
+        payment_id: t.payment_id,
+        created_at: t.created_at,
+      }));
+    res.json(purchases);
+  } catch (err) {
+    console.error('getPurchases error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
 // GET CREDIT BALANCE
 // ==========================================
 export const getCredits = async (req, res) => {
