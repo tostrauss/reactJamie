@@ -101,8 +101,16 @@ export const ClubMembers = () => {
               onChange={(e) => setQuery(e.target.value)}
             />
             {members.length > 0 && (
+              // While searching: "matches / total members". Otherwise mirror
+              // the detail page's capacity ratio (members / max_members) so the
+              // two pages agree — a "10 / 10" here wrongly implied the group was
+              // full when its cap is 20. Clubs have no cap → just the count.
               <span className="cd-members-page-count">
-                {filtered.length} / {totalCount ?? members.length}
+                {q
+                  ? `${filtered.length} / ${totalCount ?? members.length}`
+                  : club?.max_members
+                    ? `${totalCount ?? members.length} / ${club.max_members}`
+                    : (totalCount ?? members.length)}
               </span>
             )}
           </div>

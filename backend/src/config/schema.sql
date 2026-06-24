@@ -413,7 +413,7 @@ CREATE OR REPLACE FUNCTION calculate_profile_completion()
 RETURNS TRIGGER AS $$
 DECLARE
     completion INTEGER := 0;
-    total_fields INTEGER := 10;
+    total_fields INTEGER := 9;
     filled INTEGER := 0;
 BEGIN
     IF NEW.name IS NOT NULL AND NEW.name <> '' THEN filled := filled + 1; END IF;
@@ -425,8 +425,9 @@ BEGIN
     IF NEW.photos IS NOT NULL AND jsonb_array_length(NEW.photos) > 0 THEN filled := filled + 1; END IF;
     IF NEW.interests IS NOT NULL AND jsonb_array_length(NEW.interests) > 0 THEN filled := filled + 1; END IF;
     IF NEW.favorite_song IS NOT NULL THEN filled := filled + 1; END IF;
-    IF NEW.pinterest_url IS NOT NULL AND NEW.pinterest_url <> '' THEN filled := filled + 1; END IF;
-    
+    -- pinterest_url intentionally dropped: there is no UI to set it, so counting
+    -- it capped every otherwise-complete profile at 90%.
+
     NEW.profile_completion := (filled * 100) / total_fields;
     RETURN NEW;
 END;

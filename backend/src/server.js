@@ -1206,6 +1206,36 @@ const runStartupMigrations = async () => {
     `CREATE INDEX IF NOT EXISTS deal_redemptions_user_idx ON deal_redemptions (user_id, redeemed_at DESC)`
   ));
 
+  // ── Profile-completion trigger: drop the unfillable pinterest_url field ────
+  // The original trigger counted 10 fields incl. pinterest_url, which has no UI
+  // to set it — so a fully completed profile maxed out at 90%. Redefine the
+  // function over the 9 reachable fields, then fire a no-op UPDATE so existing
+  // rows recompute immediately (BEFORE UPDATE triggers run on every UPDATE).
+  await migrate('profile_completion drops pinterest_url', async () => {
+    await db.query(`
+      CREATE OR REPLACE FUNCTION calculate_profile_completion()
+      RETURNS TRIGGER AS $$
+      DECLARE
+          total_fields INTEGER := 9;
+          filled INTEGER := 0;
+      BEGIN
+          IF NEW.name IS NOT NULL AND NEW.name <> '' THEN filled := filled + 1; END IF;
+          IF NEW.gender IS NOT NULL THEN filled := filled + 1; END IF;
+          IF NEW.date_of_birth IS NOT NULL THEN filled := filled + 1; END IF;
+          IF NEW.bio IS NOT NULL AND NEW.bio <> '' THEN filled := filled + 1; END IF;
+          IF NEW.location IS NOT NULL AND NEW.location <> '' THEN filled := filled + 1; END IF;
+          IF NEW.avatar_url IS NOT NULL AND NEW.avatar_url <> '' THEN filled := filled + 1; END IF;
+          IF NEW.photos IS NOT NULL AND jsonb_array_length(NEW.photos) > 0 THEN filled := filled + 1; END IF;
+          IF NEW.interests IS NOT NULL AND jsonb_array_length(NEW.interests) > 0 THEN filled := filled + 1; END IF;
+          IF NEW.favorite_song IS NOT NULL THEN filled := filled + 1; END IF;
+          NEW.profile_completion := (filled * 100) / total_fields;
+          RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql`);
+    // Recompute every existing row under the new formula (fires the trigger).
+    await db.query(`UPDATE users SET updated_at = NOW() WHERE profile_completion <> 100`);
+  });
+
   console.log('✅ Startup migrations done');
 };
 
