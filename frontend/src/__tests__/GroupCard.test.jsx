@@ -29,8 +29,16 @@ describe('GroupCard', () => {
     vi.clearAllMocks();
   });
 
-  it('renders the category as the card title', async () => {
+  it('renders the group name as the card title', async () => {
+    // The card title is the user-entered group name; the category is only a
+    // fallback for legacy groups without a name (see GroupCard.jsx).
     render(<MemoryRouter><GroupCard group={baseGroup} /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText('Tennis am Sonntag')).toBeInTheDocument());
+  });
+
+  it('falls back to the category as title when the group has no name', async () => {
+    const noName = { ...baseGroup, name: undefined, title: undefined };
+    render(<MemoryRouter><GroupCard group={noName} /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('Sport')).toBeInTheDocument());
   });
 
