@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import crypto from 'crypto';
 import { isUserPro } from './subscriptionController.js';
 import { invalidatePrefix } from '../utils/cache.js';
+import { REFERRAL_CREDITS_ENABLED } from '../config/features.js';
 
 // Execute a function inside a real DB transaction on a single dedicated connection.
 // This is required because db.query() pulls from a pool — consecutive calls may land
@@ -328,6 +329,10 @@ async function generateUniqueCode(userId) {
 // REDEEM REFERRAL CODE
 // ==========================================
 export const redeemReferral = async (req, res) => {
+  // Empfehlungs-Boosts abgeschaltet (Tina, 2026-06-24): keine Gratis-Credits mehr.
+  if (!REFERRAL_CREDITS_ENABLED) {
+    return res.status(410).json({ error: 'Empfehlungs-Boosts sind nicht mehr verfügbar.' });
+  }
   const { code } = req.body;
   if (!code) return res.status(400).json({ error: 'code required' });
 

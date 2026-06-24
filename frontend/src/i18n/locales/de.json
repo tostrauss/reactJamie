@@ -8,10 +8,13 @@
   },
   "payments": {
     "comingSoon": {
-      "title": "Bald verfügbar 🚀",
+      "title": "Bald verfügbar",
       "body": "JAMIE Pro startet in Kürze. Bis dahin kannst du JAMIE komplett kostenlos nutzen.",
-      "boostBody": "Boosts zum Kaufen gibt es bald. Bis dahin bekommst du Gratis-Boosts über Empfehlungen.",
-      "referralCta": "Gratis-Boosts holen"
+      "boostBody": "Boosts zum Kaufen gibt es bald.",
+      "interestCta": "Benachrichtige mich 🔔",
+      "interestDone": "Wir sagen dir Bescheid ✓",
+      "interestThanks": "Super! Wir benachrichtigen dich, sobald es so weit ist. 🎉",
+      "interestError": "Hat nicht geklappt – bitte später erneut versuchen."
     }
   },
   "events": {

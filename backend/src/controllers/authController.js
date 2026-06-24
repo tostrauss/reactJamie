@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { generateToken, setAuthCookie, clearAuthCookie } from '../middleware/auth.js';
 import { sendPasswordResetEmail, sendVerificationEmail, sendOTPEmail } from '../utils/email.js';
+import { REFERRAL_CREDITS_ENABLED } from '../config/features.js';
 
 const parseUserJSONFields = (user) => {
   try {
@@ -176,9 +177,11 @@ export const register = async (req, res) => {
     );
 
     // Redeem referral code if provided — record in boost_transactions so the standalone
-    // redeemReferral endpoint can't be used again for the same pair
+    // redeemReferral endpoint can't be used again for the same pair.
+    // Gated behind REFERRAL_CREDITS_ENABLED (Tina, 2026-06-24: "keine Gratis-Boosts"):
+    // when off, registering with a code grants no boost credits to either side.
     const { referral_code } = req.body;
-    if (referral_code) {
+    if (referral_code && REFERRAL_CREDITS_ENABLED) {
       try {
         const codeOwner = await db.query(
           'SELECT user_id FROM referral_codes WHERE UPPER(code) = UPPER($1)',

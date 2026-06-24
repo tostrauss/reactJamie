@@ -567,6 +567,15 @@ export const boost = {
 };
 
 // ==========================================
+// FEATURE INTEREST API ("Benachrichtige mich" für Coming-Soon-Features)
+// ==========================================
+
+export const featureInterest = {
+  get: () => axiosInstance.get('/feature-interest'),
+  register: (feature) => axiosInstance.post('/feature-interest', { feature }),
+};
+
+// ==========================================
 // IN-APP PURCHASE API (Apple StoreKit only)
 // ==========================================
 

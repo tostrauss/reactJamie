@@ -136,6 +136,7 @@ import mapRoutes from './routes/mapRoutes.js';
 import waitlistRoutes from './routes/waitlistRoutes.js';
 import dealRoutes from './routes/dealRoutes.js';
 import suggestionRoutes from './routes/suggestionRoutes.js';
+import featureInterestRoutes from './routes/featureInterestRoutes.js';
 import socketHandler from './socket.js';
 
 // ==========================================
@@ -362,6 +363,7 @@ app.use('/api/map', mapRoutes);
 app.use('/api/waitlist', waitlistRoutes);
 app.use('/api/deals', dealRoutes);
 app.use('/api/suggestions', suggestionRoutes);
+app.use('/api/feature-interest', featureInterestRoutes);
 
 // Health check — verifies DB + optional services for Railway health probes.
 // In production we return ONLY {status} so an attacker can't fingerprint
@@ -1205,6 +1207,21 @@ const runStartupMigrations = async () => {
   await migrate('idx_deal_redemptions', () => db.query(
     `CREATE INDEX IF NOT EXISTS deal_redemptions_user_idx ON deal_redemptions (user_id, redeemed_at DESC)`
   ));
+
+  // ── Coming-soon interest signals ──────────────────────────────────────────
+  // "Benachrichtige mich" on not-yet-launched features (Pro / buyable Boosts).
+  // One row per (user, feature); UNIQUE makes repeat taps idempotent. Lets us
+  // notify + optionally discount exactly the interested users at launch.
+  await migrate('feature_interest', async () => {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS feature_interest (
+        user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        feature    VARCHAR(30) NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (user_id, feature)
+      )`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_feature_interest_feature ON feature_interest(feature, created_at DESC)`);
+  });
 
   // ── Profile-completion trigger: drop the unfillable pinterest_url field ────
   // The original trigger counted 10 fields incl. pinterest_url, which has no UI

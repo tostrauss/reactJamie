@@ -7,6 +7,7 @@ import { PRO_PLANS, DEFAULT_PLAN_KEY, BASELINE_WEEKLY } from '../utils/proPlans'
 import { isNativeIOS, IOS_IAP_ENABLED, purchasesEnabled, paymentsComingSoon } from '../utils/platform';
 import { subscribePro, restorePurchases } from '../utils/iap';
 import { useToast } from '../context/ToastContext';
+import { InterestButton } from './InterestButton';
 
 // ── Keyframes injected once ──────────────────────────────────────────────
 const STYLE = `
@@ -444,29 +445,37 @@ export const ProModal = ({ onClose, onSuccess }) => {
                 <h2 style={{ fontSize:'28px', fontWeight:'900', color:'#fff', margin:'0 0 8px' }}>
                   {t('pro.title')}
                 </h2>
-                {/* "NEU – Spare bis zu XX%" pill */}
-                <div style={{ display:'inline-flex', alignItems:'center', gap:'6px',
-                  background:'rgba(34,197,94,0.14)', border:'1px solid rgba(34,197,94,0.35)',
-                  borderRadius:'24px', padding:'7px 16px',
-                }}>
-                  <span style={{ fontSize:'13px', fontWeight:'900', color:'#4ade80', letterSpacing:'0.3px' }}>
-                    {t('pro.newSaveBadge', { pct: maxSavings })}
-                  </span>
-                </div>
+                {/* "NEU – Spare bis zu XX%" pill — nur wenn auch wirklich kaufbar.
+                    Im "Bald verfügbar"-Zustand wäre ein Spar-Versprechen irreführend. */}
+                {purchasesEnabled() && (
+                  <div style={{ display:'inline-flex', alignItems:'center', gap:'6px',
+                    background:'rgba(34,197,94,0.14)', border:'1px solid rgba(34,197,94,0.35)',
+                    borderRadius:'24px', padding:'7px 16px',
+                  }}>
+                    <span style={{ fontSize:'13px', fontWeight:'900', color:'#4ade80', letterSpacing:'0.3px' }}>
+                      {t('pro.newSaveBadge', { pct: maxSavings })}
+                    </span>
+                  </div>
+                )}
               </div>
 
-              {/* Plan tiles — weekly first, monthly default ("Beliebt"), 6mo "Bestes Angebot" */}
-              <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'20px' }}>
-                {PRO_PLANS.map(plan => (
-                  <PlanTile
-                    key={plan.key}
-                    plan={plan}
-                    selected={selectedPlan === plan.key}
-                    onSelect={setSelectedPlan}
-                    t={t}
-                  />
-                ))}
-              </div>
+              {/* Plan tiles — weekly first, monthly default ("Beliebt"), 6mo "Bestes Angebot".
+                  Nur zeigen, wenn Käufe möglich sind: im Coming-Soon-Zustand sind die
+                  Preise nicht kaufbar (und machten das Sheet unnötig lang → unten
+                  abgeschnitten). Stattdessen unten die "Bald verfügbar"-Box + Interesse-Button. */}
+              {purchasesEnabled() && (
+                <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'20px' }}>
+                  {PRO_PLANS.map(plan => (
+                    <PlanTile
+                      key={plan.key}
+                      plan={plan}
+                      selected={selectedPlan === plan.key}
+                      onSelect={setSelectedPlan}
+                      t={t}
+                    />
+                  ))}
+                </div>
+              )}
 
               {/* Feature cards */}
               <div style={{ display:'flex', flexDirection:'column', gap:'10px', marginBottom:'22px' }}>
@@ -562,9 +571,10 @@ export const ProModal = ({ onClose, onSuccess }) => {
                   <div style={{ fontSize:'15px', fontWeight:'800', color:'#fff', marginBottom:'4px' }}>
                     {t('payments.comingSoon.title')}
                   </div>
-                  <div style={{ fontSize:'13px', lineHeight:1.5, color:'rgba(255,255,255,0.6)' }}>
+                  <div style={{ fontSize:'13px', lineHeight:1.5, color:'rgba(255,255,255,0.6)', marginBottom:'14px' }}>
                     {t('payments.comingSoon.body')}
                   </div>
+                  <InterestButton feature="pro" />
                 </div>
               ) : (
                 <p style={{

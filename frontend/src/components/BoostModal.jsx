@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useTranslation, Trans } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { boost as boostApi } from '../utils/api';
 import { isNativeIOS, purchasesEnabled, paymentsComingSoon } from '../utils/platform';
 import { purchaseBoost } from '../utils/iap';
 import { useToast } from '../context/ToastContext';
+import { InterestButton } from './InterestButton';
 
 // ==========================================
 // STRIPE PAYMENT FORM
@@ -84,24 +85,19 @@ const PACKAGES = [
 export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
   const { t } = useTranslation();
   const toast = useToast();
-  const [tab, setTab] = useState('buy'); // 'buy' | 'apply' | 'referral'
+  const [tab, setTab] = useState('buy'); // 'buy' | 'apply'
   const [credits, setCredits] = useState(0);
-  const [referralCode, setReferralCode] = useState('');
-  const [referralUsed, setReferralUsed] = useState(0);
   const [selectedPkg, setSelectedPkg] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState(null); // 'stripe'
   const [stripeClientSecret, setStripeClientSecret] = useState(null);
   const [stripePromise, setStripePromise] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [redeemCode, setRedeemCode] = useState('');
   // §18 FAGG: active consent to immediate performance + loss of withdrawal right.
   const [consented, setConsented] = useState(false);
 
   useEffect(() => {
     boostApi.getCredits().then(res => {
       setCredits(res.data.credits);
-      setReferralCode(res.data.referral_code || '');
-      setReferralUsed(res.data.referral_used || 0);
     }).catch(() => {});
   }, []);
 
@@ -173,26 +169,6 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
     }
   };
 
-  const handleRedeemCode = async () => {
-    if (!redeemCode.trim()) return;
-    setLoading(true);
-    try {
-      await boostApi.redeemReferral(redeemCode.trim());
-      toast.success(t('boost.referral.redeemSuccess'));
-      setCredits(c => c + 1);
-      setRedeemCode('');
-    } catch (err) {
-      toast.error(err.response?.data?.error || t('boost.referral.redeemError'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const copyCode = () => {
-    navigator.clipboard.writeText(referralCode);
-    toast.success(t('boost.referral.codeCopied'));
-  };
-
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999,
@@ -232,7 +208,6 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
             // "Kaufen"-Tab zeigen, wenn Käufe verfügbar sind ODER wir den
             // "Bald verfügbar"-Teaser zeigen (Web/Android). Auf iOS ohne IAP weg.
             ...((purchasesEnabled() || paymentsComingSoon()) ? [{ key: 'buy', tKey: 'buy' }] : []),
-            { key: 'referral', tKey: 'referral' },
           ].map(({ key, tKey }) => (
             <button
               key={key}
@@ -272,10 +247,13 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
             {credits < 1 ? (
               <div style={{ textAlign: 'center', padding: '16px' }}>
                 <p style={{ color: 'var(--text-muted)', marginBottom: '12px' }}>{t('boost.apply.noCredits')}</p>
-                {/* Ohne Kauf-Möglichkeit (iOS) zur Empfehlung leiten — dort gibt es Gratis-Credits. */}
-                <button onClick={() => setTab(purchasesEnabled() ? 'buy' : 'referral')} style={{ padding: '12px 24px', borderRadius: '12px', background: '#FD7666', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer' }}>
-                  {t(purchasesEnabled() ? 'boost.apply.buyBtn' : 'boost.tabs.referral')}
-                </button>
+                {/* Nur wenn ein Kauf-Tab existiert (Web/Android; iOS ohne IAP nicht).
+                    Empfehlungs-Credits wurden entfernt (keine Gratis-Boosts mehr). */}
+                {(purchasesEnabled() || paymentsComingSoon()) && (
+                  <button onClick={() => setTab('buy')} style={{ padding: '12px 24px', borderRadius: '12px', background: '#FD7666', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer' }}>
+                    {t('boost.apply.buyBtn')}
+                  </button>
+                )}
               </div>
             ) : (
               <button
@@ -303,12 +281,7 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
             <p style={{ fontSize: '13px', lineHeight: 1.5, color: 'var(--text-muted)', margin: '0 0 14px' }}>
               {t('payments.comingSoon.boostBody')}
             </p>
-            <button
-              onClick={() => setTab('referral')}
-              style={{ padding: '12px 24px', borderRadius: '12px', background: '#FD7666', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer' }}
-            >
-              {t('payments.comingSoon.referralCta')}
-            </button>
+            <InterestButton feature="boosts" />
           </div>
         )}
 
@@ -387,74 +360,6 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
                 />
               </Elements>
             )}
-          </div>
-        )}
-
-        {/* ---- REFERRAL TAB ---- */}
-        {tab === 'referral' && (
-          <div>
-            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-              <div style={{ fontSize: '48px', marginBottom: '8px' }}>🎁</div>
-              <h3 style={{ margin: '0 0 6px' }}>{t('boost.referral.title')}</h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px', margin: 0 }}>
-                <Trans i18nKey="boost.referral.subtitle" components={{ 1: <strong style={{ color: '#FD7666' }} /> }} />
-              </p>
-            </div>
-
-            {/* Your code */}
-            {referralCode && (
-              <div style={{ marginBottom: '24px' }}>
-                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>{t('boost.referral.yourCode')}</p>
-                <div
-                  onClick={copyCode}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '16px 20px', borderRadius: '14px',
-                    border: '2px dashed rgba(253,118,102,0.4)',
-                    background: 'rgba(253,118,102,0.08)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <span style={{ fontWeight: '800', fontSize: '20px', letterSpacing: '2px', color: '#FD7666' }}>
-                    {referralCode}
-                  </span>
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('boost.referral.copy')}</span>
-                </div>
-                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px', textAlign: 'center' }}>
-                  {t('boost.referral.invitedFmt', { count: referralUsed })}
-                </p>
-              </div>
-            )}
-
-            {/* Redeem a code */}
-            <div>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>{t('boost.referral.redeemLabel')}</p>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="text"
-                  placeholder={t('boost.referral.redeemPlaceholder')}
-                  value={redeemCode}
-                  onChange={e => setRedeemCode(e.target.value.toUpperCase())}
-                  style={{
-                    flex: 1, padding: '14px', borderRadius: '12px',
-                    background: 'var(--bg-input)', border: '1px solid rgba(255,255,255,0.1)',
-                    color: '#fff', fontSize: '15px', fontWeight: '700', letterSpacing: '1px',
-                  }}
-                />
-                <button
-                  onClick={handleRedeemCode}
-                  disabled={loading || !redeemCode.trim()}
-                  style={{
-                    padding: '14px 20px', borderRadius: '12px',
-                    background: '#FD7666', border: 'none', color: '#fff',
-                    fontWeight: '700', cursor: 'pointer',
-                    opacity: (loading || !redeemCode.trim()) ? 0.5 : 1,
-                  }}
-                >
-                  {t('boost.referral.redeemBtn')}
-                </button>
-              </div>
-            </div>
           </div>
         )}
       </div>

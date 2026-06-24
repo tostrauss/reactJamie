@@ -8,10 +8,13 @@
   },
   "payments": {
     "comingSoon": {
-      "title": "Coming soon 🚀",
+      "title": "Coming soon",
       "body": "JAMIE Pro launches shortly. Until then you can use JAMIE completely for free.",
-      "boostBody": "Buying boosts is coming soon. Until then, earn free boosts through referrals.",
-      "referralCta": "Get free boosts"
+      "boostBody": "Buying boosts is coming soon.",
+      "interestCta": "Notify me 🔔",
+      "interestDone": "We'll let you know ✓",
+      "interestThanks": "Great! We'll notify you as soon as it's ready. 🎉",
+      "interestError": "Something went wrong – please try again later."
     }
   },
   "events": {
