@@ -1,5 +1,5 @@
 {
-  "appId": "jamie.app",
+  "appId": "com.jamie-app.app",
   "appName": "JAMIE",
   "webDir": "dist",
   "server": {

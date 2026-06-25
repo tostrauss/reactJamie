@@ -29,7 +29,7 @@ const AppleLoginButton = ({ onError }) => {
       const mod = await import('@capacitor-community/apple-sign-in');
       const SignInWithApple = mod.SignInWithApple || mod.default || mod;
       const res = await SignInWithApple.authorize({
-        clientId: 'jamie.app',
+        clientId: 'com.jamie-app.app',
         redirectURI: 'https://app.jamie-app.com/auth/apple/callback',
         scopes: 'email name',
       });

@@ -1192,7 +1192,7 @@ export const appleLogin = async (req, res) => {
       jwks.getSigningKey(decodedHeader.header.kid, (err, k) => err ? reject(err) : resolve(k));
     });
 
-    const expectedAud = process.env.APPLE_IAP_BUNDLE_ID || 'jamie.app';
+    const expectedAud = process.env.APPLE_IAP_BUNDLE_ID || 'com.jamie-app.app';
     let payload;
     try {
       payload = jwt.verify(identity_token, key.getPublicKey(), {
