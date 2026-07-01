@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "jamie.app",
       "sha256_cert_fingerprints": [
-        "FD:AC:47:AA:56:02:3C:AC:AA:B4:BD:0D:08:26:73:0D:04:97:9B:E2:1B:0F:6E:82:C4:01:F1:54:0C:96:0F:62"
+        "FD:AC:47:AA:56:02:3C:AC:AA:B4:BD:0D:08:26:73:0D:04:97:9B:E2:1B:0F:6E:82:C4:01:F1:54:0C:96:0F:62",
+        "B3:D5:E9:53:7D:D2:67:6B:FF:65:4D:CC:51:8F:F9:87:7A:59:8A:D6:57:8D:55:EE:1A:50:CC:13:FC:89:02:CB"
       ]
     }
   }
