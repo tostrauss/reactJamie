@@ -50,6 +50,7 @@ const TermsOfService = lazyWithReload(() => import('./pages/TermsOfService'));
 const Impressum = lazyWithReload(() => import('./pages/Impressum'));
 const Widerruf = lazyWithReload(() => import('./pages/Widerruf'));
 const CommunityGuidelines = lazyWithReload(() => import('./pages/CommunityGuidelines'));
+const ChildSafety = lazyWithReload(() => import('./pages/ChildSafety'));
 const AdminDashboard = lazyWithReload(() => import('./pages/AdminDashboard'));
 const OutOfRegion    = lazyWithReload(() => import('./pages/OutOfRegion'));
 const Friends        = lazyWithReload(() => import('./pages/Friends'));
@@ -722,6 +723,7 @@ function AppRoutes() {
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<TermsOfService />} />
           <Route path="/guidelines" element={<CommunityGuidelines />} />
+          <Route path="/child-safety" element={<ChildSafety />} />
           <Route path="/impressum" element={<Impressum />} />
           <Route path="/widerruf" element={<Widerruf />} />
 
