@@ -1,5 +1,6 @@
 import db from '../config/database.js';
 import { sendPushToUsers } from './pushController.js';
+import { geocodeLocation, geocodeAustria } from '../utils/geocode.js';
 
 // Try to extract the city from a free-form address. Most DACH addresses end in
 // "PLZ City" (e.g. "Hauptstraße 1, 1010 Wien"). We take the last comma-separated
@@ -164,6 +165,15 @@ export const createDeal = async (req, res) => {
     if (isNaN(d.getTime())) return res.status(400).json({ error: 'visible_until ist kein gültiges Datum' });
     visibleUntilParsed = d.toISOString();
   }
+  // If the client gave an address but no coordinates, geocode it (Austria-first,
+  // same as groups/clubs) so the deal-detail map can render. Non-blocking on
+  // failure — the deal still saves, just without a map pin.
+  let dealLat = lat ?? null;
+  let dealLng = lng ?? null;
+  if ((dealLat === null || dealLng === null) && address) {
+    const coords = await geocodeAustria(address) || await geocodeLocation(address);
+    if (coords) { dealLat = coords.lat; dealLng = coords.lng; }
+  }
   try {
     const result = await db.query(
       `INSERT INTO deals (name, category, deal_label, description, address, lat, lng, photos, booking_url, visible_until, max_redemptions, redeem_interval, redeem_days)
@@ -174,8 +184,8 @@ export const createDeal = async (req, res) => {
         deal_label,
         description || null,
         address || null,
-        lat ?? null,
-        lng ?? null,
+        dealLat,
+        dealLng,
         JSON.stringify(Array.isArray(photos) ? photos : []),
         booking_url || null,
         visibleUntilParsed,
@@ -240,6 +250,14 @@ export const updateDeal = async (req, res) => {
       if (Number.isNaN(n) || n < 1) return res.status(400).json({ error: 'max_redemptions muss eine positive Zahl sein' });
       fields.max_redemptions = n;
     }
+  }
+
+  // Address changed but no explicit coordinates sent → re-geocode so the map
+  // pin follows the new address (mirrors group/club update behaviour). Explicit
+  // lat/lng in the request still win.
+  if (address !== undefined && address && lat === undefined && lng === undefined) {
+    const coords = await geocodeAustria(address) || await geocodeLocation(address);
+    if (coords) { fields.lat = coords.lat; fields.lng = coords.lng; }
   }
 
   const keys = Object.keys(fields);

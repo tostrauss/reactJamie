@@ -19,6 +19,7 @@ const emptyForm = () => ({
   name: '',
   deal_label: '',
   description: '',
+  address: '', // free-form address; backend geocodes it to lat/lng for the map
   visible_until: '', // YYYY-MM-DD in the input
   photo_url: '',
   max_redemptions: '100', // global cap; empty = unlimited (auto-offline at cap)
@@ -132,6 +133,7 @@ export const AdminDealsSection = () => {
       name: deal.name || '',
       deal_label: deal.deal_label || '',
       description: deal.description || '',
+      address: deal.address || '',
       visible_until: deal.visible_until ? deal.visible_until.slice(0, 10) : '',
       photo_url: Array.isArray(deal.photos) && deal.photos.length > 0 ? deal.photos[0] : '',
       max_redemptions: deal.max_redemptions == null ? '' : String(deal.max_redemptions),
@@ -158,6 +160,9 @@ export const AdminDealsSection = () => {
         name: form.name.trim(),
         deal_label: form.deal_label.trim(),
         description: form.description.trim() || null,
+        // Backend geocodes a non-empty address to lat/lng (Austria-first) so the
+        // deal-detail map renders. Empty = no address.
+        address: form.address.trim() || null,
         photos: form.photo_url ? [form.photo_url] : [],
         visible_until: form.visible_until || null,
         // Empty input = unlimited (null); otherwise the global redemption cap.
@@ -273,6 +278,21 @@ export const AdminDealsSection = () => {
             />
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4 }}>
               {t('admin.deals.fields.descriptionHint')}
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>{t('admin.deals.fields.address', { defaultValue: 'Adresse' })}</label>
+            <input
+              type="text"
+              maxLength={500}
+              value={form.address}
+              onChange={e => setForm(p => ({ ...p, address: e.target.value }))}
+              placeholder={t('admin.deals.fields.addressPlaceholder', { defaultValue: 'z.B. Hauptstraße 1, 1010 Wien' })}
+              style={inputStyle}
+            />
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4 }}>
+              {t('admin.deals.fields.addressHint', { defaultValue: 'Österreich-Adresse — wird automatisch in eine Karte auf der Deal-Seite umgewandelt.' })}
             </p>
           </div>
 

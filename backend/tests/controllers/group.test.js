@@ -114,8 +114,20 @@ describe('getGroupMembers — Pro gate matrix', () => {
     expect(payload.members[0]).not.toHaveProperty('joined_at');
   });
 
-  it('returns the full ungated roster to a group member', async () => {
+  // 2026-07-02: the full GROUP roster is Pro-only — a plain (non-Pro) member no
+  // longer bypasses the gate. Clubs still let members through (see below).
+  it('gates a plain (non-Pro) GROUP member too — the full roster is Pro-only', async () => {
     scenario.isMember = true;
+    const res = await call();
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.gated).toBe(true);
+    expect(payload.members).toHaveLength(3);
+    expect(payload.members[0]).not.toHaveProperty('bio');
+  });
+
+  it('returns the full ungated roster to a Pro group member', async () => {
+    scenario.isMember = true;
+    isUserProMock.mockResolvedValue(true);
     const res = await call();
     const payload = res.json.mock.calls[0][0];
     expect(payload.gated).toBe(false);

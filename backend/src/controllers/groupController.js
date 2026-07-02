@@ -961,19 +961,23 @@ export const getGroupMembers = async (req, res) => {
     );
     const total = fullList.rows.length;
 
-    // #1 Pro gate: members of the group always see the whole roster (they're
-    // already in the group). Non-members who are NOT Pro see only the first
-    // 3 entries; the frontend renders the next slot as a blurred locked tile
-    // with a ProModal CTA. Pro non-members get the full roster (that is the
-    // ProModal's literal promise, "alle Mitglieder sehen" — note this is more
-    // than the Home feed's 4-preview cap); admins bypass like staff everywhere.
+    // #1 Pro gate: for GROUPS, seeing the FULL member roster is a Pro feature —
+    // only Pro users (and admins) get the whole list; EVERYONE else, including
+    // members who already joined, sees only the first 3 entries (the frontend
+    // renders the next slot as a blurred locked tile with a ProModal CTA).
+    // Product call 2026-07-02: groups' member-bypass was removed so the roster
+    // is Pro-only. With payments off, effectively only admins see it in v1.
+    // Clubs/events KEEP the member-bypass — members see the roster; only
+    // non-members are gated there (this endpoint also serves clubs).
+    const entityType = groupRes.rows[0].type;
     const callerIsPro = req.userId ? await isUserPro(req.userId) : false;
+    const gateApplies = !callerIsPro && (entityType === 'group' || !isCallerMember);
     let callerIsAdmin = false;
-    if (!isCallerMember && !callerIsPro && req.userId) {
+    if (gateApplies && req.userId) {
       const adm = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);
       callerIsAdmin = !!adm.rows[0]?.is_admin;
     }
-    if (!isCallerMember && !callerIsPro && !callerIsAdmin) {
+    if (gateApplies && !callerIsAdmin) {
       return res.json({
         // Same field set the Home feed previews expose (+ the trusted badge
         // the grids render). bio/location/role/joined_at stay members-only.

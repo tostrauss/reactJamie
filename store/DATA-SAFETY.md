@@ -13,7 +13,7 @@ The exact answers to type into the Google Play Console Data Safety form (Play Co
 - [ ] Confirm whether Sightengine env vars (`SIGHTENGINE_API_USER`, `SIGHTENGINE_API_SECRET`) are set in production. If not, do **not** claim images are auto-screened for nudity/gore.
 - [ ] Confirm whether `OPENAI_API_KEY` is set in production. If not, do **not** claim chat text is auto-moderated.
 - [ ] Confirm Sentry is live (`SENTRY_DSN` set) — it is a required prod env var, so it should be. This justifies the Crash logs / Diagnostics rows.
-- [ ] Confirm Stripe is the only payment processor in the build path you are submitting (web/Android use Stripe; iOS uses Apple IAP and is a separate App Store submission).
+- [ ] **v1: payments are OFF (`PAYMENTS_ENABLED = false`).** Declare **No in-app purchases** and **No** purchase-history / financial data. The Stripe rows below apply only after payments go live (and Android then needs Play Billing, not Stripe).
 - [ ] Re-read `PrivacyPolicy.jsx` and confirm every row below still matches it.
 
 ---
@@ -57,10 +57,12 @@ For every row below set in the Play Console:
 
 ### Financial info
 
+> **v1: all No.** Payments are hidden (`PAYMENTS_ENABLED = false`) — no purchases occur, so no purchase history is collected. The Purchase-history row returns with the payments update.
+
 | Data type | Collected | Required | Purpose |
 |---|---|---|---|
-| Purchase history | Yes | Optional | App functionality (Boost credits, Pro subscription) |
-| Credit card or bank info | **No** — card data goes directly to Stripe, never to JAMIE servers | – | – |
+| Purchase history | **No (v1)** — was Yes (Boost/Pro); no purchases while payments are off | – | – |
+| Credit card or bank info | **No** — card data would go directly to Stripe, never to JAMIE servers | – | – |
 | Other financial info | No | – | – |
 
 ### Health and fitness
@@ -145,7 +147,7 @@ Mark recipient + purpose for each shared row. Everything else in Section 2 is **
 
 | Shared data | Recipient | Purpose | Notes |
 |---|---|---|---|
-| Purchase history, Email, Name | **Stripe** (payment processor) | Payment processing for Boost credits + Pro subscription | Web + Android only. iOS purchases go through Apple IAP (separate App Store data declaration). |
+| ~~Purchase history, Email, Name → **Stripe**~~ | — | **OMIT for v1** — payments off, no Stripe transactions. Re-add when payments go live. | Was: web + Android via Stripe. |
 | Crash logs, Diagnostics, App performance | **Sentry** (error monitoring) | App functionality / diagnostics | PII scrubbed before transmission. |
 | Photos (uploaded only) | **Sightengine** (content moderation) | Compliance — nudity/gore screening before publish | **CONDITIONAL — only if `SIGHTENGINE_API_USER` + `SIGHTENGINE_API_SECRET` are set in production. If unset, images are NOT sent to Sightengine; remove this row.** |
 | Messages (text only, pre-send) | **OpenAI Moderation API** | Compliance — text moderation (`/v1/moderations`, no training on input) | **CONDITIONAL — only if `OPENAI_API_KEY` is set in production. If unset, message text is NOT sent to OpenAI; remove this row.** |
@@ -217,7 +219,7 @@ After any app change, check this mapping:
 | § 4 (which data) | Personal info + Photos + Messages + Location |
 | § 7 (moderation) | Section 3 Sightengine + OpenAI rows — **only if enabled** |
 | § 8 (push) | Device IDs |
-| § 9 (Stripe) | Purchase history → shared with Stripe |
+| § 9 (Stripe) | Purchase history → Stripe — **N/A for v1** (payments off) |
 | § 12 (third parties) | Section 3 sharing list |
 | § 14 (retention) | Sections 4 + 5 |
 | § 17 (GDPR rights) | Section 5 (account deletion + export) |

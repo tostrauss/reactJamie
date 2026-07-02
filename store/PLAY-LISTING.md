@@ -141,15 +141,17 @@ UPDATE users SET is_trusted_user = true WHERE email = 'playreview@jamie-app.com'
 | Is this a Government app? | No |
 | Does this app provide financial features? | No |
 | Is this a News app? | No |
-| Are there in-app purchases? | Yes — "Yes, my app has in-app purchases" |
+| Are there in-app purchases? | **No (v1)** — payments are hidden (`PAYMENTS_ENABLED = false`); Android shows only "Bald verfügbar" teasers, no purchase flow. Set to "Yes" only when payments go live — and note: Android then requires **Play Billing**, not Stripe. |
 | Sale of regulated goods | No |
 | Health Connect data | No |
 | VPN service | No |
 | Real-money gambling | No |
 
-### In-app purchases (declare these)
+### In-app purchases — N/A for v1 (payments hidden)
 
-The app sells Boost credits (consumables) and JAMIE Pro (subscriptions). On Android these are charged via Stripe in the web layer (not Google Play Billing — `playBilling.enabled = false` in the TWA manifest). Product IDs, for reference:
+> **v1 launch: declare NO in-app purchases.** `PAYMENTS_ENABLED = false`, so Boost/Pro show only a "Bald verfügbar" teaser on Android — there is no purchase flow. The product/price reference below applies to the later **payments update**, NOT this submission. When payments go live on Android, Google requires **Play Billing** for digital goods — Stripe is not permitted in-app via Play.
+
+The app *will* sell Boost credits (consumables) and JAMIE Pro (subscriptions). On Android these were planned via Stripe in the web layer (`playBilling.enabled = false` in the TWA manifest). Product IDs, for reference:
 
 | Type | Product IDs |
 |---|---|
