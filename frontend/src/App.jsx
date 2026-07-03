@@ -439,6 +439,14 @@ function isInRegion(lat, lng) {
 // Returns 'allowed' | 'outside' | 'unknown'
 function useGeoFence() {
   const [region, setRegion] = useState(() => {
+    // The native app NEVER geo-blocks: anyone who installed it from the App
+    // Store / Play Store is a target user, and Apple/Google reviewers sit
+    // outside Austria — a hard OutOfRegion gate on launch reads as "the app is
+    // broken" (App Review 2.1(a) rejection 2026-07-02). Returning 'allowed'
+    // here also skips the launch-time geolocation prompt below. The Austria-only
+    // rule still applies to group/club CREATION (enforced in Create* + server).
+    // The web PWA keeps its waitlist gate for non-AT visitors.
+    if (isNative()) return 'allowed';
     // Re-use result within the same browser session
     const cached = sessionStorage.getItem('jamie_region');
     // Migrate old 'austria' value to 'allowed'
@@ -447,6 +455,7 @@ function useGeoFence() {
   });
 
   useEffect(() => {
+    if (isNative()) return;            // native never geo-blocks (see above)
     if (region !== 'unknown') return; // already checked
     if (!navigator.geolocation) { setRegion('unknown'); return; }
 
