@@ -128,19 +128,10 @@
       </array>
     </dict>
 
-    <!-- Purchase history — Stripe boost credits and Pro subscriptions -->
-    <dict>
-      <key>NSPrivacyCollectedDataType</key>
-      <string>NSPrivacyCollectedDataTypePurchaseHistory</string>
-      <key>NSPrivacyCollectedDataTypeLinked</key>
-      <true/>
-      <key>NSPrivacyCollectedDataTypeTracking</key>
-      <false/>
-      <key>NSPrivacyCollectedDataTypePurposes</key>
-      <array>
-        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
-      </array>
-    </dict>
+    <!-- Purchase history intentionally NOT declared: v1 iOS ships with payments
+         OFF (no IAP, no Stripe on iOS — see utils/platform.PAYMENTS_ENABLED /
+         IOS_IAP_ENABLED). Re-add this block when StoreKit IAP goes live, and
+         keep the App Store Connect "App Privacy" answers in sync. -->
 
     <!-- Analytics — screen-view events (no advertising use) -->
     <dict>

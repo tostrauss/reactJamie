@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { isNative, isNativeIOS } from './platform';
 
 // ==========================================
 // AXIOS INSTANCE SETUP
@@ -26,6 +27,15 @@ axiosInstance.interceptors.request.use(
   (config) => {
     if (_memToken) {
       config.headers.Authorization = `Bearer ${_memToken}`;
+    }
+    // Mark requests coming from the installed native app. The backend exempts
+    // native traffic from the DACH registration geofence: anyone who installed
+    // JAMIE from the App Store / Play Store is a target user regardless of
+    // country, and store reviewers sit outside Austria — a 403 on /register
+    // reads as "the app is broken" (App Review 2.1). The web PWA sends no such
+    // header and keeps its Austria-only signup gate.
+    if (isNative()) {
+      config.headers['X-Client-Platform'] = isNativeIOS() ? 'ios' : 'android';
     }
     return config;
   },

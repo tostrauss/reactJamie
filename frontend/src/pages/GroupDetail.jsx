@@ -7,7 +7,6 @@ import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
 import { UserName } from '../components/UserName';
-import { isNativeIOS } from '../utils/platform';
 import { nextOccurrence } from '../utils/recurrence';
 import '../styles/group-detail.css';
 
@@ -91,50 +90,18 @@ const openCalendar = (group) => {
   const startStr = toCalDate(start);
   const endStr   = toCalDate(end);
 
-  if (isNativeIOS()) {
-    // iCal RFC 5545 text fields must escape \  ;  ,  and newline. Without
-    // this a group name like "Foo,DESCRIPTION:override" would split the
-    // SUMMARY field and inject a second property into the recipient's
-    // calendar entry. Order matters — escape \ first.
-    const icalEscape = (s) => String(s)
-      .replace(/\\/g, '\\\\')
-      .replace(/;/g,  '\\;')
-      .replace(/,/g,  '\\,')
-      .replace(/\r?\n/g, '\\n');
-
-    // iOS Capacitor: download .ics → opens natively in Apple Calendar
-    const ics = [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'PRODID:-//JAMIE//JAMIE App//DE',
-      'BEGIN:VEVENT',
-      `DTSTART:${startStr}`,
-      `DTEND:${endStr}`,
-      // Open-ended weekly repeat — Apple Calendar honors a bare WEEKLY rule
-      // and lets the user cap or skip occurrences on their device.
-      group.is_recurring_weekly ? 'RRULE:FREQ=WEEKLY' : '',
-      `SUMMARY:${icalEscape(group.name || group.category || 'JAMIE Event')}`,
-      group.description ? `DESCRIPTION:${icalEscape(group.description)}` : '',
-      group.location    ? `LOCATION:${icalEscape(group.location)}` : '',
-      `URL:${icalEscape(window.location.href)}`,
-      'END:VEVENT',
-      'END:VCALENDAR',
-    ].filter(Boolean).join('\r\n');
-
-    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = 'jamie-event.ics';
-    a.click();
-    URL.revokeObjectURL(url);
-  } else {
-    // Android / web → Google Calendar. `recur` takes a URL-encoded RRULE
-    // value; the `=` in `FREQ=WEEKLY` MUST become %3D or Calendar ignores it.
-    const recurParam = group.is_recurring_weekly ? `&recur=RRULE:FREQ%3DWEEKLY` : '';
-    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&location=${loc}${recurParam}`;
-    window.open(url, '_blank', 'noopener,noreferrer');
-  }
+  // ALL platforms → Google Calendar template URL. The previous native-iOS
+  // branch built an .ics blob and clicked an <a download> — Capacitor's
+  // WKWebView has no download handler, so the tap silently did NOTHING (a
+  // visibly dead button = App Review 2.1 "broken feature" risk; found in the
+  // 2026-07-03 pre-resubmission audit, never device-tested). window.open
+  // leaves the WebView via the system browser, which always works. Bring the
+  // nicer Apple-Calendar .ics flow back only with a real native plugin
+  // (e.g. capacitor-calendar). `recur` takes a URL-encoded RRULE value; the
+  // `=` in `FREQ=WEEKLY` MUST become %3D or Calendar ignores it.
+  const recurParam = group.is_recurring_weekly ? `&recur=RRULE:FREQ%3DWEEKLY` : '';
+  const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&location=${loc}${recurParam}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
 };
 
 // "Heute"/"Morgen" instead of the literal date when the event is that close

@@ -6,7 +6,6 @@ import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
 import { UserName } from '../components/UserName';
-import { isNativeIOS } from '../utils/platform';
 import { nextOccurrence } from '../utils/recurrence';
 import '../styles/club-detail.css';
 
@@ -45,31 +44,15 @@ const openCalendar = (ev) => {
   const startStr = toCalDate(start);
   const endStr = toCalDate(end);
 
-  if (isNativeIOS()) {
-    const icalEscape = (s) => String(s)
-      .replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
-    const ics = [
-      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//JAMIE//JAMIE App//DE', 'BEGIN:VEVENT',
-      `DTSTART:${startStr}`, `DTEND:${endStr}`,
-      ev.is_recurring_weekly ? 'RRULE:FREQ=WEEKLY' : '',
-      `SUMMARY:${icalEscape(ev.name || 'JAMIE Event')}`,
-      ev.description ? `DESCRIPTION:${icalEscape(ev.description)}` : '',
-      ev.location ? `LOCATION:${icalEscape(ev.location)}` : '',
-      `URL:${icalEscape(window.location.href)}`,
-      'END:VEVENT', 'END:VCALENDAR',
-    ].filter(Boolean).join('\r\n');
-    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'jamie-event.ics';
-    a.click();
-    URL.revokeObjectURL(url);
-  } else {
-    const recurParam = ev.is_recurring_weekly ? `&recur=RRULE:FREQ%3DWEEKLY` : '';
-    const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&location=${loc}${recurParam}`;
-    window.open(url, '_blank', 'noopener,noreferrer');
-  }
+  // ALL platforms → Google Calendar template URL. The old native-iOS branch
+  // built an .ics blob + <a download> click — Capacitor's WKWebView has no
+  // download handler, so the tap silently did NOTHING (dead button = App
+  // Review 2.1 risk; 2026-07-03 audit). window.open exits to the system
+  // browser and always works; restore the Apple-Calendar .ics flow only via
+  // a real native plugin (e.g. capacitor-calendar).
+  const recurParam = ev.is_recurring_weekly ? `&recur=RRULE:FREQ%3DWEEKLY` : '';
+  const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&location=${loc}${recurParam}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
 };
 
 export const ClubDetail = () => {
