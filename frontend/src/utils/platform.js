@@ -13,6 +13,19 @@ export const isNativeIOS = () =>
 export const isNativeAndroid = () =>
   isNative() && window.Capacitor?.getPlatform?.() === 'android';
 
+// ── Native API origin ───────────────────────────────────────────────────
+// In nativen Builds wird die WebView-Origin (https://app.jamie-app.com)
+// KOMPLETT vom lokalen Capacitor-Scheme-Handler bedient — jeder XHR an diese
+// Origin bekommt den SPA-Fallback (index.html, HTTP 200) statt des echten
+// Backends. Die App-Review-Ablehnung vom 2026-07-03 (2.1a: „after tapping
+// sign in the app returns to the login screen", Build 1.0(4)) war genau das:
+// POST /api/auth/login „gelang" mit HTML als Body, data.user war undefined,
+// ProtectedRoute warf zurück auf /login. Native spricht deshalb dieselbe
+// Railway-Instanz über eine ZWEITE Domain an. api.jamie-app.com ist same-site
+// zur WebView-Origin (jamie-app.com) → der httpOnly-Auth-Cookie fließt weiter
+// (SameSite=Lax) und Sessions überleben App-Neustarts.
+export const NATIVE_API_ORIGIN = 'https://api.jamie-app.com';
+
 // ── Zahlungen (Stripe + IAP) ────────────────────────────────────────────
 // Master-Schalter: Bezahlung wird erst ~1–2 Monate nach dem Launch
 // freigeschaltet. Bis dahin zeigen ALLE Kauf-Flächen (Boost-Kauf, JAMIE Pro)

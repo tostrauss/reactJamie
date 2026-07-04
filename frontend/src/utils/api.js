@@ -1,11 +1,16 @@
 import axios from 'axios';
-import { isNative, isNativeIOS } from './platform';
+import { isNative, isNativeIOS, NATIVE_API_ORIGIN } from './platform';
 
 // ==========================================
 // AXIOS INSTANCE SETUP
 // ==========================================
 
-const API_URL = import.meta.env.VITE_API_URL || '/api';
+// Native: NEVER use a relative base — the WebView origin is served locally by
+// Capacitor, so relative /api calls get index.html back (see NATIVE_API_ORIGIN
+// in platform.js for the App-Review incident). Web keeps the same-origin path.
+const API_URL = isNative()
+  ? `${NATIVE_API_ORIGIN}/api`
+  : (import.meta.env.VITE_API_URL || '/api');
 
 const axiosInstance = axios.create({
   baseURL: API_URL,

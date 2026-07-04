@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import io from 'socket.io-client';
 import { AuthContext } from './AuthContext';
 import { useToast } from './ToastContext';
+import { isNative, NATIVE_API_ORIGIN } from '../utils/platform';
 
 export const SocketContext = createContext();
 
@@ -13,11 +14,16 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     if (user && token) {
-      // Frontend and backend are served by the SAME Railway service (one origin),
-      // so VITE_SOCKET_URL stays empty and io() connects to the same host.
-      // In dev that same-host connection is proxied by Vite. Only set
-      // VITE_SOCKET_URL if you ever split frontend/backend onto separate domains.
-      const socketUrl = import.meta.env.VITE_SOCKET_URL || undefined;
+      // Web/PWA: frontend and backend are served by the SAME Railway service
+      // (one origin), so VITE_SOCKET_URL stays empty and io() connects to the
+      // same host (proxied by Vite in dev).
+      // Native: the WebView origin is served locally by Capacitor — a same-
+      // origin socket connection would hit the local scheme handler (polling
+      // transport gets index.html back). Connect to the real API domain
+      // instead (same service, second domain — see NATIVE_API_ORIGIN).
+      const socketUrl = isNative()
+        ? NATIVE_API_ORIGIN
+        : (import.meta.env.VITE_SOCKET_URL || undefined);
 
       const newSocket = io(socketUrl, {
         path: '/socket.io',
