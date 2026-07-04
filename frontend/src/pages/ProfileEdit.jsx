@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { auth, upload, spotify } from '../utils/api';
 import { connectSpotify } from '../utils/spotifyAuth';
+import { isNativeIOS } from '../utils/platform';
 import { useToast } from '../context/ToastContext';
 import SpotifySongPicker from '../components/SpotifySongPicker';
 import { ImageCropModal } from '../components/ImageCropModal';
@@ -526,7 +527,16 @@ export const ProfileEdit = () => {
           </div>
         </div>
 
-        {/* Spotify Verbindung */}
+        {/* Spotify Verbindung — auf nativem iOS für v1 ausgeblendet: der
+            Connect-Flow braucht die im Spotify-Dashboard registrierte
+            Redirect-URI jamie://spotify-callback (Stand 2026-07-04 nicht
+            registriert, SPOTIFY_REDIRECT_URI zeigt nur auf die Web-Callback-
+            URL). Ohne Registrierung zeigt Spotify SOFORT — ohne Login —
+            "INVALID_CLIENT: Invalid redirect URI" im In-App-Browser: ein
+            sichtbar kaputtes Feature = App-Review 2.1. Wieder einblenden,
+            sobald die URI registriert UND der Deep-Link-Roundtrip auf einem
+            echten Gerät getestet ist. Web/Android unverändert. */}
+        {!isNativeIOS() && (
         <div className="settings-section">
           <h3 className="settings-section-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -575,6 +585,7 @@ export const ProfileEdit = () => {
             )}
           </div>
         </div>
+        )}
 
         {/* Fotos / Pinnwand — first photo is the profile picture */}
         <div className="settings-section">
