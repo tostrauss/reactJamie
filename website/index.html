@@ -7,7 +7,6 @@
   <meta name="description" content="JAMIE ist deine Social-App für Aktivitäten: Gruppen erstellen oder beitreten, in Echtzeit chatten, Clubs entdecken und lokale Events auf der Karte finden." />
   <meta name="theme-color" content="#131022" />
   <link rel="icon" href="https://app.jamie-app.com/apple-touch-icon-180x180.png" />
-  <!-- Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://jamie-app.com/" />
   <meta property="og:title" content="JAMIE – Social Activity App" />
@@ -19,151 +18,252 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,600;0,700;0,900;1,900&display=swap" />
   <style>
     :root {
-      --coral: #FD7666;
-      --coral-dark: #e5574a;
-      --bg: #131022;
-      --bg-soft: #181430;
-      --card: rgba(255, 255, 255, 0.04);
-      --border: rgba(255, 255, 255, 0.08);
-      --text: #ffffff;
-      --muted: rgba(255, 255, 255, 0.6);
-      --faint: rgba(255, 255, 255, 0.35);
+      --coral: #FD7666; --coral-dark: #e5574a;
+      --bg: #131022; --bg-soft: #181430;
+      --screen: #1E1839; --screen-2: #262047;
+      --card: rgba(255,255,255,0.04); --border: rgba(255,255,255,0.08);
+      --text: #fff; --muted: rgba(255,255,255,0.6); --faint: rgba(255,255,255,0.35);
       --green: #4ade80;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     body {
       font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.6;
-      overflow-x: hidden;
+      background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden;
     }
     .wordmark { font-style: italic; font-weight: 900; letter-spacing: -0.02em; color: var(--coral); }
     .container { max-width: 1140px; margin: 0 auto; padding: 0 28px; }
     .accent { color: var(--coral); }
 
+    /* ── Scroll-Reveal ───────────────────────────────── */
+    .reveal { opacity: 0; transform: translateY(28px); transition: opacity .7s ease, transform .7s ease; }
+    .reveal.in { opacity: 1; transform: none; }
+
     /* ── Nav ─────────────────────────────────────────── */
     nav {
       position: sticky; top: 0; z-index: 50;
-      background: rgba(19, 16, 34, 0.88);
-      -webkit-backdrop-filter: blur(12px);
-      backdrop-filter: blur(12px);
+      background: rgba(19,16,34,0.88);
+      -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border);
     }
-    .nav-inner {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 18px 28px; max-width: 1140px; margin: 0 auto;
-    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 18px 28px; max-width: 1140px; margin: 0 auto; }
     .nav-logo { font-size: 25px; text-decoration: none; }
     .nav-links { display: flex; align-items: center; gap: 28px; }
     .nav-links a { color: var(--muted); text-decoration: none; font-size: 15px; font-weight: 600; transition: color .15s; }
     .nav-links a:hover { color: #fff; }
-    .nav-links a.nav-cta {
-      background: var(--coral); color: #fff; padding: 10px 22px; border-radius: 12px;
-      transition: background .15s;
-    }
-    .nav-links a.nav-cta:hover { background: var(--coral-dark); color: #fff; }
+    .nav-links a.nav-cta { background: var(--coral); color: #fff; padding: 10px 22px; border-radius: 12px; transition: background .15s; }
+    .nav-links a.nav-cta:hover { background: var(--coral-dark); }
     @media (max-width: 680px) { .nav-links a:not(.nav-cta) { display: none; } }
 
-    /* ── Phone mockup ────────────────────────────────── */
+    /* ── Phone (live UI, kein Screenshot) ────────────── */
+    .phone-wrap { display: flex; justify-content: center; perspective: 1200px; }
     .phone {
-      width: min(310px, 78vw);
-      border-radius: 46px;
-      border: 11px solid #08070f;
-      background: #08070f;
-      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.07);
-      overflow: hidden;
-      flex-shrink: 0;
+      width: min(310px, 80vw); aspect-ratio: 9 / 18.6;
+      border-radius: 46px; border: 11px solid #08070f; background: var(--screen);
+      box-shadow: 0 34px 90px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.07);
+      overflow: hidden; flex-shrink: 0; position: relative;
+      display: flex; flex-direction: column;
+      transition: transform .25s ease;
+      animation: float 7s ease-in-out infinite;
     }
-    .phone img { display: block; width: 100%; height: auto; border-radius: 34px; }
+    @keyframes float { 0%,100% { translate: 0 0; } 50% { translate: 0 -10px; } }
+
+    .screen { flex: 1; display: flex; flex-direction: column; padding: 18px 14px 14px; min-height: 0; }
+    .s-appbar { text-align: center; font-size: 21px; margin-bottom: 12px; }
+    .s-tabs { display: flex; justify-content: center; gap: 20px; font-size: 12.5px; font-weight: 700; color: var(--faint); margin-bottom: 12px; }
+    .s-tabs b { font-weight: 700; padding-bottom: 4px; }
+    .s-tabs b.on { color: #fff; border-bottom: 2px solid var(--coral); }
+    .s-search { background: rgba(255,255,255,0.06); border-radius: 11px; padding: 9px 12px; font-size: 12px; color: var(--faint); margin-bottom: 12px; }
+
+    /* Feed cards */
+    .s-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-height: 0; overflow: hidden; }
+    .g-card { background: var(--screen-2); border: 1px solid var(--border); border-radius: 14px; padding: 10px; position: relative; }
+    .g-date { position: absolute; top: 8px; right: 8px; font-size: 8.5px; font-weight: 700; color: var(--faint); background: rgba(0,0,0,0.3); border-radius: 6px; padding: 2px 6px; }
+    .g-card h4 { color: var(--coral); font-size: 13px; font-weight: 800; margin-bottom: 2px; padding-right: 34px; }
+    .g-meta { font-size: 9.5px; color: var(--faint); display: block; margin-bottom: 8px; }
+    .avs { display: flex; }
+    .avs i {
+      width: 26px; height: 26px; border-radius: 50%; font-style: normal;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 800; color: #fff;
+      border: 2px solid var(--screen-2); margin-left: -7px;
+    }
+    .avs i:first-child { margin-left: 0; }
+    .av-1 { background: linear-gradient(135deg, #FD7666, #e5574a); }
+    .av-2 { background: linear-gradient(135deg, #8b7cf6, #6d5ce6); }
+    .av-3 { background: linear-gradient(135deg, #34d399, #0ea5a4); }
+    .av-4 { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
+    .av-5 { background: linear-gradient(135deg, #f472b6, #db2777); }
+    .av-plus { background: rgba(255,255,255,0.1); font-size: 12px; }
+    .g-card.boosted { border-color: rgba(253,118,102,0.55); animation: boostGlow 2.6s ease-in-out infinite; }
+    @keyframes boostGlow {
+      0%,100% { box-shadow: 0 0 0 rgba(253,118,102,0); }
+      50% { box-shadow: 0 0 22px rgba(253,118,102,0.4); }
+    }
+    .boost-chip { position: absolute; bottom: 8px; right: 8px; font-size: 9px; font-weight: 800; color: #ffd166; }
+
+    /* Map screen */
+    .s-map {
+      flex: 1; position: relative; border-radius: 16px; overflow: hidden; min-height: 0;
+      background:
+        repeating-linear-gradient(65deg, transparent 0 34px, rgba(255,255,255,0.035) 34px 35px),
+        repeating-linear-gradient(-25deg, transparent 0 46px, rgba(255,255,255,0.03) 46px 47px),
+        radial-gradient(140px 100px at 68% 30%, rgba(139,124,246,0.14), transparent 70%),
+        radial-gradient(160px 120px at 25% 65%, rgba(253,118,102,0.12), transparent 70%),
+        var(--screen-2);
+    }
+    .pin { position: absolute; width: 30px; height: 30px; border-radius: 50% 50% 50% 4px; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; background: var(--screen); border: 2px solid var(--coral); }
+    .pin span { transform: rotate(45deg); font-size: 13px; }
+    .pin::after {
+      content: ''; position: absolute; inset: -9px; border-radius: 50%;
+      border: 2px solid rgba(253,118,102,0.45); animation: ping 2.4s ease-out infinite;
+    }
+    .pin.p2 { border-color: #8b7cf6; } .pin.p2::after { border-color: rgba(139,124,246,0.45); animation-delay: .5s; }
+    .pin.p3 { border-color: #34d399; } .pin.p3::after { border-color: rgba(52,211,153,0.45); animation-delay: 1.1s; }
+    .pin.p4 { border-color: #fbbf24; } .pin.p4::after { border-color: rgba(251,191,36,0.4); animation-delay: 1.7s; }
+    @keyframes ping { 0% { transform: rotate(45deg) scale(.6); opacity: 1; } 100% { transform: rotate(45deg) scale(1.8); opacity: 0; } }
+    .map-card {
+      position: absolute; left: 10px; right: 10px; bottom: 10px;
+      background: rgba(19,16,34,0.92); border: 1px solid var(--border); border-radius: 14px;
+      padding: 11px 13px; transition: opacity .4s, transform .4s;
+    }
+    .map-card.swap { opacity: 0; transform: translateY(10px); }
+    .map-card h5 { color: var(--coral); font-size: 13px; font-weight: 800; }
+    .map-card span { font-size: 10.5px; color: var(--muted); }
+
+    /* Chat screen */
+    .s-chat-head { display: flex; align-items: center; gap: 9px; padding-bottom: 11px; border-bottom: 1px solid var(--border); margin-bottom: 11px; }
+    .s-chat-head .cav { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #8b7cf6, #6d5ce6); display: flex; align-items: center; justify-content: center; font-size: 14px; }
+    .s-chat-head h5 { font-size: 13px; font-weight: 800; }
+    .s-chat-head span { display: block; font-size: 9.5px; color: var(--faint); font-weight: 400; }
+    .s-chat-body { flex: 1; display: flex; flex-direction: column; gap: 8px; overflow: hidden; justify-content: flex-end; min-height: 0; padding-bottom: 10px; }
+    .bub { max-width: 78%; border-radius: 14px; padding: 8px 11px; font-size: 11.5px; line-height: 1.45; opacity: 0; transform: translateY(8px) scale(.97); animation: msgIn .35s ease forwards; }
+    @keyframes msgIn { to { opacity: 1; transform: none; } }
+    .bub small { display: block; font-size: 8.5px; font-weight: 800; color: var(--coral); margin-bottom: 1px; }
+    .bub.in { background: var(--screen-2); border: 1px solid var(--border); align-self: flex-start; border-bottom-left-radius: 5px; }
+    .bub.out { background: linear-gradient(135deg, var(--coral), var(--coral-dark)); align-self: flex-end; border-bottom-right-radius: 5px; }
+    .bub.sys { align-self: center; background: rgba(74,222,128,0.12); border: 1px solid rgba(74,222,128,0.3); color: var(--green); font-size: 10px; font-weight: 700; padding: 6px 12px; border-radius: 20px; }
+    .typing { display: inline-flex; gap: 4px; align-items: center; }
+    .typing u { width: 5px; height: 5px; border-radius: 50%; background: var(--faint); text-decoration: none; animation: tdot 1s infinite; }
+    .typing u:nth-child(2) { animation-delay: .15s; } .typing u:nth-child(3) { animation-delay: .3s; }
+    @keyframes tdot { 0%,60%,100% { opacity: .3; transform: none; } 30% { opacity: 1; transform: translateY(-2px); } }
+    .s-chat-input { background: rgba(255,255,255,0.06); border-radius: 20px; padding: 9px 14px; font-size: 11px; color: var(--faint); }
+
+    /* Club screen */
+    .club-cover { height: 74px; border-radius: 14px; background: radial-gradient(90px 60px at 75% 20%, rgba(253,118,102,0.5), transparent 70%), linear-gradient(135deg, #2E2455, #1A1433); margin-bottom: 30px; position: relative; }
+    .club-badge {
+      position: absolute; left: 14px; bottom: -22px;
+      width: 48px; height: 48px; border-radius: 14px;
+      background: linear-gradient(135deg, var(--coral), var(--coral-dark));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 21px; border: 3px solid var(--screen);
+    }
+    .club-name { font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
+    .club-name em { font-style: normal; color: var(--green); font-size: 13px; }
+    .club-sub { font-size: 10px; color: var(--faint); margin-bottom: 12px; }
+    .ev-row { display: flex; align-items: center; gap: 10px; background: var(--screen-2); border: 1px solid var(--border); border-radius: 12px; padding: 9px 11px; margin-bottom: 8px; }
+    .ev-day { font-size: 9px; font-weight: 800; color: var(--coral); background: rgba(253,118,102,0.12); border-radius: 8px; padding: 5px 8px; text-align: center; line-height: 1.2; }
+    .ev-row h6 { font-size: 11.5px; font-weight: 700; flex: 1; }
+    .ev-row h6 span { display: block; font-size: 9px; color: var(--faint); font-weight: 400; }
+    .ev-live { display: inline-flex; align-items: center; gap: 5px; font-size: 8.5px; font-weight: 800; color: var(--green); }
+    .ev-live::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: livePulse 1.6s infinite; }
+    @keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+    .club-join { margin-top: auto; background: var(--coral); color: #fff; text-align: center; font-size: 12.5px; font-weight: 800; border-radius: 12px; padding: 11px; }
 
     /* ── Hero ────────────────────────────────────────── */
     .hero { padding: 84px 0 96px; background: linear-gradient(180deg, var(--bg-soft), var(--bg) 55%); }
-    .hero-grid {
-      display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 56px; align-items: center;
-    }
-    .hero h1 {
-      font-size: clamp(38px, 5.4vw, 60px); font-weight: 900; line-height: 1.08;
-      letter-spacing: -0.015em; margin-bottom: 22px;
-    }
+    .hero-grid { display: grid; grid-template-columns: 1.12fr 0.88fr; gap: 56px; align-items: center; }
+    .hero h1 { font-size: clamp(38px, 5.4vw, 60px); font-weight: 900; line-height: 1.08; letter-spacing: -0.015em; margin-bottom: 22px; }
     .hero .sub { font-size: 17.5px; color: var(--muted); max-width: 480px; margin-bottom: 34px; }
-    .store-note {
-      display: inline-flex; align-items: center; gap: 8px;
-      font-size: 13px; font-weight: 600; color: var(--faint);
-      border: 1px solid var(--border); border-radius: 24px;
-      padding: 7px 16px; margin-bottom: 26px;
-    }
+    .store-note { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--faint); border: 1px solid var(--border); border-radius: 24px; padding: 7px 16px; margin-bottom: 26px; }
     .store-note .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
-    .hero-phone { display: flex; justify-content: center; }
     @media (max-width: 880px) {
       .hero { padding: 56px 0 72px; }
       .hero-grid { grid-template-columns: 1fr; gap: 48px; }
-      .hero-phone { order: 2; }
+      .hero .phone-wrap { order: 2; }
     }
 
-    /* Waitlist (Newsletter-Stil) */
     .waitlist-form { display: flex; gap: 10px; max-width: 460px; }
     .waitlist-form input[type="email"] {
-      flex: 1; min-width: 0;
-      background: var(--card); border: 1px solid var(--border); border-radius: 13px;
-      padding: 15px 17px; color: #fff; font-size: 16px; font-family: inherit; outline: none;
-      transition: border-color .15s;
+      flex: 1; min-width: 0; background: var(--card); border: 1px solid var(--border); border-radius: 13px;
+      padding: 15px 17px; color: #fff; font-size: 16px; font-family: inherit; outline: none; transition: border-color .15s;
     }
-    .waitlist-form input[type="email"]:focus { border-color: rgba(253, 118, 102, 0.55); }
+    .waitlist-form input[type="email"]:focus { border-color: rgba(253,118,102,0.55); }
     .waitlist-form input::placeholder { color: var(--faint); }
     .btn-coral {
       background: var(--coral); color: #fff; border: none; border-radius: 13px;
       padding: 15px 24px; font-size: 15.5px; font-weight: 800; font-family: inherit;
-      cursor: pointer; white-space: nowrap;
-      transition: background .15s, opacity .15s;
+      cursor: pointer; white-space: nowrap; transition: background .15s, opacity .15s;
     }
     .btn-coral:hover { background: var(--coral-dark); }
     .btn-coral:disabled { opacity: .55; cursor: wait; }
+    .btn-block { width: 100%; }
+    .btn-link { text-decoration: none; display: inline-block; }
     .form-msg { margin-top: 12px; font-size: 14px; font-weight: 600; min-height: 21px; }
     .form-msg.ok { color: var(--green); }
     .form-msg.err { color: #ff8a8a; }
     .waitlist-hint { margin-top: 6px; font-size: 12.5px; color: var(--faint); }
     @media (max-width: 520px) { .waitlist-form { flex-direction: column; } }
 
+    /* ── Live-Ticker: echte Gruppen aus der App ─────── */
+    .ticker-band {
+      padding: 26px 0 28px; overflow: hidden; position: relative;
+      background: rgba(255,255,255,0.02);
+      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+    }
+    .ticker-head {
+      display: flex; align-items: center; justify-content: center; gap: 9px;
+      font-size: 11.5px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
+      color: var(--faint); margin-bottom: 16px;
+    }
+    .ticker-head .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: livePulse 1.6s infinite; }
+    .ticker-rail { display: flex; width: max-content; gap: 12px; animation: tick 45s linear infinite; }
+    .ticker-rail:hover { animation-play-state: paused; }
+    @keyframes tick { to { transform: translateX(-50%); } }
+    .chip {
+      display: inline-flex; align-items: center; gap: 9px; white-space: nowrap;
+      background: var(--card); border: 1px solid var(--border); border-radius: 24px;
+      padding: 10px 18px; font-size: 13.5px; color: var(--muted);
+    }
+    .chip b { color: #fff; font-weight: 700; }
+    .chip .when { color: var(--coral); font-weight: 700; font-size: 12.5px; }
+    .ticker-band::before, .ticker-band::after {
+      content: ''; position: absolute; top: 0; bottom: 0; width: 90px; z-index: 2; pointer-events: none;
+    }
+    .ticker-band::before { left: 0; background: linear-gradient(90deg, var(--bg), transparent); }
+    .ticker-band::after { right: 0; background: linear-gradient(-90deg, var(--bg), transparent); }
+    @media (prefers-reduced-motion: reduce) { .ticker-rail { animation: none; } }
+
     /* ── Abwechselnde Feature-Sektionen ─────────────── */
-    .feature {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center;
-      padding: 88px 0;
-    }
-    .feature .phone-col { display: flex; justify-content: center; }
-    .feature h2 {
-      font-size: clamp(30px, 4.4vw, 46px); font-weight: 900; line-height: 1.12;
-      letter-spacing: -0.015em; margin-bottom: 18px;
-    }
+    .feature { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; padding: 88px 0; }
+    .feature h2 { font-size: clamp(30px, 4.4vw, 46px); font-weight: 900; line-height: 1.12; letter-spacing: -0.015em; margin-bottom: 18px; }
     .feature p { font-size: 16.5px; color: var(--muted); max-width: 440px; }
     .feature .mini { margin-top: 18px; font-size: 14px; color: var(--faint); }
     @media (max-width: 880px) {
       .feature { grid-template-columns: 1fr; gap: 44px; padding: 60px 0; }
-      /* Auf Mobile immer Text zuerst, dann Phone */
-      .feature .phone-col { order: 2; }
+      .feature .phone-wrap { order: 2; }
       .feature .text-col { order: 1; }
     }
     .divider { height: 1px; background: var(--border); max-width: 1140px; margin: 0 auto; }
 
-    /* ── CTA ─────────────────────────────────────────── */
-    .cta-band {
-      text-align: center; padding: 96px 0;
-      background: linear-gradient(180deg, var(--bg), var(--bg-soft));
-      border-top: 1px solid var(--border);
+    /* Sicherheit-Band */
+    .trust-band { text-align: center; padding: 76px 0; }
+    .trust-band h2 { font-size: clamp(26px, 3.8vw, 38px); font-weight: 900; letter-spacing: -0.015em; margin-bottom: 12px; }
+    .trust-band > .container > p { color: var(--muted); max-width: 520px; margin: 0 auto 30px; }
+    .trust-chips { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+    .trust-chips span {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--card); border: 1px solid var(--border); border-radius: 24px;
+      padding: 10px 18px; font-size: 14px; font-weight: 600; color: var(--muted);
     }
+
+    /* ── CTA ─────────────────────────────────────────── */
+    .cta-band { text-align: center; padding: 96px 0; background: linear-gradient(180deg, var(--bg), var(--bg-soft)); border-top: 1px solid var(--border); }
     .cta-band h2 { font-size: clamp(30px, 4.4vw, 44px); font-weight: 900; letter-spacing: -0.015em; margin-bottom: 14px; }
     .cta-band p { color: var(--muted); max-width: 480px; margin: 0 auto 30px; }
     .cta-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
-    .btn-ghost {
-      display: inline-block; text-decoration: none;
-      color: #fff; border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 13px;
-      padding: 15px 26px; font-size: 15.5px; font-weight: 700;
-      transition: border-color .15s, background .15s;
-    }
-    .btn-ghost:hover { border-color: rgba(255, 255, 255, 0.45); background: rgba(255, 255, 255, 0.04); }
-    .btn-block { width: 100%; }
-    .btn-link { text-decoration: none; display: inline-block; }
+    .btn-ghost { display: inline-block; text-decoration: none; color: #fff; border: 1px solid rgba(255,255,255,0.22); border-radius: 13px; padding: 15px 26px; font-size: 15.5px; font-weight: 700; transition: border-color .15s, background .15s; }
+    .btn-ghost:hover { border-color: rgba(255,255,255,0.45); background: rgba(255,255,255,0.04); }
 
     /* ── Footer + Kontakt ────────────────────────────── */
     footer { padding: 76px 0 40px; background: #0e0b1c; border-top: 1px solid var(--border); }
@@ -173,7 +273,6 @@
     .footer-brand p { color: var(--muted); font-size: 14.5px; margin-top: 14px; max-width: 340px; }
     .footer-company { margin-top: 26px; font-size: 13px; color: var(--faint); line-height: 1.7; }
     .footer-company a { color: var(--coral); text-decoration: none; }
-
     .contact-card { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 30px; }
     .contact-card h3 { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
     .contact-card .contact-sub { font-size: 14px; color: var(--muted); margin-bottom: 22px; }
@@ -182,22 +281,24 @@
     .field { flex: 1; margin-bottom: 14px; }
     .field label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
     .field input, .field textarea {
-      width: 100%; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border);
+      width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border);
       border-radius: 12px; padding: 13px 14px; color: #fff; font-size: 15px; font-family: inherit;
       outline: none; transition: border-color .15s; resize: vertical;
     }
-    .field input:focus, .field textarea:focus { border-color: rgba(253, 118, 102, 0.55); }
+    .field input:focus, .field textarea:focus { border-color: rgba(253,118,102,0.55); }
     .field input::placeholder, .field textarea::placeholder { color: var(--faint); }
     .hp-field { position: absolute; left: -9999px; opacity: 0; height: 0; overflow: hidden; }
-
-    .footer-legal {
-      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
-      gap: 14px; padding-top: 28px; border-top: 1px solid var(--border);
-      font-size: 13px; color: var(--faint);
-    }
+    .footer-legal { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding-top: 28px; border-top: 1px solid var(--border); font-size: 13px; color: var(--faint); }
     .footer-legal .links { display: flex; flex-wrap: wrap; gap: 20px; }
     .footer-legal a { color: var(--faint); text-decoration: none; transition: color .15s; }
     .footer-legal a:hover { color: #fff; }
+
+    /* Reduzierte Bewegung: alle Loops aus */
+    @media (prefers-reduced-motion: reduce) {
+      .phone { animation: none; }
+      .pin::after, .g-card.boosted, .ev-live::before { animation: none; }
+      .reveal { opacity: 1; transform: none; transition: none; }
+    }
   </style>
 </head>
 <body>
@@ -214,7 +315,7 @@
     </div>
   </nav>
 
-  <!-- ── Hero: Text links, echter App-Screenshot rechts ── -->
+  <!-- ── Hero: Live-Feed-Phone ──────────────────────── -->
   <header class="hero" id="top">
     <div class="container hero-grid">
       <div>
@@ -228,16 +329,70 @@
         <div class="form-msg" id="waitlist-msg" role="status"></div>
         <p class="waitlist-hint">Wir informieren dich zum App-Launch — kein Spam, versprochen.</p>
       </div>
-      <div class="hero-phone">
-        <div class="phone"><img src="https://app.jamie-app.com/screenshots/01-aktivitaeten.png" alt="JAMIE App – Gruppen entdecken" width="1080" height="1920" /></div>
+      <div class="phone-wrap">
+        <div class="phone" aria-hidden="true">
+          <div class="screen">
+            <div class="s-appbar"><span class="wordmark">JAMIE</span></div>
+            <div class="s-tabs"><b class="on">Gruppen</b><b>Clubs</b><b>Karte</b></div>
+            <div class="s-search">Suchen …</div>
+            <div class="s-grid">
+              <div class="g-card boosted">
+                <div class="g-date">Heute</div>
+                <h4>Beachvolleyball</h4>
+                <span class="g-meta">7/12 Mitglieder</span>
+                <div class="avs"><i class="av-1">L</i><i class="av-3">M</i><i class="av-4">S</i><i class="av-plus">+4</i></div>
+                <span class="boost-chip">⚡ Boost</span>
+              </div>
+              <div class="g-card">
+                <div class="g-date">09. Aug.</div>
+                <h4>Bar-Hopping</h4>
+                <span class="g-meta">4/15 Mitglieder</span>
+                <div class="avs"><i class="av-2">A</i><i class="av-5">J</i><i class="av-plus">+2</i></div>
+              </div>
+              <div class="g-card">
+                <div class="g-date">Morgen</div>
+                <h4>Lauftreff Prater</h4>
+                <span class="g-meta">9/20 Mitglieder</span>
+                <div class="avs"><i class="av-3">T</i><i class="av-1">N</i><i class="av-2">E</i><i class="av-plus">+6</i></div>
+              </div>
+              <div class="g-card">
+                <div class="g-date">Sa.</div>
+                <h4>Museums-Brunch</h4>
+                <span class="g-meta">3/8 Mitglieder</span>
+                <div class="avs"><i class="av-4">K</i><i class="av-5">P</i><i class="av-plus">+1</i></div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </header>
 
-  <!-- ── Karte: Phone links, Text rechts ─────────────── -->
-  <section class="feature container" id="karte">
-    <div class="phone-col">
-      <div class="phone"><img src="https://app.jamie-app.com/screenshots/03-karte.png" alt="JAMIE App – Karte mit Aktivitäten" loading="lazy" width="1080" height="1920" /></div>
+  <!-- ── Live-Ticker: echte Gruppen aus der Produktions-App ── -->
+  <div class="ticker-band" aria-hidden="true">
+    <div class="ticker-head"><span class="live-dot"></span> <span id="ticker-label">Gerade los auf JAMIE</span></div>
+    <div class="ticker-rail" id="ticker-rail"></div>
+  </div>
+
+  <!-- ── Karte: animierte Pins + wechselnde Event-Karte ── -->
+  <section class="feature container reveal" id="karte">
+    <div class="phone-wrap">
+      <div class="phone" aria-hidden="true">
+        <div class="screen">
+          <div class="s-appbar"><span class="wordmark">JAMIE</span></div>
+          <div class="s-tabs"><b>Gruppen</b><b>Clubs</b><b class="on">Karte</b></div>
+          <div class="s-map">
+            <div class="pin" style="left: 24%; top: 22%;"><span>🏐</span></div>
+            <div class="pin p2" style="left: 62%; top: 34%;"><span>🎳</span></div>
+            <div class="pin p3" style="left: 38%; top: 55%;"><span>🏃</span></div>
+            <div class="pin p4" style="left: 72%; top: 66%;"><span>🍸</span></div>
+            <div class="map-card" id="map-card">
+              <h5 id="map-title">Beachvolleyball · Donauinsel</h5>
+              <span id="map-sub">Heute 18:00 · 7/12 Mitglieder</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="text-col">
       <h2>Entdecke Aktivitäten auf der <span class="accent">Karte</span>.</h2>
@@ -247,41 +402,63 @@
 
   <div class="divider"></div>
 
-  <!-- ── Chat: Text links, Phone rechts ──────────────── -->
-  <section class="feature container">
+  <!-- ── Chat: schreibt sich live ───────────────────── -->
+  <section class="feature container reveal">
     <div class="text-col">
       <h2>Plane alles im <span class="accent">Echtzeit-Chat</span>.</h2>
       <p>Gruppenchats und private Nachrichten, ohne die App zu verlassen. Absprechen, verabreden, hingehen — so einfach ist das.</p>
+      <p class="mini">Der Chat hier links tippt übrigens gerade wirklich. 😉</p>
     </div>
-    <div class="phone-col">
-      <div class="phone"><img src="https://app.jamie-app.com/screenshots/02-chat.png" alt="JAMIE App – Echtzeit-Chat" loading="lazy" width="1080" height="1920" /></div>
+    <div class="phone-wrap">
+      <div class="phone" aria-hidden="true">
+        <div class="screen">
+          <div class="s-chat-head">
+            <div class="cav">🏐</div>
+            <div><h5>Beachvolleyball<span>8 Mitglieder · 3 online</span></h5></div>
+          </div>
+          <div class="s-chat-body" id="chat-body"></div>
+          <div class="s-chat-input">Nachricht schreiben …</div>
+        </div>
+      </div>
     </div>
   </section>
 
   <div class="divider"></div>
 
-  <!-- ── Clubs: Phone links, Text rechts ─────────────── -->
-  <section class="feature container">
-    <div class="phone-col">
-      <div class="phone"><img src="https://app.jamie-app.com/screenshots/04-clubs.png" alt="JAMIE App – Clubs" loading="lazy" width="1080" height="1920" /></div>
+  <!-- ── Clubs ──────────────────────────────────────── -->
+  <section class="feature container reveal">
+    <div class="phone-wrap">
+      <div class="phone" aria-hidden="true">
+        <div class="screen">
+          <div class="s-appbar"><span class="wordmark">JAMIE</span></div>
+          <div class="club-cover"><div class="club-badge">🎶</div></div>
+          <div class="club-name">Café Concerto Club <em>✓</em></div>
+          <div class="club-sub">142 Mitglieder · Musik &amp; Kultur · Wien</div>
+          <div class="ev-row"><div class="ev-day">DO<br />HEUTE</div><h6>Open-Mic-Abend<span>19:30 · Lerchenfelder Gürtel</span></h6><span class="ev-live">LIVE</span></div>
+          <div class="ev-row"><div class="ev-day">SA</div><h6>Jazz-Session<span>20:00 · wöchentlich</span></h6></div>
+          <div class="ev-row"><div class="ev-day">SO</div><h6>Brunch &amp; Vinyl<span>11:00 · wöchentlich</span></h6></div>
+          <div class="club-join">Club beitreten</div>
+        </div>
+      </div>
     </div>
     <div class="text-col">
       <h2><span class="accent">Clubs</span> für alles, was regelmäßig stattfindet.</h2>
-      <p>Vom Laufverein bis zur Stammtischrunde: Clubs haben eigene Events, Mitglieder und Chats — deine Community an einem Ort.</p>
+      <p>Vom Laufverein bis zur Konzertreihe: Clubs haben eigene Events, Mitglieder und Chats — deine Community an einem Ort.</p>
       <p class="mini">Für Vereine &amp; Locations: Schreib uns für ein eigenes Club-Profil.</p>
     </div>
   </section>
 
-  <div class="divider"></div>
-
-  <!-- ── Freunde: Text links, Phone rechts ───────────── -->
-  <section class="feature container">
-    <div class="text-col">
-      <h2>Finde neue <span class="accent">Freunde</span> — sicher &amp; entspannt.</h2>
-      <p>Echte Profile, Trusted-Badges, Melde- und Blockierfunktionen. JAMIE ist auf gutes Miteinander gebaut — online wie offline.</p>
-    </div>
-    <div class="phone-col">
-      <div class="phone"><img src="https://app.jamie-app.com/screenshots/05-freunde.png" alt="JAMIE App – Freunde und Profile" loading="lazy" width="1080" height="1920" /></div>
+  <!-- ── Sicherheit ─────────────────────────────────── -->
+  <section class="trust-band reveal">
+    <div class="container">
+      <h2>Gebaut auf gutes <span class="accent">Miteinander</span>.</h2>
+      <p>Echte Profile und Werkzeuge, die deine Community schützen — online wie offline.</p>
+      <div class="trust-chips">
+        <span>✓ Trusted-Badges</span>
+        <span>🛡️ Aktive Moderation</span>
+        <span>🚩 Melden &amp; Blockieren</span>
+        <span>🔒 Private Gruppen</span>
+      </div>
     </div>
   </section>
 
@@ -334,7 +511,6 @@
               <label for="c-msg">Nachricht</label>
               <textarea id="c-msg" rows="4" placeholder="Deine Nachricht an uns …" required maxlength="5000"></textarea>
             </div>
-            <!-- Honeypot: für Menschen unsichtbar, Bots füllen es aus -->
             <div class="hp-field" aria-hidden="true">
               <label for="c-website">Website</label>
               <input type="text" id="c-website" tabindex="-1" autocomplete="off" />
@@ -358,57 +534,200 @@
   </footer>
 
   <script>
-    // Beide Formulare sprechen das bestehende JAMIE-Backend an (Railway).
-    // https://jamie-app.com ist dort in der CORS-Allowlist (FRONTEND_URL).
     var API = 'https://api.jamie-app.com/api';
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     document.getElementById('year').textContent = new Date().getFullYear();
 
-    function setMsg(el, text, ok) {
-      el.textContent = text;
-      el.className = 'form-msg ' + (ok ? 'ok' : 'err');
+    /* ── Scroll-Reveal ─────────────────────────────── */
+    if ('IntersectionObserver' in window && !reduceMotion) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
+        });
+      }, { threshold: 0.15 });
+      document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+    } else {
+      document.querySelectorAll('.reveal').forEach(function (el) { el.classList.add('in'); });
     }
 
-    // ── Waitlist ──────────────────────────────────────
+    /* ── 3D-Tilt der Phones (nur Desktop-Pointer) ──── */
+    if (window.matchMedia('(pointer: fine)').matches && !reduceMotion) {
+      document.querySelectorAll('.phone-wrap').forEach(function (wrap) {
+        var phone = wrap.querySelector('.phone');
+        wrap.addEventListener('pointermove', function (e) {
+          var r = wrap.getBoundingClientRect();
+          var x = (e.clientX - r.left) / r.width - 0.5;
+          var y = (e.clientY - r.top) / r.height - 0.5;
+          phone.style.transform = 'rotateY(' + (x * 10) + 'deg) rotateX(' + (-y * 8) + 'deg)';
+        });
+        wrap.addEventListener('pointerleave', function () { phone.style.transform = ''; });
+      });
+    }
+
+    /* ── Live-Ticker: ECHTE Gruppen aus der App ────── */
+    (function () {
+      var rail = document.getElementById('ticker-rail');
+      if (!rail) return;
+      var CAT_EMOJI = {
+        'Fußball': '⚽', 'Tennis': '🎾', 'Volleyball': '🏐', 'Beachvolleyball': '🏐',
+        'Laufen': '🏃', 'Fitness': '🏋️', 'Wandern': '🥾', 'Radfahren': '🚴',
+        'Clubbing': '🪩', 'Ausgehen': '🍸', 'Bar': '🍻', 'Kultur': '🎭',
+        'Musik': '🎶', 'Essen': '🍕', 'Brunch': '🥐', 'Kaffee': '☕',
+        'Spiele': '🎲', 'Kino': '🎬', 'Schwimmen': '🏊', 'Basketball': '🏀'
+      };
+      function emojiFor(cat) {
+        if (!cat) return '📍';
+        for (var k in CAT_EMOJI) { if (cat.indexOf(k) !== -1) return CAT_EMOJI[k]; }
+        return '📍';
+      }
+      function whenLabel(d) {
+        if (!d) return 'Regelmäßig';
+        var date = new Date(d); if (isNaN(date)) return '';
+        var now = new Date();
+        var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        var day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        var diff = Math.round((day - today) / 86400000);
+        if (diff === 0) return 'Heute';
+        if (diff === 1) return 'Morgen';
+        if (diff > 1 && diff < 7) return ['So.','Mo.','Di.','Mi.','Do.','Fr.','Sa.'][date.getDay()];
+        return date.getDate() + '.' + (date.getMonth() + 1) + '.';
+      }
+      function cityOf(loc) {
+        if (!loc) return '';
+        var parts = loc.split(',');
+        return parts.length > 1 ? parts[parts.length - 1].trim().replace(/^\d+\s*/, '') : loc;
+      }
+      var fallback = [
+        { name: 'Beachvolleyball', category: 'Volleyball', date: null, location: 'Wien' },
+        { name: 'Lauftreff Prater', category: 'Laufen', date: null, location: 'Wien' },
+        { name: 'Bar-Hopping Neubau', category: 'Ausgehen', date: null, location: 'Wien' },
+        { name: 'Jazz-Session', category: 'Musik', date: null, location: 'Wien' },
+        { name: 'Wandern Kahlenberg', category: 'Wandern', date: null, location: 'Wien' }
+      ];
+      function render(groups, live) {
+        var upcoming = groups.filter(function (g) {
+          return g && g.name && (!g.date || new Date(g.date) >= new Date(Date.now() - 86400000));
+        }).slice(0, 12);
+        if (upcoming.length < 3) { upcoming = fallback; live = false; }
+        var html = upcoming.map(function (g) {
+          var when = whenLabel(g.date);
+          var city = cityOf(g.location);
+          return '<span class="chip">' + emojiFor(g.category) + ' <b></b>' +
+                 (when ? ' <span class="when"></span>' : '') + (city ? ' <span class="city"></span>' : '') + '</span>';
+        }).join('');
+        rail.innerHTML = html + html; /* doppelt → nahtloser Loop bei -50% */
+        /* Textinhalte sicher setzen (kein HTML aus Nutzerdaten) */
+        var chips = rail.querySelectorAll('.chip');
+        for (var i = 0; i < chips.length; i++) {
+          var g = upcoming[i % upcoming.length];
+          chips[i].querySelector('b').textContent = g.name;
+          var w = chips[i].querySelector('.when'); if (w) w.textContent = whenLabel(g.date);
+          var c = chips[i].querySelector('.city'); if (c) c.textContent = '· ' + cityOf(g.location);
+        }
+        if (!live) document.getElementById('ticker-label').textContent = 'Auf JAMIE zum Beispiel';
+      }
+      fetch(API + '/groups')
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+        .then(function (data) { render(Array.isArray(data) ? data : [], true); })
+        .catch(function () { render(fallback, false); });
+    })();
+
+    /* ── Karte: wechselnde Event-Karte ─────────────── */
+    (function () {
+      var events = [
+        ['Beachvolleyball · Donauinsel', 'Heute 18:00 · 7/12 Mitglieder'],
+        ['Bowling-Abend · 1070 Wien', 'Morgen 20:00 · 5/8 Mitglieder'],
+        ['Lauftreff · Prater Hauptallee', 'Sa. 09:00 · 9/20 Mitglieder'],
+        ['Cocktail-Tasting · Neubau', 'Sa. 21:00 · 3/6 Mitglieder']
+      ];
+      var i = 0, card = document.getElementById('map-card');
+      if (!card || reduceMotion) return;
+      setInterval(function () {
+        card.classList.add('swap');
+        setTimeout(function () {
+          i = (i + 1) % events.length;
+          document.getElementById('map-title').textContent = events[i][0];
+          document.getElementById('map-sub').textContent = events[i][1];
+          card.classList.remove('swap');
+        }, 400);
+      }, 3400);
+    })();
+
+    /* ── Chat: schreibt sich selbst, im Loop ───────── */
+    (function () {
+      var body = document.getElementById('chat-body');
+      if (!body) return;
+      var script = [
+        { t: 'in',  n: 'Lena',   x: 'Wer ist heute dabei? 🏐' },
+        { t: 'out',            x: 'Ich! 18 Uhr Donauinsel?' },
+        { t: 'in',  n: 'Moritz', x: 'Bin dabei — ich nehm den Ball mit 💪' },
+        { t: 'in',  n: 'Ayşe',   x: 'Same! Danach noch was trinken?' },
+        { t: 'out',            x: 'Immer. 😄' },
+        { t: 'sys',            x: '📅 Event im Kalender gespeichert' }
+      ];
+      function bubble(m) {
+        var d = document.createElement('div');
+        d.className = 'bub ' + m.t;
+        d.innerHTML = (m.n ? '<small></small>' : '') + '<span></span>';
+        if (m.n) d.querySelector('small').textContent = m.n;
+        d.querySelector('span').textContent = m.x;
+        return d;
+      }
+      function typingBubble() {
+        var d = document.createElement('div');
+        d.className = 'bub in';
+        d.innerHTML = '<span class="typing"><u></u><u></u><u></u></span>';
+        return d;
+      }
+      if (reduceMotion) { script.forEach(function (m) { body.appendChild(bubble(m)); }); return; }
+      var idx = 0;
+      function step() {
+        if (idx >= script.length) {
+          setTimeout(function () { body.innerHTML = ''; idx = 0; step(); }, 4200);
+          return;
+        }
+        var m = script[idx];
+        if (m.t === 'in') {
+          var tp = typingBubble();
+          body.appendChild(tp);
+          setTimeout(function () {
+            tp.replaceWith(bubble(m));
+            idx++; setTimeout(step, 900);
+          }, 850);
+        } else {
+          body.appendChild(bubble(m));
+          idx++; setTimeout(step, m.t === 'sys' ? 1200 : 1000);
+        }
+        while (body.children.length > 6) body.removeChild(body.firstChild);
+      }
+      step();
+    })();
+
+    /* ── Formulare (Waitlist + Kontakt → JAMIE-Backend) ── */
+    function setMsg(el, text, ok) { el.textContent = text; el.className = 'form-msg ' + (ok ? 'ok' : 'err'); }
+
     document.getElementById('waitlist-form').addEventListener('submit', function (e) {
       e.preventDefault();
       var input = document.getElementById('waitlist-email');
       var btn = document.getElementById('waitlist-btn');
       var msg = document.getElementById('waitlist-msg');
       var email = input.value.trim();
-
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        setMsg(msg, 'Bitte gib eine gültige E-Mail-Adresse ein.', false);
-        return;
-      }
-
-      btn.disabled = true;
-      btn.textContent = 'Einen Moment …';
-
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setMsg(msg, 'Bitte gib eine gültige E-Mail-Adresse ein.', false); return; }
+      btn.disabled = true; btn.textContent = 'Einen Moment …';
       fetch(API + '/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email })
       })
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
         .then(function (res) {
-          if (res.ok) {
-            setMsg(msg, '🎉 Du bist auf der Liste! Wir melden uns zum Launch.', true);
-            input.value = '';
-          } else {
-            setMsg(msg, res.d && res.d.error ? res.d.error : 'Das hat nicht geklappt. Bitte versuch es später erneut.', false);
-          }
+          if (res.ok) { setMsg(msg, '🎉 Du bist auf der Liste! Wir melden uns zum Launch.', true); input.value = ''; }
+          else { setMsg(msg, res.d && res.d.error ? res.d.error : 'Das hat nicht geklappt. Bitte versuch es später erneut.', false); }
         })
-        .catch(function () {
-          setMsg(msg, 'Verbindung fehlgeschlagen. Bitte versuch es später erneut.', false);
-        })
-        .finally(function () {
-          btn.disabled = false;
-          btn.textContent = 'Auf die Waitlist';
-        });
+        .catch(function () { setMsg(msg, 'Verbindung fehlgeschlagen. Bitte versuch es später erneut.', false); })
+        .finally(function () { btn.disabled = false; btn.textContent = 'Auf die Waitlist'; });
     });
 
-    // ── Kontakt ───────────────────────────────────────
     document.getElementById('contact-form').addEventListener('submit', function (e) {
       e.preventDefault();
       var btn = document.getElementById('contact-btn');
@@ -417,41 +736,24 @@
       var last = document.getElementById('c-last').value.trim();
       var email = document.getElementById('c-email').value.trim();
       var text = document.getElementById('c-msg').value.trim();
-
       if (!first || !last) { setMsg(msg, 'Bitte Vor- und Nachnamen angeben.', false); return; }
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setMsg(msg, 'Bitte gib eine gültige E-Mail-Adresse ein.', false); return; }
       if (text.length < 5) { setMsg(msg, 'Deine Nachricht ist etwas kurz — magst du sie ausführen?', false); return; }
-
-      btn.disabled = true;
-      btn.textContent = 'Wird gesendet …';
-
+      btn.disabled = true; btn.textContent = 'Wird gesendet …';
       fetch(API + '/contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          first_name: first,
-          last_name: last,
-          email: email,
-          message: text,
-          website: document.getElementById('c-website').value // Honeypot
+          first_name: first, last_name: last, email: email, message: text,
+          website: document.getElementById('c-website').value
         })
       })
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
         .then(function (res) {
-          if (res.ok) {
-            setMsg(msg, '✅ Danke! Deine Nachricht ist angekommen — wir melden uns bald.', true);
-            document.getElementById('contact-form').reset();
-          } else {
-            setMsg(msg, res.d && res.d.error ? res.d.error : 'Senden fehlgeschlagen. Bitte versuch es später erneut.', false);
-          }
+          if (res.ok) { setMsg(msg, '✅ Danke! Deine Nachricht ist angekommen — wir melden uns bald.', true); document.getElementById('contact-form').reset(); }
+          else { setMsg(msg, res.d && res.d.error ? res.d.error : 'Senden fehlgeschlagen. Bitte versuch es später erneut.', false); }
         })
-        .catch(function () {
-          setMsg(msg, 'Verbindung fehlgeschlagen. Bitte versuch es später erneut.', false);
-        })
-        .finally(function () {
-          btn.disabled = false;
-          btn.textContent = 'Nachricht senden';
-        });
+        .catch(function () { setMsg(msg, 'Verbindung fehlgeschlagen. Bitte versuch es später erneut.', false); })
+        .finally(function () { btn.disabled = false; btn.textContent = 'Nachricht senden'; });
     });
   </script>
 </body>
