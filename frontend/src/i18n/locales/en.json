@@ -1670,7 +1670,13 @@
       "categorySuggestions": "Category suggestions",
       "newUsers": "New users",
       "allUsersFmt": "All users ({{count}})",
-      "csvExport": "CSV export"
+      "csvExport": "CSV export",
+      "onlineNowFmt": "Online now ({{count}})"
+    },
+    "online": {
+      "empty": "Nobody is online right now.",
+      "sinceFmt": "since {{time}}",
+      "devicesFmt": "{{count}} connections"
     },
     "kpis": {
       "total": "Total",

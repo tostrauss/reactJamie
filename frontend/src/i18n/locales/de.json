@@ -1670,7 +1670,13 @@
       "categorySuggestions": "Kategorie-Vorschläge",
       "newUsers": "Neue Nutzer",
       "allUsersFmt": "Alle Nutzer ({{count}})",
-      "csvExport": "CSV Export"
+      "csvExport": "CSV Export",
+      "onlineNowFmt": "Gerade online ({{count}})"
+    },
+    "online": {
+      "empty": "Gerade ist niemand online.",
+      "sinceFmt": "seit {{time}}",
+      "devicesFmt": "{{count}} Verbindungen"
     },
     "kpis": {
       "total": "Gesamt",

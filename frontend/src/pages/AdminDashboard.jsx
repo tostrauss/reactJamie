@@ -113,6 +113,22 @@ export const AdminDashboard = () => {
     setUserTotal(prev => Math.max(0, prev - 1));
   };
 
+  // ---- Online users (live presence) ---------------------------------------
+  // Polled every 30s — cheap on the server (reads the Socket.IO connection
+  // map). Stays null while loading or when the backend route doesn't exist
+  // yet (old deployment) → the section simply doesn't render.
+  const [onlineUsers, setOnlineUsers] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchOnline = () =>
+      admin.getOnlineUsers()
+        .then(res => { if (!cancelled) setOnlineUsers(res.data); })
+        .catch(() => {}); // tolerant: keep last state on error / missing route
+    fetchOnline();
+    const iv = setInterval(fetchOnline, 30000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -567,6 +583,66 @@ export const AdminDashboard = () => {
             </button>
           ))}
         </div>
+
+        {/* Online users — live Socket.IO presence, polled every 30s. Sits at
+            the very bottom (Tobi, 2026-07-06). Hidden until the first
+            successful fetch, so old backends without the route show nothing. */}
+        {onlineUsers !== null && (
+          <div style={{ marginTop: 32 }}>
+            <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: '50%', background: '#4ade80',
+                boxShadow: '0 0 6px rgba(74,222,128,0.8)', display: 'inline-block', flexShrink: 0,
+              }} />
+              {t('admin.sections.onlineNowFmt', { count: onlineUsers.count })}
+            </h2>
+            <div style={{ background: 'var(--bg-card, #1e2235)', borderRadius: 16, overflow: 'hidden' }}>
+              {(onlineUsers.users || []).length === 0 ? (
+                <div style={{ padding: 20, fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
+                  {t('admin.online.empty')}
+                </div>
+              ) : onlineUsers.users.map((u, i) => (
+                <div key={u.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
+                  borderBottom: i < onlineUsers.users.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                }}>
+                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                    <div style={{
+                      width: 36, height: 36, borderRadius: '50%',
+                      background: '#FD7666', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 14, fontWeight: 700, color: '#fff', overflow: 'hidden',
+                    }}>
+                      {u.avatar_url
+                        ? <img src={u.avatar_url} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : u.name?.[0]?.toUpperCase()}
+                    </div>
+                    {/* Green presence dot on the avatar */}
+                    <span style={{
+                      position: 'absolute', right: -1, bottom: -1, width: 10, height: 10,
+                      borderRadius: '50%', background: '#4ade80',
+                      border: '2px solid var(--bg-card, #1e2235)',
+                    }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>
+                      {u.name}
+                      {u.is_admin && <span style={{ color: '#FD7666', marginLeft: 6, fontSize: 10, fontWeight: 700, letterSpacing: 0.5 }}>ADMIN</span>}
+                    </div>
+                    <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email}</div>
+                  </div>
+                  <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, flexShrink: 0, textAlign: 'right' }}>
+                    {t('admin.online.sinceFmt', { time: new Date(u.connected_at).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' }) })}
+                    {u.sockets > 1 && (
+                      <div style={{ color: 'rgba(255,255,255,0.25)' }}>
+                        {t('admin.online.devicesFmt', { count: u.sockets })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {managingUser && (

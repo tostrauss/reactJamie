@@ -467,3 +467,56 @@ export const exportSuggestions = async (_req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+// ==========================================
+// ONLINE USERS (live Socket.IO presence)
+// ==========================================
+// "Online" = at least one authenticated socket connected RIGHT NOW. Derived
+// directly from io.sockets.sockets — no parallel presence bookkeeping that
+// could drift. Every socket carries userId from its JWT handshake (socket.js);
+// guests (userId 0) and unauthenticated sockets are skipped. Single-instance
+// deployment (one Railway service), so the local connection map is complete.
+export const getOnlineUsers = async (req, res) => {
+  try {
+    const io = req.app.get('io');
+    if (!io) return res.json({ count: 0, users: [] });
+
+    // userId → { sockets, connectedAt: earliest handshake among their sockets }
+    const online = new Map();
+    for (const socket of io.sockets.sockets.values()) {
+      const uid = socket.userId;
+      if (!uid) continue;
+      const issued = socket.handshake?.issued || Date.now();
+      const prev = online.get(uid);
+      if (prev) {
+        prev.sockets += 1;
+        prev.connectedAt = Math.min(prev.connectedAt, issued);
+      } else {
+        online.set(uid, { sockets: 1, connectedAt: issued });
+      }
+    }
+
+    if (online.size === 0) return res.json({ count: 0, users: [] });
+
+    const result = await db.query(
+      `SELECT id, name, email, avatar_url, is_admin
+         FROM users
+        WHERE id = ANY($1::int[])`,
+      [[...online.keys()]]
+    );
+
+    const users = result.rows
+      .map(u => ({
+        ...u,
+        sockets: online.get(u.id)?.sockets ?? 1,
+        connected_at: new Date(online.get(u.id)?.connectedAt ?? Date.now()).toISOString(),
+      }))
+      // Longest-online first — keeps the order stable between polls.
+      .sort((a, b) => new Date(a.connected_at) - new Date(b.connected_at));
+
+    res.json({ count: users.length, users });
+  } catch (error) {
+    console.error('Get online users error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

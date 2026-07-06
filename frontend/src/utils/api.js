@@ -642,6 +642,8 @@ export const admin = {
   getPendingClubs: () => axiosInstance.get('/admin/clubs/pending'),
   approveClub: (id) => axiosInstance.post(`/admin/clubs/${id}/approve`),
   rejectClub: (id) => axiosInstance.post(`/admin/clubs/${id}/reject`),
+  // Live presence: users with an active Socket.IO connection right now.
+  getOnlineUsers: () => axiosInstance.get('/admin/online-users'),
   // Per-club / per-group view rankings (analytics_events.subject_id ⨯ groups)
   getTopClubs: (days = 30, limit = 20) =>
     axiosInstance.get('/admin/top-clubs', { params: { days, limit } }),

@@ -13,6 +13,7 @@ import {
   deleteUser,
   updateUserRole,
   getTopClubs,
+  getOnlineUsers,
 } from '../controllers/adminController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 
@@ -39,6 +40,7 @@ router.patch('/users/:id/role', updateUserRole);
 router.delete('/users/:id', deleteUser);
 router.get('/screen-time', getScreenTime);
 router.get('/top-clubs',   getTopClubs);
+router.get('/online-users', getOnlineUsers);
 router.get('/export/users',       exportUsers);
 router.get('/export/screens',     exportScreens);
 router.get('/export/suggestions', exportSuggestions);
