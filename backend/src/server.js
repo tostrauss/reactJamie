@@ -231,12 +231,30 @@ const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000,http:
   .split(',')
   .map(o => o.trim());
 
+// Native app shells present non-web Origins on cross-origin XHR: WKWebView
+// serializes the Capacitor scheme-handler origin as the OPAQUE origin "null"
+// on some WebKit versions (App Review 2026-07-06, iPadOS 26.5, build 1.0(5):
+// login died with the client-generic "Login failed" because the old callback
+// THREW on unknown origins → 500 without CORS headers → WebKit blocked the
+// response). Plain Capacitor defaults use capacitor://localhost. These are
+// our own clients — CORS is not an auth boundary (JWT/httpOnly cookie are),
+// so allow them explicitly.
+const NATIVE_ORIGINS = ['null', 'capacitor://localhost', 'https://localhost', 'http://localhost'];
+
+const isAllowedOrigin = (origin) =>
+  !origin // same-origin requests, curl, server-to-server
+  || allowedOrigins.includes(origin)
+  || NATIVE_ORIGINS.includes(origin);
+
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, Postman)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    callback(new Error(`CORS blocked: ${origin}`));
+    if (isAllowedOrigin(origin)) return callback(null, true);
+    // Deny WITHOUT throwing: a thrown error became a 500 with NO CORS headers,
+    // which reads as a network failure in every client. callback(null, false)
+    // answers normally but without ACAO — browsers still block cross-origin
+    // readers, and we keep a log line to spot new legitimate origins.
+    console.warn(`[CORS] denied origin: ${origin}`);
+    callback(null, false);
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
@@ -407,7 +425,10 @@ app.head('/api/health', async (_req, res) => {
 // ==========================================
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    // Same set as the HTTP CORS above — incl. the native-shell origins
+    // ("null", capacitor://localhost), or the polling transport breaks in
+    // the iOS app the same way HTTP requests did.
+    origin: [...allowedOrigins, ...NATIVE_ORIGINS],
     methods: ['GET', 'POST']
   },
   // Detect dead mobile connections faster: default pingInterval=25s, pingTimeout=20s means
