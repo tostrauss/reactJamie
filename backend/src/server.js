@@ -231,20 +231,24 @@ const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000,http:
   .split(',')
   .map(o => o.trim());
 
-// Native app shells present non-web Origins on cross-origin XHR: WKWebView
-// serializes the Capacitor scheme-handler origin as the OPAQUE origin "null"
-// on some WebKit versions (App Review 2026-07-06, iPadOS 26.5, build 1.0(5):
-// login died with the client-generic "Login failed" because the old callback
-// THREW on unknown origins → 500 without CORS headers → WebKit blocked the
-// response). Plain Capacitor defaults use capacitor://localhost. These are
-// our own clients — CORS is not an auth boundary (JWT/httpOnly cookie are),
-// so allow them explicitly.
-const NATIVE_ORIGINS = ['null', 'capacitor://localhost', 'https://localhost', 'http://localhost'];
+// Native app shells present non-web Origins on cross-origin XHR. CONFIRMED
+// via Railway logs from the App Review session (2026-07-06 12:28:30, iPadOS
+// 26.5, build 1.0(5)): the reviewer's WKWebView sent
+//   Origin: capacitor://app.jamie-app.com
+// (scheme falls back to capacitor:// despite iosScheme https on that WebKit),
+// the old callback THREW on it → 500 without CORS headers → WebKit blocked
+// the response → the app showed the client-generic "Login failed". Older/
+// other WebKits may serialize the same origin as "null" or use the default
+// capacitor://localhost. These are all OUR OWN clients — CORS is not an auth
+// boundary (JWT/httpOnly cookie are), so allow every capacitor:// origin
+// plus the known fallbacks explicitly.
+const NATIVE_ORIGINS = ['null', 'https://localhost', 'http://localhost'];
 
 const isAllowedOrigin = (origin) =>
   !origin // same-origin requests, curl, server-to-server
   || allowedOrigins.includes(origin)
-  || NATIVE_ORIGINS.includes(origin);
+  || NATIVE_ORIGINS.includes(origin)
+  || origin.startsWith('capacitor://'); // Capacitor shell, any hostname/WebKit variant
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -425,10 +429,9 @@ app.head('/api/health', async (_req, res) => {
 // ==========================================
 const io = new Server(server, {
   cors: {
-    // Same set as the HTTP CORS above — incl. the native-shell origins
-    // ("null", capacitor://localhost), or the polling transport breaks in
-    // the iOS app the same way HTTP requests did.
-    origin: [...allowedOrigins, ...NATIVE_ORIGINS],
+    // Same rules as the HTTP CORS above — incl. capacitor:// origins — or
+    // the polling transport breaks in the iOS app the same way HTTP did.
+    origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
     methods: ['GET', 'POST']
   },
   // Detect dead mobile connections faster: default pingInterval=25s, pingTimeout=20s means
