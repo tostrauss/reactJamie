@@ -1686,7 +1686,6 @@
       "trusted": "Trusted",
       "groups": "Groups (events)",
       "clubs": "Clubs",
-      "reviews": "Reviews",
       "redemptionsTotal": "Total redeemed",
       "redemptionsTotalSub_one": "across {{count}} deal",
       "redemptionsTotalSub_other": "across {{count}} deals"

@@ -5,7 +5,7 @@ import db from '../config/database.js';
 // ==========================================
 export const getStats = async (_req, res) => {
   try {
-    const [users, groups, events, reviews, suggestions, topScreens, churn, dealRedemptions] = await Promise.all([
+    const [users, groups, events, suggestions, topScreens, churn, dealRedemptions] = await Promise.all([
       // User counts. Aliases match what AdminDashboard renders (`u.this_week`,
       // `u.this_month`) — earlier the SQL was using `week`/`month` and the
       // dashboard fell back to undefined → blank "-" cells.
@@ -42,8 +42,6 @@ export const getStats = async (_req, res) => {
         WHERE type = 'group' AND date IS NOT NULL
           AND deleted_at IS NULL AND is_active = TRUE
       `),
-      // Review counts
-      db.query(`SELECT COUNT(*) AS total FROM event_reviews`),
       // Category suggestions
       db.query(`SELECT suggestion, COUNT(*) AS votes FROM category_suggestions GROUP BY suggestion ORDER BY votes DESC LIMIT 20`),
       // Top screens by view count (last 30 days)
@@ -90,7 +88,6 @@ export const getStats = async (_req, res) => {
       users: users.rows[0],
       groups: groups.rows[0],
       events: events.rows[0],
-      reviews: reviews.rows[0],
       top_screens: topScreens.rows,
       churn_screens: churn.rows,
       category_suggestions: suggestions.rows,
