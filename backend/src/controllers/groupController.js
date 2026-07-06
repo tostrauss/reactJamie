@@ -1040,6 +1040,10 @@ export const getUserGroups = async (req, res) => {
          SELECT m.content, m.created_at, m.user_id
          FROM messages m
          WHERE m.group_id = g.id
+           -- Chat-list preview must not leak pre-join history: getMessages
+           -- hides messages older than the member's joined_at, so the
+           -- preview applies the same cutoff.
+           AND m.created_at >= gm.joined_at
          ORDER BY m.created_at DESC
          LIMIT 1
        ) lm ON TRUE
