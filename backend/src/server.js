@@ -134,6 +134,7 @@ import boostRoutes from './routes/boostRoutes.js';
 import iapRoutes from './routes/iapRoutes.js';
 import mapRoutes from './routes/mapRoutes.js';
 import waitlistRoutes from './routes/waitlistRoutes.js';
+import contactRoutes from './routes/contactRoutes.js';
 import dealRoutes from './routes/dealRoutes.js';
 import suggestionRoutes from './routes/suggestionRoutes.js';
 import featureInterestRoutes from './routes/featureInterestRoutes.js';
@@ -383,6 +384,7 @@ app.use('/api/boost', boostRoutes);
 app.use('/api/iap', iapRoutes);
 app.use('/api/map', mapRoutes);
 app.use('/api/waitlist', waitlistRoutes);
+app.use('/api/contact', contactRoutes);
 app.use('/api/deals', dealRoutes);
 app.use('/api/suggestions', suggestionRoutes);
 app.use('/api/feature-interest', featureInterestRoutes);
@@ -1276,6 +1278,19 @@ const runStartupMigrations = async () => {
     // Recompute every existing row under the new formula (fires the trigger).
     await db.query(`UPDATE users SET updated_at = NOW() WHERE profile_completion <> 100`);
   });
+
+  // ── Website contact form (jamie-app.com footer) ──────────────────────────
+  // Source of truth for contact submissions; each row is also forwarded via
+  // email (best-effort) to CONTACT_EMAIL / office@jamie-app.com.
+  await migrate('contact_messages', () => db.query(`
+    CREATE TABLE IF NOT EXISTS contact_messages (
+      id         SERIAL PRIMARY KEY,
+      first_name VARCHAR(100) NOT NULL,
+      last_name  VARCHAR(100) NOT NULL,
+      email      VARCHAR(254) NOT NULL,
+      message    TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`));
 
   console.log('✅ Startup migrations done');
 };

@@ -162,6 +162,33 @@ export const sendAdminClubPendingEmail = async (club, ownerUserId) => {
   });
 };
 
+// Website contact form (jamie-app.com footer) → forwarded to the office
+// inbox. Our minimal sender has no Reply-To support, so the sender's address
+// is prominent in the body for manual replies. Subject strips newlines to
+// keep header injection impossible even though Resend would reject it anyway.
+export const sendContactEmail = async ({ firstName, lastName, email, message }) => {
+  const to = process.env.CONTACT_EMAIL || 'office@jamie-app.com';
+  const safeName = `${firstName} ${lastName}`.replace(/[\r\n]/g, ' ').slice(0, 120);
+  return sendEmail({
+    to,
+    subject: `Kontaktformular: ${safeName}`,
+    html: `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:500px;margin:0 auto;padding:40px 20px;background:#f9f9f9;">
+        <div style="background:#fff;border-radius:16px;padding:40px 32px;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+          <h1 style="color:#FD7666;font-size:28px;margin:0 0 4px;">JAMIE</h1>
+          <h2 style="color:#222;font-size:20px;margin:0 0 20px;">Neue Kontaktanfrage über die Website</h2>
+          <p style="color:#555;line-height:1.6;margin:0 0 8px;"><strong>Von:</strong> ${escapeHtml(firstName)} ${escapeHtml(lastName)}</p>
+          <p style="color:#555;line-height:1.6;margin:0 0 20px;"><strong>E-Mail:</strong> <a href="mailto:${escapeHtml(email)}" style="color:#FD7666;">${escapeHtml(email)}</a></p>
+          <div style="background:#f4f4f4;border-radius:12px;padding:20px;color:#333;line-height:1.6;white-space:pre-wrap;">${escapeHtml(message)}</div>
+          <p style="color:#999;font-size:13px;line-height:1.5;margin:20px 0 0;">
+            Antworte einfach direkt an die E-Mail-Adresse oben.
+          </p>
+        </div>
+      </div>
+    `
+  });
+};
+
 export const sendOTPEmail = async (email, code, userName) => {
   return sendEmail({
     to: email,

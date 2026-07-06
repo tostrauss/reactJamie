@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>JAMIE – Finde Leute für Aktivitäten in deiner Nähe</title>
+  <meta name="description" content="JAMIE ist deine Social-App für Aktivitäten: Gruppen erstellen oder beitreten, in Echtzeit chatten, Clubs entdecken und lokale Events auf der Karte finden." />
+  <meta name="theme-color" content="#1A1433" />
+  <link rel="icon" href="https://app.jamie-app.com/apple-touch-icon-180x180.png" />
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://jamie-app.com/" />
+  <meta property="og:title" content="JAMIE – Social Activity App" />
+  <meta property="og:description" content="Finde Leute für Aktivitäten, tritt Gruppen bei und entdecke Clubs in deiner Nähe." />
+  <meta property="og:image" content="https://app.jamie-app.com/og-image.png" />
+  <meta property="og:locale" content="de_AT" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,600;0,700;0,900;1,900&display=swap" />
+  <style>
+    :root {
+      --coral: #FD7666;
+      --coral-dark: #e5574a;
+      --bg: #1A1433;
+      --bg-2: #231B43;
+      --card: rgba(255, 255, 255, 0.045);
+      --border: rgba(255, 255, 255, 0.09);
+      --text: #ffffff;
+      --muted: rgba(255, 255, 255, 0.55);
+      --faint: rgba(255, 255, 255, 0.35);
+      --green: #4ade80;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+    .wordmark {
+      font-style: italic;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      color: var(--coral);
+    }
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+    /* ── Nav ─────────────────────────────────────────── */
+    nav {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(26, 20, 51, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 24px; max-width: 1100px; margin: 0 auto;
+    }
+    .nav-logo { font-size: 26px; text-decoration: none; }
+    .nav-links { display: flex; align-items: center; gap: 24px; }
+    .nav-links a { color: var(--muted); text-decoration: none; font-size: 15px; font-weight: 600; transition: color .15s; }
+    .nav-links a:hover { color: #fff; }
+    .nav-links a.nav-cta {
+      background: linear-gradient(135deg, var(--coral), var(--coral-dark));
+      color: #fff; padding: 10px 20px; border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(253, 118, 102, 0.35);
+    }
+    @media (max-width: 640px) { .nav-links a:not(.nav-cta) { display: none; } }
+
+    /* ── Hero ────────────────────────────────────────── */
+    .hero {
+      position: relative;
+      padding: 96px 0 80px;
+      text-align: center;
+      background:
+        radial-gradient(600px 400px at 15% 0%, rgba(253, 118, 102, 0.14), transparent 70%),
+        radial-gradient(700px 500px at 90% 20%, rgba(120, 90, 255, 0.12), transparent 70%),
+        linear-gradient(175deg, var(--bg-2) 0%, var(--bg) 70%);
+    }
+    .hero h1 { font-size: clamp(56px, 10vw, 96px); line-height: 1; margin-bottom: 18px; }
+    .hero .tagline {
+      font-size: clamp(20px, 3.2vw, 28px); font-weight: 700; color: #fff;
+      margin-bottom: 14px;
+    }
+    .hero .sub {
+      font-size: 17px; color: var(--muted); max-width: 560px; margin: 0 auto 40px;
+    }
+    .store-note {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 13.5px; font-weight: 600; color: var(--faint);
+      border: 1px solid var(--border); border-radius: 24px;
+      padding: 8px 18px; margin-bottom: 36px;
+    }
+    .store-note .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px rgba(74,222,128,.8); }
+
+    /* Waitlist form (Newsletter-Stil) */
+    .waitlist-box { max-width: 520px; margin: 0 auto; }
+    .waitlist-form { display: flex; gap: 10px; }
+    .waitlist-form input[type="email"] {
+      flex: 1; min-width: 0;
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+      padding: 16px 18px; color: #fff; font-size: 16px; font-family: inherit; outline: none;
+      transition: border-color .15s;
+    }
+    .waitlist-form input[type="email"]:focus { border-color: rgba(253, 118, 102, 0.6); }
+    .waitlist-form input::placeholder { color: var(--faint); }
+    .btn-coral {
+      background: linear-gradient(135deg, var(--coral), var(--coral-dark));
+      color: #fff; border: none; border-radius: 14px;
+      padding: 16px 26px; font-size: 16px; font-weight: 800; font-family: inherit;
+      cursor: pointer; white-space: nowrap;
+      box-shadow: 0 8px 24px rgba(253, 118, 102, 0.35);
+      transition: transform .12s, box-shadow .12s, opacity .12s;
+    }
+    .btn-coral:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(253, 118, 102, 0.45); }
+    .btn-coral:disabled { opacity: .55; cursor: wait; transform: none; }
+    .form-msg { margin-top: 14px; font-size: 14.5px; font-weight: 600; min-height: 22px; }
+    .form-msg.ok { color: var(--green); }
+    .form-msg.err { color: #ff8a8a; }
+    .waitlist-hint { margin-top: 10px; font-size: 12.5px; color: var(--faint); }
+    @media (max-width: 520px) { .waitlist-form { flex-direction: column; } }
+
+    /* ── Sections ────────────────────────────────────── */
+    section { padding: 88px 0; }
+    .section-label {
+      text-transform: uppercase; letter-spacing: 2px; font-size: 12.5px; font-weight: 700;
+      color: var(--coral); margin-bottom: 12px; text-align: center;
+    }
+    .section-title {
+      font-size: clamp(28px, 4.5vw, 40px); font-weight: 900; text-align: center;
+      margin-bottom: 14px; line-height: 1.2;
+    }
+    .section-sub { text-align: center; color: var(--muted); max-width: 540px; margin: 0 auto 56px; }
+
+    /* Features */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px;
+    }
+    .feature-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 20px;
+      padding: 28px 26px; transition: transform .15s, border-color .15s;
+    }
+    .feature-card:hover { transform: translateY(-3px); border-color: rgba(253, 118, 102, 0.35); }
+    .feature-icon {
+      width: 52px; height: 52px; border-radius: 14px; font-size: 26px;
+      display: flex; align-items: center; justify-content: center; margin-bottom: 18px;
+      background: rgba(253, 118, 102, 0.12); border: 1px solid rgba(253, 118, 102, 0.22);
+    }
+    .feature-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .feature-card p { font-size: 14.5px; color: var(--muted); }
+
+    /* Steps */
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+    .step {
+      text-align: center; padding: 32px 24px;
+      background: var(--card); border: 1px solid var(--border); border-radius: 20px;
+    }
+    .step-num {
+      width: 44px; height: 44px; border-radius: 50%; margin: 0 auto 18px;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, var(--coral), var(--coral-dark));
+      font-weight: 900; font-size: 18px; color: #fff;
+      box-shadow: 0 6px 18px rgba(253, 118, 102, 0.4);
+    }
+    .step h3 { font-size: 17px; margin-bottom: 8px; }
+    .step p { font-size: 14px; color: var(--muted); }
+
+    /* CTA band */
+    .cta-band {
+      background:
+        radial-gradient(500px 300px at 80% 100%, rgba(253, 118, 102, 0.16), transparent 70%),
+        linear-gradient(175deg, var(--bg-2), var(--bg));
+      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      text-align: center;
+    }
+    .cta-band .btn-coral { margin-top: 8px; }
+
+    /* ── Footer + contact ────────────────────────────── */
+    footer { padding: 72px 0 40px; background: #140F28; border-top: 1px solid var(--border); }
+    .footer-grid {
+      display: grid; grid-template-columns: 1fr 1.2fr; gap: 56px; margin-bottom: 56px;
+    }
+    @media (max-width: 800px) { .footer-grid { grid-template-columns: 1fr; } }
+    .footer-brand .nav-logo { font-size: 30px; }
+    .footer-brand p { color: var(--muted); font-size: 14.5px; margin-top: 14px; max-width: 340px; }
+    .footer-company { margin-top: 26px; font-size: 13px; color: var(--faint); line-height: 1.7; }
+    .footer-company a { color: var(--coral); text-decoration: none; }
+
+    .contact-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 30px;
+    }
+    .contact-card h3 { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+    .contact-card .contact-sub { font-size: 14px; color: var(--muted); margin-bottom: 22px; }
+    .contact-row { display: flex; gap: 12px; }
+    @media (max-width: 520px) { .contact-row { flex-direction: column; gap: 0; } }
+    .field { flex: 1; margin-bottom: 14px; }
+    .field label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+    .field input, .field textarea {
+      width: 100%; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border);
+      border-radius: 12px; padding: 13px 14px; color: #fff; font-size: 15px; font-family: inherit;
+      outline: none; transition: border-color .15s; resize: vertical;
+    }
+    .field input:focus, .field textarea:focus { border-color: rgba(253, 118, 102, 0.6); }
+    .field input::placeholder, .field textarea::placeholder { color: var(--faint); }
+    /* Honeypot: visually gone, still fillable by naive bots */
+    .hp-field { position: absolute; left: -9999px; opacity: 0; height: 0; overflow: hidden; }
+
+    .footer-legal {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+      gap: 14px; padding-top: 28px; border-top: 1px solid var(--border);
+      font-size: 13px; color: var(--faint);
+    }
+    .footer-legal .links { display: flex; flex-wrap: wrap; gap: 20px; }
+    .footer-legal a { color: var(--faint); text-decoration: none; transition: color .15s; }
+    .footer-legal a:hover { color: #fff; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Navigation ─────────────────────────────────── -->
+  <nav>
+    <div class="nav-inner">
+      <a class="wordmark nav-logo" href="#top">JAMIE</a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#so-gehts">So funktioniert's</a>
+        <a href="#kontakt">Kontakt</a>
+        <a class="nav-cta" href="https://app.jamie-app.com">Zur App</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Hero mit Waitlist ──────────────────────────── -->
+  <header class="hero" id="top">
+    <div class="container">
+      <h1 class="wordmark">JAMIE</h1>
+      <p class="tagline">Finde Leute für Aktivitäten in deiner Nähe.</p>
+      <p class="sub">Erstelle oder tritt Gruppen für Sport, Kultur und Ausgehen bei, chatte in Echtzeit und entdecke lokale Events &amp; Clubs — alles in einer App.</p>
+      <div class="store-note"><span class="dot"></span> Jetzt als Web-App verfügbar · Bald im App Store &amp; bei Google Play</div>
+
+      <div class="waitlist-box">
+        <form class="waitlist-form" id="waitlist-form" novalidate>
+          <input type="email" id="waitlist-email" placeholder="deine@email.com" autocomplete="email" required />
+          <button type="submit" class="btn-coral" id="waitlist-btn">Auf die Waitlist</button>
+        </form>
+        <div class="form-msg" id="waitlist-msg" role="status"></div>
+        <p class="waitlist-hint">Wir informieren dich zum Launch — kein Spam, versprochen.</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Features ───────────────────────────────────── -->
+  <section id="features">
+    <div class="container">
+      <p class="section-label">Features</p>
+      <h2 class="section-title">Alles, was du für gemeinsame<br />Aktivitäten brauchst</h2>
+      <p class="section-sub">JAMIE bringt Menschen zusammen, die etwas erleben wollen — von der spontanen Laufrunde bis zum wöchentlichen Stammtisch.</p>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">👥</div>
+          <h3>Gruppen erstellen &amp; beitreten</h3>
+          <p>Starte deine eigene Aktivität oder schließe dich anderen an — Sport, Kultur, Ausgehen und mehr.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">💬</div>
+          <h3>Echtzeit-Chat</h3>
+          <p>Plane alles direkt in der Gruppe: Gruppenchats und private Nachrichten, ohne die App zu verlassen.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🏆</div>
+          <h3>Clubs für regelmäßige Events</h3>
+          <p>Wöchentliche Aktivitäten, Vereine und Communities — mit eigenen Events und Mitgliederverwaltung.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🗺️</div>
+          <h3>Interaktive Karte</h3>
+          <p>Entdecke Aktivitäten und Events in deiner Nähe auf der Karte — auf einen Blick.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">⭐</div>
+          <h3>Exklusive Deals</h3>
+          <p>Löse Angebote von lokalen Partnern ein — von der Kaffeebar bis zur Sportstätte.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🛡️</div>
+          <h3>Sichere Community</h3>
+          <p>Verifizierte Profile, Melde- und Blockierfunktionen und aktive Moderation für ein gutes Miteinander.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── So funktioniert's ──────────────────────────── -->
+  <section id="so-gehts" style="padding-top: 0;">
+    <div class="container">
+      <p class="section-label">So funktioniert's</p>
+      <h2 class="section-title">In drei Schritten dabei</h2>
+      <p class="section-sub">Kein kompliziertes Setup — anmelden, Aktivität finden, Leute treffen.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <h3>Profil erstellen</h3>
+          <p>Melde dich kostenlos an und erzähl kurz, was dich interessiert.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <h3>Aktivität finden</h3>
+          <p>Stöbere durch Gruppen, Clubs und Events in deiner Nähe — oder starte deine eigene.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <h3>Leute treffen</h3>
+          <p>Chatte mit der Gruppe, speichere das Event im Kalender und erlebt etwas zusammen.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA ────────────────────────────────────────── -->
+  <section class="cta-band">
+    <div class="container">
+      <h2 class="section-title">Bereit, Leute kennenzulernen?</h2>
+      <p class="section-sub" style="margin-bottom: 28px;">Probier JAMIE jetzt als Web-App aus — oder trag dich oben in die Waitlist ein und erfahre als Erste:r vom App-Launch.</p>
+      <a class="btn-coral" style="display: inline-block; text-decoration: none;" href="https://app.jamie-app.com">JAMIE jetzt ausprobieren</a>
+    </div>
+  </section>
+
+  <!-- ── Footer mit Kontaktformular ─────────────────── -->
+  <footer id="kontakt">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <span class="wordmark nav-logo">JAMIE</span>
+          <p>Die Social-App für gemeinsame Aktivitäten. Gemacht in Wien, für alle, die lieber draußen was erleben als endlos zu scrollen.</p>
+          <div class="footer-company">
+            IMPIBAG e.U.<br />
+            Witthauergasse 6/1<br />
+            1180 Wien, Österreich<br />
+            <a href="mailto:office@jamie-app.com">office@jamie-app.com</a>
+          </div>
+        </div>
+
+        <div class="contact-card">
+          <h3>Schreib uns</h3>
+          <p class="contact-sub">Fragen, Feedback oder Kooperationsideen? Wir antworten in der Regel innerhalb von 24&nbsp;Stunden.</p>
+          <form id="contact-form" novalidate>
+            <div class="contact-row">
+              <div class="field">
+                <label for="c-first">Vorname</label>
+                <input type="text" id="c-first" placeholder="Max" autocomplete="given-name" required maxlength="100" />
+              </div>
+              <div class="field">
+                <label for="c-last">Nachname</label>
+                <input type="text" id="c-last" placeholder="Mustermann" autocomplete="family-name" required maxlength="100" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="c-email">E-Mail</label>
+              <input type="email" id="c-email" placeholder="max@beispiel.com" autocomplete="email" required maxlength="254" />
+            </div>
+            <div class="field">
+              <label for="c-msg">Nachricht</label>
+              <textarea id="c-msg" rows="4" placeholder="Deine Nachricht an uns …" required maxlength="5000"></textarea>
+            </div>
+            <!-- Honeypot: für Menschen unsichtbar, Bots füllen es aus -->
+            <div class="hp-field" aria-hidden="true">
+              <label for="c-website">Website</label>
+              <input type="text" id="c-website" tabindex="-1" autocomplete="off" />
+            </div>
+            <button type="submit" class="btn-coral" id="contact-btn" style="width: 100%;">Nachricht senden</button>
+            <div class="form-msg" id="contact-msg" role="status"></div>
+          </form>
+        </div>
+      </div>
+
+      <div class="footer-legal">
+        <span>© <span id="year"></span> IMPIBAG e.U. — JAMIE</span>
+        <div class="links">
+          <a href="https://app.jamie-app.com/privacy">Datenschutz</a>
+          <a href="https://app.jamie-app.com/terms">AGB</a>
+          <a href="https://app.jamie-app.com/impressum">Impressum</a>
+          <a href="https://app.jamie-app.com/guidelines">Community-Richtlinien</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Beide Formulare sprechen das bestehende JAMIE-Backend an (Railway).
+    // https://jamie-app.com ist dort in der CORS-Allowlist (FRONTEND_URL).
+    var API = 'https://api.jamie-app.com/api';
+
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    function setMsg(el, text, ok) {
+      el.textContent = text;
+      el.className = 'form-msg ' + (ok ? 'ok' : 'err');
+    }
+
+    // ── Waitlist ──────────────────────────────────────
+    document.getElementById('waitlist-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var input = document.getElementById('waitlist-email');
+      var btn = document.getElementById('waitlist-btn');
+      var msg = document.getElementById('waitlist-msg');
+      var email = input.value.trim();
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setMsg(msg, 'Bitte gib eine gültige E-Mail-Adresse ein.', false);
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Einen Moment …';
+
+      fetch(API + '/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email })
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+          if (res.ok) {
+            setMsg(msg, '🎉 Du bist auf der Liste! Wir melden uns zum Launch.', true);
+            input.value = '';
+          } else {
+            setMsg(msg, res.d && res.d.error ? res.d.error : 'Das hat nicht geklappt. Bitte versuch es später erneut.', false);
+          }
+        })
+        .catch(function () {
+          setMsg(msg, 'Verbindung fehlgeschlagen. Bitte versuch es später erneut.', false);
+        })
+        .finally(function () {
+          btn.disabled = false;
+          btn.textContent = 'Auf die Waitlist';
+        });
+    });
+
+    // ── Kontakt ───────────────────────────────────────
+    document.getElementById('contact-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var btn = document.getElementById('contact-btn');
+      var msg = document.getElementById('contact-msg');
+      var first = document.getElementById('c-first').value.trim();
+      var last = document.getElementById('c-last').value.trim();
+      var email = document.getElementById('c-email').value.trim();
+      var text = document.getElementById('c-msg').value.trim();
+
+      if (!first || !last) { setMsg(msg, 'Bitte Vor- und Nachnamen angeben.', false); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setMsg(msg, 'Bitte gib eine gültige E-Mail-Adresse ein.', false); return; }
+      if (text.length < 5) { setMsg(msg, 'Deine Nachricht ist etwas kurz — magst du sie ausführen?', false); return; }
+
+      btn.disabled = true;
+      btn.textContent = 'Wird gesendet …';
+
+      fetch(API + '/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          first_name: first,
+          last_name: last,
+          email: email,
+          message: text,
+          website: document.getElementById('c-website').value // Honeypot
+        })
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+        .then(function (res) {
+          if (res.ok) {
+            setMsg(msg, '✅ Danke! Deine Nachricht ist angekommen — wir melden uns bald.', true);
+            document.getElementById('contact-form').reset();
+          } else {
+            setMsg(msg, res.d && res.d.error ? res.d.error : 'Senden fehlgeschlagen. Bitte versuch es später erneut.', false);
+          }
+        })
+        .catch(function () {
+          setMsg(msg, 'Verbindung fehlgeschlagen. Bitte versuch es später erneut.', false);
+        })
+        .finally(function () {
+          btn.disabled = false;
+          btn.textContent = 'Nachricht senden';
+        });
+    });
+  </script>
+</body>
+</html>
