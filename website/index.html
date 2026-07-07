@@ -17,35 +17,31 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,600;0,700;0,900;1,900&display=swap" />
   <style>
+    /* Marketing-Farbwelt (Seite) + ECHTE App-Tokens (Phone-Screens, 1:1 aus
+       frontend/src/styles/global.css): --app-bg #231B43, --app-card #291C4B,
+       --app-input #313154, --app-border #392B58, --app-muted #9BA2B0. */
     :root {
       --coral: #FD7666; --coral-dark: #e5574a;
       --bg: #131022; --bg-soft: #181430;
-      --screen: #1E1839; --screen-2: #262047;
+      --app-bg: #231B43; --app-card: #291C4B; --app-input: #313154;
+      --app-border: #392B58; --app-muted: #9BA2B0;
       --card: rgba(255,255,255,0.04); --border: rgba(255,255,255,0.08);
       --text: #fff; --muted: rgba(255,255,255,0.6); --faint: rgba(255,255,255,0.35);
       --green: #4ade80;
+      --ease: cubic-bezier(.22,.61,.36,1);
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html { scroll-behavior: smooth; }
-    body {
-      font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden;
-    }
+    body { font-family: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden; }
     .wordmark { font-style: italic; font-weight: 900; letter-spacing: -0.02em; color: var(--coral); }
     .container { max-width: 1140px; margin: 0 auto; padding: 0 28px; }
     .accent { color: var(--coral); }
 
-    /* ── Scroll-Reveal ───────────────────────────────── */
-    .reveal { opacity: 0; transform: translateY(28px); transition: opacity .7s ease, transform .7s ease; }
+    .reveal { opacity: 0; transform: translateY(28px); transition: opacity .8s var(--ease), transform .8s var(--ease); }
     .reveal.in { opacity: 1; transform: none; }
 
     /* ── Nav ─────────────────────────────────────────── */
-    nav {
-      position: sticky; top: 0; z-index: 50;
-      background: rgba(19,16,34,0.88);
-      -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border);
-    }
+    nav { position: sticky; top: 0; z-index: 50; background: rgba(19,16,34,0.88); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
     .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 18px 28px; max-width: 1140px; margin: 0 auto; }
     .nav-logo { font-size: 25px; text-decoration: none; }
     .nav-links { display: flex; align-items: center; gap: 28px; }
@@ -55,146 +51,151 @@
     .nav-links a.nav-cta:hover { background: var(--coral-dark); }
     @media (max-width: 680px) { .nav-links a:not(.nav-cta) { display: none; } }
 
-    /* ── Phone (live UI, kein Screenshot) ────────────── */
+    /* ── Phone-Rahmen ────────────────────────────────── */
     .phone-wrap { display: flex; justify-content: center; perspective: 1200px; }
     .phone {
-      width: min(310px, 80vw); aspect-ratio: 9 / 18.6;
-      border-radius: 46px; border: 11px solid #08070f; background: var(--screen);
+      width: min(312px, 80vw); aspect-ratio: 9 / 18.8;
+      border-radius: 46px; border: 11px solid #08070f; background: var(--app-bg);
       box-shadow: 0 34px 90px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.07);
       overflow: hidden; flex-shrink: 0; position: relative;
       display: flex; flex-direction: column;
-      transition: transform .25s ease;
-      animation: float 7s ease-in-out infinite;
+      transition: transform .3s var(--ease);
+      animation: float 9s ease-in-out infinite;
     }
-    @keyframes float { 0%,100% { translate: 0 0; } 50% { translate: 0 -10px; } }
+    @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
 
-    .screen { flex: 1; display: flex; flex-direction: column; padding: 18px 14px 14px; min-height: 0; }
-    .s-appbar { text-align: center; font-size: 21px; margin-bottom: 12px; }
-    .s-tabs { display: flex; justify-content: center; gap: 20px; font-size: 12.5px; font-weight: 700; color: var(--faint); margin-bottom: 12px; }
-    .s-tabs b { font-weight: 700; padding-bottom: 4px; }
-    .s-tabs b.on { color: #fff; border-bottom: 2px solid var(--coral); }
-    .s-search { background: rgba(255,255,255,0.06); border-radius: 11px; padding: 9px 12px; font-size: 12px; color: var(--faint); margin-bottom: 12px; }
+    /* Statusleiste + App-Chrome — wie die echte App */
+    .s-status { display: flex; justify-content: space-between; padding: 12px 20px 2px; font-size: 11px; font-weight: 700; color: #fff; }
+    .s-status .r { color: var(--app-muted); letter-spacing: 1px; }
+    .screen { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .s-appbar { text-align: center; font-size: 21px; padding: 6px 0 4px; }
+    .s-tabs { display: flex; justify-content: center; gap: 26px; font-size: 13px; font-weight: 700; color: var(--app-muted); padding-bottom: 10px; }
+    .s-tabs b { position: relative; font-weight: 700; }
+    .s-tabs b.on { color: #fff; }
+    .s-tabs b.on::after { content: ''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); width: 24px; height: 3px; background: var(--coral); border-radius: 99px; }
+    .s-search { display: flex; align-items: center; justify-content: space-between; background: var(--app-input); border-radius: 12px; padding: 9px 13px; font-size: 12px; color: var(--app-muted); margin: 2px 14px 12px; }
+    .s-search svg { opacity: .8; }
+    .s-body { flex: 1; min-height: 0; overflow: hidden; padding: 0 14px; }
 
-    /* Feed cards */
-    .s-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-height: 0; overflow: hidden; }
-    .g-card { background: var(--screen-2); border: 1px solid var(--border); border-radius: 14px; padding: 10px; position: relative; }
-    .g-date { position: absolute; top: 8px; right: 8px; font-size: 8.5px; font-weight: 700; color: var(--faint); background: rgba(0,0,0,0.3); border-radius: 6px; padding: 2px 6px; }
-    .g-card h4 { color: var(--coral); font-size: 13px; font-weight: 800; margin-bottom: 2px; padding-right: 34px; }
-    .g-meta { font-size: 9.5px; color: var(--faint); display: block; margin-bottom: 8px; }
-    .avs { display: flex; }
-    .avs i {
-      width: 26px; height: 26px; border-radius: 50%; font-style: normal;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 11px; font-weight: 800; color: #fff;
-      border: 2px solid var(--screen-2); margin-left: -7px;
-    }
-    .avs i:first-child { margin-left: 0; }
-    .av-1 { background: linear-gradient(135deg, #FD7666, #e5574a); }
-    .av-2 { background: linear-gradient(135deg, #8b7cf6, #6d5ce6); }
-    .av-3 { background: linear-gradient(135deg, #34d399, #0ea5a4); }
-    .av-4 { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
-    .av-5 { background: linear-gradient(135deg, #f472b6, #db2777); }
-    .av-plus { background: rgba(255,255,255,0.1); font-size: 12px; }
-    .g-card.boosted { border-color: rgba(253,118,102,0.55); animation: boostGlow 2.6s ease-in-out infinite; }
-    @keyframes boostGlow {
-      0%,100% { box-shadow: 0 0 0 rgba(253,118,102,0); }
-      50% { box-shadow: 0 0 22px rgba(253,118,102,0.4); }
-    }
-    .boost-chip { position: absolute; bottom: 8px; right: 8px; font-size: 9px; font-weight: 800; color: #ffd166; }
+    /* Echte Bottom-Nav: Icons aus App.jsx, Plus = Quadrat #313154 r18 */
+    .s-nav { flex-shrink: 0; display: flex; align-items: flex-end; justify-content: space-around; background: var(--app-bg); border-top: 1px solid rgba(255,255,255,0.08); padding: 7px 10px 10px; }
+    .s-nav .ni { display: flex; align-items: center; justify-content: center; width: 34px; height: 30px; }
+    .s-nav .ni svg { width: 22px; height: 22px; }
+    .s-add { width: 44px; height: 44px; margin-top: -16px; background: var(--app-input); border: 1px solid var(--app-border); border-radius: 15px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 25px; font-weight: 400; line-height: 1; box-shadow: 0 6px 16px rgba(0,0,0,0.35); }
 
-    /* Map screen */
-    .s-map {
-      flex: 1; position: relative; border-radius: 16px; overflow: hidden; min-height: 0;
+    /* Gruppen-Karten: echtes Layout (Titel-Header + 2×2-Foto-Grid + Datums-Pill) */
+    .s-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; height: 100%; }
+    .g-card { background: var(--app-card); border: 1px solid var(--app-border); border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; }
+    .g-head { padding: 9px 10px 6px; }
+    .g-head h4 { color: var(--coral); font-size: 13.5px; font-weight: 700; line-height: 1.15; }
+    .g-head span { font-size: 9.5px; color: var(--app-muted); font-weight: 600; }
+    .g-photos { position: relative; flex: 1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; margin: 0 8px 8px; border-radius: 10px; overflow: hidden; min-height: 0; }
+    .ph { display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: rgba(255,255,255,0.92); min-height: 34px; }
+    .ph-1 { background: linear-gradient(135deg, #FD7666, #b34437); }
+    .ph-2 { background: linear-gradient(135deg, #8b7cf6, #4c3fa8); }
+    .ph-3 { background: linear-gradient(135deg, #2fb789, #10655f); }
+    .ph-4 { background: linear-gradient(135deg, #f0a63a, #b06612); }
+    .ph-5 { background: linear-gradient(135deg, #ef6a9e, #a12a5e); }
+    .ph-6 { background: linear-gradient(135deg, #46a0dd, #1f5a94); }
+    .ph-plus { background: var(--app-input); color: var(--app-muted); font-size: 17px; font-weight: 400; }
+    .g-date { position: absolute; top: 6px; left: 6px; background: var(--coral); color: #fff; font-size: 8.5px; font-weight: 600; padding: 3px 8px; border-radius: 99px; z-index: 2; }
+    .g-card.boosted { border-color: rgba(253,118,102,0.6); }
+    .g-card.boosted .g-head h4::after { content: ' ⚡'; font-size: 10px; }
+    /* Live-Join: Avatar ploppt ins Grid, Zähler springt hoch */
+    .ph-join { position: relative; }
+    .ph-join .joiner { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #46a0dd, #1f5a94); font-size: 13px; font-weight: 800; opacity: 0; transform: scale(.4); transition: opacity .35s var(--ease), transform .45s cubic-bezier(.34,1.56,.64,1); }
+    .ph-join.joined .joiner { opacity: 1; transform: scale(1); }
+
+    /* Karte */
+    .s-pills { display: flex; gap: 6px; margin: 0 14px 10px; }
+    .s-pills span { font-size: 10px; font-weight: 700; padding: 5px 12px; border-radius: 99px; background: var(--app-input); color: var(--app-muted); border: 1px solid var(--app-border); }
+    .s-pills span.on { background: var(--coral); color: #fff; border-color: var(--coral); }
+    .s-map { position: relative; height: 100%; border-radius: 14px; overflow: hidden;
       background:
         repeating-linear-gradient(65deg, transparent 0 34px, rgba(255,255,255,0.035) 34px 35px),
         repeating-linear-gradient(-25deg, transparent 0 46px, rgba(255,255,255,0.03) 46px 47px),
-        radial-gradient(140px 100px at 68% 30%, rgba(139,124,246,0.14), transparent 70%),
-        radial-gradient(160px 120px at 25% 65%, rgba(253,118,102,0.12), transparent 70%),
-        var(--screen-2);
+        radial-gradient(140px 100px at 68% 30%, rgba(139,124,246,0.13), transparent 70%),
+        radial-gradient(160px 120px at 25% 65%, rgba(253,118,102,0.11), transparent 70%),
+        var(--app-card);
     }
-    .pin { position: absolute; width: 30px; height: 30px; border-radius: 50% 50% 50% 4px; transform: rotate(-45deg); display: flex; align-items: center; justify-content: center; background: var(--screen); border: 2px solid var(--coral); }
-    .pin span { transform: rotate(45deg); font-size: 13px; }
-    .pin::after {
-      content: ''; position: absolute; inset: -9px; border-radius: 50%;
-      border: 2px solid rgba(253,118,102,0.45); animation: ping 2.4s ease-out infinite;
-    }
-    .pin.p2 { border-color: #8b7cf6; } .pin.p2::after { border-color: rgba(139,124,246,0.45); animation-delay: .5s; }
-    .pin.p3 { border-color: #34d399; } .pin.p3::after { border-color: rgba(52,211,153,0.45); animation-delay: 1.1s; }
-    .pin.p4 { border-color: #fbbf24; } .pin.p4::after { border-color: rgba(251,191,36,0.4); animation-delay: 1.7s; }
-    @keyframes ping { 0% { transform: rotate(45deg) scale(.6); opacity: 1; } 100% { transform: rotate(45deg) scale(1.8); opacity: 0; } }
-    .map-card {
-      position: absolute; left: 10px; right: 10px; bottom: 10px;
-      background: rgba(19,16,34,0.92); border: 1px solid var(--border); border-radius: 14px;
-      padding: 11px 13px; transition: opacity .4s, transform .4s;
-    }
+    .pin { position: absolute; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--app-bg); border: 2px solid var(--coral); box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
+    .pin span { font-size: 13px; }
+    .pin::after { content: ''; position: absolute; inset: -8px; border-radius: 50%; border: 2px solid rgba(253,118,102,0.45); animation: ping 2.6s ease-out infinite; }
+    .pin.p2 { border-color: #8b7cf6; } .pin.p2::after { border-color: rgba(139,124,246,0.45); animation-delay: .6s; }
+    .pin.p3 { border-color: #2fb789; } .pin.p3::after { border-color: rgba(47,183,137,0.45); animation-delay: 1.2s; }
+    .pin.p4 { border-color: #f0a63a; } .pin.p4::after { border-color: rgba(240,166,58,0.4); animation-delay: 1.8s; }
+    @keyframes ping { 0% { transform: scale(.55); opacity: 1; } 100% { transform: scale(1.7); opacity: 0; } }
+    .map-card { position: absolute; left: 10px; right: 10px; bottom: 10px; background: var(--app-card); border: 1px solid var(--app-border); border-radius: 14px; padding: 10px 12px; transition: opacity .4s var(--ease), transform .4s var(--ease); }
     .map-card.swap { opacity: 0; transform: translateY(10px); }
-    .map-card h5 { color: var(--coral); font-size: 13px; font-weight: 800; }
-    .map-card span { font-size: 10.5px; color: var(--muted); }
+    .map-card h5 { color: var(--coral); font-size: 12.5px; font-weight: 700; }
+    .map-card span { font-size: 10px; color: var(--app-muted); font-weight: 600; }
 
-    /* Chat screen */
-    .s-chat-head { display: flex; align-items: center; gap: 9px; padding-bottom: 11px; border-bottom: 1px solid var(--border); margin-bottom: 11px; }
-    .s-chat-head .cav { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #8b7cf6, #6d5ce6); display: flex; align-items: center; justify-content: center; font-size: 14px; }
-    .s-chat-head h5 { font-size: 13px; font-weight: 800; }
-    .s-chat-head span { display: block; font-size: 9.5px; color: var(--faint); font-weight: 400; }
-    .s-chat-body { flex: 1; display: flex; flex-direction: column; gap: 8px; overflow: hidden; justify-content: flex-end; min-height: 0; padding-bottom: 10px; }
-    .bub { max-width: 78%; border-radius: 14px; padding: 8px 11px; font-size: 11.5px; line-height: 1.45; opacity: 0; transform: translateY(8px) scale(.97); animation: msgIn .35s ease forwards; }
+    /* Chat: echte Bubble-Optik (sent = coral, received = bg-card) */
+    .s-chat-head { display: flex; align-items: center; gap: 10px; padding: 6px 14px 11px; border-bottom: 1px solid var(--app-border); }
+    .s-chat-head .back { color: var(--app-muted); font-size: 17px; }
+    .s-chat-head .cav { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #8b7cf6, #4c3fa8); display: flex; align-items: center; justify-content: center; font-size: 14px; }
+    .s-chat-head h5 { font-size: 13px; font-weight: 800; line-height: 1.15; }
+    .s-chat-head h5 span { display: block; font-size: 9px; color: var(--app-muted); font-weight: 600; }
+    .s-chat-body { flex: 1; display: flex; flex-direction: column; gap: 7px; overflow: hidden; justify-content: flex-end; min-height: 0; padding: 10px 14px; }
+    .bub { max-width: 80%; border-radius: 16px; padding: 8px 12px; font-size: 11.5px; line-height: 1.4; opacity: 0; transform: translateY(8px) scale(.97); animation: msgIn .4s var(--ease) forwards; }
     @keyframes msgIn { to { opacity: 1; transform: none; } }
     .bub small { display: block; font-size: 8.5px; font-weight: 800; color: var(--coral); margin-bottom: 1px; }
-    .bub.in { background: var(--screen-2); border: 1px solid var(--border); align-self: flex-start; border-bottom-left-radius: 5px; }
-    .bub.out { background: linear-gradient(135deg, var(--coral), var(--coral-dark)); align-self: flex-end; border-bottom-right-radius: 5px; }
-    .bub.sys { align-self: center; background: rgba(74,222,128,0.12); border: 1px solid rgba(74,222,128,0.3); color: var(--green); font-size: 10px; font-weight: 700; padding: 6px 12px; border-radius: 20px; }
-    .typing { display: inline-flex; gap: 4px; align-items: center; }
-    .typing u { width: 5px; height: 5px; border-radius: 50%; background: var(--faint); text-decoration: none; animation: tdot 1s infinite; }
+    .bub.in { background: var(--app-card); border: 1px solid var(--app-border); align-self: flex-start; border-bottom-left-radius: 6px; }
+    .bub.out { background: var(--coral); color: #fff; align-self: flex-end; border-bottom-right-radius: 6px; }
+    .bub.sys { align-self: center; background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.3); color: var(--green); font-size: 10px; font-weight: 700; padding: 6px 12px; border-radius: 99px; }
+    .typing { display: inline-flex; gap: 4px; align-items: center; padding: 2px 0; }
+    .typing u { width: 5px; height: 5px; border-radius: 50%; background: var(--app-muted); animation: tdot 1.1s infinite; }
     .typing u:nth-child(2) { animation-delay: .15s; } .typing u:nth-child(3) { animation-delay: .3s; }
     @keyframes tdot { 0%,60%,100% { opacity: .3; transform: none; } 30% { opacity: 1; transform: translateY(-2px); } }
-    .s-chat-input { background: rgba(255,255,255,0.06); border-radius: 20px; padding: 9px 14px; font-size: 11px; color: var(--faint); }
+    .s-chat-inputrow { display: flex; gap: 8px; align-items: center; padding: 0 14px 4px; }
+    .s-chat-input { flex: 1; background: var(--app-input); border-radius: 99px; padding: 9px 14px; font-size: 11px; color: var(--app-muted); }
+    .s-send { width: 32px; height: 32px; border-radius: 50%; background: var(--coral); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .s-send svg { width: 14px; height: 14px; }
 
-    /* Club screen */
-    .club-cover { height: 74px; border-radius: 14px; background: radial-gradient(90px 60px at 75% 20%, rgba(253,118,102,0.5), transparent 70%), linear-gradient(135deg, #2E2455, #1A1433); margin-bottom: 30px; position: relative; }
-    .club-badge {
-      position: absolute; left: 14px; bottom: -22px;
-      width: 48px; height: 48px; border-radius: 14px;
-      background: linear-gradient(135deg, var(--coral), var(--coral-dark));
-      display: flex; align-items: center; justify-content: center;
-      font-size: 21px; border: 3px solid var(--screen);
-    }
+    /* Club-Screen */
+    .club-cover { height: 76px; border-radius: 14px; margin: 2px 14px 30px; position: relative; background: radial-gradient(90px 60px at 75% 20%, rgba(253,118,102,0.45), transparent 70%), linear-gradient(135deg, #34285f, var(--app-bg)); }
+    .club-badge { position: absolute; left: 13px; bottom: -22px; width: 48px; height: 48px; border-radius: 14px; background: linear-gradient(135deg, var(--coral), var(--coral-dark)); display: flex; align-items: center; justify-content: center; font-size: 21px; border: 3px solid var(--app-bg); }
+    .club-info { padding: 0 16px; }
     .club-name { font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
     .club-name em { font-style: normal; color: var(--green); font-size: 13px; }
-    .club-sub { font-size: 10px; color: var(--faint); margin-bottom: 12px; }
-    .ev-row { display: flex; align-items: center; gap: 10px; background: var(--screen-2); border: 1px solid var(--border); border-radius: 12px; padding: 9px 11px; margin-bottom: 8px; }
-    .ev-day { font-size: 9px; font-weight: 800; color: var(--coral); background: rgba(253,118,102,0.12); border-radius: 8px; padding: 5px 8px; text-align: center; line-height: 1.2; }
+    .club-sub { font-size: 10px; color: var(--app-muted); font-weight: 600; margin-bottom: 12px; }
+    .ev-row { display: flex; align-items: center; gap: 10px; background: var(--app-card); border: 1px solid var(--app-border); border-radius: 14px; padding: 9px 11px; margin: 0 14px 8px; }
+    .ev-day { font-size: 8.5px; font-weight: 800; color: var(--coral); background: rgba(253,118,102,0.12); border: 1px solid rgba(253,118,102,0.25); border-radius: 9px; padding: 5px 8px; text-align: center; line-height: 1.25; }
     .ev-row h6 { font-size: 11.5px; font-weight: 700; flex: 1; }
-    .ev-row h6 span { display: block; font-size: 9px; color: var(--faint); font-weight: 400; }
+    .ev-row h6 span { display: block; font-size: 9px; color: var(--app-muted); font-weight: 500; }
+    .ev-cal { color: var(--app-muted); }
     .ev-live { display: inline-flex; align-items: center; gap: 5px; font-size: 8.5px; font-weight: 800; color: var(--green); }
     .ev-live::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: livePulse 1.6s infinite; }
     @keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
-    .club-join { margin-top: auto; background: var(--coral); color: #fff; text-align: center; font-size: 12.5px; font-weight: 800; border-radius: 12px; padding: 11px; }
+    .club-join { margin: auto 14px 12px; background: var(--coral); color: #fff; text-align: center; font-size: 12.5px; font-weight: 800; border-radius: 13px; padding: 11px; }
 
-    /* ── Hero ────────────────────────────────────────── */
+    /* ── Live-Ticker ─────────────────────────────────── */
+    .ticker-band { padding: 26px 0 28px; overflow: hidden; position: relative; background: rgba(255,255,255,0.02); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .ticker-head { display: flex; align-items: center; justify-content: center; gap: 9px; font-size: 11.5px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--faint); margin-bottom: 16px; }
+    .ticker-head .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: livePulse 1.6s infinite; }
+    .ticker-rail { display: flex; width: max-content; gap: 12px; animation: tick 45s linear infinite; }
+    .ticker-rail:hover { animation-play-state: paused; }
+    @keyframes tick { to { transform: translateX(-50%); } }
+    .chip { display: inline-flex; align-items: center; gap: 9px; white-space: nowrap; background: var(--card); border: 1px solid var(--border); border-radius: 24px; padding: 10px 18px; font-size: 13.5px; color: var(--muted); }
+    .chip b { color: #fff; font-weight: 700; }
+    .chip .when { color: var(--coral); font-weight: 700; font-size: 12.5px; }
+    .ticker-band::before, .ticker-band::after { content: ''; position: absolute; top: 0; bottom: 0; width: 90px; z-index: 2; pointer-events: none; }
+    .ticker-band::before { left: 0; background: linear-gradient(90deg, var(--bg), transparent); }
+    .ticker-band::after { right: 0; background: linear-gradient(-90deg, var(--bg), transparent); }
+
+    /* ── Hero + Sektionen + Formulare + Footer ───────── */
     .hero { padding: 84px 0 96px; background: linear-gradient(180deg, var(--bg-soft), var(--bg) 55%); }
     .hero-grid { display: grid; grid-template-columns: 1.12fr 0.88fr; gap: 56px; align-items: center; }
     .hero h1 { font-size: clamp(38px, 5.4vw, 60px); font-weight: 900; line-height: 1.08; letter-spacing: -0.015em; margin-bottom: 22px; }
     .hero .sub { font-size: 17.5px; color: var(--muted); max-width: 480px; margin-bottom: 34px; }
     .store-note { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--faint); border: 1px solid var(--border); border-radius: 24px; padding: 7px 16px; margin-bottom: 26px; }
     .store-note .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
-    @media (max-width: 880px) {
-      .hero { padding: 56px 0 72px; }
-      .hero-grid { grid-template-columns: 1fr; gap: 48px; }
-      .hero .phone-wrap { order: 2; }
-    }
-
+    @media (max-width: 880px) { .hero { padding: 56px 0 72px; } .hero-grid { grid-template-columns: 1fr; gap: 48px; } .hero .phone-wrap { order: 2; } }
     .waitlist-form { display: flex; gap: 10px; max-width: 460px; }
-    .waitlist-form input[type="email"] {
-      flex: 1; min-width: 0; background: var(--card); border: 1px solid var(--border); border-radius: 13px;
-      padding: 15px 17px; color: #fff; font-size: 16px; font-family: inherit; outline: none; transition: border-color .15s;
-    }
+    .waitlist-form input[type="email"] { flex: 1; min-width: 0; background: var(--card); border: 1px solid var(--border); border-radius: 13px; padding: 15px 17px; color: #fff; font-size: 16px; font-family: inherit; outline: none; transition: border-color .15s; }
     .waitlist-form input[type="email"]:focus { border-color: rgba(253,118,102,0.55); }
     .waitlist-form input::placeholder { color: var(--faint); }
-    .btn-coral {
-      background: var(--coral); color: #fff; border: none; border-radius: 13px;
-      padding: 15px 24px; font-size: 15.5px; font-weight: 800; font-family: inherit;
-      cursor: pointer; white-space: nowrap; transition: background .15s, opacity .15s;
-    }
+    .btn-coral { background: var(--coral); color: #fff; border: none; border-radius: 13px; padding: 15px 24px; font-size: 15.5px; font-weight: 800; font-family: inherit; cursor: pointer; white-space: nowrap; transition: background .15s, opacity .15s; }
     .btn-coral:hover { background: var(--coral-dark); }
     .btn-coral:disabled { opacity: .55; cursor: wait; }
     .btn-block { width: 100%; }
@@ -205,59 +206,19 @@
     .waitlist-hint { margin-top: 6px; font-size: 12.5px; color: var(--faint); }
     @media (max-width: 520px) { .waitlist-form { flex-direction: column; } }
 
-    /* ── Live-Ticker: echte Gruppen aus der App ─────── */
-    .ticker-band {
-      padding: 26px 0 28px; overflow: hidden; position: relative;
-      background: rgba(255,255,255,0.02);
-      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
-    }
-    .ticker-head {
-      display: flex; align-items: center; justify-content: center; gap: 9px;
-      font-size: 11.5px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase;
-      color: var(--faint); margin-bottom: 16px;
-    }
-    .ticker-head .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: livePulse 1.6s infinite; }
-    .ticker-rail { display: flex; width: max-content; gap: 12px; animation: tick 45s linear infinite; }
-    .ticker-rail:hover { animation-play-state: paused; }
-    @keyframes tick { to { transform: translateX(-50%); } }
-    .chip {
-      display: inline-flex; align-items: center; gap: 9px; white-space: nowrap;
-      background: var(--card); border: 1px solid var(--border); border-radius: 24px;
-      padding: 10px 18px; font-size: 13.5px; color: var(--muted);
-    }
-    .chip b { color: #fff; font-weight: 700; }
-    .chip .when { color: var(--coral); font-weight: 700; font-size: 12.5px; }
-    .ticker-band::before, .ticker-band::after {
-      content: ''; position: absolute; top: 0; bottom: 0; width: 90px; z-index: 2; pointer-events: none;
-    }
-    .ticker-band::before { left: 0; background: linear-gradient(90deg, var(--bg), transparent); }
-    .ticker-band::after { right: 0; background: linear-gradient(-90deg, var(--bg), transparent); }
-    @media (prefers-reduced-motion: reduce) { .ticker-rail { animation: none; } }
-
-    /* ── Abwechselnde Feature-Sektionen ─────────────── */
     .feature { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: center; padding: 88px 0; }
     .feature h2 { font-size: clamp(30px, 4.4vw, 46px); font-weight: 900; line-height: 1.12; letter-spacing: -0.015em; margin-bottom: 18px; }
     .feature p { font-size: 16.5px; color: var(--muted); max-width: 440px; }
     .feature .mini { margin-top: 18px; font-size: 14px; color: var(--faint); }
-    @media (max-width: 880px) {
-      .feature { grid-template-columns: 1fr; gap: 44px; padding: 60px 0; }
-      .feature .phone-wrap { order: 2; }
-      .feature .text-col { order: 1; }
-    }
+    @media (max-width: 880px) { .feature { grid-template-columns: 1fr; gap: 44px; padding: 60px 0; } .feature .phone-wrap { order: 2; } .feature .text-col { order: 1; } }
     .divider { height: 1px; background: var(--border); max-width: 1140px; margin: 0 auto; }
 
-    /* Sicherheit-Band */
     .trust-band { text-align: center; padding: 76px 0; }
     .trust-band h2 { font-size: clamp(26px, 3.8vw, 38px); font-weight: 900; letter-spacing: -0.015em; margin-bottom: 12px; }
     .trust-band > .container > p { color: var(--muted); max-width: 520px; margin: 0 auto 30px; }
     .trust-chips { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
-    .trust-chips span {
-      display: inline-flex; align-items: center; gap: 8px;
-      background: var(--card); border: 1px solid var(--border); border-radius: 24px;
-      padding: 10px 18px; font-size: 14px; font-weight: 600; color: var(--muted);
-    }
+    .trust-chips span { display: inline-flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--border); border-radius: 24px; padding: 10px 18px; font-size: 14px; font-weight: 600; color: var(--muted); }
 
-    /* ── CTA ─────────────────────────────────────────── */
     .cta-band { text-align: center; padding: 96px 0; background: linear-gradient(180deg, var(--bg), var(--bg-soft)); border-top: 1px solid var(--border); }
     .cta-band h2 { font-size: clamp(30px, 4.4vw, 44px); font-weight: 900; letter-spacing: -0.015em; margin-bottom: 14px; }
     .cta-band p { color: var(--muted); max-width: 480px; margin: 0 auto 30px; }
@@ -265,7 +226,6 @@
     .btn-ghost { display: inline-block; text-decoration: none; color: #fff; border: 1px solid rgba(255,255,255,0.22); border-radius: 13px; padding: 15px 26px; font-size: 15.5px; font-weight: 700; transition: border-color .15s, background .15s; }
     .btn-ghost:hover { border-color: rgba(255,255,255,0.45); background: rgba(255,255,255,0.04); }
 
-    /* ── Footer + Kontakt ────────────────────────────── */
     footer { padding: 76px 0 40px; background: #0e0b1c; border-top: 1px solid var(--border); }
     .footer-grid { display: grid; grid-template-columns: 1fr 1.15fr; gap: 60px; margin-bottom: 56px; }
     @media (max-width: 820px) { .footer-grid { grid-template-columns: 1fr; } }
@@ -280,11 +240,7 @@
     @media (max-width: 520px) { .contact-row { flex-direction: column; gap: 0; } }
     .field { flex: 1; margin-bottom: 14px; }
     .field label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
-    .field input, .field textarea {
-      width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border);
-      border-radius: 12px; padding: 13px 14px; color: #fff; font-size: 15px; font-family: inherit;
-      outline: none; transition: border-color .15s; resize: vertical;
-    }
+    .field input, .field textarea { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 12px; padding: 13px 14px; color: #fff; font-size: 15px; font-family: inherit; outline: none; transition: border-color .15s; resize: vertical; }
     .field input:focus, .field textarea:focus { border-color: rgba(253,118,102,0.55); }
     .field input::placeholder, .field textarea::placeholder { color: var(--faint); }
     .hp-field { position: absolute; left: -9999px; opacity: 0; height: 0; overflow: hidden; }
@@ -293,17 +249,14 @@
     .footer-legal a { color: var(--faint); text-decoration: none; transition: color .15s; }
     .footer-legal a:hover { color: #fff; }
 
-    /* Reduzierte Bewegung: alle Loops aus */
     @media (prefers-reduced-motion: reduce) {
-      .phone { animation: none; }
-      .pin::after, .g-card.boosted, .ev-live::before { animation: none; }
+      .phone, .pin::after, .ev-live::before, .ticker-rail, .ticker-head .live-dot { animation: none; }
       .reveal { opacity: 1; transform: none; transition: none; }
     }
   </style>
 </head>
 <body>
 
-  <!-- ── Navigation ─────────────────────────────────── -->
   <nav>
     <div class="nav-inner">
       <a class="wordmark nav-logo" href="#top">JAMIE</a>
@@ -315,7 +268,7 @@
     </div>
   </nav>
 
-  <!-- ── Hero: Live-Feed-Phone ──────────────────────── -->
+  <!-- ── Hero: Gruppen-Feed, 1:1 wie die App ────────── -->
   <header class="hero" id="top">
     <div class="container hero-grid">
       <div>
@@ -331,36 +284,56 @@
       </div>
       <div class="phone-wrap">
         <div class="phone" aria-hidden="true">
+          <div class="s-status"><span>21:11</span><span class="r">●●● ▲ ▮</span></div>
           <div class="screen">
             <div class="s-appbar"><span class="wordmark">JAMIE</span></div>
             <div class="s-tabs"><b class="on">Gruppen</b><b>Clubs</b><b>Karte</b></div>
-            <div class="s-search">Suchen …</div>
-            <div class="s-grid">
-              <div class="g-card boosted">
-                <div class="g-date">Heute</div>
-                <h4>Beachvolleyball</h4>
-                <span class="g-meta">7/12 Mitglieder</span>
-                <div class="avs"><i class="av-1">L</i><i class="av-3">M</i><i class="av-4">S</i><i class="av-plus">+4</i></div>
-                <span class="boost-chip">⚡ Boost</span>
+            <div class="s-search"><span>Suchen</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9BA2B0" stroke-width="2.4"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+            </div>
+            <div class="s-body">
+              <div class="s-grid">
+                <div class="g-card boosted">
+                  <div class="g-head"><h4>Beachvolleyball</h4><span id="join-count">7/12 Mitglieder</span></div>
+                  <div class="g-photos">
+                    <span class="g-date">Heute</span>
+                    <div class="ph ph-1">L</div><div class="ph ph-3">M</div>
+                    <div class="ph ph-4">S</div>
+                    <div class="ph ph-plus ph-join" id="join-slot">+<div class="joiner">T</div></div>
+                  </div>
+                </div>
+                <div class="g-card">
+                  <div class="g-head"><h4>Bar-Hopping</h4><span>4/15 Mitglieder</span></div>
+                  <div class="g-photos">
+                    <span class="g-date">09. Aug.</span>
+                    <div class="ph ph-2">A</div><div class="ph ph-5">J</div>
+                    <div class="ph ph-6">R</div><div class="ph ph-plus">+</div>
+                  </div>
+                </div>
+                <div class="g-card">
+                  <div class="g-head"><h4>Lauftreff Prater</h4><span>9/20 Mitglieder</span></div>
+                  <div class="g-photos">
+                    <span class="g-date">Morgen</span>
+                    <div class="ph ph-3">T</div><div class="ph ph-1">N</div>
+                    <div class="ph ph-2">E</div><div class="ph ph-plus">+</div>
+                  </div>
+                </div>
+                <div class="g-card">
+                  <div class="g-head"><h4>Museums-Brunch</h4><span>3/8 Mitglieder</span></div>
+                  <div class="g-photos">
+                    <span class="g-date">Sa.</span>
+                    <div class="ph ph-4">K</div><div class="ph ph-5">P</div>
+                    <div class="ph ph-6">C</div><div class="ph ph-plus">+</div>
+                  </div>
+                </div>
               </div>
-              <div class="g-card">
-                <div class="g-date">09. Aug.</div>
-                <h4>Bar-Hopping</h4>
-                <span class="g-meta">4/15 Mitglieder</span>
-                <div class="avs"><i class="av-2">A</i><i class="av-5">J</i><i class="av-plus">+2</i></div>
-              </div>
-              <div class="g-card">
-                <div class="g-date">Morgen</div>
-                <h4>Lauftreff Prater</h4>
-                <span class="g-meta">9/20 Mitglieder</span>
-                <div class="avs"><i class="av-3">T</i><i class="av-1">N</i><i class="av-2">E</i><i class="av-plus">+6</i></div>
-              </div>
-              <div class="g-card">
-                <div class="g-date">Sa.</div>
-                <h4>Museums-Brunch</h4>
-                <span class="g-meta">3/8 Mitglieder</span>
-                <div class="avs"><i class="av-4">K</i><i class="av-5">P</i><i class="av-plus">+1</i></div>
-              </div>
+            </div>
+            <div class="s-nav">
+              <span class="ni"><svg viewBox="0 0 26 24" fill="none" stroke="#FD7666" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="3.5"/><path d="M1 20c0-4 3.5-7 8-7s8 3 8 7"/><circle cx="20" cy="8" r="2.5"/><path d="M15 20c0-2.8 2-5 5-5s5 2.2 5 5"/></svg></span>
+              <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA2B0" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88"/></svg></span>
+              <span class="s-add">+</span>
+              <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA2B0" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>
+              <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA2B0" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
             </div>
           </div>
         </div>
@@ -368,28 +341,39 @@
     </div>
   </header>
 
-  <!-- ── Live-Ticker: echte Gruppen aus der Produktions-App ── -->
+  <!-- ── Live-Ticker ────────────────────────────────── -->
   <div class="ticker-band" aria-hidden="true">
     <div class="ticker-head"><span class="live-dot"></span> <span id="ticker-label">Gerade los auf JAMIE</span></div>
     <div class="ticker-rail" id="ticker-rail"></div>
   </div>
 
-  <!-- ── Karte: animierte Pins + wechselnde Event-Karte ── -->
+  <!-- ── Karte ──────────────────────────────────────── -->
   <section class="feature container reveal" id="karte">
     <div class="phone-wrap">
       <div class="phone" aria-hidden="true">
+        <div class="s-status"><span>21:12</span><span class="r">●●● ▲ ▮</span></div>
         <div class="screen">
           <div class="s-appbar"><span class="wordmark">JAMIE</span></div>
           <div class="s-tabs"><b>Gruppen</b><b>Clubs</b><b class="on">Karte</b></div>
-          <div class="s-map">
-            <div class="pin" style="left: 24%; top: 22%;"><span>🏐</span></div>
-            <div class="pin p2" style="left: 62%; top: 34%;"><span>🎳</span></div>
-            <div class="pin p3" style="left: 38%; top: 55%;"><span>🏃</span></div>
-            <div class="pin p4" style="left: 72%; top: 66%;"><span>🍸</span></div>
-            <div class="map-card" id="map-card">
-              <h5 id="map-title">Beachvolleyball · Donauinsel</h5>
-              <span id="map-sub">Heute 18:00 · 7/12 Mitglieder</span>
+          <div class="s-pills"><span class="on">Alle</span><span>Heute</span><span>Morgen</span><span>Kategorien</span></div>
+          <div class="s-body" style="padding-bottom: 12px;">
+            <div class="s-map">
+              <div class="pin" style="left: 24%; top: 20%;"><span>🏐</span></div>
+              <div class="pin p2" style="left: 62%; top: 32%;"><span>🎳</span></div>
+              <div class="pin p3" style="left: 38%; top: 54%;"><span>🏃</span></div>
+              <div class="pin p4" style="left: 72%; top: 64%;"><span>🍸</span></div>
+              <div class="map-card" id="map-card">
+                <h5 id="map-title">Beachvolleyball · Donauinsel</h5>
+                <span id="map-sub">Heute 18:00 · 7/12 Mitglieder</span>
+              </div>
             </div>
+          </div>
+          <div class="s-nav">
+            <span class="ni"><svg viewBox="0 0 26 24" fill="none" stroke="#FD7666" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="3.5"/><path d="M1 20c0-4 3.5-7 8-7s8 3 8 7"/><circle cx="20" cy="8" r="2.5"/><path d="M15 20c0-2.8 2-5 5-5s5 2.2 5 5"/></svg></span>
+            <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA2B0" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88"/></svg></span>
+            <span class="s-add">+</span>
+            <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA2B0" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>
+            <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="#9BA2B0" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
           </div>
         </div>
       </div>
@@ -402,22 +386,27 @@
 
   <div class="divider"></div>
 
-  <!-- ── Chat: schreibt sich live ───────────────────── -->
+  <!-- ── Chat ───────────────────────────────────────── -->
   <section class="feature container reveal">
     <div class="text-col">
       <h2>Plane alles im <span class="accent">Echtzeit-Chat</span>.</h2>
       <p>Gruppenchats und private Nachrichten, ohne die App zu verlassen. Absprechen, verabreden, hingehen — so einfach ist das.</p>
-      <p class="mini">Der Chat hier links tippt übrigens gerade wirklich. 😉</p>
+      <p class="mini">Der Chat hier tippt übrigens gerade wirklich. 😉</p>
     </div>
     <div class="phone-wrap">
       <div class="phone" aria-hidden="true">
+        <div class="s-status"><span>21:14</span><span class="r">●●● ▲ ▮</span></div>
         <div class="screen">
           <div class="s-chat-head">
+            <span class="back">‹</span>
             <div class="cav">🏐</div>
             <div><h5>Beachvolleyball<span>8 Mitglieder · 3 online</span></h5></div>
           </div>
           <div class="s-chat-body" id="chat-body"></div>
-          <div class="s-chat-input">Nachricht schreiben …</div>
+          <div class="s-chat-inputrow">
+            <div class="s-chat-input">Nachricht schreiben …</div>
+            <span class="s-send"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg></span>
+          </div>
         </div>
       </div>
     </div>
@@ -429,14 +418,17 @@
   <section class="feature container reveal">
     <div class="phone-wrap">
       <div class="phone" aria-hidden="true">
+        <div class="s-status"><span>21:15</span><span class="r">●●● ▲ ▮</span></div>
         <div class="screen">
           <div class="s-appbar"><span class="wordmark">JAMIE</span></div>
           <div class="club-cover"><div class="club-badge">🎶</div></div>
-          <div class="club-name">Café Concerto Club <em>✓</em></div>
-          <div class="club-sub">142 Mitglieder · Musik &amp; Kultur · Wien</div>
+          <div class="club-info">
+            <div class="club-name">Café Concerto Club <em>✓</em></div>
+            <div class="club-sub">142 Mitglieder · Musik &amp; Kultur · Wien</div>
+          </div>
           <div class="ev-row"><div class="ev-day">DO<br />HEUTE</div><h6>Open-Mic-Abend<span>19:30 · Lerchenfelder Gürtel</span></h6><span class="ev-live">LIVE</span></div>
-          <div class="ev-row"><div class="ev-day">SA</div><h6>Jazz-Session<span>20:00 · wöchentlich</span></h6></div>
-          <div class="ev-row"><div class="ev-day">SO</div><h6>Brunch &amp; Vinyl<span>11:00 · wöchentlich</span></h6></div>
+          <div class="ev-row"><div class="ev-day">SA</div><h6>Jazz-Session<span>20:00 · wöchentlich</span></h6><span class="ev-cal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span></div>
+          <div class="ev-row"><div class="ev-day">SO</div><h6>Brunch &amp; Vinyl<span>11:00 · wöchentlich</span></h6><span class="ev-cal"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span></div>
           <div class="club-join">Club beitreten</div>
         </div>
       </div>
@@ -474,7 +466,7 @@
     </div>
   </section>
 
-  <!-- ── Footer mit Kontaktformular ─────────────────── -->
+  <!-- ── Footer ─────────────────────────────────────── -->
   <footer id="kontakt">
     <div class="container">
       <div class="footer-grid">
@@ -488,7 +480,6 @@
             <a href="mailto:office@jamie-app.com">office@jamie-app.com</a>
           </div>
         </div>
-
         <div class="contact-card">
           <h3>Schreib uns</h3>
           <p class="contact-sub">Fragen, Feedback oder Kooperationsideen? Wir antworten in der Regel innerhalb von 24&nbsp;Stunden.</p>
@@ -520,7 +511,6 @@
           </form>
         </div>
       </div>
-
       <div class="footer-legal">
         <span>© <span id="year"></span> IMPIBAG e.U. — JAMIE</span>
         <div class="links">
@@ -539,19 +529,17 @@
 
     document.getElementById('year').textContent = new Date().getFullYear();
 
-    /* ── Scroll-Reveal ─────────────────────────────── */
+    /* Scroll-Reveal */
     if ('IntersectionObserver' in window && !reduceMotion) {
       var io = new IntersectionObserver(function (entries) {
-        entries.forEach(function (en) {
-          if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
-        });
+        entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
       }, { threshold: 0.15 });
       document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
     } else {
       document.querySelectorAll('.reveal').forEach(function (el) { el.classList.add('in'); });
     }
 
-    /* ── 3D-Tilt der Phones (nur Desktop-Pointer) ──── */
+    /* 3D-Tilt (nur Desktop-Pointer) */
     if (window.matchMedia('(pointer: fine)').matches && !reduceMotion) {
       document.querySelectorAll('.phone-wrap').forEach(function (wrap) {
         var phone = wrap.querySelector('.phone');
@@ -559,13 +547,27 @@
           var r = wrap.getBoundingClientRect();
           var x = (e.clientX - r.left) / r.width - 0.5;
           var y = (e.clientY - r.top) / r.height - 0.5;
-          phone.style.transform = 'rotateY(' + (x * 10) + 'deg) rotateX(' + (-y * 8) + 'deg)';
+          phone.style.animation = 'none';
+          phone.style.transform = 'rotateY(' + (x * 7) + 'deg) rotateX(' + (-y * 5) + 'deg)';
         });
-        wrap.addEventListener('pointerleave', function () { phone.style.transform = ''; });
+        wrap.addEventListener('pointerleave', function () { phone.style.transform = ''; phone.style.animation = ''; });
       });
     }
 
-    /* ── Live-Ticker: ECHTE Gruppen aus der App ────── */
+    /* Live-Join im Hero: Avatar ploppt ins Grid, Zähler 7/12 → 8/12 */
+    (function () {
+      var slot = document.getElementById('join-slot');
+      var count = document.getElementById('join-count');
+      if (!slot || reduceMotion) return;
+      var joined = false;
+      setInterval(function () {
+        joined = !joined;
+        slot.classList.toggle('joined', joined);
+        count.textContent = (joined ? '8/12' : '7/12') + ' Mitglieder';
+      }, 4200);
+    })();
+
+    /* Live-Ticker: ECHTE Gruppen aus der App */
     (function () {
       var rail = document.getElementById('ticker-rail');
       if (!rail) return;
@@ -617,7 +619,6 @@
                  (when ? ' <span class="when"></span>' : '') + (city ? ' <span class="city"></span>' : '') + '</span>';
         }).join('');
         rail.innerHTML = html + html; /* doppelt → nahtloser Loop bei -50% */
-        /* Textinhalte sicher setzen (kein HTML aus Nutzerdaten) */
         var chips = rail.querySelectorAll('.chip');
         for (var i = 0; i < chips.length; i++) {
           var g = upcoming[i % upcoming.length];
@@ -633,7 +634,7 @@
         .catch(function () { render(fallback, false); });
     })();
 
-    /* ── Karte: wechselnde Event-Karte ─────────────── */
+    /* Karte: wechselnde Event-Karte */
     (function () {
       var events = [
         ['Beachvolleyball · Donauinsel', 'Heute 18:00 · 7/12 Mitglieder'],
@@ -651,20 +652,20 @@
           document.getElementById('map-sub').textContent = events[i][1];
           card.classList.remove('swap');
         }, 400);
-      }, 3400);
+      }, 3600);
     })();
 
-    /* ── Chat: schreibt sich selbst, im Loop ───────── */
+    /* Chat: schreibt sich selbst, im Loop */
     (function () {
       var body = document.getElementById('chat-body');
       if (!body) return;
       var script = [
         { t: 'in',  n: 'Lena',   x: 'Wer ist heute dabei? 🏐' },
-        { t: 'out',            x: 'Ich! 18 Uhr Donauinsel?' },
+        { t: 'out',              x: 'Ich! 18 Uhr Donauinsel?' },
         { t: 'in',  n: 'Moritz', x: 'Bin dabei — ich nehm den Ball mit 💪' },
         { t: 'in',  n: 'Ayşe',   x: 'Same! Danach noch was trinken?' },
-        { t: 'out',            x: 'Immer. 😄' },
-        { t: 'sys',            x: '📅 Event im Kalender gespeichert' }
+        { t: 'out',              x: 'Immer. 😄' },
+        { t: 'sys',              x: '📅 Event im Kalender gespeichert' }
       ];
       function bubble(m) {
         var d = document.createElement('div');
@@ -684,27 +685,24 @@
       var idx = 0;
       function step() {
         if (idx >= script.length) {
-          setTimeout(function () { body.innerHTML = ''; idx = 0; step(); }, 4200);
+          setTimeout(function () { body.innerHTML = ''; idx = 0; step(); }, 4600);
           return;
         }
         var m = script[idx];
         if (m.t === 'in') {
           var tp = typingBubble();
           body.appendChild(tp);
-          setTimeout(function () {
-            tp.replaceWith(bubble(m));
-            idx++; setTimeout(step, 900);
-          }, 850);
+          setTimeout(function () { tp.replaceWith(bubble(m)); idx++; setTimeout(step, 950); }, 1000);
         } else {
           body.appendChild(bubble(m));
-          idx++; setTimeout(step, m.t === 'sys' ? 1200 : 1000);
+          idx++; setTimeout(step, m.t === 'sys' ? 1300 : 1050);
         }
         while (body.children.length > 6) body.removeChild(body.firstChild);
       }
       step();
     })();
 
-    /* ── Formulare (Waitlist + Kontakt → JAMIE-Backend) ── */
+    /* Formulare → JAMIE-Backend */
     function setMsg(el, text, ok) { el.textContent = text; el.className = 'form-msg ' + (ok ? 'ok' : 'err'); }
 
     document.getElementById('waitlist-form').addEventListener('submit', function (e) {
@@ -742,10 +740,7 @@
       btn.disabled = true; btn.textContent = 'Wird gesendet …';
       fetch(API + '/contact', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          first_name: first, last_name: last, email: email, message: text,
-          website: document.getElementById('c-website').value
-        })
+        body: JSON.stringify({ first_name: first, last_name: last, email: email, message: text, website: document.getElementById('c-website').value })
       })
         .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
         .then(function (res) {
