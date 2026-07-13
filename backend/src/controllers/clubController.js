@@ -14,6 +14,10 @@ const DISCOVER_EVENTS_TTL = 60_000; // 60 s — discover feed needn't be real-ti
 // Helper to ensure we always target clubs
 const CLUB_TYPE = 'club';
 
+// Anti-churn cap: a user may join any given club at most this many times
+// (counted across leaves via group_join_counts) to stop join/leave spam.
+const MAX_CLUB_JOINS = 2;
+
 // Shared club management access. A club has ONE owner (groups.owner_id) plus any
 // number of co-managers — members with group_members.role = 'admin'. This powers
 // the paid "managed club" cooperation: JAMIE staff and the partner co-manage the
@@ -491,6 +495,21 @@ export const joinClub = async (req, res) => {
     );
     if (existing.rows.length > 0) return res.status(400).json({ error: 'Already a member' });
 
+    // Anti-churn: a user may join any given club at most MAX_CLUB_JOINS times.
+    // The counter persists across leaves (group_members rows are deleted on
+    // leave), so constant join/leave spam — which floods the chat with
+    // beigetreten/verlassen system messages — is capped. Checked here so it
+    // blocks both a public join and a new private join-request.
+    const jc = await db.query(
+      'SELECT join_count FROM group_join_counts WHERE group_id = $1 AND user_id = $2',
+      [id, req.userId]
+    );
+    if ((jc.rows[0]?.join_count || 0) >= MAX_CLUB_JOINS) {
+      return res.status(403).json({
+        error: 'Du bist diesem Club bereits zweimal beigetreten und kannst ihm nicht erneut beitreten.',
+      });
+    }
+
     if (isPrivate) {
       const existingReq = await db.query(
         `SELECT 1 FROM group_join_requests
@@ -534,6 +553,15 @@ export const joinClub = async (req, res) => {
       await client.query(
         'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
         [id, req.userId, 'member']
+      );
+      // Bump the persistent join counter (survives a later leave) so repeated
+      // join/leave churn is capped at MAX_CLUB_JOINS.
+      await client.query(
+        `INSERT INTO group_join_counts (group_id, user_id, join_count)
+         VALUES ($1, $2, 1)
+         ON CONFLICT (group_id, user_id)
+         DO UPDATE SET join_count = group_join_counts.join_count + 1`,
+        [id, req.userId]
       );
       await client.query('COMMIT');
     } catch (txErr) {
@@ -583,6 +611,16 @@ export const leaveClub = async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(400).json({ error: 'Not a member of this club' });
     }
+
+    // Announce the departure so the earlier "beigetreten 🎉" message isn't left
+    // dangling — otherwise the roster silently loses a member and it looks like
+    // a bug (someone "joined" but isn't in the list).
+    db.query('SELECT name FROM users WHERE id = $1', [req.userId])
+      .then(r => {
+        const name = r.rows[0]?.name || 'Jemand';
+        postSystemMessage(id, `${name} hat den Club verlassen 👋`, req.app.get('io')).catch(() => {});
+      })
+      .catch(() => {});
 
     res.json({ message: 'Left club successfully' });
   } catch (err) {
@@ -835,6 +873,15 @@ export const handleClubJoinRequest = async (req, res) => {
           'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
           [id, joinReq.user_id, 'member']
         );
+        // Bump the persistent join counter (survives a later leave) so repeated
+        // join/leave churn is capped at MAX_CLUB_JOINS.
+        await client.query(
+          `INSERT INTO group_join_counts (group_id, user_id, join_count)
+           VALUES ($1, $2, 1)
+           ON CONFLICT (group_id, user_id)
+           DO UPDATE SET join_count = group_join_counts.join_count + 1`,
+          [id, joinReq.user_id]
+        );
         await client.query('COMMIT');
       } catch (txErr) {
         await client.query('ROLLBACK');
@@ -903,6 +950,15 @@ export const kickClubMember = async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'User is not a member of this club' });
     }
+
+    // Neutral departure message (same wording as a voluntary leave) so the
+    // roster stays consistent without publicly announcing a removal.
+    db.query('SELECT name FROM users WHERE id = $1', [userId])
+      .then(r => {
+        const name = r.rows[0]?.name || 'Jemand';
+        postSystemMessage(id, `${name} hat den Club verlassen 👋`, req.app.get('io')).catch(() => {});
+      })
+      .catch(() => {});
 
     res.json({ message: 'Member removed successfully' });
   } catch (err) {

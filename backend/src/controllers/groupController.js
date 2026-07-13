@@ -9,6 +9,11 @@ import { isUserPro } from './subscriptionController.js';
 const GROUPS_TTL  = 30_000;  // 30 s — acceptable staleness for list views
 const AVATARS_TTL = 60_000;  // 60 s — avatars change only on join/leave
 
+// Anti-churn cap: a user may join any given group at most this many times
+// (counted across leaves via group_join_counts) to stop join/leave spam.
+// Groups are more casual/short-lived than clubs, so the cap is a bit higher.
+const MAX_GROUP_JOINS = 3;
+
 // ==========================================
 // PIONEER HELPER
 // Checks if a newly-created group is the first in its ~50km cell.
@@ -640,6 +645,20 @@ export const joinGroup = async (req, res) => {
     if (groupRes.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
     if (groupRes.rows[0].already_member) return res.status(400).json({ error: 'Already a member' });
 
+    // Anti-churn: a user may join any given group at most MAX_GROUP_JOINS times.
+    // The counter persists across leaves (group_members rows are deleted on
+    // leave), so constant join/leave spam is capped. Checked here so it blocks
+    // both a public join and a new private join-request.
+    const jc = await db.query(
+      'SELECT join_count FROM group_join_counts WHERE group_id = $1 AND user_id = $2',
+      [id, req.userId]
+    );
+    if ((jc.rows[0]?.join_count || 0) >= MAX_GROUP_JOINS) {
+      return res.status(403).json({
+        error: 'Du bist dieser Gruppe bereits dreimal beigetreten und kannst ihr nicht erneut beitreten.',
+      });
+    }
+
     // Check capacity
     const g = groupRes.rows[0];
     if (g.members_count >= g.max_members) {
@@ -686,6 +705,15 @@ export const joinGroup = async (req, res) => {
       await client.query(
         'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
         [id, req.userId, 'member']
+      );
+      // Bump the persistent join counter (survives a later leave) so repeated
+      // join/leave churn is capped at MAX_GROUP_JOINS.
+      await client.query(
+        `INSERT INTO group_join_counts (group_id, user_id, join_count)
+         VALUES ($1, $2, 1)
+         ON CONFLICT (group_id, user_id)
+         DO UPDATE SET join_count = group_join_counts.join_count + 1`,
+        [id, req.userId]
       );
       await client.query('DELETE FROM group_waitlist WHERE group_id = $1 AND user_id = $2', [id, req.userId]);
       await client.query('COMMIT');
@@ -773,6 +801,16 @@ export const leaveGroup = async (req, res) => {
         sendPushToUser(wUserId, 'Platz frei!', `Ein Platz in "${grpName}" ist frei geworden`, `/group/${id}`);
       }
     }
+
+    // Announce the departure so the earlier "beigetreten 🎉" message isn't left
+    // dangling — otherwise the roster silently loses a member and it looks like
+    // a bug (someone "joined" but isn't in the list).
+    db.query('SELECT name FROM users WHERE id = $1', [req.userId])
+      .then(r => {
+        const name = r.rows[0]?.name || 'Jemand';
+        postSystemMessage(id, `${name} hat die Gruppe verlassen 👋`, req.app.get('io')).catch(() => {});
+      })
+      .catch(() => {});
 
     deleteCached(`user_groups:${req.userId}`);
     res.json({ message: 'Left group successfully' });
@@ -1158,6 +1196,15 @@ export const handleJoinRequest = async (req, res) => {
           'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
           [id, joinReq.user_id, 'member']
         );
+        // Bump the persistent join counter (survives a later leave) so repeated
+        // join/leave churn is capped at MAX_GROUP_JOINS.
+        await client.query(
+          `INSERT INTO group_join_counts (group_id, user_id, join_count)
+           VALUES ($1, $2, 1)
+           ON CONFLICT (group_id, user_id)
+           DO UPDATE SET join_count = group_join_counts.join_count + 1`,
+          [id, joinReq.user_id]
+        );
         await client.query('COMMIT');
       } catch (txErr) {
         await client.query('ROLLBACK');
@@ -1217,6 +1264,15 @@ export const kickMember = async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Nutzer ist kein Mitglied dieser Gruppe' });
     }
+
+    // Neutral departure message (same wording as a voluntary leave) so the
+    // roster stays consistent without publicly announcing a removal.
+    db.query('SELECT name FROM users WHERE id = $1', [userId])
+      .then(r => {
+        const name = r.rows[0]?.name || 'Jemand';
+        postSystemMessage(id, `${name} hat die Gruppe verlassen 👋`, req.app.get('io')).catch(() => {});
+      })
+      .catch(() => {});
 
     res.json({ message: 'Member removed successfully' });
   } catch (err) {

@@ -204,6 +204,9 @@
 
 .search-input {
   width: 100%;
+  /* Reset iOS/WebKit native search styling so custom padding/icon are honored */
+  -webkit-appearance: none;
+  appearance: none;
   padding: 14px 48px 14px 20px;
   font-size: 16px;
   color: var(--text-muted);
@@ -213,6 +216,13 @@
   outline: none;
   transition: all var(--transition-fast);
   box-sizing: border-box;
+}
+.search-input::-webkit-search-decoration,
+.search-input::-webkit-search-cancel-button,
+.search-input::-webkit-search-results-button,
+.search-input::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .search-input::placeholder {

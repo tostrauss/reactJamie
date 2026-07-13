@@ -749,6 +749,17 @@ const runStartupMigrations = async () => {
   // for DMs). The chat list moves archived rows into the "Ausgeblendet" section.
   await migrate('group_members archived', () =>
     db.query(`ALTER TABLE group_members ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE`));
+  // Persistent per-(group,user) join counter. Survives leaving (the
+  // group_members row is deleted on leave) so we can cap repeated join/leave
+  // churn — a user may join any given group/club at most MAX_JOINS times.
+  await migrate('group_join_counts', () =>
+    db.query(`
+      CREATE TABLE IF NOT EXISTS group_join_counts (
+        group_id   INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+        user_id    INTEGER NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
+        join_count INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (group_id, user_id)
+      )`));
   await migrate('users google_id col', () =>
     db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT UNIQUE`));
   await migrate('users apple_id col', () =>
