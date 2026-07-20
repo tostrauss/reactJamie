@@ -127,6 +127,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import reviewRoutes from './routes/reviewRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import { subscriptionWebhook } from './controllers/subscriptionController.js';
+import { runDailyRollup, backfillIfEmpty } from './jobs/analyticsRollup.js';
 import { stripeWebhook as boostStripeWebhook } from './controllers/boostController.js';
 import { appleServerNotification } from './controllers/iapController.js';
 import { sendPushToUser } from './controllers/pushController.js';
@@ -708,6 +709,32 @@ const runStartupMigrations = async () => {
     await db.query(`ALTER TABLE analytics_events ADD COLUMN IF NOT EXISTS subject_id INTEGER`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_analytics_subject ON analytics_events(screen_name, subject_id) WHERE subject_id IS NOT NULL`);
   });
+
+  // Permanent daily growth rollup (investor metrics). One row per day, upserted
+  // nightly + backfilled once — survives the 90-day analytics_events purge so
+  // DAU/MAU curves and retention cohorts have real long-term history. See
+  // jobs/analyticsRollup.js.
+  await migrate('analytics_daily', () => db.query(`
+    CREATE TABLE IF NOT EXISTS analytics_daily (
+      day             DATE PRIMARY KEY,
+      dau             INTEGER NOT NULL DEFAULT 0,
+      wau             INTEGER NOT NULL DEFAULT 0,
+      mau             INTEGER NOT NULL DEFAULT 0,
+      new_users       INTEGER NOT NULL DEFAULT 0,
+      cohort_size     INTEGER NOT NULL DEFAULT 0,
+      retention_d1    REAL,
+      retention_d7    REAL,
+      retention_d30   REAL,
+      groups_created  INTEGER NOT NULL DEFAULT 0,
+      events_created  INTEGER NOT NULL DEFAULT 0,
+      clubs_created   INTEGER NOT NULL DEFAULT 0,
+      joins           INTEGER NOT NULL DEFAULT 0,
+      messages        INTEGER NOT NULL DEFAULT 0,
+      dms             INTEGER NOT NULL DEFAULT 0,
+      friendships     INTEGER NOT NULL DEFAULT 0,
+      photos          INTEGER NOT NULL DEFAULT 0,
+      updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`));
 
   await migrate('category_suggestions', () => db.query(`
     CREATE TABLE IF NOT EXISTS category_suggestions (
@@ -1313,6 +1340,10 @@ server.listen(PORT, async () => {
   // Warm up DB pool — acquires one connection so the first real request isn't the cold-start
   db.query('SELECT 1').catch(() => {});
   await runStartupMigrations();
+  // Populate the permanent growth history on first boot (idempotent upsert, so
+  // harmless if another instance already did it). Fire-and-forget — never block
+  // startup on it.
+  backfillIfEmpty().catch(err => console.error('[analytics-rollup] backfill error:', err.message));
 });
 
 // Self-ping every 14 minutes — prevents Railway from sleeping the container
@@ -1327,6 +1358,13 @@ if (process.env.NODE_ENV === 'production' && process.env.FRONTEND_URL) {
     });
   }
 }
+
+// Permanent growth rollup: aggregate the day's DAU/MAU/retention/engagement
+// into analytics_daily. Runs at 02:30 — BEFORE the 03:00 event purge, and
+// recomputes the trailing 31 days so retention cohorts fill in over time.
+cron.schedule('30 2 * * *', () => {
+  runDailyRollup().catch(err => console.error('[cron] analytics rollup failed:', err.message));
+});
 
 // Analytics retention: purge events older than 90 days, runs every day at 03:00
 cron.schedule('0 3 * * *', async () => {

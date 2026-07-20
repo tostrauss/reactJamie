@@ -14,6 +14,8 @@ import {
   updateUserRole,
   getTopClubs,
   getOnlineUsers,
+  getGrowth,
+  getUserDetail,
 } from '../controllers/adminController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 
@@ -36,11 +38,13 @@ router.use(adminLimiter, authenticate, requireAdmin);
 
 router.get('/stats',       getStats);
 router.get('/users',       getRecentUsers);
+router.get('/users/:id/detail', getUserDetail);
 router.patch('/users/:id/role', updateUserRole);
 router.delete('/users/:id', deleteUser);
 router.get('/screen-time', getScreenTime);
 router.get('/top-clubs',   getTopClubs);
 router.get('/online-users', getOnlineUsers);
+router.get('/growth',      getGrowth);
 router.get('/export/users',       exportUsers);
 router.get('/export/screens',     exportScreens);
 router.get('/export/suggestions', exportSuggestions);

@@ -1,8 +1,41 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../context/ToastContext';
 import { admin } from '../utils/api';
 import { UserName } from './UserName';
+
+const MUTED = 'rgba(255,255,255,0.5)';
+
+const StatPill = ({ label, value }) => (
+  <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 10, padding: '8px 10px', flex: '1 1 60px', minWidth: 60, textAlign: 'center' }}>
+    <div style={{ color: '#FD7666', fontSize: 18, fontWeight: 800 }}>{value ?? '—'}</div>
+    <div style={{ color: MUTED, fontSize: 10, marginTop: 1 }}>{label}</div>
+  </div>
+);
+
+// Tappable chips of the user's groups/clubs — each routes to that entity and
+// closes the modal. Routes by item.type so it works for memberships + owned.
+const ChipRow = ({ title, items, onGo }) => (
+  <div style={{ marginTop: 10 }}>
+    <div style={{ color: MUTED, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>{title}</div>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+      {items.map(it => (
+        <button
+          key={`${it.type}-${it.id}`}
+          onClick={() => onGo(it)}
+          style={{
+            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 999, padding: '5px 10px', fontSize: 12, color: '#fff', cursor: 'pointer',
+            maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}
+        >
+          {it.type === 'club' ? '🏛️' : '👥'} {it.name}
+        </button>
+      ))}
+    </div>
+  </div>
+);
 
 /**
  * AdminUserModal — manage a single user from the admin dashboard.
@@ -39,14 +72,28 @@ const Toggle = ({ checked, disabled, onChange }) => (
 
 export const AdminUserModal = ({ user, currentUserId, onClose, onUpdated, onDeleted }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const toast = useToast();
   const [isAdmin, setIsAdmin] = useState(!!user.is_admin);
   const [isTrusted, setIsTrusted] = useState(!!user.is_trusted_user);
   const [savingField, setSavingField] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [detail, setDetail] = useState(null);
 
   const isSelf = user.id === currentUserId;
+
+  // Load this user's memberships + activity for the stats section. Tolerant of a
+  // missing route on an older backend (section just stays empty).
+  useEffect(() => {
+    let cancelled = false;
+    admin.getUserDetail(user.id)
+      .then(res => { if (!cancelled) setDetail(res.data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [user.id]);
+
+  const goEntity = (it) => { onClose?.(); navigate(it.type === 'club' ? `/club/${it.id}` : `/group/${it.id}`); };
 
   const updateRole = async (field, value, setLocal, prev) => {
     setSavingField(field);
@@ -110,6 +157,21 @@ export const AdminUserModal = ({ user, currentUserId, onClose, onUpdated, onDele
           </div>
         </div>
 
+        {/* Individual stats — memberships + activity, shown above the role
+            toggles so an admin sees who they're acting on. */}
+        <div style={{ margin: '14px 0', paddingBottom: 14, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <StatPill label={t('admin.userModal.stats.groups')} value={detail?.groups?.length} />
+            <StatPill label={t('admin.userModal.stats.clubs')} value={detail?.clubs?.length} />
+            <StatPill label={t('admin.userModal.stats.friends')} value={detail?.counts?.friends} />
+            <StatPill label={t('admin.userModal.stats.messages')} value={detail?.counts?.messages} />
+            <StatPill label={t('admin.userModal.stats.photos')} value={detail?.counts?.photos} />
+          </div>
+          {detail?.groups?.length > 0 && <ChipRow title={t('admin.userModal.stats.inGroups')} items={detail.groups} onGo={goEntity} />}
+          {detail?.clubs?.length > 0 && <ChipRow title={t('admin.userModal.stats.inClubs')} items={detail.clubs} onGo={goEntity} />}
+          {detail?.owned?.length > 0 && <ChipRow title={t('admin.userModal.stats.created')} items={detail.owned} onGo={goEntity} />}
+        </div>
+
         {/* Role toggles */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0' }}>
@@ -146,6 +208,25 @@ export const AdminUserModal = ({ user, currentUserId, onClose, onUpdated, onDele
             />
           </div>
         </div>
+
+        {/* Direct message — admins can DM any user without a friend request
+            (backend dmAllowed() lets an admin-involved thread through). */}
+        {!isSelf && (
+          <button
+            onClick={() => { onClose?.(); navigate(`/dm/${user.id}`); }}
+            style={{
+              width: '100%', marginTop: 16, padding: '12px', borderRadius: 12,
+              border: 'none', background: '#FD7666', color: '#fff',
+              fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            {t('admin.userModal.messageBtn')}
+          </button>
+        )}
 
         {/* Danger zone — hidden for admins (server forbids deleting them) */}
         {!user.is_admin && (

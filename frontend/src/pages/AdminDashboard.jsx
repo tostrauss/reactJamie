@@ -4,36 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { admin } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { AdminDealsSection } from '../components/AdminDealsSection';
+import { AdminGrowthSection } from '../components/AdminGrowthSection';
 import { AdminUserModal } from '../components/AdminUserModal';
 import { UserName } from '../components/UserName';
-
-// Neutralize CSV/formula injection. A cell whose value starts with = + - @ (or
-// tab/CR) is evaluated as a formula by Excel/Google Sheets EVEN when the field
-// is quoted — so a user who sets their name/location to `=HYPERLINK(...)` could
-// run code in an admin's spreadsheet. Prefix those values with a single quote
-// so the spreadsheet renders them as literal text. JSON.stringify still handles
-// comma/quote/newline escaping for valid CSV.
-const csvCell = (val) => {
-  let s = val === null || val === undefined ? '' : String(val);
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-  return JSON.stringify(s);
-};
-
-const downloadCSV = (data, filename) => {
-  if (!data?.length) return;
-  const headers = Object.keys(data[0]);
-  const rows = data.map(row =>
-    headers.map(h => csvCell(row[h])).join(',')
-  );
-  const csv = [headers.join(','), ...rows].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-};
+import { downloadCSV } from '../utils/csv';
 
 const KPICard = ({ label, value, sub }) => (
   <div style={{
@@ -251,6 +225,11 @@ export const AdminDashboard = () => {
           <KPICard label={t('admin.kpis.groups')} value={g.total_groups} />
           <KPICard label={t('admin.kpis.clubs')} value={g.total_clubs} />
         </div>
+
+        {/* Growth & cohorts — investor headline (DAU/MAU, retention,
+            engagement over time). Self-loading + tolerant of a missing route
+            on old backends, so it renders independently of the stats payload. */}
+        <AdminGrowthSection />
 
         {/* Cooperation redemption KPIs — sales-facing performance read at a
             glance. Sits above the deals CRUD list so opening /admin shows
@@ -503,11 +482,18 @@ export const AdminDashboard = () => {
                 display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
                 borderBottom: i < users.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
               }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: '50%',
-                  background: '#FD7666', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 14, fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden',
-                }}>
+                <div
+                  onClick={() => navigate(`/user/${u.id}`)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate(`/user/${u.id}`); }}
+                  title={t('admin.users.viewProfile')}
+                  aria-label={t('admin.users.viewProfile')}
+                  style={{
+                    width: 36, height: 36, borderRadius: '50%',
+                    background: '#FD7666', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14, fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden', cursor: 'pointer',
+                  }}>
                   {u.avatar_url
                     ? <img src={u.avatar_url} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     : u.name?.[0]?.toUpperCase()}

@@ -635,6 +635,8 @@ export const admin = {
   // { is_admin: true } or { is_trusted_user: false }.
   setUserRole: (id, roles) => axiosInstance.patch(`/admin/users/${id}/role`, roles),
   getScreenTime: () => axiosInstance.get('/admin/screen-time'),
+  // Per-user memberships + activity for the manage modal.
+  getUserDetail: (id) => axiosInstance.get(`/admin/users/${id}/detail`),
   exportUsers: () => axiosInstance.get('/admin/export/users'),
   exportScreens: () => axiosInstance.get('/admin/export/screens'),
   exportSuggestions: () => axiosInstance.get('/admin/export/suggestions'),
@@ -647,6 +649,9 @@ export const admin = {
   // Per-club / per-group view rankings (analytics_events.subject_id ⨯ groups)
   getTopClubs: (days = 30, limit = 20) =>
     axiosInstance.get('/admin/top-clubs', { params: { days, limit } }),
+  // Permanent daily growth rollup (DAU/MAU, retention cohorts, engagement).
+  getGrowth: (days = 90) =>
+    axiosInstance.get('/admin/growth', { params: { days } }),
 };
 
 // ==========================================

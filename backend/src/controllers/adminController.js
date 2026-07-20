@@ -250,6 +250,76 @@ export const exportScreens = async (_req, res) => {
 };
 
 // ==========================================
+// USER DETAIL — per-user memberships + activity for the admin modal
+// ==========================================
+export const getUserDetail = async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id || id <= 0) return res.status(400).json({ error: 'Ungültige Nutzer-ID' });
+  try {
+    const [memberships, owned, counts] = await Promise.all([
+      // Groups + clubs the user is a member of (newest first).
+      db.query(
+        `SELECT g.id, g.name, g.type, gm.role, gm.joined_at
+         FROM group_members gm JOIN groups g ON g.id = gm.group_id
+         WHERE gm.user_id = $1 AND g.deleted_at IS NULL
+         ORDER BY gm.joined_at DESC`,
+        [id]
+      ),
+      // Groups + clubs the user created.
+      db.query(
+        `SELECT id, name, type, created_at FROM groups
+         WHERE owner_id = $1 AND deleted_at IS NULL
+         ORDER BY created_at DESC`,
+        [id]
+      ),
+      db.query(
+        `SELECT
+           (SELECT COUNT(*) FROM friendships WHERE status='accepted' AND (requester_id=$1 OR addressee_id=$1))::int AS friends,
+           (SELECT COUNT(*) FROM messages       WHERE user_id=$1)::int AS messages,
+           (SELECT COUNT(*) FROM direct_messages WHERE sender_id=$1)::int AS dms,
+           (SELECT COUNT(*) FROM user_pinnwand   WHERE user_id=$1)::int AS photos`,
+        [id]
+      ),
+    ]);
+    const rows = memberships.rows;
+    res.json({
+      groups: rows.filter(r => r.type === 'group'),
+      clubs:  rows.filter(r => r.type === 'club'),
+      owned:  owned.rows,
+      counts: counts.rows[0],
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// GROWTH — permanent daily rollup (investor metrics)
+// ==========================================
+// Serves the analytics_daily time-series (DAU/WAU/MAU, retention cohorts,
+// engagement). Rows are pre-aggregated by the nightly job so this is a single
+// cheap indexed range scan. ?days=N (default 90, max 400).
+export const getGrowth = async (req, res) => {
+  const days = Math.min(Math.max(parseInt(req.query.days, 10) || 90, 1), 400);
+  try {
+    const result = await db.query(
+      `SELECT to_char(day, 'YYYY-MM-DD') AS day,
+              dau, wau, mau, new_users, cohort_size,
+              retention_d1, retention_d7, retention_d30,
+              groups_created, events_created, clubs_created,
+              joins, messages, dms, friendships, photos
+       FROM analytics_daily
+       WHERE day >= (CURRENT_DATE - $1::int)
+       ORDER BY day ASC`,
+      [days]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
 // PENDING CLUBS (admin approval queue)
 // ==========================================
 export const getPendingClubs = async (_req, res) => {
