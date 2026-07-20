@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { groups } from '../utils/api';
@@ -15,11 +15,7 @@ export const GroupRequests = () => {
   const [requests, setRequests] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [swipeDirection, setSwipeDirection] = useState(null);
-  const [startX, setStartX] = useState(0);
-  const [offsetX, setOffsetX] = useState(0);
   const [processing, setProcessing] = useState(false);
-  const cardRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,25 +41,6 @@ export const GroupRequests = () => {
     return () => { cancelled = true; };
   }, [id]);
 
-  const handleTouchStart = (e) => {
-    setStartX(e.touches[0].clientX);
-  };
-
-  const handleTouchMove = (e) => {
-    const currentX = e.touches[0].clientX;
-    const diff = currentX - startX;
-    setOffsetX(diff);
-    if (diff > 50) setSwipeDirection('right');
-    else if (diff < -50) setSwipeDirection('left');
-    else setSwipeDirection(null);
-  };
-
-  const handleTouchEnd = () => {
-    if (offsetX > 100) handleAccept();
-    else if (offsetX < -100) handleDecline();
-    else { setOffsetX(0); setSwipeDirection(null); }
-  };
-
   const handleAccept = async () => {
     if (processing) return;
     const request = requests[currentIndex];
@@ -71,12 +48,11 @@ export const GroupRequests = () => {
     try {
       await groups.handleRequest(id, request.id, 'accept');
       toast.success(t('groupRequests.acceptedToast', { name: request.user_name }));
-      setSwipeDirection('right');
-      setOffsetX(300);
-      setTimeout(() => { goToNext(); setProcessing(false); }, 300);
+      goToNext();
     } catch (err) {
       toast.error(err.response?.data?.error || t('groupRequests.acceptError'));
-      setOffsetX(0); setSwipeDirection(null); setProcessing(false);
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -87,18 +63,15 @@ export const GroupRequests = () => {
     try {
       await groups.handleRequest(id, request.id, 'reject');
       toast.info(t('groupRequests.declinedToast', { name: request.user_name }));
-      setSwipeDirection('left');
-      setOffsetX(-300);
-      setTimeout(() => { goToNext(); setProcessing(false); }, 300);
+      goToNext();
     } catch (err) {
       toast.error(err.response?.data?.error || t('groupRequests.declineError'));
-      setOffsetX(0); setSwipeDirection(null); setProcessing(false);
+    } finally {
+      setProcessing(false);
     }
   };
 
   const goToNext = () => {
-    setOffsetX(0);
-    setSwipeDirection(null);
     setCurrentIndex(prev => prev + 1);
   };
 
@@ -142,26 +115,7 @@ export const GroupRequests = () => {
             </button>
           </div>
         ) : currentRequest ? (
-          <div
-            className="request-card-wrapper"
-            ref={cardRef}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            style={{
-              transform: `translateX(${offsetX}px) rotate(${offsetX * 0.05}deg)`,
-              transition: Math.abs(offsetX) > 100 ? 'transform 0.3s ease' : 'none'
-            }}
-          >
-            <div className={`swipe-indicator swipe-accept ${swipeDirection === 'right' ? 'visible' : ''}`}>
-              <span>✓</span>
-              <span>{t('groupRequests.accept')}</span>
-            </div>
-            <div className={`swipe-indicator swipe-decline ${swipeDirection === 'left' ? 'visible' : ''}`}>
-              <span>✕</span>
-              <span>{t('groupRequests.decline')}</span>
-            </div>
-
+          <div className="request-card-wrapper">
             <div className="request-card">
               <div className="request-image-container">
                 {currentRequest.user_avatar ? (
