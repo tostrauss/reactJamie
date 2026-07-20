@@ -276,9 +276,8 @@ select:focus-visible {
    ========================================== */
 .update-banner {
   position: fixed;
-  /* Flat offset above the flush 48px nav (no safe-area, see .bottom-nav) —
-     the env() term floated the banner ~34px too high on iOS. */
-  bottom: 68px;
+  /* Sit above the 60px nav + its bottom safe-area inset (see .bottom-nav). */
+  bottom: calc(70px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   background: var(--bg-card);
@@ -314,8 +313,8 @@ select:focus-visible {
    ========================================== */
 .install-banner {
   position: fixed;
-  /* Flat offset above the flush 48px nav (no safe-area, see .bottom-nav). */
-  bottom: 76px;
+  /* Sit above the 60px nav + its bottom safe-area inset (see .bottom-nav). */
+  bottom: calc(78px + env(safe-area-inset-bottom, 0px));
   left: 12px;
   right: 12px;
   background: var(--bg-card);
@@ -512,19 +511,21 @@ select:focus {
   /* Flex child at the bottom of the #root shell (no longer position:fixed —
      that floated ~60pt above the home indicator in the iOS standalone PWA).
      Sitting in normal flow at the end of a dvh-bounded flex column pins it to
-     the true screen bottom. Still NO safe-area padding: the team wants the
-     icons as low as possible (home indicator may overlap the strip's bottom —
-     accepted trade-off, Tobi/Tina). */
+     the true screen bottom.
+     2026-07-20 (Tina): the old flush, 48px strip was "hard to reach and tap".
+     Now taller (60px) AND padded by the bottom safe-area so the icons sit
+     ABOVE the home-indicator / gesture bar instead of flush against the edge —
+     reverses the earlier "icons as low as possible" call. */
   flex-shrink: 0;
   background: var(--bg-secondary);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 1000;
-  padding-bottom: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .bottom-nav-items {
-  /* Compact fixed-height strip, icons vertically centered. */
-  height: 48px;
+  /* Taller strip → bigger tap targets, icons vertically centered. */
+  height: 60px;
   display: flex;
   justify-content: space-around;
   align-items: center;
@@ -561,8 +562,8 @@ select:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
 }
 
 .nav-label {
@@ -572,8 +573,8 @@ select:focus {
 /* Plus Button - Hauptaktion */
 .nav-add-button {
   position: relative;
-  width: 54px;
-  height: 54px;
+  width: 60px;
+  height: 60px;
   background: var(--bg-input);
   border: 1px solid var(--border-default);
   border-radius: 18px;
@@ -583,11 +584,10 @@ select:focus {
   justify-content: center;
   transition: all var(--transition-normal);
   /* Anchored to the strip bottom with a small gap so the bottom rounded
-     corners never get clipped by the screen edge; the 54px height then
-     protrudes ~11px above the 48px strip = floating CTA. (Centering it
-     instead pushed 3px below the bar and the bottom edge was cut off.) */
+     corners never get clipped; the 60px height protrudes ~7px above the 60px
+     strip = floating CTA. */
   align-self: flex-end;
-  margin-bottom: 5px;
+  margin-bottom: 7px;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
@@ -602,7 +602,7 @@ select:focus {
 }
 
 .plus-icon {
-  font-size: 32px;
+  font-size: 34px;
   font-weight: 400;
   color: white;
   line-height: 1;
@@ -629,8 +629,8 @@ select:focus {
 
 /* Profile avatar in nav */
 .nav-avatar {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid transparent;
