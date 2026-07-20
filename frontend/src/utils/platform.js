@@ -13,25 +13,6 @@ export const isNativeIOS = () =>
 export const isNativeAndroid = () =>
   isNative() && window.Capacitor?.getPlatform?.() === 'android';
 
-// Android running as an INSTALLED web app — the Play Store TWA or a PWA added
-// to the home screen (both report display-mode: standalone; a TWA also has an
-// `android-app://` referrer). NOT Capacitor, so isNative() is false here.
-//
-// Google's popup OAuth (useGoogleLogin implicit flow) can't post the token back
-// to the WebView in this context, so tapping "Google" selects an account and
-// then silently dead-ends back on the login screen (Tina's uncle + Karl on
-// Samsung via Play Store, 2026-07-20). We hide the Google button here — same as
-// on native iOS — and users sign in with email. In a normal Android browser tab
-// (not installed) the popup works, so the button stays.
-export const isAndroidWebApp = () => {
-  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
-  if (!/android/i.test(navigator.userAgent)) return false;
-  const standalone = window.matchMedia?.('(display-mode: standalone)')?.matches === true
-    || window.navigator.standalone === true;
-  const twa = typeof document !== 'undefined' && document.referrer?.startsWith('android-app://');
-  return !!(standalone || twa);
-};
-
 // ── Native API origin ───────────────────────────────────────────────────
 // In nativen Builds wird die WebView-Origin (https://app.jamie-app.com)
 // KOMPLETT vom lokalen Capacitor-Scheme-Handler bedient — jeder XHR an diese

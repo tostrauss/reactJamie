@@ -1097,57 +1097,117 @@ export const googleLogin = async (req, res) => {
       googleId = data.sub;
     }
 
-    if (!email) return res.status(400).json({ error: 'Kein E-Mail von Google' });
-    email = normalizeEmail(email);
-    if (!isValidEmail(email)) return res.status(400).json({ error: 'Ungültige E-Mail von Google' });
-
-    // Find or create user
-    let userResult = await db.query(
-      'SELECT id, google_id, avatar_url FROM users WHERE LOWER(email) = $1 OR google_id = $2',
-      [email, googleId]
-    );
-
-    let userId;
-    if (userResult.rows.length > 0) {
-      // Existing user — link google_id if not set
-      userId = userResult.rows[0].id;
-      if (!userResult.rows[0].google_id) {
-        await db.query('UPDATE users SET google_id = $1, updated_at = NOW() WHERE id = $2', [googleId, userId]);
-      }
-      if (picture && !userResult.rows[0].avatar_url) {
-        await db.query('UPDATE users SET avatar_url = $1 WHERE id = $2', [picture, userId]);
-      }
-    } else {
-      // New user — create account (no password, Google-only).
-      // date_of_birth is intentionally NULL; onboarding collects and validates it (18+ gate).
-      const insert = await db.query(
-        `INSERT INTO users (email, name, avatar_url, google_id, is_verified, auth_provider)
-         VALUES ($1, $2, $3, $4, TRUE, 'google') RETURNING id`,
-        [email, name || email.split('@')[0], picture || null, googleId]
-      );
-      userId = insert.rows[0].id;
-
-      // Initialize boost wallet
-      await db.query(
-        'INSERT INTO boost_credits (user_id) VALUES ($1) ON CONFLICT DO NOTHING',
-        [userId]
-      );
-      const refCode = 'JAMIE-' + crypto.randomBytes(4).toString('hex').toUpperCase();
-      await db.query(
-        'INSERT INTO referral_codes (user_id, code) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [userId, refCode]
-      );
-    }
-
-    const fullUser = await db.query(`SELECT ${SAFE_USER_COLS} FROM users WHERE id = $1`, [userId]);
-    const user = fullUser.rows[0];
-    parseUserJSONFields(user);
-
-    const token = generateToken(user.id);
-    setAuthCookie(res, token);
-    res.json({ user, token });
+    await finishGoogleLogin({ email, name, picture, googleId }, res);
   } catch (err) {
     console.error('Google login error:', err);
+    res.status(500).json({ error: 'Google Login fehlgeschlagen' });
+  }
+};
+
+// Shared find-or-create + token issuance for BOTH Google entry points
+// (googleLogin's credential/access-token paths above, and googleLoginCode's
+// auth-code exchange below) — same user record, same session shape either way.
+async function finishGoogleLogin({ email, name, picture, googleId }, res) {
+  if (!email) return res.status(400).json({ error: 'Kein E-Mail von Google' });
+  email = normalizeEmail(email);
+  if (!isValidEmail(email)) return res.status(400).json({ error: 'Ungültige E-Mail von Google' });
+
+  // Find or create user
+  let userResult = await db.query(
+    'SELECT id, google_id, avatar_url FROM users WHERE LOWER(email) = $1 OR google_id = $2',
+    [email, googleId]
+  );
+
+  let userId;
+  if (userResult.rows.length > 0) {
+    // Existing user — link google_id if not set
+    userId = userResult.rows[0].id;
+    if (!userResult.rows[0].google_id) {
+      await db.query('UPDATE users SET google_id = $1, updated_at = NOW() WHERE id = $2', [googleId, userId]);
+    }
+    if (picture && !userResult.rows[0].avatar_url) {
+      await db.query('UPDATE users SET avatar_url = $1 WHERE id = $2', [picture, userId]);
+    }
+  } else {
+    // New user — create account (no password, Google-only).
+    // date_of_birth is intentionally NULL; onboarding collects and validates it (18+ gate).
+    const insert = await db.query(
+      `INSERT INTO users (email, name, avatar_url, google_id, is_verified, auth_provider)
+       VALUES ($1, $2, $3, $4, TRUE, 'google') RETURNING id`,
+      [email, name || email.split('@')[0], picture || null, googleId]
+    );
+    userId = insert.rows[0].id;
+
+    // Initialize boost wallet
+    await db.query(
+      'INSERT INTO boost_credits (user_id) VALUES ($1) ON CONFLICT DO NOTHING',
+      [userId]
+    );
+    const refCode = 'JAMIE-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+    await db.query(
+      'INSERT INTO referral_codes (user_id, code) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [userId, refCode]
+    );
+  }
+
+  const fullUser = await db.query(`SELECT ${SAFE_USER_COLS} FROM users WHERE id = $1`, [userId]);
+  const user = fullUser.rows[0];
+  parseUserJSONFields(user);
+
+  const token = generateToken(user.id);
+  setAuthCookie(res, token);
+  res.json({ user, token });
+}
+
+// ==========================================
+// GOOGLE OAUTH LOGIN — auth-code redirect flow
+// ==========================================
+// The popup-based implicit flow (googleLogin above) can't complete inside the
+// Android Play-Store TWA / an installed PWA: the popup can't post the token
+// back to the WebView, so the button silently dead-ended (Tina's uncle + Karl
+// on Samsung, 2026-07-20). This is a full-page redirect flow instead — no
+// popup, works everywhere a WebView can navigate. Frontend sends Google's the
+// one-time `code` + the exact `redirectUri` it was issued for (OAuth2 requires
+// the token-exchange redirect_uri to match the authorize-request one byte for
+// byte); we exchange it server-side (needs GOOGLE_CLIENT_SECRET — a "Web
+// application" OAuth client has one, unlike the client id alone used above)
+// and reuse the same verified-ID-token → find-or-create-user path.
+export const googleLoginCode = async (req, res) => {
+  try {
+    const { code, redirectUri } = req.body;
+    if (!code || !redirectUri) {
+      return res.status(400).json({ error: 'Google-Code fehlt' });
+    }
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      return res.status(503).json({ error: 'Google-Login ist nicht konfiguriert' });
+    }
+
+    const oauthClient = new OAuth2Client(clientId, clientSecret, redirectUri);
+    let tokens;
+    try {
+      ({ tokens } = await oauthClient.getToken(code));
+    } catch {
+      // Expired/already-used code, redirect_uri mismatch, revoked consent, etc.
+      return res.status(401).json({ error: 'Google-Anmeldung fehlgeschlagen oder abgelaufen' });
+    }
+    if (!tokens?.id_token) return res.status(401).json({ error: 'Google Token ungültig' });
+
+    let payload;
+    try {
+      const ticket = await oauthClient.verifyIdToken({ idToken: tokens.id_token, audience: clientId });
+      payload = ticket.getPayload();
+    } catch {
+      return res.status(401).json({ error: 'Google Token ungültig' });
+    }
+
+    await finishGoogleLogin(
+      { email: payload.email, name: payload.name, picture: payload.picture, googleId: payload.sub },
+      res
+    );
+  } catch (err) {
+    console.error('Google code login error:', err);
     res.status(500).json({ error: 'Google Login fehlgeschlagen' });
   }
 };

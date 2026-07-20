@@ -1,11 +1,11 @@
-import { useState, useContext } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useGoogleLogin } from '@react-oauth/google';
+import { useState, useContext, useEffect } from 'react';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { JamieWordmark } from '../components/JamieWordmark';
 import { PasswordInput } from '../components/PasswordInput';
-import { isNativeIOS, isAndroidWebApp } from '../utils/platform';
+import { isNativeIOS } from '../utils/platform';
+import { startGoogleLogin } from '../utils/googleAuth';
 import '../styles/auth.css';
 
 // Read from env only. App.jsx skips wrapping in GoogleOAuthProvider when this
@@ -20,27 +20,10 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 // in a fast-follow update (e.g. via @capgo/capacitor-social-login). The web
 // build never rendered an Apple button here (it was gated on isNativeIOS).
 
-const GoogleLoginButton = ({ onError }) => {
-  const { t } = useTranslation();
-  const { loginWithGoogle } = useContext(AuthContext);
-  const navigate = useNavigate();
-
-  const handleGoogleLogin = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      try {
-        await loginWithGoogle(tokenResponse.access_token);
-        navigate('/home');
-      } catch {
-        onError(t('auth.login.errorGoogle'));
-      }
-    },
-    onError: () => onError(t('auth.login.errorGoogle')),
-  });
-
-  return (
+const GoogleLoginButton = () => (
     <button
       className="auth-btn auth-btn-secondary"
-      onClick={() => handleGoogleLogin()}
+      onClick={() => startGoogleLogin(GOOGLE_CLIENT_ID)}
     >
       <svg className="auth-btn-icon" width="20" height="20" viewBox="0 0 24 24">
         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -50,8 +33,7 @@ const GoogleLoginButton = ({ onError }) => {
       </svg>
       Google
     </button>
-  );
-};
+);
 
 export const Login = () => {
   const { t } = useTranslation();
@@ -61,6 +43,17 @@ export const Login = () => {
   const [error, setError] = useState('');
   const { login, loading, loginAsGuest } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // GoogleCallback redirects here with ?error=google on a failed/cancelled
+  // Google sign-in (the whole login flow is a full-page redirect now, so
+  // there's no popup onError callback to hook — see utils/googleAuth.js).
+  useEffect(() => {
+    if (searchParams.get('error') === 'google') {
+      setError(t('auth.login.errorGoogle'));
+      setSearchParams(prev => { const sp = new URLSearchParams(prev); sp.delete('error'); return sp; }, { replace: true });
+    }
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleEmailLogin = async (e) => {
     e.preventDefault();
@@ -104,12 +97,12 @@ export const Login = () => {
               {t('auth.login.continueWithEmail')}
             </button>
 
-            {/* iOS v1 = email-only. Google OAuth is also hidden on native iOS
-                (Google blocks its flow inside embedded WebViews) AND inside the
-                Android Play-Store TWA / installed PWA, where the OAuth popup
-                can't return the token and the button dead-ends (2026-07-20).
-                In a normal browser tab the popup works, so it still shows. */}
-            {GOOGLE_CLIENT_ID && !isNativeIOS() && !isAndroidWebApp() && <GoogleLoginButton onError={setError} />}
+            {/* iOS v1 = email-only (Google blocks its OAuth flow inside
+                embedded WebViews) — unchanged product decision. The
+                Android-TWA popup dead-end (2026-07-20) is fixed at the root
+                now: GoogleLoginButton uses a full-page redirect (no popup),
+                which works in a normal browser tab AND the installed TWA. */}
+            {GOOGLE_CLIENT_ID && !isNativeIOS() && <GoogleLoginButton />}
 
             <div className="auth-divider"><span>{t('common.or')}</span></div>
 

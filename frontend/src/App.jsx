@@ -54,6 +54,7 @@ const CommunityGuidelines = lazyWithReload(() => import('./pages/CommunityGuidel
 const ChildSafety = lazyWithReload(() => import('./pages/ChildSafety'));
 const AdminDashboard = lazyWithReload(() => import('./pages/AdminDashboard'));
 const OutOfRegion    = lazyWithReload(() => import('./pages/OutOfRegion'));
+const GoogleCallback = lazyWithReload(() => import('./pages/GoogleCallback'));
 const Friends        = lazyWithReload(() => import('./pages/Friends'));
 const DealDetail     = lazyWithReload(() => import('./pages/DealDetail'));
 const DealRedeem     = lazyWithReload(() => import('./pages/DealRedeem'));
@@ -729,6 +730,12 @@ function AppRoutes() {
               this in ProtectedRoute bounced it to /login. The page completes
               the OAuth exchange via the state nonce (no session needed). */}
           <Route path="/spotify/callback" element={<SpotifyCallback />} />
+
+          {/* Google Sign-In — auth-code redirect landing page (see
+              utils/googleAuth.js). AuthRoute: an already-logged-in visitor
+              (e.g. hitting Back after a completed login) bounces to /home
+              instead of re-running a single-use, now-consumed code. */}
+          <Route path="/auth/google/callback" element={<AuthRoute><GoogleCallback /></AuthRoute>} />
 
           {/* Admin — requires login + is_admin flag in DB */}
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />

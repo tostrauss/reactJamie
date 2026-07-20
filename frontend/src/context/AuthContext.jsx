@@ -74,6 +74,18 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  // Auth-code redirect flow — see GoogleCallback.jsx.
+  const loginWithGoogleCode = useCallback(async (code, redirectUri) => {
+    setLoading(true);
+    try {
+      const { data } = await auth.googleLoginCode(code, redirectUri);
+      storeAuth(data.user, data.token);
+      return data.user;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const loginWithApple = useCallback(async (identityToken, appleUser) => {
     setLoading(true);
     try {
@@ -165,6 +177,7 @@ export const AuthProvider = ({ children }) => {
         login,
         register,
         loginWithGoogle,
+        loginWithGoogleCode,
         loginWithApple,
         loginAsGuest,
         logout,

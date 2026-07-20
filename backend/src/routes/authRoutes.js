@@ -1,5 +1,5 @@
 import express from 'express';
-import { register, login, logout, getProfile, updateProfile, completeOnboarding, changePassword, deleteAccount, exportData, forgotPassword, resetPassword, sendVerification, verifyEmail, sendEmailCode, verifyEmailCode, googleLogin, appleLogin, refreshToken } from '../controllers/authController.js';
+import { register, login, logout, getProfile, updateProfile, completeOnboarding, changePassword, deleteAccount, exportData, forgotPassword, resetPassword, sendVerification, verifyEmail, sendEmailCode, verifyEmailCode, googleLogin, googleLoginCode, appleLogin, refreshToken } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
 import { strictLimiter, registrationLimiter } from '../middleware/rateLimiter.js';
 import { geofenceRegistration } from '../middleware/geofence.js';
@@ -17,6 +17,9 @@ router.post('/logout', logout);
 // 5/h shared across an entire NAT (CGNAT carriers, event WiFi) locked out real
 // users on their 6th social login of the hour.
 router.post('/google', googleLogin);
+// Auth-code redirect flow — see googleLoginCode's comment (no popup, works in
+// the Android TWA/installed-PWA where the implicit popup flow dead-ended).
+router.post('/google/code', googleLoginCode);
 router.post('/apple',  appleLogin);
 router.post('/refresh', authenticate, refreshToken);
 router.get('/profile', authenticate, getProfile);

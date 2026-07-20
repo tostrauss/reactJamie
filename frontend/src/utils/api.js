@@ -169,6 +169,12 @@ export const auth = {
   googleLogin: (credential) =>
     axiosInstance.post('/auth/google', { credential }),
 
+  // Auth-code redirect flow (no popup — works in the Android TWA/installed
+  // PWA where the implicit popup flow dead-ended). redirectUri must be the
+  // EXACT value the authorize request was sent with.
+  googleLoginCode: (code, redirectUri) =>
+    axiosInstance.post('/auth/google/code', { code, redirectUri }),
+
   // Apple Sign-In. `identity_token` is the JWS from Apple; `user` is
   // populated only on the very first authorization (first-name/last-name) —
   // Apple never sends it again, so we forward it once for account creation.
