@@ -59,6 +59,24 @@ const isSchemaError = (err) => err?.code === '42P01' || err?.code === '42703';
 // Backwards-compatible alias used by older call sites (keep both spellings).
 const isMissingRelationError = isSchemaError;
 
+// Who may exchange DMs: accepted friends, OR any pair where at least one side is
+// an admin. Admins can message any user without a friend request (support /
+// moderation / outreach — Robert 2026-07-19), and the recipient can see + reply
+// to that thread, so both send + read gates use this single rule.
+async function dmAllowed(userA, userB) {
+  const { rows } = await db.query(
+    `SELECT
+       EXISTS(SELECT 1 FROM friendships
+              WHERE status = 'accepted'
+                AND ((requester_id = $1::int AND addressee_id = $2::int)
+                  OR (requester_id = $2::int AND addressee_id = $1::int))) AS friends,
+       EXISTS(SELECT 1 FROM users
+              WHERE id IN ($1::int, $2::int) AND is_admin = TRUE)          AS admin_party`,
+    [userA, userB]
+  );
+  return rows[0].friends || rows[0].admin_party;
+}
+
 // ==========================================
 // SEND DIRECT MESSAGE
 // ==========================================
@@ -83,19 +101,10 @@ export const sendDM = async (req, res) => {
       return res.status(422).json({ error: reason });
     }
 
-    // Verify friendship exists and is accepted. A 'blocked' row hides under the
-    // same status check — it isn't 'accepted' so DMs are refused in both
-    // directions, but we hand back the same generic friendship error so a
-    // blocker isn't outed by a different message text.
-    const friendship = await db.query(
-      `SELECT status FROM friendships
-       WHERE (requester_id = $1::int AND addressee_id = $2::int)
-          OR (requester_id = $2::int AND addressee_id = $1::int)`,
-      [req.userId, receiverId]
-    );
-
-    const status = friendship.rows[0]?.status;
-    if (status !== 'accepted') {
+    // Accepted friends may DM each other; admins may DM anyone (and be replied
+    // to). A 'blocked' row is not 'accepted' so DMs stay refused between normal
+    // users, and we hand back the same generic error so a blocker isn't outed.
+    if (!(await dmAllowed(req.userId, receiverId))) {
       return res.status(403).json({
         error: 'Ihr müsst befreundet sein, um Direktnachrichten zu senden',
         requiresFriendship: true
@@ -184,18 +193,10 @@ export const getConversation = async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
 
-    // Verify friendship before allowing message history access. Casting both
-    // params to int defensively because req.userId from JWT may come back as a
-    // string depending on how the token was signed — then LEAST/GREATEST in
-    // the next query trips on `integer = text` (PG error 42883).
-    const friendship = await db.query(
-      `SELECT id FROM friendships
-       WHERE status = 'accepted'
-       AND ((requester_id = $1::int AND addressee_id = $2::int)
-            OR (requester_id = $2::int AND addressee_id = $1::int))`,
-      [req.userId, userId]
-    );
-    if (friendship.rows.length === 0) {
+    // Gate history access: accepted friends, or any thread involving an admin
+    // (so the admin can open it AND the recipient can read/reply). Same rule as
+    // the send gate.
+    if (!(await dmAllowed(req.userId, userId))) {
       return res.status(403).json({
         error: 'Ihr müsst befreundet sein, um diese Konversation anzusehen',
         requiresFriendship: true

@@ -210,6 +210,20 @@ export const UserProfile = () => {
           </div>
         );
       default:
+        // Admins can DM any user without befriending them first (backend allows
+        // admin-involved threads). Non-admins see only the friend-request CTA.
+        if (currentUser?.is_admin) {
+          return (
+            <div className="up-cta-row">
+              <button className="up-cta-btn" onClick={() => navigate(`/dm/${id}`)}>
+                {t('userProfile.actions.message')}
+              </button>
+              <button className="up-cta-btn up-cta-ghost" onClick={handleSendFriendRequest}>
+                {t('userProfile.actions.sendRequest')}
+              </button>
+            </div>
+          );
+        }
         return (
           <button className="up-cta-btn" onClick={handleSendFriendRequest}>
             {t('userProfile.actions.sendRequest')}
