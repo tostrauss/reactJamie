@@ -1,10 +1,12 @@
-import { useState, useEffect, useContext, useRef } from 'react';
+import { useState, useEffect, useContext, useRef, Fragment } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { SocketContext } from '../context/SocketContext';
 import { directMessages, users } from '../utils/api';
 import { useToast } from '../context/ToastContext';
+import { dayKey, daySeparatorLabel } from '../utils/chatDate';
+import { useChatViewport } from '../hooks/useChatViewport';
 import '../styles/chat.css';
 
 export const DirectMessagePage = () => {
@@ -27,6 +29,17 @@ export const DirectMessagePage = () => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const inputRef = useRef(null);
+  const chatPageRef = useRef(null);
+  useChatViewport(chatPageRef);
+
+  // Grow the composer with its content (up to a cap).
+  const autoGrow = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  };
 
   useEffect(() => {
     if (!user || !otherUserId) return;
@@ -138,6 +151,7 @@ export const DirectMessagePage = () => {
 
     setMessagesList(prev => [...prev, optimistic]);
     setNewMessage('');
+    if (inputRef.current) inputRef.current.style.height = 'auto'; // collapse composer
     stopTyping();
 
     // Persist FIRST, then deliver. Reconcile the sender's optimistic bubble
@@ -245,7 +259,7 @@ export const DirectMessagePage = () => {
   }
 
   return (
-    <div className="chat-page">
+    <div className="chat-page" ref={chatPageRef}>
       <header className="chat-page-header">
         <button className="back-button" onClick={() => navigate('/chats')}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -288,22 +302,28 @@ export const DirectMessagePage = () => {
             <p style={{ fontSize: '13px', marginTop: '8px' }}>{t('chat.dm.emptyHint')}</p>
           </div>
         )}
-        {messagesList.map((msg) => (
-          <div
-            key={msg.id}
-            className={`message ${msg.sender_id === user.id ? 'sent' : 'received'}${msg._pending ? ' message--pending' : ''}${msg._failed ? ' message--failed' : ''}`}
-          >
-            <div className="message-content">{msg.content}</div>
-            <div className="message-time">
-              {msg._failed
-                ? t('chat.dm.notSent')
-                : new Date(msg.created_at).toLocaleTimeString(dateLocale, {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-            </div>
-          </div>
-        ))}
+        {messagesList.map((msg, index) => {
+          const prev = messagesList[index - 1];
+          const showDay = msg.created_at && (!prev || dayKey(prev.created_at) !== dayKey(msg.created_at));
+          return (
+            <Fragment key={msg.id}>
+              {showDay && <div className="message-day-sep"><span>{daySeparatorLabel(msg.created_at, dateLocale, t)}</span></div>}
+              <div
+                className={`message ${msg.sender_id === user.id ? 'sent' : 'received'}${msg._pending ? ' message--pending' : ''}${msg._failed ? ' message--failed' : ''}`}
+              >
+                <div className="message-content">{msg.content}</div>
+                <div className="message-time">
+                  {msg._failed
+                    ? t('chat.dm.notSent')
+                    : new Date(msg.created_at).toLocaleTimeString(dateLocale, {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                </div>
+              </div>
+            </Fragment>
+          );
+        })}
         {isTyping && (
           <div className="typing-indicator">
             <span>{t('chat.dm.typingFmt', { name: otherUser?.name || '' })}</span>
@@ -313,12 +333,14 @@ export const DirectMessagePage = () => {
       </div>
 
       <div className="message-input-container">
-        <input
-          type="text"
+        <textarea
+          ref={inputRef}
+          rows={1}
           value={newMessage}
           onChange={(e) => {
             setNewMessage(e.target.value);
             handleTyping();
+            autoGrow();
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {

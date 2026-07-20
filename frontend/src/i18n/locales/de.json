@@ -627,6 +627,10 @@
     "shared": {
       "reconnectBanner": "Verbindung unterbrochen – Wiederverbindung..."
     },
+    "day": {
+      "today": "Heute",
+      "yesterday": "Gestern"
+    },
     "list": {
       "tabs": {
         "groups": "Gruppen",

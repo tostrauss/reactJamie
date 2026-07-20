@@ -627,6 +627,10 @@
     "shared": {
       "reconnectBanner": "Connection lost — reconnecting…"
     },
+    "day": {
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
     "list": {
       "tabs": {
         "groups": "Groups",

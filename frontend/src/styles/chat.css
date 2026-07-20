@@ -1007,10 +1007,27 @@
   margin: 8px auto;
 }
 
+/* Day separator (WhatsApp-style: Heute / Gestern / date) between message
+   groups from different calendar days. */
+.message-day-sep {
+  align-self: center;
+  margin: 10px auto 6px;
+}
+.message-day-sep span {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 /* Message Input */
 .message-input-container {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 12px;
   padding: 12px 20px;
   /* Fixed bottom padding — user wants the input flush with the WebView
@@ -1023,15 +1040,22 @@
 
 .message-input {
   flex: 1;
-  padding: 14px 18px;
+  min-width: 0;
+  padding: 12px 18px;
   background: var(--bg-card);
   border: none;
-  border-radius: var(--radius-full);
+  border-radius: 22px;
   color: var(--text-white);
   font-size: 16px; /* 16px prevents iOS zoom on focus */
   font-family: inherit;
+  line-height: 1.35;
   outline: none;
   -webkit-appearance: none;
+  /* Auto-growing textarea: starts at one row, grows with content up to a cap,
+     then scrolls. resize:none kills the manual drag handle. */
+  resize: none;
+  max-height: 120px;
+  overflow-y: auto;
 }
 
 .message-input::placeholder {

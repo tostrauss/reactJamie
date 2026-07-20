@@ -1,10 +1,12 @@
-import { useState, useEffect, useContext, useRef } from 'react';
+import { useState, useEffect, useContext, useRef, Fragment } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { groups, messages } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { SocketContext } from '../context/SocketContext';
 import { useToast } from '../context/ToastContext';
+import { dayKey, daySeparatorLabel } from '../utils/chatDate';
+import { useChatViewport } from '../hooks/useChatViewport';
 import '../styles/chat.css';
 
 export const ChatPage = () => {
@@ -26,6 +28,17 @@ export const ChatPage = () => {
   const { t, i18n } = useTranslation();
   const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-DE';
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
+  const chatPageRef = useRef(null);
+  useChatViewport(chatPageRef);
+
+  // Grow the composer with its content (up to a cap), then reset after send.
+  const autoGrow = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  };
   // Banner only appears after 3s of sustained disconnection — avoids
   // scary flashes during routine network blips that socket.io recovers from.
   const [showReconnectBanner, setShowReconnectBanner] = useState(false);
@@ -151,6 +164,7 @@ export const ChatPage = () => {
     // instant bubble; other members see it ~1 DB round-trip later, moderated.
     isSendingRef.current = true;
     setContent('');
+    if (inputRef.current) inputRef.current.style.height = 'auto'; // collapse composer
 
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const optimistic = {
@@ -205,7 +219,7 @@ export const ChatPage = () => {
   if (!group) return <div className="chat-page"><div className="loading">{t('chat.page.notFound')}</div></div>;
 
   return (
-    <div className="chat-page">
+    <div className="chat-page" ref={chatPageRef}>
       {/* Header */}
       <div className="chat-page-header">
         <button className="back-button" onClick={() => navigate(-1)}>
@@ -252,44 +266,61 @@ export const ChatPage = () => {
             </button>
           </div>
         )}
-        {(Array.isArray(messageList) ? messageList : []).map((msg, index) => {
-          // System messages (welcome, join announcements) render as a centered
-          // pill instead of a sender bubble. Backend marks them with
-          // message_type='system' and a null user_id.
-          if (msg.message_type === 'system') {
+        {(() => {
+          const list = Array.isArray(messageList) ? messageList : [];
+          return list.map((msg, index) => {
+            // Insert a WhatsApp-style day separator whenever the calendar day
+            // changes, so it's clear whether a message is from today, yesterday
+            // or longer ago.
+            const prev = list[index - 1];
+            const showDay = msg.created_at && (!prev || dayKey(prev.created_at) !== dayKey(msg.created_at));
+            const daySep = showDay ? (
+              <div className="message-day-sep"><span>{daySeparatorLabel(msg.created_at, dateLocale, t)}</span></div>
+            ) : null;
+
+            // System messages (welcome, join announcements) render as a centered
+            // pill instead of a sender bubble. Backend marks them with
+            // message_type='system' and a null user_id.
+            if (msg.message_type === 'system') {
+              return (
+                <Fragment key={msg.id || index}>
+                  {daySep}
+                  <div className="message-system">{msg.content}</div>
+                </Fragment>
+              );
+            }
             return (
-              <div key={msg.id || index} className="message-system">
-                {msg.content}
-              </div>
+              <Fragment key={msg.id || index}>
+                {daySep}
+                <div
+                  className={`message ${msg.user_id === user?.id ? 'sent' : 'received'}${msg._pending ? ' message--pending' : ''}${msg._failed ? ' message--failed' : ''}`}
+                >
+                  {msg.user_id !== user?.id && (
+                    <div className="message-sender">{msg.user_name}</div>
+                  )}
+                  <div className="message-content">{msg.content}</div>
+                  <div className="message-time">
+                    {msg._failed
+                      ? t('chat.dm.notSent')
+                      : new Date(msg.created_at).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              </Fragment>
             );
-          }
-          return (
-            <div
-              key={msg.id || index}
-              className={`message ${msg.user_id === user?.id ? 'sent' : 'received'}${msg._pending ? ' message--pending' : ''}${msg._failed ? ' message--failed' : ''}`}
-            >
-              {msg.user_id !== user?.id && (
-                <div className="message-sender">{msg.user_name}</div>
-              )}
-              <div className="message-content">{msg.content}</div>
-              <div className="message-time">
-                {msg._failed
-                  ? t('chat.dm.notSent')
-                  : new Date(msg.created_at).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}
-              </div>
-            </div>
-          );
-        })}
+          });
+        })()}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Message Input */}
       <form className="message-input-container" onSubmit={handleSendMessage}>
-        <input
-          type="text"
+        <textarea
+          ref={inputRef}
+          rows={1}
           placeholder={canSendMessages ? t('chat.page.input.placeholder') : t('chat.page.input.placeholderOwnerOnly')}
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={(e) => { setContent(e.target.value); autoGrow(); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(e); } }}
           className="message-input"
           disabled={!canSendMessages}
         />
