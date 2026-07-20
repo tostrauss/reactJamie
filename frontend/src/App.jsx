@@ -15,6 +15,7 @@ const ProModal = lazyWithReload(() => import('./components/ProModal').then(m => 
 import { useAnalytics } from './hooks/useAnalytics';
 import { EventReviewModal } from './components/EventReviewModal';
 import { FeedbackModal } from './components/FeedbackModal';
+import { NotificationPrompt } from './components/NotificationPrompt';
 import { reviews } from './utils/api';
 
 // Auth Pages (eagerly loaded - needed at startup)
@@ -447,8 +448,12 @@ function useGeoFence() {
     // rule still applies to group/club CREATION (enforced in Create* + server).
     // The web PWA keeps its waitlist gate for non-AT visitors.
     if (isNative()) return 'allowed';
-    // Re-use result within the same browser session
-    const cached = sessionStorage.getItem('jamie_region');
+    // Persist the check in localStorage (NOT sessionStorage) so the location
+    // prompt fires at most ONCE per install. sessionStorage resets on every
+    // relaunch of a standalone/installed PWA, so the old code re-asked for the
+    // location on every login — the exact "mach das einmalig" complaint.
+    let cached = null;
+    try { cached = localStorage.getItem('jamie_region'); } catch { /* private mode */ }
     // Migrate old 'austria' value to 'allowed'
     if (cached === 'austria') return 'allowed';
     return cached || 'unknown';
@@ -459,16 +464,20 @@ function useGeoFence() {
     if (region !== 'unknown') return; // already checked
     if (!navigator.geolocation) { setRegion('unknown'); return; }
 
+    const persist = (r) => { try { localStorage.setItem('jamie_region', r); } catch { /* private mode */ } };
+
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         const r = isInRegion(coords.latitude, coords.longitude) ? 'allowed' : 'outside';
-        sessionStorage.setItem('jamie_region', r);
+        persist(r);
         setRegion(r);
       },
       () => {
-        // Permission denied or error — don't block access
-        sessionStorage.setItem('jamie_region', 'unknown');
-        setRegion('unknown');
+        // Permission denied / error — fail open AND remember we asked, so we
+        // never re-prompt on the next launch. 'allowed' is non-blocking (only
+        // 'outside' gates access), matching the previous "don't block" behaviour.
+        persist('allowed');
+        setRegion('allowed');
       },
       { timeout: 6000, maximumAge: 60000 }
     );
@@ -770,6 +779,11 @@ function AppRoutes() {
       {/* Feedback prompt — suppressed while the intro / review modals are up. */}
       {showFeedback && !pendingReviews && !showIntro && (
         <FeedbackModal onClose={dismissFeedback} />
+      )}
+      {/* Proactive web-push enable nudge — hidden on native iOS + when a modal
+          is up. Self-gates on support / permission / prior dismissal. */}
+      {user && !user.isGuest && !showFeedback && !pendingReviews && !showIntro && (
+        <NotificationPrompt />
       )}
     </>
   );

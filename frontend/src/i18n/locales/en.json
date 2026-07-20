@@ -1595,6 +1595,12 @@
       "badge": "Jamie Deal"
     }
   },
+  "pushPrompt": {
+    "title": "Enable notifications",
+    "text": "Never miss a message or join request again.",
+    "enable": "Enable",
+    "later": "Later"
+  },
   "admin": {
     "title": "JAMIE Analytics",
     "deals": {
@@ -1671,12 +1677,36 @@
       "newUsers": "New users",
       "allUsersFmt": "All users ({{count}})",
       "csvExport": "CSV export",
-      "onlineNowFmt": "Online now ({{count}})"
+      "onlineNowFmt": "Online now ({{count}})",
+      "growth": "Growth & cohorts"
     },
     "online": {
       "empty": "Nobody is online right now.",
       "sinceFmt": "since {{time}}",
       "devicesFmt": "{{count}} connections"
+    },
+    "growth": {
+      "range30": "30 days",
+      "range90": "90 days",
+      "range365": "1 year",
+      "dau": "Active today (DAU)",
+      "mau": "Active (MAU)",
+      "stickiness": "Stickiness",
+      "stickinessSub": "DAU / MAU",
+      "newUsers": "New users",
+      "newUsersSub": "in range",
+      "retentionD1": "D1 retention",
+      "retentionD7": "D7 retention",
+      "retentionD30": "D30 retention",
+      "retentionSub": "latest cohort",
+      "chartActive": "Active users over time",
+      "chartNewUsers": "New users / day",
+      "chartEngagement": "Messages / day",
+      "legendDau": "DAU",
+      "legendMau": "MAU",
+      "export": "Export CSV",
+      "empty": "No growth data yet — the first rollup runs tonight (or on the next deploy).",
+      "note": "Active = opened the app or took an action (message, join, create, photo, friendship). Days in UTC. Behavioural data is opt-in."
     },
     "kpis": {
       "total": "Total",
@@ -1729,6 +1759,7 @@
       "deleteError": "User could not be deleted",
       "searchPlaceholder": "Search by name, email or location…",
       "clearSearch": "Clear search",
+      "viewProfile": "View profile",
       "loading": "Loading…",
       "empty": "No users found.",
       "loadMoreFmt": "Load more ({{shown}} of {{total}})"
@@ -1743,6 +1774,17 @@
       "trustedHint": "Shows the green verified check on the profile.",
       "roleSaved": "Role updated",
       "roleError": "Could not change role",
+      "messageBtn": "Send message",
+      "stats": {
+        "groups": "Groups",
+        "clubs": "Clubs",
+        "friends": "Friends",
+        "messages": "Messages",
+        "photos": "Photos",
+        "inGroups": "In groups",
+        "inClubs": "In clubs",
+        "created": "Created"
+      },
       "deleteBtn": "Delete account",
       "deleteConfirm": "Really delete account \"{{name}}\"? All groups, clubs, messages and friendships created by this user will be deleted too. This cannot be undone.",
       "deleteConfirmBtn": "Yes, delete",

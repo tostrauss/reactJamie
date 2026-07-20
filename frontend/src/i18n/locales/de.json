@@ -1595,6 +1595,12 @@
       "badge": "Jamie Deal"
     }
   },
+  "pushPrompt": {
+    "title": "Benachrichtigungen aktivieren",
+    "text": "Verpasse keine Nachrichten und Beitritts-Anfragen mehr.",
+    "enable": "Aktivieren",
+    "later": "Später"
+  },
   "admin": {
     "title": "JAMIE Analytics",
     "deals": {
@@ -1671,12 +1677,36 @@
       "newUsers": "Neue Nutzer",
       "allUsersFmt": "Alle Nutzer ({{count}})",
       "csvExport": "CSV Export",
-      "onlineNowFmt": "Gerade online ({{count}})"
+      "onlineNowFmt": "Gerade online ({{count}})",
+      "growth": "Wachstum & Kohorten"
     },
     "online": {
       "empty": "Gerade ist niemand online.",
       "sinceFmt": "seit {{time}}",
       "devicesFmt": "{{count}} Verbindungen"
+    },
+    "growth": {
+      "range30": "30 Tage",
+      "range90": "90 Tage",
+      "range365": "1 Jahr",
+      "dau": "Aktiv heute (DAU)",
+      "mau": "Aktiv (MAU)",
+      "stickiness": "Stickiness",
+      "stickinessSub": "DAU / MAU",
+      "newUsers": "Neue Nutzer",
+      "newUsersSub": "im Zeitraum",
+      "retentionD1": "D1 Retention",
+      "retentionD7": "D7 Retention",
+      "retentionD30": "D30 Retention",
+      "retentionSub": "aktuellste Kohorte",
+      "chartActive": "Aktive Nutzer über Zeit",
+      "chartNewUsers": "Neue Nutzer / Tag",
+      "chartEngagement": "Nachrichten / Tag",
+      "legendDau": "DAU",
+      "legendMau": "MAU",
+      "export": "CSV exportieren",
+      "empty": "Noch keine Wachstumsdaten — der erste Rollup läuft heute Nacht (oder beim nächsten Deploy).",
+      "note": "Aktiv = App geöffnet oder eine Aktion (Nachricht, Beitritt, Erstellung, Foto, Freundschaft). Tage in UTC. Verhaltensdaten sind opt-in."
     },
     "kpis": {
       "total": "Gesamt",
@@ -1729,6 +1759,7 @@
       "deleteError": "Nutzer konnte nicht gelöscht werden",
       "searchPlaceholder": "Suche nach Name, E-Mail oder Ort…",
       "clearSearch": "Suche zurücksetzen",
+      "viewProfile": "Profil ansehen",
       "loading": "Lädt…",
       "empty": "Keine Nutzer gefunden.",
       "loadMoreFmt": "Mehr laden ({{shown}} von {{total}})"
@@ -1743,6 +1774,17 @@
       "trustedHint": "Zeigt das grüne Verifiziert-Häkchen im Profil.",
       "roleSaved": "Rolle aktualisiert",
       "roleError": "Rolle konnte nicht geändert werden",
+      "messageBtn": "Nachricht schreiben",
+      "stats": {
+        "groups": "Gruppen",
+        "clubs": "Clubs",
+        "friends": "Freunde",
+        "messages": "Nachrichten",
+        "photos": "Fotos",
+        "inGroups": "In Gruppen",
+        "inClubs": "In Clubs",
+        "created": "Erstellt"
+      },
       "deleteBtn": "Account löschen",
       "deleteConfirm": "Account von „{{name}}\" wirklich löschen? Alle erstellten Gruppen, Clubs, Nachrichten und Freundschaften werden mit gelöscht. Das kann nicht rückgängig gemacht werden.",
       "deleteConfirmBtn": "Ja, löschen",
