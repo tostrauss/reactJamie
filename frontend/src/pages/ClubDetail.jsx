@@ -22,10 +22,15 @@ const formatEventDate = (dateStr, locale) => {
   if (!dateStr) return null;
   const d = new Date(dateStr);
   if (isNaN(d)) return null;
+  // Event start times are stored as a naive wall-clock (`${date}T${time}`, e.g.
+  // 10:00). On a UTC server that value round-trips to the client tagged UTC, so
+  // formatting in the device's local zone shifted it +1/+2h (CEST) — "10 Uhr"
+  // showed as "12 Uhr" after saving. Format in UTC so the displayed time/day
+  // equals exactly what the creator typed.
   return {
-    day: d.getDate(),
-    month: d.toLocaleDateString(locale, { month: 'short' }),
-    time: d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
+    day: d.getUTCDate(),
+    month: d.toLocaleDateString(locale, { month: 'short', timeZone: 'UTC' }),
+    time: d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
   };
 };
 
