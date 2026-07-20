@@ -9,6 +9,7 @@ import { ReportModal } from '../components/ReportModal';
 import { UserName } from '../components/UserName';
 import { nextOccurrence } from '../utils/recurrence';
 import { shareLink } from '../utils/share';
+import { openCalendar } from '../utils/calendarExport';
 import '../styles/group-detail.css';
 
 // Lazy-load: pulls Stripe SDK only when the owner opens the modal.
@@ -70,40 +71,7 @@ function GroupMiniMap({ lat, lng }) {
   );
 }
 
-// Format a JS Date to the iCal/Google Calendar compact format: YYYYMMDDTHHmmssZ
-const toCalDate = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-
-const openCalendar = (group) => {
-  // Recurring weekly events: export the *first* occurrence so the calendar
-  // engine itself drives the repeat (via RRULE), instead of dropping a single
-  // future event that won't repeat.
-  const start = group.is_recurring_weekly
-    ? new Date(group.date)
-    : (nextOccurrence(group) || new Date(group.date));
-  if (isNaN(start)) return;
-
-  // Default duration: 2 hours
-  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
-
-  const title   = encodeURIComponent(group.name || group.category || 'JAMIE Event');
-  const details = encodeURIComponent(group.description || '');
-  const loc     = encodeURIComponent(group.location || '');
-  const startStr = toCalDate(start);
-  const endStr   = toCalDate(end);
-
-  // ALL platforms → Google Calendar template URL. The previous native-iOS
-  // branch built an .ics blob and clicked an <a download> — Capacitor's
-  // WKWebView has no download handler, so the tap silently did NOTHING (a
-  // visibly dead button = App Review 2.1 "broken feature" risk; found in the
-  // 2026-07-03 pre-resubmission audit, never device-tested). window.open
-  // leaves the WebView via the system browser, which always works. Bring the
-  // nicer Apple-Calendar .ics flow back only with a real native plugin
-  // (e.g. capacitor-calendar). `recur` takes a URL-encoded RRULE value; the
-  // `=` in `FREQ=WEEKLY` MUST become %3D or Calendar ignores it.
-  const recurParam = group.is_recurring_weekly ? `&recur=RRULE:FREQ%3DWEEKLY` : '';
-  const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&location=${loc}${recurParam}`;
-  window.open(url, '_blank', 'noopener,noreferrer');
-};
+// Google Calendar export — see utils/calendarExport.js for the +2h fix.
 
 // "Heute"/"Morgen" instead of the literal date when the event is that close
 // (Tina, 2026-06-12) — same behavior the Home cards already have. Reuses the
@@ -143,9 +111,13 @@ const formatEventDate = (dateStr, locale) => {
   if (!dateStr) return null;
   const d = new Date(dateStr);
   if (isNaN(d)) return null;
-  const day = d.getDate();
-  const month = d.toLocaleDateString(locale, { month: 'short' });
-  const time = d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+  // Event start times are stored as a naive wall-clock; on the UTC server that
+  // value round-trips tagged UTC, so formatting in the device's local zone
+  // shifted it +1/+2h (CEST) — same bug as ClubDetail's formatEventDate.
+  // Format in UTC so the displayed time equals exactly what was typed.
+  const day = d.getUTCDate();
+  const month = d.toLocaleDateString(locale, { month: 'short', timeZone: 'UTC' });
+  const time = d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
   return { day, month, time };
 };
 

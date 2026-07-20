@@ -8,6 +8,7 @@ import { ReportModal } from '../components/ReportModal';
 import { UserName } from '../components/UserName';
 import { nextOccurrence } from '../utils/recurrence';
 import { shareLink } from '../utils/share';
+import { openCalendar } from '../utils/calendarExport';
 import '../styles/club-detail.css';
 
 const BoostModal = lazy(() => import('../components/BoostModal').then(m => ({ default: m.BoostModal })));
@@ -34,32 +35,7 @@ const formatEventDate = (dateStr, locale) => {
   };
 };
 
-const toCalDate = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-
-const openCalendar = (ev) => {
-  // Recurring events export their FIRST occurrence + an RRULE so the calendar
-  // engine drives the weekly repeat; one-offs export the next occurrence.
-  const start = ev.is_recurring_weekly
-    ? new Date(ev.date)
-    : (nextOccurrence(ev) || new Date(ev.date));
-  if (isNaN(start)) return;
-  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
-  const title = encodeURIComponent(ev.name || 'JAMIE Event');
-  const details = encodeURIComponent(ev.description || '');
-  const loc = encodeURIComponent(ev.location || '');
-  const startStr = toCalDate(start);
-  const endStr = toCalDate(end);
-
-  // ALL platforms → Google Calendar template URL. The old native-iOS branch
-  // built an .ics blob + <a download> click — Capacitor's WKWebView has no
-  // download handler, so the tap silently did NOTHING (dead button = App
-  // Review 2.1 risk; 2026-07-03 audit). window.open exits to the system
-  // browser and always works; restore the Apple-Calendar .ics flow only via
-  // a real native plugin (e.g. capacitor-calendar).
-  const recurParam = ev.is_recurring_weekly ? `&recur=RRULE:FREQ%3DWEEKLY` : '';
-  const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startStr}/${endStr}&details=${details}&location=${loc}${recurParam}`;
-  window.open(url, '_blank', 'noopener,noreferrer');
-};
+// Google Calendar export — see utils/calendarExport.js for the +2h fix.
 
 export const ClubDetail = () => {
   const { id } = useParams();
