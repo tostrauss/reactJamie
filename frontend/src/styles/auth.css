@@ -18,7 +18,14 @@
   padding-bottom: 0;
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
-  overflow: hidden;
+  /* Scroll instead of clip: when the iOS keyboard opens it covers the lower
+     half of the screen. With overflow:hidden the email/password field was
+     trapped underneath with no way to reach it ("man kommt voll schwer in die
+     untere Zeile"). overflow-y:auto lets WebKit scroll the focused input up
+     above the keyboard. */
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* ── Three-zone layout ── */

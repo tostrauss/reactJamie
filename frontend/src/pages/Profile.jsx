@@ -7,6 +7,7 @@ import { auth, subscription as subscriptionApi, groups as groupsApi, clubs as cl
 import SpotifySongPicker from '../components/SpotifySongPicker';
 import { ProModal } from '../components/ProModal';
 import { purchasesEnabled } from '../utils/platform';
+import { shareLink } from '../utils/share';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { ProfilePhotoCarousel } from '../components/ProfilePhotoCarousel';
 import '../styles/home.css';
@@ -71,19 +72,9 @@ export const Profile = () => {
     const url = `${window.location.origin}/user/${user.id}`;
     const title = user.name ? t('profile.share.titleFmt', { name: user.name }) : t('profile.share.titleFallback');
     const text = t('profile.share.text');
-    try {
-      if (navigator.share) {
-        await navigator.share({ title, text, url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        toast.success(t('profile.share.linkCopied'));
-      }
-    } catch (err) {
-      // AbortError = user cancelled the native share sheet — silent
-      if (err?.name !== 'AbortError') {
-        toast.error(t('profile.share.error'));
-      }
-    }
+    const result = await shareLink({ title, text, url });
+    if (result === 'copied') toast.success(t('profile.share.linkCopied'));
+    else if (result === 'failed') toast.error(t('profile.share.error'));
   };
 
   useEffect(() => {

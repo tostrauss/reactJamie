@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext';
 import { UserName } from '../components/UserName';
 import { ImageCropModal } from '../components/ImageCropModal';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
+import { shareLink } from '../utils/share';
 import '../styles/group-edit.css';
 
 // Which main category contains a given subcategory name (for pre-selecting the
@@ -244,14 +245,9 @@ export const GroupEdit = () => {
 
   const handleShare = async () => {
     const url = `${window.location.origin}/group/${id}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: group?.name || group?.title || t('groupEdit.fallbackName'), url });
-      } catch { /* user cancelled */ }
-    } else {
-      await navigator.clipboard.writeText(url);
-      toast.success(t('groupEdit.linkCopied'));
-    }
+    const title = group?.name || group?.title || t('groupEdit.fallbackName');
+    const result = await shareLink({ title, url });
+    if (result === 'copied') toast.success(t('groupEdit.linkCopied'));
   };
 
   const filteredFriends = friends.filter(f =>

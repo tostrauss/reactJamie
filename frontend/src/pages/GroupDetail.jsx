@@ -8,6 +8,7 @@ import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
 import { UserName } from '../components/UserName';
 import { nextOccurrence } from '../utils/recurrence';
+import { shareLink } from '../utils/share';
 import '../styles/group-detail.css';
 
 // Lazy-load: pulls Stripe SDK only when the owner opens the modal.
@@ -939,18 +940,12 @@ export const GroupDetail = () => {
 
           {/* Share + Calendar buttons */}
           <div className="gd-bottom-actions">
-            <button className="gd-action-pill" onClick={() => {
-              if (navigator.share) {
-                navigator.share({
-                  title: (group.category && group.category.toLowerCase() !== 'sonstiges'
-                    ? group.category
-                    : (group.name || group.category)),
-                  url: window.location.href,
-                });
-              } else {
-                navigator.clipboard.writeText(window.location.href);
-                toast.success(t('groups.detail.shareLinkCopied'));
-              }
+            <button className="gd-action-pill" onClick={async () => {
+              const title = (group.category && group.category.toLowerCase() !== 'sonstiges')
+                ? group.category
+                : (group.name || group.category);
+              const result = await shareLink({ title, url: window.location.href });
+              if (result === 'copied') toast.success(t('groups.detail.shareLinkCopied'));
             }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>

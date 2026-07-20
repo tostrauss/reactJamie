@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
 import { UserName } from '../components/UserName';
 import { nextOccurrence } from '../utils/recurrence';
+import { shareLink } from '../utils/share';
 import '../styles/club-detail.css';
 
 const BoostModal = lazy(() => import('../components/BoostModal').then(m => ({ default: m.BoostModal })));
@@ -136,17 +137,8 @@ export const ClubDetail = () => {
   const handleShare = async () => {
     const url = window.location.href;
     const title = club?.name || club?.title || 'JAMIE Club';
-    try {
-      if (navigator.share) {
-        await navigator.share({ title, url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        toast.success(t('clubDetail.shareLinkCopied'));
-      }
-    } catch (err) {
-      if (err?.name === 'AbortError') return; // user dismissed the share sheet
-      try { await navigator.clipboard.writeText(url); toast.success(t('clubDetail.shareLinkCopied')); } catch { /* ignore */ }
-    }
+    const result = await shareLink({ title, url });
+    if (result === 'copied') toast.success(t('clubDetail.shareLinkCopied'));
   };
 
   // Events are members-only (backend 403s non-members). Re-run after join/leave
