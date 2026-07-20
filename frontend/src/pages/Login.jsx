@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { JamieWordmark } from '../components/JamieWordmark';
 import { PasswordInput } from '../components/PasswordInput';
-import { isNativeIOS } from '../utils/platform';
+import { isNativeIOS, isAndroidWebApp } from '../utils/platform';
 import '../styles/auth.css';
 
 // Read from env only. App.jsx skips wrapping in GoogleOAuthProvider when this
@@ -104,9 +104,12 @@ export const Login = () => {
               {t('auth.login.continueWithEmail')}
             </button>
 
-            {/* iOS v1 = email-only. Google OAuth is also hidden on native iOS:
-                Google blocks its OAuth flow inside embedded WebViews. */}
-            {GOOGLE_CLIENT_ID && !isNativeIOS() && <GoogleLoginButton onError={setError} />}
+            {/* iOS v1 = email-only. Google OAuth is also hidden on native iOS
+                (Google blocks its flow inside embedded WebViews) AND inside the
+                Android Play-Store TWA / installed PWA, where the OAuth popup
+                can't return the token and the button dead-ends (2026-07-20).
+                In a normal browser tab the popup works, so it still shows. */}
+            {GOOGLE_CLIENT_ID && !isNativeIOS() && !isAndroidWebApp() && <GoogleLoginButton onError={setError} />}
 
             <div className="auth-divider"><span>{t('common.or')}</span></div>
 
