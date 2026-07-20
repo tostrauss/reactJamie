@@ -819,8 +819,17 @@
    REGISTER — scroll variant + step UI
    ══════════════════════════════════════════ */
 
-/* Allow the screen to scroll when step content is tall (e.g. step 5) */
+/* Allow the screen to scroll when step content is tall (e.g. step 5/6).
+   HARD height, not the base min-height (Onboarding-Stuck-Bug 2026-07-07):
+   with min-height:100dvh the element GROWS to fit a tall step, so overflow-y
+   never creates an internal scroll region — the last fields + the "Konto
+   erstellen" button land below the fold and the page can't be scrolled
+   (Daniel/Samsung S25, 2026-07-20). A fixed height makes overflow-y:auto a
+   real scroll container. */
 .auth-screen--scroll {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
