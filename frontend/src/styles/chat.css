@@ -927,6 +927,14 @@
 /* Messages Container */
 .messages-container {
   flex: 1;
+  /* Without this, a flex:1 child refuses to shrink below its own content's
+     natural height (default min-height:auto). useChatViewport (App-level
+     hook) shrinks .chat-page's height when the keyboard opens, but without
+     this the message list just kept its full height and pushed the composer
+     back down behind the keyboard anyway — worst on small screens (Tina,
+     iPhone SE 3, 2026-07-21) where the keyboard eats a much bigger share of
+     the viewport. Same fix as .onboarding-content / .create-content. */
+  min-height: 0;
   overflow-y: auto;
   padding: 20px;
   display: flex;
