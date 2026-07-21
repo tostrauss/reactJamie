@@ -571,14 +571,6 @@ export const joinClub = async (req, res) => {
       client.release();
     }
 
-    // "X ist beigetreten 🎉" — live to the chat room.
-    db.query('SELECT name FROM users WHERE id = $1', [req.userId])
-      .then(r => {
-        const name = r.rows[0]?.name || 'Jemand';
-        postSystemMessage(id, `${name} ist dem Club beigetreten 🎉`, req.app.get('io')).catch(() => {});
-      })
-      .catch(() => {});
-
     res.json({ message: 'Joined club successfully', status: 'joined' });
   } catch (err) {
     console.error('Error joining club:', err);
@@ -611,16 +603,6 @@ export const leaveClub = async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(400).json({ error: 'Not a member of this club' });
     }
-
-    // Announce the departure so the earlier "beigetreten 🎉" message isn't left
-    // dangling — otherwise the roster silently loses a member and it looks like
-    // a bug (someone "joined" but isn't in the list).
-    db.query('SELECT name FROM users WHERE id = $1', [req.userId])
-      .then(r => {
-        const name = r.rows[0]?.name || 'Jemand';
-        postSystemMessage(id, `${name} hat den Club verlassen 👋`, req.app.get('io')).catch(() => {});
-      })
-      .catch(() => {});
 
     res.json({ message: 'Left club successfully' });
   } catch (err) {
@@ -893,14 +875,6 @@ export const handleClubJoinRequest = async (req, res) => {
       // Notify the requester they're in (parity with group join-accept).
       sendPushToUser(joinReq.user_id, 'Beitrittsanfrage akzeptiert', `Du bist jetzt Mitglied von "${club.rows[0].name || ''}"`, `/club/${id}`);
 
-      // "X ist beigetreten 🎉" — fire-and-forget, live to chat room.
-      db.query('SELECT name FROM users WHERE id = $1', [joinReq.user_id])
-        .then(r => {
-          const name = r.rows[0]?.name || 'Jemand';
-          postSystemMessage(id, `${name} ist dem Club beigetreten 🎉`, req.app.get('io')).catch(() => {});
-        })
-        .catch(() => {});
-
       res.json({ message: 'Request accepted', status: 'accepted' });
     } else if (action === 'reject') {
       await db.query(
@@ -950,15 +924,6 @@ export const kickClubMember = async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'User is not a member of this club' });
     }
-
-    // Neutral departure message (same wording as a voluntary leave) so the
-    // roster stays consistent without publicly announcing a removal.
-    db.query('SELECT name FROM users WHERE id = $1', [userId])
-      .then(r => {
-        const name = r.rows[0]?.name || 'Jemand';
-        postSystemMessage(id, `${name} hat den Club verlassen 👋`, req.app.get('io')).catch(() => {});
-      })
-      .catch(() => {});
 
     res.json({ message: 'Member removed successfully' });
   } catch (err) {
