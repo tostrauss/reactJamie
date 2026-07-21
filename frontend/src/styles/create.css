@@ -4,7 +4,16 @@
 
 
 .create-page {
-  min-height: 100%; /* fills .app-viewport; scrolls there, nav sits below */
+  /* HARD height, not min-height (same bug class as Onboarding-Stuck-Bug
+     2026-07-07, unfixed here until now — Tina/Xiaomi 2026-07-21: "kann nur
+     die Button auswählen aber nicht weiter scrollen"). With min-height the
+     page could grow taller than .create-content's flex box, but
+     .create-content had no min-height:0, so it never shrank/overflowed
+     internally either — the touch-scroll gesture landed on a non-scrolling
+     overflow:auto element and was swallowed instead of reaching the real
+     scroll container. height:100% of .app-viewport pins this container to
+     the app-shell slot so .create-content becomes the one true scroll region. */
+  height: 100%;
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
@@ -160,6 +169,7 @@
 /* Content */
 .create-content {
   flex: 1;
+  min-height: 0; /* let the flex child shrink so overflow-y:auto actually scrolls */
   padding: 0 20px 24px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
