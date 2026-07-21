@@ -33,10 +33,6 @@ export const ChatList = () => {
   const [modalIndex, setModalIndex]         = useState(0);
   const [modalLoading, setModalLoading]     = useState(false);
   const [modalProcessing, setModalProcessing] = useState(false);
-  const [modalOffsetX, setModalOffsetX]     = useState(0);
-  const [modalSwipeDir, setModalSwipeDir]   = useState(null);
-  const [modalStartX, setModalStartX]       = useState(0);
-  const modalCardRef = useRef(null);
   const navigate = useNavigate();
   const { socket } = useContext(SocketContext);
   const toast = useToast();
@@ -215,8 +211,6 @@ export const ChatList = () => {
   const openRequestsModal = async (groupId, groupName) => {
     setRequestsModal({ groupId, groupName });
     setModalIndex(0);
-    setModalOffsetX(0);
-    setModalSwipeDir(null);
     setModalLoading(true);
     try {
       const res = await groups.getRequests(groupId);
@@ -229,22 +223,7 @@ export const ChatList = () => {
     }
   };
 
-  const modalHandleTouchStart = (e) => setModalStartX(e.touches[0].clientX);
-  const modalHandleTouchMove = (e) => {
-    const diff = e.touches[0].clientX - modalStartX;
-    setModalOffsetX(diff);
-    if (diff > 50) setModalSwipeDir('right');
-    else if (diff < -50) setModalSwipeDir('left');
-    else setModalSwipeDir(null);
-  };
-  const modalHandleTouchEnd = () => {
-    if (modalOffsetX > 100) modalHandleAccept();
-    else if (modalOffsetX < -100) modalHandleDecline();
-    else { setModalOffsetX(0); setModalSwipeDir(null); }
-  };
   const modalGoNext = () => {
-    setModalOffsetX(0);
-    setModalSwipeDir(null);
     setModalIndex(prev => prev + 1);
   };
   const modalHandleAccept = async () => {
@@ -254,11 +233,11 @@ export const ChatList = () => {
     try {
       await groups.handleRequest(requestsModal.groupId, req.id, 'accept');
       toast.success(t('chat.list.toast.requestAccepted', { name: req.user_name }));
-      setModalSwipeDir('right'); setModalOffsetX(300);
-      setTimeout(() => { modalGoNext(); setModalProcessing(false); }, 300);
+      modalGoNext();
     } catch (err) {
       toast.error(err.response?.data?.error || t('chat.list.toast.requestAcceptError'));
-      setModalOffsetX(0); setModalSwipeDir(null); setModalProcessing(false);
+    } finally {
+      setModalProcessing(false);
     }
   };
   const modalHandleDecline = async () => {
@@ -268,11 +247,11 @@ export const ChatList = () => {
     try {
       await groups.handleRequest(requestsModal.groupId, req.id, 'reject');
       toast.info(t('chat.list.toast.requestDeclined', { name: req.user_name }));
-      setModalSwipeDir('left'); setModalOffsetX(-300);
-      setTimeout(() => { modalGoNext(); setModalProcessing(false); }, 300);
+      modalGoNext();
     } catch (err) {
       toast.error(err.response?.data?.error || t('chat.list.toast.requestDeclineError'));
-      setModalOffsetX(0); setModalSwipeDir(null); setModalProcessing(false);
+    } finally {
+      setModalProcessing(false);
     }
   };
 
@@ -665,23 +644,7 @@ export const ChatList = () => {
                 const nextReq = modalRequests[modalIndex + 1];
                 return (
                   <>
-                    <div
-                      className="request-card-wrapper"
-                      ref={modalCardRef}
-                      onTouchStart={modalHandleTouchStart}
-                      onTouchMove={modalHandleTouchMove}
-                      onTouchEnd={modalHandleTouchEnd}
-                      style={{
-                        transform: `translateX(${modalOffsetX}px) rotate(${modalOffsetX * 0.05}deg)`,
-                        transition: Math.abs(modalOffsetX) > 100 ? 'transform 0.3s ease' : 'none'
-                      }}
-                    >
-                      <div className={`swipe-indicator swipe-accept ${modalSwipeDir === 'right' ? 'visible' : ''}`}>
-                        <span>✓</span><span>{t('chat.list.requestsModal.accept')}</span>
-                      </div>
-                      <div className={`swipe-indicator swipe-decline ${modalSwipeDir === 'left' ? 'visible' : ''}`}>
-                        <span>✕</span><span>{t('chat.list.requestsModal.decline')}</span>
-                      </div>
+                    <div className="request-card-wrapper">
                       <div className="request-card">
                         <div className="request-image-container request-image-tall">
                           {req.user_avatar
