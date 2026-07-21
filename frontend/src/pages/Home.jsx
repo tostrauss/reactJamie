@@ -737,16 +737,23 @@ export const Home = () => {
                   ))}
                 </div>
               </div>
-            </div>
 
-            {/* Actions — sticky at bottom, always visible */}
-            <div className="filter-actions">
-              <button className="filter-reset-btn" onClick={resetFilters}>
-                {t('home.filter.reset')}
-              </button>
-              <button className="filter-apply-btn" onClick={applyFilters}>
-                {t('home.filter.apply')}
-              </button>
+              {/* Actions — part of the SAME scroll region as the filter
+                  sections (not a pinned/sticky footer). A sticky footer
+                  relies on the sheet's flex math shrinking exactly right on
+                  every viewport, which kept clipping this button on some
+                  devices even after fixes; putting it in normal scroll flow
+                  makes it unconditionally reachable — just scroll to the
+                  bottom (Tina, 2026-07-21: still cut off after the min-height
+                  fix). */}
+              <div className="filter-actions">
+                <button className="filter-reset-btn" onClick={resetFilters}>
+                  {t('home.filter.reset')}
+                </button>
+                <button className="filter-apply-btn" onClick={applyFilters}>
+                  {t('home.filter.apply')}
+                </button>
+              </div>
             </div>
 
           </div>

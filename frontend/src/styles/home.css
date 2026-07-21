@@ -2234,16 +2234,20 @@ input:checked + .slider:before {
   font-weight: 600;
 }
 
-/* ── Actions row — always visible, never scrolls away ── */
+/* ── Actions row — lives INSIDE .filter-sheet-scroll now (2026-07-21), not
+   pinned as a separate sticky footer. A sticky footer depends on the sheet's
+   flex-shrink math resolving exactly right on every viewport, and it kept
+   clipping this row on some devices even after a min-height:0 fix. As the
+   last block in the same scroll region, it's unconditionally reachable —
+   scrolling to the bottom always reveals it, no viewport math involved. ── */
 .filter-actions {
   display: flex;
   gap: 12px;
-  flex-shrink: 0;
-  padding: 16px 20px;
+  margin-top: 20px;
+  padding: 16px 0;
   /* Grow padding into the home indicator on iOS */
   padding-bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 16px));
   border-top: 1px solid rgba(255, 255, 255, 0.07);
-  background: #1e1e3a;
 }
 
 .filter-reset-btn {
