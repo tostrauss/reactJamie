@@ -2136,6 +2136,14 @@ input:checked + .slider:before {
 /* Scrollable area containing header + sections */
 .filter-sheet-scroll {
   flex: 1;
+  /* Same bug class fixed elsewhere this week (onboarding/create/chat): without
+     this, a flex:1 child refuses to shrink below its own content's natural
+     height. .filter-sheet caps the whole sheet at max-height:88dvh with
+     overflow:hidden — as more filter sections were added, the scroll area's
+     un-shrunk natural height started exceeding that cap, pushing the fixed
+     "Anwenden" footer past the clipped boundary instead of ceding space to it
+     ("Filter anwenden ist abgeschnitten"). */
+  min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
