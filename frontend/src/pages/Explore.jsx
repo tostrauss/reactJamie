@@ -145,12 +145,14 @@ const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadM
           </button>
         )}
 
-        {/* Hidden file input — driven by the prompt button */}
+        {/* Hidden file input — driven by the prompt button.
+            No `capture` attribute: with just accept="image/*", iOS/Android show
+            the full picker (photo library OR camera). `capture="environment"`
+            forced the rear camera and hid the gallery entirely (Arno, 2026-07-23). */}
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          capture="environment"
           style={{ display: 'none' }}
           onChange={handleFileSelected}
         />
