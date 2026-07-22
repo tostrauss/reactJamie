@@ -122,45 +122,48 @@
   padding: 0 20px;
 }
 
-/* Search bar — filters the active tab's joined groups / clubs / chats */
+/* Search bar — filters the active tab's joined groups / clubs / chats.
+   2026-07-23: icon+placeholder kept overlapping ("⊂Suchen…") even after
+   switching off type="search" (ruling out native search chrome) and with no
+   conflicting/duplicate CSS rule found anywhere — the absolute-positioned
+   icon + padding-left math wasn't landing right on the reporting device for
+   a reason that couldn't be pinned down via static review. Rebuilt the whole
+   bar as a flex ROW instead: icon and input are true flex siblings separated
+   by an explicit `gap`, not an absolutely-positioned icon floating over
+   reserved padding space. Flex layout cannot produce this overlap — there's
+   no padding/left-offset arithmetic left to get wrong. */
 .chat-search-wrap {
-  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 4px 20px 14px;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 0 12px;
 }
+.chat-search-wrap:focus-within { border-color: var(--accent-coral); }
 .chat-search-icon {
-  position: absolute;
-  left: 14px;
-  top: 50%;
-  transform: translateY(-50%);
+  flex-shrink: 0;
   color: var(--text-muted);
   pointer-events: none;
 }
 .chat-search-input {
-  width: 100%;
-  box-sizing: border-box;
-  /* type="text" (not "search") — iOS/WebKit's native type=search chrome
-     (including its own built-in magnifier) kept rendering on top of the
-     custom SVG icon + placeholder even with -webkit-appearance:none and the
-     ::-webkit-search-decoration resets, in some WebView contexts (Tina,
-     2026-07-22, all 3 tabs). Plain text input has no native search chrome to
-     fight at all. */
-  appearance: none;
-  background: var(--bg-card);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 14px;
-  padding: 12px 38px 12px 40px;
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 12px 0;
   color: var(--text-white);
   font-size: 15px;
   font-family: inherit;
   outline: none;
 }
-.chat-search-input:focus { border-color: var(--accent-coral); }
 .chat-search-input::placeholder { color: var(--text-muted); }
 .chat-search-clear {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+  /* Normal flex child of .chat-search-wrap now, not absolutely positioned —
+     same reasoning as the icon above. */
+  flex-shrink: 0;
   width: 28px;
   height: 28px;
   border: none;

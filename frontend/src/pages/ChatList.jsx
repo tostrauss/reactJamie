@@ -415,6 +415,9 @@ export const ChatList = () => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               aria-label={t('chat.list.searchPlaceholder')}
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck="false"
             />
             {search && (
               <button className="chat-search-clear" onClick={() => setSearch('')} aria-label={t('chat.list.searchClear')}>×</button>
