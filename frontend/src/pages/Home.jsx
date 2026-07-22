@@ -647,18 +647,25 @@ export const Home = () => {
             {/* Drag handle */}
             <div className="filter-sheet-handle" />
 
-            {/* Scrollable header + sections */}
-            <div className="filter-sheet-scroll">
-              <div className="filter-sheet-header">
-                <h2 className="filter-sheet-title">{t('home.filter.title')}</h2>
-                <button className="filter-close-btn" onClick={() => setShowFilters(false)} aria-label={t('home.filter.close')}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                    <line x1="18" y1="6" x2="6" y2="18"/>
-                    <line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                </button>
-              </div>
+            {/* Fixed header — NOT part of the scroll region (2026-07-22: with
+                the title+X inside .filter-sheet-scroll, reaching the X after
+                scrolling down required scrolling all the way back to the top,
+                which fought with iOS momentum/rubber-band scrolling — "immer
+                dragging down, kann X nie erreichen". Pinning it outside the
+                scroll area makes it unconditionally visible/tappable from any
+                scroll position, no scrolling needed at all. */}
+            <div className="filter-sheet-header">
+              <h2 className="filter-sheet-title">{t('home.filter.title')}</h2>
+              <button className="filter-close-btn" onClick={() => setShowFilters(false)} aria-label={t('home.filter.close')}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
 
+            {/* Scrollable sections */}
+            <div className="filter-sheet-scroll">
               {/* Kategorien — both groups and clubs */}
               <div className="filter-section">
                 <h3 className="filter-section-title">{t('home.filter.categories')}</h3>

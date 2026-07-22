@@ -2159,14 +2159,23 @@ input:checked + .slider:before {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  padding: 16px 20px 8px;
+  /* No top padding — .filter-sheet-header (now a fixed sibling, not this
+     container's first child) already provides that gap via its own
+     padding-bottom. */
+  padding: 0 20px 8px;
 }
 
 .filter-sheet-header {
+  /* Fixed sibling of .filter-sheet-scroll now (2026-07-22), not its first
+     scrolling child — needs its own padding (used to inherit
+     .filter-sheet-scroll's: 16px top replicates the old top-of-scroll gap
+     before the header, 20px bottom replicates the old margin-bottom before
+     the first section) and flex-shrink:0 so the flex column never squeezes it. */
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  padding: 16px 20px 20px;
 }
 
 .filter-sheet-title {
