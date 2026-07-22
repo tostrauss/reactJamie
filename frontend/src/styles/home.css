@@ -2097,6 +2097,18 @@ input:checked + .slider:before {
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
   animation: fadeInOverlay 0.2s ease;
+  /* Reserve the bottom-nav's real height (60px + safe-area, see .bottom-nav
+     in global.css) as padding so the flex-end-aligned .filter-sheet's bottom
+     edge can NEVER land underneath the nav. Without this, a SHORT sheet
+     (Clubs tab — no Zeitraum section, less content than Gruppen) doesn't need
+     to internally scroll at all, so the min-height:0 scroll fix was a no-op
+     for it; whether its naturally-sized bottom edge cleared the nav or not
+     came down to viewport rounding — Groups happened to clear it, Clubs
+     didn't (Tina, 2026-07-22). This makes clearance unconditional regardless
+     of content height/scroll state. The dark backdrop still covers the full
+     screen (background paints the padding box too), so the nav still reads
+     as dimmed/inactive while the sheet is open. */
+  padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
 }
 
 @keyframes fadeInOverlay {
