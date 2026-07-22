@@ -8,7 +8,7 @@ export const getUserById = async (req, res) => {
     const { id } = req.params;
     const result = await db.query(
       `SELECT id, name, bio, location, avatar_url, interests, photos, pinnwand, gender, favorite_song, created_at,
-              is_trusted_user,
+              is_trusted_user, is_pioneer,
               EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age
        FROM users
        WHERE id = $1

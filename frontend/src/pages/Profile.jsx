@@ -211,6 +211,7 @@ export const Profile = () => {
               {/* Own profile: no age superscript (you know your own age). */}
               <span className="profile-name-cap">{(user?.name || t('profile.fallbackName')).toUpperCase()}</span>
               {isPro && <span className="pro-name-badge">👑</span>}
+              {user?.is_pioneer && <span className="pioneer-name-badge">🏆 {t('common.pioneerBadge')}</span>}
             </div>
           </div>
 

@@ -47,7 +47,8 @@
     "viewProfile": "View profile",
     "languageDe": "German",
     "languageEn": "English",
-    "or": "or"
+    "or": "or",
+    "pioneerBadge": "Pioneer"
   },
   "auth": {
     "appName": "JAMIE",

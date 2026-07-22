@@ -274,6 +274,7 @@ export const UserProfile = () => {
         </div>
         <div className="up-name-age">
           <UserName className="up-name" name={profile.name?.toUpperCase()} age={age} />
+          {profile.is_pioneer && <span className="pioneer-name-badge">🏆 {t('common.pioneerBadge')}</span>}
         </div>
       </div>
 

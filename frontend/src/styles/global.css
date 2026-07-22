@@ -261,6 +261,24 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
+/* Pioneer badge — "first to create a group in the region" reward (is_pioneer).
+   Gold achievement chip, sits next to the name like the Pro crown badge.
+   Global so both the own-profile and other-users' profile can use it. */
+.pioneer-name-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 140, 0, 0.12));
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+  color: #FFD700;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 /* Reduce motion for users who request it (iOS Settings → Accessibility → Reduce Motion) */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

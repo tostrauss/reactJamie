@@ -60,8 +60,18 @@ async function checkAndAwardPioneer(userId, groupId, lat, lng) {
     // Award pioneer badge
     await db.query('UPDATE users SET is_pioneer = TRUE WHERE id = $1', [userId]);
 
+    // Award the free 7-day boost promised by the map "Trau dich, sei der Erste!"
+    // CTA — floats the pioneer's group to the top of the feed/map via the
+    // is_boosted ordering. credits_spent = 0 marks it as a comped reward rather
+    // than a paid/credit boost (the paid flow lives in boostController).
+    await db.query(
+      `INSERT INTO boosts (user_id, target_type, target_id, credits_spent, boosted_until)
+       VALUES ($1, 'group', $2, 0, NOW() + INTERVAL '7 days')`,
+      [userId, groupId]
+    );
+
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`[pioneer] user ${userId} claimed cell (${latCell}, ${lngCell}) for group ${groupId}`);
+      console.log(`[pioneer] user ${userId} claimed cell (${latCell}, ${lngCell}) for group ${groupId} — badge + 7-day boost awarded`);
     }
   } catch (err) {
     // Non-critical — must not fail group creation
