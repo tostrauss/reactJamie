@@ -35,6 +35,19 @@
      16px gap that Home doesn't have. */
 }
 
+/* Kill the iOS system-blue text-selection handle (the "blue stripe" on the
+   left edge) that pops up when a mid-scroll long-press selects card text.
+   global.css sets html{user-select:none}, but iOS WebKit doesn't reliably
+   honor an *inherited* value inside a -webkit-overflow-scrolling:touch
+   momentum scroller — so re-assert it *directly* on the scroller and every
+   descendant. Nothing in the feed is meant to be selectable. */
+.explore-content,
+.explore-content * {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* ── Top bar ─────────────────────────────────────────────────── */
 .explore-top-bar {
   display: flex;

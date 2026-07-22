@@ -94,6 +94,15 @@ export default function MapView({ typeFilter }) {
   const [selectedCategory, setSelectedCategory] = useState(() => {
     try { return sessionStorage.getItem(SESSION_KEY) || null; } catch { return null; }
   });
+  // Whether to show the "locate me" button. It's a location feature, so it's
+  // hidden for users who've declined geolocation (or whose browser exposes no
+  // geolocation at all). Undecided users still see it — tapping the button is
+  // what triggers the OS consent prompt in the first place (especially on
+  // native iOS, where nothing else ever asks for location).
+  const [showLocate, setShowLocate] = useState(() => {
+    if (typeof navigator !== 'undefined' && !navigator.geolocation) return false;
+    try { return localStorage.getItem('jamie_location_denied') !== '1'; } catch { return true; }
+  });
 
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '',
@@ -175,6 +184,27 @@ export default function MapView({ typeFilter }) {
     // which case mapRef.current was null and the fit never ran. Re-run on load.
   }, [pins, mapReady]);
 
+  // Proactively hide the locate button for users who've already denied
+  // geolocation. The Permissions API isn't reliably available for 'geolocation'
+  // on iOS Safari / WKWebView, so this is best-effort: where it works we react
+  // to grant/deny immediately; where it doesn't, handleLocate's own success /
+  // deny outcomes (below) keep the flag current.
+  useEffect(() => {
+    if (!navigator.permissions?.query) return;
+    let status;
+    navigator.permissions.query({ name: 'geolocation' }).then((s) => {
+      status = s;
+      const sync = () => {
+        const denied = s.state === 'denied';
+        setShowLocate(!denied && !!navigator.geolocation);
+        try { localStorage.setItem('jamie_location_denied', denied ? '1' : '0'); } catch { /* private mode */ }
+      };
+      sync();
+      s.onchange = sync;
+    }).catch(() => { /* geolocation not a queryable permission in this browser */ });
+    return () => { if (status) status.onchange = null; };
+  }, []);
+
   const onMapLoad = useCallback((map) => { mapRef.current = map; setMapReady(true); }, []);
 
   const updateCategory = (cat) => {
@@ -193,12 +223,22 @@ export default function MapView({ typeFilter }) {
     }
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
+        try { localStorage.setItem('jamie_location_denied', '0'); } catch { /* private mode */ }
         if (!mapRef.current) return;
         mapRef.current.panTo({ lat: coords.latitude, lng: coords.longitude });
         mapRef.current.setZoom(14);
       },
-      // Denied / unavailable / timeout used to fail silently — give feedback.
-      () => toast.error(t('map.locateError')),
+      (err) => {
+        // code 1 = PERMISSION_DENIED → the user declined location; hide the
+        // button so it doesn't sit there doing nothing on the next render.
+        // Timeout / position-unavailable (codes 3 / 2) are transient — keep the
+        // button and just report the error.
+        if (err && err.code === 1) {
+          setShowLocate(false);
+          try { localStorage.setItem('jamie_location_denied', '1'); } catch { /* private mode */ }
+        }
+        toast.error(t('map.locateError'));
+      },
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
     );
   };
@@ -322,14 +362,16 @@ export default function MapView({ typeFilter }) {
         </GoogleMap>
       )}
 
-      {/* Locate me */}
-      <button className="map-locate-btn" onClick={handleLocate} title={t('map.locateTitle')}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="3" fill="currentColor"/>
-          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
-          <circle cx="12" cy="12" r="8" strokeOpacity="0.35"/>
-        </svg>
-      </button>
+      {/* Locate me — hidden once the user has declined geolocation */}
+      {showLocate && (
+        <button className="map-locate-btn" onClick={handleLocate} title={t('map.locateTitle')}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="3" fill="currentColor"/>
+            <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+            <circle cx="12" cy="12" r="8" strokeOpacity="0.35"/>
+          </svg>
+        </button>
+      )}
 
       {/* Pioneer CTA */}
       {isLoaded && !loading && pins.length === 0 && (
