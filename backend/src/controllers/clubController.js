@@ -1092,6 +1092,14 @@ export const getClubEvents = async (req, res) => {
     }
 
     const isPast = past === 'true';
+    // Split upcoming/past by DAY (CURRENT_DATE), NOT by exact moment (NOW()).
+    // getDiscoverEvents already does this on purpose ("so an event happening
+    // later today isn't dropped at midnight"). When this list used NOW() while
+    // Discover used CURRENT_DATE, an event earlier today — or nudged just past
+    // NOW() by the naive-timestamp club-event time offset — showed up under
+    // "Club Events entdecken" but was invisible to the club owner in their own
+    // club view (the exact bug reported 2026-07-23). Same granularity → the
+    // owner sees exactly what Discover shows.
     const result = await db.query(
       `SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar
        FROM groups g
@@ -1099,8 +1107,8 @@ export const getClubEvents = async (req, res) => {
        WHERE g.parent_club_id = $1
          AND g.is_active = TRUE
          AND g.deleted_at IS NULL
-         AND ($2 = TRUE  AND g.date < NOW()
-              OR $2 = FALSE AND (g.date IS NULL OR g.date >= NOW()))
+         AND ($2 = TRUE  AND g.date < CURRENT_DATE
+              OR $2 = FALSE AND (g.date IS NULL OR g.date >= CURRENT_DATE))
        ORDER BY g.date ASC NULLS LAST`,
       [id, isPast]
     );
