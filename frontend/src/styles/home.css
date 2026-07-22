@@ -2123,8 +2123,18 @@ input:checked + .slider:before {
   /* Flex column so actions stick to the bottom */
   display: flex;
   flex-direction: column;
-  max-height: 88dvh;
-  max-height: 88vh; /* fallback */
+  /* Cap the height so the sheet's TOP edge always clears the status bar.
+     The overlay is flex-end aligned and full-screen, so the sheet grows
+     upward from the bottom; with only the nav reserved at the bottom
+     (padding-bottom on .filter-overlay), an 88vh sheet's top landed ~7px
+     from the screen top, tucked under the iOS status bar / notch — which
+     clipped the "Filter" title (Tina, 2026-07-23: title abgeschnitten).
+     Reserve the same bottom nav space PLUS the top safe area + a 16px gap,
+     so the top edge can never reach the status bar regardless of device.
+     vh fallback first, dvh (accounts for dynamic browser chrome) wins where
+     supported. */
+  max-height: calc(100vh - 60px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px);
+  max-height: calc(100dvh - 60px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px);
   overflow: hidden;
   animation: slideUpSheet 0.3s cubic-bezier(0.32, 0.72, 0, 1);
   will-change: transform;
@@ -2150,7 +2160,7 @@ input:checked + .slider:before {
   flex: 1;
   /* Same bug class fixed elsewhere this week (onboarding/create/chat): without
      this, a flex:1 child refuses to shrink below its own content's natural
-     height. .filter-sheet caps the whole sheet at max-height:88dvh with
+     height. .filter-sheet caps the whole sheet's max-height with
      overflow:hidden — as more filter sections were added, the scroll area's
      un-shrunk natural height started exceeding that cap, pushing the fixed
      "Anwenden" footer past the clipped boundary instead of ceding space to it
