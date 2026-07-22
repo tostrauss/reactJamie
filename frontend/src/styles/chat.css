@@ -143,11 +143,6 @@
   padding: 0 12px;
 }
 .chat-search-wrap:focus-within { border-color: var(--accent-coral); }
-.chat-search-icon {
-  flex-shrink: 0;
-  color: var(--text-muted);
-  pointer-events: none;
-}
 .chat-search-input {
   flex: 1;
   min-width: 0;
