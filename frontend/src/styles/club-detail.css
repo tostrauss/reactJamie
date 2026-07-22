@@ -476,90 +476,12 @@
   background: #22c55e;
   color: white;
 }
-/* ── Members modal (bottom sheet triggered by tapping strip avatars) ── */
-.cd-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  z-index: 10000;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  animation: cd-fade-in 0.18s ease;
-}
-@keyframes cd-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-.cd-modal {
-  width: 100%;
-  max-width: 500px;
-  max-height: 80vh;
-  background: var(--bg-primary);
-  border-radius: 24px 24px 0 0;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-bottom: none;
-  display: flex;
-  flex-direction: column;
-  animation: cd-slide-up 0.28s cubic-bezier(.25, .8, .25, 1) both;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-@keyframes cd-slide-up {
-  from { transform: translateY(100%); }
-  to   { transform: translateY(0); }
-}
-.cd-modal-handle {
-  width: 40px;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.18);
-  border-radius: 2px;
-  margin: 10px auto 6px;
-}
-.cd-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 18px 12px;
-}
-.cd-modal-title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--text-light);
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.cd-modal-close {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.6);
-  cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.cd-modal-body {
-  flex: 1;
-  /* Same recurring bug class fixed elsewhere this week: without min-height:0
-     a flex:1 child refuses to shrink below its own content's natural height,
-     so it never actually overflows internally and the member list feels
-     unscrollable ("Mitgliederlisten nicht mehr scrollable", Tina 2026-07-22,
-     Clubs only — .cd-modal caps at max-height:80vh). */
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  padding: 4px 14px 18px;
-}
-.cd-members-modal .cd-members-list {
-  gap: 8px;
-}
+/* Members bottom-sheet modal REMOVED 2026-07-22 (Tina: "mache überall die
+   Mitglieder liste wie bei den Gruppen") — it kept resurfacing the recurring
+   "flex:1 child missing min-height:0" scroll bug, and GroupDetail already
+   navigated to a dedicated page instead with no such issue. Clubs now do the
+   same (openMembers() in ClubDetail.jsx → /club/:id/members, ClubMembers.jsx
+   / .cd-members-page-body below). */
 
 /* ── Members page (full list, dedicated /club/:id/members route) ── */
 .cd-members-page-body {

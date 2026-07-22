@@ -5,7 +5,6 @@ import { clubs } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
-import { UserName } from '../components/UserName';
 import { nextOccurrence } from '../utils/recurrence';
 import { shareLink } from '../utils/share';
 import { openCalendar } from '../utils/calendarExport';
@@ -53,7 +52,6 @@ export const ClubDetail = () => {
   const [isFavorited, setIsFavorited] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBoostModal, setShowBoostModal] = useState(false);
-  const [showMembersModal, setShowMembersModal] = useState(false);
   // Pro gate: non-member non-Pro viewers get only the first 3 members + this
   // flag from the API — clicking the roster opens the ProModal instead.
   const [membersGated, setMembersGated] = useState(false);
@@ -283,10 +281,17 @@ export const ClubDetail = () => {
   const overflowMembers = Math.max(0, membersCount - visibleMembers.length);
 
   // Gated viewers can't open the full roster — tap routes them to the ProModal
-  // (same global event the /members page uses); everyone else opens the list.
+  // (same global event the /members page uses); everyone else goes to the
+  // dedicated members page. Was a bottom-sheet modal (cd-members-modal) —
+  // matched a recurring "sheet won't scroll" bug class (missing min-height:0
+  // on a max-height-capped flex column) and kept resurfacing across screens
+  // this week; GroupDetail already used a dedicated page for this with no
+  // such issue, so Clubs now does the same instead of re-patching the sheet
+  // yet again (Tina, 2026-07-22: "mache überall die Mitglieder liste wie bei
+  // den Gruppen").
   const openMembers = () => {
     if (membersGated) window.dispatchEvent(new Event('jamie:open-pro-modal'));
-    else setShowMembersModal(true);
+    else navigate(`/club/${id}/members`);
   };
 
   return (
@@ -647,72 +652,6 @@ export const ClubDetail = () => {
           </button>
         </div>
       </div>
-
-      {showMembersModal && (
-        <div
-          className="cd-modal-overlay"
-          onClick={() => setShowMembersModal(false)}
-        >
-          <div
-            className="cd-modal cd-members-modal"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="cd-modal-handle" />
-            <div className="cd-modal-header">
-              <h3 className="cd-modal-title">
-                {t('clubDetail.members.title')}
-                <span className="cd-section-count">{membersCount}</span>
-              </h3>
-              <button
-                className="cd-modal-close"
-                onClick={() => setShowMembersModal(false)}
-                aria-label={t('common.close')}
-              >
-                ✕
-              </button>
-            </div>
-            <div className="cd-modal-body">
-              <div className="cd-members-list">
-                {members.map(m => (
-                  <button
-                    key={m.id}
-                    className="cd-member-row"
-                    onClick={() => {
-                      setShowMembersModal(false);
-                      navigate(`/user/${m.id}`);
-                    }}
-                  >
-                    {m.avatar_url ? (
-                      <img src={m.avatar_url} alt={m.name || ''} className="cd-member-row-avatar" loading="lazy" decoding="async" />
-                    ) : (
-                      <div className="cd-member-row-avatar cd-member-row-avatar--placeholder">
-                        {(m.name || '?')[0]?.toUpperCase()}
-                      </div>
-                    )}
-                    <div className="cd-member-row-info">
-                      <UserName
-                        className="cd-member-row-name"
-                        name={m.name || t('clubDetail.members.unknownName')}
-                        age={m.age}
-                      />
-                      {club.owner_id === m.id && (
-                        <span className="cd-member-row-tag">{t('clubDetail.members.ownerTag')}</span>
-                      )}
-                    </div>
-                    {m.is_trusted_user && (
-                      <span className="cd-member-row-trusted" aria-label={t('clubDetail.members.trusted')}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20,6 9,17 4,12"/>
-                        </svg>
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showReportModal && (
         <ReportModal
