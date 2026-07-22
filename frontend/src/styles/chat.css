@@ -138,9 +138,12 @@
 .chat-search-input {
   width: 100%;
   box-sizing: border-box;
-  /* Reset iOS/WebKit native search styling — otherwise the searchfield
-     appearance ignores padding-left and the placeholder slides under the icon */
-  -webkit-appearance: none;
+  /* type="text" (not "search") — iOS/WebKit's native type=search chrome
+     (including its own built-in magnifier) kept rendering on top of the
+     custom SVG icon + placeholder even with -webkit-appearance:none and the
+     ::-webkit-search-decoration resets, in some WebView contexts (Tina,
+     2026-07-22, all 3 tabs). Plain text input has no native search chrome to
+     fight at all. */
   appearance: none;
   background: var(--bg-card);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -150,14 +153,6 @@
   font-size: 15px;
   font-family: inherit;
   outline: none;
-}
-/* Hide the native WebKit search decorations (magnifier + clear button) */
-.chat-search-input::-webkit-search-decoration,
-.chat-search-input::-webkit-search-cancel-button,
-.chat-search-input::-webkit-search-results-button,
-.chat-search-input::-webkit-search-results-decoration {
-  -webkit-appearance: none;
-  appearance: none;
 }
 .chat-search-input:focus { border-color: var(--accent-coral); }
 .chat-search-input::placeholder { color: var(--text-muted); }

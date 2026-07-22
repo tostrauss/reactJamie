@@ -409,7 +409,7 @@ export const ChatList = () => {
               <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
             </svg>
             <input
-              type="search"
+              type="text"
               className="chat-search-input"
               placeholder={t('chat.list.searchPlaceholder')}
               value={search}
