@@ -547,6 +547,12 @@
 }
 .cd-modal-body {
   flex: 1;
+  /* Same recurring bug class fixed elsewhere this week: without min-height:0
+     a flex:1 child refuses to shrink below its own content's natural height,
+     so it never actually overflows internally and the member list feels
+     unscrollable ("Mitgliederlisten nicht mehr scrollable", Tina 2026-07-22,
+     Clubs only — .cd-modal caps at max-height:80vh). */
+  min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 4px 14px 18px;
