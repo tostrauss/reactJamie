@@ -16,6 +16,29 @@ const LIBRARIES = [];
 
 const WIEN = { lat: 48.2082, lng: 16.3738 };
 
+// Densest-cluster detection: for each pin, count how many pins fall within
+// HOTSPOT_RADIUS_DEG (a rough metro-area box). The pin with the most neighbours
+// anchors the hotspot; we return that pin plus its neighbours so the map can
+// open centred on "where the most events are" instead of fitting every pin
+// (which zoomed out across the empty space between separate cities). O(n²) but
+// n ≤ 500 (the pins LIMIT), computed once per pin refresh.
+const HOTSPOT_RADIUS_DEG = 0.12; // ~13 km lat / ~9 km lng at 48°N
+function densestCluster(pts) {
+  let anchor = pts[0];
+  let bestCount = -1;
+  for (const a of pts) {
+    let count = 0;
+    for (const b of pts) {
+      if (Math.abs(a.lat - b.lat) <= HOTSPOT_RADIUS_DEG &&
+          Math.abs(a.lng - b.lng) <= HOTSPOT_RADIUS_DEG) count++;
+    }
+    if (count > bestCount) { bestCount = count; anchor = a; }
+  }
+  return pts.filter(b =>
+    Math.abs(anchor.lat - b.lat) <= HOTSPOT_RADIUS_DEG &&
+    Math.abs(anchor.lng - b.lng) <= HOTSPOT_RADIUS_DEG);
+}
+
 const DARK_MAP_STYLES = [
   { elementType: 'geometry',            stylers: [{ color: '#1a1a2e' }] },
   { elementType: 'labels.icon',         stylers: [{ visibility: 'off' }] },
@@ -173,14 +196,23 @@ export default function MapView({ typeFilter }) {
       mapRef.current.setZoom(11);
       return;
     }
-    if (usable.length === 1) {
-      mapRef.current.panTo({ lat: usable[0].lat, lng: usable[0].lng });
+    // Open centred on the densest cluster — where the most events are — rather
+    // than fitting ALL pins (which zoomed the map out to show the empty regions
+    // between separate cities). A lone pin (or a lone hotspot) → centre on it.
+    const cluster = usable.length === 1 ? usable : densestCluster(usable);
+    if (cluster.length === 1) {
+      mapRef.current.panTo({ lat: cluster[0].lat, lng: cluster[0].lng });
       mapRef.current.setZoom(13);
       return;
     }
     const bounds = new window.google.maps.LatLngBounds();
-    usable.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
+    cluster.forEach(p => bounds.extend({ lat: p.lat, lng: p.lng }));
     mapRef.current.fitBounds(bounds, 60);
+    // A tight hotspot can push fitBounds to street level; cap the zoom once the
+    // map settles so the surrounding area stays visible.
+    window.google.maps.event.addListenerOnce(mapRef.current, 'idle', () => {
+      if (mapRef.current && mapRef.current.getZoom() > 15) mapRef.current.setZoom(15);
+    });
     // mapReady in deps: pins often resolve before the map finishes loading, in
     // which case mapRef.current was null and the fit never ran. Re-run on load.
   }, [pins, mapReady]);
