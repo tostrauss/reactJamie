@@ -21,8 +21,8 @@
     "path": "./keystore/jamie-release.jks",
     "alias": "jamie-key"
   },
-  "appVersionName": "1",
-  "appVersionCode": 7,
+  "appVersionName": "1.1",
+  "appVersionCode": 8,
   "shortcuts": [
     {
       "name": "Gruppe erstellen",
