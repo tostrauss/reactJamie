@@ -141,6 +141,14 @@
 }
 
 
+/* Right column: name row on top, subtle Pioneer tag underneath it. */
+.up-name-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
 .up-name-age {
   display: flex;
   align-items: baseline;
