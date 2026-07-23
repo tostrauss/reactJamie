@@ -1196,7 +1196,7 @@ export const createClubEvent = async (req, res) => {
 
   try {
     const club = await db.query(
-      'SELECT id, name, category, owner_id, events_owner_only, location FROM groups WHERE id = $1 AND type = $2',
+      'SELECT id, name, category, owner_id, events_owner_only, location, is_private FROM groups WHERE id = $1 AND type = $2',
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club nicht gefunden' });
@@ -1228,11 +1228,18 @@ export const createClubEvent = async (req, res) => {
     const eventLocation = (location && location.trim()) || club.rows[0].location || null;
     const coords = await geocodeLocation(eventLocation);
 
+    // An event inherits its parent club's privacy: a PRIVATE club's events are
+    // private too, so joinGroup routes joins through owner approval instead of an
+    // instant public join (a non-member of a private club must be let in, not
+    // walk in). Previously this was hardcoded FALSE, which made every private
+    // club's events publicly joinable and marked "Öffentlich".
+    const eventIsPrivate = !!club.rows[0].is_private;
+
     const result = await db.query(
       `INSERT INTO groups
          (name, description, type, category, date, location, max_members, owner_id,
           parent_club_id, is_private, lat, lng, is_recurring_weekly)
-       VALUES ($1, $2, 'event', $3, $4, $5, $6, $7, $8, FALSE, $9, $10, $11)
+       VALUES ($1, $2, 'event', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
         name.trim(),
@@ -1243,6 +1250,7 @@ export const createClubEvent = async (req, res) => {
         max_members || 20,
         userId,
         parseInt(id, 10),
+        eventIsPrivate,
         coords?.lat ?? null,
         coords?.lng ?? null,
         !!is_recurring_weekly,
