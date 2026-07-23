@@ -377,7 +377,6 @@ export default function MapView({ typeFilter }) {
       {/* Pioneer CTA */}
       {isLoaded && !loading && pins.length === 0 && (
         <div className="map-pioneer-cta">
-          <div className="map-pioneer-icon">🏆</div>
           <h2 className="map-pioneer-title">{t('map.pioneer.title')}</h2>
           <p className="map-pioneer-text">
             {t('map.pioneer.textPrefix')} <strong>{t('map.pioneer.textHighlight')}</strong> {t('map.pioneer.textSuffix')}
