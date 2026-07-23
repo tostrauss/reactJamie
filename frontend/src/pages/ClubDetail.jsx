@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useContext, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { clubs } from '../utils/api';
@@ -8,6 +8,7 @@ import { ReportModal } from '../components/ReportModal';
 import { nextOccurrence } from '../utils/recurrence';
 import { shareLink } from '../utils/share';
 import { openCalendar } from '../utils/calendarExport';
+import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
 import '../styles/club-detail.css';
 
 const BoostModal = lazy(() => import('../components/BoostModal').then(m => ({ default: m.BoostModal })));
@@ -63,6 +64,46 @@ export const ClubDetail = () => {
   const [eventForm, setEventForm] = useState({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20, is_recurring_weekly: false });
   const [eventSubmitting, setEventSubmitting] = useState(false);
   const [joiningEventId, setJoiningEventId] = useState(null);
+  const eventLocationRef = useRef(null);
+  const eventAutocompleteRef = useRef(null);
+
+  // Google Places autocomplete for the event "Ort" field — same as the location
+  // field on group/club creation, so typing an address suggests real places and
+  // the backend geocodes the picked value into a map pin (createClubEvent).
+  useEffect(() => {
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    if (apiKey) loadGoogleMaps(apiKey);
+  }, []);
+
+  // Attach the autocomplete once the create-event form (and its input) is
+  // mounted; tear it down when the form closes so it re-binds to the fresh
+  // input next time.
+  useEffect(() => {
+    if (!showCreateEvent) return;
+    const attach = () => {
+      if (!window.google?.maps?.places) return;
+      if (eventAutocompleteRef.current) return;
+      if (!eventLocationRef.current) return;
+      const ac = new window.google.maps.places.Autocomplete(eventLocationRef.current, {
+        componentRestrictions: { country: ['at'] },
+        fields: ['formatted_address', 'name'],
+      });
+      ac.addListener('place_changed', () => {
+        const place = ac.getPlace();
+        const val = place.formatted_address || place.name || '';
+        if (val) setEventForm(f => ({ ...f, location: val }));
+      });
+      eventAutocompleteRef.current = ac;
+    };
+    const timer = setTimeout(() => onGoogleMapsReady(attach), 50);
+    return () => {
+      clearTimeout(timer);
+      if (eventAutocompleteRef.current && window.google?.maps?.event) {
+        window.google.maps.event.clearInstanceListeners(eventAutocompleteRef.current);
+      }
+      eventAutocompleteRef.current = null;
+    };
+  }, [showCreateEvent]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -495,11 +536,13 @@ export const ClubDetail = () => {
                 </div>
                 <div className="cd-event-row">
                   <input
+                    ref={eventLocationRef}
                     className="cd-event-input"
                     type="text"
                     placeholder={t('clubDetail.events.formLocationPlaceholder')}
                     value={eventForm.location}
                     onChange={e => setEventForm(f => ({ ...f, location: e.target.value }))}
+                    autoComplete="off"
                   />
                   <input
                     className="cd-event-input cd-event-input--sm"

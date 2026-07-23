@@ -279,6 +279,15 @@ select:focus-visible {
   white-space: nowrap;
 }
 
+/* Google Places Autocomplete dropdown — inject-on-body element. Lift it above
+   the bottom nav (1000), sheets (1100) and any modal so suggestions are never
+   clipped/hidden while typing an address (event form, create group/club). */
+.pac-container {
+  z-index: 3000;
+  border-radius: 12px;
+  margin-top: 4px;
+}
+
 /* Reduce motion for users who request it (iOS Settings → Accessibility → Reduce Motion) */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
