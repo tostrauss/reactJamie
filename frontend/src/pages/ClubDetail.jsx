@@ -44,7 +44,7 @@ export const ClubDetail = () => {
   const { user } = useContext(AuthContext);
   const toast = useToast();
   const { t, i18n } = useTranslation();
-  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-AT';
+  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : 'de-AT';
 
   const [club, setClub] = useState(null);
   const [members, setMembers] = useState([]);

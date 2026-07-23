@@ -21,7 +21,7 @@ export const GroupEdit = () => {
   const { user } = useContext(AuthContext);
   const toast = useToast();
   const { t, i18n } = useTranslation();
-  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-DE';
+  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : 'de-DE';
 
   const [group, setGroup]           = useState(null);
   const [members, setMembers]       = useState([]);

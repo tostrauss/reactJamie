@@ -1,0 +1,1807 @@
+{
+  "feedback": {
+    "title": "Ti piace JAMIE?",
+    "body": "Il tuo feedback ci aiuta a migliorare JAMIE. Valutaci nello store o mandaci i tuoi suggerimenti.",
+    "rate": "Valuta l'app ⭐",
+    "suggest": "Feedback e suggerimenti",
+    "later": "Più tardi"
+  },
+  "payments": {
+    "comingSoon": {
+      "title": "Presto disponibile",
+      "body": "JAMIE Pro arriverà a breve. Fino ad allora puoi usare JAMIE in modo completamente gratuito.",
+      "boostBody": "I Boost acquistabili arriveranno presto.",
+      "interestCta": "Avvisami 🔔",
+      "interestDone": "Ti avviseremo ✓",
+      "interestThanks": "Ottimo! Ti avviseremo appena sarà disponibile. 🎉",
+      "interestError": "Non ha funzionato – riprova più tardi."
+    }
+  },
+  "events": {
+    "title": "Eventi",
+    "searchPlaceholder": "Cerca",
+    "forYou": "Eventi per te",
+    "todayBadge": "Oggi",
+    "empty": "Ancora nessun evento.",
+    "emptySearch": "Nessun evento trovato.",
+    "emptyFiltered": "Nessun evento per questi filtri.",
+    "filters": {
+      "all": "Tutti",
+      "today": "Oggi",
+      "weekend": "Weekend",
+      "week": "Questa settimana",
+      "allCategories": "Tutte le categorie"
+    }
+  },
+  "common": {
+    "back": "Indietro",
+    "save": "Salva",
+    "cancel": "Annulla",
+    "continue": "Avanti",
+    "skip": "Salta",
+    "loading": "Caricamento...",
+    "loadingShort": "Caricamento…",
+    "sending": "Invio in corso…",
+    "showPassword": "Mostra password",
+    "hidePassword": "Nascondi password",
+    "viewProfile": "Vedi profilo",
+    "languageDe": "Tedesco",
+    "languageEn": "Inglese",
+    "languageIt": "Italiano",
+    "or": "oppure",
+    "pioneerBadge": "Pioniere"
+  },
+  "auth": {
+    "appName": "JAMIE",
+    "tagline": "Trova persone per attività vicino a te.",
+    "shared": {
+      "privacy": "Informativa sulla privacy",
+      "terms": "Termini di utilizzo",
+      "consentText": "Ho letto e accetto l'<1>informativa sulla privacy</1>, i <2>termini di utilizzo</2> e le <3>linee guida della community</3>.",
+      "fieldOptional": "(facoltativo)",
+      "newPasswordPlaceholder": "Almeno 6 caratteri",
+      "confirmPasswordPlaceholder": "Ripeti la password"
+    },
+    "login": {
+      "continueWithEmail": "Continua con l'e-mail",
+      "continueWithApple": "Accedi con Apple",
+      "errorApple": "Accesso con Apple non riuscito",
+      "appleSoon": "(In arrivo)",
+      "demoMode": "🚀 Modalità demo (senza login)",
+      "emailLabel": "E-mail",
+      "emailPlaceholder": "tua@email.com",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "••••••••",
+      "signIn": "Accedi",
+      "forgotPassword": "Password dimenticata?",
+      "noAccount": "Non hai ancora un account?",
+      "signUp": "Registrati ora",
+      "errorGeneric": "Accesso non riuscito",
+      "errorGoogle": "Accesso con Google non riuscito",
+      "comingSoon": "L'accesso con {{provider}} sarà presto disponibile. Usa l'accesso via e-mail."
+    },
+    "register": {
+      "stepLabel": "Passo {{current}} di {{total}}",
+      "guestBlocked": "Crea un account gratuito per fondare club, creare eventi e caricare foto.",
+      "step1": {
+        "title": "Come ti chiami?",
+        "hint": "Così verrai mostrato nell'app",
+        "label": "Il tuo nome",
+        "placeholder": "Il tuo nome"
+      },
+      "step2": {
+        "title": "La tua e-mail",
+        "hint": "Ti invieremo un codice di conferma",
+        "label": "Indirizzo e-mail",
+        "placeholder": "tua@email.com",
+        "sendCode": "Invia codice"
+      },
+      "step3": {
+        "title": "Inserisci il codice",
+        "hintPrefix": "Abbiamo inviato un codice di 6 cifre a",
+        "hintSuffix": ".",
+        "label": "Codice di conferma",
+        "placeholder": "— — — — — —",
+        "confirm": "Conferma",
+        "checking": "Verifica…",
+        "resendIn": "Invia di nuovo ({{seconds}}s)",
+        "resend": "Invia di nuovo il codice",
+        "errorMissing": "Inserisci tutte le 6 cifre",
+        "errorInvalid": "Codice non valido",
+        "errorSendFailed": "Impossibile inviare il codice"
+      },
+      "step4": {
+        "title": "La tua data di nascita",
+        "hint": "Devi avere almeno 18 anni",
+        "label": "Data di nascita",
+        "errorAge": "Devi avere almeno 18 anni."
+      },
+      "step5": {
+        "title": "Dove sei?",
+        "hint": "Ti aiuta a trovare eventi vicino a te",
+        "label": "Città o regione",
+        "placeholder": "es. Vienna, Austria",
+        "removeLocation": "Rimuovi luogo"
+      },
+      "step6": {
+        "title": "Scegli una password",
+        "hint": "Min. 6 caratteri, maiuscole/minuscole, numero e carattere speciale",
+        "label": "Password",
+        "placeholder": "La tua password",
+        "confirmLabel": "Conferma password",
+        "referralLabel": "Codice invito",
+        "referralPlaceholder": "es. JAMIE-X7K2",
+        "submit": "Crea account",
+        "creating": "Creazione in corso…"
+      },
+      "strength": {
+        "veryWeak": "Molto debole",
+        "weak": "Debole",
+        "medium": "Media",
+        "strong": "Forte",
+        "veryStrong": "Molto forte"
+      },
+      "validation": {
+        "dobRequired": "Inserisci la tua data di nascita",
+        "ageMin": "Devi avere almeno 18 anni per usare JAMIE.",
+        "passwordMismatch": "Le password non coincidono",
+        "passwordMinLength": "Servono almeno 6 caratteri",
+        "passwordUpper": "Serve almeno 1 lettera maiuscola",
+        "passwordLower": "Serve almeno 1 lettera minuscola",
+        "passwordDigit": "Serve almeno 1 numero",
+        "passwordSpecial": "Serve almeno 1 carattere speciale (!@#$…)",
+        "registerFailed": "Registrazione non riuscita"
+      },
+      "alreadyAccount": "Hai già un account?",
+      "loginLink": "Accedi ora"
+    },
+    "forgot": {
+      "subtitle": "Inserisci il tuo indirizzo e-mail e ti invieremo un link per reimpostare la password.",
+      "backToLogin": "Torna al login",
+      "submit": "Invia link",
+      "sentTitle": "E-mail inviata!",
+      "sentBodyPrefix": "Se esiste un account con",
+      "sentBodySuffix": ", ti abbiamo inviato un link per reimpostare la password.",
+      "sentSpam": "Controlla anche la cartella spam.",
+      "sentCta": "Torna al login",
+      "errorGeneric": "Errore durante l'invio"
+    },
+    "reset": {
+      "subtitle": "Scegli una nuova password per il tuo account.",
+      "newPasswordLabel": "Nuova password",
+      "confirmLabel": "Conferma password",
+      "submit": "Salva password",
+      "saving": "Salvataggio...",
+      "successTitle": "Password reimpostata!",
+      "successBody": "La tua password è stata cambiata con successo. Ora puoi accedere.",
+      "successCta": "Vai al login",
+      "invalidTitle": "Link non valido",
+      "invalidBody": "Questo link non è valido o è scaduto.",
+      "invalidCta": "Richiedi un nuovo link",
+      "errorMin": "La password deve avere almeno 6 caratteri",
+      "errorMismatch": "Le password non coincidono",
+      "errorGeneric": "Errore durante la reimpostazione"
+    },
+    "verify": {
+      "verifying": "Verifica dell'e-mail in corso...",
+      "successTitle": "E-mail verificata!",
+      "successBody": "Il tuo indirizzo e-mail è stato confermato con successo.",
+      "successCta": "Continua nell'app",
+      "errorTitle": "Verifica non riuscita",
+      "errorMissingToken": "Nessun token di verifica trovato.",
+      "errorGeneric": "Verifica non riuscita",
+      "errorCta": "Vai al login"
+    }
+  },
+  "intro": {
+    "skip": "Salta",
+    "ctaLast": "Si parte! 🚀",
+    "ctaNext": "Avanti",
+    "slide1": {
+      "subtitle": "La tua app per incontri veri",
+      "title": "Benvenuto su JAMIE",
+      "description": "JAMIE ti mette in contatto con persone vicino a te che amano le tue stesse attività — in modo spontaneo, semplice e senza fronzoli."
+    },
+    "slide2": {
+      "subtitle": "Dallo sport alla cucina",
+      "title": "Scopri gruppi e club",
+      "description": "Trova gruppi per eventi occasionali o unisciti a club permanenti. Filtra per categoria, data e luogo — e trova persone davvero affini."
+    },
+    "slide3": {
+      "subtitle": "Crea. Unisciti. Vivi.",
+      "title": "Connettiti e parti alla grande",
+      "description": "Crea il tuo gruppo, invita amici e vivi momenti indimenticabili. Fai un Boost al tuo gruppo per raggiungere ancora più persone!"
+    }
+  },
+  "welcome": {
+    "skip": "Salta",
+    "ctaStart": "Si parte ✨",
+    "ctaNext": "Avanti",
+    "ctaPro": "👑 Attiva Pro adesso",
+    "ctaNoPro": "Continua senza Pro",
+    "slide1": {
+      "subtitle": "Ora sei dei nostri",
+      "titleWithName": "Ciao {{name}}!",
+      "titleNoName": "Benvenuto!",
+      "description": "Il tuo account è stato creato. JAMIE ti mette in contatto con persone vere per esperienze vere — spontanee, semplici, vicino a te."
+    },
+    "slide2": {
+      "subtitle": "Tutto quello che ti aspetta",
+      "title": "Scopri e vivi",
+      "description": "Trova il gruppo perfetto per te — per una serata o per sempre. Chatta, unisciti e vivi momenti che contano.",
+      "groupsLabel": "Gruppi",
+      "groupsSub": "Eventi occasionali per 3–10 persone",
+      "clubsLabel": "Club",
+      "clubsSub": "Community permanenti",
+      "chatsLabel": "Chat",
+      "chatsSub": "Direttamente con chi la pensa come te",
+      "nearbyLabel": "Nelle vicinanze",
+      "nearbySub": "Eventi proprio vicino a te"
+    },
+    "slide3": {
+      "subtitle": "Solo 5 € al mese",
+      "title": "JAMIE Pro",
+      "description": "Boost per i tuoi gruppi e club — gratis. Nessun acquisto di crediti. Massima visibilità. Disdici quando vuoi.",
+      "groupBoostLabel": "Boost ai gruppi",
+      "groupBoostSub": "Gratis e illimitato",
+      "clubBoostLabel": "Boost ai club",
+      "clubBoostSub": "Conquista più membri",
+      "topLabel": "Posizione in alto",
+      "topSub": "Sempre in cima",
+      "noLimitLabel": "Nessun limite",
+      "noLimitSub": "Disdici quando vuoi"
+    }
+  },
+  "onboarding": {
+    "stepCounter": "{{current}} / {{total}}",
+    "confirm": "Conferma",
+    "next": "Avanti",
+    "save": "Salvataggio...",
+    "finish": "Si parte! 🚀",
+    "gender": {
+      "titleLine1": "Scegli il tuo",
+      "titleLine2": "genere",
+      "subtitle": "Così possiamo suggerirti gruppi più adatti",
+      "male": "Maschile",
+      "female": "Femminile",
+      "diverse": "Non binario"
+    },
+    "profile": {
+      "titleLine1": "Raccontaci",
+      "titleLine2": "qualcosa di te",
+      "subtitle": "Così potremo suggerirti gruppi più adatti",
+      "locationLabel": "📍 Città",
+      "locationPlaceholder": "es. Vienna, Austria",
+      "bioLabel": "✍️ Breve descrizione (facoltativa)",
+      "bioPlaceholder": "Racconta in breve chi sei e cosa ti va di fare..."
+    },
+    "interests": {
+      "titleLine1": "Cosa ti va",
+      "titleLine2": "di fare?",
+      "subtitle": "Scegli almeno 3 interessi",
+      "customPlaceholder": "Interesse personalizzato...",
+      "counter": "{{count}} selezionati",
+      "needMore": "(ancora {{count}})",
+      "suggestPrompt": "La tua proposta per una nuova categoria:",
+      "suggestPlaceholder": "es. pallavolo, fotografia…",
+      "suggestSubmit": "Invia",
+      "suggestThanks": "✓ Grazie per la tua proposta!"
+    },
+    "photos": {
+      "titleLine1": "Aggiungi",
+      "titleLine2": "foto",
+      "subtitle": "Tocca una foto per impostarla come immagine del profilo",
+      "mainBadge": "Immagine profilo",
+      "addPhoto": "Aggiungi foto ({{current}}/{{total}})"
+    },
+    "done": {
+      "title": "Sei pronto!",
+      "subtitle": "Il tuo profilo è completo. Ora puoi unirti ai gruppi e scrivere agli altri."
+    },
+    "error": "Impossibile salvare il profilo"
+  },
+  "groups": {
+    "card": {
+      "members": "Membri",
+      "full": "Completo",
+      "dateHeute": "Oggi",
+      "dateMorgen": "Domani",
+      "dateGestern": "Ieri",
+      "proGateAria": "Vedi tutti i membri con JAMIE Pro",
+      "proLockCaption": "Sblocca Pro",
+      "weekly": "Settimanale",
+      "weeklyTitle": "Evento ricorrente settimanale",
+      "joinAria": "Unisciti",
+      "publicBadge": "Pubblico",
+      "privateBadge": "Privato"
+    },
+    "detail": {
+      "loading": "Caricamento...",
+      "notFound": "Gruppo non trovato",
+      "share": "Condividi",
+      "shareEvent": "Condividi evento",
+      "manage": "Gestisci",
+      "calendar": "Calendario",
+      "shareLinkCopied": "Link copiato!",
+      "actions": {
+        "joinPublic": "Unisciti",
+        "joinPrivate": "Richiedi di entrare",
+        "openChat": "Apri chat",
+        "editEvent": "Modifica",
+        "requestPending": "Richiesta in attesa…",
+        "spotFreeJoin": "🎉 Posto libero – Unisciti ora!",
+        "leaveWaitlist": "Esci dalla lista d'attesa",
+        "loadingShort": "Caricamento…",
+        "waitlistPositionFmt": "Lista d'attesa · Posizione {{position}}",
+        "waitlistGeneric": "Lista d'attesa",
+        "joinWaitlist": "Entra in lista d'attesa",
+        "boost": "🚀 Boost"
+      },
+      "info": {
+        "level": "Livello: {{level}}",
+        "when": "Quando: {{when}}",
+        "weekly": "Ogni {{weekday}}",
+        "participants": "Partecipanti: {{current}}/{{max}}",
+        "participantsUnlimited": "Partecipanti: {{current}}/∞",
+        "age": "Età: {{range}}"
+      },
+      "membersTeaser": {
+        "count_one": "{{count}} partecipante",
+        "count_other": "{{count}} partecipanti",
+        "countWithMax": "{{current}}/{{max}} partecipanti",
+        "seeAll": "Vedi tutti"
+      },
+      "delete": {
+        "club": "Elimina club",
+        "event": "Elimina evento",
+        "group": "Elimina gruppo",
+        "leave": "Esci",
+        "confirmGroup": "Eliminare davvero il gruppo?",
+        "confirmClub": "Eliminare davvero il club?",
+        "deletedGroup": "Il gruppo è stato eliminato.",
+        "deletedClub": "Il club è stato eliminato.",
+        "errorGroup": "Impossibile eliminare il gruppo.",
+        "errorClub": "Impossibile eliminare il club."
+      },
+      "report": {
+        "group": "Segnala gruppo",
+        "club": "Segnala club"
+      },
+      "toast": {
+        "loadError": "Impossibile caricare il gruppo",
+        "favError": "Impossibile salvare il preferito",
+        "joinLeaveError": "Errore durante l'ingresso o l'uscita",
+        "requestSent": "Richiesta di ingresso inviata",
+        "waitlistJoinedPos": "Sei in lista d'attesa (posizione {{position}})",
+        "waitlistJoined": "Sei in lista d'attesa",
+        "waitlistError": "Errore con la lista d'attesa",
+        "waitlistLeft": "Rimosso dalla lista d'attesa",
+        "waitlistLeaveError": "Errore durante la rimozione"
+      },
+      "events": {
+        "title": "Eventi",
+        "empty": "Ancora nessun evento",
+        "loading": "Caricamento…",
+        "formNamePlaceholder": "Nome dell'evento *",
+        "formDescPlaceholder": "Descrizione (facoltativa)",
+        "formLocationPlaceholder": "Luogo (facoltativo)",
+        "formMaxPlaceholder": "Max partecipanti",
+        "create": "Crea evento",
+        "creating": "Creazione in corso…",
+        "errorNameRequired": "Il nome è obbligatorio",
+        "errorDateRequired": "La data è obbligatoria",
+        "errorDateFuture": "La data deve essere nel futuro",
+        "createdToast": "Evento creato!",
+        "createError": "Errore durante la creazione",
+        "confirmDelete": "Eliminare davvero l'evento?",
+        "deletedToast": "Evento eliminato",
+        "deleteError": "Errore durante l'eliminazione",
+        "joinError": "Errore durante l'ingresso",
+        "leaveError": "Errore durante l'uscita",
+        "joinedToast": "Ingresso riuscito!",
+        "requestSent": "Richiesta inviata",
+        "calendarAdd": "Aggiungi al calendario",
+        "uhr": "",
+        "delete": "Elimina",
+        "joined": "Partecipi",
+        "join": "Partecipa",
+        "participants": "{{current}} / {{max}} partecipanti"
+      }
+    }
+  },
+  "explore": {
+    "tabs": {
+      "hallOfFame": "Hall of Fame",
+      "deals": "Deals"
+    },
+    "timeAgo": {
+      "justNow": "Proprio ora",
+      "minutesAgo_one": "{{count}} min fa",
+      "minutesAgo_other": "{{count}} min fa",
+      "hoursAgo_one": "{{count}} h fa",
+      "hoursAgo_other": "{{count}} h fa",
+      "daysAgo_one": "{{count}} giorno fa",
+      "daysAgo_other": "{{count}} giorni fa"
+    },
+    "suggested": {
+      "reasonFriends_one": "{{count}} amico partecipa",
+      "reasonFriends_other": "{{count}} amici partecipano",
+      "reasonInterest": "Adatto a {{category}}",
+      "reasonSimilar": "Interessi simili"
+    },
+    "empty": {
+      "hallOfFame": "Ancora nessun evento passato",
+      "deals": "Al momento non ci sono collaborazioni disponibili"
+    },
+    "loginToFavorite": "Accedi per salvare i preferiti.",
+    "favoriteError": "Impossibile salvare il preferito.",
+    "loginToLike": "Accedi per mettere \"mi piace\".",
+    "likeError": "Impossibile salvare il \"mi piace\".",
+    "like": {
+      "add": "Mi piace",
+      "remove": "Non mi piace più"
+    },
+    "moment": {
+      "cta": "📸 Condividi il tuo JAMIE Moment",
+      "hint": "Carica una foto dell'evento — diventerà la copertina nella tua Hall of Fame.",
+      "tooLarge": "L'immagine è troppo grande (max 10 MB).",
+      "uploadError": "Impossibile caricare la foto.",
+      "saveError": "Impossibile salvare la foto.",
+      "savedToast": "Il tuo JAMIE Moment è online! ✨"
+    }
+  },
+  "imageCrop": {
+    "title": "Ritaglia immagine",
+    "hint": "Trascina per spostare, cursore per lo zoom",
+    "zoom": "Zoom",
+    "cancel": "Annulla",
+    "confirm": "Applica",
+    "processing": "…"
+  },
+  "clubDetail": {
+    "loading": "Caricamento club…",
+    "notFound": "Club non trovato",
+    "back": "Indietro",
+    "favorite": "Preferito",
+    "share": "Condividi club",
+    "manage": "Gestisci",
+    "shareLinkCopied": "Link del club copiato!",
+    "membersLabel": "Membri",
+    "toast": {
+      "loadError": "Impossibile caricare il club",
+      "favError": "Impossibile salvare il preferito",
+      "joinLeaveError": "Azione non riuscita",
+      "requestSent": "Richiesta di ingresso inviata"
+    },
+    "actions": {
+      "join": "Unisciti al club",
+      "requestJoin": "Richiedi di entrare",
+      "pending": "Richiesta inviata ✓",
+      "leave": "Lascia il club",
+      "openChat": "Vai alla chat",
+      "boost": "Boost al club",
+      "delete": "Elimina club",
+      "report": "Segnala club"
+    },
+    "delete": {
+      "confirm": "Eliminare davvero questo club?",
+      "deleted": "Club eliminato",
+      "error": "Impossibile eliminare il club"
+    },
+    "map": {
+      "title": "Posizione"
+    },
+    "members": {
+      "title": "Membri",
+      "seeAll": "Vedi tutti",
+      "seeAllFull": "Vedi tutti i {{count}} membri",
+      "openListAria": "Apri elenco membri",
+      "ownerTag": "Owner",
+      "trusted": "Verificato",
+      "unknownName": "Membro"
+    },
+    "events": {
+      "title": "Eventi",
+      "createAria": "Crea nuovo evento",
+      "loading": "Caricamento eventi…",
+      "empty": "Ancora nessun evento in programma",
+      "firstEventCta": "Crea il primo evento",
+      "create": "Crea evento",
+      "creating": "Creazione in corso…",
+      "save": "Salva modifiche",
+      "saving": "Salvataggio…",
+      "edit": "Modifica",
+      "join": "Partecipa",
+      "joined": "Partecipi ✓",
+      "delete": "Elimina",
+      "uhr": "",
+      "participants": "{{current}}/{{max}} partecipanti",
+      "calendarAdd": "Aggiungi al calendario",
+      "confirmDelete": "Eliminare davvero questo evento?",
+      "formNamePlaceholder": "Nome dell'evento",
+      "formDescPlaceholder": "Descrizione (facoltativa)",
+      "formLocationPlaceholder": "Luogo",
+      "formMaxPlaceholder": "Max partecipanti",
+      "weeklyLabel": "Ripeti ogni settimana",
+      "weeklyHint": "Si svolge ogni settimana nello stesso giorno",
+      "weeklyBadgeTitle": "Ricorrente settimanale",
+      "errorNameRequired": "Il nome è obbligatorio",
+      "errorDateRequired": "La data è obbligatoria",
+      "errorDateFuture": "La data deve essere nel futuro",
+      "createdToast": "Evento creato",
+      "createError": "Impossibile creare l'evento",
+      "updatedToast": "Evento aggiornato",
+      "updateError": "Impossibile aggiornare l'evento",
+      "deletedToast": "Evento eliminato",
+      "deleteError": "Impossibile eliminare l'evento",
+      "joinedToast": "Partecipi!",
+      "joinError": "Ingresso non riuscito",
+      "leaveError": "Uscita non riuscita",
+      "requestSent": "Richiesta di ingresso inviata",
+      "membersOnly": "Gli eventi sono visibili solo ai membri del club",
+      "membersOnlyHint": "Unisciti al club per vedere gli eventi"
+    }
+  },
+  "clubMembers": {
+    "title": "Membri",
+    "titlePrefix": "Membri ·",
+    "back": "Indietro",
+    "loading": "Caricamento membri…",
+    "searchPlaceholder": "Cerca membro…",
+    "emptySearch": "Nessun membro trovato",
+    "emptyAll": "Ancora nessun membro",
+    "ownerTag": "Owner",
+    "unknownName": "Membro",
+    "gatedHint": "Vedi altri {{count}} membri con JAMIE Pro",
+    "gatedCta": "Sblocca Pro",
+    "toast": {
+      "loadError": "Impossibile caricare i membri"
+    }
+  },
+  "home": {
+    "tabs": {
+      "groups": "Gruppi",
+      "clubs": "Club",
+      "map": "Mappa"
+    },
+    "search": {
+      "placeholder": "Cerca",
+      "filterAria": "Apri filtri"
+    },
+    "profileBanner": {
+      "title": "Profilo non ancora completo",
+      "text": "Completa il tuo profilo per unirti ai gruppi.",
+      "button": "Completa il profilo ora"
+    },
+    "empty": {
+      "groups": "Nessun gruppo trovato.",
+      "groupsCta": "Creane uno tu!",
+      "clubs": "Nessun club trovato.",
+      "clubsCta": "Fonda il tuo!"
+    },
+    "sections": {
+      "myClubs": "I miei club",
+      "trending": "Di tendenza",
+      "eventsForYou": "Eventi per te",
+      "seeAll": "Vedi tutti"
+    },
+    "clubEventsDiscover": "Scopri gli eventi dei club",
+    "filter": {
+      "title": "Filtri",
+      "categories": "Categorie",
+      "time": {
+        "title": "Periodo",
+        "all": "Tutti",
+        "today": "Oggi",
+        "week": "Questa settimana",
+        "weekend": "Weekend",
+        "month": "Questo mese",
+        "allDay": "Tutto il giorno",
+        "custom": "Scegli periodo",
+        "from": "Dal",
+        "to": "Al"
+      },
+      "age": {
+        "title": "Età",
+        "all": "Tutte"
+      },
+      "visibility": {
+        "title": "Visibilità",
+        "all": "Tutti",
+        "public": "Pubblico",
+        "private": "Privato"
+      },
+      "reset": "Reimposta",
+      "apply": "Applica",
+      "close": "Chiudi"
+    },
+    "toast": {
+      "serverDown": "Server non raggiungibile",
+      "loadError": "Impossibile caricare i contenuti. Ricarica la pagina.",
+      "favError": "Impossibile salvare il preferito",
+      "joinError": "Errore durante l'ingresso",
+      "waitlistJoinedPos": "In lista d'attesa! Posizione: {{position}}",
+      "waitlistLeft": "Rimosso dalla lista d'attesa",
+      "waitlistError": "Errore con la lista d'attesa"
+    }
+  },
+  "chat": {
+    "shared": {
+      "reconnectBanner": "Connessione interrotta – riconnessione..."
+    },
+    "day": {
+      "today": "Oggi",
+      "yesterday": "Ieri"
+    },
+    "list": {
+      "tabs": {
+        "groups": "Gruppi",
+        "clubs": "Club",
+        "chats": "Amici"
+      },
+      "dateYesterday": "Ieri",
+      "hide": "Nascondi",
+      "unhide": "Mostra",
+      "searchPlaceholder": "Cerca…",
+      "searchClear": "Cancella ricerca",
+      "noResults": "Nessun risultato.",
+      "sections": {
+        "friendRequests": "Richieste di amicizia",
+        "createdByYou": "Creati da te",
+        "others": "Altri",
+        "hidden": "Nascosti"
+      },
+      "empty": {
+        "noChats": "Ancora nessuna chat con amici",
+        "noChatsHint": "Unisciti ai gruppi e conosci gente!",
+        "toFriends": "Vai ai tuoi amici",
+        "noGroupChats": "Ancora nessuna chat di gruppo",
+        "noClubChats": "Ancora nessuna chat di club",
+        "joinGroupHint": "Unisciti a un gruppo!",
+        "discoverClubsHint": "Scopri i club!",
+        "noHidden": "Nessuna chat nascosta"
+      },
+      "ownerActions": {
+        "requests": "Richieste",
+        "manage": "Gestisci"
+      },
+      "friend": {
+        "noLocation": "Nessuna posizione",
+        "messageTitle": "Invia messaggio",
+        "profileTitle": "Vedi profilo"
+      },
+      "toast": {
+        "requestsLoadError": "Impossibile caricare le richieste",
+        "requestAccepted": "{{name}} è stato accettato!",
+        "requestAcceptError": "Errore durante l'accettazione",
+        "requestDeclined": "{{name}} è stato rifiutato",
+        "requestDeclineError": "Errore durante il rifiuto",
+        "archiveError": "Impossibile nascondere la chat"
+      },
+      "requestsModal": {
+        "loading": "Caricamento…",
+        "count": "{{count}} richieste",
+        "empty": "Nessuna richiesta",
+        "allDone": "Tutte le richieste gestite!",
+        "accept": "Accetta",
+        "decline": "Rifiuta"
+      }
+    },
+    "page": {
+      "loading": "Caricamento...",
+      "notFound": "Gruppo non trovato",
+      "members": "Membri",
+      "clubSuffix": " · Club",
+      "permissionOwnerOnly": "Solo il fondatore del club può inviare messaggi",
+      "loadEarlier": "Carica messaggi precedenti",
+      "loadingShort": "Caricamento…",
+      "toast": {
+        "loadGroupError": "Impossibile caricare il gruppo",
+        "loadMessagesError": "Impossibile caricare i messaggi",
+        "loadEarlierError": "Impossibile caricare i messaggi precedenti",
+        "sendError": "Impossibile inviare il messaggio"
+      },
+      "input": {
+        "placeholder": "Scrivi un messaggio...",
+        "placeholderOwnerOnly": "Solo il fondatore può scrivere"
+      }
+    },
+    "dm": {
+      "loading": "Caricamento...",
+      "errorNotFriends": "Dovete essere amici per scambiarvi messaggi",
+      "errorLoad": "Impossibile caricare la conversazione",
+      "errorSend": "Impossibile inviare il messaggio",
+      "notSent": "Non inviato",
+      "title": "Messaggi diretti",
+      "chatFallback": "Chat",
+      "profileHint": "Tocca per il profilo",
+      "addFriend": "Aggiungi amico",
+      "backToChats": "Torna alle chat",
+      "empty": "Ancora nessun messaggio",
+      "emptyHint": "Di' ciao!",
+      "typingFmt": "{{name}} sta scrivendo...",
+      "inputPlaceholder": "Scrivi un messaggio..."
+    }
+  },
+  "profile": {
+    "fallbackName": "Utente",
+    "header": {
+      "backAria": "Indietro",
+      "settingsAria": "Impostazioni",
+      "editAria": "Modifica profilo"
+    },
+    "progressFmt": "Profilo completo al {{percent}}%",
+    "bioCardTitle": "Su di te!",
+    "proCardTitle": "JAMIE Pro",
+    "proCardSub": "Offerte esclusive e consigli a Vienna",
+    "friendsBtn": "Amici e richieste",
+    "favoritesTitle": "Preferiti",
+    "clubBadge": "Club",
+    "tabs": {
+      "pinnwand": "Bacheca",
+      "halloffame": "Hall of Fame"
+    },
+    "addPhoto": "Aggiungi foto",
+    "savingSong": "Salvataggio…",
+    "share": {
+      "btn": "Condividi il mio profilo",
+      "titleFmt": "{{name}} su JAMIE",
+      "titleFallback": "Il mio profilo JAMIE",
+      "text": "Dai un'occhiata al mio profilo su JAMIE",
+      "linkCopied": "Link copiato!",
+      "error": "Impossibile condividere il profilo"
+    },
+    "hof": {
+      "title": "La tua Hall of Fame",
+      "hint": "Partecipa agli eventi – appariranno qui dopo la data"
+    }
+  },
+  "userProfile": {
+    "notFound": "Utente non trovato",
+    "backBtn": "Indietro",
+    "locationFallback": "Vienna",
+    "bioCardTitle": "Su di te!",
+    "tabs": {
+      "pinnwand": "Bacheca",
+      "halloffame": "Hall of Fame"
+    },
+    "emptyPhotos": "Nessun'altra foto",
+    "emptyHof": "Ancora niente qui",
+    "viewPhotoAria": "Ingrandisci foto",
+    "reportBtn": "Segnala utente",
+    "blockBtn": "Blocca",
+    "blockConfirm": {
+      "title": "Bloccare {{name}}?",
+      "body": "Questa persona non potrà più inviarti messaggi, non vedrà più il tuo profilo e non apparirà più nelle ricerche. L'amicizia esistente verrà terminata.",
+      "confirm": "Sì, blocca"
+    },
+    "actions": {
+      "loading": "Caricamento…",
+      "message": "Invia messaggio",
+      "removeFriend": "Rimuovi amico",
+      "requestSent": "Richiesta inviata ✓",
+      "accept": "Accetta",
+      "reject": "Rifiuta",
+      "sendRequest": "+ Richiesta di amicizia",
+      "unblock": "Sblocca"
+    },
+    "toast": {
+      "loadError": "Impossibile caricare il profilo",
+      "sendError": "Errore durante l'invio",
+      "acceptError": "Errore durante l'accettazione",
+      "rejectError": "Errore durante il rifiuto",
+      "removeError": "Errore durante la rimozione",
+      "blocked": "{{name}} bloccato",
+      "unblocked": "Blocco rimosso",
+      "blockError": "Azione non riuscita"
+    }
+  },
+  "friends": {
+    "title": "Amici",
+    "tabs": {
+      "friends": "Amici",
+      "pending": "Richieste",
+      "sent": "Inviate"
+    },
+    "search": {
+      "placeholder": "Cerca persone…",
+      "clear": "Cancella ricerca",
+      "empty": "Nessun risultato"
+    },
+    "empty": {
+      "noFriends": "Ancora nessun amico",
+      "noFriendsHint": "Guarda i profili e invia richieste!",
+      "noPending": "Nessuna richiesta in sospeso",
+      "noSent": "Nessuna richiesta inviata"
+    },
+    "sentPending": "In sospeso",
+    "toast": {
+      "loadError": "Impossibile caricare gli amici",
+      "accepted": "Amicizia accettata!",
+      "acceptError": "Errore durante l'accettazione",
+      "rejected": "Richiesta rifiutata",
+      "rejectError": "Errore durante il rifiuto",
+      "removed": "Amico rimosso",
+      "removeError": "Errore durante la rimozione"
+    }
+  },
+  "notifications": {
+    "title": "Notifiche",
+    "emptyTitle": "Nessuna notifica",
+    "emptySub": "Sei al passo con tutto!",
+    "loadError": "Impossibile caricare le notifiche"
+  },
+  "profileEdit": {
+    "title": "Modifica profilo",
+    "backAria": "Indietro",
+    "avatarHint": "Cambia foto",
+    "sections": {
+      "personal": "Dati personali",
+      "interests": "Interessi",
+      "song": "Canzone preferita",
+      "spotify": "Spotify",
+      "photos": "Foto del profilo",
+      "pinnwand": "Bacheca"
+    },
+    "fields": {
+      "name": "Nome",
+      "namePlaceholder": "Il tuo nome",
+      "bio": "Bio",
+      "bioPlaceholder": "Racconta qualcosa di te...",
+      "location": "Posizione",
+      "locationPlaceholder": "es. Vienna",
+      "dob": "Data di nascita",
+      "dobDay": "Giorno",
+      "dobMonth": "Mese",
+      "dobYear": "Anno",
+      "gender": "Genere"
+    },
+    "gender": {
+      "male": "Maschile",
+      "female": "Femminile",
+      "diverse": "Non binario"
+    },
+    "months": [
+      "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+      "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
+    ],
+    "interestsCountFmt": "{{count}} selezionati",
+    "spotify": {
+      "connected": "Collegato",
+      "connectedDesc": "Il tuo account Spotify è collegato",
+      "disconnect": "Scollega",
+      "connect": "Collega Spotify",
+      "connecting": "Collegamento..."
+    },
+    "photosCountFmt": "{{current}} / {{total}}",
+    "photosProfileBadge": "Immagine profilo",
+    "cropPhotoTitle": "Ritaglia foto profilo",
+    "photosFirstHint": "La tua prima foto è l'immagine del profilo. Puoi aggiungere fino a 6 foto che gli altri potranno sfogliare.",
+    "pinnwandHint": "La tua bacheca in stile Pinterest – raccogli foto che mostrano il tuo vibe. Fino a 12.",
+    "saveBtn": "Salva modifiche",
+    "saveLoading": "Salvataggio...",
+    "toast": {
+      "spotifyConnectError": "Collegamento a Spotify non riuscito",
+      "spotifyConnected": "Spotify collegato con successo!",
+      "spotifyDisconnected": "Spotify scollegato",
+      "spotifyDisconnectError": "Errore durante lo scollegamento",
+      "saved": "Profilo salvato",
+      "saveError": "Errore durante il salvataggio",
+      "avatarUpdated": "Immagine profilo aggiornata",
+      "avatarError": "Impossibile caricare l'immagine",
+      "photoError": "Impossibile caricare la foto",
+      "photoTooLarge": "L'immagine è troppo grande (max 15 MB). Comprimila prima."
+    }
+  },
+  "settings": {
+    "title": "Impostazioni",
+    "user": {
+      "fallbackName": "Utente",
+      "noEmail": "nessuna e-mail"
+    },
+    "sections": {
+      "account": "Account",
+      "subscription": "Abbonamento Pro",
+      "favorites": "Preferiti",
+      "notifications": "Notifiche",
+      "app": "App",
+      "legal": "Note legali"
+    },
+    "subscription": {
+      "statusActive": "Attivo",
+      "statusCanceling": "In disdetta",
+      "periodEndPrefix": "Si rinnova il",
+      "periodEndCancelingPrefix": "Scade il",
+      "cancelBtn": "Disdici abbonamento",
+      "cancelHint": "Possibile in qualsiasi momento – l'abbonamento termina alla fine del periodo pagato.",
+      "cancelConfirmTitle": "Disdire davvero l'abbonamento Pro?",
+      "cancelConfirmBody": "Mantieni le funzioni Pro fino alla fine del periodo di fatturazione corrente. Dopo non verrà addebitato nessun nuovo importo.",
+      "cancelConfirmYes": "Sì, disdici",
+      "cancelConfirmNo": "Ripensandoci, no",
+      "canceledToast": "Il tuo abbonamento verrà disdetto alla fine del periodo.",
+      "cancelError": "Disdetta non riuscita. Riprova o contatta support@jamie-app.com.",
+      "withdrawBtn": "Recesso (14 giorni, con rimborso)",
+      "withdrawHint": "Entro 14 giorni dalla sottoscrizione: cessazione immediata + rimborso.",
+      "withdrawConfirmTitle": "Recedere dall'abbonamento?",
+      "withdrawConfirmBody": "Il tuo abbonamento Pro termina subito e l'importo pagato ti verrà rimborsato per intero. È possibile entro il periodo di recesso di 14 giorni.",
+      "withdrawConfirmYes": "Sì, recedi",
+      "withdrawConfirmNo": "Annulla",
+      "withdrawDoneToast": "Recesso effettuato. Il rimborso è stato avviato.",
+      "withdrawDoneNoRefundToast": "Recesso effettuato. Per domande sul rimborso scrivi a office@jamie-app.com.",
+      "withdrawError": "Recesso non riuscito. Riprova o contatta office@jamie-app.com.",
+      "portalBtn": "Gestisci abbonamento (pagamento, fatture)",
+      "portalError": "Impossibile aprire il portale. Riprova."
+    },
+    "boostPurchases": {
+      "title": "Acquisti Boost",
+      "hint": "Gli acquisti Boost non ancora utilizzati possono essere revocati entro 14 giorni. I Boost già utilizzati sono esclusi dal recesso.",
+      "withdrawBtn": "Dichiara il recesso",
+      "itemFmt": "{{credits}} crediti · {{amount}} € · {{date}}",
+      "mailSubject": "Recesso acquisto Boost",
+      "mailBody": "Con la presente recedo dal contratto di acquisto di {{credits}} crediti Boost.\n\nData di acquisto: {{date}}\nImporto: {{amount}} €\nID pagamento: {{paymentId}}\nAccount: {{email}}\n\nNome:\nData:"
+    },
+    "account": {
+      "editProfile": "Modifica profilo",
+      "changePassword": "Cambia password",
+      "email": "E-mail",
+      "currentPasswordPlaceholder": "Password attuale",
+      "newPasswordPlaceholder": "Nuova password (min. 6 caratteri)",
+      "confirmPasswordPlaceholder": "Conferma nuova password",
+      "blockedUsers": "Utenti bloccati",
+      "adminDashboard": "Dashboard admin"
+    },
+    "favorites": {
+      "tabGroups": "Gruppi",
+      "tabClubs": "Club",
+      "emptyGroups": "Nessun gruppo preferito",
+      "emptyClubs": "Nessun club preferito"
+    },
+    "notifications": {
+      "newMessages": "Nuovi messaggi",
+      "friendRequests": "Richieste di amicizia",
+      "groupActivity": "Attività dei gruppi",
+      "push": "Notifiche push",
+      "pushHint": "Notifiche anche quando l'app è chiusa"
+    },
+    "app": {
+      "language": "Lingua",
+      "version": "Versione"
+    },
+    "legal": {
+      "privacy": "Informativa sulla privacy",
+      "terms": "Termini di utilizzo",
+      "guidelines": "Linee guida della community",
+      "imprint": "Note legali",
+      "widerruf": "Informativa sul recesso",
+      "exportData": "Scarica i miei dati",
+      "exportDataHint": "GDPR art. 15 – diritto di accesso",
+      "help": "Aiuto e supporto",
+      "helpHint": "FAQ, contatti e segnalazione problemi",
+      "legalContact": "Questioni legali"
+    },
+    "logout": "Esci",
+    "deleteAccount": "Elimina account",
+    "deleteConfirm": {
+      "warning": "Questa azione non può essere annullata. Tutti i tuoi dati verranno eliminati definitivamente.",
+      "passwordPlaceholder": "Password di conferma",
+      "confirm": "Elimina definitivamente"
+    },
+    "toast": {
+      "pushBlocked": "Le notifiche sono bloccate nel browser. Autorizzale nelle impostazioni del browser.",
+      "pushDisabled": "Notifiche push disattivate",
+      "pushEnabled": "Notifiche push attivate!",
+      "pushPermissionDenied": "Autorizzazione negata o errore durante l'attivazione",
+      "passwordTooShort": "La nuova password deve avere almeno 6 caratteri",
+      "passwordMismatch": "Le password non coincidono",
+      "passwordChanged": "Password cambiata con successo!",
+      "passwordChangeError": "Errore durante la modifica",
+      "exportSuccess": "Dati scaricati con successo",
+      "exportError": "Esportazione non riuscita. Riprova.",
+      "passwordRequired": "Password obbligatoria",
+      "deleteError": "Errore durante l'eliminazione"
+    }
+  },
+  "blockedUsers": {
+    "title": "Utenti bloccati",
+    "subtitle": "Queste persone non possono scriverti, non vedono il tuo profilo e non ti trovano nella ricerca.",
+    "empty": "Non hai bloccato nessuno.",
+    "unblock": "Sblocca",
+    "loadError": "Impossibile caricare l'elenco",
+    "unblocked": "Blocco rimosso",
+    "unblockError": "Azione non riuscita"
+  },
+  "help": {
+    "title": "Aiuto e supporto",
+    "intro": "Risposte alle domande più frequenti – e se nessuna ti aiuta, contattaci direttamente.",
+    "contact": {
+      "title": "Contatti",
+      "email": "E-mail al supporto",
+      "reportBug": "Segnala un errore",
+      "suggestFeature": "Proponi una funzione",
+      "subjectSupport": "[JAMIE Supporto]",
+      "subjectBug": "[JAMIE Errore]",
+      "subjectFeature": "[JAMIE Idea]"
+    },
+    "faqTitle": "Domande frequenti",
+    "faqs": [
+      {
+        "q": "Come creo un gruppo?",
+        "a": "Tocca il simbolo + in basso, scegli \"Crea gruppo\" e segui i passaggi. Puoi definire categoria, data, luogo e numero di partecipanti."
+      },
+      {
+        "q": "Qual è la differenza tra gruppi e club?",
+        "a": "I gruppi sono pensati per attività o eventi singoli. I club sono community permanenti in cui i membri si incontrano regolarmente per gli eventi."
+      },
+      {
+        "q": "Come posso bloccare qualcuno?",
+        "a": "Apri il profilo della persona e tocca \"Blocca\" in fondo. Da quel momento la persona non potrà più inviarti messaggi né vedere il tuo profilo."
+      },
+      {
+        "q": "Come cambio i miei interessi o l'immagine del profilo?",
+        "a": "Vai sul tuo profilo e tocca \"Modifica profilo\". Lì puoi cambiare foto, bio, interessi, canzone preferita e tutto il resto."
+      },
+      {
+        "q": "Le notifiche push non arrivano",
+        "a": "Controlla nelle impostazioni che le notifiche push siano attivate. Su iOS devi aprire l'app dalla schermata Home (non da Safari). Se il browser ha bloccato le notifiche, devi autorizzarle nelle impostazioni del browser."
+      },
+      {
+        "q": "Come segnalo contenuti inappropriati o un utente?",
+        "a": "In ogni profilo e in ogni gruppo c'è un link \"Segnala\" in fondo. Descrivi brevemente il problema – esaminiamo ogni segnalazione."
+      },
+      {
+        "q": "Come posso eliminare il mio account?",
+        "a": "Impostazioni → in fondo \"Elimina account\". L'eliminazione è definitiva e non può essere annullata."
+      },
+      {
+        "q": "Cos'è JAMIE Pro?",
+        "a": "Pro sblocca i messaggi diretti, offerte esclusive (\"Per te\") e viste estese dei membri. Puoi disdire Pro in qualsiasi momento nelle impostazioni."
+      }
+    ],
+    "moreLinks": "Altro",
+    "footer": "Aiuto JAMIE · {{lang}}"
+  },
+  "app": {
+    "updateAvailable": "Nuova versione disponibile",
+    "updateBtn": "Aggiorna",
+    "install": {
+      "title": "Installa JAMIE",
+      "iosHintPrefix": "Tocca",
+      "iosShare": "Condividi",
+      "iosHintArrow": "→",
+      "iosHomeScreen": "Aggiungi a Home",
+      "defaultText": "Installa l'app per un accesso rapido",
+      "btn": "Installa"
+    },
+    "createModal": {
+      "title": "Cosa vuoi creare?",
+      "groupTitle": "Crea gruppo",
+      "groupDesc": "Organizza un'attività con 3-10 persone",
+      "clubTitle": "Fonda un club",
+      "clubDesc": "Avvia una community permanente",
+      "friendsTitle": "Trova amici",
+      "friendsDesc": "Cerca persone e invia richieste di amicizia",
+      "cancel": "Annulla"
+    },
+    "nav": {
+      "home": "Home",
+      "explore": "Scopri",
+      "chats": "Chat",
+      "profile": "Profilo",
+      "profileAlt": "Profilo"
+    },
+    "notFound": {
+      "title": "Pagina non trovata",
+      "text": "Questa pagina non esiste.",
+      "btn": "Vai alla home"
+    }
+  },
+  "consent": {
+    "text": "JAMIE utilizza statistiche di utilizzo anonime per migliorare il prodotto. I dati di diagnostica degli errori (incl. indirizzo IP abbreviato) vengono trasmessi a Sentry (USA) per permetterci di correggere i crash. Dettagli in ",
+    "privacy": "Privacy",
+    "accept": "Accetta",
+    "decline": "Rifiuta"
+  },
+  "report": {
+    "type": {
+      "user": "Utente",
+      "group": "Gruppo/Club",
+      "message": "Messaggio"
+    },
+    "titleFmt": "Segnala {{type}}",
+    "reasonLabel": "Motivo *",
+    "reasons": {
+      "spam": "Spam",
+      "inappropriate": "Inappropriato",
+      "harassment": "Molestie",
+      "fake": "Profilo falso",
+      "other": "Altro"
+    },
+    "detailsLabel": "Dettagli (facoltativi)",
+    "detailsPlaceholder": "Descrivi brevemente il problema...",
+    "submit": "Segnala",
+    "sending": "Invio in corso...",
+    "success": "Segnalazione inviata. Grazie!",
+    "error": "Impossibile inviare la segnalazione"
+  },
+  "eventReview": {
+    "counterFmt": "Feedback evento {{current}}/{{total}}",
+    "skip": "Salta",
+    "prompt": "Chi c'era? Le tue risposte sono anonime.",
+    "submitError": "Invio non riuscito. Riprova.",
+    "sending": "Invio...",
+    "retry": "Riprova",
+    "done": "Fatto",
+    "next": "Avanti"
+  },
+  "pro": {
+    "back": "← Indietro",
+    "verifying": "Elaborazione…",
+    "ctaSubscribe": "👑 Inizia ora",
+    "secure": "🔒 Sicuro via Stripe · Disdetta mensile · Nessun vincolo",
+    "features": {
+      "boostGroups": "Boost ai gruppi",
+      "boostGroupsDesc": "Gratis e illimitato per i tuoi eventi",
+      "boostClubs": "Boost ai club",
+      "boostClubsDesc": "Più membri per la tua community",
+      "seeMembers": "Vedi tutti i membri",
+      "seeMembersDesc": "Vedi tutti i partecipanti in gruppi e club",
+      "topPlacement": "Posizione in alto",
+      "topPlacementDesc": "Sempre in cima alla lista Scopri",
+      "deals": "Per te – offerte esclusive",
+      "dealsDesc": "Sconti e promozioni dai partner a Vienna"
+    },
+    "title": "JAMIE Pro",
+    "priceMonth": "/ mese",
+    "newSaveBadge": "NUOVO · Risparmia fino al {{pct}}%",
+    "ctaActivate": "👑 Sblocca Pro",
+    "withdrawalConsent": "Acconsento espressamente all'esecuzione immediata e prendo atto che con ciò perdo il mio diritto di recesso di 14 giorni (§ 18 FAGG).",
+    "loading": "Caricamento…",
+    "later": "Forse più tardi",
+    "startError": "Errore durante l'avvio dell'abbonamento",
+    "successTitle": "Benvenuto in Pro!",
+    "successBody": "Da ora puoi aggiungere amici, inviare messaggi diretti e fare Boost ai tuoi gruppi e club.",
+    "paymentTitle": "Dati di pagamento",
+    "paymentSub": "Crittografia SSL · Disdici quando vuoi",
+    "subscriptionLabel": "Abbonamento",
+    "plans": {
+      "perWeek": "a settimana",
+      "wkShort": "sett",
+      "savePct": "Risparmia {{pct}}%",
+      "terms": {
+        "weekly": "Settimanale",
+        "monthly": "Mensile",
+        "sixmonth": "6 mesi"
+      },
+      "billedWeekly": "4,99 € / settimana",
+      "billedMonthly": "14,99 € / mese",
+      "billedSixmonth": "29,99 € ogni 6 mesi",
+      "badges": {
+        "popular": "Popolare",
+        "bestValue": "Migliore offerta"
+      }
+    }
+  },
+  "boost": {
+    "title": "🚀 Boost",
+    "withdrawalConsent": "Acconsento espressamente all'esecuzione immediata e prendo atto che con ciò perdo il mio diritto di recesso di 14 giorni (§ 18 FAGG).",
+    "creditsAvailable_one": "{{count}} credito disponibile",
+    "creditsAvailable_other": "{{count}} crediti disponibili",
+    "tabs": {
+      "apply": "Applica Boost",
+      "buy": "Compra crediti",
+      "referral": "Invita amici"
+    },
+    "apply": {
+      "fallbackTarget": "Questo gruppo/club",
+      "desc": "Verrà mostrato in cima per 24h",
+      "creditsCount_one": "{{count}} credito Boost",
+      "creditsCount_other": "{{count}} crediti Boost",
+      "creditEq": "1 credito = 24h di Boost",
+      "noCredits": "Nessun credito. Comprane o invita amici!",
+      "buyBtn": "Compra crediti",
+      "boosting": "Boost in corso...",
+      "applyBtn": "🚀 Boost ora (1 credito)",
+      "boostedToast": "🚀 {{name}} è in Boost per 24h!",
+      "boostError": "Boost non riuscito",
+      "noCreditsToast": "Crediti insufficienti — compra prima crediti Boost!"
+    },
+    "buy": {
+      "packages": {
+        "1": "1 Boost",
+        "5": "5 Boost",
+        "15": "15 Boost"
+      },
+      "creditsPerPackage": "{{count}} × Boost da 24h",
+      "popular": "POPOLARE",
+      "choosePayment": "Scegli metodo di pagamento",
+      "applePay": "🍎 Apple Pay / Carta",
+      "stripeError": "Impossibile avviare Stripe",
+      "creditsAddedToast": "+{{count}} crediti Boost accreditati!",
+      "paymentError": "Impossibile completare il pagamento"
+    },
+    "stripe": {
+      "back": "Indietro",
+      "processing": "Elaborazione...",
+      "pay": "Paga ora"
+    },
+    "referral": {
+      "title": "Invita amici",
+      "subtitle": "Condividi il tuo codice e ricevi <1>1 credito Boost gratis</1> per ogni nuovo amico!",
+      "yourCode": "Il tuo codice invito",
+      "copy": "COPIA",
+      "codeCopied": "Codice copiato!",
+      "invitedFmt_one": "{{count}} amico invitato",
+      "invitedFmt_other": "{{count}} amici invitati",
+      "redeemLabel": "Riscatta il codice di un amico",
+      "redeemPlaceholder": "JAMIE-XXXX",
+      "redeemBtn": "Riscatta",
+      "redeemSuccess": "+1 credito Boost per te e il tuo amico!",
+      "redeemError": "Codice non valido"
+    }
+  },
+  "map": {
+    "loadError": "Impossibile caricare la mappa.",
+    "dateAll": "Tutti",
+    "today": "📅 Oggi",
+    "tomorrow": "📅 Domani",
+    "categoryAll": "Tutte le categorie",
+    "locateTitle": "Mostra la mia posizione",
+    "locateError": "Impossibile determinare la posizione",
+    "popupGroup": "Gruppo",
+    "popupClub": "Club",
+    "popupMembersFmt": "{{current}} / {{max}} membri",
+    "popupMembersUnlimited": "{{current}} / ∞ membri",
+    "pioneer": {
+      "title": "Osa, sii il primo!",
+      "textPrefix": "Nella tua zona non ci sono ancora gruppi. Crea il primo e ricevi un",
+      "textHighlight": "Boost gratuito di 7 giorni",
+      "textSuffix": "+ badge Pioniere!",
+      "btn": "Crea il primo gruppo"
+    },
+    "directionsTitle": "Apri il percorso in…",
+    "routeLabel": "Percorso",
+    "openDirectionsAria": "Apri il percorso verso la posizione",
+    "appleMaps": "Apple Maps",
+    "googleMaps": "Google Maps"
+  },
+  "groupRequests": {
+    "loading": "Caricamento richieste...",
+    "errorPermission": "Nessuna autorizzazione – non sei il creatore di questo gruppo",
+    "errorLoad": "Impossibile caricare le richieste",
+    "countFmt": "{{count}} richieste",
+    "empty": "Nessuna richiesta",
+    "allDoneTitle": "Tutte le richieste gestite!",
+    "allDoneText": "Hai esaminato tutte le richieste di ingresso.",
+    "backToGroup": "Torna al gruppo",
+    "accept": "Accetta",
+    "decline": "Rifiuta",
+    "acceptedToast": "{{name}} è stato accettato!",
+    "acceptError": "Errore durante l'accettazione",
+    "declinedToast": "{{name}} è stato rifiutato",
+    "declineError": "Errore durante il rifiuto",
+    "requestedOnFmt": "Richiesta del {{date}}"
+  },
+  "createGroup": {
+    "title": "Crea gruppo",
+    "stepFmt": "{{current}}/3",
+    "stepsTitles": ["Dettagli", "Quando e dove", "Anteprima"],
+    "next": "Avanti",
+    "submit": "🚀 Crea gruppo",
+    "submitting": "Creazione...",
+    "createError": "Errore durante la creazione",
+    "imageTooLarge": "L'immagine è troppo grande (max 10 MB)",
+    "imageUploadError": "Impossibile caricare l'immagine",
+    "step1": {
+      "titleLabel": "Titolo *",
+      "titlePlaceholder": "es. Yoga al tramonto",
+      "categoryLabel": "Categoria *",
+      "subCategoryLabel": "Sottocategoria *",
+      "descLabel": "Descrizione",
+      "descPlaceholder": "Di cosa si tratta?",
+      "imageLabel": "Immagine",
+      "imageHint": "JPG, PNG o HEIC · max 10MB",
+      "uploading": "Caricamento...",
+      "addImage": "Scegli immagine"
+    },
+    "step2": {
+      "whenLabel": "Quando si svolge? *",
+      "day": "Giorno",
+      "month": "Mese",
+      "year": "Anno",
+      "hours": "Ore",
+      "minutes": "Minuti",
+      "uhr": "",
+      "timeInChatHint": "L'orario esatto potete concordarlo direttamente nella chat di gruppo.",
+      "weeklyLabel": "Ripeti ogni settimana",
+      "weeklyHint": "Si svolge ogni settimana nello stesso giorno — perfetto per incontri regolari",
+      "locationLabel": "Dove? *",
+      "locationPlaceholder": "es. Stadtpark, Vienna",
+      "locationOnlyATHint": "Solo luoghi in Austria, Germania, Svizzera o Italia — scegli dai suggerimenti.",
+      "locationNotATError": "Scegli un luogo in Austria, Germania, Svizzera o Italia.",
+      "locationNotInAT": "Questo luogo non è stato trovato nei nostri paesi (AT, DE, CH, IT). Controlla l'ortografia.",
+      "locationCheckError": "Impossibile verificare il luogo. Riprova.",
+      "locationChecking": "Verifica del luogo…",
+      "ageLabel": "Per quale età?",
+      "ageHint": "Solo gli utenti in questa fascia d'età vedono il gruppo (vuoto = tutti)",
+      "ageFromLabel": "da",
+      "ageToLabel": "a",
+      "ageFromPlaceholder": "es. 22",
+      "ageToPlaceholder": "es. 30",
+      "dateInvalid": "Questa data non esiste",
+      "ageRangeInvalid": "Fascia d'età non valida (14–99, da ≤ a)",
+      "maxLabel": "Partecipanti massimi",
+      "peopleUnit": "persone",
+      "levelLabel": "Livello",
+      "levels": {
+        "beginner": "Principianti",
+        "all": "Tutti i livelli",
+        "advanced": "Avanzato",
+        "expert": "Esperto"
+      },
+      "visibilityLabel": "Visibilità",
+      "public": "Pubblico",
+      "publicDesc": "Chiunque può unirsi",
+      "private": "Privato",
+      "privateDesc": "Solo su richiesta"
+    },
+    "step3": {
+      "title": "Anteprima",
+      "fallbackTitle": "Titolo del gruppo",
+      "fallbackLocation": "Luogo",
+      "fallbackDate": "Data",
+      "participantsFmt": "Max {{count}} partecipanti",
+      "privateBadge": "🔒 Privato"
+    }
+  },
+  "createClub": {
+    "title": "Fonda un club",
+    "stepFmt": "{{current}}/3",
+    "next": "Avanti",
+    "submit": "Fonda il club",
+    "submitting": "Creazione...",
+    "createError": "Errore durante la creazione",
+    "imageTooLarge": "L'immagine è troppo grande (max 10 MB)",
+    "imageUploadError": "Impossibile caricare l'immagine",
+    "pendingToast": "Il tuo club è in attesa di approvazione. Lo esamineremo entro 24 ore — riceverai un avviso appena sarà online.",
+    "step1": {
+      "nameLabel": "Nome del club *",
+      "namePlaceholder": "es. Amici delle escursioni Vienna",
+      "categoryLabel": "Categoria *",
+      "subCategoryLabel": "Sottocategoria *",
+      "descLabel": "Descrizione",
+      "descPlaceholder": "Di cosa si occupa il tuo club?",
+      "imageLabel": "Immagine del club",
+      "uploading": "Caricamento...",
+      "addImage": "Aggiungi immagine"
+    },
+    "step2": {
+      "locationLabel": "Posizione *",
+      "locationPlaceholder": "es. Vienna",
+      "locationOnlyATHint": "Solo luoghi in Austria, Germania, Svizzera o Italia — scegli dai suggerimenti.",
+      "locationNotATError": "Scegli un luogo in Austria, Germania, Svizzera o Italia.",
+      "locationNotInAT": "Questo luogo non è stato trovato nei nostri paesi (AT, DE, CH, IT). Controlla l'ortografia.",
+      "locationCheckError": "Impossibile verificare il luogo. Riprova.",
+      "locationChecking": "Verifica del luogo…",
+      "maxLabel": "Membri massimi",
+      "frequencyLabel": "Frequenza degli incontri",
+      "frequency": {
+        "daily": "Giornaliera",
+        "weekly": "Settimanale",
+        "monthly": "Mensile",
+        "flexible": "Flessibile"
+      },
+      "visibilityLabel": "Visibilità",
+      "public": "Pubblico",
+      "publicDesc": "Chiunque può unirsi",
+      "private": "Privato",
+      "privateDesc": "Solo su richiesta",
+      "rulesLabel": "Regole del club (facoltative)",
+      "rulesPlaceholder": "Regole per i tuoi membri...",
+      "chatTitle": "Permessi di scrittura in chat",
+      "chatOwnerOnly": "Solo tu puoi scrivere",
+      "chatAll": "Tutti i membri possono scrivere",
+      "eventsTitle": "Chi può creare eventi?",
+      "eventsOwnerOnly": "Solo tu come fondatore",
+      "eventsAll": "Tutti i membri del club"
+    },
+    "step3": {
+      "title": "Anteprima",
+      "fallbackName": "Nome del club",
+      "fallbackLocation": "Luogo",
+      "membersMaxFmt": "Max {{count}} membri",
+      "clubBadge": "Club",
+      "privateBadge": "🔒 Privato"
+    }
+  },
+  "groupEdit": {
+    "fallbackName": "Gruppo",
+    "loadError": "Impossibile caricare il gruppo",
+    "saving": "Salvataggio…",
+    "savingShort": "…",
+    "save": "Salva",
+    "saved": "Salvato!",
+    "saveError": "Errore durante il salvataggio",
+    "changePhoto": "Cambia foto",
+    "uploading": "Caricamento…",
+    "imageUploadError": "Impossibile caricare l'immagine",
+    "notOwner": "Solo il creatore può modificare queste impostazioni",
+    "removeError": "Errore durante la rimozione",
+    "inviteToast": "{{name}} invitato!",
+    "inviteError": "Invito non riuscito",
+    "linkCopied": "Link copiato!",
+    "sections": {
+      "members": "Membri",
+      "addFriends": "Aggiungi amici",
+      "groupInfo": "Info gruppo",
+      "clubInfo": "Info club",
+      "eventInfo": "Info evento",
+      "shareGroup": "Condividi gruppo",
+      "shareEvent": "Condividi evento",
+      "shareClub": "Condividi club"
+    },
+    "memberRole": "Creatore",
+    "removeBtn": "Rimuovi",
+    "searchPlaceholder": "Cerca",
+    "noFriendsAvailable": "Nessun amico disponibile",
+    "fields": {
+      "title": "Titolo",
+      "titlePlaceholder": "Nome del gruppo",
+      "desc": "Descrizione",
+      "descPlaceholder": "Racconta qualcosa sul gruppo…",
+      "size": "Dimensione del gruppo",
+      "category": "Categoria",
+      "date": "Data",
+      "time": "Orario",
+      "weeklyLabel": "Ripeti ogni settimana",
+      "weeklyOn": "L'evento si svolge ogni settimana nello stesso giorno",
+      "weeklyOff": "Evento singolo",
+      "targetAge": "Per quale età?",
+      "targetAgeHint": "Solo gli utenti in questa fascia d'età vedono il gruppo (vuoto = tutti)",
+      "targetAgeFromPlaceholder": "da",
+      "targetAgeToPlaceholder": "a",
+      "chatPermissions": "Permessi di scrittura in chat",
+      "chatOwnerOnly": "Solo tu come fondatore puoi scrivere",
+      "chatAll": "Tutti i membri del club possono scrivere",
+      "eventPermissions": "Chi può creare eventi?",
+      "eventsOwnerOnly": "Solo tu come fondatore",
+      "eventsAll": "Tutti i membri del club",
+      "visibility": "Visibilità",
+      "visibilityPrivate": "Privato — solo su richiesta",
+      "visibilityPublic": "Pubblico — chiunque può unirsi"
+    },
+    "favoriteAria": "Aggiungi ai preferiti",
+    "favError": "Impossibile salvare il preferito",
+    "shareBtn": "Condividi link"
+  },
+  "clubEdit": {
+    "title": "Modifica club",
+    "loading": "Caricamento...",
+    "saving": "...",
+    "save": "Salva",
+    "saveError": "Errore durante il salvataggio",
+    "removeConfirm": "Rimuovere davvero il membro?",
+    "removeError": "Errore durante la rimozione",
+    "inviteToast": "{{name}} è stato invitato!",
+    "inviteFallback": "Invito inviato a {{name}}",
+    "fields": {
+      "name": "Nome del club",
+      "namePlaceholder": "Nome del club",
+      "desc": "Descrizione",
+      "descPlaceholder": "Descrizione...",
+      "location": "Posizione",
+      "locationPlaceholder": "es. Vienna"
+    },
+    "chat": {
+      "title": "Permessi di scrittura in chat",
+      "ownerOnly": "Solo tu puoi scrivere",
+      "all": "Tutti i membri possono scrivere"
+    },
+    "events": {
+      "title": "Chi può creare eventi?",
+      "ownerOnly": "Solo tu come fondatore",
+      "all": "Tutti i membri del club"
+    },
+    "membersTitle": "Membri",
+    "memberRole": "Fondatore",
+    "managerBadge": "Manager",
+    "makeManager": "Rendi manager",
+    "removeManager": "Rimuovi manager",
+    "managerAdded": "Manager aggiunto",
+    "managerRemoved": "Manager rimosso",
+    "managerError": "Azione non riuscita",
+    "inviteTitle": "Invita amici",
+    "noFriends": "Nessun amico disponibile da invitare",
+    "inviteBtn": "Invita"
+  },
+  "deal": {
+    "titleFmt": "Per te – {{category}}",
+    "bookNow": "Prenota ora",
+    "redeemCTA": "Riscatta ora",
+    "redeemedCTA": "Già riscattato",
+    "redeemedWeekCTA": "Riscattato questa settimana ✓",
+    "redeemedDayCTA": "Riscattato oggi ✓",
+    "viewVoucherCTA": "Mostra buono",
+    "redeemedToast": "Riscattato con successo! ✅",
+    "redemptionCounter": "Riscattato {{count}}/{{max}} volte",
+    "cadenceWeekly": "🔁 Riscattabile 1× a settimana",
+    "cadenceDaily": "🔁 Riscattabile 1× al giorno",
+    "onlyDaysCTA": "Riscattabile solo {{days}}",
+    "onlyDaysInfo": "📅 Riscattabile solo {{days}}",
+    "redeemConfirmTitle": "Sei nel locale?",
+    "redeemConfirmBody": "Questo deal è riscattabile una sola volta e va attivato solo sul posto davanti al personale.",
+    "redeemConfirmYes": "Conferma",
+    "redeemConfirmNo": "Annulla",
+    "redeemError": "Riscatto non riuscito. Riprova.",
+    "redeemPage": {
+      "header": "Mostra questa pagina nel locale",
+      "subheader": "Questo deal è riscattabile una sola volta",
+      "brand": "JAMIE",
+      "brandSub": "Deals",
+      "done": "Fatto"
+    }
+  },
+  "outOfRegion": {
+    "title": "Presto anche da te!",
+    "subtitleLine1": "JAMIE è attivo in Austria, Germania, Svizzera e Italia.",
+    "subtitleLine2": "Il tuo paese è il prossimo — resta sintonizzato.",
+    "countdown": {
+      "days": "Giorni",
+      "hours": "Ore",
+      "minutes": "Min",
+      "seconds": "Sec"
+    },
+    "formTitle": "Iscriviti alla lista d'attesa",
+    "emailPlaceholder": "tua@email.com",
+    "submit": "Avvisami 🔔",
+    "submitting": "Salvataggio…",
+    "errorGeneric": "Errore durante il salvataggio. Riprova.",
+    "successText": "Sei in lista! Ti contatteremo appena JAMIE arriverà da te.",
+    "voteTitle": "🗳️ Dove dovremmo lanciare l'app come prossimo paese?",
+    "votesTitle": "Votazione attuale ({{count}} voti)",
+    "footerPrefix": "Sei già in uno dei nostri paesi?",
+    "footerLink": "Apri l'app",
+    "countries": {
+      "DE": "Germania",
+      "CH": "Svizzera",
+      "IT": "Italia",
+      "CZ": "Cechia",
+      "HU": "Ungheria",
+      "SK": "Slovacchia",
+      "SI": "Slovenia",
+      "HR": "Croazia",
+      "PL": "Polonia",
+      "NL": "Paesi Bassi",
+      "FR": "Francia",
+      "ES": "Spagna",
+      "GB": "Regno Unito",
+      "US": "USA",
+      "OTHER": "Altro"
+    }
+  },
+  "spotify": {
+    "callback": {
+      "cancelled": "Collegamento a Spotify annullato",
+      "noCode": "Nessun codice di autorizzazione ricevuto",
+      "connectedToast": "Spotify collegato con successo!",
+      "connectError": "Collegamento a Spotify non riuscito",
+      "connecting": "Collegamento a Spotify...",
+      "pleaseWait": "Attendi",
+      "successTitle": "Spotify collegato!",
+      "redirecting": "Verrai reindirizzato...",
+      "closeWindow": "Ora puoi chiudere questa finestra e tornare all'app.",
+      "errorTitle": "Collegamento non riuscito"
+    },
+    "songPicker": {
+      "addBtn": "Aggiungi canzone preferita",
+      "searchPlaceholder": "Cerca canzone o artista...",
+      "cancel": "Annulla",
+      "searching": "Ricerca...",
+      "empty": "Nessun risultato",
+      "change": "Cambia",
+      "remove": "Rimuovi"
+    }
+  },
+  "deals": {
+    "card": {
+      "badge": "Jamie Deal"
+    }
+  },
+  "pushPrompt": {
+    "title": "Attiva le notifiche",
+    "text": "Non perderti più messaggi e richieste di ingresso.",
+    "enable": "Attiva",
+    "later": "Più tardi"
+  },
+  "admin": {
+    "title": "JAMIE Analytics",
+    "deals": {
+      "title": "Collaborazioni",
+      "newBtn": "Nuova collaborazione",
+      "newTitle": "Nuova collaborazione",
+      "editTitle": "Modifica collaborazione",
+      "saveBtn": "Salva",
+      "savingBtn": "Salvataggio…",
+      "editBtn": "Modifica",
+      "deleteBtn": "Elimina",
+      "confirmDelete": "Eliminare davvero la collaborazione \"{{name}}\"?",
+      "loading": "Caricamento collaborazioni…",
+      "empty": "Ancora nessuna collaborazione creata.",
+      "untilFmt": "Visibile fino al {{date}}",
+      "expiredFmt": "Scaduta il {{date}}",
+      "inactiveLabel": "Inattiva",
+      "capReachedLabel": "Limite raggiunto – offline",
+      "redemptionsCount_one": "{{count}} riscattato",
+      "redemptionsCount_other": "{{count}} riscattati",
+      "redemptionsTooltip": "Numero di volte in cui gli utenti hanno riscattato questo deal.",
+      "exportCsvBtn": "CSV",
+      "fields": {
+        "company": "Azienda",
+        "companyPlaceholder": "es. Cafe 1070",
+        "headline": "Titolo del deal (2 parole)",
+        "headlinePlaceholder": "es. 1+1 gratis",
+        "headlineHint": "Viene mostrato sulla card nel feed",
+        "description": "Descrizione dettagliata",
+        "descriptionPlaceholder": "Come funziona: prendi una bevanda a tua scelta e ricevine una gratis. Al momento dell'ordine di' \"Jamie\".",
+        "descriptionHint": "L'utente la vede solo dopo aver toccato la card",
+        "visibleUntil": "Visibile fino al",
+        "visibleUntilHint": "Dopo questa data la collaborazione viene nascosta automaticamente (vuoto = illimitata)",
+        "maxRedemptions": "Riscatti massimi",
+        "maxRedemptionsHint": "Il deal va offline automaticamente quando è stato riscattato da questo numero di persone (vuoto = illimitato)",
+        "redeemInterval": "Ogni quanto è riscattabile?",
+        "redeemIntervalHint": "Ricorrente (es. settimanale) per offerte fisse come \"Welcome Shot ogni giovedì\". In quel caso il limite globale non si applica.",
+        "redeemDays": "Riscattabile solo in determinati giorni?",
+        "redeemDaysHint": "Vuoto = ogni giorno. Altrimenti solo nei giorni selezionati (es. solo gio).",
+        "photo": "Foto dell'azienda",
+        "photoPick": "Scegli foto",
+        "photoUploading": "Caricamento…",
+        "photoRemove": "Rimuovi"
+      },
+      "intervals": {
+        "once": "Una volta per utente",
+        "weekly": "1× a settimana",
+        "daily": "1× al giorno"
+      },
+      "toast": {
+        "loadError": "Impossibile caricare le collaborazioni",
+        "uploadError": "Caricamento foto non riuscito",
+        "requiredFields": "Azienda e titolo sono campi obbligatori",
+        "saved": "Collaborazione salvata",
+        "saveError": "Salvataggio non riuscito",
+        "deleted": "Collaborazione eliminata",
+        "deleteError": "Eliminazione non riuscita",
+        "noRedemptions": "Ancora nessun riscatto per questo deal",
+        "exportError": "Esportazione non riuscita"
+      }
+    },
+    "refresh": "Aggiorna",
+    "errorAccess": "Nessun accesso admin. Accedi con un account admin.",
+    "errorLoad": "Errore durante il caricamento dei dati admin.",
+    "backToApp": "Torna all'app",
+    "sections": {
+      "users": "Utenti",
+      "groupsEvents": "Gruppi ed eventi",
+      "dealRedemptions": "Collaborazioni — riscatti",
+      "pendingClubsFmt": "Club in attesa di approvazione ({{count}})",
+      "topPages": "Pagine top (30 giorni)",
+      "topClubs": "Club e gruppi top (30 giorni)",
+      "categorySuggestions": "Proposte di categoria",
+      "newUsers": "Nuovi utenti",
+      "allUsersFmt": "Tutti gli utenti ({{count}})",
+      "csvExport": "Esportazione CSV",
+      "onlineNowFmt": "Online adesso ({{count}})",
+      "growth": "Crescita e coorti"
+    },
+    "online": {
+      "empty": "Al momento non c'è nessuno online.",
+      "sinceFmt": "da {{time}}",
+      "devicesFmt": "{{count}} connessioni"
+    },
+    "growth": {
+      "range30": "30 giorni",
+      "range90": "90 giorni",
+      "range365": "1 anno",
+      "dau": "Attivi oggi (DAU)",
+      "mau": "Attivi (MAU)",
+      "stickiness": "Stickiness",
+      "stickinessSub": "DAU / MAU",
+      "newUsers": "Nuovi utenti",
+      "newUsersSub": "nel periodo",
+      "retentionD1": "Retention D1",
+      "retentionD7": "Retention D7",
+      "retentionD30": "Retention D30",
+      "retentionSub": "coorte più recente",
+      "chartActive": "Utenti attivi nel tempo",
+      "chartNewUsers": "Nuovi utenti / giorno",
+      "chartEngagement": "Messaggi / giorno",
+      "legendDau": "DAU",
+      "legendMau": "MAU",
+      "export": "Esporta CSV",
+      "empty": "Ancora nessun dato di crescita — il primo rollup gira stanotte (o al prossimo deploy).",
+      "note": "Attivo = app aperta o un'azione (messaggio, ingresso, creazione, foto, amicizia). Giorni in UTC. I dati comportamentali sono opt-in."
+    },
+    "kpis": {
+      "total": "Totale",
+      "today": "Oggi",
+      "thisWeek": "Questa settimana",
+      "thisMonth": "Questo mese",
+      "trusted": "Verificati",
+      "groups": "Gruppi (eventi)",
+      "clubs": "Club",
+      "redemptionsTotal": "Totale riscatti",
+      "redemptionsTotalSub_one": "su {{count}} deal",
+      "redemptionsTotalSub_other": "su {{count}} deal"
+    },
+    "pendingClubs": {
+      "empty": "Nessuna richiesta aperta.",
+      "noCategory": "senza categoria",
+      "noPlace": "–",
+      "createdBy": "Creato da:",
+      "approve": "Approva",
+      "approving": "Caricamento…",
+      "reject": "Rifiuta",
+      "rejectConfirm": "Rifiutare davvero il club \"{{name}}\"?",
+      "approveError": "Approvazione non riuscita",
+      "rejectError": "Rifiuto non riuscito"
+    },
+    "topPages": {
+      "page": "Pagina",
+      "views": "Visualizzazioni",
+      "avgDuration": "Durata media"
+    },
+    "topClubs": {
+      "name": "Nome",
+      "views": "Visualizzazioni",
+      "uniqueUsers": "Unici",
+      "deleted": "(eliminato)",
+      "club": "Club",
+      "group": "Gruppo",
+      "empty": "Nessuna visualizzazione negli ultimi 30 giorni."
+    },
+    "export": {
+      "users": "Esporta utenti",
+      "screens": "Esporta pagine",
+      "suggestions": "Esporta proposte",
+      "loading": "⏳ Esportazione...",
+      "error": "Esportazione non riuscita"
+    },
+    "users": {
+      "deleteBtn": "Elimina",
+      "confirmDelete": "Eliminare davvero l'account di \"{{name}}\"? Verranno eliminati anche tutti i gruppi, i club, i messaggi e le amicizie creati da questo utente.",
+      "deleteError": "Impossibile eliminare l'utente",
+      "searchPlaceholder": "Cerca per nome, e-mail o luogo…",
+      "clearSearch": "Cancella ricerca",
+      "viewProfile": "Vedi profilo",
+      "loading": "Caricamento…",
+      "empty": "Nessun utente trovato.",
+      "loadMoreFmt": "Carica altri ({{shown}} di {{total}})"
+    },
+    "userModal": {
+      "title": "Gestisci utente",
+      "manage": "Gestisci",
+      "adminLabel": "Admin",
+      "adminHint": "Accesso completo a questa dashboard e a tutte le funzioni admin.",
+      "adminSelfHint": "Non puoi revocare i diritti admin a te stesso.",
+      "trustedLabel": "Verificato",
+      "trustedHint": "Mostra la spunta verde di verifica nel profilo.",
+      "roleSaved": "Ruolo aggiornato",
+      "roleError": "Impossibile modificare il ruolo",
+      "messageBtn": "Scrivi messaggio",
+      "stats": {
+        "groups": "Gruppi",
+        "clubs": "Club",
+        "friends": "Amici",
+        "messages": "Messaggi",
+        "photos": "Foto",
+        "inGroups": "In gruppi",
+        "inClubs": "In club",
+        "created": "Creati"
+      },
+      "deleteBtn": "Elimina account",
+      "deleteConfirm": "Eliminare davvero l'account di \"{{name}}\"? Verranno eliminati anche tutti i gruppi, i club, i messaggi e le amicizie. L'operazione non può essere annullata.",
+      "deleteConfirmBtn": "Sì, elimina",
+      "deleting": "Eliminazione…",
+      "deleted": "Utente eliminato",
+      "cancel": "Annulla"
+    }
+  }
+}

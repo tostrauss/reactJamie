@@ -10,6 +10,7 @@ import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
 const WEEKDAY_LABELS = {
   de: { 1: 'Mo', 2: 'Di', 3: 'Mi', 4: 'Do', 5: 'Fr', 6: 'Sa', 7: 'So' },
   en: { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat', 7: 'Sun' },
+  it: { 1: 'Lun', 2: 'Mar', 3: 'Mer', 4: 'Gio', 5: 'Ven', 6: 'Sab', 7: 'Dom' },
 };
 const formatRedeemDays = (days, lang) =>
   (days || []).map(n => WEEKDAY_LABELS[lang]?.[n] || n).join(', ');
@@ -55,7 +56,8 @@ export const DealDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
-  const lang = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en' : 'de';
+  const lang = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en'
+    : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it' : 'de';
   const toast = useToast();
   const { user } = useContext(AuthContext);
   const [deal, setDeal] = useState(null);

@@ -26,7 +26,7 @@ export const CreateGroup = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const { t, i18n } = useTranslation();
-  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : 'de-AT';
+  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : 'de-AT';
   // Native date input bounds: today → +2 years (matches the old year dropdown).
   const todayStr = localISODate(new Date());
   const maxDateStr = (() => { const n = new Date(); return localISODate(new Date(n.getFullYear() + 2, n.getMonth(), n.getDate())); })();

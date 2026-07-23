@@ -82,7 +82,8 @@ const SESSION_KEY = 'jamie_map_category';
 export default function MapView({ typeFilter }) {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
-  const mapLanguage = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en' : 'de';
+  const mapLanguage = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en'
+    : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it' : 'de';
   const mapRef = useRef(null);
   const toast = useToast();
 

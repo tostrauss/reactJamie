@@ -834,6 +834,7 @@ export const SettingsPage = () => {
             {[
               { code: 'de', label: 'DE' },
               { code: 'en', label: 'EN' },
+              { code: 'it', label: 'IT' },
             ].map(({ code, label }) => {
               const active = currentLang === code;
               return (

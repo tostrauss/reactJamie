@@ -3,10 +3,12 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import de from './locales/de.json';
 import en from './locales/en.json';
+import it from './locales/it.json';
 
-// Phase 1 i18n setup — German is the source-of-truth language, English
-// inherits missing keys via fallback so untranslated areas still render
+// i18n setup — German is the source-of-truth language; English and Italian
+// inherit missing keys via fallback so untranslated areas still render
 // readable German instead of bare keys until the next translation pass.
+// Italian added 2026-07-23 for the Italy market rollout.
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)
@@ -14,9 +16,10 @@ i18n
     resources: {
       de: { translation: de },
       en: { translation: en },
+      it: { translation: it },
     },
     fallbackLng: 'de',
-    supportedLngs: ['de', 'en'],
+    supportedLngs: ['de', 'en', 'it'],
     interpolation: { escapeValue: false }, // React already escapes
     detection: {
       // Persist explicit user choice; fall back to browser locale on first run.
