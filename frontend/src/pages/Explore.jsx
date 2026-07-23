@@ -158,12 +158,18 @@ const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadM
         {/* Hidden file input — driven by the prompt button.
             No `capture` attribute: with just accept="image/*", iOS/Android show
             the full picker (photo library OR camera). `capture="environment"`
-            forced the rear camera and hid the gallery entirely (Arno, 2026-07-23). */}
+            forced the rear camera and hid the gallery entirely (Arno, 2026-07-23).
+            stopPropagation on the input's own click: fileInputRef.current.click()
+            dispatches a real click on this input that bubbles up to the card's
+            onClick and navigated to the group page the instant the picker opened.
+            Stop it here so opening the picker keeps the user on Hall of Fame
+            (Tobi, 2026-07-23). */}
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
           style={{ display: 'none' }}
+          onClick={(e) => e.stopPropagation()}
           onChange={handleFileSelected}
         />
 
