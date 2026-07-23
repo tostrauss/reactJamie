@@ -1315,9 +1315,9 @@
       "weeklyHint": "Happens every week on the same weekday — great for regular meetups",
       "locationLabel": "Where? *",
       "locationPlaceholder": "e.g. City park, Vienna",
-      "locationOnlyATHint": "Austrian locations only — please pick from the suggestions.",
-      "locationNotATError": "Please pick a location in Austria.",
-      "locationNotInAT": "Couldn't find that place in Austria. Please check the spelling.",
+      "locationOnlyATHint": "Locations in Austria, Germany, Switzerland or Italy only — please pick from the suggestions.",
+      "locationNotATError": "Please pick a location in Austria, Germany, Switzerland or Italy.",
+      "locationNotInAT": "Couldn't find that place in our countries (AT, DE, CH, IT). Please check the spelling.",
       "locationCheckError": "Couldn't verify the location. Please try again.",
       "locationChecking": "Checking location…",
       "ageLabel": "Target age range",
@@ -1376,9 +1376,9 @@
     "step2": {
       "locationLabel": "Location *",
       "locationPlaceholder": "e.g. Vienna",
-      "locationOnlyATHint": "Austrian locations only — please pick from the suggestions.",
-      "locationNotATError": "Please pick a location in Austria.",
-      "locationNotInAT": "Couldn't find that place in Austria. Please check the spelling.",
+      "locationOnlyATHint": "Locations in Austria, Germany, Switzerland or Italy only — please pick from the suggestions.",
+      "locationNotATError": "Please pick a location in Austria, Germany, Switzerland or Italy.",
+      "locationNotInAT": "Couldn't find that place in our countries (AT, DE, CH, IT). Please check the spelling.",
       "locationCheckError": "Couldn't verify the location. Please try again.",
       "locationChecking": "Checking location…",
       "maxLabel": "Max members",
@@ -1541,7 +1541,7 @@
   },
   "outOfRegion": {
     "title": "Coming to you soon!",
-    "subtitleLine1": "JAMIE is launching in Austria right now.",
+    "subtitleLine1": "JAMIE is live in Austria, Germany, Switzerland and Italy.",
     "subtitleLine2": "Your country is next — stay tuned.",
     "countdown": {
       "days": "Days",
@@ -1557,7 +1557,7 @@
     "successText": "You're on the list! We'll be in touch as soon as JAMIE launches near you.",
     "voteTitle": "🗳️ Where should we launch next?",
     "votesTitle": "Current vote ({{count}} votes)",
-    "footerPrefix": "Already in Austria?",
+    "footerPrefix": "Already in one of our countries?",
     "footerLink": "Open app",
     "countries": {
       "DE": "Germany",

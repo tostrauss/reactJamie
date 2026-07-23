@@ -10,6 +10,7 @@ import { ToastProvider } from './context/ToastContext';
 import { NetworkProvider } from './context/NetworkContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { isNative, isNativeIOS } from './utils/platform';
+import { REGION_BOUNDS } from './utils/regions';
 import { AppIntro, shouldShowIntro } from './pages/AppIntro';
 const ProModal = lazyWithReload(() => import('./components/ProModal').then(m => ({ default: m.ProModal })));
 import { useAnalytics } from './hooks/useAnalytics';
@@ -424,16 +425,12 @@ const AuthRoute = ({ children }) => {
 };
 
 // ==========================================
-// GEOFENCING — block users outside DACH (Austria, Germany, Switzerland)
+// GEOFENCING — block web users outside the launch markets (AT/DE/CH/IT).
+// Bounding boxes live in utils/regions.js (shared with the create-location
+// country restriction).
 // ==========================================
-const DACH_REGIONS = [
-  { latMin: 46.37, latMax: 49.02, lngMin: 9.53,  lngMax: 17.16 }, // Austria
-  { latMin: 47.27, latMax: 55.06, lngMin: 5.87,  lngMax: 15.04 }, // Germany
-  { latMin: 45.82, latMax: 47.81, lngMin: 5.96,  lngMax: 10.49 }, // Switzerland
-];
-
 function isInRegion(lat, lng) {
-  return DACH_REGIONS.some(r =>
+  return REGION_BOUNDS.some(r =>
     lat >= r.latMin && lat <= r.latMax && lng >= r.lngMin && lng <= r.lngMax
   );
 }

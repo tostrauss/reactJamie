@@ -1,5 +1,5 @@
 import db from '../config/database.js';
-import { geocodeLocation, geocodeAustria } from '../utils/geocode.js';
+import { geocodeLocation, geocodeAllowedRegion } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { sendPushToUser } from './pushController.js';
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
@@ -178,7 +178,7 @@ export const createGroup = async (req, res) => {
     // Prefer the Austria-restricted match so coords agree with the frontend's
     // AT verification (and the group lands on the AT map); fall back to the
     // unrestricted lookup so we never resolve fewer places than before.
-    const coords = await geocodeAustria(location) || await geocodeLocation(location);
+    const coords = await geocodeAllowedRegion(location) || await geocodeLocation(location);
 
     // Weekly recurrence only applies to events (type='group'); silently ignored for clubs.
     const recurringWeekly = !!is_recurring_weekly && (type === 'group' || !type);
@@ -558,7 +558,7 @@ export const updateGroup = async (req, res) => {
       // Prefer the Austria-restricted match so coords agree with the frontend's
     // AT verification (and the group lands on the AT map); fall back to the
     // unrestricted lookup so we never resolve fewer places than before.
-    const coords = await geocodeAustria(location) || await geocodeLocation(location);
+    const coords = await geocodeAllowedRegion(location) || await geocodeLocation(location);
       latUpdate = coords?.lat ?? null;
       lngUpdate = coords?.lng ?? null;
     }

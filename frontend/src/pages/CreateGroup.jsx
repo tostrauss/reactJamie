@@ -5,6 +5,7 @@ import { groups, map as mapApi, api as axiosInstance } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
+import { ALLOWED_COUNTRIES, ALLOWED_COUNTRIES_LOWER } from '../utils/regions';
 import { ImageCropModal } from '../components/ImageCropModal';
 import '../styles/create.css';
 
@@ -96,7 +97,7 @@ export const CreateGroup = () => {
       if (autocompleteRef.current) return;
       if (!locationRef.current) return;
       const ac = new window.google.maps.places.Autocomplete(locationRef.current, {
-        componentRestrictions: { country: ['at'] },
+        componentRestrictions: { country: ALLOWED_COUNTRIES_LOWER },
         fields: ['formatted_address', 'name', 'address_components'],
       });
       ac.addListener('place_changed', () => {
@@ -104,8 +105,8 @@ export const CreateGroup = () => {
         const val = place.formatted_address || place.name || '';
         const countryComp = (place.address_components || []).find(c => c.types?.includes('country'));
         const country = countryComp?.short_name || '';
-        if (val && country === 'AT') {
-          setFormData(prev => ({ ...prev, location: val, locationCountry: 'AT' }));
+        if (val && ALLOWED_COUNTRIES.includes(country)) {
+          setFormData(prev => ({ ...prev, location: val, locationCountry: country }));
         } else if (val) {
           // componentRestrictions usually prevents this, but Place IDs can
           // still resolve outside the restriction in edge cases — refuse them.
@@ -134,13 +135,15 @@ export const CreateGroup = () => {
     });
   };
 
-  // Advance from a step. Step 2 verifies the location is in Austria: if Google
-  // Places already confirmed it (locationCountry === 'AT') we go straight on;
-  // otherwise we geocode the typed text server-side so a valid Austrian place is
-  // accepted even when Places never showed a dropdown to pick from.
+  // Advance from a step. Step 2 verifies the location is in a launch country
+  // (AT/DE/CH/IT): if Google Places already confirmed it (locationCountry set
+  // to the ISO code) we go straight on; otherwise we geocode the typed text
+  // server-side (region-restricted) so a valid place is accepted even when
+  // Places never showed a dropdown to pick from. 'REGION' marks a location the
+  // server verifier confirmed without telling us which country it's in.
   const handleNext = async () => {
     if (step !== 2) { setStep(step + 1); return; }
-    if (formData.locationCountry === 'AT') { setStep(3); return; }
+    if (formData.locationCountry) { setStep(3); return; }
 
     const q = formData.location.trim();
     if (!q) return;
@@ -149,7 +152,7 @@ export const CreateGroup = () => {
     try {
       const res = await mapApi.geocode(q);
       if (res.data?.ok) {
-        setFormData(prev => ({ ...prev, locationCountry: 'AT' }));
+        setFormData(prev => ({ ...prev, locationCountry: 'REGION' }));
         setStep(3);
       } else {
         setLocationError(t('createGroup.step2.locationNotInAT'));

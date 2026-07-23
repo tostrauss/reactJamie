@@ -1,5 +1,5 @@
 import db from '../config/database.js';
-import { geocodeLocation, geocodeAustria } from '../utils/geocode.js';
+import { geocodeLocation, geocodeAllowedRegion } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { getCached, setCached, invalidatePrefix } from '../utils/cache.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
@@ -93,7 +93,7 @@ export const createClub = async (req, res) => {
     // Prefer the Austria-restricted match (consistent with the frontend's AT
     // verification + the AT map); fall back to unrestricted so we never resolve
     // fewer places than before.
-    const coords = await geocodeAustria(location) || await geocodeLocation(location);
+    const coords = await geocodeAllowedRegion(location) || await geocodeLocation(location);
 
     // Approval workflow: clubs created by admins are auto-approved.
     // Everyone else lands in the moderation queue until a human approves.
@@ -380,7 +380,7 @@ export const updateClub = async (req, res) => {
       // Prefer the Austria-restricted match (consistent with the frontend's AT
     // verification + the AT map); fall back to unrestricted so we never resolve
     // fewer places than before.
-    const coords = await geocodeAustria(location) || await geocodeLocation(location);
+    const coords = await geocodeAllowedRegion(location) || await geocodeLocation(location);
       latUpdate = coords?.lat ?? null;
       lngUpdate = coords?.lng ?? null;
     }

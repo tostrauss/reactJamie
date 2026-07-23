@@ -1,6 +1,6 @@
 import db from '../config/database.js';
 import { getCached, setCached } from '../utils/cache.js';
-import { geocodeAustria } from '../utils/geocode.js';
+import { geocodeAllowedRegion } from '../utils/geocode.js';
 
 /**
  * GET /api/map/geocode?q=...
@@ -15,7 +15,7 @@ export const geocodeQuery = async (req, res) => {
     if (q.length < 2 || q.length > 200) {
       return res.status(400).json({ ok: false, error: 'invalid query' });
     }
-    const result = await geocodeAustria(q);
+    const result = await geocodeAllowedRegion(q);
     if (!result) return res.json({ ok: false });
     res.json({ ok: true, lat: result.lat, lng: result.lng, label: result.label });
   } catch (err) {

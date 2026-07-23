@@ -9,6 +9,7 @@ import { nextOccurrence } from '../utils/recurrence';
 import { shareLink } from '../utils/share';
 import { openCalendar } from '../utils/calendarExport';
 import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
+import { ALLOWED_COUNTRIES_LOWER } from '../utils/regions';
 import '../styles/club-detail.css';
 
 const BoostModal = lazy(() => import('../components/BoostModal').then(m => ({ default: m.BoostModal })));
@@ -85,7 +86,7 @@ export const ClubDetail = () => {
       if (eventAutocompleteRef.current) return;
       if (!eventLocationRef.current) return;
       const ac = new window.google.maps.places.Autocomplete(eventLocationRef.current, {
-        componentRestrictions: { country: ['at'] },
+        componentRestrictions: { country: ALLOWED_COUNTRIES_LOWER },
         fields: ['formatted_address', 'name'],
       });
       ac.addListener('place_changed', () => {

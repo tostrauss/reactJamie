@@ -5,6 +5,7 @@ import { clubs, upload, map as mapApi } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
+import { ALLOWED_COUNTRIES, ALLOWED_COUNTRIES_LOWER } from '../utils/regions';
 import { ImageCropModal } from '../components/ImageCropModal';
 import '../styles/create.css';
 
@@ -61,7 +62,7 @@ export const CreateClub = () => {
   }, []);
 
   // Attach Places Autocomplete to the Standort input once it renders.
-  // Restricted to Austria — clubs are an Austrian product for now.
+  // Restricted to the launch markets (AT/DE/CH/IT, utils/regions.js).
   useEffect(() => {
     if (step !== 2) return;
     const attach = () => {
@@ -69,7 +70,7 @@ export const CreateClub = () => {
       if (autocompleteRef.current) return;
       if (!locationRef.current) return;
       const ac = new window.google.maps.places.Autocomplete(locationRef.current, {
-        componentRestrictions: { country: ['at'] },
+        componentRestrictions: { country: ALLOWED_COUNTRIES_LOWER },
         fields: ['formatted_address', 'name', 'address_components'],
       });
       ac.addListener('place_changed', () => {
@@ -77,8 +78,8 @@ export const CreateClub = () => {
         const val = place.formatted_address || place.name || '';
         const countryComp = (place.address_components || []).find(c => c.types?.includes('country'));
         const country = countryComp?.short_name || '';
-        if (val && country === 'AT') {
-          setFormData(prev => ({ ...prev, location: val, locationCountry: 'AT' }));
+        if (val && ALLOWED_COUNTRIES.includes(country)) {
+          setFormData(prev => ({ ...prev, location: val, locationCountry: country }));
         } else if (val) {
           // componentRestrictions usually prevents this, but Place IDs can
           // still resolve outside the restriction in edge cases — refuse them.
@@ -105,13 +106,14 @@ export const CreateClub = () => {
     });
   };
 
-  // Step 2 → verify the location is in Austria. If Google Places already
-  // confirmed it we advance straight away; otherwise we geocode the typed text
-  // server-side so a valid Austrian place is accepted even when Places never
-  // showed a dropdown.
+  // Step 2 → verify the location is in a launch country (AT/DE/CH/IT). If
+  // Google Places already confirmed it we advance straight away; otherwise we
+  // geocode the typed text server-side (region-restricted) so a valid place is
+  // accepted even when Places never showed a dropdown. 'REGION' marks a
+  // location the server verifier confirmed without a specific country.
   const handleNext = async () => {
     if (step !== 2) { setStep(step + 1); return; }
-    if (formData.locationCountry === 'AT') { setStep(3); return; }
+    if (formData.locationCountry) { setStep(3); return; }
 
     const q = formData.location.trim();
     if (!q) return;
@@ -120,7 +122,7 @@ export const CreateClub = () => {
     try {
       const res = await mapApi.geocode(q);
       if (res.data?.ok) {
-        setFormData(prev => ({ ...prev, locationCountry: 'AT' }));
+        setFormData(prev => ({ ...prev, locationCountry: 'REGION' }));
         setStep(3);
       } else {
         setLocationError(t('createClub.step2.locationNotInAT'));

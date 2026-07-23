@@ -1315,9 +1315,9 @@
       "weeklyHint": "Findet jede Woche am gleichen Wochentag statt — perfekt für regelmäßige Treffs",
       "locationLabel": "Wo? *",
       "locationPlaceholder": "z.B. Stadtpark, Wien",
-      "locationOnlyATHint": "Nur Standorte in Österreich — bitte aus den Vorschlägen auswählen.",
-      "locationNotATError": "Bitte einen Standort in Österreich wählen.",
-      "locationNotInAT": "Dieser Ort konnte in Österreich nicht gefunden werden. Bitte überprüfe die Schreibweise.",
+      "locationOnlyATHint": "Nur Standorte in Österreich, Deutschland, der Schweiz oder Italien — bitte aus den Vorschlägen auswählen.",
+      "locationNotATError": "Bitte einen Standort in Österreich, Deutschland, der Schweiz oder Italien wählen.",
+      "locationNotInAT": "Dieser Ort konnte in unseren Ländern (AT, DE, CH, IT) nicht gefunden werden. Bitte überprüfe die Schreibweise.",
       "locationCheckError": "Der Ort konnte nicht überprüft werden. Bitte versuche es erneut.",
       "locationChecking": "Prüfe Ort…",
       "ageLabel": "Für welches Alter?",
@@ -1376,9 +1376,9 @@
     "step2": {
       "locationLabel": "Standort *",
       "locationPlaceholder": "z.B. Wien",
-      "locationOnlyATHint": "Nur Standorte in Österreich — bitte aus den Vorschlägen auswählen.",
-      "locationNotATError": "Bitte einen Standort in Österreich wählen.",
-      "locationNotInAT": "Dieser Ort konnte in Österreich nicht gefunden werden. Bitte überprüfe die Schreibweise.",
+      "locationOnlyATHint": "Nur Standorte in Österreich, Deutschland, der Schweiz oder Italien — bitte aus den Vorschlägen auswählen.",
+      "locationNotATError": "Bitte einen Standort in Österreich, Deutschland, der Schweiz oder Italien wählen.",
+      "locationNotInAT": "Dieser Ort konnte in unseren Ländern (AT, DE, CH, IT) nicht gefunden werden. Bitte überprüfe die Schreibweise.",
       "locationCheckError": "Der Ort konnte nicht überprüft werden. Bitte versuche es erneut.",
       "locationChecking": "Prüfe Ort…",
       "maxLabel": "Maximale Mitglieder",
@@ -1541,7 +1541,7 @@
   },
   "outOfRegion": {
     "title": "Bald auch bei dir!",
-    "subtitleLine1": "JAMIE startet gerade in Österreich.",
+    "subtitleLine1": "JAMIE startet gerade in Österreich, Deutschland, der Schweiz und Italien.",
     "subtitleLine2": "Dein Land kommt als Nächstes — bleib dran.",
     "countdown": {
       "days": "Tage",
@@ -1557,7 +1557,7 @@
     "successText": "Du bist auf der Liste! Wir melden uns, sobald JAMIE bei dir startet.",
     "voteTitle": "🗳️ Wo sollen wir als Nächstes starten?",
     "votesTitle": "Aktuelle Abstimmung ({{count}} Stimmen)",
-    "footerPrefix": "Schon in Österreich?",
+    "footerPrefix": "Schon in einem unserer Länder?",
     "footerLink": "App öffnen",
     "countries": {
       "DE": "Deutschland",

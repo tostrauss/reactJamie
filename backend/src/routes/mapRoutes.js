@@ -6,7 +6,7 @@ const router = express.Router();
 
 // Public — no auth required (map is discoverable)
 router.get('/pins', generalLimiter, getMapPins);
-// Austria geocode verifier — fallback for the create-group/club location field
+// Launch-region geocode verifier — fallback for the create-group/club location field
 router.get('/geocode', generalLimiter, geocodeQuery);
 
 export default router;

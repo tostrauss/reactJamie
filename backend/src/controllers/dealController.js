@@ -1,6 +1,6 @@
 import db from '../config/database.js';
 import { sendPushToUsers } from './pushController.js';
-import { geocodeLocation, geocodeAustria } from '../utils/geocode.js';
+import { geocodeLocation, geocodeAllowedRegion } from '../utils/geocode.js';
 
 // Try to extract the city from a free-form address. Most DACH addresses end in
 // "PLZ City" (e.g. "Hauptstraße 1, 1010 Wien"). We take the last comma-separated
@@ -171,7 +171,7 @@ export const createDeal = async (req, res) => {
   let dealLat = lat ?? null;
   let dealLng = lng ?? null;
   if ((dealLat === null || dealLng === null) && address) {
-    const coords = await geocodeAustria(address) || await geocodeLocation(address);
+    const coords = await geocodeAllowedRegion(address) || await geocodeLocation(address);
     if (coords) { dealLat = coords.lat; dealLng = coords.lng; }
   }
   try {
@@ -256,7 +256,7 @@ export const updateDeal = async (req, res) => {
   // pin follows the new address (mirrors group/club update behaviour). Explicit
   // lat/lng in the request still win.
   if (address !== undefined && address && lat === undefined && lng === undefined) {
-    const coords = await geocodeAustria(address) || await geocodeLocation(address);
+    const coords = await geocodeAllowedRegion(address) || await geocodeLocation(address);
     if (coords) { fields.lat = coords.lat; fields.lng = coords.lng; }
   }
 

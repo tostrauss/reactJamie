@@ -1,7 +1,10 @@
 import geoip from 'geoip-lite';
 
 // Countries where JAMIE is live. Extend as new markets open.
-const ALLOWED_COUNTRIES = (process.env.ALLOWED_COUNTRIES || 'AT,DE,CH').split(',').map(c => c.trim());
+// 2026-07-23: IT added (store rollout for Italy follows once the Italian
+// translation ships; the web gate opens with the code default). This env var
+// also drives the create-location geocode verifier (utils/geocode.js).
+const ALLOWED_COUNTRIES = (process.env.ALLOWED_COUNTRIES || 'AT,DE,CH,IT').split(',').map(c => c.trim());
 
 // Enabled by default in production; set GEOFENCING=false to disable
 const enabled = () =>

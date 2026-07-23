@@ -38,22 +38,32 @@ export async function geocodeLocation(location) {
   return promise;
 }
 
+// Countries where creating groups/clubs is allowed. Derived from the same env
+// var the registration geofence uses (backend/src/middleware/geofence.js) so
+// one Railway setting controls both. Lower-cased for Nominatim's countrycodes.
+// 2026-07-23 (Tobi/Tina): expanded from AT-only to the launch markets.
+const allowedCountrycodes = () =>
+  (process.env.ALLOWED_COUNTRIES || 'AT,DE,CH,IT')
+    .split(',').map(c => c.trim().toLowerCase()).filter(Boolean).join(',');
+
 /**
- * Austria-restricted geocode (countrycodes=at). A non-empty result is
- * therefore guaranteed to be a real place in Austria — used by the
- * create-group/club location verifier so a typed location can be accepted even
- * when Google Places didn't surface a dropdown to pick from.
+ * Region-restricted geocode (countrycodes=<allowed markets>). A non-empty
+ * result is therefore guaranteed to be a real place in one of JAMIE's launch
+ * countries — used by the create-group/club location verifier so a typed
+ * location can be accepted even when Google Places didn't surface a dropdown
+ * to pick from. (Formerly geocodeAustria, when creation was AT-only.)
  * Returns { lat, lng, label } or null.
  */
-export async function geocodeAustria(location) {
+export async function geocodeAllowedRegion(location) {
   if (!location || typeof location !== 'string' || !location.trim()) return null;
 
-  const key = `at:${location.trim().toLowerCase()}`;
+  const codes = allowedCountrycodes();
+  const key = `${codes}:${location.trim().toLowerCase()}`;
   const cached = _cache.get(key);
   if (cached && Date.now() < cached.expiresAt) return cached.result;
   if (_inflight.has(key)) return _inflight.get(key);
 
-  const promise = _fetchNominatim(location.trim(), true).then((result) => {
+  const promise = _fetchNominatim(location.trim(), codes).then((result) => {
     _cache.set(key, { result, expiresAt: Date.now() + TTL_MS });
     _inflight.delete(key);
     return result;
@@ -66,9 +76,9 @@ export async function geocodeAustria(location) {
   return promise;
 }
 
-async function _fetchNominatim(location, austriaOnly = false) {
+async function _fetchNominatim(location, countrycodes = null) {
   const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1`
-    + (austriaOnly ? '&countrycodes=at&addressdetails=1' : '');
+    + (countrycodes ? `&countrycodes=${countrycodes}&addressdetails=1` : '');
 
   try {
     const controller = new AbortController();
