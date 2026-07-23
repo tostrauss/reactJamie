@@ -204,14 +204,16 @@ export const Profile = () => {
 
           {/* Location left — Name + Age right */}
           <div className="profile-identity-row">
-            {user?.location ? (
-              <div className="profile-location-left">{user.location}</div>
+            {(user?.location || user?.is_pioneer) ? (
+              <div className="profile-location-left">
+                {user?.location && <span>{user.location}</span>}
+                {user?.is_pioneer && <span className="pioneer-tag">{t('common.pioneerBadge')}</span>}
+              </div>
             ) : <div />}
             <div className="profile-name-age">
               {/* Own profile: no age superscript (you know your own age). */}
               <span className="profile-name-cap">{(user?.name || t('profile.fallbackName')).toUpperCase()}</span>
               {isPro && <span className="pro-name-badge">👑</span>}
-              {user?.is_pioneer && <span className="pioneer-name-badge">🏆 {t('common.pioneerBadge')}</span>}
             </div>
           </div>
 

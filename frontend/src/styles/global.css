@@ -261,21 +261,21 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
-/* Pioneer badge — "first to create a group in the region" reward (is_pioneer).
-   Gold achievement chip, sits next to the name like the Pro crown badge.
-   Global so both the own-profile and other-users' profile can use it. */
-.pioneer-name-badge {
+/* Pioneer marker — "first to create a group in the region" reward (is_pioneer).
+   Deliberately subtle: a small muted-gold outline tag (no fill, no emoji) that
+   sits next to the location, not a loud chip on the name. Global so both the
+   own-profile and other-users' profile can use it. */
+.pioneer-tag {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 10px;
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 140, 0, 0.12));
-  border: 1px solid rgba(255, 215, 0, 0.35);
+  padding: 1px 8px;
+  border: 1px solid rgba(212, 175, 90, 0.4);
   border-radius: var(--radius-full);
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 700;
-  color: #FFD700;
-  vertical-align: middle;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #d0ac52;
   white-space: nowrap;
 }
 

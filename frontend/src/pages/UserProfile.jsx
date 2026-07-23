@@ -271,10 +271,10 @@ export const UserProfile = () => {
       <div className="up-identity">
         <div className="up-location">
           <span>{profile.location || t('userProfile.locationFallback')}</span>
+          {profile.is_pioneer && <span className="pioneer-tag">{t('common.pioneerBadge')}</span>}
         </div>
         <div className="up-name-age">
           <UserName className="up-name" name={profile.name?.toUpperCase()} age={age} />
-          {profile.is_pioneer && <span className="pioneer-name-badge">🏆 {t('common.pioneerBadge')}</span>}
         </div>
       </div>
 
