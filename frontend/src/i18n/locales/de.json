@@ -1256,7 +1256,12 @@
       "textHighlight": "kostenlosen 7-Tage-Boost",
       "textSuffix": "+ Pioneer-Badge!",
       "btn": "Erste Gruppe erstellen"
-    }
+    },
+    "directionsTitle": "Route öffnen in…",
+    "routeLabel": "Route",
+    "openDirectionsAria": "Route zum Standort öffnen",
+    "appleMaps": "Apple Karten",
+    "googleMaps": "Google Maps"
   },
   "groupRequests": {
     "loading": "Lade Anfragen...",

@@ -1,0 +1,76 @@
+/* Bottom-sheet chooser shown when a location map is tapped — pick Apple Maps
+   or Google Maps for directions. Mirrors the app's dark sheet styling. */
+.maps-chooser-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200; /* above bottom-nav (1000) + filter sheet (1100) */
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-end;
+  animation: mapsChooserFade 0.2s ease;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+}
+
+@keyframes mapsChooserFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.maps-chooser-sheet {
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 12px;
+  background: #1e1e3a;
+  border-radius: 20px;
+  animation: mapsChooserUp 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes mapsChooserUp {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.maps-chooser-title {
+  margin: 6px 0 12px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.maps-chooser-btn,
+.maps-chooser-cancel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 15px;
+  border: none;
+  border-radius: 14px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.maps-chooser-btn {
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-white);
+}
+.maps-chooser-btn:active { background: rgba(255, 255, 255, 0.14); }
+
+.maps-chooser-emoji { font-size: 18px; line-height: 1; }
+
+.maps-chooser-cancel {
+  margin-top: 4px;
+  background: transparent;
+  color: var(--accent-coral);
+  font-weight: 700;
+}

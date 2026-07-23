@@ -1256,7 +1256,12 @@
       "textHighlight": "free 7-day boost",
       "textSuffix": "+ Pioneer badge!",
       "btn": "Create the first group"
-    }
+    },
+    "directionsTitle": "Open directions in…",
+    "routeLabel": "Route",
+    "openDirectionsAria": "Open directions to location",
+    "appleMaps": "Apple Maps",
+    "googleMaps": "Google Maps"
   },
   "groupRequests": {
     "loading": "Loading requests...",

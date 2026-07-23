@@ -6,6 +6,7 @@ import { groups, clubs } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
+import { MapsChooser } from '../components/MapsChooser';
 import { UserName } from '../components/UserName';
 import { nextOccurrence } from '../utils/recurrence';
 import { shareLink } from '../utils/share';
@@ -46,6 +47,8 @@ const GROUP_MAP_STYLES = [
 ];
 
 function GroupMiniMap({ lat, lng }) {
+  const { t } = useTranslation();
+  const [chooserOpen, setChooserOpen] = useState(false);
   const { isLoaded } = useLoadScript({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '',
     libraries: MAP_LIBRARIES,
@@ -53,21 +56,37 @@ function GroupMiniMap({ lat, lng }) {
   if (!isLoaded) return <div className="gd-mini-map gd-mini-map--loading" />;
   const pos = { lat, lng };
   return (
-    <div className="gd-mini-map">
-      <GoogleMap
-        mapContainerClassName="gd-mini-map-canvas"
-        center={pos}
-        zoom={14}
-        options={{
-          styles: GROUP_MAP_STYLES,
-          disableDefaultUI: true,
-          gestureHandling: 'cooperative',
-          clickableIcons: false,
-        }}
-      >
-        <Marker position={pos} />
-      </GoogleMap>
-    </div>
+    <>
+      <div className="gd-mini-map">
+        <GoogleMap
+          mapContainerClassName="gd-mini-map-canvas"
+          center={pos}
+          zoom={14}
+          options={{
+            styles: GROUP_MAP_STYLES,
+            disableDefaultUI: true,
+            // Static location preview — the tap layer below opens the directions
+            // chooser instead of letting the user pan this tiny map.
+            gestureHandling: 'none',
+            clickableIcons: false,
+          }}
+        >
+          <Marker position={pos} />
+        </GoogleMap>
+        {/* Tap anywhere on the map → choose Apple Maps / Google Maps */}
+        <button
+          type="button"
+          className="gd-mini-map-tap"
+          onClick={() => setChooserOpen(true)}
+          aria-label={t('map.openDirectionsAria')}
+        >
+          <span className="gd-mini-map-route">🧭 {t('map.routeLabel')}</span>
+        </button>
+      </div>
+      {chooserOpen && (
+        <MapsChooser lat={lat} lng={lng} onClose={() => setChooserOpen(false)} />
+      )}
+    </>
   );
 }
 
