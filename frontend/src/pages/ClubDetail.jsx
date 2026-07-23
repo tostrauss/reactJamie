@@ -578,7 +578,7 @@ export const ClubDetail = () => {
                         </p>
                         {dateParts?.time && (
                           <p className="cd-event-time">
-                            {dateParts.time} {t('clubDetail.events.uhr')}
+                            {dateParts.time}
                             {ev.location ? ` · ${ev.location}` : ''}
                           </p>
                         )}
