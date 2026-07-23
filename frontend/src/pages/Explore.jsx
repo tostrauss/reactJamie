@@ -62,6 +62,12 @@ const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadM
   const icon = getCategoryIcon(item.category);
   const timeAgo = formatTimeAgo(item.created_at, t);
   const fileInputRef = useRef(null);
+  // Timestamp of the last picker selection. iOS synthesizes a "ghost" click on
+  // whatever sits under the finger after a native picker/sheet dismisses — which
+  // lands on the (now prompt-free) owner card and navigated to the group page
+  // right after uploading a moment. Swallow any card navigation fired right
+  // after a pick so the user stays on Hall of Fame (Tobi, 2026-07-23).
+  const lastPickRef = useRef(0);
 
   const displayPhoto = item.moment_photo_url || item.image_url;
   const showMomentPrompt = isOwner && !item.moment_photo_url;
@@ -79,10 +85,14 @@ const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadM
   const handleFileSelected = (e) => {
     const file = e.target.files?.[0];
     e.target.value = ''; // reset so picking the same file again re-fires onChange
+    lastPickRef.current = Date.now();
     if (file) onUploadMoment(item, file);
   };
 
   const handleNavigate = () => {
+    // Ignore the post-picker ghost click so uploading a moment keeps the user
+    // on Hall of Fame instead of bouncing to the group page.
+    if (Date.now() - lastPickRef.current < 1000) return;
     if (isOwner) navigate(`/group/${item.id}`);
   };
 
