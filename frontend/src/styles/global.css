@@ -303,8 +303,9 @@ select:focus-visible {
    ========================================== */
 .update-banner {
   position: fixed;
-  /* Sit above the 60px nav + its bottom safe-area inset (see .bottom-nav). */
-  bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  /* Sit above the 60px nav + its bottom padding (30px floor / safe-area inset,
+     whichever is larger — must match .bottom-nav so the banner never overlaps it). */
+  bottom: calc(70px + max(30px, env(safe-area-inset-bottom, 0px)));
   left: 50%;
   transform: translateX(-50%);
   background: var(--bg-card);
@@ -340,8 +341,9 @@ select:focus-visible {
    ========================================== */
 .install-banner {
   position: fixed;
-  /* Sit above the 60px nav + its bottom safe-area inset (see .bottom-nav). */
-  bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+  /* Sit above the 60px nav + its bottom padding (30px floor / safe-area inset,
+     whichever is larger — must match .bottom-nav so the banner never overlaps it). */
+  bottom: calc(78px + max(30px, env(safe-area-inset-bottom, 0px)));
   left: 12px;
   right: 12px;
   background: var(--bg-card);
@@ -542,12 +544,15 @@ select:focus {
      2026-07-20 (Tina): the old flush, 48px strip was "hard to reach and tap".
      Now taller (60px) AND padded by the bottom safe-area so the icons sit
      ABOVE the home-indicator / gesture bar instead of flush against the edge —
-     reverses the earlier "icons as low as possible" call. */
+     reverses the earlier "icons as low as possible" call.
+     2026-07-24: 30px floor so the nav has consistent breathing room even on
+     devices with no inset (most Android button/gesture nav, desktop), while
+     still growing to the real inset on iPhones (~34px home indicator). */
   flex-shrink: 0;
   background: var(--bg-secondary);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 1000;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: max(30px, env(safe-area-inset-bottom, 0px));
 }
 
 .bottom-nav-items {
