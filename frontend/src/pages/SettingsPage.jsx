@@ -1,6 +1,7 @@
 import { useState, useContext, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { switchLanguage } from '../i18n';
 import { AuthContext } from '../context/AuthContext';
 import { auth, groups as groupsApi, clubs as clubsApi, subscription as subscriptionApi, boost as boostApi } from '../utils/api';
 import { useToast } from '../context/ToastContext';
@@ -840,7 +841,7 @@ export const SettingsPage = () => {
               return (
                 <button
                   key={code}
-                  onClick={() => i18n.changeLanguage(code)}
+                  onClick={() => switchLanguage(code)}
                   type="button"
                   aria-pressed={active}
                   style={{
