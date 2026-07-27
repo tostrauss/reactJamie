@@ -1,5 +1,5 @@
 import db from '../config/database.js';
-import { resolveCreateLocation } from '../utils/geocode.js';
+import { resolveCreateLocation, geocodeLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { sendPushToUser } from './pushController.js';
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
@@ -8,6 +8,20 @@ import { isUserPro } from './subscriptionController.js';
 
 const GROUPS_TTL  = 30_000;  // 30 s — acceptable staleness for list views
 const AVATARS_TTL = 60_000;  // 60 s — avatars change only on join/leave
+
+// Per-country bounding boxes for the "same-country" group feed filter — mirrors
+// frontend/src/utils/regions.js REGION_BOUNDS. A logged-in user sees only groups
+// whose coordinates fall in THEIR country's box (Tina 2026-07-27: a German user
+// was seeing every group regardless of location). Deliberately generous
+// rectangles: this is a soft market gate, so the shared Alpine borders overlap a
+// little (a user near the border may see immediately-adjacent cross-border
+// groups) — far-away groups (Vienna/Rome for a Berliner) are correctly hidden.
+const COUNTRY_BOUNDS = {
+  AT: { latMin: 46.37, latMax: 49.02, lngMin: 9.53, lngMax: 17.16 },
+  DE: { latMin: 47.27, latMax: 55.06, lngMin: 5.87, lngMax: 15.04 },
+  CH: { latMin: 45.82, latMax: 47.81, lngMin: 5.96, lngMax: 10.49 },
+  IT: { latMin: 35.49, latMax: 47.09, lngMin: 6.62, lngMax: 18.52 },
+};
 
 // Anti-churn cap: a user may join any given group at most this many times
 // (counted across leaves via group_join_counts) to stop join/leave spam.
@@ -243,15 +257,17 @@ export const getGroups = async (req, res) => {
     let callerAge = null;
     let callerIsAdmin = false;
     let callerIsPro = false;
+    let callerLocation = null;
+    let callerCountry = null;
     if (req.userId) {
       try {
         const r = await db.query(
           `SELECT EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age,
-                  is_admin,
+                  is_admin, location, country,
                   EXISTS(
                     SELECT 1 FROM subscriptions s
                     WHERE s.user_id = users.id
-                      AND (s.status = 'active' OR s.status = 'canceling')
+                      AND (s.status = 'active' OR s.status = 'canceling' OR s.status = 'trialing')
                       AND s.current_period_end > NOW()
                   ) AS is_pro
            FROM users WHERE id = $1`,
@@ -260,20 +276,37 @@ export const getGroups = async (req, res) => {
         callerAge = r.rows[0]?.age ?? null;
         callerIsAdmin = !!r.rows[0]?.is_admin;
         callerIsPro = !!r.rows[0]?.is_pro;
+        callerLocation = r.rows[0]?.location ?? null;
+        callerCountry = r.rows[0]?.country ?? null;
       } catch (err) {
         // subscriptions table not bootstrapped yet → no Pro; still need age/admin
         if (err.code === '42P01') {
           const r = await db.query(
-            'SELECT EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age, is_admin FROM users WHERE id = $1',
+            'SELECT EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age, is_admin, location FROM users WHERE id = $1',
             [req.userId]
           );
           callerAge = r.rows[0]?.age ?? null;
           callerIsAdmin = !!r.rows[0]?.is_admin;
+          callerLocation = r.rows[0]?.location ?? null;
         } else {
           throw err;
         }
       }
     }
+
+    // Same-country group filter: a logged-in user sees only groups in their own
+    // launch-market country. The country is geocoded from the profile city ONCE
+    // and cached in users.country; thereafter it's a plain column read. Guests
+    // and users without a resolvable location fall through to "see everything".
+    if (req.userId && !callerCountry && callerLocation) {
+      const geo = await geocodeLocation(callerLocation);
+      const cc = geo?.countryCode ? geo.countryCode.toUpperCase() : null;
+      if (cc) {
+        callerCountry = cc;
+        db.query('UPDATE users SET country = $1 WHERE id = $2', [cc, req.userId]).catch(() => {});
+      }
+    }
+    const regionBox = (callerCountry && COUNTRY_BOUNDS[callerCountry]) || null;
 
     // Admins bypass the gate entirely → full 4 previews like Pro.
     const previewLimit = (callerIsPro || callerIsAdmin) ? 4 : 3;
@@ -283,7 +316,7 @@ export const getGroups = async (req, res) => {
     // Pro flag + admin flag + caller age are part of the key so users with
     // different visibility never share a cache row.
     const cacheKey = !search && !location
-      ? `groups:${type || ''}:${category || ''}:${upcoming || ''}:${limit || ''}:${offset || ''}:p${callerIsPro ? 1 : 0}:adm${callerIsAdmin ? 1 : 0}:a${callerAge ?? 'x'}`
+      ? `groups:${type || ''}:${category || ''}:${upcoming || ''}:${limit || ''}:${offset || ''}:p${callerIsPro ? 1 : 0}:adm${callerIsAdmin ? 1 : 0}:a${callerAge ?? 'x'}:c${callerCountry ?? 'x'}`
       : null;
     if (cacheKey) {
       const cached = getCached(cacheKey);
@@ -335,6 +368,15 @@ export const getGroups = async (req, res) => {
                  AND (g.target_age_max IS NULL OR g.target_age_max >= $${paramIndex})`;
       params.push(callerAge);
       paramIndex++;
+    }
+
+    // Same-country box filter (see COUNTRY_BOUNDS). Groups without coordinates are
+    // kept (can't place them — don't over-hide). Only applied for known markets.
+    if (regionBox) {
+      query += ` AND (g.lat IS NULL OR (g.lat BETWEEN $${paramIndex} AND $${paramIndex + 1}
+                                        AND g.lng BETWEEN $${paramIndex + 2} AND $${paramIndex + 3}))`;
+      params.push(regionBox.latMin, regionBox.latMax, regionBox.lngMin, regionBox.lngMax);
+      paramIndex += 4;
     }
 
     if (type) {

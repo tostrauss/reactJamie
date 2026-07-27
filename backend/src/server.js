@@ -774,6 +774,12 @@ const runStartupMigrations = async () => {
     await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_trusted_user BOOLEAN NOT NULL DEFAULT FALSE`);
     await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trusted_count   INTEGER NOT NULL DEFAULT 0`);
   });
+
+  // ISO-3166-1 alpha-2 of the user's launch-market country, geocoded lazily from
+  // their profile city and cached here (drives the same-country group feed
+  // filter in groupController.getGroups). NULL = not resolved yet → sees all.
+  await migrate('users country col', () =>
+    db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(2)`));
   // Per-member chat read marker — unread counts for group/club chats are
   // COUNT(non-system messages newer than COALESCE(last_read_at, joined_at)).
   // DEFAULT NOW() is load-bearing twice: (1) Postgres fills EXISTING rows with
