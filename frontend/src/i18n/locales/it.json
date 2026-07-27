@@ -672,9 +672,9 @@
       },
       "toast": {
         "requestsLoadError": "Impossibile caricare le richieste",
-        "requestAccepted": "{{name}} è stato accettato!",
+        "requestAccepted": "Richiesta di {{name}} accettata!",
         "requestAcceptError": "Errore durante l'accettazione",
-        "requestDeclined": "{{name}} è stato rifiutato",
+        "requestDeclined": "Richiesta di {{name}} rifiutata",
         "requestDeclineError": "Errore durante il rifiuto",
         "archiveError": "Impossibile nascondere la chat"
       },
@@ -791,7 +791,7 @@
       "acceptError": "Errore durante l'accettazione",
       "rejectError": "Errore durante il rifiuto",
       "removeError": "Errore durante la rimozione",
-      "blocked": "{{name}} bloccato",
+      "blocked": "Hai bloccato {{name}}",
       "unblocked": "Blocco rimosso",
       "blockError": "Azione non riuscita"
     }
@@ -1275,9 +1275,9 @@
     "backToGroup": "Torna al gruppo",
     "accept": "Accetta",
     "decline": "Rifiuta",
-    "acceptedToast": "{{name}} è stato accettato!",
+    "acceptedToast": "Richiesta di {{name}} accettata!",
     "acceptError": "Errore durante l'accettazione",
-    "declinedToast": "{{name}} è stato rifiutato",
+    "declinedToast": "Richiesta di {{name}} rifiutata",
     "declineError": "Errore durante il rifiuto",
     "requestedOnFmt": "Richiesta del {{date}}"
   },
@@ -1426,7 +1426,7 @@
     "imageUploadError": "Impossibile caricare l'immagine",
     "notOwner": "Solo il creatore può modificare queste impostazioni",
     "removeError": "Errore durante la rimozione",
-    "inviteToast": "{{name}} invitato!",
+    "inviteToast": "Invito inviato a {{name}}!",
     "inviteError": "Invito non riuscito",
     "linkCopied": "Link copiato!",
     "sections": {
@@ -1481,7 +1481,7 @@
     "saveError": "Errore durante il salvataggio",
     "removeConfirm": "Rimuovere davvero il membro?",
     "removeError": "Errore durante la rimozione",
-    "inviteToast": "{{name}} è stato invitato!",
+    "inviteToast": "Invito inviato a {{name}}!",
     "inviteFallback": "Invito inviato a {{name}}",
     "fields": {
       "name": "Nome del club",
@@ -1556,7 +1556,7 @@
     "submitting": "Salvataggio…",
     "errorGeneric": "Errore durante il salvataggio. Riprova.",
     "successText": "Sei in lista! Ti contatteremo appena JAMIE arriverà da te.",
-    "voteTitle": "🗳️ Dove dovremmo lanciare l'app come prossimo paese?",
+    "voteTitle": "🗳️ Qual è il prossimo paese in cui lanciare JAMIE?",
     "votesTitle": "Votazione attuale ({{count}} voti)",
     "footerPrefix": "Sei già in uno dei nostri paesi?",
     "footerLink": "Apri l'app",
