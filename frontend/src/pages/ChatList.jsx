@@ -33,6 +33,8 @@ export const ChatList = () => {
   const [modalIndex, setModalIndex]         = useState(0);
   const [modalLoading, setModalLoading]     = useState(false);
   const [modalProcessing, setModalProcessing] = useState(false);
+  const [dragX, setDragX]                   = useState(0); // request-card swipe offset (px)
+  const dragStartX                          = useRef(null);
   const navigate = useNavigate();
   const { socket } = useContext(SocketContext);
   const toast = useToast();
@@ -224,6 +226,8 @@ export const ChatList = () => {
   };
 
   const modalGoNext = () => {
+    dragStartX.current = null;
+    setDragX(0);
     setModalIndex(prev => prev + 1);
   };
   const modalHandleAccept = async () => {
@@ -253,6 +257,27 @@ export const ChatList = () => {
     } finally {
       setModalProcessing(false);
     }
+  };
+
+  // ── Swipe the request card: right = accept, left = decline ─────────────
+  // (Tobi 2026-07-27: on smaller Android screens the tall card pushed the ✓/✗
+  // buttons off-screen — swipe makes it usable again; the buttons stay too.)
+  const SWIPE_THRESHOLD = 90;
+  const onCardDown = (e) => {
+    if (modalProcessing) return;
+    dragStartX.current = e.clientX;
+  };
+  const onCardMove = (e) => {
+    if (dragStartX.current == null) return;
+    setDragX(e.clientX - dragStartX.current);
+  };
+  const onCardEnd = () => {
+    if (dragStartX.current == null) return;
+    const dx = dragX;
+    dragStartX.current = null;
+    setDragX(0);
+    if (dx > SWIPE_THRESHOLD) modalHandleAccept();
+    else if (dx < -SWIPE_THRESHOLD) modalHandleDecline();
   };
 
   // ── Long-press to hide ────────────────────────────────────────────────
@@ -644,7 +669,20 @@ export const ChatList = () => {
                 const nextReq = modalRequests[modalIndex + 1];
                 return (
                   <>
-                    <div className="request-card-wrapper">
+                    <div
+                      className="request-card-wrapper"
+                      onPointerDown={onCardDown}
+                      onPointerMove={onCardMove}
+                      onPointerUp={onCardEnd}
+                      onPointerCancel={() => { dragStartX.current = null; setDragX(0); }}
+                      style={{
+                        touchAction: 'pan-y',
+                        transform: dragX ? `translateX(${dragX}px) rotate(${dragX * 0.03}deg)` : undefined,
+                        transition: dragStartX.current == null ? 'transform 0.25s cubic-bezier(.25,.8,.25,1)' : 'none',
+                      }}
+                    >
+                      <div className={`swipe-indicator swipe-accept${dragX > 40 ? ' visible' : ''}`}><span>✓</span></div>
+                      <div className={`swipe-indicator swipe-decline${dragX < -40 ? ' visible' : ''}`}><span>✕</span></div>
                       <div className="request-card">
                         <div className="request-image-container request-image-tall">
                           {req.user_avatar

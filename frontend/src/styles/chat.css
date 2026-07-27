@@ -648,6 +648,10 @@
 
 .request-image-tall {
   aspect-ratio: 3/4;
+  /* Cap the height so the whole card + ✓/✗ buttons stay on screen on smaller
+     (esp. Android) phones — the uncapped 3/4 image pushed the buttons off the
+     bottom of the 85vh sheet (Tobi 2026-07-27). object-fit: cover crops. */
+  max-height: 38vh;
 }
 
 .request-trusted-badge {
