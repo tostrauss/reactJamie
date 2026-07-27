@@ -464,12 +464,21 @@ export const Home = () => {
         {activeTab !== 'karte' && (
           <div className="home-search-area">
             <div className="search-container">
-              <div className="search-input-wrapper">
+              {/* On the Gruppen tab the whole bar just opens the filter sheet
+                  (Tina 2026-07-27) — group discovery is filter-driven, not text.
+                  readOnly stops the keyboard; a tap anywhere on the bar (input or
+                  padding) opens filters. Clubs keep normal text search. */}
+              <div
+                className="search-input-wrapper"
+                onClick={activeTab === 'gruppen' ? openFilters : undefined}
+              >
                 <input
                   type="search"
                   placeholder={t('home.search.placeholder')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  readOnly={activeTab === 'gruppen'}
+                  onClick={activeTab === 'gruppen' ? openFilters : undefined}
                   className="search-input"
                   autoComplete="off"
                   autoCorrect="off"

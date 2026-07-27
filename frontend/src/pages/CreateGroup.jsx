@@ -64,11 +64,11 @@ export const CreateGroup = () => {
     maxMembers: 5,
     level: 'Alle Levels',
     isPublic: true,
-    // Default target age range — Tina's call (2026-06-09): most JAMIE events
-    // skew 20-35, so pre-filling reduces friction for the typical creator.
-    // Users can clear the fields if they don't want an age restriction.
-    targetAgeMin: '20',
-    targetAgeMax: '35',
+    // Age range left EMPTY so the greyed 18–35 placeholder shows as a hint
+    // (Tina 2026-07-27), consistent with the location example. Untouched =
+    // no age restriction ("leer = alle"). Reverses the earlier 20–35 pre-fill.
+    targetAgeMin: '',
+    targetAgeMax: '',
     image: null,
     imagePreview: null,
   });
