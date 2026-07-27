@@ -357,9 +357,12 @@ export const getGroups = async (req, res) => {
       params.push(`%${location}%`);
     }
     if (upcoming === 'true') {
-      // Weekly recurring events never go "past" — the next occurrence rolls
-      // forward forever, so include them regardless of g.date.
-      query += ` AND (g.date >= CURRENT_TIMESTAMP OR g.is_recurring_weekly = TRUE)`;
+      // Compare by DAY (CURRENT_DATE), not the exact moment. Date-only events
+      // ("time coordinated in chat") store at midnight, so `>= CURRENT_TIMESTAMP`
+      // dropped an event happening later TODAY from the feed at 00:01 — a freed
+      // spot on a today event became un-joinable (Lea's picnic). Mirrors the
+      // club-event feed. Weekly recurring events never go "past".
+      query += ` AND (g.date >= CURRENT_DATE OR g.is_recurring_weekly = TRUE)`;
     }
 
     // Boosted entries float to the top (paid "Top-Platzierung", 24h) — the

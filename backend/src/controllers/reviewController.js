@@ -44,7 +44,11 @@ export const getPendingReviews = async (req, res) => {
        JOIN users u ON u.id = all_gm.user_id
        WHERE g.type = 'group'
          AND g.date IS NOT NULL
-         AND g.date + INTERVAL '6 hours' < NOW()
+         -- "Past" = the event's DAY is over. Date-only events store at midnight,
+         -- so the old "date + 6h < NOW()" surfaced the review at 06:00 ON the
+         -- event day, before it happened (Lea's 14:00 picnic). Day-based
+         -- (CURRENT_DATE) mirrors the club feed and never fires early.
+         AND g.date < CURRENT_DATE
          AND g.date > NOW() - INTERVAL '14 days'
          AND NOT EXISTS (
            SELECT 1 FROM event_reviews er
@@ -237,7 +241,7 @@ export const getReviewForGroup = async (req, res) => {
        WHERE g.id = $2
          AND g.type = 'group'
          AND g.date IS NOT NULL
-         AND g.date + INTERVAL '6 hours' < NOW()
+         AND g.date < CURRENT_DATE   -- day-based, see getPendingReviews (never before the event day)
          AND g.is_recurring_weekly IS NOT TRUE
          AND NOT EXISTS (
            SELECT 1 FROM event_reviews er
