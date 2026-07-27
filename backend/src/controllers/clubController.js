@@ -1,5 +1,5 @@
 import db from '../config/database.js';
-import { geocodeLocation, geocodeAllowedRegion } from '../utils/geocode.js';
+import { geocodeLocation, resolveCreateLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { getCached, setCached, invalidatePrefix } from '../utils/cache.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
@@ -89,11 +89,14 @@ export const createClub = async (req, res) => {
       dateTime = `${date}T${time}`;
     }
 
-    // Geocode location (non-blocking on failure)
-    // Prefer the Austria-restricted match (consistent with the frontend's AT
-    // verification + the AT map); fall back to unrestricted so we never resolve
-    // fewer places than before.
-    const coords = await geocodeAllowedRegion(location) || await geocodeLocation(location);
+    // Region gate: resolve coords only inside the launch markets, and REJECT a
+    // location that resolves OUTSIDE them (see createGroup for the rationale).
+    // Unresolvable location → club still created, just without a map pin.
+    const geo = await resolveCreateLocation(location);
+    if (!geo.ok) {
+      return res.status(400).json({ error: 'Dieser Ort liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien).' });
+    }
+    const coords = geo.coords;
 
     // Approval workflow: clubs created by admins are auto-approved.
     // Everyone else lands in the moderation queue until a human approves.
@@ -377,12 +380,13 @@ export const updateClub = async (req, res) => {
     let latUpdate = null;
     let lngUpdate = null;
     if (location !== undefined) {
-      // Prefer the Austria-restricted match (consistent with the frontend's AT
-    // verification + the AT map); fall back to unrestricted so we never resolve
-    // fewer places than before.
-    const coords = await geocodeAllowedRegion(location) || await geocodeLocation(location);
-      latUpdate = coords?.lat ?? null;
-      lngUpdate = coords?.lng ?? null;
+      // Region gate — see createGroup: reject out-of-region, no pin if unresolvable.
+      const geo = await resolveCreateLocation(location);
+      if (!geo.ok) {
+        return res.status(400).json({ error: 'Dieser Ort liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien).' });
+      }
+      latUpdate = geo.coords?.lat ?? null;
+      lngUpdate = geo.coords?.lng ?? null;
     }
 
     const result = await db.query(

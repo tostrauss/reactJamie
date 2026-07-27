@@ -77,8 +77,11 @@ export async function geocodeAllowedRegion(location) {
 }
 
 async function _fetchNominatim(location, countrycodes = null) {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1`
-    + (countrycodes ? `&countrycodes=${countrycodes}&addressdetails=1` : '');
+  // addressdetails=1 is always requested (not just for the country-restricted
+  // variant) so the resolved `country_code` is available to the region gate in
+  // resolveCreateLocation() even on an unrestricted lookup.
+  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1&addressdetails=1`
+    + (countrycodes ? `&countrycodes=${countrycodes}` : '');
 
   try {
     const controller = new AbortController();
@@ -96,9 +99,58 @@ async function _fetchNominatim(location, countrycodes = null) {
     const data = await res.json();
     if (!data || data.length === 0) return null;
 
-    const { lat, lon, display_name } = data[0];
-    return { lat: parseFloat(lat), lng: parseFloat(lon), label: display_name || location };
+    const { lat, lon, display_name, address } = data[0];
+    return {
+      lat: parseFloat(lat),
+      lng: parseFloat(lon),
+      label: display_name || location,
+      // ISO-3166-1 alpha-2, lower-cased (matches allowedCountrycodes()); null if
+      // Nominatim didn't return address details. Extra field — existing callers
+      // that only read lat/lng/label are unaffected.
+      countryCode: (address?.country_code || '').toLowerCase() || null,
+    };
   } catch {
     return null;
   }
+}
+
+/**
+ * Server-side region gate for the create/update-location flows (groups, clubs,
+ * deals). The frontend already restricts the Google Places picker to the launch
+ * markets and re-checks the picked country, but a crafted API call can bypass
+ * that and POST any location string — this is the fail-closed backstop so we
+ * never persist coordinates outside the allowed markets.
+ *
+ * Returns exactly one of:
+ *   { ok: true,  coords: {lat,lng,label} } — resolved inside an allowed country
+ *   { ok: true,  coords: null }            — empty or unresolvable location; the
+ *                                            entity is still created, just without
+ *                                            a map pin (unchanged legacy behaviour)
+ *   { ok: false, country }                 — resolved to a country OUTSIDE the
+ *                                            allowed markets → caller must reject
+ *
+ * Strategy: try the countrycodes-filtered geocode first (best in-region
+ * ranking); if that misses, fall back to an unrestricted lookup but honour the
+ * region gate by inspecting the resolved country. This never resolves fewer
+ * legitimate in-region places than the old `geocodeAllowedRegion || geocodeLocation`
+ * chain, while refusing places that actually sit outside the region.
+ */
+export async function resolveCreateLocation(location) {
+  if (!location || typeof location !== 'string' || !location.trim()) {
+    return { ok: true, coords: null };
+  }
+
+  // 1) Strict, country-filtered match — a non-empty result is guaranteed in-region.
+  const strict = await geocodeAllowedRegion(location);
+  if (strict) return { ok: true, coords: strict };
+
+  // 2) Unrestricted fallback — but enforce the region on the resolved country.
+  const loose = await geocodeLocation(location);
+  if (!loose) return { ok: true, coords: null }; // unresolvable → create without a pin
+
+  const allowed = allowedCountrycodes().split(',');
+  if (loose.countryCode && allowed.includes(loose.countryCode)) {
+    return { ok: true, coords: loose };
+  }
+  return { ok: false, country: loose.countryCode || null };
 }

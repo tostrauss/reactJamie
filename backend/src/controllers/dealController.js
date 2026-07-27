@@ -1,6 +1,6 @@
 import db from '../config/database.js';
 import { sendPushToUsers } from './pushController.js';
-import { geocodeLocation, geocodeAllowedRegion } from '../utils/geocode.js';
+import { resolveCreateLocation } from '../utils/geocode.js';
 
 // Try to extract the city from a free-form address. Most DACH addresses end in
 // "PLZ City" (e.g. "Hauptstraße 1, 1010 Wien"). We take the last comma-separated
@@ -171,8 +171,12 @@ export const createDeal = async (req, res) => {
   let dealLat = lat ?? null;
   let dealLng = lng ?? null;
   if ((dealLat === null || dealLng === null) && address) {
-    const coords = await geocodeAllowedRegion(address) || await geocodeLocation(address);
-    if (coords) { dealLat = coords.lat; dealLng = coords.lng; }
+    // Region gate — reject an address that resolves outside the launch markets.
+    const geo = await resolveCreateLocation(address);
+    if (!geo.ok) {
+      return res.status(400).json({ error: 'Diese Adresse liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien).' });
+    }
+    if (geo.coords) { dealLat = geo.coords.lat; dealLng = geo.coords.lng; }
   }
   try {
     const result = await db.query(
@@ -256,8 +260,12 @@ export const updateDeal = async (req, res) => {
   // pin follows the new address (mirrors group/club update behaviour). Explicit
   // lat/lng in the request still win.
   if (address !== undefined && address && lat === undefined && lng === undefined) {
-    const coords = await geocodeAllowedRegion(address) || await geocodeLocation(address);
-    if (coords) { fields.lat = coords.lat; fields.lng = coords.lng; }
+    // Region gate — reject an address that resolves outside the launch markets.
+    const geo = await resolveCreateLocation(address);
+    if (!geo.ok) {
+      return res.status(400).json({ error: 'Diese Adresse liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien).' });
+    }
+    if (geo.coords) { fields.lat = geo.coords.lat; fields.lng = geo.coords.lng; }
   }
 
   const keys = Object.keys(fields);

@@ -1,5 +1,5 @@
 import db from '../config/database.js';
-import { geocodeLocation, geocodeAllowedRegion } from '../utils/geocode.js';
+import { resolveCreateLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { sendPushToUser } from './pushController.js';
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
@@ -174,11 +174,15 @@ export const createGroup = async (req, res) => {
       return res.status(400).json({ error: 'Mindestalter darf nicht größer als Maximalalter sein' });
     }
 
-    // Geocode location (non-blocking on failure)
-    // Prefer the Austria-restricted match so coords agree with the frontend's
-    // AT verification (and the group lands on the AT map); fall back to the
-    // unrestricted lookup so we never resolve fewer places than before.
-    const coords = await geocodeAllowedRegion(location) || await geocodeLocation(location);
+    // Region gate: resolve coords only inside the launch markets, and REJECT a
+    // location that resolves OUTSIDE them. The frontend Places picker is already
+    // restricted, but a crafted API call could otherwise create a group with an
+    // out-of-region pin. Unresolvable location → created without a pin (unchanged).
+    const geo = await resolveCreateLocation(location);
+    if (!geo.ok) {
+      return res.status(400).json({ error: 'Dieser Ort liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien).' });
+    }
+    const coords = geo.coords;
 
     // Weekly recurrence only applies to events (type='group'); silently ignored for clubs.
     const recurringWeekly = !!is_recurring_weekly && (type === 'group' || !type);
@@ -555,12 +559,13 @@ export const updateGroup = async (req, res) => {
     let latUpdate = null;
     let lngUpdate = null;
     if (location !== undefined) {
-      // Prefer the Austria-restricted match so coords agree with the frontend's
-    // AT verification (and the group lands on the AT map); fall back to the
-    // unrestricted lookup so we never resolve fewer places than before.
-    const coords = await geocodeAllowedRegion(location) || await geocodeLocation(location);
-      latUpdate = coords?.lat ?? null;
-      lngUpdate = coords?.lng ?? null;
+      // Region gate — see createGroup: reject out-of-region, no pin if unresolvable.
+      const geo = await resolveCreateLocation(location);
+      if (!geo.ok) {
+        return res.status(400).json({ error: 'Dieser Ort liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien).' });
+      }
+      latUpdate = geo.coords?.lat ?? null;
+      lngUpdate = geo.coords?.lng ?? null;
     }
 
     invalidatePrefix('groups:');
