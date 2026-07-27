@@ -41,7 +41,7 @@ const STYLE = `
 const CONFETTI_CHARS = ['🎊','✨','⭐','💛','🌟','🎉','👑'];
 
 // ── Stripe form ──────────────────────────────────────────────────────────
-function StripeSubscribeForm({ onSuccess, onCancel }) {
+function StripeSubscribeForm({ onSuccess, onCancel, mode = 'payment' }) {
   const { t } = useTranslation();
   const stripe   = useStripe();
   const elements = useElements();
@@ -56,6 +56,22 @@ function StripeSubscribeForm({ onSuccess, onCancel }) {
     // redirect:'if_required' lets Stripe handle 3D Secure / SCA challenges
     // via its in-page modal for cards that support iframe 3DS (most EU
     // cards). Only the rare full-page-redirect 3DS will navigate away.
+    //
+    // Free trial (mode==='setup') → there is NO charge now, so we confirm a
+    // SetupIntent to store the card; Stripe auto-charges when the 14-day trial
+    // ends. Paid (mode==='payment') → confirm the PaymentIntent immediately.
+    if (mode === 'setup') {
+      const { error: err, setupIntent } = await stripe.confirmSetup({
+        elements,
+        confirmParams: { return_url: window.location.href },
+        redirect: 'if_required',
+      });
+      if (err) { setError(err.message); setLoading(false); return; }
+      if (setupIntent?.status === 'succeeded') { onSuccess(); return; }
+      setError(t('pro.unexpectedStatus', { defaultValue: 'Es hat nicht geklappt. Bitte erneut versuchen.' }));
+      setLoading(false);
+      return;
+    }
     const { error: err, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: { return_url: window.location.href },
@@ -116,7 +132,7 @@ function StripeSubscribeForm({ onSuccess, onCancel }) {
             ? <span style={{ display:'inline-flex', gap:'6px', alignItems:'center' }}>
                 <Spinner /> {t('pro.verifying')}
               </span>
-            : t('pro.ctaSubscribe')}
+            : (mode === 'setup' ? t('pro.ctaTrialStart') : t('pro.ctaSubscribe'))}
         </button>
       </div>
       <p style={{
@@ -279,6 +295,10 @@ export const ProModal = ({ onClose, onSuccess }) => {
   const [selectedPlan,  setSelectedPlan]  = useState(DEFAULT_PLAN_KEY);
   const [stripePromise, setStripePromise] = useState(null);
   const [clientSecret,  setClientSecret]  = useState(null);
+  // 'setup' = 14-day free trial (SetupIntent, no charge now); 'payment' = charge
+  // immediately (returning subscribers). The server decides based on history.
+  const [paymentMode,   setPaymentMode]   = useState('payment');
+  const [trialDays,     setTrialDays]     = useState(0);
   const [loading,       setLoading]       = useState(false);
   // §18 FAGG: the consumer must actively consent to immediate performance and
   // the resulting loss of the 14-day withdrawal right BEFORE purchase.
@@ -301,7 +321,9 @@ export const ProModal = ({ onClose, onSuccess }) => {
         return;
       }
       const res = await subscriptionApi.create(selectedPlan);
-      const { client_secret, publishable_key } = res.data;
+      const { client_secret, publishable_key, mode, trial_days } = res.data;
+      setPaymentMode(mode || 'payment');
+      setTrialDays(trial_days || 0);
       setStripePromise(loadStripe(publishable_key));
       setClientSecret(client_secret);
       setStep('payment');
@@ -457,6 +479,11 @@ export const ProModal = ({ onClose, onSuccess }) => {
                     </span>
                   </div>
                 )}
+                {purchasesEnabled() && (
+                  <p style={{ margin:'12px 0 0', fontSize:'13.5px', fontWeight:'800', color:'#4ade80' }}>
+                    {t('pro.trialHeadline')}
+                  </p>
+                )}
               </div>
 
               {/* Plan tiles — weekly first, monthly default ("Beliebt"), 6mo "Bestes Angebot".
@@ -559,7 +586,7 @@ export const ProModal = ({ onClose, onSuccess }) => {
                       display:'flex', alignItems:'center', justifyContent:'center', gap:'8px',
                     }}
                   >
-                    {loading ? <><Spinner /> {t('pro.loading')}</> : t('pro.ctaActivate')}
+                    {loading ? <><Spinner /> {t('pro.loading')}</> : t('pro.ctaTrialStart')}
                   </button>
                 </>
               ) : paymentsComingSoon() ? (
@@ -690,6 +717,21 @@ export const ProModal = ({ onClose, onSuccess }) => {
                 );
               })()}
 
+              {/* Trial disclosure at the point of sale — required to be clear
+                  and up front. Only shown when the server granted the trial. */}
+              {paymentMode === 'setup' && (
+                <div style={{
+                  display:'flex', gap:'10px', alignItems:'flex-start',
+                  background:'rgba(34,197,94,0.10)', border:'1px solid rgba(34,197,94,0.28)',
+                  borderRadius:'14px', padding:'12px 14px', marginBottom:'18px',
+                }}>
+                  <span style={{ fontSize:'18px', lineHeight:1.2 }}>🎁</span>
+                  <p style={{ margin:0, fontSize:'12.5px', lineHeight:1.5, color:'rgba(255,255,255,0.75)' }}>
+                    {t('pro.trialDisclosure', { days: trialDays || 14 })}
+                  </p>
+                </div>
+              )}
+
               <Elements
                 stripe={stripePromise}
                 options={{
@@ -713,7 +755,7 @@ export const ProModal = ({ onClose, onSuccess }) => {
                   },
                 }}
               >
-                <StripeSubscribeForm onSuccess={onPaySuccess} onCancel={() => setStep('features')} />
+                <StripeSubscribeForm mode={paymentMode} onSuccess={onPaySuccess} onCancel={() => setStep('features')} />
               </Elements>
             </>
           )}

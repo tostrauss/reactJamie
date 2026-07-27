@@ -3,6 +3,12 @@ import ReactDOM from 'react-dom/client';
 import i18n, { whenActiveLanguageReady } from './i18n'; // init i18next before React mounts
 import App from './App.jsx';
 import { initSentry } from './utils/sentry';
+import { isTWA } from './utils/platform';
+
+// Latch TWA detection on the very first load, while document.referrer still
+// carries the android-app:// launch referrer — a later hard reload can drop it.
+// This keeps Stripe purchase surfaces OFF inside the Play-distributed wrapper.
+isTWA();
 
 function mount() {
   ReactDOM.createRoot(document.getElementById('root')).render(

@@ -40,8 +40,9 @@ export const getStatus = async (req, res) => {
       [req.userId]
     );
     const sub = result.rows[0];
+    // `trialing` counts as Pro — the user has full access during the 14-day trial.
     const isActive =
-      (sub?.status === 'active' || sub?.status === 'canceling') &&
+      (sub?.status === 'active' || sub?.status === 'canceling' || sub?.status === 'trialing') &&
       sub?.current_period_end &&
       new Date(sub.current_period_end) > new Date();
 
@@ -54,6 +55,7 @@ export const getStatus = async (req, res) => {
 
     res.json({
       is_pro: !!isActive,
+      is_trial: sub?.status === 'trialing',
       status: sub?.status || 'none',
       current_period_end: sub?.current_period_end || null,
       withdrawal_eligible: !!isActive && !isAppleManaged && withinWindow,
@@ -119,10 +121,22 @@ export const createSubscription = async (req, res) => {
       } catch (_) { /* ignore — subscription may not exist in Stripe anymore */ }
     }
 
-    // Create Stripe subscription (incomplete until payment confirmed).
+    // 14-day free trial for FIRST-TIME subscribers only (Tina's "Probeabo"):
+    // the card is captured up front via a SetupIntent and auto-charged when the
+    // trial ends. Anyone who has ever had a real subscription pays immediately —
+    // this blocks cancel-and-resubscribe trial farming. A stale 'pending' row
+    // (abandoned checkout) does NOT consume the trial.
+    const priorRealSub = await db.query(
+      `SELECT 1 FROM subscriptions
+       WHERE user_id = $1 AND status IN ('active','trialing','canceling','canceled','past_due')
+       LIMIT 1`,
+      [req.userId]
+    );
+    const trialEligible = priorRealSub.rows.length === 0;
+
     // price_data is built from the server-side catalog entry so the client
     // can never dictate the charged amount or billing cadence.
-    const subscription = await stripe.subscriptions.create({
+    const subParams = {
       customer: customerId,
       items: [{
         price_data: {
@@ -134,9 +148,20 @@ export const createSubscription = async (req, res) => {
       }],
       payment_behavior: 'default_incomplete',
       payment_settings: { save_default_payment_method: 'on_subscription' },
-      expand: ['latest_invoice.payment_intent'],
       metadata: { user_id: String(req.userId), plan: planKey },
-    });
+    };
+    if (trialEligible) {
+      // Trial → no upfront charge, so Stripe issues a SetupIntent (not a
+      // PaymentIntent) to save the card; the sub starts in `trialing`. Cancel
+      // automatically if no card is on file at trial end (never fail-charge).
+      subParams.trial_period_days = 14;
+      subParams.trial_settings = { end_behavior: { missing_payment_method: 'cancel' } };
+      subParams.expand = ['pending_setup_intent'];
+    } else {
+      subParams.expand = ['latest_invoice.payment_intent'];
+    }
+
+    const subscription = await stripe.subscriptions.create(subParams);
 
     // Upsert subscription record
     await db.query(
@@ -147,14 +172,21 @@ export const createSubscription = async (req, res) => {
       [req.userId, customerId, subscription.id]
     );
 
-    const clientSecret = subscription.latest_invoice?.payment_intent?.client_secret ?? null;
+    // Trial → client confirms a SetupIntent (confirmSetup); paid → confirms the
+    // PaymentIntent (confirmPayment). The client switches on `mode`.
+    const mode = trialEligible ? 'setup' : 'payment';
+    const clientSecret = trialEligible
+      ? (subscription.pending_setup_intent?.client_secret ?? null)
+      : (subscription.latest_invoice?.payment_intent?.client_secret ?? null);
     if (!clientSecret) {
-      console.error('createSubscription: missing client_secret on Stripe response', subscription.id);
-      return res.status(500).json({ error: 'Stripe returned an incomplete payment intent' });
+      console.error('createSubscription: missing client_secret', subscription.id, 'mode', mode);
+      return res.status(500).json({ error: 'Stripe returned an incomplete intent' });
     }
 
     res.json({
       client_secret: clientSecret,
+      mode,
+      trial_days: trialEligible ? 14 : 0,
       subscription_id: subscription.id,
       publishable_key: process.env.STRIPE_PUBLISHABLE_KEY,
     });
@@ -354,6 +386,7 @@ export const subscriptionWebhook = async (req, res) => {
       const sub = event.data.object;
       let status = 'inactive';
       if (sub.status === 'active') status = sub.cancel_at_period_end ? 'canceling' : 'active';
+      else if (sub.status === 'trialing') status = sub.cancel_at_period_end ? 'canceling' : 'trialing';
       else if (sub.status === 'canceled') status = 'canceled';
       else if (sub.status === 'past_due') status = 'past_due';
       const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
@@ -410,7 +443,7 @@ export const isUserPro = async (userId) => {
     const result = await db.query(
       `SELECT id FROM subscriptions
        WHERE user_id = $1
-         AND (status = 'active' OR status = 'canceling')
+         AND (status = 'active' OR status = 'canceling' OR status = 'trialing')
          AND current_period_end > NOW()
        LIMIT 1`,
       [userId]
