@@ -344,7 +344,8 @@
         "weekly": "Jeden {{weekday}}",
         "participants": "Teilnehmer: {{current}}/{{max}}",
         "participantsUnlimited": "Teilnehmer: {{current}}/∞",
-        "age": "Alter: {{range}}"
+        "age": "Alter: {{range}}",
+        "location": "Standort: {{location}}"
       },
       "membersTeaser": {
         "count_one": "{{count}} Teilnehmer",
@@ -1329,8 +1330,8 @@
       "ageHint": "Nur Nutzer in dieser Altersspanne sehen die Gruppe (leer = alle)",
       "ageFromLabel": "von",
       "ageToLabel": "bis",
-      "ageFromPlaceholder": "z.B. 22",
-      "ageToPlaceholder": "z.B. 30",
+      "ageFromPlaceholder": "18",
+      "ageToPlaceholder": "35",
       "dateInvalid": "Dieses Datum gibt es nicht",
       "ageRangeInvalid": "Altersspanne ungültig (14–99, von ≤ bis)",
       "maxLabel": "Maximale Teilnehmer",

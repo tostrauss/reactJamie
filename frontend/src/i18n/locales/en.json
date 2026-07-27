@@ -344,7 +344,8 @@
         "weekly": "Every {{weekday}}",
         "participants": "Participants: {{current}}/{{max}}",
         "participantsUnlimited": "Participants: {{current}}/∞",
-        "age": "Age: {{range}}"
+        "age": "Age: {{range}}",
+        "location": "Location: {{location}}"
       },
       "membersTeaser": {
         "count_one": "{{count}} participant",
@@ -1329,8 +1330,8 @@
       "ageHint": "Only users in this age range can see the group (empty = everyone)",
       "ageFromLabel": "from",
       "ageToLabel": "to",
-      "ageFromPlaceholder": "e.g. 22",
-      "ageToPlaceholder": "e.g. 30",
+      "ageFromPlaceholder": "18",
+      "ageToPlaceholder": "35",
       "dateInvalid": "That date doesn't exist",
       "ageRangeInvalid": "Invalid age range (14–99, from ≤ to)",
       "maxLabel": "Max participants",

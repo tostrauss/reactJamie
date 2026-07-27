@@ -666,27 +666,8 @@ export const Home = () => {
 
             {/* Scrollable sections */}
             <div className="filter-sheet-scroll">
-              {/* Kategorien — both groups and clubs */}
-              <div className="filter-section">
-                <h3 className="filter-section-title">{t('home.filter.categories')}</h3>
-                <div className="filter-pills">
-                  {CATEGORY_HIERARCHY.map(cat => {
-                    const selected = stagedKategorie.has(cat.id);
-                    return (
-                      <button
-                        key={cat.id}
-                        className={`filter-pill${selected ? ' active' : ''}`}
-                        onClick={() => toggleStagedKategorie(cat.id)}
-                        type="button"
-                      >
-                        <span style={{ marginRight: 6 }}>{cat.icon}</span>{cat.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Zeitraum — groups only */}
+              {/* Zeitraum — groups only. Shown FIRST (Tina 2026-07-27): time
+                  period before categories. */}
               {activeTab === 'gruppen' && (
                 <div className="filter-section">
                   <h3 className="filter-section-title">{t('home.filter.time.title')}</h3>
@@ -717,6 +698,26 @@ export const Home = () => {
                   )}
                 </div>
               )}
+
+              {/* Kategorien — both groups and clubs */}
+              <div className="filter-section">
+                <h3 className="filter-section-title">{t('home.filter.categories')}</h3>
+                <div className="filter-pills">
+                  {CATEGORY_HIERARCHY.map(cat => {
+                    const selected = stagedKategorie.has(cat.id);
+                    return (
+                      <button
+                        key={cat.id}
+                        className={`filter-pill${selected ? ' active' : ''}`}
+                        onClick={() => toggleStagedKategorie(cat.id)}
+                        type="button"
+                      >
+                        <span style={{ marginRight: 6 }}>{cat.icon}</span>{cat.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               {/* Alter — Regler */}
               <div className="filter-section">
