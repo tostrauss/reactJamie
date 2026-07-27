@@ -817,6 +817,7 @@
       "noSent": "Nessuna richiesta inviata"
     },
     "sentPending": "In sospeso",
+    "removeConfirm": "Rimuovere questa persona dai tuoi amici?",
     "toast": {
       "loadError": "Impossibile caricare gli amici",
       "accepted": "Amicizia accettata!",

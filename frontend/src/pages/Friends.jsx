@@ -105,6 +105,9 @@ export const Friends = () => {
   };
 
   const handleRemove = async (friendId) => {
+    // Confirm before removing — the "X" sat right next to the message button and
+    // people were unfriending by accident (Tina 2026-07-27).
+    if (!window.confirm(t('friends.removeConfirm'))) return;
     setActionLoading(friendId);
     try {
       await friendsApi.remove(friendId);

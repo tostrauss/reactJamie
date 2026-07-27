@@ -817,6 +817,7 @@
       "noSent": "No sent requests"
     },
     "sentPending": "Pending",
+    "removeConfirm": "Remove this person from your friends?",
     "toast": {
       "loadError": "Could not load friends",
       "accepted": "Friendship accepted!",
