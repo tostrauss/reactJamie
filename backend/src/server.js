@@ -759,6 +759,17 @@ const runStartupMigrations = async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_event_reviews_reviewed ON event_reviews(reviewed_user_id)`);
   });
 
+  // "Skip" on the post-event attendance modal records a dismissal here instead
+  // of a permanent event_reviews sentinel, so the auto-popup stops nagging but
+  // the member can still re-open the review manually later.
+  await migrate('event_review_dismissals', () => db.query(`
+    CREATE TABLE IF NOT EXISTS event_review_dismissals (
+      group_id     INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+      user_id      INTEGER NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
+      dismissed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (group_id, user_id)
+    )`));
+
   await migrate('users trusted cols', async () => {
     await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_trusted_user BOOLEAN NOT NULL DEFAULT FALSE`);
     await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS trusted_count   INTEGER NOT NULL DEFAULT 0`);

@@ -2,12 +2,13 @@ import { useState, useEffect, useContext, Suspense } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
-import { groups, clubs } from '../utils/api';
+import { groups, clubs, reviews } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
 import { MapsChooser } from '../components/MapsChooser';
 import { UserName } from '../components/UserName';
+import { EventReviewModal } from '../components/EventReviewModal';
 import { nextOccurrence } from '../utils/recurrence';
 import { shareLink } from '../utils/share';
 import { openCalendar } from '../utils/calendarExport';
@@ -172,6 +173,10 @@ export const GroupDetail = () => {
   const [isFavorited, setIsFavorited] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBoostModal, setShowBoostModal] = useState(false);
+  // Post-event attendance review, re-openable from the event page (the auto-
+  // popup is one-shot; this is the way back in after skipping/closing).
+  const [reviewPayload, setReviewPayload] = useState(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   // Club events state
   const [events, setEvents] = useState([]);
@@ -236,6 +241,22 @@ export const GroupDetail = () => {
     fetchData();
     return () => controller.abort();
   }, [id]);
+
+  // Am I allowed to (re)open the post-event attendance review for this event?
+  // Only for one-off group events I'm a member of that ended 6h+ ago and that I
+  // haven't reviewed yet. The endpoint 404s otherwise → button stays hidden.
+  useEffect(() => {
+    const ended = group?.date && (new Date(group.date).getTime() + 6 * 60 * 60 * 1000 < Date.now());
+    if (!group || group.type !== 'group' || !isJoined || group.is_recurring_weekly || !ended) {
+      setReviewPayload(null);
+      return;
+    }
+    let cancelled = false;
+    reviews.getForGroup(group.id)
+      .then(r => { if (!cancelled) setReviewPayload(r.data); })
+      .catch(() => { if (!cancelled) setReviewPayload(null); });
+    return () => { cancelled = true; };
+  }, [group, isJoined]);
 
   const handleFavoriteToggle = async () => {
     const wasFav = isFavorited;
@@ -957,9 +978,26 @@ export const GroupDetail = () => {
                 {t('groups.detail.calendar')}
               </button>
             )}
+
+            {reviewPayload && reviewPayload.members?.length > 0 && (
+              <button className="gd-action-pill" onClick={() => setReviewOpen(true)}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                  <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+                {t('groups.detail.reviewAttendance')}
+              </button>
+            )}
           </div>
         </div>
       </div>
+
+      {reviewOpen && reviewPayload && (
+        <EventReviewModal
+          pendingReviews={[reviewPayload]}
+          onDone={() => { setReviewOpen(false); setReviewPayload(null); }}
+        />
+      )}
 
       {showReportModal && (
         <ReportModal

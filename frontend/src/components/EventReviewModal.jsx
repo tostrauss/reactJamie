@@ -46,7 +46,9 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
   };
 
   const handleSkip = () => {
-    reviews.submit(current.group_id, []).catch(() => {});
+    // Snooze, don't submit: records a dismissal so the auto-popup stops nagging
+    // but the review stays re-openable from the event page later.
+    reviews.dismiss(current.group_id).catch(() => {});
     advance();
   };
 
