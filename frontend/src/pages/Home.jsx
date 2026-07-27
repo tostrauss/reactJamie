@@ -464,21 +464,43 @@ export const Home = () => {
         {activeTab !== 'karte' && (
           <div className="home-search-area">
             <div className="search-container">
-              {/* On the Gruppen tab the whole bar just opens the filter sheet
-                  (Tina 2026-07-27) — group discovery is filter-driven, not text.
-                  readOnly stops the keyboard; a tap anywhere on the bar (input or
-                  padding) opens filters. Clubs keep normal text search. */}
-              <div
-                className="search-input-wrapper"
-                onClick={activeTab === 'gruppen' ? openFilters : undefined}
-              >
+              {activeTab === 'gruppen' ? (
+                /* Gruppen tab: the whole bar is just a button that opens the
+                   filter sheet (Tina 2026-07-27) — group discovery is filter-
+                   driven, not free-text. Deliberately NOT an <input>: tapping a
+                   read-only input still focuses it on iOS, which shoves the
+                   sticky header via the visual viewport and doesn't restore on
+                   close (the "page dragged down" bug). A plain div can't focus. */
+                <div
+                  className="search-input-wrapper"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={t('home.search.filterAria')}
+                  onClick={openFilters}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFilters(); } }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="search-input">{t('home.search.placeholder')}</div>
+                  <span className={`search-filter-btn${activeFilterCount > 0 ? ' has-active' : ''}`} aria-hidden="true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <line x1="4" y1="6" x2="20" y2="6"/>
+                      <line x1="8" y1="12" x2="16" y2="12"/>
+                      <line x1="12" y1="18" x2="12" y2="18" strokeWidth="3"/>
+                      <circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/>
+                      <circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/>
+                    </svg>
+                    {activeFilterCount > 0 && (
+                      <span className="filter-active-badge">{activeFilterCount}</span>
+                    )}
+                  </span>
+                </div>
+              ) : (
+              <div className="search-input-wrapper">
                 <input
                   type="search"
                   placeholder={t('home.search.placeholder')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  readOnly={activeTab === 'gruppen'}
-                  onClick={activeTab === 'gruppen' ? openFilters : undefined}
                   className="search-input"
                   autoComplete="off"
                   autoCorrect="off"
@@ -502,6 +524,7 @@ export const Home = () => {
                   )}
                 </button>
               </div>
+              )}
             </div>
 
           </div>
