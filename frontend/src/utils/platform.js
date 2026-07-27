@@ -58,12 +58,14 @@ export const isAppShell = () => isNative() || isTWA();
 export const NATIVE_API_ORIGIN = 'https://api.jamie-app.com';
 
 // ── Zahlungen (Stripe + IAP) ────────────────────────────────────────────
-// Master-Schalter für ECHTE Stripe-Zahlungen. Seit 2026-07-27 LIVE — aber
-// NUR im echten Web-Browser (siehe purchasesEnabled). In den installierten
-// Apps (iOS-Capacitor + Android-TWA) bleiben Käufe aus: dort schreibt der
-// Store seine eigene Bezahl-Abwicklung vor (Play Billing / StoreKit), die noch
-// nicht gebaut ist. Stripe im Play-/App-Store-Wrapper = Richtlinienverstoß.
-export const PAYMENTS_ENABLED = true;
+// Master-Schalter für ECHTE Stripe-Zahlungen. Der komplette Web-Flow (Pro +
+// Boosts + 14-Tage-Testabo) ist GEBAUT und einsatzbereit — aber AUS, bis Stripe
+// live konfiguriert ist (Live-Keys + beide Webhooks + Customer Portal, siehe
+// store/RELEASE-2026-07-27.md §4). Sonst läuft der „14 Tage kostenlos starten"-
+// Button in „Stripe not configured". Auf true stellen, sobald Stripe steht.
+// Dann gilt automatisch: Käufe NUR im echten Web-Browser (purchasesEnabled),
+// in Play-TWA + iOS-App ausgeblendet (Store-Billing-Pflicht).
+export const PAYMENTS_ENABLED = false;
 
 // ── iOS In-App-Käufe ────────────────────────────────────────────────────
 // StoreKit IAP ist noch nicht fertig (Plugin + Apple-Quittungsprüfung offen —
