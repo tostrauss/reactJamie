@@ -1330,7 +1330,7 @@
       "ageHint": "Only users in this age range can see the group (empty = everyone)",
       "ageFromLabel": "from",
       "ageToLabel": "to",
-      "ageFromPlaceholder": "18",
+      "ageFromPlaceholder": "e.g. 18",
       "ageToPlaceholder": "35",
       "dateInvalid": "That date doesn't exist",
       "ageRangeInvalid": "Invalid age range (14–99, from ≤ to)",

@@ -1330,7 +1330,7 @@
       "ageHint": "Solo gli utenti in questa fascia d'età vedono il gruppo (vuoto = tutti)",
       "ageFromLabel": "da",
       "ageToLabel": "a",
-      "ageFromPlaceholder": "18",
+      "ageFromPlaceholder": "es. 18",
       "ageToPlaceholder": "35",
       "dateInvalid": "Questa data non esiste",
       "ageRangeInvalid": "Fascia d'età non valida (14–99, da ≤ a)",

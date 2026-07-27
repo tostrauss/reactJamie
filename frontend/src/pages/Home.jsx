@@ -480,7 +480,7 @@ export const Home = () => {
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFilters(); } }}
                   style={{ cursor: 'pointer' }}
                 >
-                  <div className="search-input">{t('home.search.placeholder')}</div>
+                  <div className="search-input">{t('home.filter.title')}</div>
                   <span className={`search-filter-btn${activeFilterCount > 0 ? ' has-active' : ''}`} aria-hidden="true">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                       <line x1="4" y1="6" x2="20" y2="6"/>
