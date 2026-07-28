@@ -658,6 +658,19 @@ export const admin = {
   // Permanent daily growth rollup (DAU/MAU, retention cohorts, engagement).
   getGrowth: (days = 90) =>
     axiosInstance.get('/admin/growth', { params: { days } }),
+  // In-app feedback list. Returns { feedback, total, limit, offset }.
+  getFeedback: ({ limit = 50, offset = 0 } = {}) =>
+    axiosInstance.get('/admin/feedback', { params: { limit, offset } }),
+};
+
+// ==========================================
+// FEEDBACK API (in-app "Feedback & Wünsche")
+// ==========================================
+
+export const feedback = {
+  // category: 'bug' | 'idea' | 'other'; platform: 'web' | 'ios' | 'android'
+  submit: (category, message, platform) =>
+    axiosInstance.post('/feedback', { category, message, platform }),
 };
 
 // ==========================================

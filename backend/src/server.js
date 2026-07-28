@@ -139,6 +139,7 @@ import contactRoutes from './routes/contactRoutes.js';
 import dealRoutes from './routes/dealRoutes.js';
 import suggestionRoutes from './routes/suggestionRoutes.js';
 import featureInterestRoutes from './routes/featureInterestRoutes.js';
+import feedbackRoutes from './routes/feedbackRoutes.js';
 import socketHandler from './socket.js';
 
 // ==========================================
@@ -394,6 +395,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/deals', dealRoutes);
 app.use('/api/suggestions', suggestionRoutes);
 app.use('/api/feature-interest', featureInterestRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 // Health check — verifies DB + optional services for Railway health probes.
 // In production we return ONLY {status} so an attacker can't fingerprint
@@ -1351,6 +1353,23 @@ const runStartupMigrations = async () => {
       message    TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`));
+
+  // ── In-app feedback (FeedbackModal → admin dashboard) ────────────────────
+  // Source of truth for feedback submissions; each row is also forwarded via
+  // email (best-effort) to FEEDBACK_EMAIL / CONTACT_EMAIL. user_id is SET NULL
+  // on account deletion so the feedback text survives anonymized (parity with
+  // how contact_messages keeps no account link at all).
+  await migrate('app_feedback', () => db.query(`
+    CREATE TABLE IF NOT EXISTS app_feedback (
+      id         SERIAL PRIMARY KEY,
+      user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      category   VARCHAR(20) NOT NULL,
+      platform   VARCHAR(20) NOT NULL DEFAULT 'web',
+      message    TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`));
+  await migrate('idx_app_feedback_created', () =>
+    db.query(`CREATE INDEX IF NOT EXISTS idx_app_feedback_created ON app_feedback(created_at DESC)`));
 
   console.log('✅ Startup migrations done');
 };

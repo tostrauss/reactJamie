@@ -4,7 +4,18 @@
     "body": "Il tuo feedback ci aiuta a migliorare JAMIE. Valutaci nello store o mandaci i tuoi suggerimenti.",
     "rate": "Valuta l'app ⭐",
     "suggest": "Feedback e suggerimenti",
-    "later": "Più tardi"
+    "later": "Più tardi",
+    "form": {
+      "title": "Il tuo feedback",
+      "cat": { "bug": "Errore", "idea": "Idea", "other": "Altro" },
+      "placeholder": "Cosa possiamo migliorare? Cosa ti manca?",
+      "send": "Invia",
+      "sending": "Invio in corso…",
+      "back": "Indietro",
+      "error": "Invio non riuscito. Riprova.",
+      "thanksTitle": "Grazie per il tuo feedback!",
+      "thanksBody": "Leggiamo ogni messaggio e ti faremo sapere quando ci sono novità."
+    }
   },
   "payments": {
     "comingSoon": {
@@ -978,6 +989,8 @@
       "widerruf": "Informativa sul recesso",
       "exportData": "Scarica i miei dati",
       "exportDataHint": "GDPR art. 15 – diritto di accesso",
+      "feedback": "Invia feedback",
+      "feedbackHint": "Segnala un errore o manda le tue idee direttamente al team",
       "help": "Aiuto e supporto",
       "helpHint": "FAQ, contatti e segnalazione problemi",
       "legalContact": "Questioni legali"
@@ -1695,7 +1708,14 @@
       "allUsersFmt": "Tutti gli utenti ({{count}})",
       "csvExport": "Esportazione CSV",
       "onlineNowFmt": "Online adesso ({{count}})",
-      "growth": "Crescita e coorti"
+      "growth": "Crescita e coorti",
+      "feedbackFmt": "Feedback dall'app ({{count}})"
+    },
+    "feedback": {
+      "empty": "Ancora nessun feedback.",
+      "anonymous": "Anonimo",
+      "loadMoreFmt": "Carica altri ({{count}} rimanenti)",
+      "cat": { "bug": "Errore", "idea": "Idea", "other": "Altro" }
     },
     "online": {
       "empty": "Al momento non c'è nessuno online.",

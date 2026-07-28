@@ -4,7 +4,18 @@
     "body": "Dein Feedback hilft uns, JAMIE besser zu machen. Bewerte uns im Store oder schick uns deine Wünsche.",
     "rate": "App bewerten ⭐",
     "suggest": "Feedback & Wünsche",
-    "later": "Später"
+    "later": "Später",
+    "form": {
+      "title": "Dein Feedback",
+      "cat": { "bug": "Fehler", "idea": "Idee", "other": "Sonstiges" },
+      "placeholder": "Was können wir besser machen? Was fehlt dir?",
+      "send": "Senden",
+      "sending": "Wird gesendet…",
+      "back": "Zurück",
+      "error": "Senden fehlgeschlagen. Bitte versuche es erneut.",
+      "thanksTitle": "Danke für dein Feedback!",
+      "thanksBody": "Wir lesen jede Nachricht und melden uns, wenn es Neuigkeiten gibt."
+    }
   },
   "payments": {
     "comingSoon": {
@@ -978,6 +989,8 @@
       "widerruf": "Widerrufsbelehrung",
       "exportData": "Meine Daten herunterladen",
       "exportDataHint": "DSGVO Art. 15 – Auskunftsrecht",
+      "feedback": "Feedback senden",
+      "feedbackHint": "Fehler melden oder Wünsche direkt ans Team schicken",
       "help": "Hilfe & Support",
       "helpHint": "FAQs, Kontakt & Probleme melden",
       "legalContact": "Rechtliche Fragen"
@@ -1695,7 +1708,14 @@
       "allUsersFmt": "Alle Nutzer ({{count}})",
       "csvExport": "CSV Export",
       "onlineNowFmt": "Gerade online ({{count}})",
-      "growth": "Wachstum & Kohorten"
+      "growth": "Wachstum & Kohorten",
+      "feedbackFmt": "App-Feedback ({{count}})"
+    },
+    "feedback": {
+      "empty": "Noch kein Feedback eingegangen.",
+      "anonymous": "Anonym",
+      "loadMoreFmt": "Mehr laden ({{count}} weitere)",
+      "cat": { "bug": "Fehler", "idea": "Idee", "other": "Sonstiges" }
     },
     "online": {
       "empty": "Gerade ist niemand online.",

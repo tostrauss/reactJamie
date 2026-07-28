@@ -118,6 +118,20 @@ export const reportLimiter = rateLimit({
   message: { error: 'Zu viele Meldungen. Bitte versuche es in einer Stunde erneut.' }
 });
 
+// In-app feedback: 5/hour per authenticated user. Feedback rows land straight
+// in the admin dashboard, so without a cap one user could flood it.
+export const feedbackLimiter = rateLimit({
+  ...SHARED,
+  windowMs: 60 * 60 * 1000,
+  max: disabled ? 10000 : 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `feedback:${req.userId}`,
+  validate: { keyGeneratorIpFallback: false },
+  store: makeStore('rl:feedback:'),
+  message: { error: 'Zu viel Feedback auf einmal. Bitte versuche es später erneut.' }
+});
+
 // Friend request: 20/hour per authenticated user. Without this, one user can
 // fire thousands of requests at a single victim (each triggering a push
 // notification). The general /api limit is per-IP across all routes, so it's

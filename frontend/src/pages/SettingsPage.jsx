@@ -15,6 +15,7 @@ import {
 import { isNativeIOS, IOS_IAP_ENABLED } from '../utils/platform';
 import { restorePurchases } from '../utils/iap';
 import { PasswordInput } from '../components/PasswordInput';
+import { FeedbackModal } from '../components/FeedbackModal';
 import '../styles/profile.css';
 
 export const SettingsPage = () => {
@@ -33,6 +34,11 @@ export const SettingsPage = () => {
     // useCallback in AuthContext, no need to re-fire on every re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // On-demand feedback modal ("Feedback senden" row). Same component the
+  // periodic App.jsx prompt uses; closing here does NOT bump the periodic
+  // timer — opening it deliberately shouldn't postpone the scheduled ask.
+  const [showFeedback, setShowFeedback] = useState(false);
 
   // Password change
   const [showPasswordForm, setShowPasswordForm] = useState(false);
@@ -966,6 +972,22 @@ export const SettingsPage = () => {
             : chevron}
         </div>
 
+        {/* In-app feedback — same modal as the periodic prompt, on demand.
+            Without this row the feedback form is only reachable when the
+            ~3-month timer happens to fire. */}
+        <div className="settings-row" onClick={() => setShowFeedback(true)} style={{ cursor: 'pointer' }}>
+          <div className="settings-row-left">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            <div className="settings-row-stacked">
+              <span>{t('settings.legal.feedback')}</span>
+              <span className="settings-row-detail">{t('settings.legal.feedbackHint')}</span>
+            </div>
+          </div>
+          {chevron}
+        </div>
+
         <Link to="/help" className="settings-row" style={{ textDecoration: 'none', color: 'inherit' }}>
           <div className="settings-row-left">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1024,6 +1046,8 @@ export const SettingsPage = () => {
       )}
 
       </div>{/* settings-body */}
+
+      {showFeedback && <FeedbackModal onClose={() => setShowFeedback(false)} />}
     </div>
   );
 };

@@ -4,7 +4,18 @@
     "body": "Your feedback helps us make JAMIE better. Rate us in the store or send us your suggestions.",
     "rate": "Rate the app ⭐",
     "suggest": "Feedback & suggestions",
-    "later": "Later"
+    "later": "Later",
+    "form": {
+      "title": "Your feedback",
+      "cat": { "bug": "Bug", "idea": "Idea", "other": "Other" },
+      "placeholder": "What could we do better? What's missing?",
+      "send": "Send",
+      "sending": "Sending…",
+      "back": "Back",
+      "error": "Sending failed. Please try again.",
+      "thanksTitle": "Thanks for your feedback!",
+      "thanksBody": "We read every message and will follow up when there's news."
+    }
   },
   "payments": {
     "comingSoon": {
@@ -978,6 +989,8 @@
       "widerruf": "Right of withdrawal",
       "exportData": "Download my data",
       "exportDataHint": "GDPR Art. 15 — Right of access",
+      "feedback": "Send feedback",
+      "feedbackHint": "Report a bug or send ideas straight to the team",
       "help": "Help & support",
       "helpHint": "FAQs, contact & report a problem",
       "legalContact": "Legal inquiries"
@@ -1695,7 +1708,14 @@
       "allUsersFmt": "All users ({{count}})",
       "csvExport": "CSV export",
       "onlineNowFmt": "Online now ({{count}})",
-      "growth": "Growth & cohorts"
+      "growth": "Growth & cohorts",
+      "feedbackFmt": "App feedback ({{count}})"
+    },
+    "feedback": {
+      "empty": "No feedback yet.",
+      "anonymous": "Anonymous",
+      "loadMoreFmt": "Load more ({{count}} remaining)",
+      "cat": { "bug": "Bug", "idea": "Idea", "other": "Other" }
     },
     "online": {
       "empty": "Nobody is online right now.",

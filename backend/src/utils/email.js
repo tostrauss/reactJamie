@@ -189,6 +189,29 @@ export const sendContactEmail = async ({ firstName, lastName, email, message }) 
   });
 };
 
+// In-app feedback → forwarded to the feedback inbox. Like the contact form,
+// the DB row (app_feedback) is the source of truth; this is a best-effort
+// convenience copy so feedback still lands in the inbox the old mailto used.
+export const sendFeedbackEmail = async ({ userName, userEmail, category, platform, message }) => {
+  const to = process.env.FEEDBACK_EMAIL || process.env.CONTACT_EMAIL || 'office@jamie-app.com';
+  const safeName = String(userName || 'Unbekannt').replace(/[\r\n]/g, ' ').slice(0, 120);
+  return sendEmail({
+    to,
+    subject: `App-Feedback (${category}): ${safeName}`,
+    html: `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:500px;margin:0 auto;padding:40px 20px;background:#f9f9f9;">
+        <div style="background:#fff;border-radius:16px;padding:40px 32px;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+          <h1 style="color:#FD7666;font-size:28px;margin:0 0 4px;">JAMIE</h1>
+          <h2 style="color:#222;font-size:20px;margin:0 0 20px;">Neues Feedback aus der App</h2>
+          <p style="color:#555;line-height:1.6;margin:0 0 8px;"><strong>Von:</strong> ${escapeHtml(safeName)}${userEmail ? ` (<a href="mailto:${escapeHtml(userEmail)}" style="color:#FD7666;">${escapeHtml(userEmail)}</a>)` : ''}</p>
+          <p style="color:#555;line-height:1.6;margin:0 0 20px;"><strong>Kategorie:</strong> ${escapeHtml(category)} · <strong>Plattform:</strong> ${escapeHtml(platform || 'unbekannt')}</p>
+          <div style="background:#f4f4f4;border-radius:12px;padding:20px;color:#333;line-height:1.6;white-space:pre-wrap;">${escapeHtml(message)}</div>
+        </div>
+      </div>
+    `
+  });
+};
+
 export const sendOTPEmail = async (email, code, userName) => {
   return sendEmail({
     to: email,

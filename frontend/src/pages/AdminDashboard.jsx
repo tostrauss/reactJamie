@@ -5,6 +5,7 @@ import { admin } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { AdminDealsSection } from '../components/AdminDealsSection';
 import { AdminGrowthSection } from '../components/AdminGrowthSection';
+import { AdminFeedbackSection } from '../components/AdminFeedbackSection';
 import { AdminUserModal } from '../components/AdminUserModal';
 import { UserName } from '../components/UserName';
 import { downloadCSV } from '../utils/csv';
@@ -249,6 +250,10 @@ export const AdminDashboard = () => {
 
         {/* Sponsored cooperations (Kooperationen) */}
         <AdminDealsSection />
+
+        {/* In-app feedback (FeedbackModal submissions). Placed above the club
+            queue: fresh bug reports should be seen before slower CRUD work. */}
+        <AdminFeedbackSection />
 
         {/* Approval queue for user-created clubs (#14) */}
         <div id="clubs-pending" style={{ marginBottom: 32 }}>
