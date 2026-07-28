@@ -1,0 +1,190 @@
+╔══════════════════════════════════════════════════════════════════╗
+║         JAMIE — Checkliste Datenschutz & Sicherheit             ║
+║                      Stand: Mai 2026                            ║
+╚══════════════════════════════════════════════════════════════════╝
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ A. DOKUMENTE — WAS WIR BRAUCHEN & WO ES SITZT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ ✅  Datenschutzerklärung
+     → In der App: Einstellungen → Rechtliches → Datenschutzerklärung
+     → App Store Connect: als öffentliche URL hinterlegen (Pflicht)
+     → Play Console: als öffentliche URL hinterlegen (Pflicht)
+     → Bei Registrierung: Checkbox-Zustimmung (Pflicht)
+     → Inhalt: Datenerhebung, KI-Nutzung, Drittanbieter, Rechte
+
+ ✅  Nutzungsbedingungen
+     → In der App: Einstellungen → Rechtliches → Nutzungsbedingungen
+     → App Store Connect: als öffentliche URL hinterlegen (empfohlen)
+     → Bei Registrierung: Checkbox-Zustimmung (Pflicht)
+     → Inhalt: Verhaltensregeln, Zahlungen, Haftung, Recht
+
+ ✅  Impressum
+     → In der App: Einstellungen → Rechtliches → Impressum
+     → Pflicht nach § 5 ECG (Österreich) / § 5 TMG (Deutschland)
+     → Inhalt: Betreibername, Adresse, Kontakt, Unternehmensgegenstand
+     ⚠️  OFFEN: Echten Firmennamen + Adresse eintragen!
+
+ ✅  Consent-Checkbox bei Registrierung
+     → Schritt 6 der Registrierung: Checkbox vor dem Button „Konto erstellen"
+     → Text: „Ich habe die Datenschutzerklärung und die Nutzungsbedingungen
+              gelesen und stimme ihnen zu."
+     → Konto erstellen ist ohne Häkchen gesperrt
+
+ ✅  Support-URL
+     → App Store Connect + Play Console: URL oder E-Mail eintragen
+     → Empfehlung: legal@getjamie.app oder eigene Support-Seite
+     ⚠️  OFFEN: E-Mail-Adressen (legal@ und privacy@getjamie.app)
+              müssen eingerichtet und weitergeleitet werden!
+
+ ✅  App Privacy / Data Safety (kein Dokument, aber Formular)
+     → Apple App Store Connect: „App Privacy" Fragebogen ausfüllen
+       (welche Daten gesammelt, mit Identität verknüpft, Tracking ja/nein)
+     → Google Play Console: „Data Safety" Abschnitt ausfüllen
+     ⚠️  OFFEN: Muss manuell in den jeweiligen Konsolen ausgefüllt werden
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ B. DSGVO-COMPLIANCE — NUTZERRECHTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ ✅  Recht auf Auskunft (Art. 15 DSGVO)
+     → „Meine Daten herunterladen" in Einstellungen → Rechtliches
+     → Lädt JSON-Datei herunter: Profil, Gruppen, Nachrichten, Freunde
+
+ ✅  Recht auf Löschung / „Vergessen werden" (Art. 17 DSGVO)
+     → „Account löschen" in den Einstellungen
+     → Löscht automatisch alle Daten per Datenbank-Kaskade (CASCADE)
+     → Kein manueller Aufwand nötig
+
+ ✅  Recht auf Datenübertragbarkeit (Art. 20 DSGVO)
+     → Abgedeckt durch den JSON-Download (maschinenlesbar)
+
+ ✅  Widerspruch gegen automatisierte Entscheidungen (Art. 22 DSGVO)
+     → In der Datenschutzerklärung (Abschnitt 5) erklärt
+     → Nutzer können bei Fehlblockierung durch KI Widerspruch einlegen
+       per E-Mail an privacy@getjamie.app
+
+ ✅  Einwilligung (Art. 7 DSGVO)
+     → Consent-Checkbox bei Registrierung (Datenschutz + Nutzungsbedingungen)
+     → Cookie-/Analytics-Consent-Banner beim ersten App-Start
+
+ ✅  Altersprüfung (Art. 8 DSGVO)
+     → Geburtsdatum bei Registrierung Pflichtfeld
+     → Unter 18 Jahre: Registrierung wird serverseitig abgelehnt
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ C. DSGVO-COMPLIANCE — TECHNISCHE MAßNAHMEN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ ✅  Datensparsamkeit
+     → API-Antworten enthalten niemals Passwörter, Tokens oder
+       interne Felder (serverseitige Filterung, sog. SAFE_USER_COLS)
+
+ ✅  Verschlüsselung der Übertragung
+     → Ausschließlich HTTPS/TLS
+
+ ✅  Verschlüsselte Passwort-Speicherung
+     → bcrypt mit Cost-Factor 10 — Passwörter nie im Klartext
+
+ ✅  Sichere Authentifizierung
+     → JWT in httpOnly-Cookie (nicht per JavaScript auslesbar → XSS-sicher)
+     → Token läuft nach 7 Tagen ab, wird automatisch erneuert
+
+ ✅  Drittanbieter in Datenschutzerklärung aufgeführt
+     → Sightengine (Bildmoderation, Frankreich)
+     → OpenAI (Textmoderation, USA) — mit Hinweis: keine Speicherung/Training
+     → Stripe, PayPal, Railway (Hosting)
+     → Standardvertragsklauseln für USA-Übertragung erwähnt (Art. 46 DSGVO)
+
+ ✅  Geofencing
+     → Registrierung nur aus AT, DE, CH möglich
+     → Schützt vor unkontrollierter Ausweitung in Länder ohne DSGVO-Abkommen
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ D. SICHERHEIT — TECHNISCHE MAßNAHMEN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ ✅  Rate Limiting (Schutz vor Brute-Force & Spam)
+     → Login: max. 20 Versuche / 15 Minuten
+     → Registrierung: max. 20 Versuche / Stunde
+     → Nachrichten senden: max. 60 / Minute pro User
+     → Passwort ändern / Account löschen: max. 5 / Stunde
+
+ ✅  Eingabevalidierung
+     → Alle Nutzereingaben werden serverseitig geprüft
+     → SQL Injection nicht möglich (ausschließlich parametrisierte Queries)
+     → Body-Größe auf 50 KB begrenzt (verhindert Payload-Angriffe)
+
+ ✅  Security-Header (Helmet)
+     → Content Security Policy (CSP) aktiv
+     → XSS-Schutz, Clickjacking-Schutz, MIME-Sniffing-Schutz
+
+ ✅  CORS
+     → Nur autorisierte Domains dürfen API-Anfragen stellen
+
+ ✅  KI-gestützte Inhaltsmoderation
+     → Bilder: Sightengine prüft auf Nacktheit & Gewalt vor dem Speichern
+     → Text: OpenAI Moderation API prüft Nachrichten auf Hassrede,
+             Belästigung, sexuelle Inhalte, Gewalt (auch auf Deutsch)
+
+ ✅  Meldesystem
+     → Nutzer können andere Nutzer und Gruppen melden
+     → Meldungen landen im Admin-Dashboard
+
+ ✅  Admin-Dashboard
+     → Passwortgeschützt (separater Admin-Secret-Schlüssel)
+     → Überblick über Nutzer, Meldungen, Aktivität
+
+ ✅  Fehler-Monitoring
+     → Sentry: Alle Server-Fehler werden automatisch erfasst
+       (kein Nutzer-Inhalt wird an Sentry übermittelt)
+
+ ✅  Zahlungssicherheit
+     → Keine Kreditkartendaten auf unseren Servern (PCI-DSS compliant)
+     → Stripe und PayPal übernehmen die komplette Zahlungsabwicklung
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ E. EU AI ACT (Verordnung (EU) 2024/1689)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ Risikoklasse: MINIMALES RISIKO
+ → Content-Moderation fällt nicht in eine Hochrisiko-Kategorie
+ → Keine Konformitätsbewertung nötig
+ → Keine EU-Datenbank-Registrierung nötig
+
+ ✅  KI-Systeme in der Datenschutzerklärung transparent gemacht
+     (Abschnitt 5: „Einsatz von KI und automatisierte Entscheidungen")
+
+ ✅  Beide KI-Anbieter als Drittanbieter aufgeführt (Abschnitt 4)
+
+ ✅  Widerspruchsrecht bei Fehlblockierungen erwähnt (Art. 22 DSGVO)
+
+ ✅  Keine verbotenen KI-Praktiken:
+     → Kein Social Scoring
+     → Keine manipulative KI
+     → Keine Echtzeit-Biometrie im öffentlichen Raum
+     → Keine Emotionserkennung
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ F. NOCH OFFENE PUNKTE (vor Release erledigen)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ ⚠️  Impressum: Echten Firmen-/Personennamen und Adresse eintragen
+ ⚠️  E-Mail-Adressen einrichten: legal@getjamie.app + privacy@getjamie.app
+ ⚠️  Apple App Store Connect: „App Privacy" Fragebogen ausfüllen
+ ⚠️  Google Play Console: „Data Safety" Abschnitt ausfüllen
+ ⚠️  Support-URL in beiden Stores hinterlegen
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ HINWEIS: Kein Ersatz für rechtliche Beratung. Für finale Freigabe
+ der Datenschutzerklärung und Nutzungsbedingungen empfehlen wir
+ eine kurze Prüfung durch einen auf IT-Recht spezialisierten Anwalt.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

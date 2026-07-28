@@ -334,7 +334,7 @@ export const CreateGroup = () => {
         <div className="create-content">
           <div className="form-section">
             <label className="form-label">
-              <span className="form-label-icon">✏️</span> {t('createGroup.step1.titleLabel')}
+              <span className="form-label-icon"></span> {t('createGroup.step1.titleLabel')}
               <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontWeight: 400, fontSize: 12 }}>
                 {formData.name.length}/15
               </span>

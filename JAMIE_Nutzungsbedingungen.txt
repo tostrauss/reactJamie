@@ -1,0 +1,130 @@
+NUTZUNGSBEDINGUNGEN — JAMIE App
+Zuletzt aktualisiert: Mai 2026
+==========================================================
+
+
+1. GELTUNGSBEREICH
+-------------------
+Diese Nutzungsbedingungen regeln die Nutzung der JAMIE-App und der zugehörigen Dienste
+(gemeinsam „Dienst") durch dich. Durch die Registrierung oder Nutzung des Dienstes stimmst
+du diesen Bedingungen zu. Wenn du nicht einverstanden bist, nutze den Dienst bitte nicht.
+
+
+2. BETREIBER
+-------------
+Der Dienst wird betrieben von:
+JAMIE
+Kontakt: legal@getjamie.app
+
+
+3. NUTZUNGSVORAUSSETZUNGEN
+---------------------------
+- Du musst mindestens 18 Jahre alt sein, um JAMIE zu nutzen.
+- Du musst bei der Registrierung wahrheitsgemäße Angaben machen.
+- Ein Account ist persönlich und nicht übertragbar.
+- Du bist für die Sicherheit deines Passworts selbst verantwortlich.
+- Der Dienst ist derzeit nur in Österreich, Deutschland und der Schweiz verfügbar.
+
+
+4. ERLAUBTE UND VERBOTENE NUTZUNG
+-----------------------------------
+Du darfst JAMIE nutzen, um:
+- Gruppen und Clubs für soziale Aktivitäten zu erstellen und beizutreten.
+- Mit anderen Nutzern zu chatten und Freundschaften zu pflegen.
+- Veranstaltungen und Treffen zu organisieren.
+
+Ausdrücklich verboten ist:
+- Belästigung, Mobbing, Bedrohung oder Diskriminierung anderer Nutzer.
+- Verbreitung von rechtswidrigen, anstößigen oder pornografischen Inhalten.
+- Spam, Werbung oder unerbetene Nachrichten.
+- Verwendung von Bots, Scraping-Tools oder automatisierten Skripten.
+- Erstellung von Fake-Profilen oder Identitätsbetrug.
+- Nutzung des Dienstes für kommerzielle Zwecke ohne ausdrückliche Genehmigung.
+- Umgehung von Sicherheitsmechanismen oder technische Angriffe auf den Dienst.
+
+
+5. NUTZERINHALTE
+-----------------
+Du bist allein verantwortlich für die Inhalte, die du über JAMIE veröffentlichst
+(Profilbilder, Nachrichten, Gruppendetails usw.). Mit dem Hochladen räumst du JAMIE das
+nicht-exklusive, gebührenfreie Recht ein, diese Inhalte im Rahmen des Dienstes darzustellen
+und zu übermitteln. Wir beanspruchen kein Eigentum an deinen Inhalten.
+
+Inhalte, die gegen diese Bedingungen verstoßen, können ohne Vorankündigung entfernt werden.
+
+
+6. MODERATION UND KONTOSPERRUNG
+---------------------------------
+Wir behalten uns vor, Accounts zu sperren oder zu löschen, die gegen diese Bedingungen
+verstoßen — insbesondere bei Belästigung, gefälschten Profilen oder Verbreitung rechtswidriger
+Inhalte. Bei schwerwiegenden Verstößen behalten wir uns vor, entsprechende Behörden zu
+informieren.
+
+
+7. KÄUFE UND ZAHLUNGEN (BOOST-CREDITS)
+----------------------------------------
+JAMIE bietet optionale kostenpflichtige Funktionen an („Boost-Credits"), mit denen du Gruppen
+oder Clubs vorübergehend hervorheben kannst. Es gelten folgende Regeln:
+
+- Käufe sind endgültig und werden nicht erstattet, sofern gesetzlich nichts anderes
+  vorgeschrieben ist.
+- Credits verfallen nicht, sind aber nicht übertragbar.
+- Zahlungen werden über Stripe oder PayPal abgewickelt; es gelten deren Nutzungsbedingungen.
+- Auf iOS werden Käufe über das Apple In-App-Purchase-System (StoreKit) abgewickelt.
+- Auf Android werden Käufe über Google Play Billing abgewickelt.
+- Widerrufsrecht: Gemäß EU-Verbraucherrecht hast du ein 14-tägiges Widerrufsrecht, sofern
+  du die Nutzung der Credits noch nicht begonnen hast.
+
+
+8. PRO-ABONNEMENT
+------------------
+Das JAMIE Pro-Abonnement verlängert sich automatisch monatlich, bis du es kündigst.
+Du kannst das Abonnement jederzeit in den Einstellungen kündigen. Die Kündigung wird zum
+Ende des aktuellen Abrechnungszeitraums wirksam.
+
+
+9. HAFTUNGSAUSSCHLUSS
+----------------------
+Der Dienst wird „wie er ist" bereitgestellt. Wir übernehmen keine Garantie für
+ununterbrochene Verfügbarkeit oder Fehlerfreiheit. JAMIE ist eine Plattform zur Vermittlung
+von sozialen Aktivitäten — wir sind nicht verantwortlich für das tatsächliche Verhalten von
+Nutzern bei Treffen oder Veranstaltungen.
+
+Unsere Haftung ist auf Vorsatz und grobe Fahrlässigkeit beschränkt, soweit gesetzlich
+zulässig.
+
+
+10. GEISTIGES EIGENTUM
+-----------------------
+Alle Rechte am JAMIE-Markenzeichen, Logo, Design und Code liegen beim Betreiber.
+Du erhältst eine beschränkte, nicht übertragbare Lizenz zur persönlichen, nicht kommerziellen
+Nutzung der App.
+
+
+11. DATENSCHUTZ
+----------------
+Informationen zur Verarbeitung deiner personenbezogenen Daten findest du in unserer
+Datenschutzerklärung: getjamie.app/privacy
+
+
+12. ÄNDERUNGEN DER BEDINGUNGEN
+--------------------------------
+Wir können diese Bedingungen jederzeit aktualisieren. Bei wesentlichen Änderungen informieren
+wir dich mindestens 14 Tage im Voraus per E-Mail oder In-App-Benachrichtigung. Die
+fortgesetzte Nutzung nach Inkrafttreten der Änderungen gilt als Zustimmung.
+
+
+13. ANWENDBARES RECHT UND GERICHTSSTAND
+-----------------------------------------
+Es gilt österreichisches Recht unter Ausschluss der Kollisionsnormen. Gerichtsstand für
+Streitigkeiten mit Unternehmern ist Wien, Österreich. Für Verbraucher gelten die gesetzlichen
+Zuständigkeitsregelungen.
+
+EU-Online-Streitbeilegung: https://ec.europa.eu/consumers/odr
+
+
+14. KONTAKT
+------------
+Bei Fragen zu diesen Nutzungsbedingungen wende dich an: legal@getjamie.app
+
+==========================================================

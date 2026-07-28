@@ -1,0 +1,134 @@
+DATENSCHUTZERKLÄRUNG — JAMIE App
+Zuletzt aktualisiert: Mai 2026
+==========================================================
+
+
+1. VERANTWORTLICHER
+-------------------
+Verantwortlich für die Verarbeitung deiner personenbezogenen Daten im Sinne der DSGVO
+ist der Betreiber der JAMIE-App.
+
+Bei Fragen wende dich an: privacy@getjamie.app
+
+
+2. WELCHE DATEN WIR ERHEBEN
+----------------------------
+- Kontodaten: Name, E-Mail-Adresse, Passwort (verschlüsselt)
+- Profildaten: Profilbild, Biografie, Standort, Interessen, Alter
+- Inhaltsdaten: Nachrichten, erstellte Gruppen und Clubs
+- Spotify-Daten: Nur wenn du Spotify verbindest: deine Top-Tracks und zuletzt gehörte Songs
+  (nur lesend, wir speichern keine Musik-Inhalte)
+- Gerätedaten: IP-Adresse, Browser-Typ (für Sicherheit und Fehlerdiagnose)
+
+
+3. ZWECK DER DATENVERARBEITUNG
+--------------------------------
+- Bereitstellung und Betrieb der App (Art. 6 Abs. 1 lit. b DSGVO)
+- Authentifizierung und Kontosicherheit
+- Anzeige von Gruppen, Clubs und Profilen anderen Nutzern gegenüber
+- Versand von Passwort-Reset- und Verifizierungs-E-Mails
+- Echtzeit-Chat innerhalb von Gruppen
+
+
+4. WEITERGABE AN DRITTE
+------------------------
+Wir geben deine Daten nicht an Dritte weiter, außer:
+
+- Spotify: Wenn du Spotify verbindest, werden OAuth-Tokens sicher gespeichert und nur für
+  deine Spotify-Anfragen verwendet.
+
+- Sightengine (Frankreich): Hochgeladene Bilder werden zur automatischen Prüfung auf
+  unzulässige Inhalte (Moderation) an Sightengine übermittelt.
+  Datenschutz: sightengine.com/privacy
+
+- OpenAI, Inc. (USA): Textnachrichten werden zur automatischen Inhaltsmoderation an die
+  OpenAI Moderation API übermittelt. Es werden keine Nachrichten gespeichert oder für das
+  Training von Modellen verwendet.
+  Datenschutz: openai.com/privacy
+
+- Hosting-Anbieter: Unsere Server laufen bei Railway (USA). Die Datenübertragung erfolgt
+  nach Art. 46 DSGVO mit Standardvertragsklauseln.
+
+- Gesetzliche Pflichten: Bei berechtigten behördlichen Anfragen.
+
+
+5. EINSATZ VON KI UND AUTOMATISIERTE ENTSCHEIDUNGEN
+-----------------------------------------------------
+JAMIE setzt KI-gestützte Systeme zur Inhaltsmoderation ein (Risikoklasse „minimales Risiko"
+gemäß EU AI Act, Verordnung (EU) 2024/1689):
+
+- Bildmoderation (Sightengine): Jedes hochgeladene Bild wird automatisch auf Nacktheit
+  und Gewaltdarstellungen geprüft. Auffällige Bilder werden abgelehnt, bevor sie gespeichert
+  werden.
+
+- Textmoderation (OpenAI Moderation API): Nachrichten im Gruppen-Chat und bei
+  Direktnachrichten werden automatisch auf Hassrede, Belästigung, bedrohende oder sexuelle
+  Inhalte geprüft. Auffällige Nachrichten werden blockiert.
+
+Diese Prüfungen laufen vollautomatisch. Wenn du der Meinung bist, dass ein Inhalt zu Unrecht
+blockiert wurde, kannst du dich jederzeit an privacy@getjamie.app wenden
+(Widerspruchsrecht gem. Art. 22 DSGVO).
+
+
+6. SPEICHERDAUER
+-----------------
+Deine Daten werden gespeichert, solange dein Konto aktiv ist. Du kannst dein Konto jederzeit
+in Einstellungen → Konto löschen dauerhaft löschen. Dabei werden alle deine Nachrichten,
+Profilbilder und persönlichen Daten entfernt.
+
+
+7. DEINE RECHTE
+----------------
+- Auskunft über gespeicherte Daten (Art. 15 DSGVO)
+- Berichtigung falscher Daten (Art. 16 DSGVO)
+- Löschung deiner Daten (Art. 17 DSGVO)
+- Einschränkung der Verarbeitung (Art. 18 DSGVO)
+- Datenübertragbarkeit (Art. 20 DSGVO)
+- Widerspruch gegen die Verarbeitung (Art. 21 DSGVO)
+
+Zur Ausübung deiner Rechte wende dich an: privacy@getjamie.app
+
+Du hast außerdem das Recht, dich bei der zuständigen Datenschutzbehörde zu beschweren.
+(Österreich: dsb.gv.at | Deutschland: bfdi.bund.de)
+
+
+8. SICHERHEIT
+--------------
+Wir verwenden HTTPS-Verschlüsselung, bcrypt-Passwort-Hashing, JWT-Authentifizierung
+und Rate-Limiting zum Schutz deiner Daten. Passwörter werden niemals im Klartext gespeichert.
+
+
+9. COOKIES UND LOKALER SPEICHER
+---------------------------------
+Wir verwenden keine Werbe-Cookies. Wir verwenden localStorage ausschließlich für dein
+Authentifizierungs-Token und App-Einstellungen (z. B. ob du das Installations-Banner
+geschlossen hast).
+
+
+10. ZAHLUNGSDIENSTLEISTER
+--------------------------
+Wenn du Boost-Credits oder ein Pro-Abonnement kaufst, werden Zahlungen verarbeitet durch:
+
+- Stripe, Inc. (USA) — stripe.com/privacy
+- PayPal Holdings, Inc. (USA) — paypal.com/privacy
+- Apple In-App Purchase (auf iOS) — apple.com/privacy
+- Google Play Billing (auf Android) — policies.google.com/privacy
+
+Wir speichern keine vollständigen Zahlungsdaten. Alle Transaktionen werden ausschließlich
+von den jeweiligen Zahlungsdienstleistern verarbeitet.
+
+
+11. MINDERJÄHRIGE
+------------------
+JAMIE richtet sich ausschließlich an Personen ab 18 Jahren. Wir erheben wissentlich keine
+Daten von Personen unter 18 Jahren.
+
+
+12. ÄNDERUNGEN DIESER DATENSCHUTZERKLÄRUNG
+--------------------------------------------
+Wir können diese Erklärung gelegentlich aktualisieren. Bei wesentlichen Änderungen
+informieren wir dich per E-Mail oder In-App-Benachrichtigung. Das Datum der letzten
+Aktualisierung steht immer oben auf dieser Seite.
+
+==========================================================
+Kontakt: privacy@getjamie.app

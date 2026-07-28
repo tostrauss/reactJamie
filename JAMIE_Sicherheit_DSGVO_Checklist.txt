@@ -1,0 +1,219 @@
+=========================================================
+  JAMIE – Sicherheit & DSGVO-Checkliste
+  Stand: Mai 2026
+=========================================================
+
+Diese Übersicht fasst zusammen, welche technischen und
+rechtlichen Maßnahmen in der JAMIE-App umgesetzt sind.
+
+
+─────────────────────────────────────────────────────────
+  1. DATENSCHUTZ & DSGVO (rechtlich)
+─────────────────────────────────────────────────────────
+
+Datenschutzerklärung
+     → DSGVO-konform, inkl. Abschnitt zu KI & automatisierter
+       Verarbeitung (EU AI Act)
+     → Alle Drittanbieter aufgelistet (Spotify, Sightengine,
+       OpenAI, Stripe, Sentry)
+
+Impressum (§ 5 ECG Österreich / § 5 TMG Deutschland)
+
+Einwilligungs-Checkbox bei Registrierung
+     → Nutzer muss aktiv Datenschutzerklärung & Nutzungsbedingungen
+       zustimmen, bevor der Account erstellt wird
+
+Datenexport für Nutzer (DSGVO Art. 15)
+     → „Meine Daten herunterladen" direkt in den Einstellungen
+     → Download als JSON-Datei (Name, E-Mail, Interessen, etc.)
+
+Datensparsamkeit
+     → Geburtsdatum wird NICHT in öffentlichen Profilen angezeigt
+     → Es werden nur Daten erhoben, die für den Betrieb nötig sind
+
+Analytik-Retention
+     → Analysedaten werden automatisch nach 90 Tagen gelöscht
+       (automatischer Cron-Job, täglich 03:00 Uhr)
+
+Standortdaten
+     → GPS wird nur auf explizite Nutzeranfrage abgerufen
+       (Karte: „Meinen Standort anzeigen"-Button)
+     → Kein Tracking im Hintergrund
+
+
+─────────────────────────────────────────────────────────
+  2. AUTHENTIFIZIERUNG & ZUGANGSSICHERHEIT
+─────────────────────────────────────────────────────────
+
+E-Mail-OTP-Verifizierung
+     → Jede Registrierung erfordert eine E-Mail-Bestätigung
+       mit Einmalcode (6-stellig, läuft ab)
+
+Starkes Passwort-Pflichtformat
+     → Mindestens 6 Zeichen, Groß- & Kleinbuchstaben,
+       Zahl und Sonderzeichen erforderlich
+
+JWT-Token sicher gespeichert
+     → httpOnly-Cookie (JavaScript kann es nicht lesen)
+     → Signiert mit einem Geheimschlüssel ≥ 32 Zeichen
+
+Google OAuth (Social Login)
+     → Offizieller Google-Login, Token serverseitig verifiziert
+
+Passwort-Reset via E-Mail
+     → Token nur einmal verwendbar, läuft zeitlich ab
+
+
+─────────────────────────────────────────────────────────
+  3. RATE LIMITING (Schutz vor Missbrauch & Bots)
+─────────────────────────────────────────────────────────
+
+Allgemeines Rate Limiting
+     → Max. 500 Anfragen pro 15 Minuten pro IP-Adresse
+
+Login/Auth-Schutz
+     → Max. 20 Login-Versuche pro 15 Minuten
+       (schützt vor Brute-Force-Angriffen)
+
+Registrierungsschutz
+     → Max. 20 Versuche pro Stunde
+
+Striktes Limit für sensible Aktionen
+     → Passwort-Reset, Account-Löschung: max. 5 pro Stunde
+
+Chat-Nachrichtenlimit
+     → Max. 20 Nachrichten pro Minute pro Nutzer
+       (schützt vor Spam in Chats)
+
+Rate-Limit-Daten in Redis gespeichert
+     → Funktioniert auch bei mehreren Server-Instanzen
+       (horizontal skalierbar)
+
+
+─────────────────────────────────────────────────────────
+  4. INHALTSMODERATION (automatisch)
+─────────────────────────────────────────────────────────
+
+Bild-Moderation via Sightengine
+     → Jedes hochgeladene Bild wird automatisch geprüft
+     → Erkennt: Nacktheit, Gore, Gewalt, CSAM
+     → Bilder werden bei Verstoß abgelehnt, bevor sie gespeichert werden
+
+Text-Moderation via OpenAI
+     → Texte (Beschreibungen, Nachrichten) werden auf Hate Speech,
+       Gewalt und andere problematische Inhalte geprüft
+
+Melde-System für Nutzer
+     → Jeder Nutzer und jede Gruppe kann gemeldet werden
+     → Meldungen landen per E-Mail beim Admin-Team
+     → Beschreibung auf 5.000 Zeichen begrenzt (kein Missbrauch)
+
+
+─────────────────────────────────────────────────────────
+  5. TECHNISCHE SICHERHEIT (Server & API)
+─────────────────────────────────────────────────────────
+
+HTTPS erzwungen
+     → Alle Verbindungen sind verschlüsselt (TLS)
+     → Unsichere HTTP-Verbindungen werden automatisch umgeleitet
+
+Security-Header (Helmet.js)
+     → Content Security Policy (CSP): verhindert XSS-Angriffe
+     → Clickjacking-Schutz (X-Frame-Options)
+     → MIME-Sniffing-Schutz
+     → Permissions-Policy: Mikrofon, Kamera etc. gesperrt
+
+CORS-Schutz
+     → API akzeptiert nur Anfragen von autorisierten Domains
+       (kein unerlaubter Zugriff von Fremdseiten)
+
+SQL-Injection-Schutz
+     → Alle Datenbankabfragen verwenden parametrisierte Queries
+       (Nutzereingaben können nie SQL-Code ausführen)
+
+Input-Sanitization
+     → HTML-Tags werden aus allen Eingabefeldern entfernt
+       (verhindert XSS)
+
+Upload-Sicherheit
+     → Datei-Typ-Validierung (nur Bilder erlaubt)
+     → Dateigröße begrenzt
+     → Dateien in Cloudflare R2 gespeichert (nicht auf dem Server)
+
+Body-Size-Limit
+     → Maximale Request-Größe: 50 KB (verhindert Memory-Flood)
+
+Slowloris-Schutz
+     → Server bricht langsame Verbindungen nach 65 Sekunden ab
+
+Socket.IO-Sicherheit
+     → Nachrichten-Größe begrenzt (max. 100 KB)
+     → JWT-Authentifizierung auch für WebSocket-Verbindungen
+
+
+─────────────────────────────────────────────────────────
+  6. ADMIN & MONITORING
+─────────────────────────────────────────────────────────
+
+Admin-Dashboard (passwortgeschützt)
+     → Nutzer- und Gruppenübersicht, CSV-Export
+     → Nur für Admins zugänglich (eigene Rolle in DB)
+
+Fehler-Monitoring via Sentry
+     → Alle Server-Fehler werden automatisch gemeldet
+     → Sensible Daten (Tokens, Cookies) werden nicht geloggt
+
+Strukturiertes Logging (Pino)
+     → Alle API-Anfragen werden protokolliert
+     → Passwörter und Auth-Header werden automatisch aus Logs entfernt
+
+Health-Check-Endpoint
+     → Server meldet selbst, wenn Datenbank oder Redis nicht erreichbar
+     → Railway überwacht dies automatisch
+
+
+─────────────────────────────────────────────────────────
+  7. STABILITÄT & DATENSICHERHEIT
+─────────────────────────────────────────────────────────
+
+Datenbank-Transaktionen
+     → Kritische Aktionen (z. B. DM-Erstellen) laufen in einer
+       Transaktion — bei Fehler wird alles zurückgerollt
+
+Graceful Shutdown
+     → Server beendet offene Verbindungen sauber,
+       keine Datenverluste bei Neustarts
+
+Startup-Migrations
+     → Datenbank-Schema wird beim Start automatisch aktualisiert
+
+Automatische Cron-Jobs
+     → Analytik-Daten: Löschung nach 90 Tagen
+     → Freundschaftsanfragen: automatischer Ablauf nach 30 Tagen
+
+
+─────────────────────────────────────────────────────────
+  8. APP STORE ANFORDERUNGEN
+─────────────────────────────────────────────────────────
+
+  Datenschutzerklärung: noch nicht vorhanden & verlinkt
+  Impressum: noch nicht vorhanden
+  Nutzungsbedingungen: vorhanden
+  Einwilligungs-Checkbox bei Registrierung
+  Melde-System für Inhalte
+  In-App-Käufe: Stripe (Kreditkarte/Apple Pay)
+
+  App Store Connect: Privacy Nutrition Label manuell ausfüllen
+  Google Play: Data Safety Form manuell ausfüllen
+ Apple Developer Account: App Review Informationen hinterlegen
+
+
+─────────────────────────────────────────────────────────
+  KONTAKT FÜR DATENSCHUTZANFRAGEN
+─────────────────────────────────────────────────────────
+  Müssen wir noch anlegen!!!
+
+  E-Mail:  privacy@getjamie.app
+  Rechtliches: legal@getjamie.app
+
+
