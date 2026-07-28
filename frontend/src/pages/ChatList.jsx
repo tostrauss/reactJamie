@@ -92,6 +92,7 @@ export const ChatList = () => {
             type: g.type,
             isOwner: g.role === 'owner',
             is_private: g.is_private,
+            pendingRequests: g.pending_request_count || 0,
             archived: !!g.archived,
           };
         }));
@@ -553,9 +554,13 @@ export const ChatList = () => {
                                 {chat.is_private && (
                                   <button
                                     className="chat-owner-btn chat-owner-btn--requests"
+                                    style={{ position: 'relative' }}
                                     onClick={(e) => { e.stopPropagation(); openRequestsModal(chat.id, chat.name); }}
                                   >
                                     {t('chat.list.ownerActions.requests')}
+                                    {chat.pendingRequests > 0 && (
+                                      <span className="chat-owner-req-badge">{chat.pendingRequests}</span>
+                                    )}
                                   </button>
                                 )}
                                 <button

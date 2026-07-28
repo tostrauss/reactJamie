@@ -522,6 +522,24 @@
   background: rgba(255, 107, 107, 0.1);
 }
 
+/* Pending-request count next to "Anfragen" (Tobi 2026-07-28: "hochzahl 1"). */
+.chat-owner-req-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent-coral);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: super;
+}
+
 .chat-owner-btn--manage {
   color: var(--text-muted);
 }

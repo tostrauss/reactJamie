@@ -1130,7 +1130,12 @@ export const getUserGroups = async (req, res) => {
                   AND m2.created_at > COALESCE(gm.last_read_at, gm.joined_at)
                   AND m2.user_id IS DISTINCT FROM $1
                   AND m2.message_type IS DISTINCT FROM 'system'
-              ) AS unread_count
+              ) AS unread_count,
+              -- Pending join requests to show a count badge on the owner's
+              -- "Anfragen" button (Tobi 2026-07-28). 0 for groups you don't own.
+              (SELECT COUNT(*)::int FROM group_join_requests jr
+                 WHERE jr.group_id = g.id AND jr.status = 'pending' AND g.owner_id = $1
+              ) AS pending_request_count
        FROM group_members gm
        JOIN groups g ON gm.group_id = g.id
        LEFT JOIN users u ON g.owner_id = u.id
