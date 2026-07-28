@@ -233,6 +233,19 @@ export const ChatPage = () => {
             {group.member_count || group.members_count || 0} {t('chat.page.members')}
             {group.type === 'club' && t('chat.page.clubSuffix')}
           </div>
+          {/* Event info (date · place) so you can tell WHICH activity's chat you're
+              in when you're in several groups (Tina 2026-07-27). Clubs have no
+              single date, so this only shows for events. */}
+          {group.type !== 'club' && (group.date || group.location) && (
+            <div style={{
+              fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2,
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+            }}>
+              {group.date && `📅 ${new Date(group.date).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short' })}`}
+              {group.date && group.location && ' · '}
+              {group.location && `📍 ${group.location}`}
+            </div>
+          )}
         </div>
         {group.image_url && (
           <img src={group.image_url} alt={group.name || group.title} className="chat-page-avatar" onClick={() => navigate(`/group/${groupId}`)} style={{ cursor: 'pointer' }} decoding="async" fetchPriority="high" />
