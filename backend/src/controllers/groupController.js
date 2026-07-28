@@ -374,7 +374,15 @@ export const getGroups = async (req, res) => {
       // dropped an event happening later TODAY from the feed at 00:01 — a freed
       // spot on a today event became un-joinable (Lea's picnic). Mirrors the
       // club-event feed. Weekly recurring events never go "past".
-      where += ` AND (g.date >= CURRENT_DATE OR g.is_recurring_weekly = TRUE)`;
+      //
+      // `g.date IS NULL` must be spelled out: date is nullable (createGroup only
+      // validates it `if (dateTime)`), and NULL >= CURRENT_DATE evaluates to NULL,
+      // not TRUE — so an undated group was silently dropped from the Groups tab
+      // FOREVER while still showing on the map, which applies the NULL-safe form
+      // (mapController: `g.date IS NULL OR g.date >= CURRENT_DATE`). An undated
+      // group is ongoing, not past. Reported by Tina 2026-07-28 ("Komisch mir wird
+      // eine Gruppe in der Map angezeigt, die mir aber bei den Gruppen nicht").
+      where += ` AND (g.date IS NULL OR g.date >= CURRENT_DATE OR g.is_recurring_weekly = TRUE)`;
     }
 
     const safeLimit = Math.min(parseInt(limit, 10) || 100, 100);

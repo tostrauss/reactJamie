@@ -37,7 +37,25 @@ export const getMapPins = async (req, res) => {
       return res.status(400).json({ error: 'dateFilter must be heute or morgen' });
     }
 
-    const cacheKey = `map:${type || ''}:${categories || ''}:${dateFilter || ''}`;
+    // Target-age gate — mirrors getGroups so the map cannot advertise a group
+    // the Groups tab then refuses to show ("Vielleicht hat sie eine
+    // Altersbeschränkung drinnen und wird trotzdem auf der Map angezeigt?" —
+    // Tina, 2026-07-28). Guests and users without a date_of_birth see
+    // everything, same friendly default the feed uses.
+    let callerAge = null;
+    if (req.userId) {
+      try {
+        const r = await db.query(
+          'SELECT EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age FROM users WHERE id = $1',
+          [req.userId]
+        );
+        callerAge = r.rows[0]?.age ?? null;
+      } catch { /* age unavailable → no gate, don't fail the map */ }
+    }
+
+    // callerAge is part of the key: without it a 20-year-old and a 40-year-old
+    // would serve each other's cached pin sets.
+    const cacheKey = `map:${type || ''}:${categories || ''}:${dateFilter || ''}:a${callerAge ?? 'x'}`;
     const cached = getCached(cacheKey);
     if (cached) return res.json(cached);
 
@@ -78,6 +96,14 @@ export const getMapPins = async (req, res) => {
     `;
     const params = [];
     let paramIndex = 1;
+
+    // Same predicate as the group feed: NULL bounds mean "no restriction".
+    if (callerAge !== null) {
+      query += ` AND (g.target_age_min IS NULL OR g.target_age_min <= $${paramIndex})
+                 AND (g.target_age_max IS NULL OR g.target_age_max >= $${paramIndex})`;
+      params.push(callerAge);
+      paramIndex++;
+    }
 
     if (type) {
       query += ` AND g.type = $${paramIndex++}`;
