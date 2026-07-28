@@ -1,7 +1,7 @@
 import db from '../config/database.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { deleteCached } from '../utils/cache.js';
-import { sendPushToUser } from './pushController.js';
+import { sendPushToUsers } from './pushController.js';
 
 // Stamp the caller's read marker for a group chat and drop their cached
 // joined-groups list (it embeds unread_count, TTL 15s — without the
@@ -98,11 +98,20 @@ export const sendMessage = async (req, res) => {
       // group/club chat messages sent no push, so members learned of them only
       // on next open. Fire-and-forget (no await); the DB unread count is the
       // source of truth if a push fails.
+      //
+      // Uses the BULK variant deliberately: every member gets the identical
+      // title/body, so one `WHERE user_id = ANY(...)` fetches all subscriptions
+      // instead of one SELECT per member. This is the hottest path in the app
+      // (60 msg/min/user) — the per-user loop meant a 50-member club chat fired
+      // 50 extra round trips per message and could saturate the pg pool.
       const senderName = result.rows[0].user_name || 'Jemand';
       const preview = content.slice(0, 120);
-      for (const r of memberRows.rows) {
-        sendPushToUser(r.user_id, group_name || 'Neue Nachricht', `${senderName}: ${preview}`, `/chat/${groupId}`);
-      }
+      sendPushToUsers(
+        memberRows.rows.map(r => r.user_id),
+        group_name || 'Neue Nachricht',
+        `${senderName}: ${preview}`,
+        `/chat/${groupId}`
+      );
     } catch {
       // Best-effort: unread truth lives in the DB, the next refetch catches up
     }

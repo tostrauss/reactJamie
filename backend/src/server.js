@@ -262,7 +262,12 @@ app.use(cors({
     console.warn(`[CORS] denied origin: ${origin}`);
     callback(null, false);
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  // PATCH is required by PATCH /api/admin/users/:id/role (api.js → admin.setUserRole).
+  // Omitting it only shows up off-origin: the web PWA is served same-origin so it
+  // never preflights, but the Capacitor shells call the API cross-origin, so the
+  // OPTIONS response advertised GET/POST/PUT/DELETE and the browser blocked the
+  // role toggle before it left the device.
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
   credentials: true
 }));
 

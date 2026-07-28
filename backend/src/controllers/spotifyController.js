@@ -24,6 +24,13 @@ const FETCH_TIMEOUT_MS = 8000;
 const timedFetch = (url, opts = {}) =>
   fetch(url, { ...opts, signal: opts.signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS) });
 
+// Spotify accepts exactly these three windows. Allow-list rather than pass the
+// raw query value through: `time_range` is interpolated straight into the
+// upstream URL's query string, so an arbitrary value lets a caller append or
+// override parameters on the request we make with the user's access token.
+const SPOTIFY_TIME_RANGES = new Set(['short_term', 'medium_term', 'long_term']);
+const safeTimeRange = (v) => (SPOTIFY_TIME_RANGES.has(v) ? v : 'medium_term');
+
 // OAuth CSRF state — short-lived (10 min) and single-use. Stored in memory
 // since this is a 1-instance flow; if we horizontally scale, move to Redis.
 const _pendingStates = new Map();
@@ -343,7 +350,7 @@ export const getTopTracks = async (req, res) => {
       return res.status(401).json({ error: 'Spotify nicht verbunden', requiresAuth: true });
     }
 
-    const timeRange = req.query.time_range || 'medium_term';
+    const timeRange = safeTimeRange(req.query.time_range);
     const limit = Math.min(parseInt(req.query.limit) || 10, 50);
 
     const spotifyRes = await timedFetch(

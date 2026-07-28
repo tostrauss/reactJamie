@@ -5,7 +5,7 @@ import { getCached, setCached, invalidatePrefix } from '../utils/cache.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
 import { notifyJoinRequest } from './groupController.js';
 import { isUserPro } from './subscriptionController.js';
-import { sendPushToUser } from './pushController.js';
+import { sendPushToUser, sendPushToUsers } from './pushController.js';
 
 const CLUBS_TTL = 30_000; // 30 s
 const DISCOVER_EVENTS_KEY = 'discover_events';
@@ -1273,12 +1273,18 @@ export const createClubEvent = async (req, res) => {
 
     // Notify club members about the new event (fire-and-forget, excludes the
     // creator). Deep-links to the event detail page.
+    // Bulk variant: identical payload for every member, so one subscriptions
+    // SELECT covers the whole club instead of one per member (a 300-member
+    // club otherwise fired 300 round trips behind a single event creation).
     db.query('SELECT user_id FROM group_members WHERE group_id = $1 AND user_id <> $2', [id, userId])
       .then(({ rows }) => {
         const clubName = club.rows[0].name || 'Dein Club';
-        for (const r of rows) {
-          sendPushToUser(r.user_id, clubName, `Neues Event: ${name.trim()}`, `/group/${event.id}`);
-        }
+        sendPushToUsers(
+          rows.map(r => r.user_id),
+          clubName,
+          `Neues Event: ${name.trim()}`,
+          `/group/${event.id}`
+        );
       })
       .catch(() => {});
 

@@ -22,7 +22,14 @@ export function ConsentBanner() {
   return (
     <div style={{
       position: 'fixed',
-      bottom: 'calc(64px + env(safe-area-inset-bottom, 0px))',
+      // Sit flush ON TOP of .bottom-nav — its full height is the 60px
+      // .bottom-nav-items strip PLUS padding-bottom: max(30px, env(...)).
+      // A bare env() here read 0 on every device without a home indicator
+      // (most Android, desktop), so the banner sat at 64px and covered the
+      // top 26px of the 90px nav — and at z-index 9000 it won, hiding the
+      // nav icons behind the first-run consent prompt. Must track the same
+      // max(30px, env(…)) floor as .update-banner / .install-banner.
+      bottom: 'calc(60px + max(30px, env(safe-area-inset-bottom, 0px)))',
       left: 0, right: 0,
       zIndex: 9000,
       background: 'rgba(18,12,34,0.97)',
