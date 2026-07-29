@@ -148,6 +148,11 @@ import socketHandler from './socket.js';
 
 // Helmet: security headers (XSS, clickjacking, MIME sniffing, etc.)
 const storageOrigin = process.env.STORAGE_PUBLIC_URL || null;
+// During a storage-domain migration (see the rewrite block in
+// runStartupMigrations) clients briefly still hold OLD image URLs in cached
+// API responses / the SW feed-cache — keep the previous origin CSP-allowed so
+// those don't render as broken images mid-transition.
+const oldStorageOrigin = process.env.OLD_STORAGE_PUBLIC_URL || null;
 // SOCKET_CSP_ORIGIN: backend public URL used for WebSocket (wss:) in CSP.
 // In monorepo deployments (frontend + backend same Railway service) this is the same as FRONTEND_URL.
 // Set this env var if Socket.IO connects to a different domain than the frontend.
@@ -186,6 +191,7 @@ app.use(helmet({
         'https://images.unsplash.com',
         'https://sentry.io', 'https://*.sentry.io', // Sentry error reporting
         ...(storageOrigin ? [storageOrigin] : []),
+        ...(oldStorageOrigin ? [oldStorageOrigin] : []),
         ...(socketOrigin ? [socketOrigin, socketOrigin.replace('https://', 'wss://')] : []),
       ],
       imgSrc: [
@@ -202,6 +208,7 @@ app.use(helmet({
         'https://*.gstatic.com',
         'https://*.ggpht.com',
         ...(storageOrigin ? [storageOrigin] : []),
+        ...(oldStorageOrigin ? [oldStorageOrigin] : []),
       ],
       scriptSrc: [
         "'self'",
@@ -1370,6 +1377,53 @@ const runStartupMigrations = async () => {
     )`));
   await migrate('idx_app_feedback_created', () =>
     db.query(`CREATE INDEX IF NOT EXISTS idx_app_feedback_created ON app_feedback(created_at DESC)`));
+
+  // ── One-time storage-domain rewrite (pub-*.r2.dev → custom domain) ──────
+  // 2026-07-29: production images were served from Cloudflare's pub-*.r2.dev
+  // dev domain — rate-limited, documented as not-for-production, AND on common
+  // content-blocker filter lists. The Android app is a TWA that runs in the
+  // device's default browser: on Samsungs that's Samsung Internet with its
+  // blocker ecosystem → Samsung users saw NO uploaded images at all (real-user
+  // report, S24, via Tina). Fix = custom domain on the R2 bucket.
+  //
+  // New uploads pick up STORAGE_PUBLIC_URL automatically (storage.js). This
+  // block rewrites the STORED absolute URLs. To activate: set BOTH
+  //   STORAGE_PUBLIC_URL     = https://<custom-domain>        (new)
+  //   OLD_STORAGE_PUBLIC_URL = https://pub-….r2.dev           (previous value)
+  // on Railway and redeploy. Idempotent — after the first pass no row matches
+  // the old prefix — so the OLD_ var can stay set or be deleted later.
+  // JSONB arrays are rewritten via text-cast replace: the URL prefix contains
+  // no JSON metacharacters, so this cannot corrupt the array structure.
+  const oldStorage = (process.env.OLD_STORAGE_PUBLIC_URL || '').replace(/\/+$/, '');
+  const newStorage = (process.env.STORAGE_PUBLIC_URL || '').replace(/\/+$/, '');
+  if (oldStorage && newStorage && oldStorage !== newStorage) {
+    await migrate('storage URL rewrite (old → new public domain)', async () => {
+      // $3 = LIKE guard: plain prefix for TEXT columns, %-wrapped for the
+      // JSONB text-cast (URL sits mid-string there).
+      const likeText = `${oldStorage}/%`;
+      const likeJson = `%${oldStorage}/%`;
+      const steps = [
+        ['users.avatar_url', likeText,
+          `UPDATE users SET avatar_url = replace(avatar_url, $1, $2) WHERE avatar_url LIKE $3`],
+        ['users.photos', likeJson,
+          `UPDATE users SET photos = replace(photos::text, $1, $2)::jsonb WHERE photos::text LIKE $3`],
+        ['groups.image_url', likeText,
+          `UPDATE groups SET image_url = replace(image_url, $1, $2) WHERE image_url LIKE $3`],
+        ['groups.moment_photo_url', likeText,
+          `UPDATE groups SET moment_photo_url = replace(moment_photo_url, $1, $2) WHERE moment_photo_url LIKE $3`],
+        ['groups.photos', likeJson,
+          `UPDATE groups SET photos = replace(photos::text, $1, $2)::jsonb WHERE photos::text LIKE $3`],
+        ['user_pinnwand.image_url', likeText,
+          `UPDATE user_pinnwand SET image_url = replace(image_url, $1, $2) WHERE image_url LIKE $3`],
+        ['deals.photos', likeJson,
+          `UPDATE deals SET photos = replace(photos::text, $1, $2)::jsonb WHERE photos::text LIKE $3`],
+      ];
+      for (const [label, like, sql] of steps) {
+        const r = await db.query(sql, [oldStorage, newStorage, like]);
+        if (r.rowCount > 0) console.log(`   [storage-rewrite] ${label}: ${r.rowCount} rows`);
+      }
+    });
+  }
 
   console.log('✅ Startup migrations done');
 };
