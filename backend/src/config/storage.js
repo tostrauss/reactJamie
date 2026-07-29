@@ -1,6 +1,6 @@
 // Cloud storage module — supports Cloudflare R2 and AWS S3 (S3-compatible)
 // Falls back to local disk when STORAGE_ENDPOINT is not configured (dev mode)
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import path from 'path';
 import { randomUUID } from 'crypto';
 
@@ -58,11 +58,32 @@ export const uploadToCloud = async (buffer, mimetype, originalname) => {
     })
   );
 
-  // STORAGE_PUBLIC_URL: e.g. "https://pub-xxx.r2.dev" (R2 public bucket domain)
+  // STORAGE_PUBLIC_URL: either a public bucket domain ("https://pub-xxx.r2.dev",
+  // custom domain) or the app's own /media proxy ("https://app.jamie-app.com/media",
+  // served by routes/mediaRoutes.js → getObjectFromCloud below). The proxy path
+  // exists because pub-*.r2.dev sits on content-blocker filter lists (Samsung
+  // Internet runs the Android TWA on Galaxys → no images) and jamie-app.com's
+  // DNS lives at IONOS, so an R2 custom domain wasn't possible without a risky
+  // pre-release nameserver move (2026-07-29).
   // Falls back to AWS-style URL if not set
   const base =
     process.env.STORAGE_PUBLIC_URL ||
     `https://${bucket}.s3.${process.env.STORAGE_REGION || 'us-east-1'}.amazonaws.com`;
 
   return `${base}/${key}`;
+};
+
+/**
+ * Fetch an object from the bucket (used by the /media proxy route).
+ * Returns the raw SDK response: `.Body` is a Node Readable stream,
+ * plus ContentType / ContentLength / ETag passthrough metadata.
+ * Throws NoSuchKey (surfaced as 404 by the route) when the key is absent.
+ */
+export const getObjectFromCloud = async (key) => {
+  if (!isCloudStorageEnabled()) {
+    throw new Error('Cloud storage is not configured — set STORAGE_* env vars');
+  }
+  return getS3Client().send(
+    new GetObjectCommand({ Bucket: process.env.STORAGE_BUCKET, Key: key })
+  );
 };

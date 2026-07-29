@@ -140,6 +140,7 @@ import dealRoutes from './routes/dealRoutes.js';
 import suggestionRoutes from './routes/suggestionRoutes.js';
 import featureInterestRoutes from './routes/featureInterestRoutes.js';
 import feedbackRoutes from './routes/feedbackRoutes.js';
+import mediaRoutes from './routes/mediaRoutes.js';
 import socketHandler from './socket.js';
 
 // ==========================================
@@ -403,6 +404,11 @@ app.use('/api/deals', dealRoutes);
 app.use('/api/suggestions', suggestionRoutes);
 app.use('/api/feature-interest', featureInterestRoutes);
 app.use('/api/feedback', feedbackRoutes);
+// Same-origin image proxy (R2 passthrough) — deliberately OUTSIDE /api so the
+// general API rate limiter never throttles image loads (a feed page renders
+// dozens of them). Mounted before the SPA fallback so GET /media/* never
+// resolves to index.html.
+app.use('/media', mediaRoutes);
 
 // Health check — verifies DB + optional services for Railway health probes.
 // In production we return ONLY {status} so an attacker can't fingerprint
