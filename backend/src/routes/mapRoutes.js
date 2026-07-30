@@ -1,7 +1,7 @@
 import express from 'express';
-import { getMapPins, geocodeQuery } from '../controllers/mapController.js';
+import { getMapPins, geocodeQuery, getMyRequestBubbles } from '../controllers/mapController.js';
 import { generalLimiter } from '../middleware/rateLimiter.js';
-import { optionalAuth } from '../middleware/auth.js';
+import { optionalAuth, authenticate } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -11,5 +11,7 @@ const router = express.Router();
 router.get('/pins', generalLimiter, optionalAuth, getMapPins);
 // Launch-region geocode verifier — fallback for the create-group/club location field
 router.get('/geocode', generalLimiter, geocodeQuery);
+// Owner-only join-request bubbles overlaid on the map
+router.get('/request-bubbles', generalLimiter, authenticate, getMyRequestBubbles);
 
 export default router;

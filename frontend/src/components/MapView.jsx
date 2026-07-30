@@ -1,14 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   GoogleMap,
   Marker,
   InfoWindow,
+  OverlayViewF,
+  OverlayView,
   useLoadScript,
 } from '@react-google-maps/api';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { map as mapApi } from '../utils/api';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
+import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
 // Must be a stable reference — recreating it triggers a full Maps reload
@@ -104,6 +107,7 @@ const SESSION_KEY = 'jamie_map_category';
 
 export default function MapView({ typeFilter }) {
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
   const { t, i18n } = useTranslation();
   const mapLanguage = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en'
     : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it' : 'de';
@@ -179,6 +183,20 @@ export default function MapView({ typeFilter }) {
     load();
     return () => { cancelled = true; };
   }, [typeFilter, selectedCategory, selectedDate]);
+
+  // ── Join-request bubbles on the owner's own pins ──────────────
+  // "Alexander will deiner Gruppe beitreten" — a small celebratory chip over
+  // groups the CALLER owns that have pending requests. Private groups have no
+  // public pin, so for those the bubble itself marks the spot.
+  const [requestBubbles, setRequestBubbles] = useState([]);
+  useEffect(() => {
+    if (!user || user.isGuest) return;
+    let cancelled = false;
+    mapApi.getRequestBubbles()
+      .then(res => { if (!cancelled) setRequestBubbles(res.data || []); })
+      .catch(() => {}); // decorative — never block the map
+    return () => { cancelled = true; };
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Fit bounds when pins change ───────────────────────────────
   // Outlier guard: ignore pins outside the DACH/Europe-wide bounding box when
@@ -353,6 +371,29 @@ export default function MapView({ typeFilter }) {
                 onClick={() => setSelectedPin(pin)}
                 zIndex={active ? 10 : 1}
               />
+            );
+          })}
+
+          {/* Owner join-request bubbles — tap → requests page. Rendered above
+              the marker (MOUSE_TARGET pane keeps them clickable). */}
+          {requestBubbles.map(b => {
+            const label = b.pending_count === 1
+              ? t('map.requestBubbleOne', { name: b.latest_name })
+              : t('map.requestBubbleMany', { count: b.pending_count > 10 ? '10+' : b.pending_count });
+            return (
+              <OverlayViewF
+                key={`req-${b.group_id}`}
+                position={{ lat: b.lat, lng: b.lng }}
+                mapPaneName={OverlayView.MOUSE_TARGET}
+              >
+                <button
+                  type="button"
+                  className="map-request-bubble"
+                  onClick={(e) => { e.stopPropagation(); navigate(`/group/${b.group_id}/requests`); }}
+                >
+                  <span aria-hidden="true">🎉</span> {label}
+                </button>
+              </OverlayViewF>
             );
           })}
 

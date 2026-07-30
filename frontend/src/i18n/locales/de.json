@@ -1094,7 +1094,7 @@
     "createModal": {
       "title": "Was möchtest du erstellen?",
       "groupTitle": "Gruppe erstellen",
-      "groupDesc": "Plane eine Aktivität mit 3-10 Leuten",
+      "groupDesc": "Plane eine Aktivität mit 4-20 Leuten",
       "clubTitle": "Club gründen",
       "clubDesc": "Starte eine dauerhafte Community",
       "friendsTitle": "Freunde finden",
@@ -1273,6 +1273,8 @@
     "popupClub": "Club",
     "popupMembersFmt": "{{current}} / {{max}} Mitglieder",
     "popupMembersUnlimited": "{{current}} / ∞ Mitglieder",
+    "requestBubbleOne": "{{name}} will beitreten!",
+    "requestBubbleMany": "{{count}} Leute wollen beitreten!",
     "pioneer": {
       "title": "Trau dich, sei der Erste!",
       "textPrefix": "In deiner Region gibt es noch keine Gruppen. Erstelle die erste und erhalte einen",

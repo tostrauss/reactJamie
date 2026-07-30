@@ -85,6 +85,10 @@ export const getMapPins = async (req, res) => {
         AND g.lat IS NOT NULL
         AND g.lng IS NOT NULL
         AND g.approval_status = 'approved'
+        -- Clubs themselves are venues, not activities — they clutter the map
+        -- (Tobi 2026-07-30). Their EVENTS (type='event') still appear: an
+        -- event is a time+place someone can actually join.
+        AND g.type <> 'club'
         -- Don't expose private groups' exact coordinates on the public,
         -- unauthenticated map (mirrors suggestionController's filter).
         AND g.is_private IS NOT TRUE
@@ -131,5 +135,39 @@ export const getMapPins = async (req, res) => {
   } catch (err) {
     console.error('Error fetching map pins:', err);
     res.status(500).json({ error: 'Kartendaten konnten nicht geladen werden' });
+  }
+};
+
+/**
+ * GET /api/map/request-bubbles (authenticated)
+ * Pending join requests on entities the CALLER owns, as map-overlay bubbles:
+ * "Alexander will deiner Gruppe beitreten" / "N Leute wollen beitreten"
+ * (Tobi 2026-07-30 — owners should get excited about incoming requests).
+ * Includes private groups: their pins are hidden from the public map, but for
+ * the owner the bubble itself marks the spot. Never cached — it's per-user
+ * and must reflect an accepted/rejected request immediately.
+ */
+export const getMyRequestBubbles = async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT g.id AS group_id, g.type, g.name AS group_name, g.lat, g.lng,
+              COUNT(jr.user_id)::int AS pending_count,
+              (ARRAY_AGG(u.name ORDER BY jr.updated_at DESC))[1] AS latest_name
+       FROM groups g
+       JOIN group_join_requests jr ON jr.group_id = g.id AND jr.status = 'pending'
+       JOIN users u ON u.id = jr.user_id
+       WHERE g.owner_id = $1
+         AND g.is_active = TRUE
+         AND g.deleted_at IS NULL
+         AND g.lat IS NOT NULL
+         AND g.lng IS NOT NULL
+       GROUP BY g.id
+       LIMIT 50`,
+      [req.userId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching request bubbles:', err);
+    res.status(500).json({ error: 'Anfragen konnten nicht geladen werden' });
   }
 };

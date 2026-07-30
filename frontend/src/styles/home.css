@@ -1726,6 +1726,44 @@ input:checked + .slider:before {
   pointer-events: none;
 }
 
+/* Owner join-request bubble — celebratory chip anchored to the group's pin.
+   Rendered via OverlayView; translate(-50%,-100%) centers it above the
+   anchor point, clearing the 56px marker. */
+.map-request-bubble {
+  transform: translate(-50%, -100%) translateY(-64px);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px;
+  background: var(--accent-coral);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(253, 118, 102, 0.5);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  animation: map-bubble-pop 0.35s ease;
+}
+.map-request-bubble::after {
+  /* Little tail pointing at the pin */
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  transform: translateX(-50%);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid var(--accent-coral);
+}
+@keyframes map-bubble-pop {
+  0%   { transform: translate(-50%, -100%) translateY(-64px) scale(0.6); opacity: 0; }
+  100% { transform: translate(-50%, -100%) translateY(-64px) scale(1);   opacity: 1; }
+}
+
 /* Locate me button (floating, bottom-right) */
 .map-locate-btn {
   position: absolute;
