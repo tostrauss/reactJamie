@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { clubs, groups } from '../utils/api';
+import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { UserName } from '../components/UserName';
 import '../styles/club-detail.css';
@@ -16,6 +17,7 @@ export const ClubMembers = () => {
   const location = useLocation();
   const toast = useToast();
   const { t } = useTranslation();
+  const { user } = useContext(AuthContext);
 
   const isGroup = location.pathname.startsWith('/group/');
   const entityApi = isGroup ? groups : clubs;
@@ -61,6 +63,22 @@ export const ClubMembers = () => {
   const filtered = q
     ? members.filter(m => (m.name || '').toLowerCase().includes(q))
     : members;
+
+  // Only the entity owner sees the per-member remove control (the backend
+  // kickMember endpoint is owner-only and rejects anyone else).
+  const viewerIsOwner = !!(club && user && Number(club.owner_id) === Number(user.id));
+
+  const handleRemove = async (member) => {
+    const name = member.name || t('clubMembers.unknownName');
+    if (!window.confirm(t('clubMembers.removeConfirm', { name }))) return;
+    try {
+      await entityApi.kickMember(id, member.id);
+      setMembers(prev => prev.filter(m => m.id !== member.id));
+      setTotalCount(prev => (typeof prev === 'number' ? Math.max(0, prev - 1) : prev));
+    } catch {
+      toast.error(t('clubMembers.toast.removeError'));
+    }
+  };
 
   return (
     <div className="cd-page">
@@ -125,9 +143,14 @@ export const ClubMembers = () => {
           ) : (
             <div className="cd-members-list cd-members-list--full">
               {filtered.map(m => {
-                const isOwner = club && club.owner_id === m.id;
+                const isRowOwner = club && Number(club.owner_id) === Number(m.id);
+                // Owner-only: remove any regular member (never the owner, never a
+                // club co-manager — the backend enforces the same). Lives here on
+                // the full roster so an organiser can clear no-shows without
+                // digging into the edit screen (Lea, 2026-07-30).
+                const canRemove = viewerIsOwner && !isRowOwner && m.role !== 'admin';
                 return (
-                  <button
+                  <div
                     key={m.id}
                     className="cd-member-row"
                     onClick={() => navigate(`/user/${m.id}`)}
@@ -151,7 +174,7 @@ export const ClubMembers = () => {
                         name={m.name || t('clubMembers.unknownName')}
                         age={m.age}
                       />
-                      {isOwner && (
+                      {isRowOwner && (
                         <span className="cd-member-row-tag">{t('clubMembers.ownerTag')}</span>
                       )}
                     </div>
@@ -162,7 +185,19 @@ export const ClubMembers = () => {
                         </svg>
                       </span>
                     )}
-                  </button>
+                    {canRemove && (
+                      <button
+                        type="button"
+                        className="cd-member-remove"
+                        aria-label={t('clubMembers.remove')}
+                        onClick={(e) => { e.stopPropagation(); handleRemove(m); }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>

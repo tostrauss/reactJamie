@@ -476,6 +476,25 @@
   background: #22c55e;
   color: white;
 }
+/* Owner-only remove control on the roster (sits after the trusted badge).
+   40px keeps the app's touch-target floor on small screens. */
+.cd-member-remove {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.cd-member-remove:hover {
+  background: rgba(239, 68, 68, 0.22);
+}
 /* Members bottom-sheet modal REMOVED 2026-07-22 (Tina: "mache überall die
    Mitglieder liste wie bei den Gruppen") — it kept resurfacing the recurring
    "flex:1 child missing min-height:0" scroll bug, and GroupDetail already

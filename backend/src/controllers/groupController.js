@@ -1060,7 +1060,7 @@ export const getGroupMembers = async (req, res) => {
     // "Privat" gates JOINING (request flow), not the member preview — the
     // Pro gate below limits what non-members see either way.
     const groupRes = await db.query(
-      'SELECT type, is_private FROM groups WHERE id = $1 AND deleted_at IS NULL',
+      'SELECT type, is_private, owner_id FROM groups WHERE id = $1 AND deleted_at IS NULL',
       [id]
     );
     if (groupRes.rows.length === 0) {
@@ -1109,7 +1109,13 @@ export const getGroupMembers = async (req, res) => {
     // non-members are gated there (this endpoint also serves clubs).
     const entityType = groupRes.rows[0].type;
     const callerIsPro = req.userId ? await isUserPro(req.userId) : false;
-    const gateApplies = !callerIsPro && (entityType === 'group' || !isCallerMember);
+    // The owner always sees — and manages — their own full roster. The Pro gate
+    // is a tease for OTHER viewers, not a lock on the organiser's own group.
+    // Without this a non-Pro owner saw only 3 of their members and couldn't
+    // remove no-shows from the roster (Lea, 2026-07-30).
+    const callerIsOwner = req.userId != null &&
+      Number(groupRes.rows[0].owner_id) === Number(req.userId);
+    const gateApplies = !callerIsPro && !callerIsOwner && (entityType === 'group' || !isCallerMember);
     let callerIsAdmin = false;
     if (gateApplies && req.userId) {
       const adm = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);

@@ -565,10 +565,13 @@
     "emptyAll": "Noch keine Mitglieder",
     "ownerTag": "Owner",
     "unknownName": "Mitglied",
+    "remove": "Entfernen",
+    "removeConfirm": "{{name}} wirklich entfernen?",
     "gatedHint": "{{count}} weitere Mitglieder mit JAMIE Pro sehen",
     "gatedCta": "Pro freischalten",
     "toast": {
-      "loadError": "Mitglieder konnten nicht geladen werden"
+      "loadError": "Mitglieder konnten nicht geladen werden",
+      "removeError": "Mitglied konnte nicht entfernt werden"
     }
   },
   "home": {

@@ -565,10 +565,13 @@
     "emptyAll": "Ancora nessun membro",
     "ownerTag": "Owner",
     "unknownName": "Membro",
+    "remove": "Rimuovi",
+    "removeConfirm": "Rimuovere davvero {{name}}?",
     "gatedHint": "Vedi altri {{count}} membri con JAMIE Pro",
     "gatedCta": "Sblocca Pro",
     "toast": {
-      "loadError": "Impossibile caricare i membri"
+      "loadError": "Impossibile caricare i membri",
+      "removeError": "Impossibile rimuovere il membro"
     }
   },
   "home": {

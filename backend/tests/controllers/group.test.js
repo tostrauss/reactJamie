@@ -151,6 +151,17 @@ describe('getGroupMembers — Pro gate matrix', () => {
     expect(payload.members).toHaveLength(5);
   });
 
+  // 2026-07-30: the OWNER always sees + manages their own full roster, even
+  // without Pro — otherwise an organiser can't remove no-shows (Lea's request).
+  it('returns the full ungated roster to the non-Pro OWNER of their own group', async () => {
+    scenario.group = { type: 'group', is_private: false, owner_id: 99 };
+    const res = await call(99);
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.gated).toBe(false);
+    expect(payload.members).toHaveLength(5);
+    expect(payload.members[0]).toHaveProperty('bio');
+  });
+
   it('still 403s non-members on PRIVATE CLUBS (clubs resolve through this route too)', async () => {
     scenario.group = { type: 'club', is_private: true };
     const res = await call();

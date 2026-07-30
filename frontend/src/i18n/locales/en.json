@@ -565,10 +565,13 @@
     "emptyAll": "No members yet",
     "ownerTag": "Owner",
     "unknownName": "Member",
+    "remove": "Remove",
+    "removeConfirm": "Really remove {{name}}?",
     "gatedHint": "See {{count}} more members with JAMIE Pro",
     "gatedCta": "Unlock Pro",
     "toast": {
-      "loadError": "Could not load members"
+      "loadError": "Could not load members",
+      "removeError": "Could not remove member"
     }
   },
   "home": {
