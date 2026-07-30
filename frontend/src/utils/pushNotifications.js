@@ -61,6 +61,41 @@ export const subscribeToPush = async () => {
 };
 
 /**
+ * Silent create-or-repair of the push subscription — requires permission to
+ * ALREADY be 'granted' (no prompt is ever shown; pushManager.subscribe needs
+ * no user gesture in that state).
+ *
+ * Why this exists: permission ≠ subscription. In the Play-TWA, Android's
+ * app-level notification prompt (POST_NOTIFICATIONS) sets
+ * Notification.permission to 'granted' without any web PushSubscription ever
+ * being created — and the NotificationPrompt banner deliberately skips
+ * non-'default' states, so nothing ever subscribed: members granted the
+ * permission and still got no push (Lea, 2026-07-30). Also re-registers an
+ * existing subscription with the backend, healing rows that were pruned
+ * after transient endpoint failures.
+ */
+export const syncPushSubscription = async () => {
+  if (!isPushSupported()) return false;
+  if (Notification.permission !== 'granted') return false;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const { data } = await pushApi.getVapidKey();
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(data.publicKey),
+      });
+    }
+    await pushApi.subscribe(sub.toJSON());
+    return true;
+  } catch (err) {
+    console.warn('Push subscription sync failed:', err);
+    return false;
+  }
+};
+
+/**
  * Unsubscribe from push and remove from backend.
  */
 export const unsubscribeFromPush = async () => {

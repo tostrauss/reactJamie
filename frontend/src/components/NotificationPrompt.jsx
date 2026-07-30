@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { isPushSupported, getPushPermission, isPushSubscribed, subscribeToPush } from '../utils/pushNotifications';
+import { isPushSupported, getPushPermission, isPushSubscribed, subscribeToPush, syncPushSubscription } from '../utils/pushNotifications';
+import { safeStorage } from '../utils/safeStorage';
 
 // Proactive "Benachrichtigungen aktivieren" banner. Web push is opt-in — a
 // subscription only exists once the user asks for it, and the only entry point
@@ -26,8 +27,18 @@ export const NotificationPrompt = () => {
     let cancelled = false;
     (async () => {
       if (!isPushSupported()) return;                 // native / unsupported browser
-      if (getPushPermission() !== 'default') return;  // already granted or blocked
-      const dismissedAt = parseInt(localStorage.getItem(DISMISS_KEY) || '0', 10);
+      const perm = getPushPermission();
+      if (perm === 'granted') {
+        // Permission exists but a subscription may not: in the Play-TWA the
+        // Android app-level prompt grants Notification.permission without ever
+        // creating a web PushSubscription, and this banner (rightly) never
+        // shows then — so nothing subscribed and "Freigabe erteilt, trotzdem
+        // kein Push" (Lea, 2026-07-30). Create/repair it silently instead.
+        syncPushSubscription();
+        return;
+      }
+      if (perm !== 'default') return;                 // blocked
+      const dismissedAt = parseInt(safeStorage.getItem(DISMISS_KEY) || '0', 10);
       if (dismissedAt && Date.now() - dismissedAt < SNOOZE_MS) return;
       if (await isPushSubscribed()) return;
       // Let the app settle (intro / review modals) before nudging.
@@ -36,7 +47,7 @@ export const NotificationPrompt = () => {
     return () => { cancelled = true; if (timerRef.current) clearTimeout(timerRef.current); };
   }, []);
 
-  const snooze = () => localStorage.setItem(DISMISS_KEY, String(Date.now()));
+  const snooze = () => safeStorage.setItem(DISMISS_KEY, String(Date.now()));
 
   const enable = async () => {
     setBusy(true);
