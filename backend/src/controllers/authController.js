@@ -5,6 +5,21 @@ import { OAuth2Client } from 'google-auth-library';
 import { generateToken, setAuthCookie, clearAuthCookie } from '../middleware/auth.js';
 import { sendPasswordResetEmail, sendVerificationEmail, sendOTPEmail } from '../utils/email.js';
 import { REFERRAL_CREDITS_ENABLED } from '../config/features.js';
+import { normalizeLocale } from '../utils/pushLocale.js';
+
+// Persist the app language (X-App-Locale, set by the frontend axios
+// interceptor) for server-initiated push i18n. Fire-and-forget; the guarded
+// UPDATE only writes on change, and a missing column (pre-migration boot)
+// must never break login.
+function persistLocale(req, userId) {
+  const raw = req.headers?.['x-app-locale'];
+  if (!raw) return;
+  const locale = normalizeLocale(raw);
+  db.query(
+    'UPDATE users SET locale = $1 WHERE id = $2 AND locale IS DISTINCT FROM $1',
+    [locale, userId]
+  ).catch(() => {});
+}
 
 const parseUserJSONFields = (user) => {
   try {
@@ -314,6 +329,7 @@ export const login = async (req, res) => {
     );
     // Update last_seen non-fatally (column may not exist on older DBs yet)
     db.query('UPDATE users SET last_seen = NOW() WHERE id = $1', [user.id]).catch(() => {});
+    persistLocale(req, user.id);
 
     const token = generateToken(user.id);
 
@@ -735,6 +751,9 @@ export const refreshToken = async (req, res) => {
     if (!result.rows[0] || !result.rows[0].is_active) {
       return res.status(401).json({ error: 'Account nicht gefunden oder deaktiviert' });
     }
+    // Refresh runs on every session restore → existing users get their locale
+    // stored without ever logging in again.
+    persistLocale(req, req.userId);
     const token = generateToken(req.userId);
     setAuthCookie(res, token);
     res.json({ token });

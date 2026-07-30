@@ -1,4 +1,5 @@
 import axios from 'axios';
+import i18n from '../i18n';
 import { isNative, isNativeIOS, NATIVE_API_ORIGIN } from './platform';
 
 // ==========================================
@@ -42,6 +43,11 @@ axiosInstance.interceptors.request.use(
     if (isNative()) {
       config.headers['X-Client-Platform'] = isNativeIOS() ? 'ios' : 'android';
     }
+    // App language for server-initiated pushes (login/refresh persist it to
+    // users.locale). The APP language, not Accept-Language — the device may be
+    // set to English while the user reads JAMIE in German.
+    const lang = i18n.resolvedLanguage || i18n.language;
+    if (lang) config.headers['X-App-Locale'] = lang;
     return config;
   },
   (error) => Promise.reject(error)
@@ -749,6 +755,8 @@ export const map = {
   getPins: (params) => axiosInstance.get('/map/pins', { params }),
   // Austria geocode verifier — fallback when Google Places shows no dropdown.
   geocode: (q) => axiosInstance.get('/map/geocode', { params: { q } }),
+  // Owner-only: pending join requests as map-overlay bubbles
+  getRequestBubbles: () => axiosInstance.get('/map/request-bubbles'),
 };
 
 // ==========================================

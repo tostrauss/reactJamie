@@ -130,7 +130,8 @@ import { subscriptionWebhook } from './controllers/subscriptionController.js';
 import { runDailyRollup, backfillIfEmpty } from './jobs/analyticsRollup.js';
 import { stripeWebhook as boostStripeWebhook } from './controllers/boostController.js';
 import { appleServerNotification } from './controllers/iapController.js';
-import { sendPushToUser } from './controllers/pushController.js';
+import { sendPushToUser, sendPushToUsers } from './controllers/pushController.js';
+import { categoryDigestText } from './utils/pushLocale.js';
 import boostRoutes from './routes/boostRoutes.js';
 import iapRoutes from './routes/iapRoutes.js';
 import mapRoutes from './routes/mapRoutes.js';
@@ -1431,6 +1432,27 @@ const runStartupMigrations = async () => {
     });
   }
 
+  // ── Push i18n: per-user locale (de/it/en) ─────────────────────────────────
+  // Captured from the frontend's X-App-Locale header on login/refresh so
+  // server-initiated pushes (new-group match, join requests, digests) can be
+  // sent in the user's app language instead of hardcoded German.
+  await migrate('users.locale', () =>
+    db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS locale VARCHAR(5)`));
+
+  // ── Category-push digest state ────────────────────────────────────────────
+  // At most ONE immediate "Neue Gruppe — bist du dabei?" push per user per 24h;
+  // further matches only bump pending_count, and the daily digest cron flushes
+  // it as a single bundled push ("N neue Gruppen für dich").
+  await migrate('category_push_state', () =>
+    db.query(`
+      CREATE TABLE IF NOT EXISTS category_push_state (
+        user_id           INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        last_immediate_at TIMESTAMP,
+        pending_count     INTEGER NOT NULL DEFAULT 0,
+        updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `));
+
   console.log('✅ Startup migrations done');
 };
 
@@ -1478,6 +1500,46 @@ cron.schedule('0 3 * * *', async () => {
     console.error('[cron] analytics purge failed:', err.message);
   }
 });
+
+// Category-push digest: flush the day's suppressed "Neue Gruppe" matches as
+// ONE bundled push per user ("N weitere neue Gruppen für dich"), in the user's
+// stored app language. 18:00 Vienna — evening reach, and late enough that the
+// day's creations are in. The atomic UPDATE...RETURNING claims the rows, so a
+// second Railway instance can never double-send, and a crash after claiming
+// loses at worst one digest (never spams twice).
+cron.schedule('0 18 * * *', async () => {
+  try {
+    // NB: RETURNING sees the post-UPDATE row (pending_count = 0), so the
+    // pre-claim count must come from a self-join alias (`old`) — the standard
+    // Postgres pattern for reading old values out of an UPDATE.
+    const { rows } = await db.query(`
+      UPDATE category_push_state s
+      SET pending_count = 0, updated_at = CURRENT_TIMESTAMP
+      FROM category_push_state old
+      JOIN users u ON u.id = old.user_id
+      WHERE old.user_id = s.user_id AND old.pending_count > 0
+      RETURNING s.user_id, old.pending_count AS claimed_count, u.locale
+    `);
+    if (!rows.length) return;
+    // Bucket by (locale, count) — identical text shares one bulk send.
+    const buckets = new Map();
+    for (const r of rows) {
+      const key = `${r.locale || 'de'}:${r.claimed_count}`;
+      if (!buckets.has(key)) buckets.set(key, { locale: r.locale, count: r.claimed_count, ids: [] });
+      buckets.get(key).ids.push(r.user_id);
+    }
+    let sent = 0;
+    for (const { locale, count, ids } of buckets.values()) {
+      if (!count || count < 1) continue;
+      const { title, body } = categoryDigestText(locale, count);
+      sendPushToUsers(ids, title, body, '/home');
+      sent += ids.length;
+    }
+    if (sent) console.log(`[cron] category digest sent to ${sent} users`);
+  } catch (err) {
+    console.error('[cron] category digest failed:', err.message);
+  }
+}, { timezone: 'Europe/Vienna' });
 
 // JAMIE Moment push prompt: every 15 min, claim past events whose owner
 // hasn't uploaded a moment photo yet and send them a one-shot reminder.

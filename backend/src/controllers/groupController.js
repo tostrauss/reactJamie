@@ -3,6 +3,7 @@ import { resolveCreateLocation, geocodeLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { sendPushToUser, sendPushToUsers } from './pushController.js';
 import { expandMatchTerms } from '../utils/categoryFanout.js';
+import { normalizeLocale, categoryPushText, joinRequestText } from '../utils/pushLocale.js';
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
 import { isUserPro } from './subscriptionController.js';
@@ -114,6 +115,11 @@ function normalizeCategories(categories, category) {
 //     included (mirrors the feed's fall-through: they see every group anyway);
 //     no country on the group (no pin) → no country filter
 //   - capped at 500 recipients per group as a spam brake
+//   - DIGEST: at most ONE immediate push per user per 24 h — further matches
+//     only bump category_push_state.pending_count, which the daily digest cron
+//     (server.js) flushes as a single bundled push. Prevents "20 Sport-Gruppen
+//     an einem Tag = 20 Pushes".
+//   - i18n: sent in each recipient's stored app language (users.locale).
 // Delivery is push-only (no notifications row): it's an invitation nudge, not
 // record-keeping — missing it costs nothing, the group is in the feed anyway.
 async function notifyCategoryMatches(group, catList, countryCode, creatorId) {
@@ -121,7 +127,11 @@ async function notifyCategoryMatches(group, catList, countryCode, creatorId) {
   if (!terms.length) return;
 
   const matches = await db.query(
-    `SELECT u.id FROM users u
+    `SELECT u.id, u.locale,
+            s.last_immediate_at IS NOT NULL
+              AND s.last_immediate_at > NOW() - INTERVAL '24 hours' AS recently_pushed
+     FROM users u
+     LEFT JOIN category_push_state s ON s.user_id = u.id
      WHERE u.id <> $1
        AND ($2::text IS NULL OR u.country IS NULL OR u.country = $2)
        AND u.interests IS NOT NULL
@@ -135,13 +145,44 @@ async function notifyCategoryMatches(group, catList, countryCode, creatorId) {
   );
   if (!matches.rows.length) return;
 
-  const where = group.location ? ` in ${group.location}` : '';
-  sendPushToUsers(
-    matches.rows.map(r => r.id),
-    `Neue Gruppe: ${group.name}`,
-    `${group.category || 'Neue Aktivität'}${where} – bist du dabei?`,
-    `/group/${group.id}`
-  );
+  const immediate = matches.rows.filter(r => !r.recently_pushed);
+  const suppressed = matches.rows.filter(r => r.recently_pushed);
+
+  // Suppressed → count towards today's digest.
+  if (suppressed.length) {
+    await db.query(
+      `INSERT INTO category_push_state (user_id, pending_count, updated_at)
+       SELECT unnest($1::int[]), 1, CURRENT_TIMESTAMP
+       ON CONFLICT (user_id) DO UPDATE
+         SET pending_count = category_push_state.pending_count + 1,
+             updated_at = CURRENT_TIMESTAMP`,
+      [suppressed.map(r => r.id)]
+    ).catch(() => {});
+  }
+
+  if (!immediate.length) return;
+
+  // Stamp BEFORE sending: two near-simultaneous creations must not both count
+  // as "first of the day" for the same user.
+  await db.query(
+    `INSERT INTO category_push_state (user_id, last_immediate_at, updated_at)
+     SELECT unnest($1::int[]), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+     ON CONFLICT (user_id) DO UPDATE
+       SET last_immediate_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP`,
+    [immediate.map(r => r.id)]
+  ).catch(() => {});
+
+  // One bulk send per locale bucket (identical text within a bucket).
+  const buckets = new Map();
+  for (const r of immediate) {
+    const l = normalizeLocale(r.locale);
+    if (!buckets.has(l)) buckets.set(l, []);
+    buckets.get(l).push(r.id);
+  }
+  for (const [locale, ids] of buckets) {
+    const { title, body } = categoryPushText(locale, group);
+    sendPushToUsers(ids, title, body, `/group/${group.id}`);
+  }
 }
 
 export const createGroup = async (req, res) => {
@@ -203,9 +244,14 @@ export const createGroup = async (req, res) => {
       }
     }
 
-    // Validate max_members
+    // Validate max_members — GROUPS are 4-20 (Tobi 2026-07-30, was de-facto
+    // 2-20 in the stepper and "3-10" in copy); clubs keep the wide 2-500 range.
     const parsedMax = parseInt(max_members, 10);
-    if (max_members !== undefined && (isNaN(parsedMax) || parsedMax < 2 || parsedMax > 500)) {
+    if ((type || 'group') === 'group') {
+      if (max_members !== undefined && (isNaN(parsedMax) || parsedMax < 4 || parsedMax > 20)) {
+        return res.status(400).json({ error: 'Teilnehmerzahl muss zwischen 4 und 20 liegen' });
+      }
+    } else if (max_members !== undefined && (isNaN(parsedMax) || parsedMax < 2 || parsedMax > 500)) {
       return res.status(400).json({ error: 'Maximale Teilnehmerzahl muss zwischen 2 und 500 liegen' });
     }
 
@@ -631,8 +677,8 @@ export const updateGroup = async (req, res) => {
       return res.status(400).json({ error: 'Mindestalter darf nicht größer als Maximalalter sein' });
     }
 
-    // Verify ownership
-    const group = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
+    // Verify ownership (type also feeds the 4-20 group-size rule below)
+    const group = await db.query('SELECT owner_id, type FROM groups WHERE id = $1', [id]);
     if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
     if (Number(group.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
 
@@ -676,10 +722,15 @@ export const updateGroup = async (req, res) => {
       }
     }
 
-    // Validate max_members is not set below current member count
+    // Validate max_members is not set below current member count.
+    // Groups: 4-20 (mirror of create); clubs/events keep 2-500.
     if (max_members !== undefined) {
       const parsedMax = parseInt(max_members, 10);
-      if (isNaN(parsedMax) || parsedMax < 2 || parsedMax > 500) {
+      if (group.rows[0].type === 'group') {
+        if (isNaN(parsedMax) || parsedMax < 4 || parsedMax > 20) {
+          return res.status(400).json({ error: 'Teilnehmerzahl muss zwischen 4 und 20 liegen' });
+        }
+      } else if (isNaN(parsedMax) || parsedMax < 2 || parsedMax > 500) {
         return res.status(400).json({ error: 'Maximale Teilnehmerzahl muss zwischen 2 und 500 liegen' });
       }
       const countRes = await db.query('SELECT COUNT(*) AS cnt FROM group_members WHERE group_id = $1', [id]);
@@ -1729,15 +1780,20 @@ export const inviteMember = async (req, res) => {
 // ── Push helpers (fire-and-forget) ──────────────────────────────────────────
 export async function notifyJoinRequest(requesterUserId, ownerUserId, groupName, groupId) {
   try {
-    const { rows } = await db.query('SELECT name FROM users WHERE id = $1', [requesterUserId]);
-    const name = rows[0]?.name || 'Jemand';
-    const target = groupName ? `"${groupName}"` : 'deiner Gruppe';
-    sendPushToUser(
-      ownerUserId,
-      'Neue Beitrittsanfrage',
-      `${name} möchte ${target} beitreten`,
-      `/group/${groupId}/requests`
+    // Requester name + OWNER's app language in one round trip — the push must
+    // read in the recipient's locale, and it should feel like a small win
+    // ("leute müssen geil drauf werden, anfragen zu bekommen" — Tobi 2026-07-30).
+    const { rows } = await db.query(
+      `SELECT r.name AS requester_name, o.locale AS owner_locale
+       FROM users r LEFT JOIN users o ON o.id = $2
+       WHERE r.id = $1`,
+      [requesterUserId, ownerUserId]
     );
+    const { title, body } = joinRequestText(rows[0]?.owner_locale, {
+      requesterName: rows[0]?.requester_name,
+      groupName,
+    });
+    sendPushToUser(ownerUserId, title, body, `/group/${groupId}/requests`);
   } catch { /* non-critical */ }
 }
 
