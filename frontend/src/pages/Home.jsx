@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import api, { groups, clubs, deals as dealsApi } from "../utils/api";
 import { GroupCard } from "../components/GroupCard";
+import { MapErrorBoundary } from "../components/MapErrorBoundary";
 import { DealCard } from "../components/DealCard";
 import { JamieWordmark } from "../components/JamieWordmark";
 import { AuthContext } from "../context/AuthContext";
@@ -664,7 +665,9 @@ export const Home = () => {
         {/* KARTE */}
         {activeTab === 'karte' && (
           <Suspense fallback={<div className="home-loading"><div className="home-spinner" /></div>}>
-            <MapView />
+            <MapErrorBoundary fallbackClassName="home-loading">
+              <MapView />
+            </MapErrorBoundary>
           </Suspense>
         )}
 

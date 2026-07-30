@@ -5,6 +5,7 @@ import { deals } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { AuthContext } from '../context/AuthContext';
 import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
+import { MapErrorBoundary } from '../components/MapErrorBoundary';
 
 // ISO weekday (1=Mon … 7=Sun) → short label, for weekday-restricted deals.
 const WEEKDAY_LABELS = {
@@ -430,7 +431,9 @@ export const DealDetail = () => {
       {/* ── Map ──────────────────────────────────────────────────── */}
       {hasMap && (
         <div style={{ margin: '16px 16px 0', borderRadius: 20, overflow: 'hidden' }}>
-          <DealMiniMap lat={deal.lat} lng={deal.lng} />
+          <MapErrorBoundary fallback={<div style={{ height: 200, background: '#1e2235', borderRadius: 20 }} />}>
+            <DealMiniMap lat={deal.lat} lng={deal.lng} />
+          </MapErrorBoundary>
         </div>
       )}
     </div>

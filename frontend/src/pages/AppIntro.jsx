@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { safeStorage } from '../utils/safeStorage';
 
 const STORAGE_KEY = 'jamie_intro_seen';
 const NEW_REG_KEY = 'jamie_new_registration';
@@ -41,15 +42,15 @@ export const AppIntro = ({ onDone }) => {
   }));
 
   const handleDone = () => {
-    localStorage.setItem(STORAGE_KEY, '1');
-    localStorage.removeItem(NEW_REG_KEY);
+    safeStorage.setItem(STORAGE_KEY, '1');
+    safeStorage.removeItem(NEW_REG_KEY);
     if (onDone) onDone();
     else navigate('/home');
   };
 
   const handleSkip = () => {
-    localStorage.setItem(STORAGE_KEY, '1');
-    localStorage.removeItem(NEW_REG_KEY);
+    safeStorage.setItem(STORAGE_KEY, '1');
+    safeStorage.removeItem(NEW_REG_KEY);
     if (onDone) onDone();
     else navigate('/home');
   };
@@ -168,6 +169,6 @@ export const AppIntro = ({ onDone }) => {
  * `jamie_intro_seen` flag is missing (e.g. cleared browser storage, new
  * device). Avoids the "Willkommen bei JAMIE always shows on relogin" bug.
  */
-export const shouldShowIntro = () => localStorage.getItem(NEW_REG_KEY) === '1';
+export const shouldShowIntro = () => safeStorage.getItem(NEW_REG_KEY) === '1';
 
 export default AppIntro;

@@ -4,6 +4,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { safeStorage } from './utils/safeStorage';
 import { AuthContext, AuthProvider } from './context/AuthContext';
 import { SocketContext, SocketProvider } from './context/SocketContext';
 import { ToastProvider } from './context/ToastContext';
@@ -146,7 +147,7 @@ const InstallBanner = () => {
   useEffect(() => {
     if (isInStandaloneMode()) return;
 
-    const dismissed = localStorage.getItem('pwa-install-dismissed');
+    const dismissed = safeStorage.getItem('pwa-install-dismissed');
     if (dismissed && Date.now() - parseInt(dismissed) < 7 * 24 * 60 * 60 * 1000) return;
 
     if (isIOS()) {
@@ -175,7 +176,7 @@ const InstallBanner = () => {
   };
 
   const handleDismiss = () => {
-    localStorage.setItem('pwa-install-dismissed', Date.now().toString());
+    safeStorage.setItem('pwa-install-dismissed', Date.now().toString());
     setShowBanner(false);
   };
 
@@ -451,7 +452,7 @@ function useGeoFence() {
     // relaunch of a standalone/installed PWA, so the old code re-asked for the
     // location on every login — the exact "mach das einmalig" complaint.
     let cached = null;
-    try { cached = localStorage.getItem('jamie_region'); } catch { /* private mode */ }
+    try { cached = safeStorage.getItem('jamie_region'); } catch { /* private mode */ }
     // Migrate old 'austria' value to 'allowed'
     if (cached === 'austria') return 'allowed';
     return cached || 'unknown';
@@ -462,7 +463,7 @@ function useGeoFence() {
     if (region !== 'unknown') return; // already checked
     if (!navigator.geolocation) { setRegion('unknown'); return; }
 
-    const persist = (r) => { try { localStorage.setItem('jamie_region', r); } catch { /* private mode */ } };
+    const persist = (r) => { try { safeStorage.setItem('jamie_region', r); } catch { /* private mode */ } };
 
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
@@ -609,8 +610,8 @@ function AppRoutes() {
     const KEY = 'jamie_feedback_next';
     const DAY = 24 * 60 * 60 * 1000;
     const now = Date.now();
-    const next = parseInt(localStorage.getItem(KEY) || '0', 10);
-    if (!next) { localStorage.setItem(KEY, String(now + 14 * DAY)); return; }
+    const next = parseInt(safeStorage.getItem(KEY) || '0', 10);
+    if (!next) { safeStorage.setItem(KEY, String(now + 14 * DAY)); return; }
     if (now >= next) {
       // Delay so it doesn't stack on top of the intro / review modals.
       const tid = setTimeout(() => setShowFeedback(true), 1500);
@@ -619,7 +620,7 @@ function AppRoutes() {
   }, [user?.id]);
 
   const dismissFeedback = () => {
-    localStorage.setItem('jamie_feedback_next', String(Date.now() + 90 * 24 * 60 * 60 * 1000));
+    safeStorage.setItem('jamie_feedback_next', String(Date.now() + 90 * 24 * 60 * 60 * 1000));
     setShowFeedback(false);
   };
 

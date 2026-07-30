@@ -2,8 +2,9 @@ import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { analytics } from '../utils/api';
 import { CONSENT_KEY } from '../components/ConsentBanner';
+import { safeStorage } from '../utils/safeStorage';
 
-const hasConsent = () => localStorage.getItem(CONSENT_KEY) === 'true';
+const hasConsent = () => safeStorage.getItem(CONSENT_KEY) === 'true';
 const track = (type, screen, duration, subjectId) => {
   if (!hasConsent()) return;
   analytics.trackEvent(type, screen, duration, undefined, subjectId).catch(() => {});

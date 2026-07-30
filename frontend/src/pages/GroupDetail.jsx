@@ -2,6 +2,7 @@ import { useState, useEffect, useContext, Suspense } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
+import { MapErrorBoundary } from '../components/MapErrorBoundary';
 import { groups, clubs, reviews } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -777,7 +778,9 @@ export const GroupDetail = () => {
             {/* Location mini-map */}
             {group.lat != null && group.lng != null && (
               <div className="gd-map-section">
-                <GroupMiniMap lat={Number(group.lat)} lng={Number(group.lng)} />
+                <MapErrorBoundary>
+                  <GroupMiniMap lat={Number(group.lat)} lng={Number(group.lng)} />
+                </MapErrorBoundary>
               </div>
             )}
 

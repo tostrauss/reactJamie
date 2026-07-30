@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation, Trans } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { auth } from '../utils/api';
+import { safeStorage } from '../utils/safeStorage';
 import { JamieWordmark } from '../components/JamieWordmark';
 import { PasswordInput } from '../components/PasswordInput';
 import '../styles/auth.css';
@@ -190,7 +191,7 @@ export const Register = () => {
       if (location.trim()) {
         try { await auth.updateProfile({ location: location.trim() }); } catch (_) {}
       }
-      localStorage.setItem('jamie_new_registration', '1');
+      safeStorage.setItem('jamie_new_registration', '1');
       // replace: the registration wizard must not stay in history — back from
       // onboarding should not re-enter the (now consumed) signup form.
       navigate('/onboarding', { replace: true });

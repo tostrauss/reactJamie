@@ -1,11 +1,16 @@
 import { createContext, useState, useCallback, useEffect, useRef } from 'react';
 import { auth, restoreSession, setMemToken, clearMemToken, subscription as subscriptionApi } from '../utils/api';
+// safeStorage, not raw localStorage: in storage-denied WebViews even reading
+// window.localStorage throws, and the unguarded setItem below broke LOGIN
+// for those users (Sentry JAMIE-REACT-J). Auth truth is the httpOnly cookie;
+// this cache is only a paint-speed nicety and may silently not persist.
+import { safeStorage } from '../utils/safeStorage';
 
 export const AuthContext = createContext();
 
 // User display data (name, avatar, etc.) is safe to cache locally — not a secret
 const getCachedUser = () => {
-  try { return JSON.parse(localStorage.getItem('jamie_user') || 'null'); } catch { return null; }
+  try { return JSON.parse(safeStorage.getItem('jamie_user') || 'null'); } catch { return null; }
 };
 
 export const AuthProvider = ({ children }) => {
@@ -31,14 +36,14 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
     setToken(tok);
     setMemToken(tok); // sync to axios interceptor + Socket.IO
-    localStorage.setItem('jamie_user', JSON.stringify(userData));
+    safeStorage.setItem('jamie_user', JSON.stringify(userData));
   };
 
   const clearAuth = () => {
     setUser(null);
     setToken(null);
     clearMemToken();
-    localStorage.removeItem('jamie_user');
+    safeStorage.removeItem('jamie_user');
   };
 
   const login = useCallback(async (email, password) => {
@@ -124,7 +129,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const { data } = await auth.getProfile();
       setUser(data);
-      localStorage.setItem('jamie_user', JSON.stringify(data));
+      safeStorage.setItem('jamie_user', JSON.stringify(data));
       return data;
     } catch {
       return null;
@@ -147,7 +152,7 @@ export const AuthProvider = ({ children }) => {
         auth.getProfile()
           .then(({ data }) => {
             setUser(data);
-            localStorage.setItem('jamie_user', JSON.stringify(data));
+            safeStorage.setItem('jamie_user', JSON.stringify(data));
           })
           .catch(() => {});
         // Same for Pro flag — silent best-effort.

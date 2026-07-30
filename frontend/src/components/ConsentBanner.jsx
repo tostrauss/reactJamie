@@ -1,21 +1,22 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { safeStorage } from '../utils/safeStorage';
 
 export const CONSENT_KEY = 'jamie_analytics_consent';
 
 export function ConsentBanner() {
   const { t } = useTranslation();
-  const [visible, setVisible] = useState(() => !localStorage.getItem(CONSENT_KEY));
+  const [visible, setVisible] = useState(() => !safeStorage.getItem(CONSENT_KEY));
 
   if (!visible) return null;
 
   const accept = () => {
-    localStorage.setItem(CONSENT_KEY, 'true');
+    safeStorage.setItem(CONSENT_KEY, 'true');
     setVisible(false);
   };
 
   const decline = () => {
-    localStorage.setItem(CONSENT_KEY, 'false');
+    safeStorage.setItem(CONSENT_KEY, 'false');
     setVisible(false);
   };
 

@@ -79,6 +79,18 @@ export function initSentry() {
         replaysSessionSampleRate: 0,
         replaysOnErrorSampleRate: import.meta.env.PROD ? 0.1 : 0,
         sendDefaultPii: false,
+        // Errors thrown INSIDE Google's Maps SDK (minified internals like
+        // `new Ma.lG` / `p.TL` crashing in frozen WebViews) — not actionable
+        // from app code. Our own misuse of the Maps API still reports: those
+        // errors originate in our bundle, not in maps-api-v3 frames.
+        // (JAMIE-REACT-M/K, 2026-07.)
+        denyUrls: [/maps-api-v3/, /maps\.googleapis\.com/],
+        ignoreErrors: [
+          // User dismissed the OS share sheet — expected outcome, not an error
+          // (shareLink() already handles it; old builds still report it).
+          'Abort due to cancellation of share',
+          'AbortError: Share canceled',
+        ],
         beforeSend(event) {
           if (event.request) {
             if (event.request.url)    event.request.url    = scrubUrl(event.request.url);
