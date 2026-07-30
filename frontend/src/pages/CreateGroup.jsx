@@ -60,7 +60,7 @@ export const CreateGroup = () => {
     // doesn't stop someone typing/pasting a foreign address by hand.
     locationCountry: '',
     // Default group size — Tobi 2026-06-22: most groups are small meetups, so 5
-    // is a friendlier starting point than 20 (still adjustable 2–20).
+    // is a friendlier starting point than 20 (adjustable 4–20, Tobi 2026-07-30).
     maxMembers: 5,
     level: 'Alle Levels',
     isPublic: true,
@@ -524,7 +524,7 @@ export const CreateGroup = () => {
               <button
                 type="button"
                 className="counter-btn"
-                onClick={() => setFormData(prev => ({ ...prev, maxMembers: Math.max(2, prev.maxMembers - 1) }))}
+                onClick={() => setFormData(prev => ({ ...prev, maxMembers: Math.max(4, prev.maxMembers - 1) }))}
               >−</button>
               <div className="counter-display">
                 <span className="counter-value">{formData.maxMembers}</span>

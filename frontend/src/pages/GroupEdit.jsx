@@ -80,7 +80,11 @@ export const GroupEdit = () => {
       setFormData({
         name: g.name || g.title || '',
         description: g.description || '',
-        max_members: g.max_members || 10,
+        // Groups are 4-20 since 2026-07-30 — clamp legacy values (3, 100)
+        // into range on load so the save passes the backend validation.
+        max_members: g.type === 'group'
+          ? Math.min(20, Math.max(4, g.max_members || 10))
+          : (g.max_members || 10),
         date: isEventType && validDt
           ? `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`
           : (g.date ? g.date.slice(0, 10) : ''),
@@ -565,12 +569,12 @@ export const GroupEdit = () => {
                 <div className="ge-stepper">
                   <button
                     className="ge-step-btn"
-                    onClick={() => setFormData(p => ({ ...p, max_members: Math.max(2, p.max_members - 1) }))}
+                    onClick={() => setFormData(p => ({ ...p, max_members: Math.max(isClub ? 2 : 4, p.max_members - 1) }))}
                   >−</button>
                   <span className="ge-step-val">{formData.max_members}</span>
                   <button
                     className="ge-step-btn"
-                    onClick={() => setFormData(p => ({ ...p, max_members: Math.min(isClub ? 500 : 100, p.max_members + 1) }))}
+                    onClick={() => setFormData(p => ({ ...p, max_members: Math.min(isClub ? 500 : 20, p.max_members + 1) }))}
                   >+</button>
                 </div>
               </div>
