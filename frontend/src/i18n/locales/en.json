@@ -1271,6 +1271,7 @@
     "locateError": "Could not determine your location",
     "popupGroup": "Group",
     "popupClub": "Club",
+    "popupEvent": "Event",
     "popupMembersFmt": "{{current}} / {{max}} members",
     "popupMembersUnlimited": "{{current}} / ∞ members",
     "requestBubbleOne": "{{name}} wants to join!",

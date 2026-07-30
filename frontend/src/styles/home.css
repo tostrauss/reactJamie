@@ -1730,10 +1730,14 @@ input:checked + .slider:before {
    Rendered via OverlayView; translate(-50%,-100%) centers it above the
    anchor point, clearing the 56px marker. */
 .map-request-bubble {
+  /* relative: the ::after tail must anchor to the chip, not the overlay pane */
+  position: relative;
   transform: translate(-50%, -100%) translateY(-64px);
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  /* Long names on narrow phones: cap and ellipsize inside the label span */
+  max-width: 78vw;
   padding: 7px 12px;
   background: var(--accent-coral);
   color: #fff;
@@ -1762,6 +1766,11 @@ input:checked + .slider:before {
 @keyframes map-bubble-pop {
   0%   { transform: translate(-50%, -100%) translateY(-64px) scale(0.6); opacity: 0; }
   100% { transform: translate(-50%, -100%) translateY(-64px) scale(1);   opacity: 1; }
+}
+.map-request-bubble-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Locate me button (floating, bottom-right) */
@@ -1998,6 +2007,12 @@ input:checked + .slider:before {
   color: #ffb3aa;
 }
 .map-popup-type.club {
+  background: rgba(139,92,246,0.2);
+  border: 1px solid rgba(139,92,246,0.4);
+  color: #c4b5fd;
+}
+/* Club events on the map (clubs themselves are hidden since 2026-07-30) */
+.map-popup-type.event {
   background: rgba(139,92,246,0.2);
   border: 1px solid rgba(139,92,246,0.4);
   color: #c4b5fd;

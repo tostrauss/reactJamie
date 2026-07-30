@@ -1271,6 +1271,7 @@
     "locateError": "Standort konnte nicht ermittelt werden",
     "popupGroup": "Gruppe",
     "popupClub": "Club",
+    "popupEvent": "Event",
     "popupMembersFmt": "{{current}} / {{max}} Mitglieder",
     "popupMembersUnlimited": "{{current}} / ∞ Mitglieder",
     "requestBubbleOne": "{{name}} will beitreten!",

@@ -723,18 +723,22 @@ export const updateGroup = async (req, res) => {
     }
 
     // Validate max_members is not set below current member count.
-    // Groups: 4-20 (mirror of create); clubs/events keep 2-500.
+    // Groups: 4-20 (mirror of create); clubs/events keep 2-500. A legacy group
+    // that already grew PAST 20 (the old edit cap was 100) may keep or shrink
+    // toward its current size — a hard 20 would make every edit unsaveable for
+    // its owner (frontend always sends max_members).
     if (max_members !== undefined) {
       const parsedMax = parseInt(max_members, 10);
+      const countRes = await db.query('SELECT COUNT(*) AS cnt FROM group_members WHERE group_id = $1', [id]);
+      const currentCount = parseInt(countRes.rows[0]?.cnt ?? 0, 10);
       if (group.rows[0].type === 'group') {
-        if (isNaN(parsedMax) || parsedMax < 4 || parsedMax > 20) {
-          return res.status(400).json({ error: 'Teilnehmerzahl muss zwischen 4 und 20 liegen' });
+        const upper = Math.max(20, currentCount);
+        if (isNaN(parsedMax) || parsedMax < 4 || parsedMax > upper) {
+          return res.status(400).json({ error: `Teilnehmerzahl muss zwischen 4 und ${upper} liegen` });
         }
       } else if (isNaN(parsedMax) || parsedMax < 2 || parsedMax > 500) {
         return res.status(400).json({ error: 'Maximale Teilnehmerzahl muss zwischen 2 und 500 liegen' });
       }
-      const countRes = await db.query('SELECT COUNT(*) AS cnt FROM group_members WHERE group_id = $1', [id]);
-      const currentCount = parseInt(countRes.rows[0]?.cnt ?? 0, 10);
       if (parsedMax < currentCount) {
         return res.status(400).json({ error: `Gruppe hat bereits ${currentCount} Mitglieder. Maximale Teilnehmerzahl darf nicht darunter liegen.` });
       }

@@ -391,7 +391,8 @@ export default function MapView({ typeFilter }) {
                   className="map-request-bubble"
                   onClick={(e) => { e.stopPropagation(); navigate(`/group/${b.group_id}/requests`); }}
                 >
-                  <span aria-hidden="true">🎉</span> {label}
+                  <span aria-hidden="true">🎉</span>
+                  <span className="map-request-bubble-label">{label}</span>
                 </button>
               </OverlayViewF>
             );
@@ -414,7 +415,9 @@ export default function MapView({ typeFilter }) {
                 <div className="map-popup-body">
                   <div className="map-popup-badges">
                     <span className={`map-popup-type ${selectedPin.type}`}>
-                      {selectedPin.type === 'club' ? t('map.popupClub') : t('map.popupGroup')}
+                      {selectedPin.type === 'club' ? t('map.popupClub')
+                        : selectedPin.type === 'event' ? t('map.popupEvent')
+                        : t('map.popupGroup')}
                     </span>
                     {selectedPin.category && (
                       <span className="map-popup-cat">{selectedPin.category}</span>

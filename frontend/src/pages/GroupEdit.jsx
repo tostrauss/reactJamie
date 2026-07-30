@@ -81,9 +81,11 @@ export const GroupEdit = () => {
         name: g.name || g.title || '',
         description: g.description || '',
         // Groups are 4-20 since 2026-07-30 — clamp legacy values (3, 100)
-        // into range on load so the save passes the backend validation.
+        // into range on load so the save passes the backend validation. A group
+        // that already grew past 20 members keeps its size (backend allows
+        // max(20, member count) for exactly this legacy case).
         max_members: g.type === 'group'
-          ? Math.min(20, Math.max(4, g.max_members || 10))
+          ? Math.max(4, Math.min(g.max_members || 10, Math.max(20, g.members_count || 0)))
           : (g.max_members || 10),
         date: isEventType && validDt
           ? `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`
@@ -574,7 +576,7 @@ export const GroupEdit = () => {
                   <span className="ge-step-val">{formData.max_members}</span>
                   <button
                     className="ge-step-btn"
-                    onClick={() => setFormData(p => ({ ...p, max_members: Math.min(isClub ? 500 : 20, p.max_members + 1) }))}
+                    onClick={() => setFormData(p => ({ ...p, max_members: Math.min(isClub ? 500 : Math.max(20, members.length), p.max_members + 1) }))}
                   >+</button>
                 </div>
               </div>

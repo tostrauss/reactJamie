@@ -1271,6 +1271,7 @@
     "locateError": "Impossibile determinare la posizione",
     "popupGroup": "Gruppo",
     "popupClub": "Club",
+    "popupEvent": "Evento",
     "popupMembersFmt": "{{current}} / {{max}} membri",
     "popupMembersUnlimited": "{{current}} / ∞ membri",
     "requestBubbleOne": "{{name}} vuole unirsi!",
