@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, useRef, Fragment } from 'react';
+import { useState, useEffect, useContext, useRef, useCallback, Fragment } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { groups, messages } from '../utils/api';
@@ -107,6 +107,31 @@ export const ChatPage = () => {
     };
   }, [groupId]);
 
+  // Catch-up fetch: pull the latest page and merge anything we don't have yet.
+  // Runs after a socket reconnect and when the app returns to the foreground —
+  // messages sent while the phone was in the pocket otherwise never appear
+  // (receive_message only delivers live events; Lea, 2026-07-30). The GET also
+  // re-stamps the read marker, keeping the unread badge honest.
+  const catchUpMessages = useCallback(async () => {
+    try {
+      const response = await messages.get(groupId);
+      const data = response.data;
+      const msgs = Array.isArray(data) ? data : (data?.messages ?? []);
+      if (!msgs.length) return;
+      setMessageList(prev => {
+        if (!prev.length) return msgs;
+        const known = new Set(prev.map(m => m.id));
+        const fresh = msgs.filter(m => !known.has(m.id));
+        if (!fresh.length) return prev;
+        // No overlap → the gap exceeds the fetched window; the fetched page IS
+        // the current tail. Replace (keeping any still-pending own bubble)
+        // instead of appending across a hole in the history.
+        const overlap = msgs.some(m => known.has(m.id));
+        return overlap ? [...prev, ...fresh] : [...msgs, ...prev.filter(m => m._pending)];
+      });
+    } catch { /* next reconnect/visibility tick retries */ }
+  }, [groupId]);
+
   useEffect(() => {
     if (!socket) return;
 
@@ -116,13 +141,35 @@ export const ChatPage = () => {
       setMessageList((prev) => [...prev, data]);
     };
 
+    // Every reconnect is a NEW server-side connection whose room memberships
+    // are gone — without re-joining, the chat looks connected but silently
+    // receives nothing ever again (the root of Lea's "aktualisiert sich
+    // nicht"). Re-join first, then back-fill what was missed while offline.
+    const handleReconnect = () => {
+      socket.emit('join_room', groupId);
+      catchUpMessages();
+    };
+
     socket.on('receive_message', handleReceiveMessage);
+    socket.on('connect', handleReconnect);
 
     return () => {
       socket.emit('leave_room', groupId);
       socket.off('receive_message', handleReceiveMessage);
+      socket.off('connect', handleReconnect);
     };
-  }, [socket, groupId]);
+  }, [socket, groupId, catchUpMessages]);
+
+  // Foreground return with the socket still (apparently) alive: the WebView
+  // may have been frozen with events dropped before the client notices the
+  // dead connection — refetch immediately instead of waiting for ping timeout.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') catchUpMessages();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [catchUpMessages]);
 
   useEffect(() => {
     if (skipAutoScrollRef.current) { skipAutoScrollRef.current = false; return; }
@@ -187,7 +234,11 @@ export const ChatPage = () => {
         avatar_url: user.avatar_url,
         user_id: user.id,
       };
-      setMessageList(prev => prev.map(m => (m.id === tempId ? real : m)));
+      // If a concurrent catch-up fetch already delivered the persisted row,
+      // drop the temp bubble instead of swapping (avoids a duplicate id).
+      setMessageList(prev => prev.some(m => m.id === real.id)
+        ? prev.filter(m => m.id !== tempId)
+        : prev.map(m => (m.id === tempId ? real : m)));
       // Broadcast to the rest of the room ONLY after moderation + persistence
       // succeeded — the persisted row carries the real id so other members
       // dedupe correctly on a later refetch.

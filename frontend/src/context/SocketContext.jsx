@@ -25,11 +25,15 @@ export const SocketProvider = ({ children }) => {
         ? NATIVE_API_ORIGIN
         : (import.meta.env.VITE_SOCKET_URL || undefined);
 
+      // No reconnectionAttempts cap: the default (Infinity) is deliberate.
+      // Mobile OSes freeze the WebView whenever the screen is off / the app is
+      // backgrounded — with a cap of 10 the client permanently gave up after
+      // ~1-2 minutes in the pocket, and the chat silently never updated again
+      // until a full reload (Lea, 2026-07-30).
       const newSocket = io(socketUrl, {
         path: '/socket.io',
         auth: { token },
         transports: ['websocket', 'polling'],
-        reconnectionAttempts: 10,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 10000
       });
@@ -72,7 +76,17 @@ export const SocketProvider = ({ children }) => {
         toast.error('Verbindung fehlgeschlagen. Bitte Seite neu laden.');
       });
 
+      // Returning to the foreground: don't sit out the (up to 10s) backoff —
+      // reconnect right away so an open chat resumes before the user notices.
+      const onVisible = () => {
+        if (document.visibilityState === 'visible' && newSocket.disconnected) {
+          newSocket.connect();
+        }
+      };
+      document.addEventListener('visibilitychange', onVisible);
+
       return () => {
+        document.removeEventListener('visibilitychange', onVisible);
         if (disconnectTimer) clearTimeout(disconnectTimer);
         setIsConnected(false);
         newSocket.close();

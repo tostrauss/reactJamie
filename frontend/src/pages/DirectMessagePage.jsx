@@ -41,6 +41,26 @@ export const DirectMessagePage = () => {
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
   };
 
+  // Catch-up: pull the conversation again and merge anything missing — after a
+  // socket reconnect and on returning to the foreground, messages sent while
+  // the WebView was frozen never arrive via receive_dm (same gap ChatPage had).
+  const catchUpDm = async () => {
+    try {
+      const res = await directMessages.getConversation(otherUserId);
+      const msgs = res.data || [];
+      if (!msgs.length) return;
+      setMessagesList(prev => {
+        if (!prev.length) return msgs;
+        const known = new Set(prev.map(m => m.id));
+        const fresh = msgs.filter(m => !known.has(m.id));
+        if (!fresh.length) return prev;
+        const overlap = msgs.some(m => known.has(m.id));
+        return overlap ? [...prev, ...fresh] : [...msgs, ...prev.filter(m => m._pending)];
+      });
+      markAsRead();
+    } catch { /* next tick retries */ }
+  };
+
   useEffect(() => {
     if (!user || !otherUserId) return;
 
@@ -53,18 +73,37 @@ export const DirectMessagePage = () => {
     // Join DM room
     socket.emit('join_dm_room', { userId: user.id, otherUserId: parseInt(otherUserId) });
 
+    // Reconnects create a NEW server-side connection with no room memberships —
+    // re-join and back-fill, or the conversation silently stops updating.
+    const handleReconnect = () => {
+      socket.emit('join_dm_room', { userId: user.id, otherUserId: parseInt(otherUserId) });
+      catchUpDm();
+    };
+
     // Listen for incoming messages
     socket.on('receive_dm', handleReceiveDM);
     socket.on('dm_user_typing', () => setIsTyping(true));
     socket.on('dm_user_stop_typing', () => setIsTyping(false));
+    socket.on('connect', handleReconnect);
 
     return () => {
       socket.emit('leave_dm_room', { userId: user.id, otherUserId: parseInt(otherUserId) });
       socket.off('receive_dm', handleReceiveDM);
       socket.off('dm_user_typing');
       socket.off('dm_user_stop_typing');
+      socket.off('connect', handleReconnect);
     };
   }, [user, socket, otherUserId]);
+
+  // Foreground return: refetch immediately — the socket may not have noticed
+  // the dead connection yet (ping timeout), but the user is looking NOW.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') catchUpDm();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [otherUserId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     scrollToBottom();
@@ -164,7 +203,11 @@ export const DirectMessagePage = () => {
         sender_name: user.name,
         sender_avatar: user.avatar_url,
       };
-      setMessagesList(prev => prev.map(m => (m.id === tempId ? real : m)));
+      // If a concurrent catch-up fetch already delivered the persisted row,
+      // drop the temp bubble instead of swapping (avoids a duplicate id).
+      setMessagesList(prev => prev.some(m => m.id === real.id)
+        ? prev.filter(m => m.id !== tempId)
+        : prev.map(m => (m.id === tempId ? real : m)));
       // Deliver to the recipient ONLY after moderation + persistence succeeded.
       if (socket) {
         socket.emit('send_dm', {
