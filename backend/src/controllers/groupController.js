@@ -1,7 +1,8 @@
 import db from '../config/database.js';
 import { resolveCreateLocation, geocodeLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
-import { sendPushToUser } from './pushController.js';
+import { sendPushToUser, sendPushToUsers } from './pushController.js';
+import { expandMatchTerms } from '../utils/categoryFanout.js';
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
 import { isUserPro } from './subscriptionController.js';
@@ -101,6 +102,46 @@ async function checkAndAwardPioneer(userId, groupId, lat, lng) {
 function normalizeCategories(categories, category) {
   const src = Array.isArray(categories) ? categories : (category ? [category] : []);
   return [...new Set(src.filter(c => typeof c === 'string' && c.trim()).map(c => c.trim()))].slice(0, 3);
+}
+
+// "Neue Gruppe — bist du dabei?" push to users whose profile interests match
+// the group's categories (Tobi, 2026-07-30). Fire-and-forget after creation.
+//
+// Targeting rules:
+//   - real groups only (no clubs; club events don't pass through createGroup)
+//   - never the creator
+//   - same launch-market country as the group, users with UNRESOLVED country
+//     included (mirrors the feed's fall-through: they see every group anyway);
+//     no country on the group (no pin) → no country filter
+//   - capped at 500 recipients per group as a spam brake
+// Delivery is push-only (no notifications row): it's an invitation nudge, not
+// record-keeping — missing it costs nothing, the group is in the feed anyway.
+async function notifyCategoryMatches(group, catList, countryCode, creatorId) {
+  const terms = expandMatchTerms(catList);
+  if (!terms.length) return;
+
+  const matches = await db.query(
+    `SELECT u.id FROM users u
+     WHERE u.id <> $1
+       AND ($2::text IS NULL OR u.country IS NULL OR u.country = $2)
+       AND u.interests IS NOT NULL
+       AND jsonb_typeof(u.interests) = 'array'
+       AND EXISTS (
+         SELECT 1 FROM jsonb_array_elements_text(u.interests) AS t(val)
+         WHERE LOWER(TRIM(t.val)) = ANY($3::text[])
+       )
+     LIMIT 500`,
+    [creatorId, countryCode, terms]
+  );
+  if (!matches.rows.length) return;
+
+  const where = group.location ? ` in ${group.location}` : '';
+  sendPushToUsers(
+    matches.rows.map(r => r.id),
+    `Neue Gruppe: ${group.name}`,
+    `${group.category || 'Neue Aktivität'}${where} – bist du dabei?`,
+    `/group/${group.id}`
+  );
 }
 
 export const createGroup = async (req, res) => {
@@ -219,6 +260,14 @@ export const createGroup = async (req, res) => {
     // Pioneer check (fire-and-forget — must not block the response)
     if (coords?.lat && coords?.lng) {
       checkAndAwardPioneer(userId, newGroup.id, coords.lat, coords.lng).catch(() => {});
+    }
+
+    // Interest-match push: "bist du dabei?" to same-country users who favor
+    // one of the group's categories (fire-and-forget, groups only — clubs
+    // have their own follower semantics).
+    if ((type || 'group') === 'group') {
+      const groupCountry = coords?.countryCode ? coords.countryCode.toUpperCase() : null;
+      notifyCategoryMatches(newGroup, catList, groupCountry, userId).catch(() => {});
     }
 
     // Welcome system message (fire-and-forget, no live broadcast — nobody is
