@@ -131,7 +131,7 @@ Hinweise zu den Manifest-Settings (schon gesetzt, nicht ändern):
 - `playBilling.enabled = false` — wir liefern kein Play-Billing über die TWA aus (Bezahlung läuft web/Stripe; siehe Schritt 7 zur Data-Safety-Deklaration).
 - `locationDelegation.enabled = false`.
 - 1 Shortcut: „Gruppe erstellen" → `/create-group`.
-- minSdk 21, targetSdk 35, compileSdk 36.
+- minSdk 21, targetSdk 36, compileSdk 36. (targetSdk 36 = Google Play requirement ab 31.08.2026; Bubblewrap 1.24.1 generiert per Template noch 35, daher ist der Wert in `app/build.gradle` manuell auf 36 gesetzt — beim Build NICHT „update project" bestätigen, sonst wird er auf 35 zurückgesetzt.)
 
 Output:
 - `app-release-bundle.aab` ← das hier zu Play Store hochladen
