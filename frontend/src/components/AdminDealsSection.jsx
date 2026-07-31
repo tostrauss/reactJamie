@@ -20,6 +20,7 @@ const emptyForm = () => ({
   deal_label: '',
   description: '',
   address: '', // free-form address; backend geocodes it to lat/lng for the map
+  booking_url: '', // optional external link → "Jetzt buchen" CTA (e.g. ticket shop)
   visible_until: '', // YYYY-MM-DD in the input
   photo_url: '',
   max_redemptions: '100', // global cap; empty = unlimited (auto-offline at cap)
@@ -134,6 +135,7 @@ export const AdminDealsSection = () => {
       deal_label: deal.deal_label || '',
       description: deal.description || '',
       address: deal.address || '',
+      booking_url: deal.booking_url || '',
       visible_until: deal.visible_until ? deal.visible_until.slice(0, 10) : '',
       photo_url: Array.isArray(deal.photos) && deal.photos.length > 0 ? deal.photos[0] : '',
       max_redemptions: deal.max_redemptions == null ? '' : String(deal.max_redemptions),
@@ -163,6 +165,10 @@ export const AdminDealsSection = () => {
         // Backend geocodes a non-empty address to lat/lng (Austria-first) so the
         // deal-detail map renders. Empty = no address.
         address: form.address.trim() || null,
+        // Optional external link. Set → a "Jetzt buchen" button on the deal page
+        // opens it (ticket shop / booking). Per-deal, so it never shows on deals
+        // that don't set it (Tina 2026-07-31: "nicht bei jedem Deal").
+        booking_url: form.booking_url.trim() || null,
         photos: form.photo_url ? [form.photo_url] : [],
         visible_until: form.visible_until || null,
         // Empty input = unlimited (null); otherwise the global redemption cap.
@@ -293,6 +299,22 @@ export const AdminDealsSection = () => {
             />
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4 }}>
               {t('admin.deals.fields.addressHint', { defaultValue: 'Österreich-Adresse — wird automatisch in eine Karte auf der Deal-Seite umgewandelt.' })}
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={labelStyle}>{t('admin.deals.fields.bookingUrl', { defaultValue: 'Externer Link / Ticketshop (optional)' })}</label>
+            <input
+              type="url"
+              inputMode="url"
+              maxLength={2000}
+              value={form.booking_url}
+              onChange={e => setForm(p => ({ ...p, booking_url: e.target.value }))}
+              placeholder="https://…"
+              style={inputStyle}
+            />
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4 }}>
+              {t('admin.deals.fields.bookingUrlHint', { defaultValue: 'Wenn gesetzt, erscheint auf der Deal-Seite ein „Jetzt buchen"-Button, der diesen Link öffnet (z.B. euer Ticketshop). Leer lassen = kein Button.' })}
             </p>
           </div>
 
