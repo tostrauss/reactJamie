@@ -20,8 +20,24 @@ import { isNative } from './platform.js';
 const isAbort = (err) =>
   err?.name === 'AbortError' || /cancel/i.test(err?.message || '');
 
+// Canonical public web origin for shared links. Inside the native app the
+// WebView origin is capacitor://app.jamie-app.com (iOS custom scheme), so
+// callers passing window.location.href produced "capacitor://…" links that
+// recipients can't open (Tina 2026-07-31). Normalize EVERY shared URL to the
+// public https origin — for web-PWA callers this is a no-op.
+const PUBLIC_WEB_ORIGIN = 'https://app.jamie-app.com';
+const toPublicUrl = (url) => {
+  try {
+    const u = new URL(url, PUBLIC_WEB_ORIGIN);
+    return `${PUBLIC_WEB_ORIGIN}${u.pathname}${u.search}${u.hash}`;
+  } catch {
+    return url; // unparseable — share as-is
+  }
+};
+
 export async function shareLink({ title, text, url }) {
   if (!url) return 'failed';
+  url = toPublicUrl(url);
 
   if (isNative()) {
     try {
