@@ -555,7 +555,10 @@
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.6);
-  z-index: 1000;
+  /* Above .bottom-nav (z-index: 1000) — at equal z the statically-positioned nav
+     painted OVER the sheet and cut off the ✓/✗ buttons (Tina 2026-07-31). Matches
+     .filter-overlay / .chat-menu-overlay, which sit above the nav for the same reason. */
+  z-index: 1100;
   display: flex;
   align-items: flex-end;
 }
