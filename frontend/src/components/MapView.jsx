@@ -387,8 +387,11 @@ export default function MapView({ typeFilter }) {
             );
           })}
 
-          {/* Owner join-request bubbles — tap → requests page. Rendered above
-              the marker (MOUSE_TARGET pane keeps them clickable). */}
+          {/* Owner join-request bubbles — tap → requests page. Rendered in the
+              OVERLAY_MOUSE_TARGET pane so they stay clickable. NOTE: the constant
+              is OVERLAY_MOUSE_TARGET — `OverlayView.MOUSE_TARGET` is undefined and
+              silently mounts the overlay into NO pane, so the bubble never showed
+              (root cause found 2026-07-31; backend data was correct all along). */}
           {requestBubbles.map(b => {
             // Nomadtable-style avatar bubble: the requester's profile picture +
             // "Neue Anfrage" (Tina/Tobi 2026-07-31). Multiple pending → count.
@@ -399,7 +402,7 @@ export default function MapView({ typeFilter }) {
               <OverlayViewF
                 key={`req-${b.group_id}`}
                 position={{ lat: b.lat, lng: b.lng }}
-                mapPaneName={OverlayView.MOUSE_TARGET}
+                mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
               >
                 <button
                   type="button"
