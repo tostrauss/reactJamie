@@ -1767,7 +1767,26 @@ input:checked + .slider:before {
   0%   { transform: translate(-50%, -100%) translateY(-64px) scale(0.6); opacity: 0; }
   100% { transform: translate(-50%, -100%) translateY(-64px) scale(1);   opacity: 1; }
 }
+.map-request-bubble-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+  min-width: 0;
+}
+.map-request-bubble-group {
+  font-size: 13px;
+  font-weight: 800;
+  max-width: 44vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .map-request-bubble-label {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.92;
+  max-width: 44vw;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

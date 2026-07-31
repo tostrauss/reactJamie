@@ -414,7 +414,13 @@ export default function MapView({ typeFilter }) {
                       ? <img src={b.latest_avatar} alt="" loading="lazy" decoding="async" />
                       : <span className="map-request-avatar-ph">{(b.latest_name || '?')[0].toUpperCase()}</span>}
                   </span>
-                  <span className="map-request-bubble-label">{label}</span>
+                  {/* Group name in the bubble so it's unambiguous WHICH group the
+                      request is for — private groups have no pin, so the bubble
+                      often floats over an unrelated public pin (Tobi 2026-07-31). */}
+                  <span className="map-request-bubble-text">
+                    <span className="map-request-bubble-group">{b.group_name}</span>
+                    <span className="map-request-bubble-label">{label}</span>
+                  </span>
                 </button>
               </OverlayViewF>
             );
