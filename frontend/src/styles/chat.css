@@ -674,7 +674,10 @@
   /* Explicit height (not aspect-ratio driven) so the box is deterministic even
      on WebViews that mis-handle `aspect-ratio` + `max-height` on a %-width box —
      that combo let the portrait photo grow to full-screen and shove the ✓/✗
-     buttons off the bottom (Tina 2026-07-31). object-fit: cover crops to fill. */
+     buttons off the bottom (Tina 2026-07-31). object-fit: cover crops to fill.
+     aspect-ratio:auto neutralises the 4/3 still set on .request-image-container,
+     so height is the ONLY thing sizing this box — no ambiguity. */
+  aspect-ratio: auto;
   height: 34vh;
   max-height: 300px;
 }
