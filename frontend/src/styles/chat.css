@@ -609,6 +609,10 @@
 .requests-modal-body {
   flex: 1;
   overflow-y: auto;
+  /* contain: a scroll that reaches the modal body's end must NOT chain to the
+     page behind it (Tobi 2026-07-31 — chat list scrolled instead of the modal). */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 20px;
   display: flex;
   flex-direction: column;

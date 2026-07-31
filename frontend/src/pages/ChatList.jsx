@@ -48,6 +48,19 @@ export const ChatList = () => {
   // Clear the search when switching tabs so each tab starts unfiltered.
   useEffect(() => { setSearch(''); }, [activeTab]);
 
+  // Lock the page scroll behind the Anfragen modal. `.app-viewport` is the app's
+  // single scroll region (#root is overflow:hidden) — a position:fixed overlay
+  // doesn't stop it, so touch-drags on the modal scrolled the chat list
+  // underneath instead of the modal (Tobi 2026-07-31). Restore on close.
+  useEffect(() => {
+    if (!requestsModal) return;
+    const vp = document.querySelector('.app-viewport');
+    if (!vp) return;
+    const prev = vp.style.overflow;
+    vp.style.overflow = 'hidden';
+    return () => { vp.style.overflow = prev; };
+  }, [requestsModal]);
+
   useEffect(() => {
     if (!socket) return;
     // receive_message is room-scoped (only fires with the chat OPEN, i.e.
