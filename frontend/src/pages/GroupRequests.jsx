@@ -59,10 +59,24 @@ export const GroupRequests = () => {
   const handleDecline = async () => {
     if (processing) return;
     const request = requests[currentIndex];
+    const rejectedIndex = currentIndex;
     setProcessing(true);
     try {
       await groups.handleRequest(id, request.id, 'reject');
-      toast.info(t('groupRequests.declinedToast', { name: request.user_name }));
+      // Undoable toast — a mis-tapped reject can be reverted (Tobi 2026-07-31).
+      toast.showUndo(
+        t('groupRequests.declinedToast', { name: request.user_name }),
+        async () => {
+          try {
+            await groups.handleRequest(id, request.id, 'undo');
+            setCurrentIndex(rejectedIndex); // bring the card back into view
+            toast.success(t('common.restored'));
+          } catch {
+            toast.error(t('groupRequests.declineError'));
+          }
+        },
+        t('common.undo')
+      );
       goToNext();
     } catch (err) {
       toast.error(err.response?.data?.error || t('groupRequests.declineError'));

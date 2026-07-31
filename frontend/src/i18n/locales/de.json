@@ -50,6 +50,8 @@
     "cancel": "Abbrechen",
     "continue": "Weiter",
     "skip": "Überspringen",
+    "undo": "Rückgängig",
+    "restored": "Wiederhergestellt",
     "loading": "Laden...",
     "loadingShort": "Laden…",
     "sending": "Wird gesendet…",

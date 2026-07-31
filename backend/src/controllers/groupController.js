@@ -1471,6 +1471,15 @@ export const handleJoinRequest = async (req, res) => {
         [requestId]
       );
       res.json({ message: 'Request rejected', status: 'rejected' });
+    } else if (action === 'undo') {
+      // Undo an accidental reject → back to pending. Reject has no side effects
+      // (no push, no membership change), so this is a clean revert. Only touches
+      // a currently-rejected row (never resurrects an accepted one).
+      await db.query(
+        `UPDATE group_join_requests SET status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND status = 'rejected'`,
+        [requestId]
+      );
+      res.json({ message: 'Request restored', status: 'pending' });
     } else {
       res.status(400).json({ error: 'Ungültige Aktion' });
     }

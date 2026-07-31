@@ -50,6 +50,8 @@
     "cancel": "Annulla",
     "continue": "Avanti",
     "skip": "Salta",
+    "undo": "Annulla",
+    "restored": "Ripristinato",
     "loading": "Caricamento...",
     "loadingShort": "Caricamento…",
     "sending": "Invio in corso…",

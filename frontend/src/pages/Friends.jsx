@@ -93,10 +93,25 @@ export const Friends = () => {
 
   const handleReject = async (requestId) => {
     setActionLoading(requestId);
+    const rejected = pending.find(r => r.id === requestId);
     try {
       await friendsApi.respondRequest(requestId, 'reject');
       setPending(prev => prev.filter(r => r.id !== requestId));
-      toast.success(t('friends.toast.rejected'));
+      // Undoable — revert an accidental friend-request reject (Tobi 2026-07-31).
+      toast.showUndo(
+        t('friends.toast.rejected'),
+        async () => {
+          try {
+            await friendsApi.respondRequest(requestId, 'undo');
+            if (rejected) setPending(prev => prev.some(r => r.id === requestId) ? prev : [rejected, ...prev]);
+            else await loadAll();
+            toast.success(t('common.restored'));
+          } catch {
+            toast.error(t('friends.toast.rejectError'));
+          }
+        },
+        t('common.undo')
+      );
     } catch {
       toast.error(t('friends.toast.rejectError'));
     } finally {

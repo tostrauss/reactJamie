@@ -75,10 +75,24 @@ export const sendFriendRequest = async (req, res) => {
 export const respondFriendRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
-    const { action } = req.body; // 'accept' or 'reject'
+    const { action } = req.body; // 'accept' | 'reject' | 'undo'
 
-    if (!['accept', 'reject'].includes(action)) {
-      return res.status(400).json({ error: 'Action must be "accept" or "reject"' });
+    if (!['accept', 'reject', 'undo'].includes(action)) {
+      return res.status(400).json({ error: 'Action must be "accept", "reject" or "undo"' });
+    }
+
+    // Undo an accidental reject → back to pending (only a currently-rejected
+    // request addressed to me; reject has no side effects so this is clean).
+    if (action === 'undo') {
+      const restored = await db.query(
+        `UPDATE friendships SET status = 'pending', updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1 AND addressee_id = $2 AND status = 'rejected' RETURNING id`,
+        [requestId, req.userId]
+      );
+      if (restored.rows.length === 0) {
+        return res.status(404).json({ error: 'Friend request not found' });
+      }
+      return res.json({ message: 'Friend request restored', status: 'pending' });
     }
 
     // Get request (must be addressed to current user)

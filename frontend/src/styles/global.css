@@ -1121,6 +1121,28 @@ select:focus {
   line-height: 1.4;
 }
 
+/* Undo/return action button on the right of a toast (accidental-reject undo). */
+.toast-action {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 6px;
+  padding: 6px 11px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+.toast-action:active { background: rgba(255, 255, 255, 0.36); }
+
 .toast-success {
   background: rgba(34, 197, 94, 0.9);
   border: 1px solid rgba(34, 197, 94, 0.3);

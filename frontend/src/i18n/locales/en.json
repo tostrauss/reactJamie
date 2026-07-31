@@ -50,6 +50,8 @@
     "cancel": "Cancel",
     "continue": "Continue",
     "skip": "Skip",
+    "undo": "Undo",
+    "restored": "Restored",
     "loading": "Loading...",
     "loadingShort": "Loading…",
     "sending": "Sending…",

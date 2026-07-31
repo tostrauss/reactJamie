@@ -217,9 +217,23 @@ export const ChatList = () => {
   };
 
   const handleRejectFriendRequest = async (requestId) => {
+    const rejected = pendingRequests.find(r => r.id === requestId);
     try {
       await friends.respondRequest(requestId, 'reject');
       setPendingRequests(prev => prev.filter(r => r.id !== requestId));
+      // Undoable — revert an accidental friend-request reject (Tobi 2026-07-31).
+      toast.showUndo(
+        t('friends.toast.rejected'),
+        async () => {
+          try {
+            await friends.respondRequest(requestId, 'undo');
+            if (rejected) setPendingRequests(prev => prev.some(r => r.id === requestId) ? prev : [rejected, ...prev]);
+          } catch {
+            toast.error(t('friends.toast.rejectError'));
+          }
+        },
+        t('common.undo')
+      );
     } catch (err) {
     }
   };
@@ -261,10 +275,24 @@ export const ChatList = () => {
   const modalHandleDecline = async () => {
     if (modalProcessing) return;
     const req = modalRequests[modalIndex];
+    const groupId = requestsModal.groupId;
+    const declinedIndex = modalIndex;
     setModalProcessing(true);
     try {
-      await groups.handleRequest(requestsModal.groupId, req.id, 'reject');
-      toast.info(t('chat.list.toast.requestDeclined', { name: req.user_name }));
+      await groups.handleRequest(groupId, req.id, 'reject');
+      // Undoable — revert a mis-tapped/mis-swiped reject (Tobi 2026-07-31).
+      toast.showUndo(
+        t('chat.list.toast.requestDeclined', { name: req.user_name }),
+        async () => {
+          try {
+            await groups.handleRequest(groupId, req.id, 'undo');
+            setModalIndex(declinedIndex); // bring the card back if the modal's still open
+          } catch {
+            toast.error(t('chat.list.toast.requestDeclineError'));
+          }
+        },
+        t('common.undo')
+      );
       modalGoNext();
     } catch (err) {
       toast.error(err.response?.data?.error || t('chat.list.toast.requestDeclineError'));

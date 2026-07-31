@@ -20,9 +20,9 @@ export const ToastProvider = ({ children }) => {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
-  const addToast = useCallback((message, type = 'info', duration = 4000) => {
+  const addToast = useCallback((message, type = 'info', duration = 4000, action = null) => {
     const id = ++toastId;
-    setToasts(prev => [...prev.slice(-4), { id, message, type }]); // max 5 toasts
+    setToasts(prev => [...prev.slice(-4), { id, message, type, action }]); // max 5 toasts
 
     if (duration > 0) {
       timersRef.current[id] = setTimeout(() => removeToast(id), duration);
@@ -36,8 +36,14 @@ export const ToastProvider = ({ children }) => {
   const warning = useCallback((msg) => addToast(msg, 'warning', 4000), [addToast]);
   const info = useCallback((msg) => addToast(msg, 'info', 4000), [addToast]);
 
+  // Undoable toast: shows a small action button (e.g. "Rückgängig") that runs
+  // `onUndo`. Longer default lifetime so there's time to react to an accidental
+  // reject (Tobi 2026-07-31). Caller passes the localized label.
+  const showUndo = useCallback((message, onUndo, label, duration = 6000) =>
+    addToast(message, 'info', duration, { label, onClick: onUndo }), [addToast]);
+
   return (
-    <ToastContext.Provider value={{ addToast, removeToast, success, error, warning, info }}>
+    <ToastContext.Provider value={{ addToast, removeToast, success, error, warning, info, showUndo }}>
       {children}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </ToastContext.Provider>
@@ -77,10 +83,29 @@ const ToastContainer = ({ toasts, onRemove }) => {
         <div
           key={toast.id}
           className={`toast toast-${toast.type}`}
-          onClick={() => onRemove(toast.id)}
+          // Toasts with an action stay put on a stray body tap so the undo option
+          // isn't lost — only the explicit × of time-out dismisses them.
+          onClick={() => { if (!toast.action) onRemove(toast.id); }}
         >
           <span className="toast-icon">{ICONS[toast.type]}</span>
           <span className="toast-message">{toast.message}</span>
+          {toast.action && (
+            <button
+              type="button"
+              className="toast-action"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(toast.id);
+                toast.action.onClick();
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 14 4 9 9 4" />
+                <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+              </svg>
+              {toast.action.label}
+            </button>
+          )}
         </div>
       ))}
     </div>
