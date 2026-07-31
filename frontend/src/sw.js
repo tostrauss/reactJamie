@@ -28,6 +28,22 @@ registerRoute(
   })
 );
 
+// Owner join-request bubbles are per-user AND time-sensitive: they must reflect
+// a brand-new pending request immediately. The /api/map SWR route below would
+// otherwise serve them stale — the classic "map shows no bubble even though the
+// request is pending" (Tobi 2026-07-31: SWR returned the old empty list from
+// cache while the fresh one only landed in the background). MUST be registered
+// BEFORE the feed route (Workbox = first matching route wins). Network-first so
+// online is always fresh; the tiny cache is just an offline courtesy.
+registerRoute(
+  ({ url, request }) => request.method === 'GET' && url.pathname === '/api/map/request-bubbles',
+  new NetworkFirst({
+    cacheName: 'request-bubbles-cache',
+    networkTimeoutSeconds: 8,
+    plugins: [new ExpirationPlugin({ maxEntries: 4, maxAgeSeconds: 60 })]
+  })
+);
+
 // Runtime: groups/map/deals feed — stale-while-revalidate makes the home page feel instant.
 // Serve cached version immediately, refresh in background. Only cache GET requests.
 registerRoute(
