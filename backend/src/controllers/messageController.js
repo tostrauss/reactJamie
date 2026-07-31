@@ -75,7 +75,7 @@ export const sendMessage = async (req, res) => {
     // One batched emit (array of rooms) = one adapter publish.
     try {
       const memberRows = await db.query(
-        'SELECT user_id FROM group_members WHERE group_id = $1 AND user_id <> $2',
+        'SELECT user_id, notifications_muted FROM group_members WHERE group_id = $1 AND user_id <> $2',
         [groupId, req.userId]
       );
 
@@ -106,12 +106,20 @@ export const sendMessage = async (req, res) => {
       // 50 extra round trips per message and could saturate the pg pool.
       const senderName = result.rows[0].user_name || 'Jemand';
       const preview = content.slice(0, 120);
-      sendPushToUsers(
-        memberRows.rows.map(r => r.user_id),
-        group_name || 'Neue Nachricht',
-        `${senderName}: ${preview}`,
-        `/chat/${groupId}`
-      );
+      // Skip members who muted this group's notifications via the chat-header
+      // bell — the in-app nudge above still updates their unread badge, but no
+      // push is sent (Tina 2026-07-31).
+      const pushRecipients = memberRows.rows
+        .filter(r => !r.notifications_muted)
+        .map(r => r.user_id);
+      if (pushRecipients.length) {
+        sendPushToUsers(
+          pushRecipients,
+          group_name || 'Neue Nachricht',
+          `${senderName}: ${preview}`,
+          `/chat/${groupId}`
+        );
+      }
     } catch {
       // Best-effort: unread truth lives in the DB, the next refetch catches up
     }

@@ -285,6 +285,10 @@ export const groups = {
   archiveChat: (id, archived) =>
     axiosInstance.put(`/groups/${id}/archive`, { archived }),
 
+  // Mute/unmute push notifications for this group (per-user) — chat-header bell
+  setNotifications: (id, muted) =>
+    axiosInstance.put(`/groups/${id}/notifications`, { muted }),
+
   // Get group members
   getMembers: (id) => 
     axiosInstance.get(`/groups/${id}/members`),

@@ -269,3 +269,51 @@ Source of truth: `backend/src/controllers/subscriptionController.js`, `boostCont
 - [ ] Admin dashboard at `/admin` loads for your `is_admin` user
 - [ ] Open the TWA on Android — no URL bar (asset links working)
 - [ ] Open the password-reset email on iOS — opens the app, not Safari (Universal Links working)
+
+
+
+
+
+
+
+
+//// 31.07 Last changes — STATUS (Claude, 2026-07-31)
+
+1. ✅ **Anfragen abgeschnitten** — Anfragen-Modal (ChatList) hing an fixem `85vh` +
+   `aspect-ratio`-Bild; auf Tinas privater Gruppe wuchs das Hochkant-Foto über den
+   Screen und schob ✓/✗ raus. Fix: Sheet `height:auto` (max 90vh) + Bild mit
+   fester Höhe (`34vh`, max 300px) statt aspect-ratio. → `chat.css`
+2. ✅ **Bubble wie Nomadtable** — Join-Request-Bubble zeigt jetzt das **Profilbild
+   des Anfragenden + „Neue Anfrage"** (bei mehreren: „N neue Anfragen"). Kein
+   „Travelers Here"-Text. Backend liefert `latest_avatar`. → `MapView.jsx`,
+   `home.css`, `mapController.js`
+3. ✅ **Glocke pro Gruppe** — Bell im Chat-Header stellt Push-Benachrichtigungen
+   pro Gruppe an/aus. Neue Spalte `group_members.notifications_muted` (Auto-
+   Migration), Endpoint `PUT /groups/:id/notifications`, Push-Fan-out überspringt
+   gemutete Mitglieder (In-App-Badge bleibt). → ChatPage + groupController +
+   messageController + i18n (de/en/it)
+4. ✅ **Emojis 📅/📍 weg** — im Chat-Header neben Datum & Ort entfernt. → `ChatPage.jsx`
+5. ⏳ **iOS Splash-Logo zu klein** — Ursache liegt im nativen iOS-Projekt (nicht im
+   Repo, nur auf Tinas Mac). Splash-Quelle ist neu generiert:
+   `frontend/assets/splash.png` + `splash-dark.png` (2732², #231B43, Wortmark
+   mittig, gut sichtbar). **Auf dem Mac ausführen:**
+   ```
+   cd frontend
+   npm run build && npx cap sync ios
+   npx @capacitor/assets generate --ios \
+     --splashBackgroundColor '#231B43' --splashBackgroundColorDark '#231B43'
+   npx cap sync ios
+   ```
+   Danach in Xcode am Simulator prüfen (Logo groß & mittig auf Lila, kein Schwarz).
+   Fallback ohne Tool: in `App/App/Assets.xcassets/Splash.imageset/` die 3 PNGs
+   durch `frontend/assets/splash.png` ersetzen; LaunchScreen-Storyboard-Hintergrund
+   = #231B43, ImageView contentMode = Aspect Fill.
+
+### Vor dem Upload (manuell — nicht im Repo automatisiert)
+- **Android versionCode**: steht auf **10** (twa-manifest + build.gradle). Wenn 10
+  schon mal hochgeladen wurde → auf 11 erhöhen (Play verlangt streng steigend).
+  ⚠️ Bubblewrap-Falle: nach twa-manifest-Edit Checksum neu schreiben, beim Build
+  **nie** „update project" bestätigen (macht targetSdk zurück auf 35).
+- **iOS Build-Nummer**: CFBundleVersion in Xcode für neuen App-Store-Build erhöhen.
+- versionName ggf. 1.1 → 1.2 (substantielle Changes).
+- Tests grün: Backend 95 ✓, Frontend 15 ✓, Vite-Build ✓ (Stand 31.07).

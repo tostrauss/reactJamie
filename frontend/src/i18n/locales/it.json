@@ -708,6 +708,13 @@
       "notFound": "Gruppo non trovato",
       "members": "Membri",
       "clubSuffix": " · Club",
+      "mute": {
+        "muted": "Notifiche per questo gruppo disattivate",
+        "unmuted": "Notifiche per questo gruppo attivate",
+        "muteAria": "Silenzia notifiche",
+        "unmuteAria": "Attiva notifiche",
+        "error": "Impossibile aggiornare"
+      },
       "permissionOwnerOnly": "Solo il fondatore del club può inviare messaggi",
       "loadEarlier": "Carica messaggi precedenti",
       "loadingShort": "Caricamento…",
@@ -1275,7 +1282,8 @@
     "popupMembersFmt": "{{current}} / {{max}} membri",
     "popupMembersUnlimited": "{{current}} / ∞ membri",
     "requestBubbleOne": "{{name}} vuole unirsi!",
-    "requestBubbleMany": "{{count}} persone vogliono unirsi!",
+    "requestBubbleNew": "Nuova richiesta",
+    "requestBubbleMany": "{{count}} nuove richieste",
     "pioneer": {
       "title": "Osa, sii il primo!",
       "textPrefix": "Nella tua zona non ci sono ancora gruppi. Crea il primo e ricevi un",
@@ -1454,6 +1462,12 @@
     "inviteToast": "Invito inviato a {{name}}!",
     "inviteError": "Invito non riuscito",
     "linkCopied": "Link copiato!",
+    "managerAdded": "Manager aggiunto",
+    "managerRemoved": "Manager rimosso",
+    "managerError": "Impossibile aggiornare il manager",
+    "managerBadge": "Manager",
+    "removeManager": "Rimuovi come manager",
+    "makeManager": "Rendi manager",
     "sections": {
       "members": "Membri",
       "addFriends": "Aggiungi amici",

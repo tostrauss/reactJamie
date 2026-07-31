@@ -708,6 +708,13 @@
       "notFound": "Group not found",
       "members": "Members",
       "clubSuffix": " · Club",
+      "mute": {
+        "muted": "Notifications for this group are off",
+        "unmuted": "Notifications for this group are on",
+        "muteAria": "Mute notifications",
+        "unmuteAria": "Turn on notifications",
+        "error": "Couldn't update"
+      },
       "permissionOwnerOnly": "Only the club owner can send messages",
       "loadEarlier": "Load earlier messages",
       "loadingShort": "Loading…",
@@ -1275,7 +1282,8 @@
     "popupMembersFmt": "{{current}} / {{max}} members",
     "popupMembersUnlimited": "{{current}} / ∞ members",
     "requestBubbleOne": "{{name}} wants to join!",
-    "requestBubbleMany": "{{count}} people want to join!",
+    "requestBubbleNew": "New request",
+    "requestBubbleMany": "{{count}} new requests",
     "pioneer": {
       "title": "Be the first!",
       "textPrefix": "There are no groups in your region yet. Create the first one and get a",
@@ -1454,6 +1462,12 @@
     "inviteToast": "{{name}} invited!",
     "inviteError": "Invitation failed",
     "linkCopied": "Link copied!",
+    "managerAdded": "Manager added",
+    "managerRemoved": "Manager removed",
+    "managerError": "Couldn't update manager",
+    "managerBadge": "Manager",
+    "removeManager": "Remove as manager",
+    "makeManager": "Make manager",
     "sections": {
       "members": "Members",
       "addFriends": "Add friends",

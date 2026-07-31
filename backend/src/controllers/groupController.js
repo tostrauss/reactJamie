@@ -601,7 +601,7 @@ export const getGroupById = async (req, res) => {
     // Check if current user is member/favorite/pending (if authenticated)
     if (req.userId) {
       const [memberCheck, favCheck, requestCheck, waitlistCheck] = await Promise.all([
-        db.query('SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
+        db.query('SELECT role, notifications_muted FROM group_members WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
         db.query('SELECT 1 FROM group_favorites WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
         db.query(
           `SELECT status FROM group_join_requests WHERE group_id = $1 AND user_id = $2 ORDER BY updated_at DESC LIMIT 1`,
@@ -613,6 +613,8 @@ export const getGroupById = async (req, res) => {
         ),
       ]);
       group.is_member = memberCheck.rows.length > 0;
+      // Per-group push mute state for the chat-header bell (null for non-members).
+      group.is_muted = memberCheck.rows[0] ? !!memberCheck.rows[0].notifications_muted : false;
       // Co-manager (clubs): owner OR a member promoted to role='admin'. Lets the
       // edit page + manage UI grant access to managers, not just the owner.
       group.my_role = memberCheck.rows[0]?.role || null;
@@ -1334,6 +1336,30 @@ export const setGroupChatArchived = async (req, res) => {
     res.json({ archived });
   } catch (err) {
     console.error('Error archiving group chat:', err);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+};
+
+// ==========================================
+// MUTE / UNMUTE GROUP NOTIFICATIONS (per-member)
+// The chat-header bell toggles this; the message push fan-out
+// (messageController.sendMessage) skips members with notifications_muted = true.
+// ==========================================
+export const setGroupNotifications = async (req, res) => {
+  try {
+    const { id } = req.params;
+    // `muted: true` silences; anything else (or `muted: false`) re-enables.
+    const muted = req.body.muted === true || req.body.muted === 'true';
+    const result = await db.query(
+      'UPDATE group_members SET notifications_muted = $1 WHERE group_id = $2 AND user_id = $3 RETURNING group_id',
+      [muted, id, req.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Nicht Mitglied dieser Gruppe' });
+    }
+    res.json({ muted });
+  } catch (err) {
+    console.error('Error updating group notifications:', err);
     res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };

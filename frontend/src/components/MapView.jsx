@@ -377,9 +377,11 @@ export default function MapView({ typeFilter }) {
           {/* Owner join-request bubbles — tap → requests page. Rendered above
               the marker (MOUSE_TARGET pane keeps them clickable). */}
           {requestBubbles.map(b => {
-            const label = b.pending_count === 1
-              ? t('map.requestBubbleOne', { name: b.latest_name })
-              : t('map.requestBubbleMany', { count: b.pending_count > 10 ? '10+' : b.pending_count });
+            // Nomadtable-style avatar bubble: the requester's profile picture +
+            // "Neue Anfrage" (Tina/Tobi 2026-07-31). Multiple pending → count.
+            const label = b.pending_count > 1
+              ? t('map.requestBubbleMany', { count: b.pending_count > 10 ? '10+' : b.pending_count })
+              : t('map.requestBubbleNew');
             return (
               <OverlayViewF
                 key={`req-${b.group_id}`}
@@ -391,7 +393,11 @@ export default function MapView({ typeFilter }) {
                   className="map-request-bubble"
                   onClick={(e) => { e.stopPropagation(); navigate(`/group/${b.group_id}/requests`); }}
                 >
-                  <span aria-hidden="true">🎉</span>
+                  <span className="map-request-avatar" aria-hidden="true">
+                    {b.latest_avatar
+                      ? <img src={b.latest_avatar} alt="" loading="lazy" decoding="async" />
+                      : <span className="map-request-avatar-ph">{(b.latest_name || '?')[0].toUpperCase()}</span>}
+                  </span>
                   <span className="map-request-bubble-label">{label}</span>
                 </button>
               </OverlayViewF>

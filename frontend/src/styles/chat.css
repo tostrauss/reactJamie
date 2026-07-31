@@ -562,7 +562,13 @@
 
 .requests-modal {
   width: 100%;
-  height: 85vh;
+  /* Auto height (capped) so the sheet hugs its content and can NEVER force the
+     card taller than the viewport — the fixed 85vh + justify-center combo used
+     to clip the ✓/✗ buttons off the bottom on tall portrait request photos
+     (Tina 2026-07-31: private-group requests "nicht korrekt formatiert"). */
+  height: auto;
+  max-height: 90vh;
+  min-height: 55vh;
   background: var(--bg-secondary);
   border-radius: 24px 24px 0 0;
   display: flex;
@@ -665,11 +671,12 @@
 }
 
 .request-image-tall {
-  aspect-ratio: 3/4;
-  /* Cap the height so the whole card + ✓/✗ buttons stay on screen on smaller
-     (esp. Android) phones — the uncapped 3/4 image pushed the buttons off the
-     bottom of the 85vh sheet (Tobi 2026-07-27). object-fit: cover crops. */
-  max-height: 38vh;
+  /* Explicit height (not aspect-ratio driven) so the box is deterministic even
+     on WebViews that mis-handle `aspect-ratio` + `max-height` on a %-width box —
+     that combo let the portrait photo grow to full-screen and shove the ✓/✗
+     buttons off the bottom (Tina 2026-07-31). object-fit: cover crops to fill. */
+  height: 34vh;
+  max-height: 300px;
 }
 
 .request-trusted-badge {
@@ -949,6 +956,27 @@
   border-radius: 50%;
   object-fit: cover;
 }
+
+/* Per-group notification bell (mute/unmute push). 44px touch target. */
+.chat-page-bell {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--text-light);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+.chat-page-bell:hover { background: var(--bg-hover); }
+.chat-page-bell:disabled { opacity: 0.5; cursor: default; }
+/* Muted → coral bell-with-slash so the "off" state reads at a glance. */
+.chat-page-bell.muted { color: var(--accent-coral, #FD7666); }
 
 /* Messages Container */
 .messages-container {

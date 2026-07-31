@@ -814,6 +814,11 @@ const runStartupMigrations = async () => {
   // for DMs). The chat list moves archived rows into the "Ausgeblendet" section.
   await migrate('group_members archived', () =>
     db.query(`ALTER TABLE group_members ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE`));
+  // Per-(group,user) push-notification mute. The bell in the chat header flips
+  // this; the message push fan-out skips muted members (Tina 2026-07-31: "Glocke
+  // bei jeder Gruppe um Benachrichtigungen an/aus"). Default FALSE = notified.
+  await migrate('group_members notifications_muted', () =>
+    db.query(`ALTER TABLE group_members ADD COLUMN IF NOT EXISTS notifications_muted BOOLEAN NOT NULL DEFAULT FALSE`));
   // Persistent per-(group,user) join counter. Survives leaving (the
   // group_members row is deleted on leave) so we can cap repeated join/leave
   // churn — a user may join any given group/club at most MAX_JOINS times.

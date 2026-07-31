@@ -708,6 +708,13 @@
       "notFound": "Gruppe nicht gefunden",
       "members": "Mitglieder",
       "clubSuffix": " · Club",
+      "mute": {
+        "muted": "Benachrichtigungen für diese Gruppe aus",
+        "unmuted": "Benachrichtigungen für diese Gruppe an",
+        "muteAria": "Benachrichtigungen stummschalten",
+        "unmuteAria": "Benachrichtigungen einschalten",
+        "error": "Konnte nicht geändert werden"
+      },
       "permissionOwnerOnly": "Nur der Club-Gründer kann Nachrichten senden",
       "loadEarlier": "Ältere Nachrichten laden",
       "loadingShort": "Laden…",
@@ -1275,7 +1282,8 @@
     "popupMembersFmt": "{{current}} / {{max}} Mitglieder",
     "popupMembersUnlimited": "{{current}} / ∞ Mitglieder",
     "requestBubbleOne": "{{name}} will beitreten!",
-    "requestBubbleMany": "{{count}} Leute wollen beitreten!",
+    "requestBubbleNew": "Neue Anfrage",
+    "requestBubbleMany": "{{count}} neue Anfragen",
     "pioneer": {
       "title": "Trau dich, sei der Erste!",
       "textPrefix": "In deiner Region gibt es noch keine Gruppen. Erstelle die erste und erhalte einen",
@@ -1454,6 +1462,12 @@
     "inviteToast": "{{name}} eingeladen!",
     "inviteError": "Einladung fehlgeschlagen",
     "linkCopied": "Link kopiert!",
+    "managerAdded": "Manager hinzugefügt",
+    "managerRemoved": "Manager entfernt",
+    "managerError": "Manager konnte nicht geändert werden",
+    "managerBadge": "Manager",
+    "removeManager": "Als Manager entfernen",
+    "makeManager": "Zum Manager machen",
     "sections": {
       "members": "Mitglieder",
       "addFriends": "Freunde hinzufügen",

@@ -152,7 +152,8 @@ export const getMyRequestBubbles = async (req, res) => {
     const result = await db.query(
       `SELECT g.id AS group_id, g.type, g.name AS group_name, g.lat, g.lng,
               COUNT(jr.user_id)::int AS pending_count,
-              (ARRAY_AGG(u.name ORDER BY jr.updated_at DESC))[1] AS latest_name
+              (ARRAY_AGG(u.name ORDER BY jr.updated_at DESC))[1] AS latest_name,
+              (ARRAY_AGG(u.avatar_url ORDER BY jr.updated_at DESC))[1] AS latest_avatar
        FROM groups g
        JOIN group_join_requests jr ON jr.group_id = g.id AND jr.status = 'pending'
        JOIN users u ON u.id = jr.user_id

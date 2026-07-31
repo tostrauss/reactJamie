@@ -24,7 +24,8 @@ import {
   getUserWaitlistStatus,
   getGroupMemberAvatars,
   inviteMember,
-  setGroupChatArchived
+  setGroupChatArchived,
+  setGroupNotifications
 } from '../controllers/groupController.js';
 import { authenticate, optionalAuth, requireCompleteProfile } from '../middleware/auth.js';
 import { generalLimiter } from '../middleware/rateLimiter.js';
@@ -45,6 +46,8 @@ router.get('/likes/mine', authenticate, getMyLikes);
 router.get('/user/joined', authenticate, getUserGroups);
 // Hide/unhide a group-or-club chat from the chat list (per-user)
 router.put('/:id/archive', authenticate, setGroupChatArchived);
+// Mute/unmute push notifications for this group (per-user) — chat-header bell
+router.put('/:id/notifications', authenticate, setGroupNotifications);
 
 // ==========================================
 // GROUP CRUD ROUTES

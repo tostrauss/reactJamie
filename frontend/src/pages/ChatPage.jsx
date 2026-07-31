@@ -21,6 +21,9 @@ export const ChatPage = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [canSendMessages, setCanSendMessages] = useState(true);
   const [permissionMessage, setPermissionMessage] = useState('');
+  // Per-group push mute (chat-header bell). Seeded from the group payload.
+  const [muted, setMuted] = useState(false);
+  const [muteBusy, setMuteBusy] = useState(false);
 
   const { user } = useContext(AuthContext);
   const { socket, isConnected } = useContext(SocketContext);
@@ -65,6 +68,7 @@ export const ChatPage = () => {
         const response = await groups.getById(groupId);
         if (cancelled) return;
         setGroup(response.data);
+        setMuted(!!response.data.is_muted);
         if (response.data.type === 'club' && response.data.chat_only_owner && Number(response.data.owner_id) !== Number(user?.id)) {
           setCanSendMessages(false);
           setPermissionMessage(t('chat.page.permissionOwnerOnly'));
@@ -266,6 +270,24 @@ export const ChatPage = () => {
     }
   };
 
+  // Bell in the header: mute/unmute this group's push notifications. Optimistic
+  // flip with rollback on failure.
+  const handleToggleMute = async () => {
+    if (muteBusy) return;
+    const next = !muted;
+    setMuted(next);
+    setMuteBusy(true);
+    try {
+      await groups.setNotifications(groupId, next);
+      toast.info(next ? t('chat.page.mute.muted') : t('chat.page.mute.unmuted'));
+    } catch {
+      setMuted(!next);
+      toast.error(t('chat.page.mute.error'));
+    } finally {
+      setMuteBusy(false);
+    }
+  };
+
   if (loading) return <div className="chat-page"><div className="loading">{t('chat.page.loading')}</div></div>;
   if (!group) return <div className="chat-page"><div className="loading">{t('chat.page.notFound')}</div></div>;
 
@@ -292,12 +314,37 @@ export const ChatPage = () => {
               fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2,
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>
-              {group.date && `📅 ${new Date(group.date).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short' })}`}
+              {group.date && new Date(group.date).toLocaleDateString(dateLocale, { day: 'numeric', month: 'short' })}
               {group.date && group.location && ' · '}
-              {group.location && `📍 ${group.location}`}
+              {group.location}
             </div>
           )}
         </div>
+        {/* Per-group notification bell — mute/unmute push for this chat */}
+        <button
+          type="button"
+          className={`chat-page-bell${muted ? ' muted' : ''}`}
+          onClick={handleToggleMute}
+          disabled={muteBusy}
+          aria-pressed={muted}
+          aria-label={muted ? t('chat.page.mute.unmuteAria') : t('chat.page.mute.muteAria')}
+          title={muted ? t('chat.page.mute.unmuteAria') : t('chat.page.mute.muteAria')}
+        >
+          {muted ? (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              <path d="M18.63 13A17.89 17.89 0 0 1 18 8"/>
+              <path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/>
+              <path d="M18 8a6 6 0 0 0-9.33-5"/>
+              <line x1="1" y1="1" x2="23" y2="23"/>
+            </svg>
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+          )}
+        </button>
         {group.image_url && (
           <img src={group.image_url} alt={group.name || group.title} className="chat-page-avatar" onClick={() => navigate(`/group/${groupId}`)} style={{ cursor: 'pointer' }} decoding="async" fetchPriority="high" />
         )}
