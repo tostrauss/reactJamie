@@ -192,10 +192,23 @@ export default function MapView({ typeFilter }) {
   useEffect(() => {
     if (!user || user.isGuest) return;
     let cancelled = false;
-    mapApi.getRequestBubbles()
-      .then(res => { if (!cancelled) setRequestBubbles(res.data || []); })
-      .catch(() => {}); // decorative — never block the map
-    return () => { cancelled = true; };
+    const load = () => {
+      mapApi.getRequestBubbles()
+        .then(res => { if (!cancelled) setRequestBubbles(res.data || []); })
+        .catch(() => {}); // decorative — never block the map
+    };
+    load();
+    // Keep it live: a join request that arrives WHILE the map is already open
+    // must surface the bubble without a tab switch — the fetch used to run only
+    // on mount, so an owner watching the map never saw it (Tobi 2026-07-31).
+    const interval = setInterval(load, 25000);
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Fit bounds when pins change ───────────────────────────────
