@@ -759,7 +759,14 @@
   padding-bottom: 92px;
 }
 
-.action-btn {
+/* Scoped under .requests-actions on purpose: a bare `.action-btn` also exists in
+   home.css as a flex:1 PILL (group-card Beitreten/Chat buttons). At equal
+   specificity the cascade mixed them — home.css's flex:1 stretched these wide and
+   chat.css's border-radius:50% turned the wide box into an OVAL (Tobi 2026-07-31,
+   visible on desktop too). The descendant selector wins by specificity; flex:none
+   pins them back to fixed 70px circles regardless of stylesheet order. */
+.requests-actions .action-btn {
+  flex: none;
   width: 70px;
   height: 70px;
   border-radius: 50%;
@@ -771,13 +778,31 @@
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.action-btn:not(:disabled):hover { transform: scale(1.1); }
-.action-btn:not(:disabled):active { transform: scale(0.95); }
-.action-btn.decline { background: var(--bg-input); color: var(--text-muted); }
-.action-btn.decline:not(:disabled):hover { background: var(--status-busy); color: white; box-shadow: 0 4px 20px rgba(255,59,48,0.4); }
-.action-btn.accept { background: var(--accent-green); color: white; box-shadow: 0 4px 20px rgba(76,217,100,0.4); }
-.action-btn.accept:not(:disabled):hover { box-shadow: 0 6px 25px rgba(76,217,100,0.5); }
+.requests-actions .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.requests-actions .action-btn:not(:disabled):hover { transform: scale(1.1); }
+.requests-actions .action-btn:not(:disabled):active { transform: scale(0.95); }
+.requests-actions .action-btn.decline { background: var(--bg-input); color: var(--text-muted); }
+.requests-actions .action-btn.decline:not(:disabled):hover { background: var(--status-busy); color: white; box-shadow: 0 4px 20px rgba(255,59,48,0.4); }
+.requests-actions .action-btn.accept { background: var(--accent-green); color: white; box-shadow: 0 4px 20px rgba(76,217,100,0.4); }
+.requests-actions .action-btn.accept:not(:disabled):hover { box-shadow: 0 6px 25px rgba(76,217,100,0.5); }
+
+/* Blurred peek of the NEXT request card under the current one. Lived only in
+   GroupRequests.jsx's inline <style> (a global leak the chat-list modal also
+   relied on); moved here so removing that inline block didn't blow it up to
+   full size in both places (Tobi 2026-07-31). */
+.next-card-preview {
+  position: absolute;
+  bottom: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  height: 60px;
+  border-radius: 20px 20px 0 0;
+  overflow: hidden;
+  opacity: 0.5;
+  z-index: -1;
+}
+.next-card-preview img { width: 100%; height: 100%; object-fit: cover; filter: blur(2px); }
 
 /* Hidden Chats Toggle */
 .hidden-chats-toggle {
