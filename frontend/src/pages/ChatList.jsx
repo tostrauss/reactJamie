@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { groups, directMessages, friends } from '../utils/api';
 import { SocketContext } from '../context/SocketContext';
 import { useToast } from '../context/ToastContext';
+import { RequestCard } from '../components/RequestCard';
 import '../styles/chat.css';
 import '../styles/profile.css';
 
@@ -703,15 +704,6 @@ export const ChatList = () => {
                 </div>
               ) : (() => {
                 const req = modalRequests[modalIndex];
-                const age = req.user_dob
-                  ? Math.floor((Date.now() - new Date(req.user_dob)) / 31557600000)
-                  : null;
-                let interests = [];
-                try {
-                  interests = req.user_interests
-                    ? (typeof req.user_interests === 'string' ? JSON.parse(req.user_interests) : req.user_interests)
-                    : [];
-                } catch {}
                 const nextReq = modalRequests[modalIndex + 1];
                 return (
                   <>
@@ -729,47 +721,7 @@ export const ChatList = () => {
                     >
                       <div className={`swipe-indicator swipe-accept${dragX > 40 ? ' visible' : ''}`}><span>✓</span></div>
                       <div className={`swipe-indicator swipe-decline${dragX < -40 ? ' visible' : ''}`}><span>✕</span></div>
-                      <div className="request-card">
-                        <div className="request-image-container request-image-tall">
-                          {req.user_avatar
-                            ? <img src={req.user_avatar} alt={req.user_name} className="request-user-image" loading="lazy" />
-                            : <div className="request-avatar-placeholder">{(req.user_name || '?')[0].toUpperCase()}</div>
-                          }
-                          {req.user_trusted && (
-                            <div className="request-trusted-badge">
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-                                <polyline points="20,6 9,17 4,12" stroke="white" strokeWidth="3" fill="none"/>
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-                        <div className="request-user-info">
-                          <h2 className="request-name">
-                            {req.user_name}{age ? `, ${age}` : ''}
-                          </h2>
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/user/${req.user_id}`)}
-                            style={{
-                              background: 'none', border: 'none', color: 'var(--accent-coral, #FD7666)',
-                              fontSize: 14, fontWeight: 600, cursor: 'pointer', padding: '4px 0',
-                              marginBottom: 8, textDecoration: 'underline', textUnderlineOffset: 3,
-                            }}
-                          >
-                            {t('common.viewProfile')}
-                          </button>
-                          {req.message && (
-                            <p className="request-bio">{req.message}</p>
-                          )}
-                          {interests.length > 0 && (
-                            <div className="request-interests">
-                              {interests.slice(0, 5).map((tag, i) => (
-                                <span key={i} className="request-interest-tag">{tag}</span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                      <RequestCard request={req} />
                       {nextReq && (
                         <div className="next-card-preview">
                           {nextReq.user_avatar

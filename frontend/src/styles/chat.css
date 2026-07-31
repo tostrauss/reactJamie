@@ -736,6 +736,7 @@
 
 .request-user-info { padding: 20px; text-align: center; }
 .request-name { font-size: 24px; font-weight: 700; color: var(--text-white); margin-bottom: 8px; }
+.request-profile-link { background: none; border: none; color: var(--accent-coral, #FD7666); font-size: 14px; font-weight: 600; cursor: pointer; padding: 4px 0; margin-bottom: 8px; text-decoration: underline; text-underline-offset: 3px; }
 .request-bio { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4; }
 
 .request-message-box {

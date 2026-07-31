@@ -3,14 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { groups } from '../utils/api';
 import { useToast } from '../context/ToastContext';
-import { UserName } from '../components/UserName';
+import { RequestCard } from '../components/RequestCard';
+import '../styles/chat.css';
 
 export const GroupRequests = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const { t, i18n } = useTranslation();
-  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : 'de-DE';
+  const { t } = useTranslation();
 
   const [requests, setRequests] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -130,45 +130,7 @@ export const GroupRequests = () => {
           </div>
         ) : currentRequest ? (
           <div className="request-card-wrapper">
-            <div className="request-card">
-              <div className="request-image-container">
-                {currentRequest.user_avatar ? (
-                  <img src={currentRequest.user_avatar} alt={currentRequest.user_name} className="request-user-image" decoding="async" fetchPriority="high" />
-                ) : (
-                  <div className="request-avatar-placeholder">
-                    {(currentRequest.user_name || '?')[0].toUpperCase()}
-                  </div>
-                )}
-              </div>
-
-              <div className="request-user-info">
-                <h2 className="request-name">
-                  <UserName name={currentRequest.user_name} age={currentRequest.user_age} />
-                </h2>
-
-                <button
-                  type="button"
-                  className="request-profile-link"
-                  onClick={() => navigate(`/user/${currentRequest.user_id}`)}
-                >
-                  {t('common.viewProfile')}
-                </button>
-
-                {currentRequest.user_bio && (
-                  <p className="request-bio">{currentRequest.user_bio}</p>
-                )}
-
-                {currentRequest.message && (
-                  <div className="request-message-box">
-                    <p className="request-message">"{currentRequest.message}"</p>
-                  </div>
-                )}
-
-                <p className="request-date">
-                  {t('groupRequests.requestedOnFmt', { date: new Date(currentRequest.created_at).toLocaleDateString(dateLocale) })}
-                </p>
-              </div>
-            </div>
+            <RequestCard request={currentRequest} />
 
             {currentIndex < requests.length - 1 && (
               <div className="next-card-preview">
@@ -201,7 +163,10 @@ export const GroupRequests = () => {
       )}
 
       <style>{`
-        /* padding-top:0 — the .page base class already adds safe-area top, and
+        /* Page layout only — the card + ✓/✗ actions now come from chat.css's
+           .request-*/.requests-actions/.action-btn, shared 1:1 with the chat-list
+           requests modal via <RequestCard> so both look identical (Tobi 2026-07-31).
+           padding-top:0 — the .page base class already adds safe-area top, and
            .requests-header below adds it again; without this the header double-
            stacked the inset and sat too low on iOS. */
         .requests-page { display: flex; flex-direction: column; height: 100vh; padding-top: 0; padding-bottom: 0; }
@@ -209,39 +174,6 @@ export const GroupRequests = () => {
         .back-btn { background: none; border: none; color: var(--text-white); cursor: pointer; padding: 8px; }
         .requests-title { font-size: 18px; font-weight: 600; color: var(--text-white); }
         .requests-content { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; overflow: hidden; }
-        .request-card-wrapper { position: relative; width: 100%; max-width: 340px; user-select: none; }
-        .swipe-indicator { position: absolute; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity 0.2s; z-index: 10; }
-        .swipe-indicator span:first-child { width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; }
-        .swipe-accept { right: -20px; color: var(--accent-green); }
-        .swipe-accept span:first-child { background: var(--accent-green); color: white; }
-        .swipe-decline { left: -20px; color: var(--status-busy); }
-        .swipe-decline span:first-child { background: var(--status-busy); color: white; }
-        .swipe-indicator.visible { opacity: 1; }
-        .request-card { background: var(--bg-card); border-radius: 20px; overflow: hidden; box-shadow: var(--shadow-lg); }
-        .request-image-container { position: relative; width: 100%; aspect-ratio: 4/3; background: var(--bg-input); }
-        .request-user-image { width: 100%; height: 100%; object-fit: cover; }
-        .request-avatar-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 64px; font-weight: 700; color: var(--coral); background: var(--bg-input); }
-        .request-user-info { padding: 20px; text-align: center; }
-        .request-name { font-size: 24px; font-weight: 700; color: var(--text-white); margin-bottom: 8px; }
-        .request-profile-link { background: none; border: none; color: var(--accent-coral); font-size: 14px; font-weight: 600; cursor: pointer; padding: 4px 0; margin-bottom: 8px; text-decoration: underline; text-underline-offset: 3px; }
-        .request-bio { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4; }
-        .request-message-box { background: var(--bg-input); border-radius: 12px; padding: 12px 16px; margin-bottom: 12px; }
-        .request-message { font-size: 14px; color: var(--text-light); font-style: italic; line-height: 1.4; }
-        .request-date { font-size: 12px; color: var(--text-muted); }
-        .next-card-preview { position: absolute; bottom: -60px; left: 50%; transform: translateX(-50%); width: 80%; height: 60px; border-radius: 20px 20px 0 0; overflow: hidden; opacity: 0.5; z-index: -1; }
-        .next-card-preview img { width: 100%; height: 100%; object-fit: cover; filter: blur(2px); }
-        /* 92px = 24px gap + 68px nav clearance (flush 48px strip + 11px "+"
-           protrusion, NO safe-area — see .bottom-nav). The old env()-based
-           value left the buttons' lower halves under the nav on 0-inset devices. */
-        .requests-actions { display: flex; justify-content: center; gap: 40px; padding: 24px; padding-bottom: 92px; }
-        .action-btn { width: 70px; height: 70px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
-        .action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .action-btn:not(:disabled):hover { transform: scale(1.1); }
-        .action-btn:not(:disabled):active { transform: scale(0.95); }
-        .action-btn.decline { background: var(--bg-input); color: var(--text-muted); }
-        .action-btn.decline:not(:disabled):hover { background: var(--status-busy); color: white; box-shadow: 0 4px 20px rgba(255,59,48,0.4); }
-        .action-btn.accept { background: var(--accent-green); color: white; box-shadow: 0 4px 20px rgba(76,217,100,0.4); }
-        .action-btn.accept:not(:disabled):hover { box-shadow: 0 6px 25px rgba(76,217,100,0.5); }
         .empty-state { text-align: center; padding: 40px 20px; }
         .empty-state-icon { font-size: 64px; margin-bottom: 16px; }
         .empty-state-title { font-size: 20px; font-weight: 600; color: var(--text-white); margin-bottom: 8px; }
