@@ -147,6 +147,31 @@ export const DealRedeem = () => {
         </div>
       </div>
 
+      {/* ── Ticket-shop CTA — deals with an external booking link (e.g. the
+          Liberi ticket deal) route from the voucher straight to the shop
+          (Tina 2026-08-01). In-store deals without a link are unaffected. ── */}
+      {deal.booking_url && (
+        <a
+          href={deal.booking_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            margin: '24px auto 0',
+            padding: '15px 48px',
+            background: '#FD7666',
+            borderRadius: 100,
+            color: '#fff',
+            fontSize: 16,
+            fontWeight: 800,
+            letterSpacing: 0.3,
+            textDecoration: 'none',
+            boxShadow: '0 8px 24px rgba(253,118,102,0.35)',
+          }}
+        >
+          {t('deal.ticketShopCTA', { defaultValue: 'Zum Ticketshop 🎟' })}
+        </a>
+      )}
+
       {/* ── Done button ── */}
       <button
         onClick={() => navigate(`/deal/${id}`, { replace: true })}

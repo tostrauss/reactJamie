@@ -214,6 +214,10 @@ export const DealDetail = () => {
         {(() => {
           const redeemed = !!redemption?.redeemed;
           const isAdmin = !!user?.is_admin;
+          // Ticket-shop deals: after redeeming, the CTA stays ACTIVE and opens
+          // the external shop ("Zum Ticketshop") instead of dead-ending on the
+          // in-store voucher screen (Tina 2026-08-01, Liberi ticket deal).
+          const bookingUrl = deal.booking_url || null;
           const interval = redemption?.redeem_interval || 'once';
           // Weekday gate: e.g. "nur donnerstags". Blocked → disable + relabel
           // (admins bypass for testing). The backend enforces it too.
@@ -229,10 +233,14 @@ export const DealDetail = () => {
             ? t('deal.redeemedDayCTA', { defaultValue: 'Heute eingelöst ✓' })
             : t('deal.redeemedCTA');
           // Once redeemed the voucher is locked for the current period — only
-          // admins may re-open it (testing/demos).
-          const voucherLocked = redeemed && !isAdmin;
+          // admins may re-open it (testing/demos). Ticket-shop deals stay
+          // active: redeemed → the button opens the shop.
+          const voucherLocked = redeemed && !isAdmin && !bookingUrl;
+          const shopAfterRedeem = redeemed && !!bookingUrl;
           const label = redeemed
-            ? (isAdmin ? t('deal.viewVoucherCTA') : redeemedLabel)
+            ? (bookingUrl
+                ? t('deal.ticketShopCTA', { defaultValue: 'Zum Ticketshop 🎟' })
+                : isAdmin ? t('deal.viewVoucherCTA') : redeemedLabel)
             : blockedByDay
             ? t('deal.onlyDaysCTA', { days: daysLabel, defaultValue: 'Nur {{days}} einlösbar' })
             : t('deal.redeemCTA');
@@ -241,19 +249,22 @@ export const DealDetail = () => {
               type="button"
               disabled={!redemption || redeeming || voucherLocked || blockedByDay}
               onClick={() => {
-                if (redeemed) { if (isAdmin) navigate(`/deal/${id}/redeem`); }
+                if (redeemed) {
+                  if (bookingUrl) window.open(bookingUrl, '_blank', 'noopener');
+                  else if (isAdmin) navigate(`/deal/${id}/redeem`);
+                }
                 else if (!blockedByDay) setShowConfirm(true);
               }}
               style={{
-                background: (redeemed || blockedByDay) ? 'rgba(255,255,255,0.10)' : '#FD7666',
+                background: ((redeemed && !shopAfterRedeem) || blockedByDay) ? 'rgba(255,255,255,0.10)' : '#FD7666',
                 color: (voucherLocked || blockedByDay) ? 'rgba(255,255,255,0.55)' : '#fff',
-                border: (redeemed || blockedByDay) ? '1px solid rgba(255,255,255,0.15)' : 'none',
+                border: ((redeemed && !shopAfterRedeem) || blockedByDay) ? '1px solid rgba(255,255,255,0.15)' : 'none',
                 borderRadius: 100,
                 padding: '13px 32px',
                 fontSize: 15,
                 fontWeight: 800,
                 letterSpacing: 0.3,
-                boxShadow: (redeemed || blockedByDay) ? 'none' : '0 8px 24px rgba(253,118,102,0.35)',
+                boxShadow: ((redeemed && !shopAfterRedeem) || blockedByDay) ? 'none' : '0 8px 24px rgba(253,118,102,0.35)',
                 cursor: (!redemption || voucherLocked || blockedByDay) ? 'default' : 'pointer',
                 opacity: !redemption ? 0.7 : 1,
               }}

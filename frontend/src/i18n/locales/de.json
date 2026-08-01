@@ -1557,6 +1557,7 @@
   "deal": {
     "titleFmt": "Für Dich – {{category}}",
     "bookNow": "Jetzt buchen",
+    "ticketShopCTA": "Zum Ticketshop 🎟",
     "redeemCTA": "Jetzt einlösen",
     "redeemedCTA": "Bereits eingelöst",
     "redeemedWeekCTA": "Diese Woche eingelöst ✓",

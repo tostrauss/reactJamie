@@ -1557,6 +1557,7 @@
   "deal": {
     "titleFmt": "For You – {{category}}",
     "bookNow": "Book now",
+    "ticketShopCTA": "Get tickets 🎟",
     "redeemCTA": "Redeem now",
     "redeemedCTA": "Already redeemed",
     "redeemedWeekCTA": "Redeemed this week ✓",
