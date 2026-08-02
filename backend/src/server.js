@@ -801,6 +801,30 @@ const runStartupMigrations = async () => {
   // filter in groupController.getGroups). NULL = not resolved yet → sees all.
   await migrate('users country col', () =>
     db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(2)`));
+
+  // One-shot repair 2026-08-02: countries were resolved with the UNRESTRICTED
+  // Nominatim lookup, whose global top hit for ambiguous Austrian town names
+  // (Haag, Neumarkt, Gmünd, …) is often the German namesake — those users got
+  // country='DE' persisted and their feed collapsed to the DE box ("sieht nur
+  // 1 Gruppe", Arnos Vater). NULL every stored country ONCE; getGroups lazily
+  // re-resolves each user via the now market-restricted geocode on their next
+  // feed load (24h in-memory cache dedupes popular cities). The marker table
+  // makes this run exactly once per database, not on every boot.
+  await migrate('one-shot migration marker table', () =>
+    db.query(`CREATE TABLE IF NOT EXISTS one_shot_migrations (
+      name       TEXT PRIMARY KEY,
+      applied_at TIMESTAMP NOT NULL DEFAULT NOW()
+    )`));
+  await migrate('users.country one-shot re-resolve (2026-08-02)', async () => {
+    const claimed = await db.query(
+      `INSERT INTO one_shot_migrations (name) VALUES ('2026-08-02_reset_users_country')
+       ON CONFLICT (name) DO NOTHING RETURNING name`
+    );
+    if (claimed.rowCount > 0) {
+      const r = await db.query(`UPDATE users SET country = NULL WHERE country IS NOT NULL`);
+      console.log(`   [country-reset] cleared ${r.rowCount} stored countries for re-resolve`);
+    }
+  });
   // Per-member chat read marker — unread counts for group/club chats are
   // COUNT(non-system messages newer than COALESCE(last_read_at, joined_at)).
   // DEFAULT NOW() is load-bearing twice: (1) Postgres fills EXISTING rows with
