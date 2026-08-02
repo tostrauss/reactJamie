@@ -1100,6 +1100,12 @@
       "defaultText": "App für schnellen Zugriff installieren",
       "btn": "Installieren"
     },
+    "avatarGate": {
+      "title": "Lade dein Profilbild hoch",
+      "text": "Bei JAMIE geht's um Profile und Aktivitäten – lade dein Profilbild hoch, um Gruppen und Clubs beizutreten.",
+      "cta": "Profilbild hochladen",
+      "cancel": "Später"
+    },
     "createModal": {
       "title": "Was möchtest du erstellen?",
       "groupTitle": "Gruppe erstellen",

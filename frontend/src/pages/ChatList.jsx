@@ -5,6 +5,7 @@ import { groups, directMessages, friends } from '../utils/api';
 import { SocketContext } from '../context/SocketContext';
 import { useToast } from '../context/ToastContext';
 import { RequestCard } from '../components/RequestCard';
+import useOnPullRefresh from '../hooks/useOnPullRefresh';
 import '../styles/chat.css';
 import '../styles/profile.css';
 
@@ -45,6 +46,10 @@ export const ChatList = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Pull-to-refresh: re-fetch chats + requests (stale unread/request counts
+  // were the complaint — Tina 2026-08-02).
+  useOnPullRefresh(() => loadData());
 
   // Clear the search when switching tabs so each tab starts unfiltered.
   useEffect(() => { setSearch(''); }, [activeTab]);

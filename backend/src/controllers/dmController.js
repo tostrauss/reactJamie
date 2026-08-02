@@ -177,7 +177,9 @@ async function notifyDMReceived(fromUserId, toUserId) {
   try {
     const { rows } = await db.query('SELECT name FROM users WHERE id = $1', [fromUserId]);
     const name = rows[0]?.name || 'Jemand';
-    sendPushToUser(toUserId, 'Neue Nachricht', `${name} hat dir eine Nachricht geschickt`, '/messages');
+    // Deep-link straight into the conversation — '/messages' is not a real
+    // route (the SW opened it on tap and the recipient landed on the 404 page).
+    sendPushToUser(toUserId, 'Neue Nachricht', `${name} hat dir eine Nachricht geschickt`, `/dm/${fromUserId}`);
   } catch { /* non-critical */ }
 }
 

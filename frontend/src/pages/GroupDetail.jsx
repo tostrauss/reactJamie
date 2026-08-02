@@ -10,6 +10,7 @@ import { ReportModal } from '../components/ReportModal';
 import { MapsChooser } from '../components/MapsChooser';
 import { UserName } from '../components/UserName';
 import { EventReviewModal } from '../components/EventReviewModal';
+import AvatarGateModal from '../components/AvatarGateModal';
 import { nextOccurrence } from '../utils/recurrence';
 import { shareLink } from '../utils/share';
 import { openCalendar } from '../utils/calendarExport';
@@ -174,6 +175,7 @@ export const GroupDetail = () => {
   const [isFavorited, setIsFavorited] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBoostModal, setShowBoostModal] = useState(false);
+  const [showAvatarGate, setShowAvatarGate] = useState(false);
   // Post-event attendance review, re-openable from the event page (the auto-
   // popup is one-shot; this is the way back in after skipping/closing).
   const [reviewPayload, setReviewPayload] = useState(null);
@@ -291,6 +293,8 @@ export const GroupDetail = () => {
   };
 
   const handleJoinToggle = async () => {
+    // Join gate: no profile photo → prompt to upload first (Tina 2026-08-02).
+    if (!isJoined && !user?.avatar_url) { setShowAvatarGate(true); return; }
     try {
       const isClub = group?.type === 'club';
       if (isJoined) {
@@ -1030,6 +1034,7 @@ export const GroupDetail = () => {
           />
         </Suspense>
       )}
+      <AvatarGateModal isOpen={showAvatarGate} onClose={() => setShowAvatarGate(false)} />
     </div>
   );
 };

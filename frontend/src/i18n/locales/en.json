@@ -1100,6 +1100,12 @@
       "defaultText": "Install the app for quick access",
       "btn": "Install"
     },
+    "avatarGate": {
+      "title": "Add your profile photo",
+      "text": "JAMIE is all about profiles and activities – upload a profile photo to join groups and clubs.",
+      "cta": "Upload profile photo",
+      "cancel": "Later"
+    },
     "createModal": {
       "title": "What would you like to create?",
       "groupTitle": "Create group",

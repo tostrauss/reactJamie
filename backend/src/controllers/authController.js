@@ -433,6 +433,14 @@ export const updateProfile = async (req, res) => {
       `UPDATE users
        SET name = COALESCE($1, name),
            location = ${hasLocation ? '$2' : 'COALESCE($2, location)'},
+           country = ${hasLocation
+             // Column refs in SET read the OLD row, so this compares old vs new
+             // location. Reset country whenever the city changes → the group
+             // feed re-geocodes on next load. Without this a once-wrong country
+             // (e.g. 'DE' for an Austrian town name) stuck forever, even after
+             // the user corrected their profile city.
+             ? 'CASE WHEN location IS DISTINCT FROM $2 THEN NULL ELSE country END'
+             : 'country'},
            bio = ${hasBio ? '$3' : 'COALESCE($3, bio)'},
            gender = COALESCE($4, gender),
            interests = COALESCE($5, interests),
@@ -511,6 +519,9 @@ export const completeOnboarding = async (req, res) => {
       `UPDATE users
        SET gender = $1,
            location = COALESCE(NULLIF($2, ''), location),
+           country = CASE WHEN NULLIF($2, '') IS NOT NULL
+                           AND location IS DISTINCT FROM NULLIF($2, '')
+                          THEN NULL ELSE country END,
            interests = $3,
            bio = $4,
            photos = CASE WHEN $5::jsonb = '[]'::jsonb THEN photos ELSE $5::jsonb END,

@@ -235,7 +235,7 @@ export const ProfileEdit = () => {
     if (!value.trim() || value.length < 2) return;
     locationDebounceRef.current = setTimeout(async () => {
       try {
-        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(value)}&format=json&limit=5&addressdetails=1&countrycodes=at,de,ch&accept-language=de`;
+        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(value)}&format=json&limit=5&addressdetails=1&countrycodes=at,de,ch,it&accept-language=de`;
         const res = await fetch(url, { headers: { 'Accept-Language': 'de' } });
         const data = await res.json();
         const suggestions = data.map(item => {

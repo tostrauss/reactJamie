@@ -3,7 +3,7 @@ import { geocodeLocation, resolveCreateLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { getCached, setCached, invalidatePrefix } from '../utils/cache.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
-import { notifyJoinRequest } from './groupController.js';
+import { notifyJoinRequest, notifyGroupJoin } from './groupController.js';
 import { isUserPro } from './subscriptionController.js';
 import { sendPushToUser, sendPushToUsers } from './pushController.js';
 
@@ -573,6 +573,13 @@ export const joinClub = async (req, res) => {
       throw txErr;
     } finally {
       client.release();
+    }
+
+    // Notify the club owner about the new member (fire-and-forget) — mirrors
+    // the public group join; before this, only PRIVATE club join-requests ever
+    // pushed and a public join was silent (Tina 2026-08-02).
+    if (clubRow.owner_id && Number(clubRow.owner_id) !== Number(req.userId)) {
+      notifyGroupJoin(req.userId, clubRow.owner_id, clubRow.name || '', id, 'club').catch(() => {});
     }
 
     res.json({ message: 'Joined club successfully', status: 'joined' });

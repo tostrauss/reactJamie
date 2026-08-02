@@ -5,6 +5,7 @@ import { friends as friendsApi, users as usersApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { UserName } from '../components/UserName';
+import useOnPullRefresh from '../hooks/useOnPullRefresh';
 import '../styles/friends.css';
 
 export const Friends = () => {
@@ -30,6 +31,9 @@ export const Friends = () => {
   const abortRef = useRef(null);
 
   useEffect(() => { loadAll(); }, []);
+
+  // Pull-to-refresh: re-fetch friends + pending/sent requests.
+  useOnPullRefresh(() => loadAll());
 
   // Debounced user search — runs once query reaches 2+ chars
   useEffect(() => {

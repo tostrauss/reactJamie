@@ -18,6 +18,7 @@ import { useAnalytics } from './hooks/useAnalytics';
 import { EventReviewModal } from './components/EventReviewModal';
 import { FeedbackModal } from './components/FeedbackModal';
 import { NotificationPrompt } from './components/NotificationPrompt';
+import PullToRefresh from './components/PullToRefresh';
 import { reviews } from './utils/api';
 
 // Auth Pages (eagerly loaded - needed at startup)
@@ -766,6 +767,7 @@ function AppRoutes() {
       </Suspense>
       </ErrorBoundary>
       </div>
+      <PullToRefresh />
       <Navigation />
       {pendingReviews && (
         <EventReviewModal

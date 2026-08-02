@@ -5,6 +5,7 @@ import { clubs } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
+import AvatarGateModal from '../components/AvatarGateModal';
 import { nextOccurrence } from '../utils/recurrence';
 import { shareLink } from '../utils/share';
 import { openCalendar } from '../utils/calendarExport';
@@ -54,6 +55,7 @@ export const ClubDetail = () => {
   const [isFavorited, setIsFavorited] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBoostModal, setShowBoostModal] = useState(false);
+  const [showAvatarGate, setShowAvatarGate] = useState(false);
   // Pro gate: non-member non-Pro viewers get only the first 3 members + this
   // flag from the API — clicking the roster opens the ProModal instead.
   const [membersGated, setMembersGated] = useState(false);
@@ -178,6 +180,8 @@ export const ClubDetail = () => {
   };
 
   const handleJoinToggle = async () => {
+    // Join gate: no profile photo → prompt to upload first (Tina 2026-08-02).
+    if (!isJoined && !user?.avatar_url) { setShowAvatarGate(true); return; }
     try {
       if (isJoined) {
         await clubs.leave(id);
@@ -715,6 +719,7 @@ export const ClubDetail = () => {
           />
         </Suspense>
       )}
+      <AvatarGateModal isOpen={showAvatarGate} onClose={() => setShowAvatarGate(false)} />
     </div>
   );
 };

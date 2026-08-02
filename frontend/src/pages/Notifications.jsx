@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { notifications } from '../utils/api';
 import { useToast } from '../context/ToastContext';
+import useOnPullRefresh from '../hooks/useOnPullRefresh';
 
 const typeIcon = (type) => {
   if (type === 'join_request') return '👋';
@@ -19,6 +20,9 @@ export const Notifications = () => {
   useEffect(() => {
     loadNotifications();
   }, []);
+
+  // Pull-to-refresh: re-fetch the notification list.
+  useOnPullRefresh(() => loadNotifications());
 
   const loadNotifications = async () => {
     try {

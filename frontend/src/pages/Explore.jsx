@@ -8,6 +8,7 @@ import { useToast } from '../context/ToastContext';
 import { DealCard } from '../components/DealCard';
 import { UserName } from '../components/UserName';
 import { JamieWordmark } from '../components/JamieWordmark';
+import useOnPullRefresh from '../hooks/useOnPullRefresh';
 import '../styles/explore.css';
 
 const getCategoryIcon = (catName) => {
@@ -244,29 +245,30 @@ export const Explore = () => {
   const [dealList, setDealList]       = useState([]);
   const [likedIds, setLikedIds]       = useState(() => new Set());
 
+  // Shared by the mount effect and pull-to-refresh (which skips the full-page
+  // loading state — the top spinner is the feedback there).
+  const loadData = useCallback(async () => {
+    const isAuthed = user && !user.isGuest;
+    const [allRes, dealsRes, likesRes] = await Promise.all([
+      groups.getAll({ limit: 50 }).catch(() => ({ data: [] })),
+      dealsApi.getAll().catch(() => ({ data: [] })),
+      isAuthed ? groups.getMyLikes().catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+    ]);
+    const all = allRes.data || [];
+    setHallItems(all.filter(g => isPast(g.date)));
+    setDealList(dealsRes.data || []);
+    // getMyLikes returns a bare array of group ids the caller has liked.
+    setLikedIds(new Set(likesRes.data || []));
+  }, [user?.id]);
+
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const isAuthed = user && !user.isGuest;
-        const [allRes, dealsRes, likesRes] = await Promise.all([
-          groups.getAll({ limit: 50 }).catch(() => ({ data: [] })),
-          dealsApi.getAll().catch(() => ({ data: [] })),
-          isAuthed ? groups.getMyLikes().catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
-        ]);
-        if (cancelled) return;
-
-        const all = allRes.data || [];
-        setHallItems(all.filter(g => isPast(g.date)));
-        setDealList(dealsRes.data || []);
-        // getMyLikes returns a bare array of group ids the caller has liked.
-        setLikedIds(new Set(likesRes.data || []));
-      } catch { /* silent */ }
-      finally { if (!cancelled) setLoading(false); }
-    })();
+    setLoading(true);
+    loadData().catch(() => { /* silent */ }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [user?.id]);
+  }, [loadData]);
+
+  useOnPullRefresh(loadData);
 
   // Upload the JAMIE Moment photo for one of the owner's past events. Two-step:
   //   1. POST /api/upload → returns the public URL for the file

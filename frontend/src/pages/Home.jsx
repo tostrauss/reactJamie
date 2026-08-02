@@ -6,11 +6,13 @@ import api, { groups, clubs, deals as dealsApi } from "../utils/api";
 import { GroupCard } from "../components/GroupCard";
 import { MapErrorBoundary } from "../components/MapErrorBoundary";
 import { DealCard } from "../components/DealCard";
+import AvatarGateModal from "../components/AvatarGateModal";
 import { JamieWordmark } from "../components/JamieWordmark";
 import { AuthContext } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { CATEGORY_HIERARCHY } from "../utils/categories";
 import { nextOccurrence } from "../utils/recurrence";
+import useOnPullRefresh from "../hooks/useOnPullRefresh";
 import "../styles/home.css";
 
 // Robert's spec: every 8th group on the Home/Gruppen tab is a sponsored deal.
@@ -99,6 +101,7 @@ export const Home = () => {
 
   // Staged filters (selected inside open panel, not yet applied)
   const [showFilters, setShowFilters] = useState(false);
+  const [showAvatarGate, setShowAvatarGate] = useState(false);
   const [stagedZeit, setStagedZeit] = useState('alle');
   const [stagedZeitFrom, setStagedZeitFrom] = useState('');
   const [stagedZeitTo, setStagedZeitTo] = useState('');
@@ -122,6 +125,10 @@ export const Home = () => {
   useEffect(() => {
     loadData();
   }, [activeTab]);
+
+  // Pull-to-refresh re-runs the active tab's fetches (hook keeps the latest
+  // closure, so tab switches are picked up without useCallback).
+  useOnPullRefresh(() => loadData());
 
   const loadData = async () => {
     // The Karte tab renders MapView, which fetches its own pins — the four
@@ -365,6 +372,8 @@ export const Home = () => {
   };
 
   const handleJoin = async (groupId) => {
+    // Join gate: no profile photo → prompt to upload first (Tina 2026-08-02).
+    if (!user?.avatar_url) { setShowAvatarGate(true); return; }
     try {
       if (activeTab === 'clubs') await clubs.join(groupId);
       else await groups.join(groupId);
@@ -803,6 +812,7 @@ export const Home = () => {
         </div>
       )}
 
+      <AvatarGateModal isOpen={showAvatarGate} onClose={() => setShowAvatarGate(false)} />
     </div>
   );
 };

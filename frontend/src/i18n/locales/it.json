@@ -1100,6 +1100,12 @@
       "defaultText": "Installa l'app per un accesso rapido",
       "btn": "Installa"
     },
+    "avatarGate": {
+      "title": "Aggiungi la tua foto profilo",
+      "text": "JAMIE vive di profili e attività: carica una foto profilo per unirti a gruppi e club.",
+      "cta": "Carica foto profilo",
+      "cancel": "Più tardi"
+    },
     "createModal": {
       "title": "Cosa vuoi creare?",
       "groupTitle": "Crea gruppo",

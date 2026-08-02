@@ -1,5 +1,5 @@
 import db from '../config/database.js';
-import { resolveCreateLocation, geocodeLocation } from '../utils/geocode.js';
+import { resolveCreateLocation, geocodeAllowedRegion } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { sendPushToUser, sendPushToUsers } from './pushController.js';
 import { expandMatchTerms } from '../utils/categoryFanout.js';
@@ -393,8 +393,16 @@ export const getGroups = async (req, res) => {
     // launch-market country. The country is geocoded from the profile city ONCE
     // and cached in users.country; thereafter it's a plain column read. Guests
     // and users without a resolvable location fall through to "see everything".
+    //
+    // MUST be the market-restricted lookup (countrycodes=at,de,ch,it), not the
+    // global one: Nominatim's global top hit for ambiguous Austrian town names
+    // (Haag, Neumarkt, Gmünd, …) is often the bigger German namesake — the user
+    // then got country='DE' PERSISTED and their feed silently collapsed to the
+    // DE box + coordinate-less groups ("sieht nur noch 1 Gruppe", Tina
+    // 2026-08-02). Out-of-market cities now resolve to null → country stays
+    // NULL → the user sees everything, same as before.
     if (req.userId && !callerCountry && callerLocation) {
-      const geo = await geocodeLocation(callerLocation);
+      const geo = await geocodeAllowedRegion(callerLocation);
       const cc = geo?.countryCode ? geo.countryCode.toUpperCase() : null;
       if (cc) {
         callerCountry = cc;
@@ -1836,13 +1844,15 @@ export async function notifyJoinRequest(requesterUserId, ownerUserId, groupName,
   } catch { /* non-critical */ }
 }
 
-async function notifyGroupJoin(joinerUserId, ownerUserId, groupName, groupId) {
+// Exported: clubController reuses this for public club joins (basePath 'club'
+// deep-links to /club/:id instead of /group/:id).
+export async function notifyGroupJoin(joinerUserId, ownerUserId, groupName, groupId, basePath = 'group') {
   try {
     const { rows } = await db.query('SELECT name FROM users WHERE id = $1', [joinerUserId]);
     const name = rows[0]?.name || 'Jemand';
     // Link to the group itself — '/my-groups' is not a real route (the SW
     // opened it on tap and the owner landed on the 404 page).
-    sendPushToUser(ownerUserId, 'Neues Mitglied', `${name} ist "${groupName}" beigetreten`, groupId ? `/group/${groupId}` : '/chats');
+    sendPushToUser(ownerUserId, 'Neues Mitglied', `${name} ist "${groupName}" beigetreten`, groupId ? `/${basePath}/${groupId}` : '/chats');
   } catch { /* non-critical */ }
 }
 
