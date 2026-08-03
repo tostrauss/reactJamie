@@ -383,6 +383,15 @@
   width: 100%;
 }
 
+/* Two-button rows split the width, so the long German label
+   "+ Freundschaftsanfrage" wrapped onto a second line. A smaller type size
+   (both buttons match) keeps each label on one line on normal phones
+   (Tobi 2026-08-03). */
+.up-cta-row .up-cta-btn {
+  font-size: 12px;
+  padding: 6px 8px;
+}
+
 .up-cta-btn:not(:disabled):active {
   transform: scale(0.98);
   opacity: 0.9;
@@ -424,10 +433,5 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-}
-
-.up-footer-sep {
-  color: var(--text-muted);
-  font-size: 13px;
+  gap: 12px;
 }

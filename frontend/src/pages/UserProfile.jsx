@@ -369,12 +369,9 @@ export const UserProfile = () => {
             {t('userProfile.reportBtn')}
           </button>
           {!blockedByMe && (
-            <>
-              <span className="up-footer-sep">·</span>
-              <button className="up-report-link" onClick={() => setShowBlockConfirm(true)}>
-                {t('userProfile.blockBtn')}
-              </button>
-            </>
+            <button className="up-report-link" onClick={() => setShowBlockConfirm(true)}>
+              {t('userProfile.blockBtn')}
+            </button>
           )}
         </div>
       </div>
