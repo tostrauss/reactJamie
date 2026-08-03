@@ -1216,9 +1216,9 @@
         "monthly": "Monatlich",
         "sixmonth": "6 Monate"
       },
-      "billedWeekly": "4,99 € / Woche",
-      "billedMonthly": "14,99 € / Monat",
-      "billedSixmonth": "29,99 € alle 6 Monate",
+      "billedWeekly": "1,99 € / Woche",
+      "billedMonthly": "4,99 € / Monat",
+      "billedSixmonth": "19,99 € alle 6 Monate",
       "badges": {
         "popular": "Beliebt",
         "bestValue": "Bestes Angebot"

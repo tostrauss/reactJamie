@@ -1216,9 +1216,9 @@
         "monthly": "Monthly",
         "sixmonth": "6 months"
       },
-      "billedWeekly": "€4.99 / week",
-      "billedMonthly": "€14.99 / month",
-      "billedSixmonth": "€29.99 every 6 months",
+      "billedWeekly": "€1.99 / week",
+      "billedMonthly": "€4.99 / month",
+      "billedSixmonth": "€19.99 every 6 months",
       "badges": {
         "popular": "Popular",
         "bestValue": "Best value"
