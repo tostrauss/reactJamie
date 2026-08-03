@@ -870,6 +870,22 @@ export const deleteGroup = async (req, res) => {
   }
 };
 
+// A club event (parent_club_id set) that belongs to a PRIVATE club may only be
+// JOINED / waitlisted by members of that club — non-members can still SEE it on
+// the Discover-events feed but must join the club first. Returns true if the
+// caller must be blocked. A normal group (parentClubId NULL) is never blocked.
+async function isPrivateClubEventBlocked(parentClubId, userId) {
+  if (!parentClubId) return false;
+  const { rows } = await db.query(
+    `SELECT c.is_private, cm.user_id AS is_member
+     FROM groups c
+     LEFT JOIN group_members cm ON cm.group_id = c.id AND cm.user_id = $2
+     WHERE c.id = $1`,
+    [parentClubId, userId]
+  );
+  return !!(rows[0]?.is_private && !rows[0].is_member);
+}
+
 // ==========================================
 // JOIN GROUP
 // ==========================================
@@ -881,6 +897,7 @@ export const joinGroup = async (req, res) => {
     // Single query: group info + membership check via LEFT JOIN
     const groupRes = await db.query(
       `SELECT g.owner_id, g.name, g.members_count, g.max_members, g.is_private,
+              g.type, g.parent_club_id,
               gm.user_id AS already_member
        FROM groups g
        LEFT JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = $2
@@ -889,6 +906,18 @@ export const joinGroup = async (req, res) => {
     );
     if (groupRes.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
     if (groupRes.rows[0].already_member) return res.status(400).json({ error: 'Already a member' });
+
+    // Club-event membership gate: a private club's event is joinable ONLY by
+    // members of that club. Non-members still SEE it on Discover but must join
+    // the club first — before this, joinGroup treated an event like any group
+    // and a non-member (e.g. a man joining an "only girls" club's private event)
+    // could join outright (reported live 2026-08-03).
+    if (await isPrivateClubEventBlocked(groupRes.rows[0].parent_club_id, req.userId)) {
+      return res.status(403).json({
+        error: 'Dieses Event gehört zu einem privaten Club. Tritt zuerst dem Club bei, um teilzunehmen.',
+        code: 'CLUB_MEMBERS_ONLY',
+      });
+    }
 
     // Anti-churn: a user may join any given group at most MAX_GROUP_JOINS times.
     // The counter persists across leaves (group_members rows are deleted on
@@ -910,8 +939,12 @@ export const joinGroup = async (req, res) => {
       return res.status(400).json({ error: 'Die Gruppe ist bereits voll' });
     }
 
-    // Private group → create join request (or reset a previous rejection to pending)
-    if (g.is_private) {
+    // Private group → create join request (or reset a previous rejection to pending).
+    // Club EVENTS are excluded (parent_club_id set): they inherit the club's
+    // is_private, but their access is gated by CLUB membership above, not by a
+    // per-event join request — a club member who cleared that gate joins the
+    // event directly (below), a non-member was already 403'd.
+    if (g.is_private && !g.parent_club_id) {
       const existingReq = await db.query(
         `SELECT status FROM group_join_requests WHERE group_id = $1 AND user_id = $2`,
         [id, req.userId]
@@ -1654,7 +1687,7 @@ export const joinWaitlist = async (req, res) => {
 
     // Three checks in parallel: group exists, already member, already on waitlist
     const [groupRes, memberCheck, waitlistCheck] = await Promise.all([
-      db.query('SELECT members_count, max_members FROM groups WHERE id = $1', [id]),
+      db.query('SELECT members_count, max_members, parent_club_id FROM groups WHERE id = $1', [id]),
       db.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
       db.query('SELECT position FROM group_waitlist WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
     ]);
@@ -1662,6 +1695,14 @@ export const joinWaitlist = async (req, res) => {
     if (memberCheck.rows.length > 0) return res.status(400).json({ error: 'Already a member' });
     if (waitlistCheck.rows.length > 0) {
       return res.json({ message: 'Already on waitlist', position: waitlistCheck.rows[0].position });
+    }
+    // Same private-club-event gate as joinGroup — otherwise a non-member could
+    // waitlist a full private event and get auto-promoted into it.
+    if (await isPrivateClubEventBlocked(groupRes.rows[0].parent_club_id, req.userId)) {
+      return res.status(403).json({
+        error: 'Dieses Event gehört zu einem privaten Club. Tritt zuerst dem Club bei, um teilzunehmen.',
+        code: 'CLUB_MEMBERS_ONLY',
+      });
     }
 
     const g = groupRes.rows[0];
