@@ -142,8 +142,21 @@ export const createSubscription = async (req, res) => {
       return res.status(400).json({ error: 'Bereits ein aktives Abonnement vorhanden' });
     }
 
-    // Get or create Stripe customer
+    // Get or create Stripe customer. A stored customer id can be invalid under
+    // the CURRENT keys — a TEST-mode id left in the DB from pre-launch testing
+    // (it 404s under live keys), or a customer deleted in the dashboard. Reusing
+    // it makes subscriptions.create fail with "No such customer", so verify it
+    // resolves and fall through to creating a fresh one if it doesn't.
     let customerId = existing?.stripe_customer_id;
+    if (customerId) {
+      try {
+        const c = await stripe.customers.retrieve(customerId);
+        if (c?.deleted) customerId = null;
+      } catch (e) {
+        if (e?.code === 'resource_missing') customerId = null;
+        else throw e;
+      }
+    }
     if (!customerId) {
       const customer = await stripe.customers.create({
         email,
@@ -412,6 +425,29 @@ export const withdrawSubscription = async (req, res) => {
     res.status(500).json({ error: 'Widerruf fehlgeschlagen. Bitte kontaktiere office@jamie-app.com.' });
   }
 };
+
+// ==========================================
+// API-VERSION RESILIENCE HELPERS
+// ==========================================
+// Our SDK is pinned to apiVersion '2023-10-16', so every call we MAKE
+// (create/retrieve) returns that shape: current_period_end on the subscription
+// itself, invoice.subscription present. But webhook payloads are serialized
+// with the ENDPOINT's API version, and this Stripe account's dashboard only
+// offers 2026-xx ('dahlia') versions — where current_period_end moved onto the
+// subscription's items and invoice.subscription was replaced by
+// invoice.parent.subscription_details.subscription. These read a value out of
+// EITHER shape so the webhook works no matter which version Stripe used.
+// Without this, subscription.updated wrote current_period_end = NULL and
+// isUserPro never saw an active subscription — paid/trial users got no Pro.
+const subPeriodEndUnix = (sub) =>
+  sub?.current_period_end
+  ?? sub?.items?.data?.[0]?.current_period_end
+  ?? null;
+const invoiceSubId = (invoice) =>
+  invoice?.subscription
+  ?? invoice?.parent?.subscription_details?.subscription
+  ?? invoice?.lines?.data?.[0]?.subscription
+  ?? null;
 
 // ==========================================
 // STRIPE WEBHOOK — handle subscription lifecycle
