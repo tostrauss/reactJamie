@@ -98,7 +98,7 @@ export const GroupCard = memo(({
   const visibleAvatars = isClub ? [] : memberAvatars.slice(0, realSlots);
   const emptySpots   = isClub ? 0 : Math.max(0, realSlots - visibleAvatars.length);
 
-  const locale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : 'de-DE';
+  const locale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : ((i18n.resolvedLanguage || i18n.language || 'de').startsWith('fr') ? 'fr-FR' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('es') ? 'es-ES' : 'de-DE');
   // Recurring groups: badge tracks the next occurrence so a Tuesday meetup
   // never says "Gestern" on Wednesday — it just rolls forward to next Tuesday.
   const displayDate = nextOccurrence(group);

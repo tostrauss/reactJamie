@@ -45,7 +45,7 @@ export const Profile = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const { t, i18n } = useTranslation();
-  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : 'de-AT';
+  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : ((i18n.resolvedLanguage || i18n.language || 'de').startsWith('fr') ? 'fr-FR' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('es') ? 'es-ES' : 'de-AT');
   // Tab held in the URL (?tab=halloffame) so opening a past event from Hall of
   // Fame and swiping back restores the tab. replace:true so tab clicks don't
   // pile up history entries.

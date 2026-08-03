@@ -42,7 +42,7 @@ export const AdminFeedbackSection = () => {
   if (rows === null) return null;
 
   const locale = (i18n.resolvedLanguage || 'de').startsWith('en') ? 'en-US'
-    : (i18n.resolvedLanguage || 'de').startsWith('it') ? 'it-IT' : 'de-DE';
+    : (i18n.resolvedLanguage || 'de').startsWith('it') ? 'it-IT' : ((i18n.resolvedLanguage || i18n.language || 'de').startsWith('fr') ? 'fr-FR' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('es') ? 'es-ES' : 'de-DE');
   const fmtDate = (d) => new Date(d).toLocaleString(locale, { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 
   return (

@@ -58,7 +58,9 @@ export const DealDetail = () => {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const lang = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en'
-    : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it' : 'de';
+    : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it'
+    : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('fr') ? 'fr'
+    : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('es') ? 'es' : 'de';
   const toast = useToast();
   const { user } = useContext(AuthContext);
   const [deal, setDeal] = useState(null);

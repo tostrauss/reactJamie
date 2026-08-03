@@ -11,9 +11,12 @@ import de from './locales/de.json';
 // majority. Missing keys fall back to German so anything untranslated — or a
 // locale chunk that fails to load — still renders readable German.
 // Italian added 2026-07-23 for the Italy market rollout.
+// French + Spanish added 2026-08-04 for the France & Spain market rollout.
 const lazyLocales = {
   en: () => import('./locales/en.json'),
   it: () => import('./locales/it.json'),
+  fr: () => import('./locales/fr.json'),
+  es: () => import('./locales/es.json'),
 };
 
 const baseLang = (lng) => (lng || 'de').split('-')[0];
@@ -56,7 +59,7 @@ i18n
     },
     partialBundledLanguages: true, // en/it are added at runtime via ensureBundle
     fallbackLng: 'de',
-    supportedLngs: ['de', 'en', 'it'],
+    supportedLngs: ['de', 'en', 'it', 'fr', 'es'],
     interpolation: { escapeValue: false }, // React already escapes
     detection: {
       // Persist explicit user choice; fall back to browser locale on first run.

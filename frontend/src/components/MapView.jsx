@@ -110,7 +110,9 @@ export default function MapView({ typeFilter }) {
   const { user } = useContext(AuthContext);
   const { t, i18n } = useTranslation();
   const mapLanguage = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en'
-    : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it' : 'de';
+    : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it'
+    : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('fr') ? 'fr'
+    : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('es') ? 'es' : 'de';
   const mapRef = useRef(null);
   const toast = useToast();
 

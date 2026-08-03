@@ -30,7 +30,7 @@ export const ChatPage = () => {
   const { socket, isConnected } = useContext(SocketContext);
   const toast = useToast();
   const { t, i18n } = useTranslation();
-  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : 'de-DE';
+  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : ((i18n.resolvedLanguage || i18n.language || 'de').startsWith('fr') ? 'fr-FR' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('es') ? 'es-ES' : 'de-DE');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const chatPageRef = useRef(null);

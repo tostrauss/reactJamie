@@ -181,7 +181,8 @@ export const SettingsPage = () => {
   const formatPeriodEnd = (iso) => {
     if (!iso) return '';
     try {
-      return new Date(iso).toLocaleDateString(currentLang === 'de' ? 'de-DE' : 'en-US', {
+      return new Date(iso).toLocaleDateString(
+        currentLang === 'de' ? 'de-DE' : currentLang === 'it' ? 'it-IT' : currentLang === 'fr' ? 'fr-FR' : currentLang === 'es' ? 'es-ES' : 'en-US', {
         year: 'numeric', month: 'long', day: 'numeric',
       });
     } catch { return ''; }
@@ -846,6 +847,8 @@ export const SettingsPage = () => {
               { code: 'de', label: 'DE' },
               { code: 'en', label: 'EN' },
               { code: 'it', label: 'IT' },
+              { code: 'fr', label: 'FR' },
+              { code: 'es', label: 'ES' },
             ].map(({ code, label }) => {
               const active = currentLang === code;
               return (

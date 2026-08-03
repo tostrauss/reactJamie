@@ -4,7 +4,10 @@ import geoip from 'geoip-lite';
 // 2026-07-23: IT added (store rollout for Italy follows once the Italian
 // translation ships; the web gate opens with the code default). This env var
 // also drives the create-location geocode verifier (utils/geocode.js).
-const ALLOWED_COUNTRIES = (process.env.ALLOWED_COUNTRIES || 'AT,DE,CH,IT').split(',').map(c => c.trim());
+// FR+ES added 2026-08-04 (France & Spain rollout). NOTE: a Railway
+// ALLOWED_COUNTRIES env var OVERRIDES this default — it must include FR,ES
+// too (or be unset).
+const ALLOWED_COUNTRIES = (process.env.ALLOWED_COUNTRIES || 'AT,DE,CH,IT,FR,ES').split(',').map(c => c.trim());
 
 // Enabled by default in production; set GEOFENCING=false to disable
 const enabled = () =>

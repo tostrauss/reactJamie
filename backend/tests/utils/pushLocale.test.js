@@ -7,12 +7,14 @@ import {
 } from '../../src/utils/pushLocale.js';
 
 describe('normalizeLocale', () => {
-  it('maps language tags to de/it/en with German fallback', () => {
+  it('maps language tags to de/it/en/fr/es with German fallback', () => {
     expect(normalizeLocale('de')).toBe('de');
     expect(normalizeLocale('de-AT')).toBe('de');
     expect(normalizeLocale('it-IT')).toBe('it');
     expect(normalizeLocale('EN-us')).toBe('en');
-    expect(normalizeLocale('fr')).toBe('de');   // unsupported → primary market
+    expect(normalizeLocale('fr-FR')).toBe('fr'); // France rollout 2026-08-04
+    expect(normalizeLocale('es-ES')).toBe('es'); // Spain rollout 2026-08-04
+    expect(normalizeLocale('pt')).toBe('de');   // unsupported → primary market
     expect(normalizeLocale(null)).toBe('de');
     expect(normalizeLocale('')).toBe('de');
   });
@@ -28,6 +30,8 @@ describe('categoryPushText', () => {
     });
     expect(categoryPushText('it', group).body).toBe('Fußball in Wien – ci stai?');
     expect(categoryPushText('en', group).body).toBe('Fußball in Wien – are you in?');
+    expect(categoryPushText('fr', group).body).toBe('Fußball à Wien – tu en es ?');
+    expect(categoryPushText('es', group).body).toBe('Fußball en Wien – ¿te apuntas?');
   });
 
   it('omits the location clause when the group has none', () => {
@@ -56,5 +60,7 @@ describe('joinRequestText', () => {
     const { title } = joinRequestText('en', {});
     expect(title).toBe('🎉 Someone wants to join!');
     expect(joinRequestText('it', {}).title).toBe('🎉 Qualcuno vuole unirsi!');
+    expect(joinRequestText('fr', {}).title).toBe('🎉 Quelqu’un veut participer !');
+    expect(joinRequestText('es', {}).title).toBe('🎉 ¡Alguien quiere unirse!');
   });
 });

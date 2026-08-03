@@ -11,7 +11,7 @@ import { UserName } from './UserName';
  */
 export const EventReviewModal = ({ pendingReviews, onDone }) => {
   const { t, i18n } = useTranslation();
-  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : 'de-AT';
+  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : ((i18n.resolvedLanguage || i18n.language || 'de').startsWith('fr') ? 'fr-FR' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('es') ? 'es-ES' : 'de-AT');
   const [index, setIndex] = useState(0);
   const [attendances, setAttendances] = useState({});
   const [submitting, setSubmitting] = useState(false);

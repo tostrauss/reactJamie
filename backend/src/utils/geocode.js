@@ -42,8 +42,10 @@ export async function geocodeLocation(location) {
 // var the registration geofence uses (backend/src/middleware/geofence.js) so
 // one Railway setting controls both. Lower-cased for Nominatim's countrycodes.
 // 2026-07-23 (Tobi/Tina): expanded from AT-only to the launch markets.
+// 2026-08-04: FR+ES added (France & Spain rollout). A Railway ALLOWED_COUNTRIES
+// env var overrides this default — keep it in sync or unset it.
 const allowedCountrycodes = () =>
-  (process.env.ALLOWED_COUNTRIES || 'AT,DE,CH,IT')
+  (process.env.ALLOWED_COUNTRIES || 'AT,DE,CH,IT,FR,ES')
     .split(',').map(c => c.trim().toLowerCase()).filter(Boolean).join(',');
 
 /**
