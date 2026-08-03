@@ -382,6 +382,29 @@ export const withdrawSubscription = async (req, res) => {
 };
 
 // ==========================================
+// API-VERSION RESILIENCE HELPERS
+// ==========================================
+// Our SDK is pinned to apiVersion '2023-10-16', so every call we MAKE
+// (create/retrieve) returns that shape: current_period_end on the subscription
+// itself, invoice.subscription present. But webhook payloads are serialized
+// with the ENDPOINT's API version, and this Stripe account's dashboard only
+// offers 2026-xx ('dahlia') versions — where current_period_end moved onto the
+// subscription's items and invoice.subscription was replaced by
+// invoice.parent.subscription_details.subscription. These read a value out of
+// EITHER shape so the webhook works no matter which version Stripe used.
+// Without this, subscription.updated wrote current_period_end = NULL and
+// isUserPro never saw an active subscription — paid/trial users got no Pro.
+const subPeriodEndUnix = (sub) =>
+  sub?.current_period_end
+  ?? sub?.items?.data?.[0]?.current_period_end
+  ?? null;
+const invoiceSubId = (invoice) =>
+  invoice?.subscription
+  ?? invoice?.parent?.subscription_details?.subscription
+  ?? invoice?.lines?.data?.[0]?.subscription
+  ?? null;
+
+// ==========================================
 // STRIPE WEBHOOK — handle subscription lifecycle
 // ==========================================
 export const subscriptionWebhook = async (req, res) => {
@@ -409,7 +432,17 @@ export const subscriptionWebhook = async (req, res) => {
       else if (sub.status === 'trialing') status = sub.cancel_at_period_end ? 'canceling' : 'trialing';
       else if (sub.status === 'canceled') status = 'canceled';
       else if (sub.status === 'past_due') status = 'past_due';
-      const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+      // Resolve period end from either API shape. If the event carries neither
+      // (some dahlia payloads omit it on the raw object), fall back to a pinned
+      // retrieve, which returns the 2023-10-16 shape with a top-level value.
+      let periodEndUnix = subPeriodEndUnix(sub);
+      if (!periodEndUnix) {
+        try {
+          const full = await stripe.subscriptions.retrieve(sub.id);
+          periodEndUnix = subPeriodEndUnix(full);
+        } catch { /* leave null — a later invoice.payment_succeeded backfills it */ }
+      }
+      const periodEnd = periodEndUnix ? new Date(periodEndUnix * 1000) : null;
       await db.query(
         `UPDATE subscriptions SET status = $1, current_period_end = $2, updated_at = NOW()
          WHERE stripe_subscription_id = $3`,
@@ -424,23 +457,26 @@ export const subscriptionWebhook = async (req, res) => {
       );
     } else if (event.type === 'invoice.payment_succeeded') {
       const invoice = event.data.object;
-      if (invoice.subscription) {
-        const stripeSub = await stripe.subscriptions.retrieve(invoice.subscription);
-        const periodEnd = new Date(stripeSub.current_period_end * 1000);
+      const subId = invoiceSubId(invoice);
+      if (subId) {
+        const stripeSub = await stripe.subscriptions.retrieve(subId);
+        const periodEndUnix = subPeriodEndUnix(stripeSub);
+        const periodEnd = periodEndUnix ? new Date(periodEndUnix * 1000) : null;
         const status = stripeSub.cancel_at_period_end ? 'canceling' : 'active';
         await db.query(
           `UPDATE subscriptions SET status = $1, current_period_end = $2, updated_at = NOW()
            WHERE stripe_subscription_id = $3`,
-          [status, periodEnd, invoice.subscription]
+          [status, periodEnd, subId]
         );
       }
     } else if (event.type === 'invoice.payment_failed') {
       const invoice = event.data.object;
-      if (invoice.subscription) {
+      const subId = invoiceSubId(invoice);
+      if (subId) {
         await db.query(
           `UPDATE subscriptions SET status = 'past_due', updated_at = NOW()
            WHERE stripe_subscription_id = $1`,
-          [invoice.subscription]
+          [subId]
         );
       }
     }
