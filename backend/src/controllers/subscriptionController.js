@@ -4,8 +4,33 @@ import { isAppShellRequest } from '../config/features.js';
 
 const getStripe = () => {
   if (!process.env.STRIPE_SECRET_KEY) return null;
-  return new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+  // The JAMIE Stripe account (IMPIBAG e.U.) enforces its newer 'dahlia' API
+  // version: pinning to an older one is IGNORED for request validation (it
+  // rejected inline price_data.product_data, a 2023-era shape, with
+  // "unknown parameter … Did you mean product?"). So we target dahlia
+  // explicitly to keep requests AND response shapes consistent, and matching
+  // the two webhook endpoints (also dahlia).
+  return new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-04-22.dahlia' });
 };
+
+// dahlia dropped inline price_data.product_data on subscription items — the
+// price must reference an EXISTING Product id. We keep the amount dynamic in
+// code (so repricing needs zero Stripe changes) and point every plan at ONE
+// reusable "JAMIE Pro" product. Resolved from env if set, otherwise found or
+// created once and cached per secret-key so a test→live key swap re-resolves
+// against the right mode. products.list is read-after-write consistent (unlike
+// products.search), so this never spawns duplicate products.
+let _proProduct = { keyTail: null, id: null };
+async function getProProductId(stripe) {
+  if (process.env.STRIPE_PRO_PRODUCT_ID) return process.env.STRIPE_PRO_PRODUCT_ID;
+  const keyTail = (process.env.STRIPE_SECRET_KEY || '').slice(-10);
+  if (_proProduct.id && _proProduct.keyTail === keyTail) return _proProduct.id;
+  const list = await stripe.products.list({ active: true, limit: 100 });
+  const found = list.data.find(p => p.name === 'JAMIE Pro');
+  const id = found ? found.id : (await stripe.products.create({ name: 'JAMIE Pro' })).id;
+  _proProduct = { keyTail, id };
+  return id;
+}
 
 // ==========================================
 // PRO PLAN CATALOG (server is authoritative on price)
@@ -151,21 +176,24 @@ export const createSubscription = async (req, res) => {
     );
     const trialEligible = priorRealSub.rows.length === 0;
 
-    // price_data is built from the server-side catalog entry so the client
-    // can never dictate the charged amount or billing cadence.
+    // price_data is built from the server-side catalog entry so the client can
+    // never dictate the charged amount or billing cadence. `product` points at
+    // the single reusable "JAMIE Pro" product (dahlia needs a product id, not
+    // inline product_data); the per-plan label rides along in metadata instead.
+    const productId = await getProProductId(stripe);
     const subParams = {
       customer: customerId,
       items: [{
         price_data: {
           currency: 'eur',
-          product_data: { name: plan.label },
+          product: productId,
           unit_amount: plan.amount_cents,
           recurring: { interval: plan.interval, interval_count: plan.interval_count },
         },
       }],
       payment_behavior: 'default_incomplete',
       payment_settings: { save_default_payment_method: 'on_subscription' },
-      metadata: { user_id: String(req.userId), plan: planKey },
+      metadata: { user_id: String(req.userId), plan: planKey, plan_label: plan.label },
     };
     if (trialEligible) {
       // Trial → no upfront charge, so Stripe issues a SetupIntent (not a
@@ -175,7 +203,9 @@ export const createSubscription = async (req, res) => {
       subParams.trial_settings = { end_behavior: { missing_payment_method: 'cancel' } };
       subParams.expand = ['pending_setup_intent'];
     } else {
-      subParams.expand = ['latest_invoice.payment_intent'];
+      // dahlia serves the first-payment client secret on the invoice's
+      // confirmation_secret (older versions used latest_invoice.payment_intent).
+      subParams.expand = ['latest_invoice.confirmation_secret'];
     }
 
     const subscription = await stripe.subscriptions.create(subParams);
@@ -194,7 +224,9 @@ export const createSubscription = async (req, res) => {
     const mode = trialEligible ? 'setup' : 'payment';
     const clientSecret = trialEligible
       ? (subscription.pending_setup_intent?.client_secret ?? null)
-      : (subscription.latest_invoice?.payment_intent?.client_secret ?? null);
+      : (subscription.latest_invoice?.confirmation_secret?.client_secret
+         ?? subscription.latest_invoice?.payment_intent?.client_secret
+         ?? null);
     if (!clientSecret) {
       console.error('createSubscription: missing client_secret', subscription.id, 'mode', mode);
       return res.status(500).json({ error: 'Stripe returned an incomplete intent' });
@@ -382,6 +414,27 @@ export const withdrawSubscription = async (req, res) => {
 };
 
 // ==========================================
+// API-VERSION RESILIENCE HELPERS
+// ==========================================
+// Both our SDK calls (create/retrieve) and the webhook endpoints now target the
+// account's 'dahlia' API version, where current_period_end lives on the
+// subscription's ITEMS and invoice.subscription was replaced by
+// invoice.parent.subscription_details.subscription. These still read a value
+// out of EITHER the dahlia shape or the older 2023-era shape, so an event
+// serialized with a different version (or a future version bump) can't silently
+// break Pro. Without this, subscription.updated wrote current_period_end = NULL
+// and isUserPro never saw an active subscription — paid/trial users got no Pro.
+const subPeriodEndUnix = (sub) =>
+  sub?.current_period_end
+  ?? sub?.items?.data?.[0]?.current_period_end
+  ?? null;
+const invoiceSubId = (invoice) =>
+  invoice?.subscription
+  ?? invoice?.parent?.subscription_details?.subscription
+  ?? invoice?.lines?.data?.[0]?.subscription
+  ?? null;
+
+// ==========================================
 // STRIPE WEBHOOK — handle subscription lifecycle
 // ==========================================
 export const subscriptionWebhook = async (req, res) => {
@@ -409,7 +462,17 @@ export const subscriptionWebhook = async (req, res) => {
       else if (sub.status === 'trialing') status = sub.cancel_at_period_end ? 'canceling' : 'trialing';
       else if (sub.status === 'canceled') status = 'canceled';
       else if (sub.status === 'past_due') status = 'past_due';
-      const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+      // Resolve period end from either API shape. If the event carries neither
+      // (some dahlia payloads omit it on the raw object), fall back to a pinned
+      // retrieve, which returns the 2023-10-16 shape with a top-level value.
+      let periodEndUnix = subPeriodEndUnix(sub);
+      if (!periodEndUnix) {
+        try {
+          const full = await stripe.subscriptions.retrieve(sub.id);
+          periodEndUnix = subPeriodEndUnix(full);
+        } catch { /* leave null — a later invoice.payment_succeeded backfills it */ }
+      }
+      const periodEnd = periodEndUnix ? new Date(periodEndUnix * 1000) : null;
       await db.query(
         `UPDATE subscriptions SET status = $1, current_period_end = $2, updated_at = NOW()
          WHERE stripe_subscription_id = $3`,
@@ -424,23 +487,26 @@ export const subscriptionWebhook = async (req, res) => {
       );
     } else if (event.type === 'invoice.payment_succeeded') {
       const invoice = event.data.object;
-      if (invoice.subscription) {
-        const stripeSub = await stripe.subscriptions.retrieve(invoice.subscription);
-        const periodEnd = new Date(stripeSub.current_period_end * 1000);
+      const subId = invoiceSubId(invoice);
+      if (subId) {
+        const stripeSub = await stripe.subscriptions.retrieve(subId);
+        const periodEndUnix = subPeriodEndUnix(stripeSub);
+        const periodEnd = periodEndUnix ? new Date(periodEndUnix * 1000) : null;
         const status = stripeSub.cancel_at_period_end ? 'canceling' : 'active';
         await db.query(
           `UPDATE subscriptions SET status = $1, current_period_end = $2, updated_at = NOW()
            WHERE stripe_subscription_id = $3`,
-          [status, periodEnd, invoice.subscription]
+          [status, periodEnd, subId]
         );
       }
     } else if (event.type === 'invoice.payment_failed') {
       const invoice = event.data.object;
-      if (invoice.subscription) {
+      const subId = invoiceSubId(invoice);
+      if (subId) {
         await db.query(
           `UPDATE subscriptions SET status = 'past_due', updated_at = NOW()
            WHERE stripe_subscription_id = $1`,
-          [invoice.subscription]
+          [subId]
         );
       }
     }

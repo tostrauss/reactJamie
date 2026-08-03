@@ -65,7 +65,7 @@ export const NATIVE_API_ORIGIN = 'https://api.jamie-app.com';
 // Button in „Stripe not configured". Auf true stellen, sobald Stripe steht.
 // Dann gilt automatisch: Käufe NUR im echten Web-Browser (purchasesEnabled),
 // in Play-TWA + iOS-App ausgeblendet (Store-Billing-Pflicht).
-export const PAYMENTS_ENABLED = false;
+export const PAYMENTS_ENABLED = true;
 
 // ── iOS In-App-Käufe ────────────────────────────────────────────────────
 // StoreKit IAP ist noch nicht fertig (Plugin + Apple-Quittungsprüfung offen —
