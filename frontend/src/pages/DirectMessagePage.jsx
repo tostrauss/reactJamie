@@ -7,6 +7,7 @@ import { directMessages, users } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { dayKey, daySeparatorLabel } from '../utils/chatDate';
 import { useChatViewport } from '../hooks/useChatViewport';
+import useSwipeBack from '../hooks/useSwipeBack';
 import '../styles/chat.css';
 
 export const DirectMessagePage = () => {
@@ -34,6 +35,8 @@ export const DirectMessagePage = () => {
   // active only once the real chat surface (which carries the ref) is mounted —
   // during loading/error the ref is null and the hook must wait.
   useChatViewport(chatPageRef, !loading && !error);
+  // Swipe right → back to the chat list (WhatsApp-style), mirrors the back arrow.
+  useSwipeBack(chatPageRef, () => navigate('/chats'), !loading && !error);
 
   // Grow the composer with its content (up to a cap).
   const autoGrow = () => {

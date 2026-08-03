@@ -7,6 +7,7 @@ import { SocketContext } from '../context/SocketContext';
 import { useToast } from '../context/ToastContext';
 import { dayKey, daySeparatorLabel } from '../utils/chatDate';
 import { useChatViewport } from '../hooks/useChatViewport';
+import useSwipeBack from '../hooks/useSwipeBack';
 import '../styles/chat.css';
 
 export const ChatPage = () => {
@@ -36,6 +37,8 @@ export const ChatPage = () => {
   // active only once the real chat surface (which carries the ref) is mounted —
   // during loading/not-found the ref is null and the hook must wait.
   useChatViewport(chatPageRef, !loading && !!group);
+  // Swipe right → same as tapping the header back arrow (WhatsApp-style).
+  useSwipeBack(chatPageRef, () => navigate(-1), !loading && !!group);
 
   // Grow the composer with its content (up to a cap), then reset after send.
   const autoGrow = () => {
