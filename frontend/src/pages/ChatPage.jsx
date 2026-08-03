@@ -37,8 +37,11 @@ export const ChatPage = () => {
   // active only once the real chat surface (which carries the ref) is mounted —
   // during loading/not-found the ref is null and the hook must wait.
   useChatViewport(chatPageRef, !loading && !!group);
-  // Swipe right → same as tapping the header back arrow (WhatsApp-style).
-  useSwipeBack(chatPageRef, () => navigate(-1), !loading && !!group);
+  // Back / swipe-right → the chat list on the RIGHT tab (WhatsApp-style). Was
+  // navigate(-1), which landed on whatever was in history (usually the Gruppen
+  // tab) even when leaving a club chat. Navigate explicitly by type instead.
+  const goBackToList = () => navigate(group?.type === 'club' ? '/chats?tab=clubs' : '/chats');
+  useSwipeBack(chatPageRef, goBackToList, !loading && !!group);
 
   // Grow the composer with its content (up to a cap), then reset after send.
   const autoGrow = () => {
@@ -313,7 +316,7 @@ export const ChatPage = () => {
     <div className="chat-page" ref={chatPageRef}>
       {/* Header */}
       <div className="chat-page-header">
-        <button className="back-button" onClick={() => navigate(-1)}>
+        <button className="back-button" onClick={goBackToList}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
