@@ -354,18 +354,30 @@
 
 .up-cta-btn {
   flex: 1;
+  min-width: 0; /* let a flex child shrink below its content width */
   min-height: 52px;
   border-radius: var(--radius-full);
   border: none;
   background: linear-gradient(135deg, var(--accent-coral) 0%, #ff7043 100%);
   color: white;
-  font-size: 15px;
+  /* Long German labels ("+ Freundschaftsanfrage") overflowed the button in the
+     two-button admin row (Tina 2026-08-03). Center with flex, tighten the font
+     + spacing, and add padding so the text fits on one line on normal phones
+     and wraps *contained* (never overflows) on very small ones. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 6px 12px;
+  font-size: 14px;
+  line-height: 1.15;
   font-weight: 800;
   font-family: inherit;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  letter-spacing: 0.3px;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
   box-shadow: 0 6px 20px rgba(255,107,107,0.3);
   transition: opacity 0.15s, transform 0.15s;
   width: 100%;

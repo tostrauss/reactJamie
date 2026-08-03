@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import io from 'socket.io-client';
+import { useTranslation } from 'react-i18next';
 import { AuthContext } from './AuthContext';
 import { useToast } from './ToastContext';
 import { isNative, NATIVE_API_ORIGIN } from '../utils/platform';
@@ -11,6 +12,7 @@ export const SocketProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const { user, token } = useContext(AuthContext);
   const toast = useToast();
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (user && token) {
@@ -51,7 +53,7 @@ export const SocketProvider = ({ children }) => {
         newSocket.emit('join_user', user.id);
         if (disconnectTimer) { clearTimeout(disconnectTimer); disconnectTimer = null; }
         if (disconnectShown) {
-          toast.success('Verbindung wiederhergestellt');
+          toast.success(t('app.connection.restored'));
           disconnectShown = false;
         }
       });
@@ -61,7 +63,7 @@ export const SocketProvider = ({ children }) => {
         if (reason !== 'io client disconnect') {
           if (disconnectTimer) clearTimeout(disconnectTimer);
           disconnectTimer = setTimeout(() => {
-            toast.warning('Verbindung unterbrochen – Wiederverbindung...');
+            toast.warning(t('app.connection.lost'));
             disconnectShown = true;
             disconnectTimer = null;
           }, 3000);
@@ -73,7 +75,7 @@ export const SocketProvider = ({ children }) => {
       });
 
       newSocket.io.on('reconnect_failed', () => {
-        toast.error('Verbindung fehlgeschlagen. Bitte Seite neu laden.');
+        toast.error(t('app.connection.failed'));
       });
 
       // Returning to the foreground: don't sit out the (up to 10s) backoff —

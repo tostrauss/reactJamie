@@ -1092,6 +1092,12 @@
   "app": {
     "updateAvailable": "New version available",
     "updateBtn": "Update",
+    "connection": {
+      "restored": "Connection restored",
+      "lost": "Connection lost – reconnecting...",
+      "failed": "Connection failed. Please reload the page.",
+      "offline": "No internet connection"
+    },
     "install": {
       "title": "Install JAMIE",
       "iosHintPrefix": "Tap",

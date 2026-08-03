@@ -1,5 +1,5 @@
 import { createContext, useState, useCallback, useEffect, useRef } from 'react';
-import { auth, restoreSession, setMemToken, clearMemToken, subscription as subscriptionApi } from '../utils/api';
+import { auth, restoreSession, setMemToken, clearMemToken, clearApiCache, subscription as subscriptionApi } from '../utils/api';
 // safeStorage, not raw localStorage: in storage-denied WebViews even reading
 // window.localStorage throws, and the unguarded setItem below broke LOGIN
 // for those users (Sentry JAMIE-REACT-J). Auth truth is the httpOnly cookie;
@@ -37,6 +37,9 @@ export const AuthProvider = ({ children }) => {
     setToken(tok);
     setMemToken(tok); // sync to axios interceptor + Socket.IO
     safeStorage.setItem('jamie_user', JSON.stringify(userData));
+    // Fresh login → drop any previous account's cached /api responses so a
+    // shared device can't serve them to this user.
+    clearApiCache();
   };
 
   const clearAuth = () => {
@@ -44,6 +47,8 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     clearMemToken();
     safeStorage.removeItem('jamie_user');
+    // Logout → purge cached /api responses so the next account can't read them.
+    clearApiCache();
   };
 
   const login = useCallback(async (email, password) => {
@@ -144,7 +149,7 @@ export const AuthProvider = ({ children }) => {
     const cached = getCachedUser();
     if (!cached) return; // no prior session → nothing to restore
 
-    restoreSession().then((tok) => {
+    restoreSession().then(({ token: tok, unauthorized }) => {
       if (tok) {
         setToken(tok);
         setMemToken(tok);
@@ -157,10 +162,13 @@ export const AuthProvider = ({ children }) => {
           .catch(() => {});
         // Same for Pro flag — silent best-effort.
         refreshProStatus();
-      } else {
-        // Cookie expired → clear stale cache
+      } else if (unauthorized) {
+        // Cookie genuinely expired/invalid → clear the stale cached session.
         clearAuth();
       }
+      // else: network failure (offline launch) → keep the cached user so the
+      // app opens to its last state instead of bouncing to /login; the httpOnly
+      // cookie re-authenticates every request once connectivity returns.
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

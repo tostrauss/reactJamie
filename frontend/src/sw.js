@@ -1,14 +1,29 @@
 // Custom Service Worker — processed by vite-plugin-pwa (injectManifest strategy).
 // vite-plugin-pwa injects self.__WB_MANIFEST (the precache manifest) at build time.
 
-import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
-import { registerRoute, setCatchHandler } from 'workbox-routing';
-import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
+import { precacheAndRoute, cleanupOutdatedCaches, createHandlerBoundToURL } from 'workbox-precaching';
+import { registerRoute, setCatchHandler, NavigationRoute } from 'workbox-routing';
+import { CacheFirst, NetworkFirst } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
 
 // Precache all build assets (manifest injected by vite-plugin-pwa)
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
+
+// ── Cross-account cache safety ──────────────────────────────────────────────
+// The runtime API caches key entries by URL only (auth travels via cookie /
+// Authorization header, neither of which is in the cache key). On a SHARED
+// device that let user B be served user A's cached /api responses (joined
+// groups, DM previews). The app posts CLEAR_API_CACHE on logout AND on login;
+// we drop every runtime API cache so nothing leaks across accounts.
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'CLEAR_API_CACHE') {
+    event.waitUntil(Promise.all([
+      caches.delete('api-cache'),
+      caches.delete('request-bubbles-cache'),
+    ]));
+  }
+});
 
 // Take over immediately on every update. Without this a redeploy left returning
 // visitors on the OLD worker until all tabs closed — and because the cached
@@ -44,22 +59,15 @@ registerRoute(
   })
 );
 
-// Runtime: groups/map/deals feed — stale-while-revalidate makes the home page feel instant.
-// Serve cached version immediately, refresh in background. Only cache GET requests.
-registerRoute(
-  ({ url, request }) =>
-    request.method === 'GET' &&
-    (url.pathname.startsWith('/api/groups') ||
-     url.pathname.startsWith('/api/map') ||
-     url.pathname.startsWith('/api/deals')),
-  new StaleWhileRevalidate({
-    cacheName: 'feed-cache',
-    plugins: [new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 60 * 2 })]
-  })
-);
-
-// Runtime: other read-only API endpoints — network-first with 5-min offline fallback.
-// IMPORTANT: only cache GET — never cache POST/PUT/DELETE (mutations must reach the server).
+// Runtime: read-only API endpoints — NETWORK-FIRST (was stale-while-revalidate
+// for groups/map/deals). SWR served ≤2-min-old data first and the fresh copy
+// only landed in the cache, so the page that fetched never saw it — that's what
+// kept the nav unread badge stale ("die 1 bleibt stehen") even after read, and
+// showed pre-join rosters / pre-redeem deal CTAs. It was also user-specific data
+// keyed by URL (the feed is age/country/Pro-filtered per caller), so SWR could
+// serve one user's feed to another. Network-first: online is ALWAYS fresh; the
+// cache is only an offline fallback (and is purged on logout, above).
+// IMPORTANT: only GET — never cache POST/PUT/DELETE (mutations must reach the server).
 registerRoute(
   ({ url, request }) => request.method === 'GET' && url.pathname.startsWith('/api/'),
   new NetworkFirst({
@@ -69,15 +77,28 @@ registerRoute(
   })
 );
 
+// ── Offline navigation fallback ─────────────────────────────────────────────
+// Serve the precached app shell for ANY navigation (deep routes included) when
+// offline. Without a NavigationRoute, a navigation to /chats etc. matched no
+// route and fell through to the browser's "no internet" page even though the
+// whole build is precached. createHandlerBoundToURL resolves the revisioned
+// precache entry correctly (a plain caches.match('/index.html') misses it).
+registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html')));
+
 // ==========================================
 // OFFLINE FALLBACK
 // ==========================================
 // When a navigation request (page load) fails because we're offline,
 // serve the cached index.html so the React app can render an offline state
 // instead of the browser's "no internet" error page.
-setCatchHandler(async ({ event }) => {
-  if (event.request.destination === 'document') {
-    return caches.match('/index.html') ?? Response.error();
+setCatchHandler(async ({ event, request }) => {
+  const req = request || event?.request;
+  if (req?.destination === 'document') {
+    // Resolve the REVISIONED precache entry (a bare caches.match('/index.html')
+    // misses it) and await it — the old `caches.match(...) ?? Response.error()`
+    // returned a Promise (always truthy), so the fallback never triggered.
+    const shell = await createHandlerBoundToURL('/index.html')({ event, request: req }).catch(() => null);
+    return shell || Response.error();
   }
   return Response.error();
 });

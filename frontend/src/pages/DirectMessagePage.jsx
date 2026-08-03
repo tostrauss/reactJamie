@@ -98,7 +98,11 @@ export const DirectMessagePage = () => {
       socket.off('dm_user_stop_typing');
       socket.off('connect', handleReconnect);
     };
-  }, [user, socket, otherUserId]);
+    // Key on user?.id, NOT the whole `user` object: AuthContext replaces the
+    // user object identity on every background profile refresh, which otherwise
+    // re-ran this effect — leaving/rejoining the DM room and reloading the whole
+    // message list, silently dropping an in-flight optimistic bubble.
+  }, [user?.id, socket, otherUserId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Foreground return: refetch immediately — the socket may not have noticed
   // the dead connection yet (ping timeout), but the user is looking NOW.

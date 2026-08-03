@@ -808,7 +808,7 @@
       "requestSent": "Anfrage gesendet ✓",
       "accept": "Annehmen",
       "reject": "Ablehnen",
-      "sendRequest": "+ Freundschaftsanfrage",
+      "sendRequest": "+ Freundschaftsanfrage",
       "unblock": "Blockierung aufheben"
     },
     "toast": {
@@ -1092,6 +1092,12 @@
   "app": {
     "updateAvailable": "Neue Version verfügbar",
     "updateBtn": "Aktualisieren",
+    "connection": {
+      "restored": "Verbindung wiederhergestellt",
+      "lost": "Verbindung unterbrochen – Wiederverbindung...",
+      "failed": "Verbindung fehlgeschlagen. Bitte Seite neu laden.",
+      "offline": "Keine Internetverbindung"
+    },
     "install": {
       "title": "JAMIE installieren",
       "iosHintPrefix": "Tippe auf",

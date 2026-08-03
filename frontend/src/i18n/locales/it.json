@@ -1092,6 +1092,12 @@
   "app": {
     "updateAvailable": "Nuova versione disponibile",
     "updateBtn": "Aggiorna",
+    "connection": {
+      "restored": "Connessione ripristinata",
+      "lost": "Connessione persa – riconnessione...",
+      "failed": "Connessione fallita. Ricarica la pagina.",
+      "offline": "Nessuna connessione a Internet"
+    },
     "install": {
       "title": "Installa JAMIE",
       "iosHintPrefix": "Tocca",

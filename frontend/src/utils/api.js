@@ -60,6 +60,12 @@ const RETRY_DELAY = 1000;
 const SAFE_METHODS = new Set(['get', 'head', 'options']);
 
 const shouldRetry = (error) => {
+  // A CANCELED request (aborted by the caller — e.g. the debounced Friends
+  // search aborting the previous keystroke) has no response, so it used to be
+  // treated as a network error and "retried" 3×, each rejecting instantly but
+  // still sleeping ~1+2+4s between attempts — which delayed the superseded
+  // request's settle and glitched the search spinner. Never retry a cancel.
+  if (error.code === 'ERR_CANCELED' || error.name === 'CanceledError') return false;
   // Never retry non-idempotent methods — prevents double billing, double messages, etc.
   const method = error.config?.method?.toLowerCase();
   if (!SAFE_METHODS.has(method)) return false;
@@ -116,6 +122,10 @@ axiosInstance.interceptors.response.use(
 
     if (!isAuthAttempt && error.response?.status === 401 && _memToken !== 'guest_token') {
       clearMemToken();
+      // Also drop the cached user, else the next load repopulates `user` from
+      // localStorage, AuthRoute bounces /login → /home, GETs fire with the dead
+      // cookie, 401 again → a redirect loop that flashed Home/login repeatedly.
+      try { localStorage.removeItem('jamie_user'); } catch { /* private mode */ }
       const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
       if (!publicPaths.some(p => window.location.pathname === p || window.location.pathname.startsWith(p + '/'))) {
         window.location.href = '/login';
@@ -201,10 +211,23 @@ export const auth = {
 export const restoreSession = async () => {
   try {
     const { data } = await auth.refresh();
-    return data.token || null;
-  } catch {
-    return null;
+    return { token: data.token || null };
+  } catch (err) {
+    // Distinguish an EXPIRED/invalid cookie (401/403 → clear the session) from a
+    // NETWORK failure (offline/flaky launch → keep the cached user; logging them
+    // out on a network blip made the whole offline-caching story pointless).
+    const status = err?.response?.status;
+    return { token: null, unauthorized: status === 401 || status === 403 };
   }
+};
+
+// Ask the service worker to drop the runtime API caches — called on login AND
+// logout so one account's cached /api responses can never be served to the
+// next account on a shared device.
+export const clearApiCache = () => {
+  try {
+    navigator.serviceWorker?.controller?.postMessage({ type: 'CLEAR_API_CACHE' });
+  } catch { /* SW not controlling this page yet — nothing cached to leak */ }
 };
 
 // ==========================================
