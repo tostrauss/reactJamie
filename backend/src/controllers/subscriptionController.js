@@ -414,27 +414,6 @@ export const withdrawSubscription = async (req, res) => {
 };
 
 // ==========================================
-// API-VERSION RESILIENCE HELPERS
-// ==========================================
-// Both our SDK calls (create/retrieve) and the webhook endpoints now target the
-// account's 'dahlia' API version, where current_period_end lives on the
-// subscription's ITEMS and invoice.subscription was replaced by
-// invoice.parent.subscription_details.subscription. These still read a value
-// out of EITHER the dahlia shape or the older 2023-era shape, so an event
-// serialized with a different version (or a future version bump) can't silently
-// break Pro. Without this, subscription.updated wrote current_period_end = NULL
-// and isUserPro never saw an active subscription — paid/trial users got no Pro.
-const subPeriodEndUnix = (sub) =>
-  sub?.current_period_end
-  ?? sub?.items?.data?.[0]?.current_period_end
-  ?? null;
-const invoiceSubId = (invoice) =>
-  invoice?.subscription
-  ?? invoice?.parent?.subscription_details?.subscription
-  ?? invoice?.lines?.data?.[0]?.subscription
-  ?? null;
-
-// ==========================================
 // STRIPE WEBHOOK — handle subscription lifecycle
 // ==========================================
 export const subscriptionWebhook = async (req, res) => {
