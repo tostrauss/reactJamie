@@ -718,6 +718,7 @@
         "error": "Couldn't update"
       },
       "permissionOwnerOnly": "Only the club owner can send messages",
+      "removed": "You were removed from this group",
       "loadEarlier": "Load earlier messages",
       "loadingShort": "Loading…",
       "toast": {
@@ -1102,7 +1103,7 @@
     },
     "avatarGate": {
       "title": "Add your profile photo",
-      "text": "JAMIE is all about profiles and activities – upload a profile photo to join groups and clubs.",
+      "text": "JAMIE is all about profiles and activities – upload a profile photo to take part.",
       "cta": "Upload profile photo",
       "cancel": "Later"
     },

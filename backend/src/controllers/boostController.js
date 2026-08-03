@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 import crypto from 'crypto';
 import { isUserPro } from './subscriptionController.js';
 import { invalidatePrefix } from '../utils/cache.js';
-import { REFERRAL_CREDITS_ENABLED } from '../config/features.js';
+import { REFERRAL_CREDITS_ENABLED, isAppShellRequest } from '../config/features.js';
 
 // Execute a function inside a real DB transaction on a single dedicated connection.
 // This is required because db.query() pulls from a pool — consecutive calls may land
@@ -199,6 +199,10 @@ export const applyBoost = async (req, res) => {
 export const createStripeIntent = async (req, res) => {
   const stripe = getStripe();
   if (!stripe) return res.status(503).json({ error: 'Stripe not configured' });
+  // Store-policy backstop: no Stripe checkout from the Play/iOS app shells.
+  if (isAppShellRequest(req)) {
+    return res.status(403).json({ error: 'Boosts sind nur im Browser verfügbar.', code: 'PAYMENTS_WEB_ONLY' });
+  }
 
   const { package_id } = req.body;
   const pkg = BOOST_PACKAGES.find(p => p.id === package_id);
@@ -254,9 +258,29 @@ export const stripeWebhook = async (req, res) => {
       try {
         await creditUser(userId, credits, 'stripe', intent.id);
       } catch (err) {
-        console.error('creditUser failed in stripeWebhook:', err);
-        // Return 200 to prevent Stripe from retrying — log to monitor instead
+        // MUST 500 so Stripe RETRIES — the old code returned 200 here, so a
+        // transient DB error during the credit write meant the customer was
+        // charged, the transaction stayed 'pending', and the credits were never
+        // granted (Stripe never retried). creditUser is idempotent (unique
+        // payment_id), so a retry can't double-credit. Mirrors the subscription
+        // webhook, which already fails-closed on a processing error.
+        console.error('creditUser failed in stripeWebhook (will 500 for retry):', err);
+        return res.status(500).json({ error: 'credit_failed' });
       }
+    }
+  }
+
+  // Refund / chargeback → claw back the granted credits (see revokeCreditsFor
+  // Charge). Without this, a user could buy a boost, spend the credits, then
+  // dispute the charge and keep the feed placement.
+  if (event.type === 'charge.refunded' || event.type === 'charge.dispute.created') {
+    try {
+      const charge = event.data.object;
+      const paymentIntentId = charge.payment_intent || charge.id;
+      await revokeCreditsForPayment(paymentIntentId);
+    } catch (err) {
+      console.error('revokeCreditsForPayment failed (will 500 for retry):', err);
+      return res.status(500).json({ error: 'revoke_failed' });
     }
   }
 
@@ -305,6 +329,30 @@ async function _creditUserInTx(client, userId, credits, provider, paymentId) {
 // Public helper for callers that don't have an outer transaction
 async function creditUser(userId, credits, provider, paymentId) {
   return withTransaction((client) => _creditUserInTx(client, userId, credits, provider, paymentId));
+}
+
+// Claw back credits when a Stripe payment is refunded or disputed. Idempotent:
+// only the first completed→refunded transition deducts, so a replayed refund/
+// dispute webhook can't over-deduct. Credits are clamped at 0 — if the user
+// already spent them on boosts, they simply lose the remaining balance (we
+// don't un-boost already-placed content, but we stop them keeping free credits).
+async function revokeCreditsForPayment(paymentIntentId) {
+  if (!paymentIntentId) return { revoked: false };
+  return withTransaction(async (client) => {
+    const claim = await client.query(
+      `UPDATE boost_transactions SET status = 'refunded'
+       WHERE payment_provider = 'stripe' AND payment_id = $1 AND status = 'completed'
+       RETURNING user_id, credits`,
+      [paymentIntentId]
+    );
+    if (claim.rowCount === 0) return { revoked: false };
+    const { user_id, credits } = claim.rows[0];
+    await client.query(
+      `UPDATE boost_credits SET credits = GREATEST(credits - $2, 0) WHERE user_id = $1`,
+      [user_id, credits]
+    );
+    return { revoked: true };
+  });
 }
 
 async function generateUniqueCode(userId) {

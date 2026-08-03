@@ -802,6 +802,14 @@ const runStartupMigrations = async () => {
   await migrate('users country col', () =>
     db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(2)`));
 
+  // Session-revocation watermark: any JWT issued (iat) BEFORE this timestamp is
+  // rejected by the auth middleware. Bumped to NOW() on password change/reset
+  // and account deletion, so those actions evict every previously-issued token
+  // (the 30-day stateless JWTs had no revocation path before). NULL = never
+  // revoked (the common case), so existing sessions are unaffected on rollout.
+  await migrate('users sessions_valid_after col', () =>
+    db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS sessions_valid_after TIMESTAMPTZ`));
+
   // One-shot repair 2026-08-02: countries were resolved with the UNRESTRICTED
   // Nominatim lookup, whose global top hit for ambiguous Austrian town names
   // (Haag, Neumarkt, Gmünd, …) is often the German namesake — those users got
@@ -997,6 +1005,14 @@ const runStartupMigrations = async () => {
     )`));
   await migrate('idx_subscriptions_user', () =>
     db.query(`CREATE INDEX IF NOT EXISTS subscriptions_user_id_idx ON subscriptions(user_id)`));
+  // At most ONE active-ish subscription per user, enforced by the DB as a
+  // backstop to the advisory lock in createSubscription. If a race ever slips
+  // two rows toward active/trialing, the webhook flipping the second one fails
+  // here and it stays 'pending' (safe) rather than double-billing the user.
+  await migrate('subscriptions one-active-per-user', () =>
+    db.query(`CREATE UNIQUE INDEX IF NOT EXISTS subscriptions_one_active_per_user
+              ON subscriptions (user_id)
+              WHERE status IN ('active','trialing','canceling')`));
 
   // ── Boost & Referral system ────────────────────────────────────────────────
   // Folded from boost_migration.sql so fresh Railway deploys self-bootstrap

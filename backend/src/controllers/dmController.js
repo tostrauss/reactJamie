@@ -111,58 +111,86 @@ export const sendDM = async (req, res) => {
       });
     }
 
-    // Insert message
-    // Self-heal wrapper: on first send against a fresh DB the tables may be
-    // missing — create them on demand and retry once.
+    // Persist the message AND both conversation trackers in ONE transaction.
+    // Previously the message INSERT auto-committed on its own and the trackers
+    // ran in a separate transaction — if the tracker step failed (pool timeout,
+    // deadlock) the message was durably stored but the receiver's conversation
+    // list never surfaced it (no last_message_id) and the sender saw a 500 and
+    // retried → duplicate. One transaction makes it all-or-nothing.
+    // Self-heal wrapper: on a fresh DB the tables may be missing — create them
+    // and retry once.
     let insertResult;
-    let attempts = 0;
-    while (attempts < 2) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const client = await db.pool.connect();
       try {
-        insertResult = await db.query(
+        await client.query('BEGIN');
+        insertResult = await client.query(
           'INSERT INTO direct_messages (sender_id, receiver_id, content) VALUES ($1::int, $2::int, $3) RETURNING *',
           [req.userId, receiverId, content]
         );
-        break;
+        const msgId = insertResult.rows[0].id;
+        await client.query(
+          `INSERT INTO dm_conversations (user_id, other_user_id, last_message_id, unread_count)
+           VALUES ($1::int, $2::int, $3::int, 0)
+           ON CONFLICT (user_id, other_user_id)
+           DO UPDATE SET last_message_id = $3::int, updated_at = CURRENT_TIMESTAMP`,
+          [req.userId, receiverId, msgId]
+        );
+        await client.query(
+          `INSERT INTO dm_conversations (user_id, other_user_id, last_message_id, unread_count)
+           VALUES ($1::int, $2::int, $3::int, 1)
+           ON CONFLICT (user_id, other_user_id)
+           DO UPDATE SET last_message_id = $3::int, unread_count = dm_conversations.unread_count + 1, updated_at = CURRENT_TIMESTAMP`,
+          [receiverId, req.userId, msgId]
+        );
+        await client.query('COMMIT');
+        break; // success
       } catch (err) {
-        if (isMissingRelationError(err) && attempts === 0) {
-          console.warn('[dm] direct_messages missing on send, creating on demand');
+        await client.query('ROLLBACK').catch(() => {});
+        if (isMissingRelationError(err) && attempt === 0) {
+          console.warn('[dm] dm tables missing on send, creating on demand');
           await ensureDmTables();
-          attempts += 1;
-          continue;
+          continue; // retry once on the now-created tables
         }
         throw err;
+      } finally {
+        client.release();
       }
     }
 
-    // Update or create conversation trackers atomically
-    const msgId = insertResult.rows[0].id;
-    const client = await db.pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query(
-        `INSERT INTO dm_conversations (user_id, other_user_id, last_message_id, unread_count)
-         VALUES ($1::int, $2::int, $3::int, 0)
-         ON CONFLICT (user_id, other_user_id)
-         DO UPDATE SET last_message_id = $3::int, updated_at = CURRENT_TIMESTAMP`,
-        [req.userId, receiverId, msgId]
-      );
-      await client.query(
-        `INSERT INTO dm_conversations (user_id, other_user_id, last_message_id, unread_count)
-         VALUES ($1::int, $2::int, $3::int, 1)
-         ON CONFLICT (user_id, other_user_id)
-         DO UPDATE SET last_message_id = $3::int, unread_count = dm_conversations.unread_count + 1, updated_at = CURRENT_TIMESTAMP`,
-        [receiverId, req.userId, msgId]
-      );
-      await client.query('COMMIT');
-    } catch (txErr) {
-      await client.query('ROLLBACK');
-      throw txErr;
-    } finally {
-      client.release();
-    }
-
-    // Notify receiver (fire-and-forget)
-    notifyDMReceived(req.userId, receiverId).catch(() => {});
+    // Authoritative live delivery + notification, server-side. This REPLACES the
+    // old client→socket `send_dm` re-broadcast, which ran no moderation and
+    // trusted client identity. The persisted row is already moderated (checkText
+    // Safety above); we attach the sender's name/avatar (server truth) so the
+    // receiver's bubble renders correctly, then emit to the shared DM room and
+    // the receiver's personal room. The receiver's client filters its own
+    // senderId, and the sender rendered optimistically, so a room-wide emit is
+    // safe. Fire-and-forget: DB is the source of truth if a socket is down.
+    (async () => {
+      try {
+        const s = await db.query('SELECT name, avatar_url FROM users WHERE id = $1', [req.userId]);
+        const senderName = s.rows[0]?.name || 'Jemand';
+        const senderAvatar = s.rows[0]?.avatar_url || null;
+        const msgRow = insertResult.rows[0];
+        const io = req.app.get('io');
+        if (io) {
+          const roomName = `dm_${Math.min(req.userId, receiverId)}_${Math.max(req.userId, receiverId)}`;
+          io.to(roomName).emit('receive_dm', {
+            senderId: req.userId,
+            receiverId,
+            message: { ...msgRow, sender_name: senderName, sender_avatar: senderAvatar },
+            timestamp: msgRow.created_at,
+          });
+          io.to(`user_${receiverId}`).emit('new_dm_notification', {
+            senderId: req.userId,
+            message: (msgRow.content || '').slice(0, 200),
+            timestamp: msgRow.created_at,
+          });
+        }
+        // Web push for the closed/backgrounded receiver.
+        sendPushToUser(receiverId, 'Neue Nachricht', `${senderName} hat dir eine Nachricht geschickt`, `/dm/${req.userId}`);
+      } catch { /* non-critical */ }
+    })();
 
     res.status(201).json(insertResult.rows[0]);
   } catch (error) {
@@ -172,16 +200,6 @@ export const sendDM = async (req, res) => {
     });
   }
 };
-
-async function notifyDMReceived(fromUserId, toUserId) {
-  try {
-    const { rows } = await db.query('SELECT name FROM users WHERE id = $1', [fromUserId]);
-    const name = rows[0]?.name || 'Jemand';
-    // Deep-link straight into the conversation — '/messages' is not a real
-    // route (the SW opened it on tap and the recipient landed on the 404 page).
-    sendPushToUser(toUserId, 'Neue Nachricht', `${name} hat dir eine Nachricht geschickt`, `/dm/${fromUserId}`);
-  } catch { /* non-critical */ }
-}
 
 // ==========================================
 // GET CONVERSATION WITH USER

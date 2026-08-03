@@ -718,6 +718,7 @@
         "error": "Konnte nicht geändert werden"
       },
       "permissionOwnerOnly": "Nur der Club-Gründer kann Nachrichten senden",
+      "removed": "Du wurdest aus dieser Gruppe entfernt",
       "loadEarlier": "Ältere Nachrichten laden",
       "loadingShort": "Laden…",
       "toast": {
@@ -1102,7 +1103,7 @@
     },
     "avatarGate": {
       "title": "Lade dein Profilbild hoch",
-      "text": "Bei JAMIE geht's um Profile und Aktivitäten – lade dein Profilbild hoch, um Gruppen und Clubs beizutreten.",
+      "text": "Bei JAMIE geht's um Profile und Aktivitäten – lade dein Profilbild hoch, um mitzumachen.",
       "cta": "Profilbild hochladen",
       "cancel": "Später"
     },

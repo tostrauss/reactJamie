@@ -162,7 +162,12 @@ export const DirectMessagePage = () => {
   const handleReceiveDM = (data) => {
     // Skip messages sent by the current user — they're already added optimistically
     if (data.message && data.senderId !== user.id) {
-      setMessagesList(prev => [...prev, data.message]);
+      // Dedup by id in case a catch-up refetch already appended this row.
+      setMessagesList(prev =>
+        (data.message.id != null && prev.some(m => m.id === data.message.id))
+          ? prev
+          : [...prev, data.message]
+      );
       markAsRead();
     }
   };
@@ -213,14 +218,9 @@ export const DirectMessagePage = () => {
       setMessagesList(prev => prev.some(m => m.id === real.id)
         ? prev.filter(m => m.id !== tempId)
         : prev.map(m => (m.id === tempId ? real : m)));
-      // Deliver to the recipient ONLY after moderation + persistence succeeded.
-      if (socket) {
-        socket.emit('send_dm', {
-          senderId: user.id,
-          receiverId: receiverIdInt,
-          message: real,
-        });
-      }
+      // Delivery to the recipient happens SERVER-SIDE now: the HTTP persist path
+      // (dmController.sendDM) broadcasts the moderated row to the DM room. The
+      // old client `send_dm` emit re-broadcast unmoderated content and is gone.
     } catch (err) {
       if (err.response?.data?.requiresFriendship) {
         // Friendship dropped between page-load and send. Pull the

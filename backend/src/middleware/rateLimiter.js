@@ -132,6 +132,21 @@ export const feedbackLimiter = rateLimit({
   message: { error: 'Zu viel Feedback auf einmal. Bitte versuche es später erneut.' }
 });
 
+// DM send: 10 messages/minute per authenticated user. Redis-backed so the cap
+// holds across instances (the old standalone limiter in dmRoutes had no store →
+// it was 10/min PER instance = 20/min effective at 2 replicas).
+export const dmSendLimiter = rateLimit({
+  ...SHARED,
+  windowMs: 60 * 1000,
+  max: disabled ? 10000 : 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `dm_send:${req.userId}`,
+  validate: { keyGeneratorIpFallback: false },
+  store: makeStore('rl:dmsend:'),
+  message: { error: 'Zu viele Nachrichten. Bitte warte eine Minute.' }
+});
+
 // Friend request: 20/hour per authenticated user. Without this, one user can
 // fire thousands of requests at a single victim (each triggering a push
 // notification). The general /api limit is per-IP across all routes, so it's

@@ -82,6 +82,17 @@ export const sendMessage = async (req, res) => {
       // In-app nudge for connected clients (nav badges + chat-list rows).
       const io = req.app.get('io');
       if (io) {
+        // Authoritative live delivery: broadcast the already-moderated, persisted
+        // row to everyone in the open chat EXCEPT the sender (who rendered it
+        // optimistically and reconciles via the 201). This REPLACES the old
+        // client→socket `send_message` re-broadcast, which ran no moderation and
+        // trusted client-supplied identity — a member could emit unmoderated,
+        // name-spoofed text live to the room. Here content is server-moderated
+        // and user_id/name/avatar come from the DB row, so neither is forgeable.
+        // `.except(user_<id>)` drops all the sender's own sockets (every client
+        // joins its personal room on connect).
+        io.to(String(groupId)).except(`user_${req.userId}`).emit('receive_message', result.rows[0]);
+
         const rooms = memberRows.rows.map(r => `user_${r.user_id}`);
         if (rooms.length) {
           io.to(rooms).emit('group_message_notification', {

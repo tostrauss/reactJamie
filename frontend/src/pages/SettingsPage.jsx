@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { switchLanguage } from '../i18n';
 import { AuthContext } from '../context/AuthContext';
-import { auth, groups as groupsApi, clubs as clubsApi, subscription as subscriptionApi, boost as boostApi } from '../utils/api';
+import { auth, groups as groupsApi, clubs as clubsApi, subscription as subscriptionApi, boost as boostApi, setMemToken } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import {
   isPushSupported,
@@ -264,7 +264,11 @@ export const SettingsPage = () => {
 
     setPasswordLoading(true);
     try {
-      await auth.changePassword(currentPassword, newPassword);
+      const res = await auth.changePassword(currentPassword, newPassword);
+      // The server bumped the session watermark (revoking every OTHER token) and
+      // returned a fresh one for THIS session — adopt it so native Bearer
+      // clients don't 401 on their now-stale in-memory token.
+      if (res?.data?.token) setMemToken(res.data.token);
       toast.success(t('settings.toast.passwordChanged'));
       setCurrentPassword('');
       setNewPassword('');

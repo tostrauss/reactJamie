@@ -185,6 +185,16 @@ async function notifyCategoryMatches(group, catList, countryCode, creatorId) {
   }
 }
 
+// Creating a group/club requires a profile photo (Tina 2026-08-03): JAMIE is
+// about real people + activities, so an avatar-less creator reads as a bot.
+// Enforced server-side here; the frontend also gates the create flow. Exported
+// so clubController.createClub reuses the exact same rule.
+export async function creatorHasAvatar(userId) {
+  const { rows } = await db.query('SELECT avatar_url FROM users WHERE id = $1', [userId]);
+  const url = rows[0]?.avatar_url;
+  return typeof url === 'string' && url.trim().length > 0;
+}
+
 export const createGroup = async (req, res) => {
   const { name, description, type, category, categories, date, time, location, image_url, max_members, is_private, skill_level, chat_only_owner, target_age_min, target_age_max, is_recurring_weekly } = req.body;
   const userId = req.userId; // JWT auth (not session)
@@ -197,6 +207,14 @@ export const createGroup = async (req, res) => {
   if (location && location.length > 200) return res.status(400).json({ error: 'Ort darf maximal 200 Zeichen lang sein' });
 
   try {
+    // Profile-photo gate (Tina 2026-08-03).
+    if (!(await creatorHasAvatar(userId))) {
+      return res.status(403).json({
+        error: 'Bitte lade zuerst ein Profilbild hoch, um eine Gruppe zu erstellen.',
+        requiresAvatar: true,
+      });
+    }
+
     // Per-user daily limit: max 10 groups/clubs created in 24 hours
     const dailyCount = await db.query(
       `SELECT COUNT(*) FROM groups WHERE owner_id = $1 AND created_at > NOW() - INTERVAL '24 hours'`,
@@ -433,6 +451,17 @@ export const getGroups = async (req, res) => {
     const params = [];
     let paramIndex = 1;
     let where = `g.is_active = TRUE AND g.deleted_at IS NULL AND g.type IN ('group', 'club')`;
+
+    // Clubs awaiting moderation must NOT surface in the public feed — getClubs
+    // and getMapPins already gate on approval_status, but getGroups (a public
+    // route that returns clubs too) did not, so a pending club's name/image was
+    // visible to everyone, bypassing the human-approval queue. Groups have no
+    // approval flow. Admins see everything (the flag is in the cache key, so
+    // this stays cache-safe); a club owner still sees their own pending club in
+    // "Meine Clubs" (getClubs), just not in this public discovery feed.
+    if (!callerIsAdmin) {
+      where += ` AND (g.type <> 'club' OR g.approval_status = 'approved')`;
+    }
 
     // Apply target-age hard filter. NULL caller age = pass everything; otherwise
     // exclude groups whose [min,max] range doesn't contain the caller.
@@ -767,9 +796,6 @@ export const updateGroup = async (req, res) => {
       lngUpdate = geo.coords?.lng ?? null;
     }
 
-    invalidatePrefix('groups:');
-    invalidatePrefix('map:');
-
     // Sentinels: ageMin/MaxU is `undefined` when client didn't touch the field
     // (keep existing), `null` when explicitly clearing, integer when setting.
     const result = await db.query(
@@ -804,6 +830,11 @@ export const updateGroup = async (req, res) => {
         catList.length ? catList : null,
       ]
     );
+
+    // Invalidate AFTER the write commits — busting before let a concurrent
+    // getGroups re-cache the PRE-update row and serve it for the full TTL.
+    invalidatePrefix('groups:');
+    invalidatePrefix('map:');
 
     res.json(result.rows[0]);
   } catch (err) {
@@ -904,6 +935,7 @@ export const joinGroup = async (req, res) => {
     }
 
     // Public group → join inside a transaction with FOR UPDATE to prevent TOCTOU race
+    let didJoin = false;
     const client = await db.pool.connect();
     try {
       await client.query('BEGIN');
@@ -916,20 +948,26 @@ export const joinGroup = async (req, res) => {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Die Gruppe ist bereits voll' });
       }
-      await client.query(
-        'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
+      // ON CONFLICT DO NOTHING so a mobile double-tap no-ops instead of hitting
+      // the PK and 500ing ("Beitritt fehlgeschlagen" on a benign double-click).
+      const memberIns = await client.query(
+        'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
         [id, req.userId, 'member']
       );
-      // Bump the persistent join counter (survives a later leave) so repeated
-      // join/leave churn is capped at MAX_GROUP_JOINS.
-      await client.query(
-        `INSERT INTO group_join_counts (group_id, user_id, join_count)
-         VALUES ($1, $2, 1)
-         ON CONFLICT (group_id, user_id)
-         DO UPDATE SET join_count = group_join_counts.join_count + 1`,
-        [id, req.userId]
-      );
+      // Bump the persistent churn counter ONLY on a real insert — the second of
+      // two racing requests would otherwise double-count one join and, with
+      // MAX_GROUP_JOINS=3, erode the user's remaining joins for free.
+      if (memberIns.rowCount > 0) {
+        await client.query(
+          `INSERT INTO group_join_counts (group_id, user_id, join_count)
+           VALUES ($1, $2, 1)
+           ON CONFLICT (group_id, user_id)
+           DO UPDATE SET join_count = group_join_counts.join_count + 1`,
+          [id, req.userId]
+        );
+      }
       await client.query('DELETE FROM group_waitlist WHERE group_id = $1 AND user_id = $2', [id, req.userId]);
+      didJoin = memberIns.rowCount > 0;
       await client.query('COMMIT');
     } catch (txErr) {
       await client.query('ROLLBACK');
@@ -938,8 +976,8 @@ export const joinGroup = async (req, res) => {
       client.release();
     }
 
-    // Notify group owner (fire-and-forget)
-    if (g.owner_id && Number(g.owner_id) !== Number(req.userId)) {
+    // Notify group owner (fire-and-forget), gated on a real join.
+    if (didJoin && g.owner_id && Number(g.owner_id) !== Number(req.userId)) {
       notifyGroupJoin(req.userId, g.owner_id, g.name || '', id).catch(() => {});
     }
 
@@ -982,39 +1020,16 @@ export const leaveGroup = async (req, res) => {
       return res.status(400).json({ error: 'Not a member of this group' });
     }
 
-    // If group was full, notify first person on waitlist (spot just opened)
-    const g = group.rows[0];
-    if (g.members_count >= g.max_members) {
-      const waitlistUser = await db.query(
-        `SELECT user_id FROM group_waitlist
-         WHERE group_id = $1 AND status = 'waiting'
-         ORDER BY position ASC LIMIT 1`,
-        [id]
-      );
-
-      if (waitlistUser.rows.length > 0) {
-        const wUserId = waitlistUser.rows[0].user_id;
-
-        // Mark as notified so frontend shows "Jetzt beitreten"
-        await db.query(
-          `UPDATE group_waitlist SET status = 'notified', notified_at = CURRENT_TIMESTAMP
-           WHERE group_id = $1 AND user_id = $2`,
-          [id, wUserId]
-        );
-
-        // In-app notification
-        await db.query(
-          `INSERT INTO notifications (user_id, type, title, message, reference_type, reference_id)
-           VALUES ($1, 'waitlist_opening', 'Platz frei!', 'Ein Platz ist in deiner Warteliste-Gruppe frei geworden.', 'group', $2)`,
-          [wUserId, id]
-        );
-
-        // Push notification
-        // group name already in `group.rows[0]` — no extra query needed
-        const grpName = group.rows[0]?.name || '';
-        sendPushToUser(wUserId, 'Platz frei!', `Ein Platz in "${grpName}" ist frei geworden`, `/group/${id}`);
+    // A seat just opened → atomically promote the next waiter (own transaction,
+    // locks the group row + claims one 'waiting' row, so two concurrent leaves
+    // can never notify the same person twice or promote past capacity). The old
+    // inline version read a stale members_count, never guarded the UPDATE on
+    // status, and looked up a group name it never SELECTed (always empty push).
+    promoteFromWaitlist(id).then(promoted => {
+      if (promoted) {
+        sendPushToUser(promoted.userId, 'Platz frei!', `Ein Platz in "${promoted.groupName}" ist frei geworden`, `/group/${id}`);
       }
-    }
+    }).catch(() => {});
 
     // Announce the departure so the earlier "beigetreten 🎉" message isn't left
     // dangling — otherwise the roster silently loses a member and it looks like
@@ -1426,41 +1441,58 @@ export const handleJoinRequest = async (req, res) => {
 
     if (action === 'accept') {
       // Enforce capacity inside a transaction to prevent race with concurrent accepts
+      let didAccept = false;
       const client = await db.pool.connect();
       try {
         await client.query('BEGIN');
-        const cap = await client.query(
+        await client.query(
           'SELECT members_count, max_members FROM groups WHERE id = $1 FOR UPDATE',
           [id]
         );
-        if (cap.rows[0].members_count >= cap.rows[0].max_members) {
+        // Status guard FIRST so a double-click on "Annehmen" (or re-accepting an
+        // already-handled request) is a clean no-op instead of re-adding the
+        // member, re-bumping the churn counter, and possibly 400ing "full".
+        const upd = await client.query(
+          `UPDATE group_join_requests SET status = 'accepted', updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1 AND status = 'pending'`,
+          [requestId]
+        );
+        if (upd.rowCount === 0) {
+          await client.query('ROLLBACK');
+          return res.json({ message: 'Request already handled', status: 'accepted' });
+        }
+        const cap = await client.query(
+          'SELECT members_count, max_members FROM groups WHERE id = $1',
+          [id]
+        );
+        if (cap.rows[0].max_members && cap.rows[0].members_count >= cap.rows[0].max_members) {
           await client.query('ROLLBACK');
           return res.status(400).json({ error: 'Gruppe ist bereits voll. Anfrage kann nicht angenommen werden.' });
         }
-        await client.query(
-          `UPDATE group_join_requests SET status = 'accepted', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-          [requestId]
-        );
-        await client.query(
+        const memberIns = await client.query(
           'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
           [id, joinReq.user_id, 'member']
         );
-        // Bump the persistent join counter (survives a later leave) so repeated
-        // join/leave churn is capped at MAX_GROUP_JOINS.
-        await client.query(
-          `INSERT INTO group_join_counts (group_id, user_id, join_count)
-           VALUES ($1, $2, 1)
-           ON CONFLICT (group_id, user_id)
-           DO UPDATE SET join_count = group_join_counts.join_count + 1`,
-          [id, joinReq.user_id]
-        );
+        // Bump the churn counter only on a real insert (see joinGroup note).
+        if (memberIns.rowCount > 0) {
+          await client.query(
+            `INSERT INTO group_join_counts (group_id, user_id, join_count)
+             VALUES ($1, $2, 1)
+             ON CONFLICT (group_id, user_id)
+             DO UPDATE SET join_count = group_join_counts.join_count + 1`,
+            [id, joinReq.user_id]
+          );
+        }
         await client.query('COMMIT');
+        didAccept = true;
       } catch (txErr) {
         await client.query('ROLLBACK');
         throw txErr;
       } finally {
         client.release();
       }
+
+      if (!didAccept) return; // already-handled path already responded
 
       sendPushToUser(joinReq.user_id, 'Beitrittsanfrage akzeptiert', `Du bist jetzt Mitglied von "${gname}"`, `/group/${id}`);
 
@@ -1531,6 +1563,21 @@ export const kickMember = async (req, res) => {
         postSystemMessage(id, `${name} hat die Gruppe verlassen 👋`, req.app.get('io')).catch(() => {});
       })
       .catch(() => {});
+
+    // A kick frees a seat too — promote the next waiter (this was missing, so
+    // kicking a no-show from a full group never notified the waitlist, even
+    // though kicking is exactly how owners of full groups make room).
+    promoteFromWaitlist(id).then(promoted => {
+      if (promoted) {
+        sendPushToUser(promoted.userId, 'Platz frei!', `Ein Platz in "${promoted.groupName}" ist frei geworden`, `/group/${id}`);
+      }
+    }).catch(() => {});
+
+    // Evict the removed member's live sockets from the chat room so they stop
+    // receiving messages immediately — room membership is otherwise only checked
+    // at join time, so a kicked member with the chat open kept getting every
+    // broadcast until they disconnected. Also nudge their client to leave the UI.
+    await evictFromRoom(req.app.get('io'), userId, id);
 
     res.json({ message: 'Member removed successfully' });
   } catch (err) {
@@ -1842,6 +1889,73 @@ export async function notifyJoinRequest(requesterUserId, ownerUserId, groupName,
     });
     sendPushToUser(ownerUserId, title, body, `/group/${groupId}/requests`);
   } catch { /* non-critical */ }
+}
+
+// Atomically promote the next person off a group/club waitlist when a seat
+// frees up (leave or kick). Runs in its own transaction: FOR UPDATE on the
+// group row serialises concurrent departures, and the CTE claims exactly one
+// 'waiting' row with FOR UPDATE SKIP LOCKED so two parallel promotions pick
+// DIFFERENT people and nobody is notified twice. Only promotes when a seat is
+// genuinely free (members_count already reflects the departure, which happened
+// before this is called). Returns { userId, groupName } or null.
+export async function promoteFromWaitlist(groupId) {
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const g = await client.query(
+      'SELECT name, members_count, max_members FROM groups WHERE id = $1 FOR UPDATE',
+      [groupId]
+    );
+    if (g.rows.length === 0) { await client.query('ROLLBACK'); return null; }
+    const { name, members_count, max_members } = g.rows[0];
+    if (max_members && members_count >= max_members) { await client.query('ROLLBACK'); return null; }
+
+    const claim = await client.query(
+      `WITH next AS (
+         SELECT user_id FROM group_waitlist
+         WHERE group_id = $1 AND status = 'waiting'
+         ORDER BY position ASC
+         FOR UPDATE SKIP LOCKED
+         LIMIT 1
+       )
+       UPDATE group_waitlist w
+       SET status = 'notified', notified_at = CURRENT_TIMESTAMP
+       FROM next
+       WHERE w.group_id = $1 AND w.user_id = next.user_id
+       RETURNING w.user_id`,
+      [groupId]
+    );
+    if (claim.rows.length === 0) { await client.query('ROLLBACK'); return null; }
+    const userId = claim.rows[0].user_id;
+
+    await client.query(
+      `INSERT INTO notifications (user_id, type, title, message, reference_type, reference_id)
+       VALUES ($1, 'waitlist_opening', 'Platz frei!', 'Ein Platz ist in deiner Warteliste-Gruppe frei geworden.', 'group', $2)`,
+      [userId, groupId]
+    );
+    await client.query('COMMIT');
+    return { userId, groupName: name || '' };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Force a user's live sockets out of a chat room (used on kick). Room
+// membership is otherwise only validated at join time, so without this a
+// kicked member keeps receiving every broadcast until they disconnect. Also
+// emits `removed_from_group` so the client can leave the chat UI. Best-effort.
+export async function evictFromRoom(io, userId, groupId) {
+  if (!io) return;
+  try {
+    const sockets = await io.in(`user_${userId}`).fetchSockets();
+    for (const s of sockets) {
+      s.leave(String(groupId));
+      s.emit('removed_from_group', { groupId: Number(groupId) });
+    }
+  } catch { /* best-effort */ }
 }
 
 // Exported: clubController reuses this for public club joins (basePath 'club'

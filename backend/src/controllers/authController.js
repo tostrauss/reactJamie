@@ -2,10 +2,24 @@ import db from '../config/database.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
-import { generateToken, setAuthCookie, clearAuthCookie } from '../middleware/auth.js';
+import { generateToken, setAuthCookie, clearAuthCookie, invalidateSessionCache } from '../middleware/auth.js';
 import { sendPasswordResetEmail, sendVerificationEmail, sendOTPEmail } from '../utils/email.js';
 import { REFERRAL_CREDITS_ENABLED } from '../config/features.js';
 import { normalizeLocale } from '../utils/pushLocale.js';
+import { checkTextSafety } from '../config/moderation.js';
+
+// Validate that a user-supplied image field is an internal/https(s) URL, not a
+// javascript:/data: payload or an arbitrary external host. Mirrors the http(s)
+// enforcement dealController already applies to deal photos. Returns true if OK.
+const isSafeImageUrl = (u) => {
+  if (typeof u !== 'string' || u.length > 1024) return false;
+  try {
+    const proto = new URL(u).protocol;
+    return proto === 'http:' || proto === 'https:';
+  } catch {
+    return false;
+  }
+};
 
 // Persist the app language (X-App-Locale, set by the frontend axios
 // interceptor) for server-initiated push i18n. Fire-and-forget; the guarded
@@ -90,6 +104,14 @@ export const register = async (req, res) => {
     }
     if (!name || typeof name !== 'string' || !name.trim() || name.length > 100) {
       return res.status(400).json({ error: 'Name ist erforderlich (max. 100 Zeichen)' });
+    }
+    // The display name is the most-visible user content in the app (every member
+    // list, chat row, friend request) and reaches minors — moderate it like we
+    // already moderate group/club names. The deterministic blocklist catches
+    // slurs even if the OpenAI layer is unavailable (fail-open).
+    const nameCheck = await checkTextSafety(name);
+    if (!nameCheck.safe) {
+      return res.status(422).json({ error: nameCheck.reason || 'Name enthält unzulässige Inhalte' });
     }
 
     // Age gating: must be 18+
@@ -379,6 +401,13 @@ export const updateProfile = async (req, res) => {
     if (bio !== undefined && bio !== null && (typeof bio !== 'string' || bio.length > 500)) {
       return res.status(400).json({ error: 'Bio darf maximal 500 Zeichen lang sein' });
     }
+    // Moderate the visible free-text fields (name, bio) — same coverage the
+    // group/club create paths already have. Only checks fields actually present.
+    const toModerate = [name, bio].filter(v => typeof v === 'string' && v.trim());
+    for (const text of toModerate) {
+      const { safe, reason } = await checkTextSafety(text);
+      if (!safe) return res.status(422).json({ error: reason || 'Eingabe enthält unzulässige Inhalte' });
+    }
     if (location !== undefined && location !== null && (typeof location !== 'string' || location.length > 255)) {
       return res.status(400).json({ error: 'Ort darf maximal 255 Zeichen lang sein' });
     }
@@ -394,11 +423,13 @@ export const updateProfile = async (req, res) => {
       if (!Array.isArray(photos) || photos.length > 6) {
         return res.status(400).json({ error: 'Maximal 6 Fotos erlaubt' });
       }
-      if (photos.some(p => typeof p !== 'string' || p.length > 1024)) {
+      // Require http(s) URLs so a crafted client can't store a javascript:/data:
+      // payload or an unmoderated external host that is then served to others.
+      if (photos.some(p => !isSafeImageUrl(p))) {
         return res.status(400).json({ error: 'Ungültige Foto-URL' });
       }
     }
-    if (avatar_url !== undefined && avatar_url !== null && (typeof avatar_url !== 'string' || avatar_url.length > 1024)) {
+    if (avatar_url !== undefined && avatar_url !== null && avatar_url !== '' && !isSafeImageUrl(avatar_url)) {
       return res.status(400).json({ error: 'Ungültige Avatar-URL' });
     }
     if (gender !== undefined && gender !== null && !GENDER_VALUES.has(gender)) {
@@ -411,7 +442,7 @@ export const updateProfile = async (req, res) => {
       if (!Array.isArray(pinnwand) || pinnwand.length > 12) {
         return res.status(400).json({ error: 'Maximal 12 Pinnwand-Fotos erlaubt' });
       }
-      if (pinnwand.some(p => typeof p !== 'string' || p.length > 1024)) {
+      if (pinnwand.some(p => !isSafeImageUrl(p))) {
         return res.status(400).json({ error: 'Ungültige Pinnwand-URL' });
       }
     }
@@ -483,6 +514,10 @@ export const completeOnboarding = async (req, res) => {
     if (bio !== undefined && bio !== null && (typeof bio !== 'string' || bio.length > 500)) {
       return res.status(400).json({ error: 'Bio darf maximal 500 Zeichen lang sein' });
     }
+    if (typeof bio === 'string' && bio.trim()) {
+      const { safe, reason } = await checkTextSafety(bio);
+      if (!safe) return res.status(422).json({ error: reason || 'Bio enthält unzulässige Inhalte' });
+    }
     if (location !== undefined && location !== null && (typeof location !== 'string' || location.length > 255)) {
       return res.status(400).json({ error: 'Ort darf maximal 255 Zeichen lang sein' });
     }
@@ -498,11 +533,11 @@ export const completeOnboarding = async (req, res) => {
       if (!Array.isArray(photos) || photos.length > 6) {
         return res.status(400).json({ error: 'Maximal 6 Fotos erlaubt' });
       }
-      if (photos.some(p => typeof p !== 'string' || p.length > 1024)) {
+      if (photos.some(p => !isSafeImageUrl(p))) {
         return res.status(400).json({ error: 'Ungültige Foto-URL' });
       }
     }
-    if (avatar_url !== undefined && avatar_url !== null && (typeof avatar_url !== 'string' || avatar_url.length > 1024)) {
+    if (avatar_url !== undefined && avatar_url !== null && avatar_url !== '' && !isSafeImageUrl(avatar_url)) {
       return res.status(400).json({ error: 'Ungültige Avatar-URL' });
     }
 
@@ -592,9 +627,19 @@ export const changePassword = async (req, res) => {
     }
 
     const hashed = await bcrypt.hash(newPassword, 12);
-    await db.query('UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [hashed, req.userId]);
+    // Bump the revocation watermark so every OTHER existing session (stolen or
+    // on a shared device) is evicted. Then issue a fresh token for THIS session
+    // so the user who just changed their password isn't logged out of the tab
+    // they did it in.
+    await db.query(
+      'UPDATE users SET password = $1, sessions_valid_after = NOW(), updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [hashed, req.userId]
+    );
+    invalidateSessionCache(req.userId);
+    const freshToken = generateToken(req.userId);
+    setAuthCookie(res, freshToken);
 
-    res.json({ message: 'Password changed successfully' });
+    res.json({ message: 'Password changed successfully', token: freshToken });
   } catch (error) {
     console.error('ChangePassword error:', error);
     res.status(500).json({ error: 'Passwort konnte nicht geändert werden' });
@@ -688,6 +733,9 @@ export const deleteAccount = async (req, res) => {
       client.release();
     }
 
+    // Evict the cached session state now so any other live token for this
+    // (now-deleted) account is rejected immediately rather than after the TTL.
+    invalidateSessionCache(req.userId);
     clearAuthCookie(res);
     res.json({ message: 'Account deleted successfully' });
   } catch (error) {
@@ -865,9 +913,15 @@ export const resetPassword = async (req, res) => {
 
     const resetToken = result.rows[0];
 
-    // Hash new password and update
+    // Hash new password and update. Bump the revocation watermark so a reset —
+    // the classic "someone else has my account" recovery — evicts EVERY existing
+    // session (the attacker's included); the user then logs in fresh.
     const hashed = await bcrypt.hash(newPassword, 12);
-    await db.query('UPDATE users SET password = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [hashed, resetToken.user_id]);
+    await db.query(
+      'UPDATE users SET password = $1, sessions_valid_after = NOW(), updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [hashed, resetToken.user_id]
+    );
+    invalidateSessionCache(resetToken.user_id);
 
     // Mark token as used
     await db.query('UPDATE password_reset_tokens SET used = TRUE WHERE id = $1', [resetToken.id]);
@@ -1084,6 +1138,12 @@ export const googleLogin = async (req, res) => {
         const oauthClient = new OAuth2Client(clientId);
         const ticket = await oauthClient.verifyIdToken({ idToken: credential, audience: clientId });
         const payload = ticket.getPayload();
+        // Only trust a PROVEN email — finishGoogleLogin links this address onto
+        // any existing local account with the same email, so an unverified
+        // Google email could hijack a password account sharing that address.
+        if (payload.email_verified === false) {
+          return res.status(401).json({ error: 'Google-E-Mail ist nicht verifiziert' });
+        }
         email    = payload.email;
         name     = payload.name;
         picture  = payload.picture;
@@ -1117,6 +1177,12 @@ export const googleLogin = async (req, res) => {
       if (!googleRes.ok) return res.status(401).json({ error: 'Google Token ungültig' });
       const data = await googleRes.json();
       if (!data.email) return res.status(401).json({ error: 'Google Token ungültig' });
+      // Require a verified email (tokeninfo/userinfo return it as string/bool)
+      // before linking — see the ID-token path for the account-hijack rationale.
+      const gVerified = data.email_verified ?? tokenInfo.email_verified;
+      if (gVerified === false || gVerified === 'false') {
+        return res.status(401).json({ error: 'Google-E-Mail ist nicht verifiziert' });
+      }
       // Defense in depth: tokeninfo.sub must match the userinfo subject.
       if (tokenInfo.sub && data.sub && tokenInfo.sub !== data.sub) {
         return res.status(401).json({ error: 'Google Token ungültig' });
@@ -1231,6 +1297,10 @@ export const googleLoginCode = async (req, res) => {
     } catch {
       return res.status(401).json({ error: 'Google Token ungültig' });
     }
+    // Only link a proven email (see the finishGoogleLogin account-hijack note).
+    if (payload.email_verified === false) {
+      return res.status(401).json({ error: 'Google-E-Mail ist nicht verifiziert' });
+    }
 
     await finishGoogleLogin(
       { email: payload.email, name: payload.name, picture: payload.picture, googleId: payload.sub },
@@ -1297,6 +1367,11 @@ export const appleLogin = async (req, res) => {
     let email = payload.email;
     const appleId = payload.sub;
     if (!appleId) return res.status(400).json({ error: 'Kein Apple-Subject' });
+    // Apple emails are normally verified, but guard defensively before linking
+    // this address onto any existing local account (email_verified is a string).
+    if (email && (payload.email_verified === false || payload.email_verified === 'false')) {
+      return res.status(401).json({ error: 'Apple-E-Mail ist nicht verifiziert' });
+    }
 
     // On a first sign-in Apple returns the user's name in the request body
     // (NOT the token). After that, the name is gone forever — we have to

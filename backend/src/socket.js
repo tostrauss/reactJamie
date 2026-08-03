@@ -1,6 +1,5 @@
 import jwt from 'jsonwebtoken';
 import db from './config/database.js';
-import { redisClient } from './config/redis.js';
 
 // 10-second in-process membership cache for join_room.
 // At 1 000 concurrent users each joining 3-5 group rooms, this prevents
@@ -34,36 +33,6 @@ async function checkMembership(groupId, userId) {
   return result;
 }
 
-// Mirrors the HTTP /api/messages chat_only_owner rule (messageController.js:40-45)
-// so a non-owner can't bypass the restriction by emitting send_message directly.
-const _groupCtxCache = new Map();
-_sweepCaches.push(_groupCtxCache);
-async function canChatInGroup(groupId, userId) {
-  const key = `ctx:${groupId}:${userId}`;
-  const cached = _groupCtxCache.get(key);
-  if (cached !== undefined && Date.now() < cached.exp) return cached.result;
-  let result = false;
-  try {
-    const { rows } = await db.query(
-      `SELECT g.type, g.owner_id, g.chat_only_owner, gm.user_id AS member_user_id
-       FROM groups g
-       LEFT JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = $2
-       WHERE g.id = $1`,
-      [groupId, userId]
-    );
-    if (rows.length) {
-      const { type, owner_id, chat_only_owner, member_user_id } = rows[0];
-      const isMember = member_user_id != null;
-      const ownerOnlyBlocks = type === 'club' && chat_only_owner && owner_id !== userId;
-      result = isMember && !ownerOnlyBlocks;
-    }
-  } catch {
-    result = false; // fail closed on DB error
-  }
-  _groupCtxCache.set(key, { result, exp: Date.now() + MEMBER_CACHE_TTL });
-  return result;
-}
-
 // Used by DM socket events to gate room-join + typing on friendship.
 // Without this, any authenticated user can join_dm_room with a guessed
 // userId and eavesdrop on real-time DMs.
@@ -92,42 +61,9 @@ async function areFriends(a, b) {
   }
 }
 
-// Keep in sync with the HTTP dmSendLimiter (dmRoutes.js, 10/min) — a looser
-// socket cap let the real-time path bypass the anti-spam limit.
-const DM_LIMIT = 10;
-const DM_WINDOW_MS = 60_000;
-
-// In-memory fallback (single-instance only) — used when Redis is absent
-const dmCounters = new Map();
-setInterval(() => {
-  const now = Date.now();
-  for (const [userId, entry] of dmCounters) {
-    if (now > entry.resetAt) dmCounters.delete(userId);
-  }
-}, 5 * 60_000).unref();
-
-// Redis-backed when available (works across multiple instances), Map fallback otherwise
-const isDmAllowed = async (userId) => {
-  if (redisClient) {
-    try {
-      const key = `dm:rl:${userId}`;
-      const count = await redisClient.incr(key);
-      if (count === 1) await redisClient.pexpire(key, DM_WINDOW_MS);
-      return count <= DM_LIMIT;
-    } catch {
-      // Redis error — degrade gracefully to in-memory
-    }
-  }
-  const now = Date.now();
-  const entry = dmCounters.get(userId);
-  if (!entry || now > entry.resetAt) {
-    dmCounters.set(userId, { count: 1, resetAt: now + DM_WINDOW_MS });
-    return true;
-  }
-  if (entry.count >= DM_LIMIT) return false;
-  entry.count++;
-  return true;
-};
+// NB: the DM send rate limit now lives ONLY on the HTTP path (dmRoutes.js
+// dmSendLimiter, 10/min per user) since real-time delivery moved there. The
+// former socket-side counter was removed with the send_dm broadcast.
 
 const socketHandler = (io) => {
   // Verify JWT on every connection attempt
@@ -190,38 +126,15 @@ const socketHandler = (io) => {
       socket.leave(groupId);
     });
 
-    // Handle new message. The HTTP /api/messages endpoint is the source of
-    // truth for persistence + moderation; this socket event only fans the
-    // already-persisted message out to other room members. We pick a fixed
-    // shape so a malicious client cannot inject arbitrary fields, and we
-    // override identity fields from the authenticated socket — without this,
-    // any room member can impersonate any other user in real time. We also
-    // re-check chat_only_owner here so a non-owner can't bypass the HTTP gate
-    // by emitting on the socket directly (the message would be a "ghost"
-    // visible to other members until refresh).
-    socket.on('send_message', async (data) => {
-      if (!data || typeof data !== 'object') return;
-      const roomId = String(data.group_id || data.groupId || '');
-      if (!roomId || !socket.rooms.has(roomId)) return;
-      const groupIdInt = parseInt(roomId, 10);
-      if (!groupIdInt || !(await canChatInGroup(groupIdInt, socket.userId))) return;
-      // Whitelist fields — everything else from the client is dropped
-      const safeMessage = {
-        id:         data.id,
-        group_id:   data.group_id ?? data.groupId,
-        content:    typeof data.content === 'string' ? data.content.slice(0, 5000) : '',
-        created_at: data.created_at,
-        // user_id is authoritative — cannot be spoofed
-        user_id:    socket.userId,
-        user_name:  typeof data.user_name === 'string' ? data.user_name.slice(0, 100) : undefined,
-        avatar_url: typeof data.avatar_url === 'string' ? data.avatar_url.slice(0, 1024) : undefined,
-      };
-      socket.to(roomId).emit('receive_message', safeMessage);
-      // Note: the per-member `group_message_notification` nudge (nav badge,
-      // chat-list rows) is deliberately NOT sent from here — it fires from
-      // the HTTP POST /api/messages persist path (messageController), so it
-      // only ever announces messages that passed moderation + rate limiting.
-    });
+    // send_message is retained as a NO-OP for older clients still emitting it.
+    // Live delivery + moderation now happen entirely server-side on the HTTP
+    // POST /api/messages path (messageController.sendMessage), which broadcasts
+    // the already-moderated, server-authoritative row to the room. The old
+    // re-broadcast here ran NO text moderation and trusted client-supplied
+    // content/identity — a member could emit unmoderated, name-spoofed text live
+    // to the room (and there was no rate limit on this path). Do NOT restore a
+    // broadcast here without server-side checkTextSafety.
+    socket.on('send_message', () => { /* delivery moved to HTTP path */ });
 
     // Handle typing indicator
     socket.on('typing', (data) => {
@@ -262,71 +175,14 @@ const socketHandler = (io) => {
       socket.leave(roomName);
     });
 
-    socket.on('send_dm', async (data) => {
-      // Always use authenticated userId as senderId — never trust client-provided value
-      const senderId = socket.userId;
-      if (!data || typeof data !== 'object') return;
-      const receiverIdInt = parseInt(data.receiverId, 10);
-      if (isNaN(receiverIdInt) || receiverIdInt <= 0 || receiverIdInt === senderId) return;
-
-      // The frontend sends `message` as the full DB row (object) returned by
-      // POST /api/dm. Legacy clients may still pass a raw string. Normalize
-      // both into a canonical message object — never trust client identity.
-      let normalized;
-      if (typeof data.message === 'string') {
-        const content = data.message.trim();
-        if (!content || content.length > 5000) return;
-        normalized = {
-          id: null,
-          sender_id: senderId,
-          receiver_id: receiverIdInt,
-          content: content.slice(0, 5000),
-          created_at: new Date().toISOString(),
-        };
-      } else if (data.message && typeof data.message === 'object') {
-        const content = typeof data.message.content === 'string' ? data.message.content.trim() : '';
-        if (!content || content.length > 5000) return;
-        normalized = {
-          id: Number.isInteger(data.message.id) ? data.message.id : null,
-          sender_id: senderId, // authoritative override
-          receiver_id: receiverIdInt,
-          content: content.slice(0, 5000),
-          created_at: typeof data.message.created_at === 'string'
-            ? data.message.created_at
-            : new Date().toISOString(),
-          sender_name: typeof data.message.sender_name === 'string'
-            ? data.message.sender_name.slice(0, 100) : undefined,
-          sender_avatar: typeof data.message.sender_avatar === 'string'
-            ? data.message.sender_avatar.slice(0, 1024) : undefined,
-        };
-      } else {
-        return;
-      }
-
-      if (!await isDmAllowed(senderId)) {
-        socket.emit('dm_rate_limited', { error: 'Zu viele Nachrichten. Bitte kurz warten.' });
-        return;
-      }
-
-      // Friendship gate — prevents socket DM spam to arbitrary user IDs
-      if (!(await areFriends(senderId, receiverIdInt))) return;
-
-      // Broadcast shape matches what frontend handleReceiveDM expects:
-      // `data.message` is the full message object, appended directly to messagesList.
-      const roomName = `dm_${Math.min(senderId, receiverIdInt)}_${Math.max(senderId, receiverIdInt)}`;
-      io.to(roomName).emit('receive_dm', {
-        senderId,
-        receiverId: receiverIdInt,
-        message: normalized,
-        timestamp: normalized.created_at,
-      });
-      io.to(`user_${receiverIdInt}`).emit('new_dm_notification', {
-        senderId,
-        // Notification preview — truncate so a single payload can't push 5 KB to every receiver's socket
-        message: normalized.content.slice(0, 200),
-        timestamp: normalized.created_at,
-      });
-    });
+    // send_dm is retained as a NO-OP for older clients still emitting it. Live
+    // delivery + moderation + the DM rate limit now happen server-side on the
+    // HTTP POST /api/dm path (dmController.sendDM), which broadcasts the
+    // already-moderated, server-authoritative row to the DM room and the
+    // receiver's personal room. The old re-broadcast here ran NO text moderation
+    // and trusted client identity. Do NOT restore a broadcast here without
+    // server-side checkTextSafety.
+    socket.on('send_dm', () => { /* delivery moved to HTTP path */ });
 
     socket.on('dm_typing', async ({ receiverId }) => {
       const recv = parseInt(receiverId, 10);

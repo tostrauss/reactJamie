@@ -19,6 +19,7 @@ import { EventReviewModal } from './components/EventReviewModal';
 import { FeedbackModal } from './components/FeedbackModal';
 import { NotificationPrompt } from './components/NotificationPrompt';
 import PullToRefresh from './components/PullToRefresh';
+import AvatarGateModal from './components/AvatarGateModal';
 import { reviews } from './utils/api';
 
 // Auth Pages (eagerly loaded - needed at startup)
@@ -208,54 +209,68 @@ const InstallBanner = () => {
 const CreateModal = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-
-  if (!isOpen) return null;
+  const { user } = useContext(AuthContext);
+  const [showAvatarGate, setShowAvatarGate] = useState(false);
 
   const handleOption = (path) => {
+    // Creating a group/club requires a profile photo (Tina 2026-08-03) — the
+    // backend enforces this too; here we prompt before the user fills a whole
+    // form only to be rejected. "Freunde finden" stays open.
+    const needsAvatar = path === '/create-group' || path === '/create-club';
+    if (needsAvatar && !user?.avatar_url) {
+      onClose();
+      setShowAvatarGate(true);
+      return;
+    }
     onClose();
     navigate(path);
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()}>
-        <div className="modal-handle" />
-        <h2 className="modal-title">{t('app.createModal.title')}</h2>
+    <>
+      {isOpen && (
+        <div className="modal-overlay" onClick={onClose}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-handle" />
+            <h2 className="modal-title">{t('app.createModal.title')}</h2>
 
-        <div className="modal-options">
-          <button className="modal-option" onClick={() => handleOption('/create-group')}>
-            <div className="modal-option-icon">👥</div>
-            <div className="modal-option-text">
-              <h3>{t('app.createModal.groupTitle')}</h3>
-              <p>{t('app.createModal.groupDesc')}</p>
-            </div>
-            <div className="modal-option-arrow">→</div>
-          </button>
+            <div className="modal-options">
+              <button className="modal-option" onClick={() => handleOption('/create-group')}>
+                <div className="modal-option-icon">👥</div>
+                <div className="modal-option-text">
+                  <h3>{t('app.createModal.groupTitle')}</h3>
+                  <p>{t('app.createModal.groupDesc')}</p>
+                </div>
+                <div className="modal-option-arrow">→</div>
+              </button>
 
-          <button className="modal-option" onClick={() => handleOption('/create-club')}>
-            <div className="modal-option-icon">🏆</div>
-            <div className="modal-option-text">
-              <h3>{t('app.createModal.clubTitle')}</h3>
-              <p>{t('app.createModal.clubDesc')}</p>
-            </div>
-            <div className="modal-option-arrow">→</div>
-          </button>
+              <button className="modal-option" onClick={() => handleOption('/create-club')}>
+                <div className="modal-option-icon">🏆</div>
+                <div className="modal-option-text">
+                  <h3>{t('app.createModal.clubTitle')}</h3>
+                  <p>{t('app.createModal.clubDesc')}</p>
+                </div>
+                <div className="modal-option-arrow">→</div>
+              </button>
 
-          <button className="modal-option" onClick={() => handleOption('/friends')}>
-            <div className="modal-option-icon">🔍</div>
-            <div className="modal-option-text">
-              <h3>{t('app.createModal.friendsTitle')}</h3>
-              <p>{t('app.createModal.friendsDesc')}</p>
+              <button className="modal-option" onClick={() => handleOption('/friends')}>
+                <div className="modal-option-icon">🔍</div>
+                <div className="modal-option-text">
+                  <h3>{t('app.createModal.friendsTitle')}</h3>
+                  <p>{t('app.createModal.friendsDesc')}</p>
+                </div>
+                <div className="modal-option-arrow">→</div>
+              </button>
             </div>
-            <div className="modal-option-arrow">→</div>
-          </button>
+
+            <button className="modal-close-btn" onClick={onClose}>
+              {t('app.createModal.cancel')}
+            </button>
+          </div>
         </div>
-
-        <button className="modal-close-btn" onClick={onClose}>
-          {t('app.createModal.cancel')}
-        </button>
-      </div>
-    </div>
+      )}
+      <AvatarGateModal isOpen={showAvatarGate} onClose={() => setShowAvatarGate(false)} />
+    </>
   );
 };
 

@@ -3,7 +3,7 @@ import { geocodeLocation, resolveCreateLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { getCached, setCached, invalidatePrefix } from '../utils/cache.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
-import { notifyJoinRequest, notifyGroupJoin } from './groupController.js';
+import { notifyJoinRequest, notifyGroupJoin, evictFromRoom, creatorHasAvatar } from './groupController.js';
 import { isUserPro } from './subscriptionController.js';
 import { sendPushToUser, sendPushToUsers } from './pushController.js';
 
@@ -79,6 +79,14 @@ export const createClub = async (req, res) => {
   if (description && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
 
   try {
+    // Profile-photo gate (Tina 2026-08-03) — same rule as createGroup.
+    if (!(await creatorHasAvatar(userId))) {
+      return res.status(403).json({
+        error: 'Bitte lade zuerst ein Profilbild hoch, um einen Club zu gründen.',
+        requiresAvatar: true,
+      });
+    }
+
     const textToCheck = [name, description].filter(Boolean).join('\n');
     const { safe, reason } = await checkTextSafety(textToCheck);
     if (!safe) return res.status(422).json({ error: reason });
@@ -430,6 +438,11 @@ export const updateClub = async (req, res) => {
 
     invalidatePrefix('clubs:');
     invalidatePrefix('map:');
+    // The Discover-events feed embeds each event's club_name + is_private — a
+    // club rename or privacy flip must bust it too, or the events feed shows the
+    // stale club name/visibility for up to 60s.
+    invalidatePrefix(DISCOVER_EVENTS_KEY);
+    invalidatePrefix('groups:'); // clubs also appear in the public groups feed
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating club:', err);
@@ -543,6 +556,7 @@ export const joinClub = async (req, res) => {
 
     // Public join — enforce capacity inside a transaction so concurrent joins
     // can never both pass the members_count check and exceed max_members.
+    let didJoin = false;
     const client = await db.pool.connect();
     try {
       await client.query('BEGIN');
@@ -554,19 +568,24 @@ export const joinClub = async (req, res) => {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Club is full' });
       }
-      await client.query(
+      const memberIns = await client.query(
         'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
         [id, req.userId, 'member']
       );
-      // Bump the persistent join counter (survives a later leave) so repeated
-      // join/leave churn is capped at MAX_CLUB_JOINS.
-      await client.query(
-        `INSERT INTO group_join_counts (group_id, user_id, join_count)
-         VALUES ($1, $2, 1)
-         ON CONFLICT (group_id, user_id)
-         DO UPDATE SET join_count = group_join_counts.join_count + 1`,
-        [id, req.userId]
-      );
+      // Bump the persistent join counter ONLY on a real insert. A concurrent
+      // double-tap's second request no-ops here (ON CONFLICT DO NOTHING) but
+      // would otherwise still bump the counter — double-counting one join and,
+      // with MAX_CLUB_JOINS=2, locking the user out after a single later leave.
+      if (memberIns.rowCount > 0) {
+        await client.query(
+          `INSERT INTO group_join_counts (group_id, user_id, join_count)
+           VALUES ($1, $2, 1)
+           ON CONFLICT (group_id, user_id)
+           DO UPDATE SET join_count = group_join_counts.join_count + 1`,
+          [id, req.userId]
+        );
+      }
+      didJoin = memberIns.rowCount > 0;
       await client.query('COMMIT');
     } catch (txErr) {
       await client.query('ROLLBACK');
@@ -577,8 +596,9 @@ export const joinClub = async (req, res) => {
 
     // Notify the club owner about the new member (fire-and-forget) — mirrors
     // the public group join; before this, only PRIVATE club join-requests ever
-    // pushed and a public join was silent (Tina 2026-08-02).
-    if (clubRow.owner_id && Number(clubRow.owner_id) !== Number(req.userId)) {
+    // pushed and a public join was silent (Tina 2026-08-02). Gated on a real
+    // join so a double-tap doesn't double-notify the owner.
+    if (didJoin && clubRow.owner_id && Number(clubRow.owner_id) !== Number(req.userId)) {
       notifyGroupJoin(req.userId, clubRow.owner_id, clubRow.name || '', id, 'club').catch(() => {});
     }
 
@@ -845,37 +865,53 @@ export const handleClubJoinRequest = async (req, res) => {
       // Enforce capacity inside a transaction so two concurrent accepts
       // can't both push the club over max_members. Mirror of the same
       // fix in groupController.handleJoinRequest.
+      let didAccept = false;
       const client = await db.pool.connect();
       try {
         await client.query('BEGIN');
-        const cap = await client.query(
+        await client.query(
           'SELECT members_count, max_members FROM groups WHERE id = $1 FOR UPDATE',
           [id]
         );
-        if (cap.rows[0].members_count >= cap.rows[0].max_members) {
+        // Status guard FIRST: a double-click on "Annehmen" (or re-accepting an
+        // old request) must be a no-op — otherwise the second pass re-adds the
+        // member and re-bumps the churn counter, and if the club filled in
+        // between it would 400 "full" on what is really an already-accepted
+        // request. Only a real pending→accepted transition proceeds.
+        const upd = await client.query(
+          `UPDATE group_join_requests
+           SET status = 'accepted', updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1 AND status = 'pending'`,
+          [requestId]
+        );
+        if (upd.rowCount === 0) {
+          await client.query('ROLLBACK');
+          return res.json({ message: 'Request already handled', status: 'accepted' });
+        }
+        const cap = await client.query(
+          'SELECT members_count, max_members FROM groups WHERE id = $1',
+          [id]
+        );
+        if (cap.rows[0].max_members && cap.rows[0].members_count >= cap.rows[0].max_members) {
           await client.query('ROLLBACK');
           return res.status(400).json({ error: 'Club ist bereits voll. Anfrage kann nicht angenommen werden.' });
         }
-        await client.query(
-          `UPDATE group_join_requests
-           SET status = 'accepted', updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1`,
-          [requestId]
-        );
-        await client.query(
+        const memberIns = await client.query(
           'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
           [id, joinReq.user_id, 'member']
         );
-        // Bump the persistent join counter (survives a later leave) so repeated
-        // join/leave churn is capped at MAX_CLUB_JOINS.
-        await client.query(
-          `INSERT INTO group_join_counts (group_id, user_id, join_count)
-           VALUES ($1, $2, 1)
-           ON CONFLICT (group_id, user_id)
-           DO UPDATE SET join_count = group_join_counts.join_count + 1`,
-          [id, joinReq.user_id]
-        );
+        // Bump the churn counter only on a real insert (see joinClub note).
+        if (memberIns.rowCount > 0) {
+          await client.query(
+            `INSERT INTO group_join_counts (group_id, user_id, join_count)
+             VALUES ($1, $2, 1)
+             ON CONFLICT (group_id, user_id)
+             DO UPDATE SET join_count = group_join_counts.join_count + 1`,
+            [id, joinReq.user_id]
+          );
+        }
         await client.query('COMMIT');
+        didAccept = true;
       } catch (txErr) {
         await client.query('ROLLBACK');
         throw txErr;
@@ -884,7 +920,9 @@ export const handleClubJoinRequest = async (req, res) => {
       }
 
       // Notify the requester they're in (parity with group join-accept).
-      sendPushToUser(joinReq.user_id, 'Beitrittsanfrage akzeptiert', `Du bist jetzt Mitglied von "${club.rows[0].name || ''}"`, `/club/${id}`);
+      if (didAccept) {
+        sendPushToUser(joinReq.user_id, 'Beitrittsanfrage akzeptiert', `Du bist jetzt Mitglied von "${club.rows[0].name || ''}"`, `/club/${id}`);
+      }
 
       res.json({ message: 'Request accepted', status: 'accepted' });
     } else if (action === 'reject') {
@@ -935,6 +973,9 @@ export const kickClubMember = async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'User is not a member of this club' });
     }
+
+    // Evict the removed member's live sockets from the chat room (see kickMember).
+    await evictFromRoom(req.app.get('io'), userId, id);
 
     res.json({ message: 'Member removed successfully' });
   } catch (err) {

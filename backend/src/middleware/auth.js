@@ -25,7 +25,66 @@ const extractToken = (req) => {
   return null;
 };
 
-export const authenticate = (req, res, next) => {
+// ── Session revocation + account-status check ───────────────────────────────
+// A verified JWT is necessary but not sufficient: we also confirm the account
+// still exists, is active, and that the token was issued AFTER the user's
+// sessions_valid_after watermark (bumped on password change/reset/delete). To
+// keep this off the DB on every request, the per-user state is cached for a
+// short TTL — so a revoked/deleted/banned session is locked out within TTL
+// rather than instantly, an accepted trade for not adding a query per request.
+const _sessionCache = new Map(); // userId → { validAfterSec, isActive, exists, exp }
+const SESSION_CACHE_TTL = 30_000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of _sessionCache) if (now > v.exp) _sessionCache.delete(k);
+}, 60_000).unref();
+
+async function getSessionState(userId) {
+  const cached = _sessionCache.get(userId);
+  if (cached && Date.now() < cached.exp) return cached;
+  let state;
+  try {
+    const { rows } = await db.query(
+      'SELECT is_active, sessions_valid_after FROM users WHERE id = $1',
+      [userId]
+    );
+    if (rows.length === 0) {
+      state = { exists: false, isActive: false, validAfterSec: 0 };
+    } else {
+      const va = rows[0].sessions_valid_after;
+      state = {
+        exists: true,
+        // is_active may be NULL on older rows → treat as active.
+        isActive: rows[0].is_active !== false,
+        validAfterSec: va ? Math.floor(new Date(va).getTime() / 1000) : 0,
+      };
+    }
+  } catch {
+    // DB hiccup or column missing pre-migration → fail OPEN on revocation so a
+    // transient error can't lock everyone out. Cached briefly to avoid hammering.
+    state = { exists: true, isActive: true, validAfterSec: 0 };
+  }
+  state.exp = Date.now() + SESSION_CACHE_TTL;
+  _sessionCache.set(userId, state);
+  return state;
+}
+
+// Called after password change/reset/delete to evict the cached state so the
+// new watermark takes effect immediately for THIS instance (other instances
+// pick it up within TTL).
+export const invalidateSessionCache = (userId) => _sessionCache.delete(userId);
+
+// true if this decoded token is still valid for the account (exists, active,
+// issued after the revocation watermark).
+async function sessionAccepted(decoded) {
+  const state = await getSessionState(decoded.id);
+  if (!state.exists || !state.isActive) return false;
+  // decoded.iat is in seconds; reject tokens issued at/*before* the watermark.
+  if (state.validAfterSec && (decoded.iat ?? 0) < state.validAfterSec) return false;
+  return true;
+}
+
+export const authenticate = async (req, res, next) => {
   try {
     const token = extractToken(req);
 
@@ -43,6 +102,9 @@ export const authenticate = (req, res, next) => {
     // alg: 'none' or trick the verifier into using an asymmetric public
     // key as an HMAC secret. iss/aud bind tokens to this service.
     const decoded = jwt.verify(token, process.env.JWT_SECRET, JWT_VERIFY_OPTS);
+    if (!(await sessionAccepted(decoded))) {
+      return res.status(401).json({ error: 'Session revoked', code: 'SESSION_REVOKED' });
+    }
     req.userId = decoded.id;
     req.isGuest = false;
     next();
@@ -51,7 +113,7 @@ export const authenticate = (req, res, next) => {
   }
 };
 
-export const optionalAuth = (req, res, next) => {
+export const optionalAuth = async (req, res, next) => {
   try {
     const token = extractToken(req);
 
@@ -64,6 +126,8 @@ export const optionalAuth = (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET, JWT_VERIFY_OPTS);
+    // A revoked/deleted session degrades to anonymous rather than 401 here.
+    if (!(await sessionAccepted(decoded))) { req.userId = null; return next(); }
     req.userId = decoded.id;
     req.isGuest = false;
     next();

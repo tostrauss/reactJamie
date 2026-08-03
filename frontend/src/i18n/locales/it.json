@@ -718,6 +718,7 @@
         "error": "Impossibile aggiornare"
       },
       "permissionOwnerOnly": "Solo il fondatore del club può inviare messaggi",
+      "removed": "Sei stato rimosso da questo gruppo",
       "loadEarlier": "Carica messaggi precedenti",
       "loadingShort": "Caricamento…",
       "toast": {
@@ -1102,7 +1103,7 @@
     },
     "avatarGate": {
       "title": "Aggiungi la tua foto profilo",
-      "text": "JAMIE vive di profili e attività: carica una foto profilo per unirti a gruppi e club.",
+      "text": "JAMIE vive di profili e attività: carica una foto profilo per partecipare.",
       "cta": "Carica foto profilo",
       "cancel": "Più tardi"
     },

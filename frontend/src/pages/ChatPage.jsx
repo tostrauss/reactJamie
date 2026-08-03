@@ -147,7 +147,12 @@ export const ChatPage = () => {
     socket.emit('join_room', groupId);
 
     const handleReceiveMessage = (data) => {
-      setMessageList((prev) => [...prev, data]);
+      // Dedup by id: the server broadcast is authoritative, but a catch-up
+      // refetch may already hold this row (and our own messages arrive via the
+      // 201, never here — the server excludes the sender).
+      setMessageList((prev) =>
+        (data?.id != null && prev.some(m => m.id === data.id)) ? prev : [...prev, data]
+      );
     };
 
     // Every reconnect is a NEW server-side connection whose room memberships
@@ -159,13 +164,23 @@ export const ChatPage = () => {
       catchUpMessages();
     };
 
+    // Owner removed us from this group/club → server already evicted our socket
+    // from the room; leave the chat UI so we don't sit on a dead screen.
+    const handleRemoved = (data) => {
+      if (String(data?.groupId) !== String(groupId)) return;
+      toast.info(t('chat.page.removed'));
+      navigate('/chats');
+    };
+
     socket.on('receive_message', handleReceiveMessage);
     socket.on('connect', handleReconnect);
+    socket.on('removed_from_group', handleRemoved);
 
     return () => {
       socket.emit('leave_room', groupId);
       socket.off('receive_message', handleReceiveMessage);
       socket.off('connect', handleReconnect);
+      socket.off('removed_from_group', handleRemoved);
     };
   }, [socket, groupId, catchUpMessages]);
 
@@ -248,18 +263,16 @@ export const ChatPage = () => {
       setMessageList(prev => prev.some(m => m.id === real.id)
         ? prev.filter(m => m.id !== tempId)
         : prev.map(m => (m.id === tempId ? real : m)));
-      // Broadcast to the rest of the room ONLY after moderation + persistence
-      // succeeded — the persisted row carries the real id so other members
-      // dedupe correctly on a later refetch.
-      if (socket) {
-        socket.emit('send_message', { ...real, group_id: groupId, groupId });
-      }
+      // Delivery to other members happens SERVER-SIDE now: the HTTP persist
+      // path (messageController) broadcasts the moderated, server-authoritative
+      // row to the room. The old client `send_message` emit re-broadcast
+      // unmoderated, name-spoofable content and has been removed.
     } catch (error) {
       if (error.response?.data?.isOwnerOnly) {
         // Permission revoked between page-load and send — pull the bubble.
         setMessageList(prev => prev.filter(m => m.id !== tempId));
         setCanSendMessages(false);
-        setPermissionMessage('Nur der Club-Gründer kann Nachrichten senden');
+        setPermissionMessage(t('chat.page.permissionOwnerOnly'));
         setContent(sentContent);
       } else {
         // Persist failed (rate limit, server error, moderation 422). Keep the

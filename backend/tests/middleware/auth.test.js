@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import jwt from 'jsonwebtoken';
+
+// authenticate/optionalAuth now do a per-user session-state lookup (revocation +
+// account status). Mock the DB so a valid token resolves to an active, never-
+// revoked account. (Invalid/alg/aud tokens reject at jwt.verify, before any DB.)
+vi.mock('../../src/config/database.js', () => ({
+  default: { query: vi.fn().mockResolvedValue({ rows: [{ is_active: true, sessions_valid_after: null }] }) },
+}));
+
 import { authenticate, generateToken, optionalAuth } from '../../src/middleware/auth.js';
+import db from '../../src/config/database.js';
 
 // Set a test secret before importing anything that uses it
 process.env.JWT_SECRET = 'test-secret-key';
@@ -90,14 +99,36 @@ describe('authenticate middleware', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('calls next and sets req.userId for a valid token', () => {
+  it('calls next and sets req.userId for a valid token', async () => {
     const token = generateToken(99);
     const req = { headers: { authorization: `Bearer ${token}` } };
     const res = makeRes();
-    authenticate(req, res, next);
+    await authenticate(req, res, next);
     expect(next).toHaveBeenCalled();
     expect(req.userId).toBe(99);
     expect(req.isGuest).toBe(false);
+  });
+
+  it('rejects a token issued before the session-revocation watermark', async () => {
+    // Fresh user id avoids the 30s session-state cache from earlier tests.
+    const token = generateToken(555);
+    const future = new Date(Date.now() + 3_600_000).toISOString(); // watermark in the future
+    db.query.mockResolvedValueOnce({ rows: [{ is_active: true, sessions_valid_after: future }] });
+    const req = { headers: { authorization: `Bearer ${token}` } };
+    const res = makeRes();
+    await authenticate(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('rejects a token for a deleted account', async () => {
+    const token = generateToken(556);
+    db.query.mockResolvedValueOnce({ rows: [] }); // user no longer exists
+    const req = { headers: { authorization: `Bearer ${token}` } };
+    const res = makeRes();
+    await authenticate(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
   });
 
   it('grants guest access when ALLOW_GUEST_TOKEN is enabled', () => {
@@ -121,11 +152,11 @@ describe('optionalAuth middleware', () => {
     expect(req.userId).toBeNull();
   });
 
-  it('sets userId from a valid token', () => {
+  it('sets userId from a valid token', async () => {
     const token = generateToken(7);
     const req = { headers: { authorization: `Bearer ${token}` } };
     const res = makeRes();
-    optionalAuth(req, res, next);
+    await optionalAuth(req, res, next);
     expect(next).toHaveBeenCalled();
     expect(req.userId).toBe(7);
   });

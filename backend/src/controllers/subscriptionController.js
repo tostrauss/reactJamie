@@ -1,5 +1,6 @@
 import db from '../config/database.js';
 import Stripe from 'stripe';
+import { isAppShellRequest } from '../config/features.js';
 
 const getStripe = () => {
   if (!process.env.STRIPE_SECRET_KEY) return null;
@@ -72,6 +73,10 @@ export const getStatus = async (req, res) => {
 export const createSubscription = async (req, res) => {
   const stripe = getStripe();
   if (!stripe) return res.status(503).json({ error: 'Stripe not configured' });
+  // Store-policy backstop: no Stripe checkout from the Play/iOS app shells.
+  if (isAppShellRequest(req)) {
+    return res.status(403).json({ error: 'Abos sind nur im Browser verfügbar.', code: 'PAYMENTS_WEB_ONLY' });
+  }
 
   // Resolve the requested plan against the server-side catalog. Unknown /
   // missing plan falls back to the default monthly tier rather than erroring.
@@ -80,7 +85,17 @@ export const createSubscription = async (req, res) => {
     : DEFAULT_PLAN;
   const plan = PRO_PLANS[planKey];
 
+  // Serialize concurrent create calls per user (double-tap, two tabs) so we
+  // never create TWO Stripe subscriptions for one person → double charge. A
+  // session-level advisory lock in the (7001, userId) namespace; released in
+  // finally. Subscription creation is rare, so briefly holding a pool client
+  // across the Stripe round-trip is acceptable.
+  const lockClient = await db.pool.connect();
+  let locked = false;
   try {
+    await lockClient.query('SELECT pg_advisory_lock(7001, $1)', [req.userId]);
+    locked = true;
+
     const userResult = await db.query(
       'SELECT email, name FROM users WHERE id = $1',
       [req.userId]
@@ -88,7 +103,9 @@ export const createSubscription = async (req, res) => {
     if (!userResult.rows.length) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
     const { email, name } = userResult.rows[0];
 
-    // Check for existing active subscription
+    // Check for existing active subscription. 'trialing' is blocked too — a
+    // user already on the free trial re-hitting create would otherwise spin up
+    // a SECOND, immediately-charged subscription alongside the trial.
     const existingResult = await db.query(
       `SELECT stripe_customer_id, stripe_subscription_id, status
        FROM subscriptions WHERE user_id = $1 ORDER BY id DESC LIMIT 1`,
@@ -96,7 +113,7 @@ export const createSubscription = async (req, res) => {
     );
     const existing = existingResult.rows[0];
 
-    if (existing?.status === 'active' || existing?.status === 'canceling') {
+    if (['active', 'canceling', 'trialing'].includes(existing?.status)) {
       return res.status(400).json({ error: 'Bereits ein aktives Abonnement vorhanden' });
     }
 
@@ -193,6 +210,9 @@ export const createSubscription = async (req, res) => {
   } catch (err) {
     console.error('createSubscription error:', err);
     res.status(500).json({ error: 'Stripe error' });
+  } finally {
+    if (locked) await lockClient.query('SELECT pg_advisory_unlock(7001, $1)', [req.userId]).catch(() => {});
+    lockClient.release();
   }
 };
 
