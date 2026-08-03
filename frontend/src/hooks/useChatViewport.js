@@ -10,8 +10,17 @@ import { useEffect } from 'react';
  * die Tastatur drüber ist"). The VisualViewport API reports the region above the
  * keyboard; we size the element to it. No-op where VisualViewport is missing.
  */
-export function useChatViewport(ref) {
+/**
+ * `active` MUST be false while the page still renders its loading/error state:
+ * both chat pages attach the ref only to the LOADED surface, but this effect
+ * fires on mount (loading screen, ref.current === null) and a plain `[ref]`
+ * dependency never re-runs it — so the hook silently no-oped forever and the
+ * iOS keyboard kept covering the composer (Mia, 2026-08-03). Flipping `active`
+ * once the real surface is mounted re-runs the effect with the ref attached.
+ */
+export function useChatViewport(ref, active = true) {
   useEffect(() => {
+    if (!active) return;
     const vv = window.visualViewport;
     const el = ref.current;
     if (!vv || !el) return;
@@ -31,5 +40,5 @@ export function useChatViewport(ref) {
       el.style.top = '';
       el.style.bottom = '';
     };
-  }, [ref]);
+  }, [ref, active]);
 }

@@ -31,7 +31,9 @@ export const DirectMessagePage = () => {
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
   const chatPageRef = useRef(null);
-  useChatViewport(chatPageRef);
+  // active only once the real chat surface (which carries the ref) is mounted —
+  // during loading/error the ref is null and the hook must wait.
+  useChatViewport(chatPageRef, !loading && !error);
 
   // Grow the composer with its content (up to a cap).
   const autoGrow = () => {

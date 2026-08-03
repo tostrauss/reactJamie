@@ -33,7 +33,9 @@ export const ChatPage = () => {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const chatPageRef = useRef(null);
-  useChatViewport(chatPageRef);
+  // active only once the real chat surface (which carries the ref) is mounted —
+  // during loading/not-found the ref is null and the hook must wait.
+  useChatViewport(chatPageRef, !loading && !!group);
 
   // Grow the composer with its content (up to a cap), then reset after send.
   const autoGrow = () => {
