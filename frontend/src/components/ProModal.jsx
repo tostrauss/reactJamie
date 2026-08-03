@@ -362,6 +362,10 @@ export const ProModal = ({ onClose, onSuccess }) => {
     }
   };
 
+  // Success is a full-screen celebration (crown + confetti fill the page);
+  // the plan/payment steps stay a bottom half-sheet.
+  const isSuccess = step === 'success';
+
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: STYLE }} />
@@ -371,7 +375,7 @@ export const ProModal = ({ onClose, onSuccess }) => {
         style={{
           position:'fixed', inset:0, zIndex:10000,
           background:'rgba(0,0,0,0.8)', backdropFilter:'blur(6px)',
-          display:'flex', alignItems:'flex-end', justifyContent:'center',
+          display:'flex', alignItems: isSuccess ? 'center' : 'flex-end', justifyContent:'center',
         }}
       >
         {/* Sheet */}
@@ -379,21 +383,33 @@ export const ProModal = ({ onClose, onSuccess }) => {
           onClick={e => e.stopPropagation()}
           style={{
             position:'relative',
-            width:'100%', maxWidth:'500px',
-            background:'linear-gradient(175deg, #2E2455 0%, #1A1433 60%)',
-            borderRadius:'28px 28px 0 0',
-            border:'1px solid rgba(253,118,102,0.22)',
+            width:'100%',
+            maxWidth: isSuccess ? '100%' : '500px',
+            // Success: transparent + full-screen so the crown/confetti sit on the
+            // dark blurred backdrop and cover the whole page. Other steps: the
+            // coral-bordered bottom sheet.
+            background: isSuccess ? 'transparent' : 'linear-gradient(175deg, #2E2455 0%, #1A1433 60%)',
+            borderRadius: isSuccess ? 0 : '28px 28px 0 0',
+            border: isSuccess ? 'none' : '1px solid rgba(253,118,102,0.22)',
             borderBottom:'none',
             // Top padding is a plain 18px (NOT safe-area + 16): maxHeight below
             // already caps the sheet's top edge at safe-area + 12px, so adding
             // the inset here too double-counted it and left a big empty gap.
             // Bottom keeps the home-indicator inset so the last row isn't clipped.
-            padding:`18px 22px calc(env(safe-area-inset-bottom, 0px) + 12px)`,
-            // Cap the sheet so its top edge leaves 12px below the status bar,
-            // matching what users expect from a half-sheet on iOS.
-            maxHeight:'calc(100dvh - env(safe-area-inset-top, 0px) - 12px)',
+            padding: isSuccess
+              ? `env(safe-area-inset-top, 0px) 22px calc(env(safe-area-inset-bottom, 0px) + 12px)`
+              : `18px 22px calc(env(safe-area-inset-bottom, 0px) + 12px)`,
+            // Full height on success so the celebration owns the screen; capped
+            // half-sheet otherwise (top edge 12px below the status bar).
+            height: isSuccess ? '100dvh' : 'auto',
+            maxHeight: isSuccess ? '100dvh' : 'calc(100dvh - env(safe-area-inset-top, 0px) - 12px)',
+            // Center the celebration; block flow for the sheet steps.
+            display: isSuccess ? 'flex' : 'block',
+            flexDirection: isSuccess ? 'column' : undefined,
+            alignItems: isSuccess ? 'center' : undefined,
+            justifyContent: isSuccess ? 'center' : undefined,
             overflowY:'auto',
-            animation:'pm-slide-up 0.38s cubic-bezier(.25,.8,.25,1) both',
+            animation: isSuccess ? 'none' : 'pm-slide-up 0.38s cubic-bezier(.25,.8,.25,1) both',
           }}
         >
           {/* ── SUCCESS ─────────────────────────── */}
