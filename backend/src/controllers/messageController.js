@@ -154,30 +154,25 @@ export const getMessages = async (req, res) => {
 
     // Verify the requesting user is a member of this group before returning messages.
     // Without this check any authenticated user can read messages from private groups.
-    // joined_at doubles as the history cutoff below.
     const memberCheck = await db.query(
-      'SELECT joined_at FROM group_members WHERE group_id = $1 AND user_id = $2 LIMIT 1',
+      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2 LIMIT 1',
       [groupId, req.userId]
     );
     if (memberCheck.rows.length === 0) {
       return res.status(403).json({ error: 'Keine Berechtigung' });
     }
-    const joinedAt = memberCheck.rows[0].joined_at;
 
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
     const before = req.query.before ? parseInt(req.query.before, 10) : null;
 
     const params = [groupId, limit + 1]; // fetch one extra to detect has_more
     let whereClause = 'WHERE m.group_id = $1';
-    // Privacy: new members only see messages sent AFTER they joined — the
-    // pre-join history stays hidden (Tobi, 2026-07-06). Whoever leaves and
-    // rejoins gets a fresh joined_at and therefore also loses the old view.
-    // The unread_count in getJoined already uses COALESCE(last_read_at,
-    // joined_at), so badge and visible history stay consistent.
-    if (joinedAt) {
-      params.push(joinedAt);
-      whereClause += ` AND m.created_at >= $${params.length}`;
-    }
+    // Members see the FULL history including messages from before they joined
+    // ("Pre-Join Chat history muss es geben!" — Tobi 2026-08-04, reversing his
+    // own 2026-07-06 hide-pre-join call after Mia's feedback). Membership is
+    // still required (403 above), so private-group history never leaks to
+    // outsiders. The unread badge keeps its COALESCE(last_read_at, joined_at)
+    // baseline in getJoined — old history is readable but never counts as new.
     if (before) {
       params.push(before);
       whereClause += ` AND m.id < $${params.length}`;
