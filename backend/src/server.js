@@ -128,6 +128,8 @@ import reviewRoutes from './routes/reviewRoutes.js';
 import subscriptionRoutes from './routes/subscriptionRoutes.js';
 import { subscriptionWebhook } from './controllers/subscriptionController.js';
 import { runDailyRollup, backfillIfEmpty } from './jobs/analyticsRollup.js';
+import { runDbBackup, isBackupConfigured, missingBackupEnv, getBackupConfig } from './jobs/backup.js';
+import { runMediaBackupSync } from './jobs/mediaBackupSync.js';
 import { stripeWebhook as boostStripeWebhook } from './controllers/boostController.js';
 import { appleServerNotification } from './controllers/iapController.js';
 import { sendPushToUser, sendPushToUsers } from './controllers/pushController.js';
@@ -1504,6 +1506,26 @@ const runStartupMigrations = async () => {
       )
     `));
 
+  // Offsite-backup audit trail (BACKUP-KONZEPT.md): one row per backup run,
+  // written by jobs/backup.js + jobs/mediaBackupSync.js. Doubles as (1) the
+  // cross-replica "already ran today" marker and (2) the insurer-facing
+  // evidence that the nightly vault backup actually executes (Konzept §7).
+  await migrate('backup_runs', () => db.query(`
+    CREATE TABLE IF NOT EXISTS backup_runs (
+      id          BIGSERIAL PRIMARY KEY,
+      kind        TEXT NOT NULL,                    -- 'db' | 'media'
+      started_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      finished_at TIMESTAMPTZ,
+      status      TEXT NOT NULL DEFAULT 'running',  -- running | success | failed
+      object_key  TEXT,
+      bytes       BIGINT,
+      detail      TEXT
+    )
+  `));
+  await migrate('backup_runs index', () => db.query(`
+    CREATE INDEX IF NOT EXISTS idx_backup_runs_kind_started ON backup_runs (kind, started_at DESC)
+  `));
+
   console.log('✅ Startup migrations done');
 };
 
@@ -1658,3 +1680,28 @@ cron.schedule('0 4 * * *', async () => {
     console.error('[cron] friendship expiry failed:', err.message);
   }
 });
+
+// ── Offsite backup → WORM vault in the SEPARATE Cloudflare account ──────────
+// (BACKUP-KONZEPT.md — the cyber-insurance obligation.) Entirely gated on the
+// BACKUP_* env block: until Tobi provisions the backup account, the app logs
+// exactly one line and does nothing. DB dump nightly 03:15 UTC (after the
+// 03:00 analytics purge); media replication weekly Sunday 04:30 UTC.
+// Double-run protection for 2 replicas: random start jitter (0–2 min) + pg
+// advisory lock + "already succeeded recently" marker in backup_runs.
+if (isBackupConfigured()) {
+  const backupCfg = getBackupConfig();
+  console.log(
+    `[backup] ARMED — nightly encrypted DB dump → vault bucket "${backupCfg.bucket}" ` +
+    `(03:15 UTC, WORM retention ${backupCfg.retentionDays}d, prune >${backupCfg.pruneAfterDays}d) + weekly media sync (So 04:30 UTC)`
+  );
+  cron.schedule('15 3 * * *', () => {
+    runDbBackup({ jitterMs: Math.floor(Math.random() * 120000) })
+      .catch(err => console.error('[cron] db backup failed:', err.message));
+  });
+  cron.schedule('30 4 * * 0', () => {
+    runMediaBackupSync({ jitterMs: Math.floor(Math.random() * 120000) })
+      .catch(err => console.error('[cron] media backup sync failed:', err.message));
+  });
+} else {
+  console.log(`[backup] OFF — offsite backup vault not configured (missing: ${missingBackupEnv().join(', ')}). See BACKUP-KONZEPT.md.`);
+}

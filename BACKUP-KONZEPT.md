@@ -111,9 +111,20 @@ Zwei unabhängige Ebenen — bewusst doppelt:
 **Ebene B — Externer, verschlüsselter, unveränderbarer Tresor (Pflicht):**
 - Täglicher `pg_dump` → `gzip` → **AES-256-Verschlüsselung** → Upload in einen
   **separaten** Cloudflare-R2-Bucket (anderes Konto als die Live-Uploads).
-- Skript: [`backend/scripts/backup-db.sh`](backend/scripts/backup-db.sh)
-  (prüft per Mindestgröße, dass der Dump nicht leer/abgebrochen ist).
-- Automatisierung: GitHub Action [`.github/workflows/backup.yml`](.github/workflows/backup.yml)
+- **Implementiert 2026-08-04 als In-Prozess-Job im App-Server**
+  ([`backend/src/jobs/backup.js`](backend/src/jobs/backup.js), täglich
+  03:15 UTC, aktiviert durch die `BACKUP_R2_*`-Railway-Variablen; Protokoll in
+  DB-Tabelle `backup_runs`; Restore:
+  [`backend/scripts/restore-backup.js`](backend/scripts/restore-backup.js)).
+  **Bewusste Abweichung vom ursprünglichen Plan (GitHub Action):** der Job
+  läuft im Railway-Prozess — einfacher zu betreiben (interne DB-URL, Logs +
+  Sentry am selben Ort), aber nicht mehr Railway-unabhängig. Die GitHub Action
+  bleibt als optionales zweites Standbein bestehen (unten); Kern-Klauseln V2–V4
+  (WORM, separates Konto, Verschlüsselung) sind unverändert erfüllt.
+- Skript (optionales zweites Bein): [`backend/scripts/backup-db.sh`](backend/scripts/backup-db.sh)
+  (prüft per Mindestgröße, dass der Dump nicht leer/abgebrochen ist — dieselbe
+  Prüfung macht auch der In-Prozess-Job).
+- Automatisierung des zweiten Beins: GitHub Action [`.github/workflows/backup.yml`](.github/workflows/backup.yml)
   (läuft unabhängig vom App-Server, auch wenn Railway „schläft").
 - Der Dump enthält Schema **und** alle Daten → **vollständiges** Backup i. S. d.
   Versicherungsvorgabe (V1).
@@ -228,9 +239,14 @@ aws s3 cp "s3://$BACKUP_S3_BUCKET/db/jamie-db-<STAMP>.sql.gz.enc" - \
 
 ## 7. Monitoring & Alarmierung (V8)
 
-- Die GitHub Action läuft täglich 03:00 UTC. **Schlägt sie fehl** (Dump leer,
-  Upload-Fehler, fehlende Secrets), wird der Lauf **rot** → GitHub mailt die
-  Repo-Admins automatisch.
+- **In-Prozess-Job (primär, seit 2026-08-04):** Fehlschläge loggen
+  `[backup] ❌ …` in die Railway-Logs **und** gehen an Sentry (Tags
+  `job: db-backup` / `media-backup-sync`) → dort Alert einrichten. Jeder Lauf
+  steht in der DB-Tabelle `backup_runs` (Datum, Status, Objekt, Größe) —
+  das ist das maschinelle Protokoll für den Versicherungs-Nachweis.
+- Die GitHub Action (optionales zweites Bein) läuft täglich 03:00 UTC.
+  **Schlägt sie fehl** (Dump leer, Upload-Fehler, fehlende Secrets), wird der
+  Lauf **rot** → GitHub mailt die Repo-Admins automatisch.
 - Das Skript bricht **vor** dem Upload ab, wenn der verschlüsselte Dump die
   Mindestgröße unterschreitet (Schutz vor stillen Leer-/Abbruch-Backups).
 - **SLA:** Ein fehlgeschlagenes Backup wird innerhalb von **48 h** behoben.

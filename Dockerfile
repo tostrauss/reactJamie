@@ -24,10 +24,21 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 
+# pg_dump/psql for the nightly encrypted offsite DB backup (src/jobs/backup.js)
+# and scripts/restore-backup.js — see BACKUP-KONZEPT.md. Prefer the newest
+# client the Alpine release offers: pg_dump must be >= the server's major
+# version (it can always dump OLDER servers, never newer ones).
+RUN apk add --no-cache postgresql17-client \
+ || apk add --no-cache postgresql16-client \
+ || apk add --no-cache postgresql-client
+
 COPY backend/package.json backend/package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY backend/src ./src
+# Ops scripts (restore-backup.js, run-backup-now.js, …) so drills can run
+# inside the container (railway ssh) — not only from a dev machine.
+COPY backend/scripts ./scripts
 COPY --from=frontend-builder /frontend/dist ./public
 
 RUN mkdir -p uploads
