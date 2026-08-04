@@ -842,40 +842,40 @@ export const SettingsPage = () => {
             </svg>
             <span>{t('settings.app.language')}</span>
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
+          {/* Dropdown instead of a pill per language — five pills crowded the
+              row (Tobi 2026-08-04). Native <select> so phones open the OS
+              picker. Endonyms (each language named in itself), so the list is
+              readable no matter which language is active. */}
+          <select
+            value={currentLang}
+            onChange={(e) => switchLanguage(e.target.value)}
+            aria-label={t('settings.app.language')}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 10,
+              border: '1.5px solid rgba(255,255,255,0.15)',
+              background: 'rgba(255,255,255,0.06)',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: 13,
+              fontFamily: 'inherit',
+              cursor: 'pointer',
+            }}
+          >
             {[
-              { code: 'de', label: 'DE' },
-              { code: 'en', label: 'EN' },
-              { code: 'it', label: 'IT' },
-              { code: 'fr', label: 'FR' },
-              { code: 'es', label: 'ES' },
-            ].map(({ code, label }) => {
-              const active = currentLang === code;
-              return (
-                <button
-                  key={code}
-                  onClick={() => switchLanguage(code)}
-                  type="button"
-                  aria-pressed={active}
-                  style={{
-                    minWidth: 40,
-                    padding: '6px 10px',
-                    borderRadius: 8,
-                    border: '1.5px solid',
-                    borderColor: active ? '#FD7666' : 'rgba(255,255,255,0.12)',
-                    background: active ? 'rgba(253,118,102,0.18)' : 'transparent',
-                    color: active ? '#FD7666' : 'rgba(255,255,255,0.55)',
-                    fontWeight: 700,
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+              { code: 'de', label: 'Deutsch' },
+              { code: 'en', label: 'English' },
+              { code: 'it', label: 'Italiano' },
+              { code: 'fr', label: 'Français' },
+              { code: 'es', label: 'Español' },
+            ].map(({ code, label }) => (
+              /* Dark option bg: some desktop browsers render the open list
+                 with the page's white-ish default otherwise. */
+              <option key={code} value={code} style={{ background: '#2A2150', color: '#fff' }}>
+                {label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="settings-row static">
