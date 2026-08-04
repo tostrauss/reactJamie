@@ -32,3 +32,6 @@ Thumbs.db
 # Editor
 .idea/
 *.iml
+
+# Local credential notes - never commit (Tobi, 2026-08-04)
+cloudflare-auth.md
