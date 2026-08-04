@@ -187,7 +187,7 @@
       "saving": "Enregistrement...",
       "successTitle": "Mot de passe réinitialisé !",
       "successBody": "Ton mot de passe a bien été modifié. Tu peux maintenant te connecter.",
-      "successCta": "Vers la connexion",
+      "successCta": "Aller à la connexion",
       "invalidTitle": "Lien invalide",
       "invalidBody": "Ce lien est invalide ou a expiré.",
       "invalidCta": "Demander un nouveau lien",
@@ -203,7 +203,7 @@
       "errorTitle": "Échec de la vérification",
       "errorMissingToken": "Aucun jeton de vérification trouvé.",
       "errorGeneric": "Échec de la vérification",
-      "errorCta": "Vers la connexion"
+      "errorCta": "Aller à la connexion"
     }
   },
   "intro": {
@@ -217,11 +217,11 @@
     },
     "slide2": {
       "subtitle": "Du sport à la cuisine",
-      "title": "Découvre groupes & clubs",
+      "title": "Découvre les groupes & clubs",
       "description": "Trouve des groupes pour des événements ponctuels ou rejoins des clubs durables. Filtre par catégorie, date et lieu — et trouve des gens qui te correspondent vraiment."
     },
     "slide3": {
-      "subtitle": "Crée. Rejoins. Vis-le.",
+      "subtitle": "Crée. Rejoins. Profite.",
       "title": "Connecte-toi & lance-toi",
       "description": "Crée ton propre groupe, invite des amis et vis des moments inoubliables. Booste ton groupe pour toucher encore plus de monde !"
     }
@@ -416,7 +416,7 @@
         "joinedToast": "Tu as rejoint avec succès !",
         "requestSent": "Demande envoyée",
         "calendarAdd": "Ajouter au calendrier",
-        "uhr": "h",
+        "uhr": "",
         "delete": "Supprimer",
         "joined": "Inscrit·e",
         "join": "Participer",
@@ -446,7 +446,7 @@
     },
     "empty": {
       "hallOfFame": "Pas encore d'événements passés",
-      "deals": "Aucune coopération disponible pour le moment"
+      "deals": "Aucune offre disponible pour le moment"
     },
     "loginToFavorite": "Connecte-toi pour enregistrer des favoris.",
     "favoriteError": "Le favori n'a pas pu être enregistré.",
@@ -493,7 +493,7 @@
       "requestJoin": "Demander à rejoindre",
       "pending": "Demande envoyée ✓",
       "leave": "Quitter le club",
-      "openChat": "Vers le chat",
+      "openChat": "Ouvrir le chat",
       "boost": "Booster le club",
       "delete": "Supprimer le club",
       "report": "Signaler le club"
@@ -529,7 +529,7 @@
       "join": "Rejoindre",
       "joined": "Inscrit·e ✓",
       "delete": "Supprimer",
-      "uhr": "h",
+      "uhr": "",
       "participants": "{{current}}/{{max}} participants",
       "calendarAdd": "Ajouter au calendrier",
       "confirmDelete": "Vraiment supprimer cet événement ?",
@@ -694,7 +694,7 @@
       "empty": {
         "noChats": "Pas encore de chats avec des amis",
         "noChatsHint": "Rejoins des groupes et fais des rencontres !",
-        "toFriends": "Vers tes amis",
+        "toFriends": "Voir tes amis",
         "noGroupChats": "Pas encore de chats de groupe",
         "noClubChats": "Pas encore de chats de club",
         "joinGroupHint": "Rejoins un groupe !",
@@ -780,7 +780,7 @@
       "settingsAria": "Paramètres",
       "editAria": "Modifier le profil"
     },
-    "progressFmt": "Profil complété à {{percent}}%",
+    "progressFmt": "Profil complété à {{percent}} %",
     "bioCardTitle": "À propos de toi !",
     "proCardTitle": "JAMIE Pro",
     "proCardSub": "Offres exclusives & recommandations à Vienne",
@@ -958,7 +958,7 @@
       "favorites": "Favoris",
       "notifications": "Notifications",
       "app": "App",
-      "legal": "Mentions légales"
+      "legal": "Informations légales"
     },
     "subscription": {
       "statusActive": "Actif",
@@ -1025,7 +1025,7 @@
       "terms": "Conditions d'utilisation",
       "guidelines": "Règles de la communauté",
       "imprint": "Mentions légales",
-      "widerruf": "Information sur la rétractation",
+      "widerruf": "Droit de rétractation",
       "exportData": "Télécharger mes données",
       "exportDataHint": "RGPD art. 15 – droit d'accès",
       "feedback": "Envoyer un avis",
@@ -1159,7 +1159,7 @@
     "notFound": {
       "title": "Page introuvable",
       "text": "Cette page n'existe pas.",
-      "btn": "Vers l'accueil"
+      "btn": "Retour à l'accueil"
     }
   },
   "consent": {
@@ -1219,7 +1219,7 @@
     },
     "title": "JAMIE Pro",
     "priceMonth": "/ mois",
-    "newSaveBadge": "NOUVEAU · Économise jusqu'à {{pct}}%",
+    "newSaveBadge": "NOUVEAU · Économise jusqu'à {{pct}} %",
     "ctaActivate": "👑 Débloquer Pro",
     "ctaTrialStart": "🎁 Commencer 14 jours gratuits",
     "trialHeadline": "🎁 Commence avec 14 jours gratuits",
@@ -1228,7 +1228,7 @@
     "loading": "Chargement…",
     "later": "Peut-être plus tard",
     "startError": "Erreur au démarrage de l'abonnement",
-    "successTitle": "Bienvenue chez Pro !",
+    "successTitle": "Bienvenue dans JAMIE Pro !",
     "successBody": "Tu peux dès maintenant ajouter des amis, envoyer des messages directs et booster tes groupes & clubs.",
     "paymentTitle": "Données de paiement",
     "paymentSub": "Chiffré SSL · Résiliable à tout moment",
@@ -1236,7 +1236,7 @@
     "plans": {
       "perWeek": "par semaine",
       "wkShort": "sem",
-      "savePct": "Économise {{pct}}%",
+      "savePct": "Économise {{pct}} %",
       "terms": {
         "weekly": "Hebdomadaire",
         "monthly": "Mensuel",
@@ -1322,7 +1322,7 @@
     "popupEvent": "Événement",
     "popupMembersFmt": "{{current}} / {{max}} membres",
     "popupMembersUnlimited": "{{current}} / ∞ membres",
-    "requestBubbleOne": "{{name}} veut rejoindre !",
+    "requestBubbleOne": "{{name}} veut te rejoindre !",
     "requestBubbleNew": "Nouvelle demande",
     "requestBubbleMany": "{{count}} nouvelles demandes",
     "pioneer": {
@@ -1384,7 +1384,7 @@
       "year": "Année",
       "hours": "Heures",
       "minutes": "Minutes",
-      "uhr": "h",
+      "uhr": "",
       "timeInChatHint": "Vous pouvez convenir de l'heure exacte directement dans le chat du groupe.",
       "weeklyLabel": "Répéter chaque semaine",
       "weeklyHint": "A lieu chaque semaine le même jour — parfait pour les rendez-vous réguliers",
@@ -1596,7 +1596,7 @@
   "deal": {
     "titleFmt": "Pour toi – {{category}}",
     "bookNow": "Réserver maintenant",
-    "ticketShopCTA": "Vers la billetterie 🎟",
+    "ticketShopCTA": "Accéder à la billetterie 🎟",
     "redeemCTA": "Utiliser maintenant",
     "redeemedCTA": "Déjà utilisé",
     "redeemedWeekCTA": "Utilisé cette semaine ✓",
@@ -1608,13 +1608,13 @@
     "cadenceDaily": "🔁 Utilisable 1× par jour",
     "onlyDaysCTA": "Utilisable seulement {{days}}",
     "onlyDaysInfo": "📅 Utilisable seulement {{days}}",
-    "redeemConfirmTitle": "Es-tu dans le commerce ?",
+    "redeemConfirmTitle": "Es-tu sur place ?",
     "redeemConfirmBody": "Cette offre n'est utilisable qu'une seule fois et ne devrait être activée que sur place, devant le personnel.",
     "redeemConfirmYes": "Confirmer",
     "redeemConfirmNo": "Annuler",
     "redeemError": "Échec de l'utilisation. Réessaie, s'il te plaît.",
     "redeemPage": {
-      "header": "Montre cette page dans le commerce",
+      "header": "Montre cette page au personnel sur place",
       "subheader": "Cette offre n'est utilisable qu'une seule fois",
       "brand": "JAMIE",
       "brandSub": "Offres",
@@ -1696,20 +1696,20 @@
   "admin": {
     "title": "JAMIE Analytics",
     "deals": {
-      "title": "Coopérations",
-      "newBtn": "Nouvelle coopération",
-      "newTitle": "Nouvelle coopération",
-      "editTitle": "Modifier la coopération",
+      "title": "Partenariats",
+      "newBtn": "Nouveau partenariat",
+      "newTitle": "Nouveau partenariat",
+      "editTitle": "Modifier le partenariat",
       "saveBtn": "Enregistrer",
       "savingBtn": "Enregistrement…",
       "editBtn": "Modifier",
       "deleteBtn": "Supprimer",
-      "confirmDelete": "Vraiment supprimer la coopération \"{{name}}\" ?",
-      "loading": "Chargement des coopérations…",
-      "empty": "Aucune coopération créée pour l'instant.",
+      "confirmDelete": "Vraiment supprimer le partenariat « {{name}} » ?",
+      "loading": "Chargement des partenariats…",
+      "empty": "Aucun partenariat créé pour l'instant.",
       "untilFmt": "Visible jusqu'au {{date}}",
-      "expiredFmt": "Expirée le {{date}}",
-      "inactiveLabel": "Inactive",
+      "expiredFmt": "Expiré le {{date}}",
+      "inactiveLabel": "Inactif",
       "capReachedLabel": "Limite atteinte – hors ligne",
       "redemptionsCount_one": "{{count}} utilisée",
       "redemptionsCount_other": "{{count}} utilisées",
@@ -1725,7 +1725,7 @@
         "descriptionPlaceholder": "Comment ça marche : prends une boisson de ton choix et reçois-en une gratuite. Dis « Jamie » lors de ta commande.",
         "descriptionHint": "L'utilisateur ne la voit qu'après avoir cliqué sur la carte",
         "visibleUntil": "Visible jusqu'au",
-        "visibleUntilHint": "Après cette date, la coopération est automatiquement masquée (vide = sans limite)",
+        "visibleUntilHint": "Après cette date, le partenariat est automatiquement masqué (vide = sans limite)",
         "maxRedemptions": "Max. utilisations",
         "maxRedemptionsHint": "L'offre passe automatiquement hors ligne dès que ce nombre de personnes l'a utilisée (vide = illimité)",
         "redeemInterval": "Utilisable à quelle fréquence ?",
@@ -1743,12 +1743,12 @@
         "daily": "1× par jour"
       },
       "toast": {
-        "loadError": "Les coopérations n'ont pas pu être chargées",
+        "loadError": "Les partenariats n'ont pas pu être chargés",
         "uploadError": "Échec du téléversement de la photo",
         "requiredFields": "Entreprise et titre sont obligatoires",
-        "saved": "Coopération enregistrée",
+        "saved": "Partenariat enregistré",
         "saveError": "Échec de l'enregistrement",
-        "deleted": "Coopération supprimée",
+        "deleted": "Partenariat supprimé",
         "deleteError": "Échec de la suppression",
         "noRedemptions": "Aucune utilisation pour cette offre pour l'instant",
         "exportError": "Échec de l'export"
@@ -1761,7 +1761,7 @@
     "sections": {
       "users": "Utilisateurs",
       "groupsEvents": "Groupes & événements",
-      "dealRedemptions": "Coopérations — utilisations",
+      "dealRedemptions": "Partenariats — utilisations",
       "pendingClubsFmt": "Clubs en attente de validation ({{count}})",
       "topPages": "Top pages (30 jours)",
       "topClubs": "Top clubs & groupes (30 jours)",
@@ -1827,7 +1827,7 @@
       "approve": "Valider",
       "approving": "Chargement…",
       "reject": "Refuser",
-      "rejectConfirm": "Vraiment refuser le club \"{{name}}\" ?",
+      "rejectConfirm": "Vraiment refuser le club « {{name}} » ?",
       "approveError": "Échec de la validation",
       "rejectError": "Échec du refus"
     },

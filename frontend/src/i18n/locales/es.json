@@ -174,7 +174,7 @@
       "submit": "Enviar enlace",
       "sentTitle": "¡E-mail enviado!",
       "sentBodyPrefix": "Si existe una cuenta con",
-      "sentBodySuffix": ", te hemos enviado un enlace para restablecerla.",
+      "sentBodySuffix": ", te hemos enviado un enlace para restablecer tu contraseña.",
       "sentSpam": "Revisa también tu carpeta de spam.",
       "sentCta": "Volver al inicio de sesión",
       "errorGeneric": "Error al enviar"
@@ -187,7 +187,7 @@
       "saving": "Guardando...",
       "successTitle": "¡Contraseña restablecida!",
       "successBody": "Tu contraseña se ha cambiado correctamente. Ya puedes iniciar sesión.",
-      "successCta": "Al inicio de sesión",
+      "successCta": "Iniciar sesión",
       "invalidTitle": "Enlace no válido",
       "invalidBody": "Este enlace no es válido o ha caducado.",
       "invalidCta": "Solicitar un nuevo enlace",
@@ -203,7 +203,7 @@
       "errorTitle": "Error de verificación",
       "errorMissingToken": "No se encontró ningún token de verificación.",
       "errorGeneric": "Error de verificación",
-      "errorCta": "Al inicio de sesión"
+      "errorCta": "Iniciar sesión"
     }
   },
   "intro": {
@@ -211,7 +211,7 @@
     "ctaLast": "¡Vamos! 🚀",
     "ctaNext": "Continuar",
     "slide1": {
-      "subtitle": "Tu app para encuentros reales",
+      "subtitle": "Tu app para quedadas reales",
       "title": "Bienvenido a JAMIE",
       "description": "JAMIE te conecta con personas cerca de ti que aman las mismas actividades que tú — espontáneo, sencillo y sin complicaciones."
     },
@@ -233,7 +233,7 @@
     "ctaPro": "👑 Activar Pro ahora",
     "ctaNoPro": "Continuar sin Pro",
     "slide1": {
-      "subtitle": "Ya formas parte",
+      "subtitle": "Ya estás dentro",
       "titleWithName": "¡Hola {{name}}!",
       "titleNoName": "¡Bienvenido!",
       "description": "Tu cuenta está creada. JAMIE te conecta con personas reales para experiencias reales — espontáneo, sencillo, cerca de ti."
@@ -247,7 +247,7 @@
       "clubsLabel": "Clubes",
       "clubsSub": "Comunidades duraderas",
       "chatsLabel": "Chats",
-      "chatsSub": "Directo con gente afín",
+      "chatsSub": "Directamente con gente afín",
       "nearbyLabel": "Cerca de ti",
       "nearbySub": "Eventos justo a tu lado"
     },
@@ -294,7 +294,7 @@
       "subtitle": "Elige al menos 3 intereses",
       "customPlaceholder": "Interés propio...",
       "counter": "{{count}} seleccionados",
-      "needMore": "(faltan {{count}})",
+      "needMore": "(elige {{count}} más)",
       "suggestPrompt": "Tu propuesta para una nueva categoría:",
       "suggestPlaceholder": "p. ej. voleibol, fotografía…",
       "suggestSubmit": "Enviar",
@@ -308,7 +308,7 @@
       "addPhoto": "Añadir foto ({{current}}/{{total}})"
     },
     "done": {
-      "title": "¡Estás listo!",
+      "title": "¡Todo listo!",
       "subtitle": "Tu perfil está completo. Ya puedes unirte a grupos y escribir a otros."
     },
     "error": "El perfil no se pudo guardar"
@@ -371,8 +371,8 @@
         "event": "Eliminar evento",
         "group": "Eliminar grupo",
         "leave": "Salir",
-        "confirmGroup": "¿Eliminar el grupo de verdad?",
-        "confirmClub": "¿Eliminar el club de verdad?",
+        "confirmGroup": "¿Seguro que quieres eliminar el grupo?",
+        "confirmClub": "¿Seguro que quieres eliminar el club?",
         "deletedGroup": "El grupo ha sido eliminado.",
         "deletedClub": "El club ha sido eliminado.",
         "errorGroup": "El grupo no se pudo eliminar.",
@@ -386,7 +386,7 @@
         "loadError": "El grupo no se pudo cargar",
         "favError": "El favorito no se pudo guardar",
         "joinLeaveError": "Error al unirse/salir",
-        "requestSent": "Solicitud de unión enviada",
+        "requestSent": "Solicitud de ingreso enviada",
         "waitlistJoinedPos": "Estás en la lista de espera (posición {{position}})",
         "waitlistJoined": "Estás en la lista de espera",
         "waitlistError": "Error con la lista de espera",
@@ -408,7 +408,7 @@
         "errorDateFuture": "La fecha debe estar en el futuro",
         "createdToast": "¡Evento creado!",
         "createError": "Error al crear",
-        "confirmDelete": "¿Eliminar el evento de verdad?",
+        "confirmDelete": "¿Seguro que quieres eliminar el evento?",
         "deletedToast": "Evento eliminado",
         "deleteError": "Error al eliminar",
         "joinError": "Error al unirse",
@@ -446,7 +446,7 @@
     },
     "empty": {
       "hallOfFame": "Aún no hay eventos pasados",
-      "deals": "No hay colaboraciones disponibles ahora mismo"
+      "deals": "No hay ofertas disponibles ahora mismo"
     },
     "loginToFavorite": "Inicia sesión para guardar favoritos.",
     "favoriteError": "El favorito no se pudo guardar.",
@@ -486,20 +486,20 @@
       "loadError": "El club no se pudo cargar",
       "favError": "El favorito no se pudo guardar",
       "joinLeaveError": "La acción ha fallado",
-      "requestSent": "Solicitud de unión enviada"
+      "requestSent": "Solicitud de ingreso enviada"
     },
     "actions": {
       "join": "Unirse al club",
       "requestJoin": "Solicitar unirse",
       "pending": "Solicitud enviada ✓",
       "leave": "Salir del club",
-      "openChat": "Al chat",
+      "openChat": "Ir al chat",
       "boost": "Impulsar club",
       "delete": "Eliminar club",
       "report": "Denunciar club"
     },
     "delete": {
-      "confirm": "¿Eliminar este club de verdad?",
+      "confirm": "¿Seguro que quieres eliminar este club?",
       "deleted": "Club eliminado",
       "error": "El club no se pudo eliminar"
     },
@@ -532,7 +532,7 @@
       "uhr": "h",
       "participants": "{{current}}/{{max}} participantes",
       "calendarAdd": "Añadir al calendario",
-      "confirmDelete": "¿Eliminar este evento de verdad?",
+      "confirmDelete": "¿Seguro que quieres eliminar este evento?",
       "formNamePlaceholder": "Nombre del evento",
       "formDescPlaceholder": "Descripción (opcional)",
       "formLocationPlaceholder": "Lugar",
@@ -552,7 +552,7 @@
       "joinedToast": "¡Estás dentro!",
       "joinError": "Error al unirse",
       "leaveError": "Error al salir",
-      "requestSent": "Solicitud de unión enviada",
+      "requestSent": "Solicitud de ingreso enviada",
       "membersOnly": "Los eventos solo son visibles para los miembros del club",
       "membersOnlyHint": "Únete al club para ver los eventos"
     }
@@ -568,7 +568,7 @@
     "ownerTag": "Fundador",
     "unknownName": "Miembro",
     "remove": "Quitar",
-    "removeConfirm": "¿Quitar a {{name}} de verdad?",
+    "removeConfirm": "¿Seguro que quieres quitar a {{name}}?",
     "gatedHint": "Ver {{count}} miembros más con JAMIE Pro",
     "gatedCta": "Desbloquear Pro",
     "toast": {
@@ -694,7 +694,7 @@
       "empty": {
         "noChats": "Aún no hay chats con amigos",
         "noChatsHint": "¡Únete a grupos y conoce gente!",
-        "toFriends": "A tus amigos",
+        "toFriends": "Ver tus amigos",
         "noGroupChats": "Aún no hay chats de grupo",
         "noClubChats": "Aún no hay chats de club",
         "joinGroupHint": "¡Únete a un grupo!",
@@ -865,7 +865,7 @@
       "noSent": "No hay solicitudes enviadas"
     },
     "sentPending": "Pendiente",
-    "removeConfirm": "¿Eliminar de verdad a esta persona de tus amigos?",
+    "removeConfirm": "¿Seguro que quieres eliminar a esta persona de tus amigos?",
     "toast": {
       "loadError": "Los amigos no se pudieron cargar",
       "accepted": "¡Amistad aceptada!",
@@ -929,7 +929,7 @@
     "photosCountFmt": "{{current}} / {{total}}",
     "photosProfileBadge": "Foto de perfil",
     "cropPhotoTitle": "Recortar foto de perfil",
-    "photosFirstHint": "Tu primera foto es tu foto de perfil. Puedes añadir hasta 6 fotos por las que otros pueden deslizar.",
+    "photosFirstHint": "Tu primera foto es tu foto de perfil. Puedes añadir hasta 6 fotos que los demás podrán ver deslizando.",
     "pinnwandHint": "Tu tablón estilo Pinterest – reúne fotos que muestren tu vibe. Hasta 12.",
     "saveBtn": "Guardar cambios",
     "saveLoading": "Guardando...",
@@ -967,7 +967,7 @@
       "periodEndCancelingPrefix": "Expira el",
       "cancelBtn": "Cancelar suscripción",
       "cancelHint": "Posible en cualquier momento – tu suscripción termina al final del período pagado.",
-      "cancelConfirmTitle": "¿Cancelar de verdad la suscripción Pro?",
+      "cancelConfirmTitle": "¿Seguro que quieres cancelar la suscripción Pro?",
       "cancelConfirmBody": "Mantienes tus funciones Pro hasta el final del período de facturación actual. Después no se cobrará ningún importe nuevo.",
       "cancelConfirmYes": "Sí, cancelar",
       "cancelConfirmNo": "Mejor no",
@@ -1025,7 +1025,7 @@
       "terms": "Condiciones de uso",
       "guidelines": "Normas de la comunidad",
       "imprint": "Aviso legal",
-      "widerruf": "Información sobre desistimiento",
+      "widerruf": "Derecho de desistimiento",
       "exportData": "Descargar mis datos",
       "exportDataHint": "RGPD art. 15 – derecho de acceso",
       "feedback": "Enviar opinión",
@@ -1159,7 +1159,7 @@
     "notFound": {
       "title": "Página no encontrada",
       "text": "Esta página no existe.",
-      "btn": "A la página de inicio"
+      "btn": "Volver al inicio"
     }
   },
   "consent": {
@@ -1259,7 +1259,7 @@
     "tabs": {
       "apply": "Aplicar boost",
       "buy": "Comprar créditos",
-      "referral": "Invitar amigos"
+      "referral": "Invitar a amigos"
     },
     "apply": {
       "fallbackTarget": "Este grupo/club",
@@ -1271,7 +1271,7 @@
       "buyBtn": "Comprar créditos",
       "boosting": "Impulsando...",
       "applyBtn": "🚀 Impulsar ahora (1 crédito)",
-      "boostedToast": "🚀 ¡{{name}} está impulsado durante 24 h!",
+      "boostedToast": "🚀 ¡{{name}} tiene ahora un boost de 24 h!",
       "boostError": "Error en el boost",
       "noCreditsToast": "No hay créditos suficientes — ¡compra primero créditos boost!"
     },
@@ -1345,7 +1345,7 @@
     "countFmt": "{{count}} solicitudes",
     "empty": "Sin solicitudes",
     "allDoneTitle": "¡Todas las solicitudes gestionadas!",
-    "allDoneText": "Has revisado todas las solicitudes de unión.",
+    "allDoneText": "Has revisado todas las solicitudes de ingreso.",
     "backToGroup": "Volver al grupo",
     "accept": "Aceptar",
     "decline": "Rechazar",
@@ -1559,7 +1559,7 @@
     "saving": "...",
     "save": "Guardar",
     "saveError": "Error al guardar",
-    "removeConfirm": "¿Quitar de verdad a este miembro?",
+    "removeConfirm": "¿Seguro que quieres quitar a este miembro?",
     "removeError": "Error al quitar",
     "inviteToast": "¡{{name}} ha sido invitado!",
     "inviteFallback": "Invitación enviada a {{name}}",
@@ -1589,14 +1589,14 @@
     "managerAdded": "Mánager añadido",
     "managerRemoved": "Mánager quitado",
     "managerError": "La acción ha fallado",
-    "inviteTitle": "Invitar amigos",
+    "inviteTitle": "Invitar a amigos",
     "noFriends": "No hay amigos para invitar",
     "inviteBtn": "Invitar"
   },
   "deal": {
     "titleFmt": "Para ti – {{category}}",
     "bookNow": "Reservar ahora",
-    "ticketShopCTA": "A la tienda de entradas 🎟",
+    "ticketShopCTA": "Comprar entradas 🎟",
     "redeemCTA": "Canjear ahora",
     "redeemedCTA": "Ya canjeado",
     "redeemedWeekCTA": "Canjeado esta semana ✓",
@@ -1622,7 +1622,7 @@
     }
   },
   "outOfRegion": {
-    "title": "¡Pronto también donde tú estás!",
+    "title": "¡Pronto también en tu zona!",
     "subtitleLine1": "JAMIE está arrancando en Austria, Alemania, Suiza, Italia, Francia y España.",
     "subtitleLine2": "Tu país es el siguiente — mantente atento.",
     "countdown": {
@@ -1637,7 +1637,7 @@
     "submitting": "Guardando…",
     "errorGeneric": "Error al guardar. Inténtalo de nuevo.",
     "successText": "¡Estás en la lista! Te avisaremos en cuanto JAMIE llegue a tu zona.",
-    "voteTitle": "🗳️ ¿Dónde deberíamos arrancar ahora?",
+    "voteTitle": "🗳️ ¿Cuál debería ser nuestro próximo país?",
     "votesTitle": "Votación actual ({{count}} votos)",
     "footerPrefix": "¿Ya estás en uno de nuestros países?",
     "footerLink": "Abrir la app",
@@ -1689,7 +1689,7 @@
   },
   "pushPrompt": {
     "title": "Activar notificaciones",
-    "text": "No te pierdas más mensajes ni solicitudes de unión.",
+    "text": "No te pierdas más mensajes ni solicitudes de ingreso.",
     "enable": "Activar",
     "later": "Más tarde"
   },
@@ -1704,7 +1704,7 @@
       "savingBtn": "Guardando…",
       "editBtn": "Editar",
       "deleteBtn": "Eliminar",
-      "confirmDelete": "¿Eliminar de verdad la colaboración \"{{name}}\"?",
+      "confirmDelete": "¿Seguro que quieres eliminar la colaboración «{{name}}»?",
       "loading": "Cargando colaboraciones…",
       "empty": "Aún no hay colaboraciones creadas.",
       "untilFmt": "Visible hasta el {{date}}",
@@ -1727,8 +1727,8 @@
         "visibleUntil": "Visible hasta",
         "visibleUntilHint": "Después de esta fecha, la colaboración se oculta automáticamente (vacío = sin límite)",
         "maxRedemptions": "Máx. canjes",
-        "maxRedemptionsHint": "La oferta pasa automáticamente a fuera de línea en cuanto tantas personas la hayan canjeado (vacío = ilimitado)",
-        "redeemInterval": "¿Con qué frecuencia canjeable?",
+        "maxRedemptionsHint": "La oferta se desactiva automáticamente en cuanto ese número de personas la haya canjeado (vacío = ilimitado)",
+        "redeemInterval": "¿Cada cuánto se puede canjear?",
         "redeemIntervalHint": "Recurrente (p. ej. semanal) para ofertas fijas como «Welcome Shot cada jueves». El límite global no se aplica entonces.",
         "redeemDays": "¿Canjeable solo ciertos días?",
         "redeemDaysHint": "Vacío = todos los días. Si no, solo los días elegidos (p. ej. solo jue.).",
@@ -1827,7 +1827,7 @@
       "approve": "Aprobar",
       "approving": "Cargando…",
       "reject": "Rechazar",
-      "rejectConfirm": "¿Rechazar de verdad el club \"{{name}}\"?",
+      "rejectConfirm": "¿Seguro que quieres rechazar el club «{{name}}»?",
       "approveError": "Error al aprobar",
       "rejectError": "Error al rechazar"
     },
@@ -1854,7 +1854,7 @@
     },
     "users": {
       "deleteBtn": "Eliminar",
-      "confirmDelete": "¿Eliminar de verdad la cuenta de «{{name}}»? Todos los grupos, clubes, mensajes y amistades creados por este usuario también se eliminarán.",
+      "confirmDelete": "¿Seguro que quieres eliminar la cuenta de «{{name}}»? Todos los grupos, clubes, mensajes y amistades creados por este usuario también se eliminarán.",
       "deleteError": "El usuario no se pudo eliminar",
       "searchPlaceholder": "Buscar por nombre, e-mail o lugar…",
       "clearSearch": "Borrar búsqueda",
@@ -1885,7 +1885,7 @@
         "created": "Creados"
       },
       "deleteBtn": "Eliminar cuenta",
-      "deleteConfirm": "¿Eliminar de verdad la cuenta de «{{name}}»? Todos los grupos, clubes, mensajes y amistades creados también se eliminarán. Esto no se puede deshacer.",
+      "deleteConfirm": "¿Seguro que quieres eliminar la cuenta de «{{name}}»? Todos los grupos, clubes, mensajes y amistades creados también se eliminarán. Esto no se puede deshacer.",
       "deleteConfirmBtn": "Sí, eliminar",
       "deleting": "Eliminando…",
       "deleted": "Usuario eliminado",

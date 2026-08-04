@@ -211,7 +211,7 @@
     "ctaLast": "Si parte! 🚀",
     "ctaNext": "Avanti",
     "slide1": {
-      "subtitle": "La tua app per incontri veri",
+      "subtitle": "La tua app per incontrarsi dal vivo",
       "title": "Benvenuto su JAMIE",
       "description": "JAMIE ti mette in contatto con persone vicino a te che amano le tue stesse attività — in modo spontaneo, semplice e senza fronzoli."
     },
@@ -308,7 +308,7 @@
       "addPhoto": "Aggiungi foto ({{current}}/{{total}})"
     },
     "done": {
-      "title": "Sei pronto!",
+      "title": "Tutto pronto!",
       "subtitle": "Il tuo profilo è completo. Ora puoi unirti ai gruppi e scrivere agli altri."
     },
     "error": "Impossibile salvare il profilo"
@@ -446,7 +446,7 @@
     },
     "empty": {
       "hallOfFame": "Ancora nessun evento passato",
-      "deals": "Al momento non ci sono collaborazioni disponibili"
+      "deals": "Al momento non ci sono offerte disponibili"
     },
     "loginToFavorite": "Accedi per salvare i preferiti.",
     "favoriteError": "Impossibile salvare il preferito.",
@@ -879,7 +879,7 @@
   "notifications": {
     "title": "Notifiche",
     "emptyTitle": "Nessuna notifica",
-    "emptySub": "Sei al passo con tutto!",
+    "emptySub": "Sei in pari con tutto!",
     "loadError": "Impossibile caricare le notifiche"
   },
   "profileEdit": {
@@ -928,7 +928,7 @@
     },
     "photosCountFmt": "{{current}} / {{total}}",
     "photosProfileBadge": "Immagine profilo",
-    "cropPhotoTitle": "Ritaglia foto profilo",
+    "cropPhotoTitle": "Ritaglia immagine del profilo",
     "photosFirstHint": "La tua prima foto è l'immagine del profilo. Puoi aggiungere fino a 6 foto che gli altri potranno sfogliare.",
     "pinnwandHint": "La tua bacheca in stile Pinterest – raccogli foto che mostrano il tuo vibe. Fino a 12.",
     "saveBtn": "Salva modifiche",
@@ -958,7 +958,7 @@
       "favorites": "Preferiti",
       "notifications": "Notifiche",
       "app": "App",
-      "legal": "Note legali"
+      "legal": "Informazioni legali"
     },
     "subscription": {
       "statusActive": "Attivo",
@@ -1038,7 +1038,7 @@
     "deleteAccount": "Elimina account",
     "deleteConfirm": {
       "warning": "Questa azione non può essere annullata. Tutti i tuoi dati verranno eliminati definitivamente.",
-      "passwordPlaceholder": "Password di conferma",
+      "passwordPlaceholder": "Password per confermare",
       "confirm": "Elimina definitivamente"
     },
     "toast": {
@@ -1134,9 +1134,9 @@
       "btn": "Installa"
     },
     "avatarGate": {
-      "title": "Aggiungi la tua foto profilo",
-      "text": "JAMIE vive di profili e attività: carica una foto profilo per partecipare.",
-      "cta": "Carica foto profilo",
+      "title": "Carica la tua immagine del profilo",
+      "text": "JAMIE vive di profili e attività: carica un'immagine del profilo per partecipare.",
+      "cta": "Carica immagine del profilo",
       "cancel": "Più tardi"
     },
     "createModal": {
@@ -1267,7 +1267,7 @@
       "creditsCount_one": "{{count}} credito Boost",
       "creditsCount_other": "{{count}} crediti Boost",
       "creditEq": "1 credito = 24h di Boost",
-      "noCredits": "Nessun credito. Comprane o invita amici!",
+      "noCredits": "Nessun credito. Comprane qualcuno o invita amici!",
       "buyBtn": "Compra crediti",
       "boosting": "Boost in corso...",
       "applyBtn": "🚀 Boost ora (1 credito)",
@@ -1623,7 +1623,7 @@
   },
   "outOfRegion": {
     "title": "Presto anche da te!",
-    "subtitleLine1": "JAMIE è attivo in Austria, Germania, Svizzera, Italia, Francia e Spagna.",
+    "subtitleLine1": "Al momento JAMIE è disponibile in Austria, Germania, Svizzera, Italia, Francia e Spagna.",
     "subtitleLine2": "Il tuo paese è il prossimo — resta sintonizzato.",
     "countdown": {
       "days": "Giorni",
