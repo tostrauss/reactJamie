@@ -86,8 +86,17 @@ export const generalLimiter = rateLimit({
 // per-user generalLimiter bucket above.
 // Paths are mount-relative to /api/auth (express strips the app.use prefix).
 export const AUTH_HOUSEKEEPING_PATHS = new Set(['/refresh', '/profile', '/onboarding', '/logout']);
+// TV-spike readiness (2M2M, 2026-08-04): the signup funnel has its own,
+// tighter guards — registrationLimiter per IP plus per-EMAIL throttles
+// (send cooldown/hourly cap in sendEmailCode, 5-attempt in-DB cap in
+// verifyEmailCode). Exempting these three from the shared 100/15min/IP
+// budget means a carrier-NAT full of new viewers can't starve /login —
+// and vice versa. /login, /google*, /apple, /forgot-password etc. keep
+// the strict shared budget.
+export const AUTH_SIGNUP_PATHS = new Set(['/send-email-code', '/verify-email-code', '/register']);
 export const authLimiterSkip = (req) =>
-  AUTH_HOUSEKEEPING_PATHS.has(req.path) && verifiedUserId(req) !== null;
+  AUTH_SIGNUP_PATHS.has(req.path)
+  || (AUTH_HOUSEKEEPING_PATHS.has(req.path) && verifiedUserId(req) !== null);
 
 export const authLimiter = rateLimit({
   ...SHARED_STRICT, // fail-closed: never let a Redis error unlock login brute-force
@@ -111,14 +120,18 @@ export const strictLimiter = rateLimit({
   message: { error: 'Zu viele Versuche. Bitte versuche es in einer Stunde erneut.' }
 });
 
-// Registration flow: 200 attempts/hour per IP. Bumped from 20 to survive a
-// 500-user launch event where most signups come from a single NAT. Still
-// protects against the bot scenario (a real attacker would need 200+ Sims
-// or proxies to register beyond this).
+// Registration flow: 600 attempts/hour per IP (raised from 200 for the 2M2M
+// TV-spike scenario, 2026-08-04: thousands of viewers behind a handful of
+// carrier-NAT IPv4s signing up in the ~30min after airing; a full signup
+// burns 3-4 calls → ~150-200 complete signups/h per NAT IP). The per-IP cap
+// is no longer the primary abuse brake — that's now the per-EMAIL layer:
+// send cooldown 60s + 6 codes/h per email (sendEmailCode, in-DB → holds
+// across replicas) and the 5-attempt per-code verify cap. This cap remains
+// as the mass-mail ceiling for a single bot IP.
 export const registrationLimiter = rateLimit({
   ...SHARED,
   windowMs: 60 * 60 * 1000,
-  max: disabled ? 10000 : 200,
+  max: disabled ? 10000 : 600,
   standardHeaders: true,
   legacyHeaders: false,
   store: makeStore('rl:reg:'),

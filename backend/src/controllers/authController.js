@@ -1037,15 +1037,38 @@ export const sendEmailCode = async (req, res) => {
       code VARCHAR(6) NOT NULL, expires_at TIMESTAMPTZ NOT NULL,
       used BOOLEAN DEFAULT FALSE, created_at TIMESTAMPTZ DEFAULT NOW())`);
 
-    // Delete any old codes for this email
-    await db.query('DELETE FROM email_verification_codes WHERE email = $1', [email]);
+    // ── Per-EMAIL throttle (2M2M TV-spike readiness, 2026-08-04) ─────────
+    // The per-IP registrationLimiter was raised for carrier-NAT bursts, so
+    // the anti-abuse load moved here: 60s resend cooldown + max 6 codes/h
+    // per address. In-DB (not express-rate-limit) on purpose — it must hold
+    // across replicas and survive restarts, and it protects the VICTIM's
+    // inbox from mail-bombing regardless of how many IPs an attacker has.
+    const throttle = await db.query(
+      `SELECT MAX(created_at) AS last_sent,
+              COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 hour')::int AS hour_count
+       FROM email_verification_codes WHERE email = $1`,
+      [email]
+    );
+    const { last_sent, hour_count } = throttle.rows[0] || {};
+    if (last_sent && Date.now() - new Date(last_sent).getTime() < 60_000) {
+      return res.status(429).json({ error: 'Code wurde gerade gesendet – bitte warte eine Minute, bevor du einen neuen anforderst.' });
+    }
+    if ((hour_count || 0) >= 6) {
+      return res.status(429).json({ error: 'Zu viele Codes angefordert. Bitte versuche es in einer Stunde erneut.' });
+    }
+
+    // Invalidate (not delete) old codes for this email — the rows stay as the
+    // send-history the throttle above counts. Opportunistic cleanup of stale
+    // rows keeps the table small.
+    await db.query('UPDATE email_verification_codes SET used = TRUE WHERE email = $1 AND used = FALSE', [email]);
+    db.query(`DELETE FROM email_verification_codes WHERE created_at < NOW() - INTERVAL '24 hours'`).catch(() => {});
 
     // crypto.randomInt is a CSPRNG — Math.random() is not safe for security codes
     const code = String(crypto.randomInt(100000, 1000000));
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    await db.query(
-      'INSERT INTO email_verification_codes (email, code, expires_at) VALUES ($1, $2, $3)',
+    const inserted = await db.query(
+      'INSERT INTO email_verification_codes (email, code, expires_at) VALUES ($1, $2, $3) RETURNING id',
       [email, code, expiresAt]
     );
 
@@ -1058,8 +1081,10 @@ export const sendEmailCode = async (req, res) => {
       await sendOTPEmail(email, code, name || '');
     } catch (emailErr) {
       console.error('Failed to send OTP email:', emailErr.message);
-      // Delete the stored code so it can't be guessed without the email being delivered
-      await db.query('DELETE FROM email_verification_codes WHERE email = $1', [email]).catch(() => {});
+      // Delete ONLY the just-inserted code (so it can't be guessed without the
+      // email being delivered) — older rows are the per-email throttle history
+      // and must survive.
+      await db.query('DELETE FROM email_verification_codes WHERE id = $1', [inserted.rows[0].id]).catch(() => {});
       return res.status(500).json({ error: 'E-Mail konnte nicht gesendet werden. Bitte versuche es erneut oder kontaktiere den Support.' });
     }
 

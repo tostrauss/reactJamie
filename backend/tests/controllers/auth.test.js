@@ -22,7 +22,7 @@ vi.mock('../../src/config/redis.js', () => ({
 }));
 
 const { default: db } = await import('../../src/config/database.js');
-const { register, login, refreshToken, updateProfile } = await import('../../src/controllers/authController.js');
+const { register, login, refreshToken, updateProfile, sendEmailCode } = await import('../../src/controllers/authController.js');
 
 const makeRes = () => {
   const res = {};
@@ -285,6 +285,53 @@ describe('updateProfile birthday lock', () => {
     const update = findUpdateCall();
     expect(update).toBeDefined();
     expect(update[1][11]).toBe(false); // first-ever set is not the one change
+  });
+});
+
+// ── sendEmailCode: per-email throttle (2M2M TV-spike readiness) ─────────────
+// The per-IP registrationLimiter was raised for carrier-NAT bursts; the
+// anti-abuse load moved to this in-DB per-email layer (60s cooldown + 6/h).
+describe('sendEmailCode per-email throttle', () => {
+  const call = async (email = 'neu@x.com') => {
+    const res = makeRes();
+    await sendEmailCode({ body: { email, name: 'T' } }, res, vi.fn());
+    return res;
+  };
+  // Query order: user-exists, CREATE TABLE, throttle SELECT, then (if allowed)
+  // invalidate-UPDATE, cleanup-DELETE (fire-and-forget), INSERT RETURNING.
+  const arm = (throttleRow) => {
+    db.query
+      .mockResolvedValueOnce({ rows: [] })            // email not registered
+      .mockResolvedValueOnce({ rows: [] })            // CREATE TABLE IF NOT EXISTS
+      .mockResolvedValueOnce({ rows: [throttleRow] }) // throttle history
+      .mockResolvedValue({ rows: [{ id: 7 }] });      // everything after
+  };
+
+  it('429s within the 60s resend cooldown', async () => {
+    arm({ last_sent: new Date(Date.now() - 10_000), hour_count: 1 });
+    const res = await call();
+    expect(res.status).toHaveBeenCalledWith(429);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining('warte') }));
+  });
+
+  it('429s after 6 codes within an hour (mail-bombing brake)', async () => {
+    arm({ last_sent: new Date(Date.now() - 5 * 60_000), hour_count: 6 });
+    const res = await call();
+    expect(res.status).toHaveBeenCalledWith(429);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining('Zu viele Codes') }));
+  });
+
+  it('sends normally when outside cooldown and under the hourly cap', async () => {
+    arm({ last_sent: new Date(Date.now() - 2 * 60_000), hour_count: 2 });
+    const res = await call();
+    // NODE_ENV=test → dev path returns the code without a provider call.
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ devCode: expect.any(String) }));
+  });
+
+  it('sends normally for a brand-new email (no history)', async () => {
+    arm({ last_sent: null, hour_count: 0 });
+    const res = await call();
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ devCode: expect.any(String) }));
   });
 });
 

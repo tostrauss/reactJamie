@@ -24,6 +24,27 @@ const FRONTEND_URL = () => process.env.FRONTEND_URL?.split(',')[0]?.trim() || 'h
 
 const RESEND_URL = 'https://api.resend.com/emails';
 
+// One attempt against the Resend API with a hard timeout: SMTP would block
+// the request handler indefinitely on a dead provider. Resend usually
+// responds in <500ms; 4s per attempt is generous.
+const sendOnce = async (apiKey, payload) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  try {
+    return await fetch(RESEND_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 const sendEmail = async ({ to, subject, html }) => {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -31,41 +52,35 @@ const sendEmail = async ({ to, subject, html }) => {
     return;
   }
 
-  // Hard timeout: SMTP would block the request handler indefinitely on a
-  // dead provider. Resend usually responds in <500ms; 8s is generous.
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  const payload = { from: FROM_HEADER, to, subject, html };
 
-  try {
-    const response = await fetch(RESEND_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ from: FROM_HEADER, to, subject, html }),
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      // Read the body for diagnostics but DO NOT include the request payload —
-      // it contains the OTP / reset URL. Resend's error body is just a message.
-      const errBody = await response.text().catch(() => '');
-      const msg = `Resend ${response.status}: ${errBody.slice(0, 300)}`;
-      console.error('[email] send failed:', msg);
-      Sentry.captureMessage?.(`Email send failed: ${response.status}`, {
-        level: 'error',
-        extra: { to, subject, status: response.status },
-      });
-      throw new Error(msg);
-    }
-
-    const data = await response.json().catch(() => ({}));
-    console.log('[email] Sent to', to, '— id:', data.id);
-    return data;
-  } finally {
-    clearTimeout(timeout);
+  // 429/5xx get ONE retry after a short backoff (2M2M TV-spike readiness,
+  // 2026-08-04): Resend rate-limits per second — during a signup burst a
+  // brief 429 is expected and retrying ~800ms later usually lands in the
+  // next token-bucket window. Without this, the user saw "E-Mail konnte
+  // nicht gesendet werden" on the very first provider hiccup.
+  let response = await sendOnce(apiKey, payload);
+  if (!response.ok && (response.status === 429 || response.status >= 500)) {
+    await new Promise(r => setTimeout(r, 800));
+    response = await sendOnce(apiKey, payload);
   }
+
+  if (!response.ok) {
+    // Read the body for diagnostics but DO NOT include the request payload —
+    // it contains the OTP / reset URL. Resend's error body is just a message.
+    const errBody = await response.text().catch(() => '');
+    const msg = `Resend ${response.status}: ${errBody.slice(0, 300)}`;
+    console.error('[email] send failed:', msg);
+    Sentry.captureMessage?.(`Email send failed: ${response.status}`, {
+      level: 'error',
+      extra: { to, subject, status: response.status },
+    });
+    throw new Error(msg);
+  }
+
+  const data = await response.json().catch(() => ({}));
+  console.log('[email] Sent to', to, '— id:', data.id);
+  return data;
 };
 
 export const sendPasswordResetEmail = async (email, token, userName) => {

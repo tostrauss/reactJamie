@@ -105,4 +105,18 @@ describe('authLimiterSkip (scoped housekeeping skip)', () => {
   it('does not skip housekeeping paths without a valid token', () => {
     expect(authLimiterSkip(req('/refresh', null))).toBe(false);
   });
+
+  // 2M2M TV-spike: the signup funnel is exempt from the shared login budget —
+  // it carries its own registrationLimiter + per-email throttles instead.
+  it('skips the signup funnel paths WITHOUT any token (anonymous signups)', () => {
+    expect(authLimiterSkip(req('/send-email-code', null))).toBe(true);
+    expect(authLimiterSkip(req('/verify-email-code', null))).toBe(true);
+    expect(authLimiterSkip(req('/register', null))).toBe(true);
+  });
+
+  it('still NEVER skips /login or /forgot-password, token or not', () => {
+    expect(authLimiterSkip(req('/login', null))).toBe(false);
+    expect(authLimiterSkip(req('/login', generateToken(5)))).toBe(false);
+    expect(authLimiterSkip(req('/forgot-password', null))).toBe(false);
+  });
 });
