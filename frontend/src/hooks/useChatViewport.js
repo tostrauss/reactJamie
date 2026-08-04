@@ -26,9 +26,24 @@ export function useChatViewport(ref, active = true) {
     if (!vv || !el) return;
 
     const apply = () => {
+      // WhatsApp behaviour (Tina/Tobi meeting 2026-08-04): opening the keyboard
+      // must push the newest messages UP, not hide them behind the composer.
+      // The surface shrinks to the visual viewport below, but the message
+      // scroller keeps its scrollTop — so if the user was (near) the bottom
+      // BEFORE the resize, re-anchor it to the bottom AFTER. The 120px slack
+      // keeps it from yanking someone who deliberately scrolled into history.
+      const scroller = el.querySelector('.messages-container');
+      const wasNearBottom = scroller
+        ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 120
+        : false;
       el.style.height = `${vv.height}px`;
       el.style.top = `${vv.offsetTop}px`;
       el.style.bottom = 'auto';
+      if (wasNearBottom && scroller) {
+        // After the style change the browser needs a frame to reflow the
+        // shrunken scroller before scrollHeight/clientHeight are final.
+        requestAnimationFrame(() => { scroller.scrollTop = scroller.scrollHeight; });
+      }
     };
     apply();
     vv.addEventListener('resize', apply);

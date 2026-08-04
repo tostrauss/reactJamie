@@ -12,6 +12,7 @@ import {
   getGroupMembers,
   getUserGroups,
   getJoinRequests,
+  getAllJoinRequests,
   handleJoinRequest,
   updateGroup,
   deleteGroup,
@@ -44,6 +45,10 @@ router.get('/categories', generalLimiter, getCategories);
 router.get('/user/favorites', authenticate, getUserFavorites);
 router.get('/likes/mine', authenticate, getMyLikes);
 router.get('/user/joined', authenticate, getUserGroups);
+// All pending join requests across the caller's owned/managed groups+clubs —
+// feeds the chat page's aggregated "Anfragen" swipe deck. Must stay above the
+// parameterised /:id routes so "user" is never parsed as a group id.
+router.get('/user/requests', authenticate, getAllJoinRequests);
 // Hide/unhide a group-or-club chat from the chat list (per-user)
 router.put('/:id/archive', authenticate, setGroupChatArchived);
 // Mute/unmute push notifications for this group (per-user) — chat-header bell

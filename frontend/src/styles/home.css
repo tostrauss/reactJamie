@@ -2851,3 +2851,16 @@ input:checked + .slider:before {
   gap: 12px;
   padding: 0 20px;
 }
+
+/* ── Feed skeleton cards ("Ladezeit überbrücken", 2026-08-04) ──
+   Base .skeleton pulse lives in chat.css (globally imported via App.jsx). */
+.skeleton-group-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.skeleton-card-img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-lg);
+}

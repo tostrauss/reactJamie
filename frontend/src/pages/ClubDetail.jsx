@@ -214,6 +214,8 @@ export const ClubDetail = () => {
         }
       }
     } catch (e) {
+      // Server-side avatar gate (2026-08-04) — mirror of GroupDetail.
+      if (e.response?.data?.requiresAvatar) { setShowAvatarGate(true); return; }
       toast.error(e.response?.data?.error || t('clubDetail.toast.joinLeaveError'));
     }
   };
@@ -245,6 +247,7 @@ export const ClubDetail = () => {
           : e));
       }
     } catch (err) {
+      if (err.response?.data?.requiresAvatar) { setShowAvatarGate(true); return; }
       toast.error(err.response?.data?.error || t('clubDetail.events.joinError'));
     } finally {
       setJoiningEventId(null);

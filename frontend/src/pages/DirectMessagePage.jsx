@@ -37,7 +37,7 @@ export const DirectMessagePage = () => {
   useChatViewport(chatPageRef, !loading && !error);
   // Swipe right / back arrow → the chat list on the FREUNDE tab (a DM is always
   // a friend chat). Was '/chats', which opened the default Gruppen tab.
-  useSwipeBack(chatPageRef, () => navigate('/chats?tab=freunde'), !loading && !error);
+  useSwipeBack(chatPageRef, () => navigate('/chats?filter=freunde'), !loading && !error);
 
   // Grow the composer with its content (up to a cap).
   const autoGrow = () => {
@@ -286,7 +286,7 @@ export const DirectMessagePage = () => {
     return (
       <div className="chat-page">
         <header className="chat-page-header">
-          <button className="back-button" onClick={() => navigate('/chats?tab=freunde')}>
+          <button className="back-button" onClick={() => navigate('/chats?filter=freunde')}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M19 12H5M12 19l-7-7 7-7"/>
             </svg>
@@ -302,7 +302,7 @@ export const DirectMessagePage = () => {
               {t('chat.dm.addFriend')}
             </button>
           ) : (
-            <button className="btn btn-primary" onClick={() => navigate('/chats?tab=freunde')} style={{ marginTop: '12px' }}>
+            <button className="btn btn-primary" onClick={() => navigate('/chats?filter=freunde')} style={{ marginTop: '12px' }}>
               {t('chat.dm.backToChats')}
             </button>
           )}
@@ -314,7 +314,7 @@ export const DirectMessagePage = () => {
   return (
     <div className="chat-page" ref={chatPageRef}>
       <header className="chat-page-header">
-        <button className="back-button" onClick={() => navigate('/chats?tab=freunde')}>
+        <button className="back-button" onClick={() => navigate('/chats?filter=freunde')}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>

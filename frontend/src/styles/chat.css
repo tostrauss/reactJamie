@@ -1264,3 +1264,228 @@
      inside the bubble instead of overflowing/clipping. */
   overflow-wrap: anywhere;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   NEUBAU CHATSEITE 2026-08-04 (Tina/Tobi meeting)
+   Chats (Filter-Bubbles) · Anfragen (Swipe-Deck) · Verwalten
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Filter bubbles (Chats tab) ── */
+.chat-filter-bubbles {
+  display: flex;
+  gap: 8px;
+  padding: 0 20px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.chat-filter-bubbles::-webkit-scrollbar { display: none; }
+
+.chat-filter-bubble {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 14px;
+  background: var(--bg-card);
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: all var(--transition-fast);
+}
+.chat-filter-bubble.active {
+  background: var(--accent-coral);
+  color: white;
+}
+.chat-filter-bubble-count {
+  background: var(--accent-coral);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.chat-filter-bubble.active .chat-filter-bubble-count {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Groups get a neutral sibling of the purple .club-badge */
+.group-badge {
+  background: rgba(253, 118, 102, 0.15);
+  color: var(--accent-coral);
+  border: 1px solid rgba(253, 118, 102, 0.3);
+}
+
+/* ── Skeleton loaders ("Ladezeit überbrücken") ── */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 1; }
+}
+.skeleton {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+.chat-item--skeleton { pointer-events: none; }
+.skeleton-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.skeleton-line {
+  height: 13px;
+  margin: 5px 0;
+  border-radius: var(--radius-full);
+}
+.skeleton-line--sub { height: 11px; opacity: 0.6; }
+.skeleton-card {
+  width: min(320px, 82vw);
+  height: 380px;
+  margin: 24px auto;
+  border-radius: var(--radius-xl, 20px);
+}
+
+/* ── Anfragen tab (aggregated swipe deck) ── */
+.requests-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 20px 24px;
+}
+.requests-tab .request-card-wrapper { margin-top: 10px; }
+
+.requests-progress {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.requests-progress-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.requests-progress-done {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-coral);
+  animation: done-pop 0.3s ease;
+}
+@keyframes done-pop {
+  0%   { transform: scale(1.5); }
+  100% { transform: scale(1); }
+}
+.requests-progress-bar {
+  width: 100%;
+  max-width: 340px;
+  height: 4px;
+  background: var(--bg-card);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.requests-progress-fill {
+  height: 100%;
+  background: var(--accent-coral);
+  border-radius: var(--radius-full);
+  transition: width 0.35s cubic-bezier(.25,.8,.25,1);
+}
+
+.requests-deck-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  max-width: 340px;
+}
+.requests-deck-group-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.next-card-preview-ph {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-input);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: var(--accent-coral);
+}
+
+.requests-empty-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Celebration when the deck is cleared */
+.requests-celebration { position: relative; }
+.requests-celebration-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-white);
+}
+.requests-celebration-sub {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.requests-celebration-burst {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+}
+.requests-celebration-emoji {
+  font-size: 26px;
+  animation: celebration-rise 1.6s ease-out forwards;
+  opacity: 0;
+}
+@keyframes celebration-rise {
+  0%   { transform: translateY(60px) scale(0.5); opacity: 0; }
+  30%  { opacity: 1; }
+  100% { transform: translateY(-90px) scale(1.15) rotate(12deg); opacity: 0; }
+}
+
+/* ── Verwalten tab ── */
+.chat-item--manage { align-items: center; }
+.chat-manage-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+}
+.chat-manage-members {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.chat-manage-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}

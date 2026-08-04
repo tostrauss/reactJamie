@@ -1,7 +1,7 @@
 import db from '../config/database.js';
 import { geocodeLocation, resolveCreateLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
-import { getCached, setCached, invalidatePrefix } from '../utils/cache.js';
+import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
 import { notifyJoinRequest, notifyGroupJoin, evictFromRoom, creatorHasAvatar } from './groupController.js';
 import { isUserPro } from './subscriptionController.js';
@@ -512,6 +512,15 @@ export const joinClub = async (req, res) => {
     );
     if (existing.rows.length > 0) return res.status(400).json({ error: 'Already a member' });
 
+    // Profile-photo gate on JOIN (Tina/Tobi meeting 2026-08-04) — mirrors
+    // joinGroup; was UX-only before, now enforced server-side.
+    if (!(await creatorHasAvatar(req.userId))) {
+      return res.status(403).json({
+        error: 'Bitte lade zuerst ein Profilbild hoch, um beizutreten.',
+        requiresAvatar: true,
+      });
+    }
+
     // Anti-churn: a user may join any given club at most MAX_CLUB_JOINS times.
     // The counter persists across leaves (group_members rows are deleted on
     // leave), so constant join/leave spam — which floods the chat with
@@ -550,6 +559,13 @@ export const joinClub = async (req, res) => {
       // Notify the club owner about the new request (fire-and-forget)
       if (clubRow.owner_id && Number(clubRow.owner_id) !== Number(req.userId)) {
         notifyJoinRequest(req.userId, clubRow.owner_id, clubRow.name || '', id).catch(() => {});
+        // Same badge-staleness fix as joinGroup: bust the OWNER's cached
+        // pending_request_count and ping their personal room (2026-08-04).
+        deleteCached(`user_groups:${clubRow.owner_id}`);
+        req.app.get('io')?.to(`user_${clubRow.owner_id}`).emit('join_request_update', {
+          group_id: Number(id),
+          group_name: clubRow.name,
+        });
       }
       return res.json({ message: 'Join request sent', status: 'pending' });
     }
@@ -861,6 +877,12 @@ export const handleClubJoinRequest = async (req, res) => {
 
     const joinReq = request.rows[0];
 
+    // The badge counts against the OWNER's chat list (a co-manager may be the
+    // one processing) — bust the owner's cached pending_request_count for every
+    // action, plus the processor's own if they differ.
+    deleteCached(`user_groups:${club.rows[0].owner_id}`);
+    deleteCached(`user_groups:${req.userId}`);
+
     if (action === 'accept') {
       // Enforce capacity inside a transaction so two concurrent accepts
       // can't both push the club over max_members. Mirror of the same
@@ -933,6 +955,17 @@ export const handleClubJoinRequest = async (req, res) => {
         [requestId]
       );
       res.json({ message: 'Request rejected', status: 'rejected' });
+    } else if (action === 'undo') {
+      // Undo an accidental reject → back to pending (mirrors the group handler;
+      // the unified Anfragen swipe deck offers undo for both entity types).
+      // Only touches a currently-rejected row — never resurrects an accepted one.
+      await db.query(
+        `UPDATE group_join_requests
+         SET status = 'pending', updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1 AND status = 'rejected'`,
+        [requestId]
+      );
+      res.json({ message: 'Request restored', status: 'pending' });
     } else {
       res.status(400).json({ error: 'Invalid action. Use "accept" or "reject".' });
     }

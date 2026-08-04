@@ -652,10 +652,32 @@
       "yesterday": "Yesterday"
     },
     "list": {
-      "tabs": {
-        "groups": "Groups",
+      "mainTabs": {
+        "chats": "Chats",
+        "requests": "Requests",
+        "manage": "Manage"
+      },
+      "filters": {
+        "alle": "All",
+        "gruppen": "Groups",
         "clubs": "Clubs",
-        "chats": "Friends"
+        "freunde": "Friends",
+        "ungelesen": "Unread",
+        "clubOne": "Club",
+        "groupOne": "Group"
+      },
+      "requestsTab": {
+        "remaining": "{{count}} open",
+        "doneTitle": "All requests handled!",
+        "doneText": "You handled {{count}} requests 🎉",
+        "emptyTitle": "No open requests",
+        "emptyText": "New join requests for your groups and clubs will show up here."
+      },
+      "manage": {
+        "edit": "Edit",
+        "membersFmt": "{{count}} members",
+        "empty": "You don't own any groups or clubs yet",
+        "emptyCta": "Create one now"
       },
       "dateYesterday": "Yesterday",
       "hide": "Hide",
@@ -677,7 +699,9 @@
         "noClubChats": "No club chats yet",
         "joinGroupHint": "Join a group!",
         "discoverClubsHint": "Discover clubs!",
-        "noHidden": "No hidden chats"
+        "noHidden": "No hidden chats",
+        "noChatsAll": "No chats yet",
+        "noUnread": "All caught up!"
       },
       "ownerActions": {
         "requests": "Requests",
@@ -881,6 +905,8 @@
       "dobDay": "Day",
       "dobMonth": "Month",
       "dobYear": "Year",
+      "dobOnceHint": "You can change your date of birth only once.",
+      "dobLockedHint": "Your date of birth has already been changed and can no longer be edited.",
       "gender": "Gender"
     },
     "gender": {

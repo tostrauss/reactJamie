@@ -907,6 +907,17 @@ export const joinGroup = async (req, res) => {
     if (groupRes.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
     if (groupRes.rows[0].already_member) return res.status(400).json({ error: 'Already a member' });
 
+    // Profile-photo gate on JOIN (Tina/Tobi meeting 2026-08-04): joining now
+    // requires an avatar, same rule as creating. Was UX-only (AvatarGateModal)
+    // since 2026-08-02 — now enforced server-side. Invites and waitlist
+    // promotion stay ungated (those accept an existing offer).
+    if (!(await creatorHasAvatar(req.userId))) {
+      return res.status(403).json({
+        error: 'Bitte lade zuerst ein Profilbild hoch, um beizutreten.',
+        requiresAvatar: true,
+      });
+    }
+
     // Club-event membership gate: a private club's event is joinable ONLY by
     // members of that club. Non-members still SEE it on Discover but must join
     // the club first — before this, joinGroup treated an event like any group
@@ -963,6 +974,17 @@ export const joinGroup = async (req, res) => {
       // Notify owner about the new join request (fire-and-forget)
       if (g.owner_id && Number(g.owner_id) !== Number(req.userId)) {
         notifyJoinRequest(req.userId, g.owner_id, g.name || '', id).catch(() => {});
+        // The owner's chat list caches getUserGroups (incl. pending_request_count)
+        // for 15s AND had no live signal at all — the "Anfragen (1)" badge froze
+        // at its mount-time value no matter how many requests arrived (Tina/Tobi
+        // meeting 2026-08-04). Bust the OWNER's cache (the join/leave paths only
+        // ever busted the JOINER's) and ping their personal room so open pages
+        // can refetch live.
+        deleteCached(`user_groups:${g.owner_id}`);
+        req.app.get('io')?.to(`user_${g.owner_id}`).emit('join_request_update', {
+          group_id: Number(id),
+          group_name: g.name,
+        });
       }
       return res.json({ message: 'Join request sent', status: 'pending' });
     }
@@ -1453,6 +1475,42 @@ export const getJoinRequests = async (req, res) => {
 };
 
 // ==========================================
+// GET ALL JOIN REQUESTS ACROSS OWNED ENTITIES
+// ==========================================
+// Feeds the chat page's "Anfragen" tab (Tina/Tobi meeting 2026-08-04): ONE
+// swipe deck over every pending request for groups/clubs the caller owns —
+// plus clubs they co-manage (role='admin'), matching handleClubJoinRequest's
+// permission. Same per-request payload shape as getJoinRequests (RequestCard
+// renders both), extended with group_name/group_type for the deck header.
+export const getAllJoinRequests = async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT jr.id, jr.group_id, jr.user_id, jr.message, jr.created_at,
+              g.name AS group_name, g.type AS group_type, g.image_url AS group_image,
+              u.name AS user_name, u.avatar_url AS user_avatar, u.bio AS user_bio,
+              u.interests AS user_interests, u.date_of_birth AS user_dob,
+              EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS user_age,
+              u.is_trusted_user AS user_trusted
+       FROM group_join_requests jr
+       JOIN groups g ON g.id = jr.group_id AND g.deleted_at IS NULL
+       JOIN users u ON u.id = jr.user_id
+       WHERE jr.status = 'pending'
+         AND (g.owner_id = $1
+              OR (g.type = 'club' AND EXISTS (
+                    SELECT 1 FROM group_members gm
+                    WHERE gm.group_id = g.id AND gm.user_id = $1 AND gm.role = 'admin')))
+       ORDER BY jr.created_at ASC
+       LIMIT 200`,
+      [req.userId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching all join requests:', err);
+    res.status(500).json({ error: 'Anfragen konnten nicht geladen werden' });
+  }
+};
+
+// ==========================================
 // HANDLE JOIN REQUEST (accept/reject)
 // ==========================================
 export const handleJoinRequest = async (req, res) => {
@@ -1471,6 +1529,10 @@ export const handleJoinRequest = async (req, res) => {
 
     const joinReq = request.rows[0];
     const gname = groupRes.rows[0].name;
+
+    // Owner processes a request → their cached pending_request_count is stale.
+    // Bust up front for every action (accept/reject/undo all change the count).
+    deleteCached(`user_groups:${req.userId}`);
 
     if (action === 'accept') {
       // Enforce capacity inside a transaction to prevent race with concurrent accepts

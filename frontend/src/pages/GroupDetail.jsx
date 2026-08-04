@@ -319,6 +319,10 @@ export const GroupDetail = () => {
         }
       }
     } catch (error) {
+      // Server-side avatar gate (2026-08-04): the local pre-check above can
+      // miss a stale `user` (avatar removed on another device) — the backend
+      // 403s with requiresAvatar, route that into the same prompt.
+      if (error.response?.data?.requiresAvatar) { setShowAvatarGate(true); return; }
       toast.error(error.response?.data?.error || t('groups.detail.toast.joinLeaveError'));
     }
   };

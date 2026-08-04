@@ -652,10 +652,32 @@
       "yesterday": "Ayer"
     },
     "list": {
-      "tabs": {
-        "groups": "Grupos",
+      "mainTabs": {
+        "chats": "Chats",
+        "requests": "Solicitudes",
+        "manage": "Gestionar"
+      },
+      "filters": {
+        "alle": "Todos",
+        "gruppen": "Grupos",
         "clubs": "Clubes",
-        "chats": "Amigos"
+        "freunde": "Amigos",
+        "ungelesen": "No leídos",
+        "clubOne": "Club",
+        "groupOne": "Grupo"
+      },
+      "requestsTab": {
+        "remaining": "{{count}} pendientes",
+        "doneTitle": "¡Todas las solicitudes gestionadas!",
+        "doneText": "Has gestionado {{count}} solicitudes 🎉",
+        "emptyTitle": "No hay solicitudes pendientes",
+        "emptyText": "Las nuevas solicitudes para tus grupos y clubes aparecerán aquí."
+      },
+      "manage": {
+        "edit": "Editar",
+        "membersFmt": "{{count}} miembros",
+        "empty": "Aún no tienes grupos o clubes propios",
+        "emptyCta": "Crear ahora"
       },
       "dateYesterday": "Ayer",
       "hide": "Ocultar",
@@ -677,7 +699,9 @@
         "noClubChats": "Aún no hay chats de club",
         "joinGroupHint": "¡Únete a un grupo!",
         "discoverClubsHint": "¡Descubre clubes!",
-        "noHidden": "Ningún chat oculto"
+        "noHidden": "Ningún chat oculto",
+        "noChatsAll": "Aún no hay chats",
+        "noUnread": "¡Todo leído!"
       },
       "ownerActions": {
         "requests": "Solicitudes",
@@ -881,6 +905,8 @@
       "dobDay": "Día",
       "dobMonth": "Mes",
       "dobYear": "Año",
+      "dobOnceHint": "Solo puedes cambiar tu fecha de nacimiento una vez.",
+      "dobLockedHint": "Tu fecha de nacimiento ya se ha cambiado y no se puede volver a editar.",
       "gender": "Género"
     },
     "gender": {

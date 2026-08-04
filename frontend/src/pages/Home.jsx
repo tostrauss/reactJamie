@@ -350,6 +350,21 @@ export const Home = () => {
     });
   };
 
+  // Skeleton cards instead of a bare spinner while the feed loads
+  // ("Ladezeit überbrücken" — Tina/Tobi meeting 2026-08-04). Mirrors the
+  // grid layout so the page doesn't jump when real cards arrive.
+  const renderFeedSkeleton = (n = 4) => (
+    <div className="groups-grid" aria-hidden="true">
+      {Array.from({ length: n }).map((_, i) => (
+        <div key={i} className="skeleton-group-card">
+          <div className="skeleton skeleton-card-img" />
+          <div className="skeleton skeleton-line" style={{ width: `${70 - (i % 3) * 8}%` }} />
+          <div className="skeleton skeleton-line skeleton-line--sub" style={{ width: `${48 - (i % 2) * 6}%` }} />
+        </div>
+      ))}
+    </div>
+  );
+
   // ── Event handlers ───────────────────────────────────────────────
   const handleFavorite = async (groupId) => {
     const wasAlreadyFav = favorites.has(groupId);
@@ -379,6 +394,8 @@ export const Home = () => {
       else await groups.join(groupId);
       setJoined(prev => new Set(prev).add(groupId));
     } catch (err) {
+      // Server-side avatar gate (2026-08-04) — local pre-check can be stale.
+      if (err.response?.data?.requiresAvatar) { setShowAvatarGate(true); return; }
       toast.error(err.response?.data?.error || t('home.toast.joinError'));
     }
   };
@@ -559,11 +576,7 @@ export const Home = () => {
         {/* GRUPPEN */}
         {activeTab === 'gruppen' && (
           <div className="groups-feed">
-            {loading ? (
-              <div className="home-loading">
-                <div className="home-spinner" />
-              </div>
-            ) : filteredGroups.length > 0 ? (
+            {loading ? renderFeedSkeleton(6) : filteredGroups.length > 0 ? (
               <div className="groups-grid">
                 {filteredGroups.map((group, idx) => {
                   // Deals only inject into the unfiltered browse feed — when
@@ -650,11 +663,7 @@ export const Home = () => {
               <div className="section-header">
                 <h2 className="section-heading">{t('home.sections.trending')}</h2>
               </div>
-              {loading ? (
-                <div className="home-loading">
-                  <div className="home-spinner" />
-                </div>
-              ) : filteredClubs.length > 0 ? (
+              {loading ? renderFeedSkeleton(4) : filteredClubs.length > 0 ? (
                 <div className="groups-grid clubs-grid">
                   {filteredClubs.map(renderClubCard)}
                 </div>

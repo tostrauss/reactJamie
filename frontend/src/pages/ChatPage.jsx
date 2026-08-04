@@ -40,7 +40,7 @@ export const ChatPage = () => {
   // Back / swipe-right → the chat list on the RIGHT tab (WhatsApp-style). Was
   // navigate(-1), which landed on whatever was in history (usually the Gruppen
   // tab) even when leaving a club chat. Navigate explicitly by type instead.
-  const goBackToList = () => navigate(group?.type === 'club' ? '/chats?tab=clubs' : '/chats');
+  const goBackToList = () => navigate(group?.type === 'club' ? '/chats?filter=clubs' : '/chats');
   useSwipeBack(chatPageRef, goBackToList, !loading && !!group);
 
   // Grow the composer with its content (up to a cap), then reset after send.

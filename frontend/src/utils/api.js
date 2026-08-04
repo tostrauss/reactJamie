@@ -324,6 +324,11 @@ export const groups = {
   getRequests: (groupId) =>
     axiosInstance.get(`/groups/${groupId}/requests`),
 
+  // All pending requests across every group/club the caller owns or manages —
+  // feeds the chat page's aggregated "Anfragen" swipe deck.
+  getAllRequests: () =>
+    axiosInstance.get('/groups/user/requests'),
+
   handleRequest: (groupId, requestId, action) =>
     axiosInstance.post(`/groups/${groupId}/requests/${requestId}`, { action }),
 

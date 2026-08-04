@@ -652,10 +652,32 @@
       "yesterday": "Hier"
     },
     "list": {
-      "tabs": {
-        "groups": "Groupes",
+      "mainTabs": {
+        "chats": "Chats",
+        "requests": "Demandes",
+        "manage": "Gérer"
+      },
+      "filters": {
+        "alle": "Tous",
+        "gruppen": "Groupes",
         "clubs": "Clubs",
-        "chats": "Amis"
+        "freunde": "Amis",
+        "ungelesen": "Non lus",
+        "clubOne": "Club",
+        "groupOne": "Groupe"
+      },
+      "requestsTab": {
+        "remaining": "{{count}} en attente",
+        "doneTitle": "Toutes les demandes traitées !",
+        "doneText": "Tu as traité {{count}} demandes 🎉",
+        "emptyTitle": "Aucune demande en attente",
+        "emptyText": "Les nouvelles demandes d'adhésion à tes groupes et clubs apparaîtront ici."
+      },
+      "manage": {
+        "edit": "Modifier",
+        "membersFmt": "{{count}} membres",
+        "empty": "Tu n'as pas encore de groupes ou de clubs à toi",
+        "emptyCta": "Créer maintenant"
       },
       "dateYesterday": "Hier",
       "hide": "Masquer",
@@ -677,7 +699,9 @@
         "noClubChats": "Pas encore de chats de club",
         "joinGroupHint": "Rejoins un groupe !",
         "discoverClubsHint": "Découvre des clubs !",
-        "noHidden": "Aucun chat masqué"
+        "noHidden": "Aucun chat masqué",
+        "noChatsAll": "Pas encore de chats",
+        "noUnread": "Tout est lu !"
       },
       "ownerActions": {
         "requests": "Demandes",
@@ -881,6 +905,8 @@
       "dobDay": "Jour",
       "dobMonth": "Mois",
       "dobYear": "Année",
+      "dobOnceHint": "Tu ne peux modifier ta date de naissance qu'une seule fois.",
+      "dobLockedHint": "Ta date de naissance a déjà été modifiée et ne peut plus être changée.",
       "gender": "Genre"
     },
     "gender": {
