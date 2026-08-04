@@ -44,6 +44,10 @@ export const ProfileEdit = () => {
   const toast = useToast();
   const { t } = useTranslation();
   const DE_MONTHS = t('profileEdit.months', { returnObjects: true });
+  // Birthday is editable exactly once after onboarding. Once that single change
+  // has been used (backend flag), lock the selects. Users who already have a
+  // birthday but haven't used their change yet see a heads-up instead.
+  const dobLocked = !!(user?.date_of_birth && user?.date_of_birth_changed);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -428,25 +432,28 @@ export const ProfileEdit = () => {
               <span>{t('profileEdit.fields.dob')}</span>
             </div>
             <div className="dob-select-row">
-                <select className="settings-input dob-select" value={dobParts.d} onChange={e => handleDobChange('d', e.target.value)}>
+                <select className="settings-input dob-select" value={dobParts.d} onChange={e => handleDobChange('d', e.target.value)} disabled={dobLocked}>
                   <option value="">{t('profileEdit.fields.dobDay')}</option>
                   {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map(d => (
                     <option key={d} value={d}>{d}</option>
                   ))}
                 </select>
-                <select className="settings-input dob-select dob-select--month" value={dobParts.m} onChange={e => handleDobChange('m', e.target.value)}>
+                <select className="settings-input dob-select dob-select--month" value={dobParts.m} onChange={e => handleDobChange('m', e.target.value)} disabled={dobLocked}>
                   <option value="">{t('profileEdit.fields.dobMonth')}</option>
                   {DE_MONTHS.map((mo, i) => (
                     <option key={mo} value={String(i + 1).padStart(2, '0')}>{mo}</option>
                   ))}
                 </select>
-              <select className="settings-input dob-select" value={dobParts.y} onChange={e => handleDobChange('y', e.target.value)}>
+              <select className="settings-input dob-select" value={dobParts.y} onChange={e => handleDobChange('y', e.target.value)} disabled={dobLocked}>
                 <option value="">{t('profileEdit.fields.dobYear')}</option>
                 {Array.from({ length: 80 }, (_, i) => new Date().getFullYear() - 10 - i).map(y => (
                   <option key={y} value={String(y)}>{y}</option>
                 ))}
               </select>
             </div>
+            {dobLocked
+              ? <p className="pe-photo-hint">{t('profileEdit.fields.dobLockedHint')}</p>
+              : user?.date_of_birth && <p className="pe-photo-hint">{t('profileEdit.fields.dobOnceHint')}</p>}
           </div>
 
           <div className="pe-field">

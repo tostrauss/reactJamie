@@ -85,7 +85,7 @@ const DUMMY_BCRYPT_HASH = bcrypt.hashSync('jamie-dummy-password-not-used-anywher
 // Used where we don't need sensitive fields (getProfile, post-register, post-Google-login).
 const SAFE_USER_COLS = `
   id, email, auth_provider, auth_provider_id, name, username, gender,
-  date_of_birth, bio, location, avatar_url, photos, pinnwand, interests, favorite_song,
+  date_of_birth, date_of_birth_changed, bio, location, avatar_url, photos, pinnwand, interests, favorite_song,
   pinterest_url, spotify_token_expiry, spotify_connected, onboarding_completed,
   onboarding_step, profile_completion, is_verified, is_active, last_seen,
   is_admin, created_at, updated_at, is_pioneer, is_trusted_user, trusted_count
@@ -460,6 +460,47 @@ export const updateProfile = async (req, res) => {
     const hasBio = 'bio' in req.body;
     const hasLocation = 'location' in req.body;
 
+    // ── Birthday: editable exactly once after onboarding ─────────────────────
+    // The birthday is the app's age signal (18+ gate, age filters, group age
+    // ranges), so we let a user correct a signup typo once and then lock it —
+    // no repeated flip-flopping to dodge age filters. Setting it for the first
+    // time (Google sign-ups start NULL) is the onboarding baseline and does not
+    // consume that one change.
+    const incomingDob = (typeof date_of_birth === 'string' && date_of_birth.trim())
+      ? date_of_birth.trim().slice(0, 10)
+      : null;
+    let lockDob = false;
+    if (incomingDob !== null) {
+      const cur = await db.query(
+        `SELECT to_char(date_of_birth, 'YYYY-MM-DD') AS dob, date_of_birth_changed
+         FROM users WHERE id = $1`,
+        [req.userId]
+      );
+      const currentDob = cur.rows[0]?.dob || null;
+      const alreadyChanged = cur.rows[0]?.date_of_birth_changed === true;
+
+      if (incomingDob !== currentDob) {
+        // Validate the new birthday the same way registration does.
+        const dob = new Date(incomingDob);
+        if (isNaN(dob.getTime())) {
+          return res.status(400).json({ error: 'Ungültiges Geburtsdatum' });
+        }
+        const ageCutoff = new Date();
+        ageCutoff.setFullYear(ageCutoff.getFullYear() - 18);
+        if (dob > ageCutoff) {
+          return res.status(400).json({ error: 'Du musst mindestens 18 Jahre alt sein, um JAMIE zu nutzen.' });
+        }
+        // Changing an EXISTING birthday is the one-time action; setting a NULL
+        // birthday for the first time is the onboarding baseline (no lock).
+        if (currentDob !== null) {
+          if (alreadyChanged) {
+            return res.status(403).json({ error: 'Dein Geburtsdatum kann nur einmal geändert werden.' });
+          }
+          lockDob = true;
+        }
+      }
+    }
+
     await db.query(
       `UPDATE users
        SET name = COALESCE($1, name),
@@ -479,10 +520,11 @@ export const updateProfile = async (req, res) => {
            avatar_url = COALESCE($7, avatar_url),
            favorite_song = ${hasFavSong ? '$8' : 'COALESCE($8, favorite_song)'},
            date_of_birth = CASE WHEN $10::text IS NOT NULL THEN $10::date ELSE date_of_birth END,
+           date_of_birth_changed = CASE WHEN $12 THEN TRUE ELSE date_of_birth_changed END,
            pinnwand = COALESCE($11, pinnwand),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $9`,
-      [name, location, bio, gender, interestsStr, photosStr, avatar_url, songStr || null, req.userId, date_of_birth || null, pinnwandStr]
+      [name, location, bio, gender, interestsStr, photosStr, avatar_url, songStr || null, req.userId, incomingDob, pinnwandStr, lockDob]
     );
 
     // Return updated profile

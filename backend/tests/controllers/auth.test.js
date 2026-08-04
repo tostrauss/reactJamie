@@ -22,7 +22,7 @@ vi.mock('../../src/config/redis.js', () => ({
 }));
 
 const { default: db } = await import('../../src/config/database.js');
-const { register, login, refreshToken } = await import('../../src/controllers/authController.js');
+const { register, login, refreshToken, updateProfile } = await import('../../src/controllers/authController.js');
 
 const makeRes = () => {
   const res = {};
@@ -222,6 +222,69 @@ describe('login', () => {
     const res = makeRes();
     await login({ body: { email: 'a@x.com', password: 'A'.repeat(10000) } }, res, vi.fn());
     expect(res.status).toHaveBeenCalledWith(401);
+  });
+});
+
+// ── updateProfile: birthday editable exactly once after onboarding ───────────
+describe('updateProfile birthday lock', () => {
+  const findUpdateCall = () =>
+    db.query.mock.calls.find(c => /date_of_birth_changed = CASE/.test(c[0]));
+
+  it('rejects a second birthday change once the flag is set', async () => {
+    db.query.mockResolvedValueOnce({ rows: [{ dob: '1990-01-01', date_of_birth_changed: true }] });
+    const res = makeRes();
+    await updateProfile({ userId: 1, body: { date_of_birth: '1985-05-05' } }, res, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining('einmal') }));
+    // Must bail before the UPDATE — nothing gets written.
+    expect(findUpdateCall()).toBeUndefined();
+  });
+
+  it('allows the first birthday change and locks the field', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [{ dob: '1990-01-01', date_of_birth_changed: false }] }) // current
+      .mockResolvedValueOnce({ rows: [] })                                                     // UPDATE
+      .mockResolvedValueOnce({ rows: [{ id: 1, date_of_birth: '1990-06-15', date_of_birth_changed: true }] }); // SELECT
+    const res = makeRes();
+    await updateProfile({ userId: 1, body: { date_of_birth: '1990-06-15' } }, res, vi.fn());
+    const update = findUpdateCall();
+    expect(update).toBeDefined();
+    expect(update[1][9]).toBe('1990-06-15'); // incoming DOB written
+    expect(update[1][11]).toBe(true);        // lockDob → sets the flag
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }));
+  });
+
+  it('rejects an under-18 birthday change', async () => {
+    db.query.mockResolvedValueOnce({ rows: [{ dob: '1990-01-01', date_of_birth_changed: false }] });
+    const res = makeRes();
+    await updateProfile({ userId: 1, body: { date_of_birth: '2015-01-01' } }, res, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining('18') }));
+    expect(findUpdateCall()).toBeUndefined();
+  });
+
+  it('lets a locked user save when the birthday is unchanged', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [{ dob: '1990-01-01', date_of_birth_changed: true }] }) // current (locked)
+      .mockResolvedValueOnce({ rows: [] })                                                    // UPDATE
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] });                                          // SELECT
+    const res = makeRes();
+    await updateProfile({ userId: 1, body: { date_of_birth: '1990-01-01' } }, res, vi.fn());
+    expect(res.status).not.toHaveBeenCalledWith(403);
+    const update = findUpdateCall();
+    expect(update[1][11]).toBe(false); // no new lock — nothing actually changed
+  });
+
+  it('does not lock when setting a NULL birthday for the first time (onboarding baseline)', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [{ dob: null, date_of_birth_changed: false }] }) // never set
+      .mockResolvedValueOnce({ rows: [] })                                            // UPDATE
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] });                                  // SELECT
+    const res = makeRes();
+    await updateProfile({ userId: 1, body: { date_of_birth: '1990-01-01' } }, res, vi.fn());
+    const update = findUpdateCall();
+    expect(update).toBeDefined();
+    expect(update[1][11]).toBe(false); // first-ever set is not the one change
   });
 });
 

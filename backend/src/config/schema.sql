@@ -16,6 +16,10 @@ CREATE TABLE users (
   username VARCHAR(20) UNIQUE,
   gender VARCHAR(20),
   date_of_birth DATE,
+  -- TRUE once the user has used their single post-onboarding birthday change.
+  -- Setting the birthday for the first time (onboarding baseline) leaves this
+  -- FALSE; the first edit of an existing birthday flips it and locks the field.
+  date_of_birth_changed BOOLEAN NOT NULL DEFAULT FALSE,
   bio TEXT,
   location VARCHAR(255),
   avatar_url TEXT,

@@ -904,6 +904,12 @@ const runStartupMigrations = async () => {
   // carousel `photos`. JSON array of image URLs.
   await migrate('users.pinnwand col', () =>
     db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS pinnwand JSONB NOT NULL DEFAULT '[]'::jsonb`));
+  // Birthday is editable exactly once after onboarding — this flag records that
+  // the single allowed change has been used. Existing users default to FALSE, so
+  // everyone keeps their one correction; setting the birthday for the first time
+  // (Google sign-ups start NULL) does NOT flip it. Enforced in updateProfile.
+  await migrate('users.date_of_birth_changed col', () =>
+    db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS date_of_birth_changed BOOLEAN NOT NULL DEFAULT FALSE`));
   await migrate('groups.deleted_at', async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_groups_deleted_at ON groups(deleted_at) WHERE deleted_at IS NULL`);
