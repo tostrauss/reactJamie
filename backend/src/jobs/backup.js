@@ -14,10 +14,13 @@
  *   - No plaintext leaves the process (V4): the dump is encrypted in-stream
  *     before it touches disk; the temp file is already ciphertext.
  *   - WORM (V2/V3): the uploader opportunistically asserts S3 Object Lock
- *     COMPLIANCE retention per object. The bucket-side default retention
- *     (BACKUP-SETUP-ANLEITUNG.md Schritt 3+4a) is the real guarantee — if the
- *     bucket rejects the header we log loudly and fall back, we never fail the
- *     backup over it.
+ *     COMPLIANCE retention per object. R2 REALITY (verified live 2026-08-04):
+ *     R2 does NOT implement the S3 Object-Lock API at all (NotImplemented) —
+ *     the real, verified guarantee is Cloudflare's native **Bucket-Lock rule**
+ *     `retain-db-30d` (prefix db/, 30 days; dashboard → bucket → Settings →
+ *     Bucket Lock Rules, provisioned via scripts/provision-backup-bucket.js).
+ *     The per-object headers stay for portability to a true S3 vault; their
+ *     rejection on R2 is EXPECTED and logged as info, never a failure.
  *   - A too-small (empty/aborted) dump is NEVER uploaded: it would sit
  *     undeletable in the vault for 30 days pretending to be a good backup.
  *
@@ -240,13 +243,20 @@ export const uploadBackupObject = async ({ key, getBody, retentionDays }) => {
       // object. Transient errors (network, 5xx) fall through to a plain retry
       // WITHOUT latching — the next upload tries lock headers again.
       const status = err?.$metadata?.httpStatusCode;
-      if ((status >= 400 && status < 500) || status === 501) {
+      if (err.name === 'NotImplemented') {
+        // R2 never implements the S3 Object-Lock API — EXPECTED, not a
+        // problem: WORM comes from the bucket-level Cloudflare Bucket-Lock
+        // rule `retain-db-30d` (verified 2026-08-04). Info, not warning, so
+        // nightly logs don't cry wolf after every restart.
+        _lockHeadersRejected = true;
+        console.log('[backup] R2 rejects S3 object-lock headers (expected) — WORM via the bucket-level Bucket-Lock rule.');
+      } else if ((status >= 400 && status < 500) || status === 501) {
         _lockHeadersRejected = true;
         console.warn(
           `[backup] ⚠️ Object-Lock header rejected by bucket (${err.name}: ${err.message}). ` +
           'Falling back to plain upload — WORM protection now relies SOLELY on the ' +
-          'bucket-side default retention. Verify BACKUP-SETUP-ANLEITUNG.md Schritt 3+4a ' +
-          '(bucket created WITH Object Lock + 30d COMPLIANCE default retention)!'
+          'bucket-side retention rule. Verify BACKUP-SETUP-ANLEITUNG.md Schritt 3+4 ' +
+          '(Bucket-Lock rule retain-db-30d enabled)!'
         );
       } else {
         console.warn(`[backup] upload with object-lock header failed (${err.name}: ${err.message}) — retrying without header`);

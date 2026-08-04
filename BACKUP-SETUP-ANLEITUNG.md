@@ -10,11 +10,33 @@ Danach läuft jede Nacht ein verschlüsseltes DB-Backup in einen unveränderbare
   einen Passwort-Manager, Admin-Rechte im GitHub-Repo. Für die optionalen
   CLI-Schritte: `aws` CLI + `openssl` (oder die Werte per Dashboard setzen).
 
-> ⚠️ **Zwei Stolperfallen vorweg** (sonst scheitert Schritt 9):
-> 1. **Object Lock geht nur beim Anlegen des Buckets** — nachträglich nicht
->    aktivierbar. Wenn du ihn vergisst, Bucket löschen & neu anlegen.
-> 2. **GitHub Actions erreicht die DB nur über die ÖFFENTLICHE Railway-URL**,
->    nicht über die interne `*.railway.internal`-Adresse (siehe Schritt 7).
+> ✅✅ **STATUS 2026-08-04 abends — Schritt 1–7 ERLEDIGT (Tobi + Claude live):**
+> Konto (tobijamie123@gmail.com) + 2FA ✅ · R2 aktiv, Account-ID gesichert ✅ ·
+> Bucket `jamie-backups` ✅ · Lifecycle `expire-37d` auf `db/` ✅ ·
+> **WORM via Cloudflare Bucket-Lock-Regel `retain-db-30d`** (db/, 30 Tage,
+> Enabled) ✅ · Runtime-Token `railway-backup-writer` (Object R&W, nur dieser
+> Bucket) ✅ · `BACKUP_ENCRYPTION_KEY` erzeugt (Passwort-Manager + Umschlag) ✅ ·
+> 5 Railway-Variablen gesetzt ✅. **Scharf wird der Cron mit dem nächsten
+> Deploy** (Code in `281bd69`). DANACH offen: `[backup] ARMED` im Log prüfen →
+> Testlauf `run-backup-now.js` → Objekt im Tresor verifizieren → Restore-Drill.
+>
+> 🔄 **R2-REALITÄT (live gelernt):** R2 implementiert die **S3-Object-Lock-API
+> NICHT** (CreateBucket mit Lock-Header → `NotImplemented`; auch das Dashboard
+> hat beim Anlegen keinen Schalter). Cloudflares gleichwertiges Feature heißt
+> **Bucket Locks**: Bucket → Settings → **Bucket Lock Rules** → Regel
+> `retain-db-30d` (Prefix `db/`, Retain 30 days, NICHT „Indefinite"!).
+> Reproduzierbar per Skript: `backend/scripts/provision-backup-bucket.js`
+> (legt Bucket + Lifecycle per S3-API an; Lock-Regel per Dashboard oder mit
+> `ADMIN_API_TOKEN` in der Cred-Datei per Cloudflare-REST-API).
+> Die per-Objekt-Lock-Header des Jobs werden von R2 erwartungsgemäß abgelehnt
+> (Info-Log, kein Fehler) — WORM garantiert die Bucket-Regel.
+> Die S3-Kommandos in Schritt 4a unten funktionieren auf R2 daher NICHT —
+> als historische Referenz belassen; Schritt 4b (Lifecycle) geht auch per
+> Dashboard (Settings → Object Lifecycle Rules).
+>
+> ⚠️ **Stolperfalle für die optionale GitHub Action (Schritt 7–9):**
+> GitHub Actions erreicht die DB nur über die ÖFFENTLICHE Railway-URL,
+> nicht über die interne `*.railway.internal`-Adresse (siehe Schritt 7).
 
 > ✅ **UPDATE 2026-08-04 — Die Backup-Automatik ist jetzt IM APP-SERVER
 > implementiert** (`backend/src/jobs/backup.js` + `mediaBackupSync.js`).
