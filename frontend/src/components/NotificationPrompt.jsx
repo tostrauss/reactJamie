@@ -63,10 +63,11 @@ export const NotificationPrompt = () => {
   return (
     <div style={{
       position: 'fixed', left: 12, right: 12,
-      // Clear the 60px nav + its 30px/safe-area floor — must match the
+      // Clear the 60px nav + its safe-space floor — must match the
       // update/install banners, else the prompt's lower edge hides behind the
-      // nav on 0-inset Android (Tobi 2026-07-28: "abgeschnitten").
-      bottom: 'calc(70px + max(30px, env(safe-area-inset-bottom, 0px)))',
+      // nav on 0-inset Android (Tobi 2026-07-28: "abgeschnitten"). Single
+      // knob: var(--nav-safe-bottom) in global.css :root (2026-08-04).
+      bottom: 'calc(70px + var(--nav-safe-bottom))',
       zIndex: 900, maxWidth: 480, margin: '0 auto',
       background: 'var(--bg-card, #1e2235)', border: '1px solid rgba(253,118,102,0.35)',
       borderRadius: 16, padding: 14, boxShadow: '0 8px 30px rgba(0,0,0,0.4)',

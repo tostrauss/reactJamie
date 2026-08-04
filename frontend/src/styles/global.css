@@ -137,6 +137,18 @@
 
 /* CSS Variables */
 :root {
+  /* ── Bottom-nav safe space — SINGLE knob (Robert/Tobi 2026-08-04) ──
+     The padding under the nav icons. max() means: on iPhones the REAL
+     home-indicator inset (~34px) always wins, so nothing is ever cut off
+     there no matter how small the floor is; the floor only applies on
+     devices reporting 0 inset (most Android gesture/button nav, desktop).
+     History: 30px floor since 2026-07-24 (Tina: breathing room, nav "hard
+     to reach" when flush); halved to 15px 2026-08-04 (Robert: too much dead
+     space on Android). Every fixed element anchored above the nav
+     (update/install banner, NotificationPrompt, ConsentBanner) uses this
+     SAME variable — change it HERE only, never per-element. */
+  --nav-safe-bottom: max(15px, env(safe-area-inset-bottom, 0px));
+
   /* Brand Colors */
   --accent-coral: #FD7666;
   --accent-coral-light: #ff8a7a;
@@ -303,9 +315,9 @@ select:focus-visible {
    ========================================== */
 .update-banner {
   position: fixed;
-  /* Sit above the 60px nav + its bottom padding (30px floor / safe-area inset,
-     whichever is larger — must match .bottom-nav so the banner never overlaps it). */
-  bottom: calc(70px + max(30px, env(safe-area-inset-bottom, 0px)));
+  /* Sit above the 60px nav + its bottom padding — same var as .bottom-nav
+     so the banner never overlaps it. */
+  bottom: calc(70px + var(--nav-safe-bottom));
   left: 50%;
   transform: translateX(-50%);
   background: var(--bg-card);
@@ -341,9 +353,9 @@ select:focus-visible {
    ========================================== */
 .install-banner {
   position: fixed;
-  /* Sit above the 60px nav + its bottom padding (30px floor / safe-area inset,
-     whichever is larger — must match .bottom-nav so the banner never overlaps it). */
-  bottom: calc(78px + max(30px, env(safe-area-inset-bottom, 0px)));
+  /* Sit above the 60px nav + its bottom padding — same var as .bottom-nav
+     so the banner never overlaps it. */
+  bottom: calc(78px + var(--nav-safe-bottom));
   left: 12px;
   right: 12px;
   background: var(--bg-card);
@@ -547,12 +559,15 @@ select:focus {
      reverses the earlier "icons as low as possible" call.
      2026-07-24: 30px floor so the nav has consistent breathing room even on
      devices with no inset (most Android button/gesture nav, desktop), while
-     still growing to the real inset on iPhones (~34px home indicator). */
+     still growing to the real inset on iPhones (~34px home indicator).
+     2026-08-04: floor halved to 15px (Robert) and moved into
+     --nav-safe-bottom in :root — the ONE knob for this, shared with every
+     element anchored above the nav. */
   flex-shrink: 0;
   background: var(--bg-secondary);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   z-index: 1000;
-  padding-bottom: max(30px, env(safe-area-inset-bottom, 0px));
+  padding-bottom: var(--nav-safe-bottom);
 }
 
 .bottom-nav-items {
