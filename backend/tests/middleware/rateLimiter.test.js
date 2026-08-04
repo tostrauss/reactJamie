@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import jwt from 'jsonwebtoken';
 
 process.env.JWT_SECRET = 'test-secret';
 process.env.NODE_ENV = 'test';
@@ -8,8 +9,11 @@ vi.mock('../../src/config/redis.js', () => ({
   redisClient: null,
   redisSubscriber: null
 }));
+// rateLimiter now imports auth.js (JWT helpers) which imports the DB module.
+vi.mock('../../src/config/database.js', () => ({ default: { query: vi.fn() } }));
 
-const { generalLimiter, authLimiter, strictLimiter } = await import('../../src/middleware/rateLimiter.js');
+const { generalLimiter, authLimiter, strictLimiter, verifiedUserId } = await import('../../src/middleware/rateLimiter.js');
+const { generateToken } = await import('../../src/middleware/auth.js');
 
 describe('rate limiters', () => {
   it('exports generalLimiter as a function', () => {
@@ -31,5 +35,42 @@ describe('rate limiters', () => {
     const next = vi.fn();
     await expect(generalLimiter(req, res, next)).resolves.not.toThrow();
     expect(next).toHaveBeenCalled();
+  });
+});
+
+// ── NAT fix 2026-08-04: per-user buckets for authenticated traffic ─────────
+// generalLimiter keys verified tokens as user:{id} (own bucket, NAT size
+// irrelevant) and everything else per IP; authLimiter skips valid tokens.
+// Security posture pinned here: only a SIGNATURE-VERIFIED token may leave the
+// shared IP bucket — forged/anonymous/guest must never mint their own bucket.
+describe('verifiedUserId (rate-limit bucket keying)', () => {
+  const reqWith = (token) => ({ cookies: {}, headers: token ? { authorization: `Bearer ${token}` } : {} });
+
+  it('returns the user id for a validly signed token', () => {
+    expect(verifiedUserId(reqWith(generateToken(42)))).toBe(42);
+  });
+
+  it('reads the httpOnly cookie too (web clients)', () => {
+    expect(verifiedUserId({ cookies: { auth_token: generateToken(7) }, headers: {} })).toBe(7);
+  });
+
+  it('rejects a token signed with the wrong secret (forged-bucket attack)', () => {
+    const forged = jwt.sign({ id: 42 }, 'attacker-secret', {
+      algorithm: 'HS256', issuer: 'jamie-api', audience: 'jamie-app',
+    });
+    expect(verifiedUserId(reqWith(forged))).toBeNull();
+  });
+
+  it('rejects a token missing the pinned issuer/audience claims', () => {
+    const unbound = jwt.sign({ id: 42 }, 'test-secret', { algorithm: 'HS256' });
+    expect(verifiedUserId(reqWith(unbound))).toBeNull();
+  });
+
+  it('returns null for anonymous requests', () => {
+    expect(verifiedUserId(reqWith(null))).toBeNull();
+  });
+
+  it('keeps the guest token in the IP bucket', () => {
+    expect(verifiedUserId(reqWith('guest_token'))).toBeNull();
   });
 });

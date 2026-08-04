@@ -1,6 +1,27 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { RedisStore } from 'rate-limit-redis';
+import jwt from 'jsonwebtoken';
 import { redisClient } from '../config/redis.js';
+import { extractToken, JWT_VERIFY_OPTS } from './auth.js';
+
+// Signature-verified userId from the request's JWT, or null for anonymous /
+// guest / forged tokens. Runs BEFORE the auth middleware (the general limiter
+// is mounted on /api ahead of the routes), so it does its own jwt.verify —
+// same pinned alg/iss/aud as auth.js, an unverified decode would let an
+// attacker mint fake per-"user" buckets and dodge the IP cap entirely.
+// HS256 verify is microseconds; no DB (the later auth middleware still does
+// the full revocation check — a revoked-but-unexpired token only mis-keys a
+// rate bucket, it never grants access).
+export const verifiedUserId = (req) => {
+  try {
+    const token = extractToken(req);
+    if (!token || token === 'guest_token') return null;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, JWT_VERIFY_OPTS);
+    return decoded.id > 0 ? decoded.id : null; // guest id 0 → IP bucket
+  } catch {
+    return null;
+  }
+};
 
 // Rate limits are always enforced. Set DISABLE_RATE_LIMIT=true only in local dev.
 const disabled = process.env.DISABLE_RATE_LIMIT === 'true';
@@ -25,15 +46,25 @@ const SHARED = { passOnStoreError: true };
 //  an attacker an unlimited-attempts window.
 const SHARED_STRICT = { passOnStoreError: false };
 
-// General API rate limit: 2000 req/15min per IP. Bumped from 500 for launch
-// scenarios where 100s of users share one NAT (event WiFi, mobile carrier
-// NAT). The per-user limiters below still protect against single-user abuse.
+// General API rate limit: 2000 req/15min — keyed PER USER for authenticated
+// traffic, per IP only for anonymous requests (NAT fix, Tobi 2026-08-04).
+// Measured before: 100 users behind one event-WiFi/carrier NAT burned the
+// shared per-IP budget in ~20s and everyone got 429s. Now every logged-in
+// user has their own bucket, so NAT size is irrelevant; the per-IP bucket
+// remains only for the (small) anonymous surface — login/OTP/register have
+// their own dedicated limiters below. An attacker can't opt out of the IP
+// bucket: forged tokens fail jwt.verify, and real per-user buckets require
+// real accounts (registration is itself IP-capped).
 export const generalLimiter = rateLimit({
   ...SHARED,
   windowMs: 15 * 60 * 1000,
   max: disabled ? 10000 : 2000,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    const uid = verifiedUserId(req);
+    return uid ? `user:${uid}` : `ip:${ipKeyGenerator(req.ip)}`;
+  },
   store: makeStore('rl:general:'),
   message: { error: 'Zu viele Anfragen. Bitte versuche es in 15 Minuten erneut.' }
 });
@@ -42,12 +73,21 @@ export const generalLimiter = rateLimit({
 // event 100+ users behind one NAT each need to log in + verify their email
 // OTP, which alone burns 2 calls per user. 100 is still well below the
 // 6+ attempts/sec a botnet would need to be effective.
+// NAT fix 2026-08-04: requests carrying a VALID signed JWT are skipped —
+// /api/auth/refresh fires on EVERY app launch and /auth/profile on every
+// session restore, so 100 users behind one NAT exhausted the shared budget
+// through routine already-authenticated traffic and then nobody could log
+// in. Skipping verified-token requests keeps this limiter purely for the
+// credential-attack surface (login/register/OTP are always anonymous, so an
+// attacker can never carry a valid token into them); the skipped traffic
+// still counts against the per-user generalLimiter bucket above.
 export const authLimiter = rateLimit({
   ...SHARED_STRICT, // fail-closed: never let a Redis error unlock login brute-force
   windowMs: 15 * 60 * 1000,
   max: disabled ? 10000 : 100,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => verifiedUserId(req) !== null,
   store: makeStore('rl:auth:'),
   message: { error: 'Zu viele Login-Versuche. Bitte versuche es in 15 Minuten erneut.' }
 });

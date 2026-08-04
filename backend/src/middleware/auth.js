@@ -10,13 +10,15 @@ const isGuestAllowed = () => process.env.ALLOW_GUEST_TOKEN === 'true';
 // versa. Verifier rejects mismatches outright.
 const JWT_ISSUER   = 'jamie-api';
 const JWT_AUDIENCE = 'jamie-app';
-const JWT_VERIFY_OPTS = {
+// Exported for rateLimiter.js: the general limiter keys authenticated traffic
+// per-user and must verify tokens with the exact same pinned options.
+export const JWT_VERIFY_OPTS = {
   algorithms: ['HS256'],
   issuer: JWT_ISSUER,
   audience: JWT_AUDIENCE,
 };
 
-const extractToken = (req) => {
+export const extractToken = (req) => {
   // 1. httpOnly cookie (preferred — XSS-proof)
   if (req.cookies?.auth_token) return req.cookies.auth_token;
   // 2. Authorization header fallback (Capacitor native / API clients)
