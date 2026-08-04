@@ -96,8 +96,11 @@ export const ChatList = () => {
     };
   }, [socket]);
 
-  const loadData = async () => {
-    setLoading(true);
+  // silent=true refreshes the rows WITHOUT flipping the skeleton state — used
+  // by socket handlers (first-ever DM) so the visible list doesn't flash to
+  // placeholders while the user is looking at it (review finding 2026-08-04).
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [joinedRes, dmsRes] = await Promise.all([
         groups.getJoined().catch(() => null),
@@ -211,8 +214,9 @@ export const ChatList = () => {
       : (data.message?.content || '');
     setPrivateChats(prev => {
       const row = prev.find(c => c.id === data.senderId);
-      // First-ever DM from a new friend has no row yet — refetch so it appears.
-      if (!row) { loadData(); return prev; }
+      // First-ever DM from a new friend has no row yet — refetch (silently,
+      // no skeleton flash over the visible list) so it appears.
+      if (!row) { loadData(true); return prev; }
       return bumpToTop(prev, data.senderId, {
         lastMessage: preview,
         time: formatTime(new Date().toISOString()),
@@ -235,8 +239,14 @@ export const ChatList = () => {
   const openChat = (chat) => chat.isDM ? navigate(`/dm/${chat.id}`) : navigate(`/chat/${chat.id}`);
 
   // ── Anfragen deck ──────────────────────────────────────────────────────
+  // Dedupe key includes updated_at: a re-submitted request REUSES its row id
+  // (backend ON CONFLICT upsert), so id alone would keep the fresh incarnation
+  // invisible for the rest of the session (review finding 2026-08-04). Stale
+  // refetch races still dedupe correctly — a stale row carries the OLD
+  // updated_at and stays filtered.
+  const reqKey = (r) => `${r.id}:${r.updated_at}`;
   const deck = useMemo(
-    () => requests.filter(r => !processedIds.has(r.id)),
+    () => requests.filter(r => !processedIds.has(reqKey(r))),
     [requests, processedIds]
   );
   const current = deck[0];
@@ -264,7 +274,7 @@ export const ChatList = () => {
     setProcessing(true);
     try {
       await apiFor(r).handleRequest(r.group_id, r.id, 'accept');
-      markProcessed(r.id);
+      markProcessed(reqKey(r));
       decrementChatChip(r.group_id);
       resetDrag();
       toast.success(t('chat.list.toast.requestAccepted', { name: r.user_name }));
@@ -281,7 +291,7 @@ export const ChatList = () => {
     setProcessing(true);
     try {
       await apiFor(r).handleRequest(r.group_id, r.id, 'reject');
-      markProcessed(r.id);
+      markProcessed(reqKey(r));
       decrementChatChip(r.group_id);
       resetDrag();
       // Undoable — revert a mis-swipe (established pattern, Tobi 2026-07-31).
@@ -290,7 +300,17 @@ export const ChatList = () => {
         async () => {
           try {
             await apiFor(r).handleRequest(r.group_id, r.id, 'undo');
-            unmarkProcessed(r.id);
+            unmarkProcessed(reqKey(r));
+            // Restore the chip AND refetch: if a socket ping refreshed the
+            // snapshot between decline and undo, the rejected row is gone from
+            // `requests` — without the refetch the card would never reappear
+            // (review finding 2026-08-04). Note the undone row keeps its
+            // updated_at from the undo, so the refetched incarnation is
+            // visible regardless of the local unmark.
+            setGroupChats(prev => prev.map(c =>
+              c.id === r.group_id ? { ...c, pendingRequests: (c.pendingRequests || 0) + 1 } : c
+            ));
+            loadRequests();
           } catch {
             toast.error(t('chat.list.toast.requestDeclineError'));
           }

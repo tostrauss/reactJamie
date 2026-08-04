@@ -2084,7 +2084,10 @@ input:checked + .slider:before {
    ======================================== */
 .home-create-bar {
   position: fixed;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 68px);
+  /* 68px was tuned as "8px above the nav top" back when the nav's bottom
+     padding was bare env() — since the nav gained a padding floor the bar
+     must track the same var or it sinks INTO the nav on 0-inset devices. */
+  bottom: calc(var(--nav-safe-bottom) + 68px);
   left: 0;
   right: 0;
   z-index: 500;
@@ -2192,7 +2195,9 @@ input:checked + .slider:before {
      of content height/scroll state. The dark backdrop still covers the full
      screen (background paints the padding box too), so the nav still reads
      as dimmed/inactive while the sheet is open. */
-  padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  /* Nav true height = 60px strip + var(--nav-safe-bottom) padding — must use
+     the same var as .bottom-nav (bare env() under-reserved on 0-inset). */
+  padding-bottom: calc(60px + var(--nav-safe-bottom));
 }
 
 @keyframes fadeInOverlay {
@@ -2217,8 +2222,8 @@ input:checked + .slider:before {
      so the top edge can never reach the status bar regardless of device.
      vh fallback first, dvh (accounts for dynamic browser chrome) wins where
      supported. */
-  max-height: calc(100vh - 60px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px);
-  max-height: calc(100dvh - 60px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px);
+  max-height: calc(100vh - 60px - env(safe-area-inset-top, 0px) - var(--nav-safe-bottom) - 16px);
+  max-height: calc(100dvh - 60px - env(safe-area-inset-top, 0px) - var(--nav-safe-bottom) - 16px);
   overflow: hidden;
   animation: slideUpSheet 0.3s cubic-bezier(0.32, 0.72, 0, 1);
   will-change: transform;

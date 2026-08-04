@@ -5,6 +5,17 @@ dotenv.config();
 
 const { Pool } = pg;
 
+// DATE columns (date_of_birth, analytics_daily.day) come back as plain
+// 'YYYY-MM-DD' strings instead of JS Dates. node-pg's default parses a DATE
+// into a Date at SERVER-LOCAL midnight, which JSON-serializes shifted on any
+// non-UTC machine (e.g. local dev on a Vienna-TZ Windows box: 1990-01-01 →
+// "1989-12-31T23:00:00.000Z"). The client echoing that shifted value back
+// would then silently move the stored birthday −1 day AND burn the one-time
+// birthday change (see updateProfile). A calendar date has no timezone —
+// keep it a string end-to-end. OID 1082 = DATE. TIMESTAMP columns
+// (groups.date etc.) are OID 1114 and deliberately untouched.
+pg.types.setTypeParser(1082, (v) => v);
+
 // Support both Railway-style DATABASE_URL and individual env vars
 if (!process.env.DATABASE_URL && process.env.NODE_ENV === 'production' && !process.env.DB_PASSWORD) {
   console.error('FATAL: DB_PASSWORD or DATABASE_URL must be set in production');

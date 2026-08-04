@@ -73,21 +73,29 @@ export const generalLimiter = rateLimit({
 // event 100+ users behind one NAT each need to log in + verify their email
 // OTP, which alone burns 2 calls per user. 100 is still well below the
 // 6+ attempts/sec a botnet would need to be effective.
-// NAT fix 2026-08-04: requests carrying a VALID signed JWT are skipped —
+// NAT fix 2026-08-04: authenticated HOUSEKEEPING requests are skipped —
 // /api/auth/refresh fires on EVERY app launch and /auth/profile on every
 // session restore, so 100 users behind one NAT exhausted the shared budget
 // through routine already-authenticated traffic and then nobody could log
-// in. Skipping verified-token requests keeps this limiter purely for the
-// credential-attack surface (login/register/OTP are always anonymous, so an
-// attacker can never carry a valid token into them); the skipped traffic
-// still counts against the per-user generalLimiter bucket above.
+// in. The skip is scoped to an explicit path allowlist: a blanket
+// "has valid token → skip" would let an attacker attach ONE throwaway
+// account's token to /login requests and dodge the brute-force cap
+// entirely (found in review, 2026-08-04). Credential surfaces (/login,
+// /google*, /apple, /register, OTP, /send-verification) are NEVER skipped,
+// token or not; the skipped housekeeping traffic still counts against the
+// per-user generalLimiter bucket above.
+// Paths are mount-relative to /api/auth (express strips the app.use prefix).
+export const AUTH_HOUSEKEEPING_PATHS = new Set(['/refresh', '/profile', '/onboarding', '/logout']);
+export const authLimiterSkip = (req) =>
+  AUTH_HOUSEKEEPING_PATHS.has(req.path) && verifiedUserId(req) !== null;
+
 export const authLimiter = rateLimit({
   ...SHARED_STRICT, // fail-closed: never let a Redis error unlock login brute-force
   windowMs: 15 * 60 * 1000,
   max: disabled ? 10000 : 100,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => verifiedUserId(req) !== null,
+  skip: authLimiterSkip,
   store: makeStore('rl:auth:'),
   message: { error: 'Zu viele Login-Versuche. Bitte versuche es in 15 Minuten erneut.' }
 });

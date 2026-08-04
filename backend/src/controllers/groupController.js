@@ -909,8 +909,11 @@ export const joinGroup = async (req, res) => {
 
     // Profile-photo gate on JOIN (Tina/Tobi meeting 2026-08-04): joining now
     // requires an avatar, same rule as creating. Was UX-only (AvatarGateModal)
-    // since 2026-08-02 — now enforced server-side. Invites and waitlist
-    // promotion stay ungated (those accept an existing offer).
+    // since 2026-08-02 — now enforced server-side. Owner INVITES stay ungated
+    // (inviteMember inserts membership directly). A waitlist claim ("Platz
+    // frei!" push → tap join) DOES pass through here and is gated on purpose —
+    // the rule is universal; the claimer sees the AvatarGateModal, uploads,
+    // and joins (seat-loss risk while doing so is accepted).
     if (!(await creatorHasAvatar(req.userId))) {
       return res.status(403).json({
         error: 'Bitte lade zuerst ein Profilbild hoch, um beizutreten.',
@@ -1485,6 +1488,11 @@ export const getAllJoinRequests = async (req, res) => {
   try {
     const result = await db.query(
       `SELECT jr.id, jr.group_id, jr.user_id, jr.message, jr.created_at,
+              -- updated_at is part of the client's dedupe key: a re-submitted
+              -- request REUSES its row (ON CONFLICT ... DO UPDATE) with the
+              -- same id, so id alone would keep it hidden in a session that
+              -- already handled the previous incarnation.
+              jr.updated_at,
               g.name AS group_name, g.type AS group_type, g.image_url AS group_image,
               u.name AS user_name, u.avatar_url AS user_avatar, u.bio AS user_bio,
               u.interests AS user_interests, u.date_of_birth AS user_dob,

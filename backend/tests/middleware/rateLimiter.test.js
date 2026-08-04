@@ -12,7 +12,7 @@ vi.mock('../../src/config/redis.js', () => ({
 // rateLimiter now imports auth.js (JWT helpers) which imports the DB module.
 vi.mock('../../src/config/database.js', () => ({ default: { query: vi.fn() } }));
 
-const { generalLimiter, authLimiter, strictLimiter, verifiedUserId } = await import('../../src/middleware/rateLimiter.js');
+const { generalLimiter, authLimiter, strictLimiter, verifiedUserId, authLimiterSkip } = await import('../../src/middleware/rateLimiter.js');
 const { generateToken } = await import('../../src/middleware/auth.js');
 
 describe('rate limiters', () => {
@@ -72,5 +72,37 @@ describe('verifiedUserId (rate-limit bucket keying)', () => {
 
   it('keeps the guest token in the IP bucket', () => {
     expect(verifiedUserId(reqWith('guest_token'))).toBeNull();
+  });
+});
+
+// authLimiter skip must be scoped to housekeeping paths ONLY — a blanket
+// valid-token skip would let one throwaway account's JWT bypass the login
+// brute-force cap (P1 review finding, 2026-08-04).
+describe('authLimiterSkip (scoped housekeeping skip)', () => {
+  const req = (path, token) => ({
+    path,
+    cookies: {},
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+  });
+
+  it('skips /refresh with a valid token (the NAT-burning launch traffic)', () => {
+    expect(authLimiterSkip(req('/refresh', generateToken(5)))).toBe(true);
+  });
+
+  it('skips /profile with a valid token', () => {
+    expect(authLimiterSkip(req('/profile', generateToken(5)))).toBe(true);
+  });
+
+  it('NEVER skips /login — even with a valid token attached (bypass attack)', () => {
+    expect(authLimiterSkip(req('/login', generateToken(5)))).toBe(false);
+  });
+
+  it('NEVER skips /google or /send-verification with a valid token', () => {
+    expect(authLimiterSkip(req('/google', generateToken(5)))).toBe(false);
+    expect(authLimiterSkip(req('/send-verification', generateToken(5)))).toBe(false);
+  });
+
+  it('does not skip housekeeping paths without a valid token', () => {
+    expect(authLimiterSkip(req('/refresh', null))).toBe(false);
   });
 });
