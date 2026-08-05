@@ -896,7 +896,7 @@ export const SettingsPage = () => {
             </svg>
             <div className="settings-row-stacked">
               <span>{t('settings.app.version')}</span>
-              <span className="settings-row-detail">1.0.0</span>
+              <span className="settings-row-detail">1.3</span>
             </div>
           </div>
         </div>
