@@ -332,11 +332,13 @@
 }
 
 .chat-last-message {
-  /* Größer + präsenter (Tobi 2026-08-05): die Vorschau ist DER Grund, eine
-     Zeile anzutippen — 14px muted war zu leise neben dem fetten Namen. */
+  /* Größer + präsenter als die alten 14px muted (Tobi 2026-08-05), aber
+     bewusst NICHT fett und einen Hauch gedimmt — Name (16px/600/weiß) und
+     Vorschau müssen zwei klar unterscheidbare Ebenen bleiben (2. Iteration
+     gleicher Tag: "vlt nicht fett"). */
   font-size: 15px;
-  font-weight: 500;
-  color: var(--text-light);
+  font-weight: 400;
+  color: #c6cbd6; /* zwischen --text-muted und --text-light */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
