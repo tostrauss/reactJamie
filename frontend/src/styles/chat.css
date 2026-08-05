@@ -1502,3 +1502,10 @@
 .chat-avatar--ring-club {
   box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4.5px #c084fc;
 }
+
+/* Absender im Nachrichten-Preview leicht fetter als der Text (Tobi
+   2026-08-05, 3. Iteration): "Tobi:" 600, Nachricht bleibt 400 — gleiche
+   gedimmte Farbe, damit beides unter dem weißen Gruppennamen bleibt. */
+.chat-last-sender {
+  font-weight: 600;
+}

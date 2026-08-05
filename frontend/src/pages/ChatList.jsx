@@ -112,11 +112,13 @@ export const ChatList = () => {
       setGroupChats((joinedRes?.data || [])
         .filter(g => g.type !== 'event')
         .map(g => {
-          const prefix = g.last_message_sender ? `${g.last_message_sender}: ` : '';
           return {
             id: g.id,
             name: g.name || g.title,
-            lastMessage: g.last_message ? `${prefix}${g.last_message}` : '',
+            // Sender + text separat, damit der Absender im Preview leicht
+            // fetter gerendert werden kann (Tobi 2026-08-05).
+            lastSender: g.last_message ? (g.last_message_sender || '') : '',
+            lastText: g.last_message || '',
             // ts = raw last-activity epoch for the merged sort across kinds.
             ts: g.last_message_time ? new Date(g.last_message_time).getTime() : 0,
             time: g.last_message_time ? formatTime(g.last_message_time) : '',
@@ -135,7 +137,8 @@ export const ChatList = () => {
       setPrivateChats((dmsRes?.data || []).map(dm => ({
         id: dm.other_user_id,
         name: dm.other_user_name,
-        lastMessage: dm.last_message_text || '',
+        lastSender: '', // 1:1-Chat — Absender ist klar, kein Prefix
+        lastText: dm.last_message_text || '',
         ts: dm.last_message_at ? new Date(dm.last_message_at).getTime() : 0,
         time: dm.last_message_at ? formatTime(dm.last_message_at) : '',
         unread: dm.unread_count || 0,
@@ -189,7 +192,8 @@ export const ChatList = () => {
       const row = prev.find(c => c.id === id);
       if (!row) return prev;
       return bumpToTop(prev, id, {
-        lastMessage: `${data.user_name ? `${data.user_name}: ` : ''}${data.content}`,
+        lastSender: data.user_name || '',
+        lastText: data.content || '',
         time: formatTime(new Date().toISOString()),
         unread: (row.unread || 0) + 1,
       });
@@ -201,7 +205,8 @@ export const ChatList = () => {
       const row = prev.find(c => c.id === data.group_id);
       if (!row) return prev;
       return bumpToTop(prev, data.group_id, {
-        lastMessage: `${data.user_name ? `${data.user_name}: ` : ''}${data.content || ''}`,
+        lastSender: data.user_name || '',
+        lastText: data.content || '',
         time: formatTime(new Date().toISOString()),
         unread: (row.unread || 0) + 1,
       });
@@ -218,7 +223,7 @@ export const ChatList = () => {
       // no skeleton flash over the visible list) so it appears.
       if (!row) { loadData(true); return prev; }
       return bumpToTop(prev, data.senderId, {
-        lastMessage: preview,
+        lastText: preview,
         time: formatTime(new Date().toISOString()),
         unread: (row.unread || 0) + 1,
       });
@@ -451,7 +456,10 @@ export const ChatList = () => {
           <span className="chat-time">{chat.time}</span>
         </div>
         <div className="chat-bottom-row">
-          <p className="chat-last-message">{chat.lastMessage}</p>
+          <p className="chat-last-message">
+            {chat.lastSender && <span className="chat-last-sender">{chat.lastSender}: </span>}
+            {chat.lastText}
+          </p>
           {chat.unread > 0 && <span className="unread-badge">{chat.unread}</span>}
         </div>
       </div>
@@ -493,7 +501,12 @@ export const ChatList = () => {
                 </div>
                 <div className="chat-info">
                   <div className="chat-top-row"><span className="chat-name">{chat.name}</span></div>
-                  <div className="chat-bottom-row"><p className="chat-last-message">{chat.lastMessage}</p></div>
+                  <div className="chat-bottom-row">
+                    <p className="chat-last-message">
+                      {chat.lastSender && <span className="chat-last-sender">{chat.lastSender}: </span>}
+                      {chat.lastText}
+                    </p>
+                  </div>
                 </div>
               </div>
               <button className="chat-unhide-btn" onClick={() => archiveChat(chat, false)}>
