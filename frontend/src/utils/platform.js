@@ -65,7 +65,12 @@ export const NATIVE_API_ORIGIN = 'https://api.jamie-app.com';
 // Button in „Stripe not configured". Auf true stellen, sobald Stripe steht.
 // Dann gilt automatisch: Käufe NUR im echten Web-Browser (purchasesEnabled),
 // in Play-TWA + iOS-App ausgeblendet (Store-Billing-Pflicht).
-export const PAYMENTS_ENABLED = true;
+// 2026-08-05: Tobi + Tina bewusst WIEDER AUS („noch zu früh") — obwohl Stripe
+// live konfiguriert ist. Damit greift überall (Web + Android + iOS) der Coming-
+// Soon-Zweig statt eines echten Kaufs; keine Kartendetails erreichbar. Zusätzlich
+// im Railway-Backend `PAYMENTS_ENABLED=false` setzen (härtet die API ab). Auf
+// true, wenn Pro/Boosts wirklich starten sollen.
+export const PAYMENTS_ENABLED = false;
 
 // ── iOS In-App-Käufe ────────────────────────────────────────────────────
 // StoreKit IAP ist noch nicht fertig (Plugin + Apple-Quittungsprüfung offen —

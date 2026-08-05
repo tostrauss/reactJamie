@@ -276,7 +276,7 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
           }}>
             <div style={{ fontSize: '40px', marginBottom: '8px' }}>🚀</div>
             <div style={{ fontSize: '16px', fontWeight: '800', color: '#fff', marginBottom: '6px' }}>
-              {t('payments.comingSoon.title')}
+              {t('payments.comingSoon.boostTitle')}
             </div>
             <p style={{ fontSize: '13px', lineHeight: 1.5, color: 'var(--text-muted)', margin: '0 0 14px' }}>
               {t('payments.comingSoon.boostBody')}

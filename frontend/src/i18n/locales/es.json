@@ -24,6 +24,8 @@
   "payments": {
     "comingSoon": {
       "title": "Próximamente",
+      "proTitle": "Pro estará disponible muy pronto",
+      "boostTitle": "Los Boosts estarán disponibles muy pronto",
       "body": "JAMIE Pro llegará muy pronto. Hasta entonces puedes usar JAMIE completamente gratis.",
       "boostBody": "Pronto podrás comprar boosts.",
       "interestCta": "Avísame 🔔",

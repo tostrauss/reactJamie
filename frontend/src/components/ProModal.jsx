@@ -612,7 +612,7 @@ export const ProModal = ({ onClose, onSuccess }) => {
                   borderRadius:'16px',
                 }}>
                   <div style={{ fontSize:'15px', fontWeight:'800', color:'#fff', marginBottom:'4px' }}>
-                    {t('payments.comingSoon.title')}
+                    {t('payments.comingSoon.proTitle')}
                   </div>
                   <div style={{ fontSize:'13px', lineHeight:1.5, color:'rgba(255,255,255,0.6)', marginBottom:'14px' }}>
                     {t('payments.comingSoon.body')}

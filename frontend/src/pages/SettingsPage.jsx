@@ -860,6 +860,10 @@ export const SettingsPage = () => {
               fontSize: 13,
               fontFamily: 'inherit',
               cursor: 'pointer',
+              // Feste Breite + kein Schrumpfen: die Auto-Breite des nativen
+              // <select> lief sonst über das „Sprache"-Label (Tobi 2026-08-05).
+              flexShrink: 0,
+              width: 150,
             }}
           >
             {[
