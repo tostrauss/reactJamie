@@ -6,6 +6,7 @@ import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
 import { UserName } from '../components/UserName';
+import VerifiedBadge from '../components/VerifiedBadge';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { ProfilePhotoCarousel } from '../components/ProfilePhotoCarousel';
 import '../styles/user-profile.css';
@@ -257,13 +258,9 @@ export const UserProfile = () => {
           </svg>
         </button>
 
-        {/* Trusted badge */}
+        {/* Trusted badge — scalloped verified seal */}
         {profile.is_trusted_user && (
-          <div className="up-trusted-overlay">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-              <polyline points="20,6 9,17 4,12"/>
-            </svg>
-          </div>
+          <VerifiedBadge className="up-trusted-overlay" size={46} />
         )}
       </div>
 

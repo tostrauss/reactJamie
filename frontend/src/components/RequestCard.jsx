@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import VerifiedBadge from './VerifiedBadge';
 
 // Shared join-request card so /group/:id/requests (page) and the chat-list
 // requests modal render IDENTICALLY (Tobi 2026-07-31: "beide sollen genau
@@ -29,11 +30,7 @@ export function RequestCard({ request }) {
           ? <img src={request.user_avatar} alt={request.user_name} className="request-user-image" loading="lazy" decoding="async" />
           : <div className="request-avatar-placeholder">{(request.user_name || '?')[0].toUpperCase()}</div>}
         {request.user_trusted && (
-          <div className="request-trusted-badge">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-              <polyline points="20,6 9,17 4,12" stroke="white" strokeWidth="3" fill="none" />
-            </svg>
-          </div>
+          <VerifiedBadge className="request-trusted-badge" size={34} />
         )}
       </div>
 

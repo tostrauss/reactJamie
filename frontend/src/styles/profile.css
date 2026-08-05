@@ -47,22 +47,12 @@
   z-index: 1;
 }
 
-/* verified badge on cover */
+/* verified badge on cover — scalloped verified seal (VerifiedBadge) */
 .profile-verified-cover {
   position: absolute;
   bottom: 16px;
   right: 20px;
-  width: 36px;
-  height: 36px;
-  background: var(--accent-coral);
-  border: 3px solid var(--bg-primary);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 16px;
-  font-weight: 700;
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.35));
   z-index: 3;
 }
 

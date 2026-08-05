@@ -9,6 +9,7 @@ import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
 import { MapsChooser } from '../components/MapsChooser';
 import { UserName } from '../components/UserName';
+import VerifiedBadge from '../components/VerifiedBadge';
 import { EventReviewModal } from '../components/EventReviewModal';
 import AvatarGateModal from '../components/AvatarGateModal';
 import { nextOccurrence } from '../utils/recurrence';
@@ -560,7 +561,7 @@ export const GroupDetail = () => {
                       age={member.age}
                     />
                     {member.is_trusted_user && (
-                      <span className="gd-photo-check">✓</span>
+                      <VerifiedBadge className="gd-photo-check" size={16} />
                     )}
                   </div>
                 </div>

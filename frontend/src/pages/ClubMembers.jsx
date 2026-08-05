@@ -5,6 +5,7 @@ import { clubs, groups } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { UserName } from '../components/UserName';
+import VerifiedBadge from '../components/VerifiedBadge';
 import { isNativeIOS } from '../utils/platform';
 import '../styles/club-detail.css';
 
@@ -180,11 +181,7 @@ export const ClubMembers = () => {
                       )}
                     </div>
                     {m.is_trusted_user && (
-                      <span className="cd-member-row-trusted">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20,6 9,17 4,12"/>
-                        </svg>
-                      </span>
+                      <VerifiedBadge className="cd-member-row-trusted" size={18} />
                     )}
                     {canRemove && (
                       <button

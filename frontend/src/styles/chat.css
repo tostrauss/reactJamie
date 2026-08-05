@@ -694,18 +694,12 @@
   max-height: 300px;
 }
 
+/* Scalloped verified seal (VerifiedBadge) — the SVG is the shape. */
 .request-trusted-badge {
   position: absolute;
   bottom: 12px;
   right: 12px;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--accent-coral);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));
 }
 
 .request-interests {

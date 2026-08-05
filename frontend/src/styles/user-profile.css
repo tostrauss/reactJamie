@@ -107,19 +107,13 @@
   z-index: 10;
 }
 
-/* Trusted badge */
+/* Trusted badge — scalloped verified seal (VerifiedBadge). No background/shape
+   here: the seal IS the shape; drop-shadow follows its scalloped outline. */
 .up-trusted-overlay {
   position: absolute;
   bottom: 20px;
   right: 20px;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: var(--accent-coral);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.35));
   z-index: 5;
 }
 

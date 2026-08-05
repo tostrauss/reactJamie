@@ -10,6 +10,7 @@ import { purchasesEnabled } from '../utils/platform';
 import { shareLink } from '../utils/share';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { ProfilePhotoCarousel } from '../components/ProfilePhotoCarousel';
+import VerifiedBadge from '../components/VerifiedBadge';
 import '../styles/home.css';
 import '../styles/profile.css';
 
@@ -183,9 +184,9 @@ export const Profile = () => {
             </div>
           </div>
 
-          {/* Trusted / verified badge bottom-right */}
+          {/* Trusted / verified badge bottom-right — scalloped verified seal */}
           {user?.is_trusted_user && (
-            <div className="profile-verified-cover">✓</div>
+            <VerifiedBadge className="profile-verified-cover" size={38} />
           )}
         </div>
 
