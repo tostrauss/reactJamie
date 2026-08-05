@@ -629,7 +629,15 @@ function useNativePush(user) {
         });
       });
 
-      return () => { regListener.remove(); };
+      // Surfaces the case where permission is granted but register() gets NO
+      // token — most commonly a missing "Push Notifications" capability/
+      // entitlement in the build (aps-environment). Silent otherwise, so on a
+      // device run via Xcode this is the line that explains "no token, no push".
+      const errListener = PushNotifications.addListener('registrationError', (err) => {
+        console.error('[APNs] registrationError:', err?.error || err);
+      });
+
+      return () => { regListener.remove(); errListener.remove(); };
     }).catch(() => {});
   }, [user]);
 }
