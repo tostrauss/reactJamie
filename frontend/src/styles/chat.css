@@ -332,8 +332,11 @@
 }
 
 .chat-last-message {
-  font-size: 14px;
-  color: var(--text-muted);
+  /* Größer + präsenter (Tobi 2026-08-05): die Vorschau ist DER Grund, eine
+     Zeile anzutippen — 14px muted war zu leise neben dem fetten Namen. */
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-light);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1233,14 +1236,10 @@
   font-style: italic;
 }
 
-/* Chat Avatar in Header */
-.chat-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  margin-right: 12px;
-  object-fit: cover;
-}
+/* (Ehem. "Chat Avatar in Header": ein 40px-Duplikat von .chat-avatar, das
+   die 56px-Regel der Chatliste überschrieb — Bild-Avatare waren dadurch
+   kleiner als die 56px-Platzhalter, sichtbar geworden durch die Typ-Ringe
+   (Tobi 2026-08-05). Kein Header nutzt die Klasse → ersatzlos entfernt.) */
 
 /* Chat Avatar Placeholder */
 .chat-avatar-placeholder {
@@ -1488,4 +1487,16 @@
   gap: 6px;
   flex-shrink: 0;
   margin-left: 8px;
+}
+
+/* ── Avatar type rings (Tobi 2026-08-05, nach Lokal-Test) ──
+   Ersetzt die GRUPPE/CLUB-Text-Badges in den Chat-/Verwalten-Zeilen:
+   Coral-Ring = Gruppe, Lila-Ring = Club (Farben = alte Badge-Farben),
+   DMs ohne Ring. box-shadow statt border → kein Layout-Shift, und der
+   2px-Abstand (zweiter Schatten in bg-Farbe) lässt den Ring "schweben". */
+.chat-avatar--ring-group {
+  box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4.5px var(--accent-coral);
+}
+.chat-avatar--ring-club {
+  box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4.5px #c084fc;
 }

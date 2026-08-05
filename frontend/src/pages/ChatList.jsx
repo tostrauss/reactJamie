@@ -432,25 +432,24 @@ export const ChatList = () => {
   };
 
   // ── Renderers ──────────────────────────────────────────────────────────
+  // Type distinction via avatar RING instead of text badges (Tobi 2026-08-05
+  // after local testing): coral ring = Gruppe, lila ring = Club, DMs plain.
+  // Rows get a tighter two-line layout in return.
+  const avatarRing = (chat) =>
+    chat.isDM ? '' : chat.type === 'club' ? ' chat-avatar--ring-club' : ' chat-avatar--ring-group';
+
   const renderChatRow = (chat) => (
     <div key={`${chat.isDM ? 'dm' : 'g'}-${chat.id}`} className="chat-item" {...pressProps(chat)} onClick={guardedOpen(chat)}>
       <div className="chat-avatar-wrapper">
         {chat.avatar
-          ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" loading="lazy" />
-          : <div className="chat-avatar-placeholder">{(chat.name || '?')[0].toUpperCase()}</div>}
+          ? <img src={chat.avatar} alt={chat.name} className={`chat-avatar${avatarRing(chat)}`} loading="lazy" />
+          : <div className={`chat-avatar-placeholder${avatarRing(chat)}`}>{(chat.name || '?')[0].toUpperCase()}</div>}
       </div>
       <div className="chat-info">
         <div className="chat-top-row">
           <span className="chat-name">{chat.name}</span>
           <span className="chat-time">{chat.time}</span>
         </div>
-        {/* Type badge only in the mixed "Alle" view — inside a filtered bubble
-            the kind is obvious. */}
-        {filter === 'alle' && !chat.isDM && (
-          <span className={`chat-type-badge ${chat.type === 'club' ? 'club-badge' : 'group-badge'}`}>
-            {chat.type === 'club' ? t('chat.list.filters.clubOne') : t('chat.list.filters.groupOne')}
-          </span>
-        )}
         <div className="chat-bottom-row">
           <p className="chat-last-message">{chat.lastMessage}</p>
           {chat.unread > 0 && <span className="unread-badge">{chat.unread}</span>}
@@ -489,8 +488,8 @@ export const ChatList = () => {
               <div className="chat-item-main" onClick={() => openChat(chat)}>
                 <div className="chat-avatar-wrapper">
                   {chat.avatar
-                    ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" loading="lazy" />
-                    : <div className="chat-avatar-placeholder">{(chat.name || '?')[0].toUpperCase()}</div>}
+                    ? <img src={chat.avatar} alt={chat.name} className={`chat-avatar${avatarRing(chat)}`} loading="lazy" />
+                    : <div className={`chat-avatar-placeholder${avatarRing(chat)}`}>{(chat.name || '?')[0].toUpperCase()}</div>}
                 </div>
                 <div className="chat-info">
                   <div className="chat-top-row"><span className="chat-name">{chat.name}</span></div>
@@ -724,17 +723,14 @@ export const ChatList = () => {
                 >
                   <div className="chat-avatar-wrapper">
                     {chat.avatar
-                      ? <img src={chat.avatar} alt={chat.name} className="chat-avatar" loading="lazy" />
-                      : <div className="chat-avatar-placeholder">{(chat.name || '?')[0].toUpperCase()}</div>}
+                      ? <img src={chat.avatar} alt={chat.name} className={`chat-avatar${avatarRing(chat)}`} loading="lazy" />
+                      : <div className={`chat-avatar-placeholder${avatarRing(chat)}`}>{(chat.name || '?')[0].toUpperCase()}</div>}
                   </div>
                   <div className="chat-info">
                     <div className="chat-top-row">
                       <span className="chat-name">{chat.name}</span>
                     </div>
                     <div className="chat-manage-meta">
-                      <span className={`chat-type-badge ${chat.type === 'club' ? 'club-badge' : 'group-badge'}`}>
-                        {chat.type === 'club' ? t('chat.list.filters.clubOne') : t('chat.list.filters.groupOne')}
-                      </span>
                       <span className="chat-manage-members">
                         {t('chat.list.manage.membersFmt', { count: chat.members })}{chat.maxMembers ? ` / ${chat.maxMembers}` : ''}
                       </span>

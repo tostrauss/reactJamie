@@ -58,3 +58,16 @@ für ALLE hinter der IP (auch Bestandsnutzer!). Jetzt: Signups laufen am
 Login-Budget vorbei, 600/h/IP Deckel, Missbrauch bremst die Per-E-Mail-Ebene
 (6 Codes/h/Adresse + 5 Verify-Versuche/Code in der DB — hält über Replikas
 und schützt Opfer-Postfächer unabhängig von Angreifer-IPs).
+
+
+
+
+
+## Chat Feature (Tobi-Feedback nach Lokal-Test 05.08.) — ✅ beides erledigt
+- ~~GRUPPE/CLUB-Badges weg → Avatar-Ring~~ ✅ umgesetzt: Coral-Ring = Gruppe,
+  Lila-Ring = Club (Chat-Zeilen, Ausgeblendet, Verwalten); Text-Chip bleibt nur
+  im Anfragen-Deck (dort zeigt das Foto den Anfragenden, nicht den Club).
+- ~~Check: Beitritt ohne Profilbild bei privaten Gruppen/Clubs~~ ✅ bereits
+  dicht: Avatar-Gate sitzt in joinGroup/joinClub VOR der Private-Verzweigung —
+  gilt für öffentliche Joins UND private Anfragen (403 requiresAvatar →
+  AvatarGateModal). Einzige bewusste Ausnahme: direkte Owner-Einladungen.
