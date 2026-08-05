@@ -57,6 +57,10 @@ export const ChatList = () => {
   const [processing, setProcessing]       = useState(false);
   const [dragX, setDragX]                 = useState(0);
   const dragStartX                        = useRef(null);
+  // Live drag distance in a ref: onCardEnd must read the CURRENT offset, not the
+  // `dragX` state, which lags a fast flick (down→move→up in one tick before React
+  // re-renders) → the closure still saw 0 and the swipe was a silent no-op.
+  const dragXRef                          = useRef(0);
 
   const navigate = useNavigate();
   const { socket } = useContext(SocketContext);
@@ -331,18 +335,23 @@ export const ChatList = () => {
 
   // Swipe: right = accept, left = decline (same thresholds as the old modal).
   const SWIPE_THRESHOLD = 90;
-  const resetDrag = () => { dragStartX.current = null; setDragX(0); };
+  const resetDrag = () => { dragStartX.current = null; dragXRef.current = 0; setDragX(0); };
   const onCardDown = (e) => {
     if (processing) return;
     dragStartX.current = e.clientX;
+    dragXRef.current = 0;
+    // Keep pointermove/up firing even if the finger leaves the card bounds.
+    try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch { /* not supported */ }
   };
   const onCardMove = (e) => {
     if (dragStartX.current == null) return;
-    setDragX(e.clientX - dragStartX.current);
+    const dx = e.clientX - dragStartX.current;
+    dragXRef.current = dx;
+    setDragX(dx);
   };
   const onCardEnd = () => {
     if (dragStartX.current == null) return;
-    const dx = dragX;
+    const dx = dragXRef.current;
     resetDrag();
     if (dx > SWIPE_THRESHOLD) deckAccept();
     else if (dx < -SWIPE_THRESHOLD) deckDecline();
