@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { deals as dealsApi, upload } from '../utils/api';
 import { useToast } from '../context/ToastContext';
+import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
+import { ALLOWED_COUNTRIES_LOWER } from '../utils/regions';
 
 /**
  * Admin CRUD for Kooperationen (sponsored deals). Embedded inside
@@ -40,6 +42,8 @@ export const AdminDealsSection = () => {
   const { t } = useTranslation();
   const toast = useToast();
   const fileRef = useRef(null);
+  const addressRef = useRef(null);
+  const dealAcRef = useRef(null);
 
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +67,35 @@ export const AdminDealsSection = () => {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Google Maps script for the address autocomplete — same picker as group/club
+  // creation. Load once.
+  useEffect(() => {
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    if (apiKey) loadGoogleMaps(apiKey);
+  }, []);
+
+  // Attach Places Autocomplete to the address field whenever the form is open.
+  // The deal address was a plain text input → no location suggestions/map hint
+  // like group/club creation had (Tobi 2026-08-05). Re-attaches on each open.
+  useEffect(() => {
+    if (!showForm) { dealAcRef.current = null; return; }
+    const attach = () => {
+      if (!window.google?.maps?.places || dealAcRef.current || !addressRef.current) return;
+      const ac = new window.google.maps.places.Autocomplete(addressRef.current, {
+        componentRestrictions: { country: ALLOWED_COUNTRIES_LOWER },
+        fields: ['formatted_address', 'name'],
+      });
+      ac.addListener('place_changed', () => {
+        const place = ac.getPlace();
+        const val = place.formatted_address || place.name || addressRef.current?.value || '';
+        if (val) setForm(p => ({ ...p, address: val }));
+      });
+      dealAcRef.current = ac;
+    };
+    const timer = setTimeout(() => onGoogleMapsReady(attach), 50);
+    return () => clearTimeout(timer);
+  }, [showForm]);
 
   const [exportingId, setExportingId] = useState(null);
 
@@ -290,12 +323,14 @@ export const AdminDealsSection = () => {
           <div style={{ marginBottom: 12 }}>
             <label style={labelStyle}>{t('admin.deals.fields.address', { defaultValue: 'Adresse' })}</label>
             <input
+              ref={addressRef}
               type="text"
               maxLength={500}
               value={form.address}
               onChange={e => setForm(p => ({ ...p, address: e.target.value }))}
               placeholder={t('admin.deals.fields.addressPlaceholder', { defaultValue: 'z.B. Hauptstraße 1, 1010 Wien' })}
               style={inputStyle}
+              autoComplete="off"
             />
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4 }}>
               {t('admin.deals.fields.addressHint', { defaultValue: 'Österreich-Adresse — wird automatisch in eine Karte auf der Deal-Seite umgewandelt.' })}
