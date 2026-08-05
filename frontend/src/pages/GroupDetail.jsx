@@ -14,6 +14,7 @@ import AvatarGateModal from '../components/AvatarGateModal';
 import { nextOccurrence } from '../utils/recurrence';
 import { shareLink } from '../utils/share';
 import { openCalendar } from '../utils/calendarExport';
+import { isNativeIOS } from '../utils/platform';
 import '../styles/group-detail.css';
 
 // Lazy-load: pulls Stripe SDK only when the owner opens the modal.
@@ -478,8 +479,9 @@ export const GroupDetail = () => {
   const filledSlots = members.slice(0, maxSlots);
   // Locked tile in the next free slot when the roster is Pro-gated and more
   // members exist than were returned — same rule as the Home card's 4th tile.
+  // Nie auf nativem iOS: kein Pro-Werbe-Lock ohne Kaufweg (Apple 3.1.1).
   const showGateSlot =
-    membersGated && (membersTotal ?? 0) > filledSlots.length && filledSlots.length < maxSlots;
+    !isNativeIOS() && membersGated && (membersTotal ?? 0) > filledSlots.length && filledSlots.length < maxSlots;
   const emptySlots = Math.max(0, maxSlots - filledSlots.length - (showGateSlot ? 1 : 0));
   // Recurring events show the *next* occurrence everywhere (header chip,
   // info row) so "Wann?" never reads as a date in the past.
@@ -681,7 +683,9 @@ export const GroupDetail = () => {
               type="button"
               className="gd-members-teaser"
               onClick={() =>
-                membersGated && teaserExtra > 0
+                // iOS: immer zur (server-seitig limitierten) Mitgliederliste
+                // statt zum Pro-Modal (Apple 3.1.1).
+                membersGated && teaserExtra > 0 && !isNativeIOS()
                   ? window.dispatchEvent(new Event('jamie:open-pro-modal'))
                   : navigate(`/group/${id}/members`)
               }

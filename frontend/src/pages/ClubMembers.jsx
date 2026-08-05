@@ -5,6 +5,7 @@ import { clubs, groups } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { UserName } from '../components/UserName';
+import { isNativeIOS } from '../utils/platform';
 import '../styles/club-detail.css';
 
 // Serves BOTH /club/:id/members and /group/:id/members — the list UI is
@@ -204,8 +205,10 @@ export const ClubMembers = () => {
           )}
 
           {/* Pro gate (groups only): the API returned just the first 3 of
-              total_count members. Locked row opens the global ProModal. */}
-          {!loading && gated && totalCount > members.length && (
+              total_count members. Locked row opens the global ProModal.
+              Nie auf nativem iOS — kein Pro-Upsell ohne Kaufweg (Apple 3.1.1);
+              dort endet die Liste einfach still nach den sichtbaren Einträgen. */}
+          {!loading && gated && totalCount > members.length && !isNativeIOS() && (
             <button
               className="cd-members-gated"
               onClick={() => window.dispatchEvent(new Event('jamie:open-pro-modal'))}

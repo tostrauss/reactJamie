@@ -656,7 +656,13 @@ function AppRoutes() {
   // Global Pro-modal trigger — fired by GroupCard's Pro lock and any other
   // component that needs to surface the upgrade sheet from deep in the tree.
   // Plain window event keeps the contract loose; no provider/context plumbing.
+  // NATIVE iOS: never opens (Tobi 2026-08-05, vor dem iOS-1.3-Build). Apple
+  // 3.1.1 — die App darf keinen Kauf bewerben, den sie in-app nicht erfüllen
+  // kann (Stripe ist auf iOS aus, StoreKit-IAP nicht gebaut). Die sichtbaren
+  // Pro-Locks sind auf iOS ebenfalls ausgeblendet; das hier ist die harte
+  // Garantie für jeden künftigen Trigger.
   useEffect(() => {
+    if (isNativeIOS()) return;
     const open = () => setShowProModal(true);
     window.addEventListener('jamie:open-pro-modal', open);
     return () => window.removeEventListener('jamie:open-pro-modal', open);

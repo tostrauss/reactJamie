@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { nextOccurrence } from '../utils/recurrence';
+import { isNativeIOS } from '../utils/platform';
 
 // Dispatched on every Pro-gate click (member-preview lock on group cards).
 // AppRoutes listens for this and opens <ProModal />. Using a window event
@@ -92,7 +93,9 @@ export const GroupCard = memo(({
   // members everyone is already visible, so a lock would imply hidden people
   // that don't exist (tester feedback 2026-06-11). Admins + Pro always see
   // all four real/empty tiles.
-  const showProGate = !isClub && !isPro && !isAdmin && (group.members_count || 0) > 3;
+  // Auf nativem iOS nie: der Lock bewirbt Pro, das dort nicht kaufbar ist
+  // (Apple 3.1.1) — die Karte zeigt stattdessen einfach 4 normale Tiles.
+  const showProGate = !isNativeIOS() && !isClub && !isPro && !isAdmin && (group.members_count || 0) > 3;
   // Tiles available for avatars/empties before the gate: 3 when gated, else 4.
   const realSlots    = showProGate ? 3 : 4;
   const visibleAvatars = isClub ? [] : memberAvatars.slice(0, realSlots);

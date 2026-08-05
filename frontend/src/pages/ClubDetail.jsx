@@ -11,6 +11,7 @@ import { shareLink } from '../utils/share';
 import { openCalendar } from '../utils/calendarExport';
 import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
 import { ALLOWED_COUNTRIES_LOWER } from '../utils/regions';
+import { isNativeIOS } from '../utils/platform';
 import '../styles/club-detail.css';
 
 const BoostModal = lazy(() => import('../components/BoostModal').then(m => ({ default: m.BoostModal })));
@@ -339,7 +340,8 @@ export const ClubDetail = () => {
   // yet again (Tina, 2026-07-22: "mache überall die Mitglieder liste wie bei
   // den Gruppen").
   const openMembers = () => {
-    if (membersGated) window.dispatchEvent(new Event('jamie:open-pro-modal'));
+    // iOS: immer zur (limitierten) Liste statt zum Pro-Modal (Apple 3.1.1).
+    if (membersGated && !isNativeIOS()) window.dispatchEvent(new Event('jamie:open-pro-modal'));
     else navigate(`/club/${id}/members`);
   };
 
