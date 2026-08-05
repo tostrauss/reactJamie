@@ -15,6 +15,7 @@ import {
   getTopClubs,
   getOnlineUsers,
   getGrowth,
+  getUserOrigins,
   getUserDetail,
 } from '../controllers/adminController.js';
 import { getFeedbackAdmin } from '../controllers/feedbackController.js';
@@ -46,6 +47,7 @@ router.get('/screen-time', getScreenTime);
 router.get('/top-clubs',   getTopClubs);
 router.get('/online-users', getOnlineUsers);
 router.get('/growth',      getGrowth);
+router.get('/user-origins', getUserOrigins);
 router.get('/feedback',    getFeedbackAdmin);
 router.get('/export/users',       exportUsers);
 router.get('/export/screens',     exportScreens);

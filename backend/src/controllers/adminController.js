@@ -320,6 +320,41 @@ export const getGrowth = async (req, res) => {
 };
 
 // ==========================================
+// USER ORIGINS — Länder-/Städte-Verteilung
+// ==========================================
+// "Im Dashboard → Statistik woher die User sind" (Tobi 2026-08-05, u. a. für
+// den 2M2M-Pitch). country = users.country (2-Buchstaben-Code, vom markt-
+// restriktiven Geocode beim Feed-Laden aufgelöst; NULL/leer = noch nicht
+// aufgelöst → als '??' gebuckelt). city = erster Teil der Freitext-Location
+// ("Wien, Österreich" → "Wien"), normalisiert über INITCAP.
+export const getUserOrigins = async (_req, res) => {
+  try {
+    const [countries, cities] = await Promise.all([
+      db.query(
+        `SELECT COALESCE(NULLIF(TRIM(country), ''), '??') AS country,
+                COUNT(*)::int AS users
+         FROM users
+         GROUP BY 1
+         ORDER BY users DESC`
+      ),
+      db.query(
+        `SELECT INITCAP(TRIM(SPLIT_PART(location, ',', 1))) AS city,
+                COUNT(*)::int AS users
+         FROM users
+         WHERE location IS NOT NULL AND TRIM(location) <> ''
+         GROUP BY 1
+         ORDER BY users DESC, city ASC
+         LIMIT 12`
+      ),
+    ]);
+    res.json({ countries: countries.rows, cities: cities.rows });
+  } catch (err) {
+    console.error('getUserOrigins error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
 // PENDING CLUBS (admin approval queue)
 // ==========================================
 export const getPendingClubs = async (_req, res) => {

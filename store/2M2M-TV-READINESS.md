@@ -71,3 +71,22 @@ und schützt Opfer-Postfächer unabhängig von Angreifer-IPs).
   dicht: Avatar-Gate sitzt in joinGroup/joinClub VOR der Private-Verzweigung —
   gilt für öffentliche Joins UND private Anfragen (403 requiresAvatar →
   AvatarGateModal). Einzige bewusste Ausnahme: direkte Owner-Einladungen.
+
+
+
+## Dashboard + iOS-Build (Tobi 05.08.) — Stand
+- ~~Statistik „woher die User sind"~~ ✅ gebaut: `GET /admin/user-origins`
+  (Länder aus `users.country` + Top-12-Städte aus der Profil-Location) +
+  neuer Block im Admin-Wachstum: Flaggen, Balken, Prozent — auch für den
+  2M2M-Pitch zitierfähig.
+- ~~Stripe für den iOS-Build deaktivieren~~ ✅ war für KAUF-Flächen schon
+  dicht (`purchasesEnabled()` = nur echter Browser; iOS zeigt weder Stripe
+  noch „Bald verfügbar"). NEU zusätzlich abgedreht: die **Pro-LOCKS** öffnen
+  auf nativem iOS nichts mehr (Apple 3.1.1 — kein Bewerben eines nicht
+  kaufbaren Abos): ProModal-Event wird auf iOS ignoriert + Lock-Kacheln/
+  Banner ausgeblendet (GroupCard, GroupDetail-Fotogitter & Members-Teaser,
+  ClubDetail, ClubMembers). Web/Android unverändert.
+- **Push Notifications aktiv** = die 4 `APNS_*`-Railway-Vars (Punkt 4 der
+  Morgen-Checkliste oben) — Code-seitig ist alles da (`useNativePush`
+  registriert beim App-Start, Web-Push läuft). Nach dem Setzen: App starten,
+  Log-Zeile „iOS push DISABLED" darf NICHT mehr erscheinen.

@@ -696,6 +696,10 @@ export const admin = {
   // Permanent daily growth rollup (DAU/MAU, retention cohorts, engagement).
   getGrowth: (days = 90) =>
     axiosInstance.get('/admin/growth', { params: { days } }),
+
+  // Länder-/Städte-Verteilung der Nutzer (Woher kommen die User).
+  getUserOrigins: () =>
+    axiosInstance.get('/admin/user-origins'),
   // In-app feedback list. Returns { feedback, total, limit, offset }.
   getFeedback: ({ limit = 50, offset = 0 } = {}) =>
     axiosInstance.get('/admin/feedback', { params: { limit, offset } }),

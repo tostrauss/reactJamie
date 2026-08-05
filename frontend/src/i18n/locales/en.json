@@ -7,7 +7,11 @@
     "later": "Later",
     "form": {
       "title": "Your feedback",
-      "cat": { "bug": "Bug", "idea": "Idea", "other": "Other" },
+      "cat": {
+        "bug": "Bug",
+        "idea": "Idea",
+        "other": "Other"
+      },
       "placeholder": "What could we do better? What's missing?",
       "send": "Send",
       "sending": "Sending…",
@@ -915,8 +919,18 @@
       "diverse": "Diverse"
     },
     "months": [
-      "January", "February", "March", "April", "May", "June",
-      "July", "August", "September", "October", "November", "December"
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
     ],
     "interestsCountFmt": "{{count}} selected",
     "spotify": {
@@ -1358,7 +1372,11 @@
   "createGroup": {
     "title": "Create group",
     "stepFmt": "{{current}}/3",
-    "stepsTitles": ["Details", "When & Where", "Preview"],
+    "stepsTitles": [
+      "Details",
+      "When & Where",
+      "Preview"
+    ],
     "next": "Next",
     "submit": "🚀 Create group",
     "submitting": "Creating...",
@@ -1777,7 +1795,11 @@
       "empty": "No feedback yet.",
       "anonymous": "Anonymous",
       "loadMoreFmt": "Load more ({{count}} remaining)",
-      "cat": { "bug": "Bug", "idea": "Idea", "other": "Other" }
+      "cat": {
+        "bug": "Bug",
+        "idea": "Idea",
+        "other": "Other"
+      }
     },
     "online": {
       "empty": "Nobody is online right now.",
@@ -1805,7 +1827,10 @@
       "legendMau": "MAU",
       "export": "Export CSV",
       "empty": "No growth data yet — the first rollup runs tonight (or on the next deploy).",
-      "note": "Active = opened the app or took an action (message, join, create, photo, friendship). Days in UTC. Behavioural data is opt-in."
+      "note": "Active = opened the app or took an action (message, join, create, photo, friendship). Days in UTC. Behavioural data is opt-in.",
+      "originsCountries": "Where users come from — countries",
+      "originsCities": "Top cities",
+      "originsUnknown": "Unknown"
     },
     "kpis": {
       "total": "Total",

@@ -174,12 +174,37 @@ function BarChart({ rows, dataKey, color = C_DAU }) {
 
 const RANGES = [[30, 'range30'], [90, 'range90'], [365, 'range365']];
 
+// 'AT' → 🇦🇹 via Regional-Indicator-Symbole; '??'/Ungültiges → 🌐
+const countryFlag = (cc) =>
+  /^[A-Za-z]{2}$/.test(cc || '')
+    ? String.fromCodePoint(...cc.toUpperCase().split('').map(c => 0x1F1E6 + c.charCodeAt(0) - 65))
+    : '🌐';
+
 export const AdminGrowthSection = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [days, setDays] = useState(90);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [unavailable, setUnavailable] = useState(false);
+  // "Woher kommen die User" (Tobi 2026-08-05) — einmalig geladen, unabhängig
+  // vom Zeitraum-Filter (Bestandszählung, keine Zeitreihe).
+  const [origins, setOrigins] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    admin.getUserOrigins()
+      .then(res => { if (!cancelled) setOrigins(res.data); })
+      .catch(() => {}); // Route fehlt (älteres Backend) → Block bleibt weg
+    return () => { cancelled = true; };
+  }, []);
+
+  // Ländername in der Admin-Sprache ("AT" → "Österreich"); Code als Fallback.
+  const regionNames = (() => {
+    try { return new Intl.DisplayNames([i18n.language || 'de'], { type: 'region' }); }
+    catch { return null; }
+  })();
+  const countryLabel = (cc) =>
+    cc === '??' ? t('admin.growth.originsUnknown') : (regionNames?.of(cc.toUpperCase()) || cc);
 
   useEffect(() => {
     let cancelled = false;
@@ -256,6 +281,46 @@ export const AdminGrowthSection = () => {
           <p style={{ fontSize: 11, color: INK_MUTED, marginTop: 12, lineHeight: 1.5 }}>{t('admin.growth.note')}</p>
         </>
       )}
+
+      {/* ── Woher kommen die User (Tobi 2026-08-05) ─────────────────────── */}
+      {origins && (origins.countries?.length || 0) > 0 && (() => {
+        const totalUsers = origins.countries.reduce((s, c) => s + c.users, 0);
+        const maxCountry = Math.max(...origins.countries.map(c => c.users), 1);
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 16 }}>
+            <div style={{ ...CARD, flex: '1 1 320px' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 10 }}>
+                {t('admin.growth.originsCountries')} <span style={{ color: INK_MUTED, fontWeight: 400 }}>({totalUsers})</span>
+              </div>
+              {origins.countries.map(c => (
+                <div key={c.country} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 16, width: 24 }}>{countryFlag(c.country)}</span>
+                  <span style={{ fontSize: 12, color: '#fff', width: 110, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {countryLabel(c.country)}
+                  </span>
+                  <div style={{ flex: 1, height: 8, background: 'rgba(255,255,255,0.08)', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ width: `${(c.users / maxCountry) * 100}%`, height: '100%', background: C_DAU, borderRadius: 4 }} />
+                  </div>
+                  <span style={{ fontSize: 12, color: '#fff', fontWeight: 700, width: 56, textAlign: 'right' }}>
+                    {c.users} <span style={{ color: INK_MUTED, fontWeight: 400 }}>({Math.round((c.users / totalUsers) * 100)}%)</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+            {(origins.cities?.length || 0) > 0 && (
+              <div style={{ ...CARD, flex: '1 1 240px' }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginBottom: 10 }}>{t('admin.growth.originsCities')}</div>
+                {origins.cities.map(c => (
+                  <div key={c.city} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.city}</span>
+                    <span style={{ fontSize: 12, color: INK_MUTED, fontWeight: 700 }}>{c.users}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 };

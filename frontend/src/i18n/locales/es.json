@@ -7,7 +7,11 @@
     "later": "Más tarde",
     "form": {
       "title": "Tu opinión",
-      "cat": { "bug": "Error", "idea": "Idea", "other": "Otro" },
+      "cat": {
+        "bug": "Error",
+        "idea": "Idea",
+        "other": "Otro"
+      },
       "placeholder": "¿Qué podemos mejorar? ¿Qué echas de menos?",
       "send": "Enviar",
       "sending": "Enviando…",
@@ -915,8 +919,18 @@
       "diverse": "No binario"
     },
     "months": [
-      "enero", "febrero", "marzo", "abril", "mayo", "junio",
-      "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+      "enero",
+      "febrero",
+      "marzo",
+      "abril",
+      "mayo",
+      "junio",
+      "julio",
+      "agosto",
+      "septiembre",
+      "octubre",
+      "noviembre",
+      "diciembre"
     ],
     "interestsCountFmt": "{{count}} seleccionados",
     "spotify": {
@@ -1358,7 +1372,11 @@
   "createGroup": {
     "title": "Crear grupo",
     "stepFmt": "{{current}}/3",
-    "stepsTitles": ["Detalles", "Cuándo y dónde", "Vista previa"],
+    "stepsTitles": [
+      "Detalles",
+      "Cuándo y dónde",
+      "Vista previa"
+    ],
     "next": "Continuar",
     "submit": "🚀 Crear grupo",
     "submitting": "Creando...",
@@ -1777,7 +1795,11 @@
       "empty": "Aún no se han recibido opiniones.",
       "anonymous": "Anónimo",
       "loadMoreFmt": "Cargar más ({{count}} más)",
-      "cat": { "bug": "Error", "idea": "Idea", "other": "Otro" }
+      "cat": {
+        "bug": "Error",
+        "idea": "Idea",
+        "other": "Otro"
+      }
     },
     "online": {
       "empty": "Nadie está en línea ahora mismo.",
@@ -1805,7 +1827,10 @@
       "legendMau": "MAU",
       "export": "Exportar CSV",
       "empty": "Aún no hay datos de crecimiento — el primer rollup se ejecuta esta noche (o en el próximo despliegue).",
-      "note": "Activo = app abierta o una acción (mensaje, unión, creación, foto, amistad). Días en UTC. Los datos de comportamiento son opt-in."
+      "note": "Activo = app abierta o una acción (mensaje, unión, creación, foto, amistad). Días en UTC. Los datos de comportamiento son opt-in.",
+      "originsCountries": "De dónde vienen los usuarios — países",
+      "originsCities": "Ciudades principales",
+      "originsUnknown": "Desconocido"
     },
     "kpis": {
       "total": "Total",

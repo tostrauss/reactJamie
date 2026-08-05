@@ -7,7 +7,11 @@
     "later": "Plus tard",
     "form": {
       "title": "Ton avis",
-      "cat": { "bug": "Bug", "idea": "Idée", "other": "Autre" },
+      "cat": {
+        "bug": "Bug",
+        "idea": "Idée",
+        "other": "Autre"
+      },
       "placeholder": "Que pouvons-nous améliorer ? Que te manque-t-il ?",
       "send": "Envoyer",
       "sending": "Envoi en cours…",
@@ -915,8 +919,18 @@
       "diverse": "Non-binaire"
     },
     "months": [
-      "janvier", "février", "mars", "avril", "mai", "juin",
-      "juillet", "août", "septembre", "octobre", "novembre", "décembre"
+      "janvier",
+      "février",
+      "mars",
+      "avril",
+      "mai",
+      "juin",
+      "juillet",
+      "août",
+      "septembre",
+      "octobre",
+      "novembre",
+      "décembre"
     ],
     "interestsCountFmt": "{{count}} sélectionné(s)",
     "spotify": {
@@ -1358,7 +1372,11 @@
   "createGroup": {
     "title": "Créer un groupe",
     "stepFmt": "{{current}}/3",
-    "stepsTitles": ["Détails", "Quand & où", "Aperçu"],
+    "stepsTitles": [
+      "Détails",
+      "Quand & où",
+      "Aperçu"
+    ],
     "next": "Continuer",
     "submit": "🚀 Créer le groupe",
     "submitting": "Création...",
@@ -1777,7 +1795,11 @@
       "empty": "Aucun avis reçu pour l'instant.",
       "anonymous": "Anonyme",
       "loadMoreFmt": "Charger plus ({{count}} de plus)",
-      "cat": { "bug": "Bug", "idea": "Idée", "other": "Autre" }
+      "cat": {
+        "bug": "Bug",
+        "idea": "Idée",
+        "other": "Autre"
+      }
     },
     "online": {
       "empty": "Personne n'est en ligne en ce moment.",
@@ -1805,7 +1827,10 @@
       "legendMau": "MAU",
       "export": "Exporter en CSV",
       "empty": "Pas encore de données de croissance — le premier rollup tourne cette nuit (ou au prochain déploiement).",
-      "note": "Actif = app ouverte ou une action (message, adhésion, création, photo, amitié). Jours en UTC. Les données comportementales sont opt-in."
+      "note": "Actif = app ouverte ou une action (message, adhésion, création, photo, amitié). Jours en UTC. Les données comportementales sont opt-in.",
+      "originsCountries": "D'où viennent les utilisateurs — pays",
+      "originsCities": "Top villes",
+      "originsUnknown": "Inconnu"
     },
     "kpis": {
       "total": "Total",

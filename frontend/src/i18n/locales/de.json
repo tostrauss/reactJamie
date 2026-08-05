@@ -7,7 +7,11 @@
     "later": "Später",
     "form": {
       "title": "Dein Feedback",
-      "cat": { "bug": "Fehler", "idea": "Idee", "other": "Sonstiges" },
+      "cat": {
+        "bug": "Fehler",
+        "idea": "Idee",
+        "other": "Sonstiges"
+      },
       "placeholder": "Was können wir besser machen? Was fehlt dir?",
       "send": "Senden",
       "sending": "Wird gesendet…",
@@ -915,8 +919,18 @@
       "diverse": "Divers"
     },
     "months": [
-      "Januar", "Februar", "März", "April", "Mai", "Juni",
-      "Juli", "August", "September", "Oktober", "November", "Dezember"
+      "Januar",
+      "Februar",
+      "März",
+      "April",
+      "Mai",
+      "Juni",
+      "Juli",
+      "August",
+      "September",
+      "Oktober",
+      "November",
+      "Dezember"
     ],
     "interestsCountFmt": "{{count}} ausgewählt",
     "spotify": {
@@ -1358,7 +1372,11 @@
   "createGroup": {
     "title": "Gruppe erstellen",
     "stepFmt": "{{current}}/3",
-    "stepsTitles": ["Details", "Wann & Wo", "Vorschau"],
+    "stepsTitles": [
+      "Details",
+      "Wann & Wo",
+      "Vorschau"
+    ],
     "next": "Weiter",
     "submit": "🚀 Gruppe erstellen",
     "submitting": "Erstelle...",
@@ -1777,7 +1795,11 @@
       "empty": "Noch kein Feedback eingegangen.",
       "anonymous": "Anonym",
       "loadMoreFmt": "Mehr laden ({{count}} weitere)",
-      "cat": { "bug": "Fehler", "idea": "Idee", "other": "Sonstiges" }
+      "cat": {
+        "bug": "Fehler",
+        "idea": "Idee",
+        "other": "Sonstiges"
+      }
     },
     "online": {
       "empty": "Gerade ist niemand online.",
@@ -1805,7 +1827,10 @@
       "legendMau": "MAU",
       "export": "CSV exportieren",
       "empty": "Noch keine Wachstumsdaten — der erste Rollup läuft heute Nacht (oder beim nächsten Deploy).",
-      "note": "Aktiv = App geöffnet oder eine Aktion (Nachricht, Beitritt, Erstellung, Foto, Freundschaft). Tage in UTC. Verhaltensdaten sind opt-in."
+      "note": "Aktiv = App geöffnet oder eine Aktion (Nachricht, Beitritt, Erstellung, Foto, Freundschaft). Tage in UTC. Verhaltensdaten sind opt-in.",
+      "originsCountries": "Woher kommen die User — Länder",
+      "originsCities": "Top-Städte",
+      "originsUnknown": "Unbekannt"
     },
     "kpis": {
       "total": "Gesamt",
