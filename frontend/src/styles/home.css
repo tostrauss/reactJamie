@@ -137,6 +137,19 @@
   border-radius: var(--radius-full);
 }
 
+/* Zahllose Variante: nur ein oranger Punkt = "etwas Neues/Offenes" (Chats-
+   und Anfragen-Reiter). Absolut oben-rechts, damit er das zentrierte Tab-
+   Layout + den aktiven Unterstrich nicht verschiebt (Tobi 2026-08-05). */
+.tab-dot {
+  position: absolute;
+  top: 7px;
+  right: 10px;
+  width: 9px;
+  height: 9px;
+  background: var(--accent-coral);
+  border-radius: 50%;
+}
+
 /* Page Title */
 .page-title {
   font-size: 28px;
