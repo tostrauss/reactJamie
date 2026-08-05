@@ -6,8 +6,8 @@
 // verified user looks identical across the app.
 //
 // Size via the `size` prop (px); colour via the --verified-fill CSS var (falls
-// back to the brand dark purple #231e43). Positioning/shadow come from the CSS
-// class the caller passes. Tuned by Tobi 2026-08-05: 11 scallops, r=2.5, #231e43.
+// back to #605679, the group date-chip colour). Positioning/shadow come from the
+// CSS class the caller passes. Tuned by Tobi 2026-08-05: 11 scallops, r=2.5, #605679.
 
 const SCALLOPS = 11;
 // Scallop centres sit on a circle of radius 7.5 in the 24×24 viewBox; a bump
@@ -30,7 +30,7 @@ export const VerifiedBadge = ({ size = 24, className = '', title = 'Verifiziert'
     role="img"
     aria-label={title}
   >
-    <g fill="var(--verified-fill, #231e43)">
+    <g fill="var(--verified-fill, #605679)">
       {BUMPS.map((b, i) => <circle key={i} cx={b.x} cy={b.y} r="2.5" />)}
       <circle cx="12" cy="12" r="7.6" />
     </g>

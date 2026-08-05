@@ -1269,7 +1269,9 @@
 .chat-filter-bubbles {
   display: flex;
   gap: 8px;
-  padding: 0 20px 12px;
+  /* etwas mehr Luft zwischen den Haupt-Reitern und den Filter-Bubbles
+     (Tobi 2026-08-05) — top 0 → 12px. */
+  padding: 12px 20px 12px;
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;

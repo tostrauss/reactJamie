@@ -640,9 +640,8 @@ export const ChatList = () => {
                 {/* Progress: session done vs. remaining — the "one more swipe"
                     loop Tina asked for. */}
                 <div className="requests-progress">
-                  <span className="requests-progress-label">
-                    {t('chat.list.requestsTab.remaining', { count: deck.length })}
-                  </span>
+                  {/* "X offen" removed (Tobi 2026-08-05) — the tab already
+                      carries the orange dot; keep only the session streak. */}
                   {sessionDone > 0 && (
                     <span className="requests-progress-done">🔥 {sessionDone}</span>
                   )}
@@ -755,16 +754,8 @@ export const ChatList = () => {
                     </div>
                   </div>
                   <div className="chat-manage-actions">
-                    {chat.is_private && chat.pendingRequests > 0 && (
-                      <button
-                        className="chat-owner-btn chat-owner-btn--requests"
-                        style={{ position: 'relative' }}
-                        onClick={(e) => { e.stopPropagation(); setParams('anfragen'); }}
-                      >
-                        {t('chat.list.ownerActions.requests')}
-                        <span className="chat-owner-req-badge">{chat.pendingRequests}</span>
-                      </button>
-                    )}
+                    {/* Anfragen-Shortcut hier entfernt (Tobi 2026-08-05):
+                        dafür gibt es den eigenen Anfragen-Reiter. */}
                     <button
                       className="chat-owner-btn chat-owner-btn--manage"
                       onClick={(e) => {
