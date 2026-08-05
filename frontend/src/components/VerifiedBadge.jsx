@@ -6,12 +6,12 @@
 // verified user looks identical across the app.
 //
 // Size via the `size` prop (px); colour via the --verified-fill CSS var (falls
-// back to the app's club purple #a855f7). Positioning/shadow come from the CSS
-// class the caller passes.
+// back to the brand dark purple #231e43). Positioning/shadow come from the CSS
+// class the caller passes. Tuned by Tobi 2026-08-05: 11 scallops, r=2.5, #231e43.
 
 const SCALLOPS = 11;
 // Scallop centres sit on a circle of radius 7.5 in the 24×24 viewBox; a bump
-// radius of 2.7 makes neighbours overlap slightly → a continuous scalloped edge
+// radius of 2.5 makes neighbours overlap slightly → a continuous scalloped edge
 // with no gaps. Computed once at module load (constant geometry).
 const BUMPS = Array.from({ length: SCALLOPS }, (_, i) => {
   const a = (i / SCALLOPS) * Math.PI * 2 - Math.PI / 2;
@@ -30,8 +30,8 @@ export const VerifiedBadge = ({ size = 24, className = '', title = 'Verifiziert'
     role="img"
     aria-label={title}
   >
-    <g fill="var(--verified-fill, #a855f7)">
-      {BUMPS.map((b, i) => <circle key={i} cx={b.x} cy={b.y} r="2.7" />)}
+    <g fill="var(--verified-fill, #231e43)">
+      {BUMPS.map((b, i) => <circle key={i} cx={b.x} cy={b.y} r="2.5" />)}
       <circle cx="12" cy="12" r="7.6" />
     </g>
     <polyline
