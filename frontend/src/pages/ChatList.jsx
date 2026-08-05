@@ -425,6 +425,10 @@ export const ChatList = () => {
   const clubsUnread  = sumUnread(c => c.type === 'club');
   const dmsUnread    = sumUnread(c => !!c.isDM);
   const unreadChats  = allChats.filter(c => !c.archived && (c.unread || 0) > 0).length;
+  // Chats-Reiter-Badge = Summe aller ungelesenen Nachrichten. Deckt sich
+  // bewusst mit dem Bottom-Nav-Chat-Badge (App.jsx unreadCount = dm+grp), damit
+  // beide dieselbe Zahl zeigen (Tobi 2026-08-05).
+  const totalUnread  = groupsUnread + clubsUnread + dmsUnread;
 
   const ownedEntities = groupChats.filter(c => c.isOwner);
 
@@ -530,13 +534,14 @@ export const ChatList = () => {
             onClick={() => setParams('chats', filter)}
           >
             {t('chat.list.mainTabs.chats')}
+            {totalUnread > 0 && <span className="tab-count">{totalUnread > 99 ? '99+' : totalUnread}</span>}
           </button>
           <button
             className={`tab ${activeTab === 'anfragen' ? 'active' : ''}`}
             onClick={() => setParams('anfragen')}
           >
             {t('chat.list.mainTabs.requests')}
-            {deck.length > 0 && <span className="tab-count">{deck.length}</span>}
+            {deck.length > 0 && <span className="tab-count">{deck.length > 99 ? '99+' : deck.length}</span>}
           </button>
           <button
             className={`tab ${activeTab === 'verwalten' ? 'active' : ''}`}
