@@ -446,6 +446,11 @@ const AuthRoute = ({ children }) => {
 // Bounding boxes live in utils/regions.js (shared with the create-location
 // country restriction).
 // ==========================================
+// Bump when the launch-market set changes: forces a ONE-TIME re-check of any
+// stale 'outside' decision cached under the old (smaller) market set. See the
+// self-heal in useGeoFence.
+const GEOFENCE_VERSION = '2';
+
 function isInRegion(lat, lng) {
   return REGION_BOUNDS.some(r =>
     lat >= r.latMin && lat <= r.latMax && lng >= r.lngMin && lng <= r.lngMax
@@ -471,6 +476,18 @@ function useGeoFence() {
     try { cached = safeStorage.getItem('jamie_region'); } catch { /* private mode */ }
     // Migrate old 'austria' value to 'allowed'
     if (cached === 'austria') return 'allowed';
+    // One-time self-heal after a launch-market expansion (AT → AT/DE/CH/IT/FR/
+    // ES): the gate caches the DECISION, not the coordinates, so a pre-expansion
+    // 'outside' would stick forever even though the visitor's country is now
+    // live — permanently waitlisting real users (Tina reports, Samsung A56,
+    // 2026-08-05). On a version bump, drop a stale 'outside' ONCE so it re-checks;
+    // a genuinely out-of-region user just gets re-gated + re-cached (no reprompt
+    // loop, since the version is then marked seen).
+    if (cached === 'outside' && safeStorage.getItem('jamie_geofence_v') !== GEOFENCE_VERSION) {
+      safeStorage.removeItem('jamie_region');
+      cached = null;
+    }
+    safeStorage.setItem('jamie_geofence_v', GEOFENCE_VERSION);
     return cached || 'unknown';
   });
 
@@ -498,7 +515,19 @@ function useGeoFence() {
     );
   }, [region]);
 
-  return region;
+  // "App öffnen" escape hatch (OutOfRegion footer): the visitor asserts they
+  // ARE in a launch market. Force 'allowed' in app state (lifts the gate with
+  // NO reload — works even where storage is denied) and best-effort persist so
+  // the next launch stays in. The old footer button was a dead end: it cleared
+  // sessionStorage while the decision lives in localStorage, so the reload just
+  // re-read 'outside' and showed the same gate (Tina-user, Samsung A56,
+  // 2026-08-05).
+  const allow = () => {
+    safeStorage.setItem('jamie_region', 'allowed');
+    setRegion('allowed');
+  };
+
+  return [region, allow];
 }
 
 // ==========================================
@@ -668,7 +697,7 @@ function AppRoutes() {
     return () => window.removeEventListener('jamie:open-pro-modal', open);
   }, []);
 
-  const region = useGeoFence();
+  const [region, allowRegion] = useGeoFence();
 
   if (showIntro) return <AppIntro onDone={() => setShowIntro(false)} />;
 
@@ -676,7 +705,7 @@ function AppRoutes() {
   if (region === 'outside') {
     return (
       <Suspense fallback={<PageLoader />}>
-        <OutOfRegion />
+        <OutOfRegion onEnter={allowRegion} />
       </Suspense>
     );
   }

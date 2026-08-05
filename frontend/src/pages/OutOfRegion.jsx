@@ -44,7 +44,7 @@ function useCountdown(target) {
   return time;
 }
 
-export default function OutOfRegion() {
+export default function OutOfRegion({ onEnter }) {
   const { t } = useTranslation();
   const [email, setEmail]                   = useState('');
   const [selectedCountry, setSelectedCountry] = useState(null);
@@ -183,7 +183,7 @@ export default function OutOfRegion() {
           {t('outOfRegion.footerPrefix')}{' '}
           <button
             className="oor-footer-link"
-            onClick={() => { sessionStorage.removeItem('jamie_region'); window.location.reload(); }}
+            onClick={() => onEnter?.()}
           >
             {t('outOfRegion.footerLink')}
           </button>
