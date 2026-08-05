@@ -851,10 +851,15 @@ export const SettingsPage = () => {
             onChange={(e) => switchLanguage(e.target.value)}
             aria-label={t('settings.app.language')}
             style={{
-              padding: '8px 12px',
+              // appearance:none → iOS respektiert width/box sicher (Tobi); eigener
+              // Chevron als data:-SVG (CSP imgSrc erlaubt data:, server.js).
+              WebkitAppearance: 'none',
+              appearance: 'none',
+              padding: '8px 30px 8px 12px',
               borderRadius: 10,
               border: '1.5px solid rgba(255,255,255,0.15)',
-              background: 'rgba(255,255,255,0.06)',
+              background: `rgba(255,255,255,0.06) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center`,
+              backgroundSize: '12px',
               color: '#fff',
               fontWeight: 700,
               fontSize: 13,
