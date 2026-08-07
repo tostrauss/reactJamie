@@ -288,6 +288,90 @@ describe('updateProfile birthday lock', () => {
   });
 });
 
+// ── updateProfile: image URL validation must accept our own relative URLs ────
+// Regression: production serves uploads through the same-origin "/media" proxy,
+// so avatar/photo/pinnwand URLs are ROOT-RELATIVE ("/media/uploads/x.webp").
+// A stricter absolute-http(s)-only check rejected them on save → users who
+// added a profile picture could not save their profile at all (real reports,
+// Naemi/Lorenz, 2026-08). Same-origin relative URLs must pass; external hosts
+// and protocol-relative "//host" must still be rejected.
+describe('updateProfile image URL validation', () => {
+  const isUpdate = (c) => /UPDATE users/.test(c[0]);
+  const ranUpdate = () => db.query.mock.calls.some(isUpdate);
+
+  // Save with an avatar and no birthday → 2 queries (UPDATE, return SELECT).
+  const saveAvatar = async (avatar_url) => {
+    db.query
+      .mockResolvedValueOnce({ rows: [] })          // UPDATE
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] }); // return SELECT
+    const res = makeRes();
+    await updateProfile({ userId: 1, body: { avatar_url } }, res, vi.fn());
+    return res;
+  };
+
+  it('accepts a same-origin /media proxy URL', async () => {
+    const res = await saveAvatar('/media/uploads/abc123.webp');
+    expect(res.status).not.toHaveBeenCalledWith(400);
+    expect(ranUpdate()).toBe(true);
+  });
+
+  it('accepts a legacy /uploads relative URL', async () => {
+    const res = await saveAvatar('/uploads/image-99.webp');
+    expect(res.status).not.toHaveBeenCalledWith(400);
+    expect(ranUpdate()).toBe(true);
+  });
+
+  it('still accepts an absolute https URL', async () => {
+    const res = await saveAvatar('https://app.jamie-app.com/media/uploads/abc.webp');
+    expect(res.status).not.toHaveBeenCalledWith(400);
+    expect(ranUpdate()).toBe(true);
+  });
+
+  it('rejects a protocol-relative //external host', async () => {
+    const res = await saveAvatar('//evil.example/x.jpg');
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(ranUpdate()).toBe(false);
+  });
+
+  it('rejects a javascript: payload', async () => {
+    const res = await saveAvatar('javascript:alert(1)//.jpg');
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(ranUpdate()).toBe(false);
+  });
+
+  it('rejects a relative path outside /media and /uploads', async () => {
+    const res = await saveAvatar('/etc/passwd');
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(ranUpdate()).toBe(false);
+  });
+});
+
+// ── updateProfile: location/country SQL (regression: Postgres 42P08) ─────────
+// The country-reset clause reused the bare untyped $2 placeholder in two SQL
+// contexts (the `location = $2` SET and `location IS DISTINCT FROM $2`), so
+// Postgres deduced conflicting types (varchar vs text) and aborted EVERY save
+// that carried a location key with 42P08 → generic 500. The edit page always
+// sends location, so every profile save from it failed. Both usages must carry
+// an explicit ::varchar cast. (Unit tests mock the DB and can't see the type
+// error itself — this pins the query shape so the cast can't be dropped again.)
+describe('updateProfile location/country param typing', () => {
+  it('casts $2 in both the SET and the country CASE (no bare $2 reuse)', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [] })           // UPDATE
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] }); // return SELECT
+    const res = makeRes();
+    await updateProfile({ userId: 1, body: { location: 'Wien' } }, res, vi.fn());
+    const update = db.query.mock.calls.find(c => /UPDATE users/.test(c[0]));
+    expect(update).toBeDefined();
+    const sql = update[0];
+    expect(sql).toMatch(/location = \$2::varchar/);
+    expect(sql).toMatch(/location IS DISTINCT FROM \$2::varchar/);
+    // The bare, type-ambiguous form must be gone.
+    expect(sql).not.toMatch(/DISTINCT FROM \$2 THEN/);
+    expect(res.status).not.toHaveBeenCalledWith(500);
+  });
+});
+
 // ── sendEmailCode: per-email throttle (2M2M TV-spike readiness) ─────────────
 // The per-IP registrationLimiter was raised for carrier-NAT bursts; the
 // anti-abuse load moved to this in-DB per-email layer (60s cooldown + 6/h).

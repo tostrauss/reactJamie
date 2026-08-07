@@ -13,6 +13,14 @@ import { checkTextSafety } from '../config/moderation.js';
 // enforcement dealController already applies to deal photos. Returns true if OK.
 const isSafeImageUrl = (u) => {
   if (typeof u !== 'string' || u.length > 1024) return false;
+  // Same-origin, root-relative path to our OWN upload routes. These are URLs the
+  // app itself mints: production serves uploads through the same-origin "/media"
+  // proxy (STORAGE_PUBLIC_URL can be "/media"), and the dev fallback writes to
+  // "/uploads/…". A single leading slash only — "//host" / "/\host" are
+  // protocol-relative (→ external origin) and must NOT count as same-origin.
+  // Without this, a relative avatar/photo URL (which still renders fine) was
+  // rejected on save → profiles with a picture could not be saved at all.
+  if (/^\/(?:media|uploads)\/[^/\\]/.test(u)) return true;
   try {
     const proto = new URL(u).protocol;
     return proto === 'http:' || proto === 'https:';
@@ -504,14 +512,19 @@ export const updateProfile = async (req, res) => {
     await db.query(
       `UPDATE users
        SET name = COALESCE($1, name),
-           location = ${hasLocation ? '$2' : 'COALESCE($2, location)'},
+           location = ${hasLocation ? '$2::varchar' : 'COALESCE($2::varchar, location)'},
            country = ${hasLocation
              // Column refs in SET read the OLD row, so this compares old vs new
              // location. Reset country whenever the city changes → the group
              // feed re-geocodes on next load. Without this a once-wrong country
              // (e.g. 'DE' for an Austrian town name) stuck forever, even after
              // the user corrected their profile city.
-             ? 'CASE WHEN location IS DISTINCT FROM $2 THEN NULL ELSE country END'
+             // $2 MUST carry an explicit ::varchar cast here AND in the SET
+             // above: reusing the bare untyped placeholder in two contexts made
+             // Postgres deduce conflicting types (varchar vs text) and abort the
+             // whole UPDATE with 42P08 → every profile save from the edit page
+             // 500'd ("Profil konnte nicht gespeichert werden").
+             ? 'CASE WHEN location IS DISTINCT FROM $2::varchar THEN NULL ELSE country END'
              : 'country'},
            bio = ${hasBio ? '$3' : 'COALESCE($3, bio)'},
            gender = COALESCE($4, gender),
