@@ -135,12 +135,6 @@ const runStartupMigrations = async () => {
               WHEN check_violation THEN NULL;
     END $$`));
 
-  // Each user owns exactly one referral code. Without this unique index
-  // an ON CONFLICT DO NOTHING insert path can silently produce multiple
-  // codes per user, splitting their referral count across rows.
-  await migrate('referral_codes user_id unique', () =>
-    db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_referral_codes_user_unique ON referral_codes(user_id)`));
-
   // Country votes ledger so we can deduplicate per (email, country).
   // Without this, joinWaitlist double-counts on every re-submission.
   await migrate('waitlist_votes ledger', async () => {
@@ -427,16 +421,6 @@ const runStartupMigrations = async () => {
   // atomically (replaces the old once-ever UNIQUE(deal_id, user_id)).
   await migrate('deals.redeem_interval', () =>
     db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS redeem_interval TEXT NOT NULL DEFAULT 'once'`));
-  await migrate('deal_redemptions.period_key', async () => {
-    await db.query(`ALTER TABLE deal_redemptions ADD COLUMN IF NOT EXISTS period_key TEXT NOT NULL DEFAULT 'once'`);
-    // Drop the once-ever uniqueness (auto-named by Postgres) and replace it with
-    // a per-period one. Existing rows all carry period_key='once', so they map
-    // 1:1 onto the new index without conflict.
-    await db.query(`ALTER TABLE deal_redemptions DROP CONSTRAINT IF EXISTS deal_redemptions_deal_id_user_id_key`);
-    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS deal_redemptions_period_uq
-                    ON deal_redemptions (deal_id, user_id, period_key)`);
-  });
-
   // Weekday-restricted deals: a bar can limit redemption to specific weekdays
   // (e.g. "nur donnerstags"). redeem_days holds ISO weekday numbers (1=Mon …
   // 7=Sun); NULL/empty = any day. Redemption is gated server-side; the client
@@ -481,6 +465,12 @@ const runStartupMigrations = async () => {
   await migrate('idx_referral_codes', async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_referral_codes_user ON referral_codes(user_id)`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_referral_codes_code ON referral_codes(code)`);
+    // Each user owns exactly one referral code — a UNIQUE index so an
+    // ON CONFLICT DO NOTHING path can't silently split a user's count across
+    // rows. MUST run after the table above exists: it was previously ordered
+    // ~330 lines earlier (before the CREATE TABLE) so it never applied on a
+    // fresh DB. Idempotent, so it's a no-op on the live DB where it already holds.
+    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_referral_codes_user_unique ON referral_codes(user_id)`);
   });
   await migrate('boost_credits', () => db.query(`
     CREATE TABLE IF NOT EXISTS boost_credits (
@@ -807,6 +797,20 @@ const runStartupMigrations = async () => {
   await migrate('idx_deal_redemptions', () => db.query(
     `CREATE INDEX IF NOT EXISTS deal_redemptions_user_idx ON deal_redemptions (user_id, redeemed_at DESC)`
   ));
+  // Per-period redemption uniqueness. MUST run after the deal_redemptions table
+  // above exists: it was previously ordered ~370 lines earlier (before the
+  // CREATE TABLE), so on a freshly-provisioned DB the period_key column was
+  // never added and redeemDeal's INSERT ... (deal_id,user_id,period_key) 500'd.
+  // Idempotent, so it's a no-op on the live DB where the column already exists.
+  await migrate('deal_redemptions.period_key', async () => {
+    await db.query(`ALTER TABLE deal_redemptions ADD COLUMN IF NOT EXISTS period_key TEXT NOT NULL DEFAULT 'once'`);
+    // Drop the once-ever uniqueness (auto-named by Postgres) and replace it with
+    // a per-period one. Existing rows all carry period_key='once', so they map
+    // 1:1 onto the new index without conflict.
+    await db.query(`ALTER TABLE deal_redemptions DROP CONSTRAINT IF EXISTS deal_redemptions_deal_id_user_id_key`);
+    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS deal_redemptions_period_uq
+                    ON deal_redemptions (deal_id, user_id, period_key)`);
+  });
 
   // ── Coming-soon interest signals ──────────────────────────────────────────
   // "Benachrichtige mich" on not-yet-launched features (Pro / buyable Boosts).
