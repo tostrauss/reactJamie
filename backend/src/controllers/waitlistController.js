@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { getClientIp } from '../utils/clientIp.js';
 
 // POST /api/waitlist  — { email, country }
 export const joinWaitlist = async (req, res) => {
@@ -21,7 +22,7 @@ export const joinWaitlist = async (req, res) => {
 
   const normalizedEmail = email.toLowerCase().trim();
   const normalizedCountry = country ? country.toUpperCase() : null;
-  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip;
+  const ip = getClientIp(req);
 
   try {
     // Upsert email — if they re-submit, update their country choice

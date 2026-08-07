@@ -1,4 +1,5 @@
 import geoip from 'geoip-lite';
+import { getClientIp } from '../utils/clientIp.js';
 
 // Countries where JAMIE is live. Extend as new markets open.
 // 2026-07-23: IT added (store rollout for Italy follows once the Italian
@@ -26,7 +27,11 @@ export const geofenceRegistration = (req, res, next) => {
   const clientPlatform = (req.get('x-client-platform') || '').toLowerCase();
   if (clientPlatform === 'ios' || clientPlatform === 'android') return next();
 
-  const ip = req.ip;
+  // Use the REAL client IP (leftmost X-Forwarded-For), not req.ip — on Railway
+  // req.ip resolves to the edge (e.g. Amsterdam → geoip 'NL'), which wrongly
+  // 403'd every web signup from inside the launch markets. Matches the client-IP
+  // resolution the waitlist controller already relies on.
+  const ip = getClientIp(req);
   // Loopback / private ranges → allow (dev/staging behind a proxy)
   if (!ip || ip === '::1' || ip.startsWith('127.') || ip.startsWith('10.') || ip.startsWith('192.168.') ||
       /^172\.(1[6-9]|2\d|3[01])\./.test(ip)) {
