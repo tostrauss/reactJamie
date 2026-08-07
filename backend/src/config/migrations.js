@@ -373,6 +373,12 @@ const runStartupMigrations = async () => {
               WHEN check_violation THEN NULL;
     END $$`);
   });
+  // An event that never happened: the post-event review prompt asks members
+  // "who was there" — for a no-show event there's no honest answer, and forcing
+  // it pollutes attendance data. The owner marking the event "did not take
+  // place" flips this flag; getPendingReviews then stops prompting anyone for it.
+  await migrate('groups.did_not_take_place', () =>
+    db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS did_not_take_place BOOLEAN NOT NULL DEFAULT FALSE`));
   await migrate('friendships.expires_at', async () => {
     await db.query(`ALTER TABLE friendships ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_friendships_expires ON friendships(expires_at) WHERE status = 'pending'`);

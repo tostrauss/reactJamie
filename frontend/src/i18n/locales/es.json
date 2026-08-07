@@ -1209,6 +1209,7 @@
   "eventReview": {
     "counterFmt": "Valoración del evento {{current}}/{{total}}",
     "skip": "Omitir",
+    "notHeld": "No se realizó",
     "prompt": "¿Quién estuvo? Tus respuestas son anónimas.",
     "submitError": "Error al enviar. Inténtalo de nuevo.",
     "sending": "Enviando...",

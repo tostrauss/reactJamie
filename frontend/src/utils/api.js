@@ -741,6 +741,9 @@ export const reviews = {
   submit: (group_id, attendances) => axiosInstance.post('/reviews', { group_id, attendances }),
   // "Skip" — snooze the auto-popup without writing a review (re-openable later).
   dismiss: (group_id) => axiosInstance.post('/reviews/dismiss', { group_id }),
+  // "Didn't take place" — close the review without marking attendance (nobody's
+  // badge is affected). If the caller owns the event it stops prompting everyone.
+  notHeld: (group_id) => axiosInstance.post('/reviews', { group_id, not_held: true }),
   // Manual re-open: fetch the review payload for one past event (404 if not eligible).
   getForGroup: (group_id) => axiosInstance.get(`/reviews/for-group/${group_id}`),
 };

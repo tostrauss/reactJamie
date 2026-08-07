@@ -1209,6 +1209,7 @@
   "eventReview": {
     "counterFmt": "Event-Feedback {{current}}/{{total}}",
     "skip": "Überspringen",
+    "notHeld": "Hat nicht stattgefunden",
     "prompt": "Wer war dabei? Deine Angaben sind anonym.",
     "submitError": "Senden fehlgeschlagen. Bitte erneut versuchen.",
     "sending": "Sende...",

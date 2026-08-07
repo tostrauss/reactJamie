@@ -62,7 +62,7 @@ const suite = SMOKE_URL ? describe : describe.skip;
 suite('write endpoints against real Postgres', () => {
   let db, C = {};
   let A, B, D;          // user ids: A = owner/admin/actor, B = friend/member, D = block target
-  let groupId, pastGroupId, dealId, friendReqId;
+  let groupId, pastGroupId, pastGroup2Id, dealId, friendReqId;
 
   beforeAll(async () => {
     db = (await import('../../src/config/database.js')).default;
@@ -95,6 +95,16 @@ suite('write endpoints against real Postgres', () => {
     await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner'),($1,$3,'member')`,
       [pastGroupId, A, B]);
 
+    // A second past group for the "did not take place" flow (A owner, B member).
+    const pg2 = await db.query(
+      `INSERT INTO groups (name, type, date, owner_id, category, location, max_members)
+       VALUES ('No-Show Event','group', NOW() - INTERVAL '2 days', $1, 'Sport', 'Wien', 10) RETURNING id`,
+      [A]
+    );
+    pastGroup2Id = pg2.rows[0].id;
+    await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner'),($1,$3,'member')`,
+      [pastGroup2Id, A, B]);
+
     // Boost credits so applyBoost exercises the INSERT path (not the 402 branch).
     await db.query(`INSERT INTO boost_credits (user_id, credits) VALUES ($1, 5)`, [A]);
 
@@ -111,7 +121,7 @@ suite('write endpoints against real Postgres', () => {
       createGroup: g.createGroup, updateGroup: g.updateGroup, createClub: c.createClub,
       sendFriendRequest: f.sendFriendRequest, respondFriendRequest: f.respondFriendRequest,
       removeFriend: f.removeFriend, blockUser: f.blockUser, unblockUser: f.unblockUser,
-      sendDM: dm.sendDM, submitReview: rv.submitReview,
+      sendDM: dm.sendDM, submitReview: rv.submitReview, getPendingReviews: rv.getPendingReviews,
       createDeal: dl.createDeal, redeemDeal: dl.redeemDeal, applyBoost: bo.applyBoost,
     };
   }, 90000);
@@ -179,6 +189,19 @@ suite('write endpoints against real Postgres', () => {
   it('submitReview marks attendance', async () => {
     ok(await call(C.submitReview, { userId: A, body: {
       group_id: pastGroupId, attendances: [{ user_id: B, was_present: true }] } }));
+  });
+  it('submitReview not_held (owner) flags the event + writes no attendance', async () => {
+    ok(await call(C.submitReview, { userId: A, body: { group_id: pastGroup2Id, not_held: true } }));
+    const flag = await db.query('SELECT did_not_take_place FROM groups WHERE id=$1', [pastGroup2Id]);
+    expect(flag.rows[0].did_not_take_place).toBe(true);
+    // Only the reviewer sentinel — no attendance rows for other members.
+    const rows = await db.query('SELECT reviewed_user_id, was_present FROM event_reviews WHERE group_id=$1', [pastGroup2Id]);
+    expect(rows.rows).toEqual([{ reviewed_user_id: A, was_present: false }]);
+  });
+  it('getPendingReviews skips a not-held event', async () => {
+    const res = await call(C.getPendingReviews, { userId: B });
+    ok(res);
+    expect((res.body || []).some(r => r.group_id === pastGroup2Id)).toBe(false);
   });
 
   // ── deals (create by admin A, redeem by B) ───────────────────────────────

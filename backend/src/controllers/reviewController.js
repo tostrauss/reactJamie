@@ -43,6 +43,7 @@ export const getPendingReviews = async (req, res) => {
        JOIN group_members all_gm ON all_gm.group_id = g.id
        JOIN users u ON u.id = all_gm.user_id
        WHERE g.type = 'group'
+         AND g.did_not_take_place = FALSE
          AND g.date IS NOT NULL
          -- "Past" = the event's DAY is over. Date-only events store at midnight,
          -- so the old "date + 6h < NOW()" surfaced the review at 06:00 ON the
@@ -74,18 +75,21 @@ export const getPendingReviews = async (req, res) => {
 // Body: { group_id, attendances: [{ user_id, was_present }] }
 // ==========================================
 export const submitReview = async (req, res) => {
-  const { group_id, attendances } = req.body;
-  if (!group_id || !Array.isArray(attendances)) {
+  // not_held: the event never happened. There's no honest attendance to record,
+  // so skip the whole "who was there" step — just close the prompt (sentinel)
+  // and, when the OWNER reports it, mark the event so nobody else is nagged.
+  const { group_id, attendances, not_held } = req.body;
+  if (!group_id || (!not_held && !Array.isArray(attendances))) {
     return res.status(400).json({ error: 'group_id and attendances[] required' });
   }
-  if (attendances.length > 100) {
+  if (Array.isArray(attendances) && attendances.length > 100) {
     return res.status(400).json({ error: 'Zu viele Teilnehmer in einer Anfrage' });
   }
 
   try {
-    // Verify reviewer was a member AND fetch the event date in one go.
+    // Verify reviewer was a member AND fetch the event date + owner in one go.
     const memberCheck = await db.query(
-      `SELECT g.date
+      `SELECT g.date, g.owner_id
        FROM group_members gm
        JOIN groups g ON g.id = gm.group_id
        WHERE gm.group_id = $1 AND gm.user_id = $2`,
@@ -110,6 +114,29 @@ export const submitReview = async (req, res) => {
     );
     if (dupCheck.rows.length) {
       return res.status(409).json({ error: 'Bereits bewertet' });
+    }
+
+    // "Event didn't take place": close this reviewer's prompt with the sentinel
+    // (no attendance rows → no one's trusted_count is touched). If the reporter
+    // is the owner, flag the whole event so getPendingReviews stops prompting
+    // every other member too.
+    if (not_held) {
+      const isOwner = Number(memberCheck.rows[0].owner_id) === Number(req.userId);
+      await withTransaction(async (client) => {
+        await client.query(
+          `INSERT INTO event_reviews (group_id, reviewer_id, reviewed_user_id, was_present)
+           VALUES ($1, $2, $2, FALSE) ON CONFLICT DO NOTHING`,
+          [group_id, req.userId]
+        );
+        await client.query(
+          `DELETE FROM event_review_dismissals WHERE group_id = $1 AND user_id = $2`,
+          [group_id, req.userId]
+        );
+        if (isOwner) {
+          await client.query(`UPDATE groups SET did_not_take_place = TRUE WHERE id = $1`, [group_id]);
+        }
+      });
+      return res.json({ success: true, not_held: true });
     }
 
 

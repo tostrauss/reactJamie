@@ -52,6 +52,22 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
     advance();
   };
 
+  const handleNotHeld = async () => {
+    // The event never happened — there's no attendance to mark, so close the
+    // review without touching anyone's badge. (Owner reports also stop the
+    // prompt for every other member.)
+    setSubmitting(true);
+    setSubmitError(false);
+    try {
+      await reviews.notHeld(current.group_id);
+      advance();
+    } catch (err) {
+      setSubmitError(true);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const advance = () => {
     setAttendances({});
     if (isLast) {
@@ -186,6 +202,21 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
           }}
         >
           {submitting ? t('eventReview.sending') : submitError ? t('eventReview.retry') : isLast ? t('eventReview.done') : t('eventReview.next')}
+        </button>
+
+        {/* "Didn't take place" — for a no-show event, close the review without
+            marking attendance so nobody's badge is affected (Tina 2026-08-07). */}
+        <button
+          onClick={handleNotHeld}
+          disabled={submitting}
+          style={{
+            width: '100%', padding: 12, marginTop: 10, borderRadius: 14,
+            background: 'transparent', color: 'rgba(255,255,255,0.5)',
+            fontSize: 14, fontWeight: 600, border: 'none',
+            cursor: 'pointer', opacity: submitting ? 0.6 : 1,
+          }}
+        >
+          {t('eventReview.notHeld')}
         </button>
       </div>
     </div>
