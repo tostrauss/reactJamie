@@ -13,6 +13,7 @@ import { map as mapApi } from '../utils/api';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { captureException } from '../utils/sentry';
 
 // Must be a stable reference — recreating it triggers a full Maps reload
 const LIBRARIES = [];
@@ -119,6 +120,7 @@ export default function MapView({ typeFilter }) {
   const [pins,             setPins]            = useState([]);
   const [loading,          setLoading]         = useState(true);
   const [mapReady,         setMapReady]        = useState(false);
+  const [authFailed,       setAuthFailed]      = useState(false);
   const [selectedPin,      setSelectedPin]     = useState(null);
   const [selectedDate,     setSelectedDate]    = useState(null); // null | 'heute' | 'morgen'
   const [selectedCategory, setSelectedCategory] = useState(() => {
@@ -150,6 +152,32 @@ export default function MapView({ typeFilter }) {
       iconCache.current[key] = makeMarkerIcon(emoji, active);
     }
     return iconCache.current[key];
+  }, []);
+
+  // ── Catch Google's runtime key rejection ──────────────────────
+  // Google calls window.gm_authFailure when it rejects the key at runtime —
+  // billing disabled, OR the current origin's referrer isn't in the key's
+  // HTTP-referrer allowlist (notably the native app, whose origin can be
+  // capacitor://app.jamie-app.com). In that state Google renders a darkened
+  // "For development purposes only" watermark map instead of the real one.
+  // useLoadScript's loadError does NOT surface this (it only catches
+  // script-download failures), so it degraded silently with zero telemetry —
+  // we only learned of it from a user screenshot (2026-08-09). Hook the global
+  // callback to log it to Sentry and swap in the clean fallback UI.
+  useEffect(() => {
+    const prev = window.gm_authFailure;
+    window.gm_authFailure = () => {
+      setAuthFailed(true);
+      captureException(
+        new Error('Google Maps gm_authFailure — key rejected (billing/referrer/invalid)'),
+        { tags: { area: 'maps' }, extra: { origin: window.location.origin } }
+      );
+      console.error('[MapView] gm_authFailure — Google rejected the Maps key. '
+        + 'Check billing + the key\'s HTTP-referrer allowlist for origin: '
+        + window.location.origin);
+      if (typeof prev === 'function') prev();
+    };
+    return () => { window.gm_authFailure = prev; };
   }, []);
 
   // ── Fetch pins ────────────────────────────────────────────────
@@ -309,7 +337,7 @@ export default function MapView({ typeFilter }) {
     );
   };
 
-  if (loadError) {
+  if (loadError || authFailed) {
     return (
       <div className="map-container">
         <div className="map-load-error">

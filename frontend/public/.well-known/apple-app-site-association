@@ -6,7 +6,10 @@
         "appIDs": ["3FMA7660T8.com.jamie-app.app"],
         "components": [
           { "/": "/reset-password*" },
-          { "/": "/verify-email*" }
+          { "/": "/verify-email*" },
+          { "/": "/club/*" },
+          { "/": "/group/*" },
+          { "/": "/user/*" }
         ]
       }
     ]
