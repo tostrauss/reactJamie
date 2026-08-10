@@ -25,6 +25,26 @@ const COUNTRY_BOUNDS = {
   IT: { latMin: 35.49, latMax: 47.09, lngMin: 6.62, lngMax: 18.52 },
 };
 
+// Background one-shot resolution of users.country from the profile city.
+// Deduped per user so a burst of feed loads while unresolved fires ONE
+// Nominatim call, and guarded with `country IS NULL` so a concurrent
+// profile-save that already set a country is never clobbered by a stale
+// geocode result. Never awaited by request handlers — see getGroups.
+const countryResolveInFlight = new Set();
+function resolveCountryInBackground(userId, location) {
+  if (countryResolveInFlight.has(userId)) return;
+  countryResolveInFlight.add(userId);
+  geocodeAllowedRegion(location)
+    .then((geo) => {
+      const cc = geo?.countryCode ? geo.countryCode.toUpperCase() : null;
+      if (cc) {
+        return db.query('UPDATE users SET country = $1 WHERE id = $2 AND country IS NULL', [cc, userId]);
+      }
+    })
+    .catch(() => {})
+    .finally(() => countryResolveInFlight.delete(userId));
+}
+
 // Anti-churn cap: a user may join any given group at most this many times
 // (counted across leaves via group_join_counts) to stop join/leave spam.
 // Groups are more casual/short-lived than clubs, so the cap is a bit higher.
@@ -419,13 +439,15 @@ export const getGroups = async (req, res) => {
     // DE box + coordinate-less groups ("sieht nur noch 1 Gruppe", Tina
     // 2026-08-02). Out-of-market cities now resolve to null → country stays
     // NULL → the user sees everything, same as before.
+    // NEVER awaited (audit 2026-08-10): this branch fires on the FIRST feed
+    // load of every new user, so awaiting put a rate-limited third party
+    // (Nominatim: 1 req/s policy, 5s timeout) into the critical path of
+    // exactly the first-impression request — a signup wave would stall or get
+    // the egress IP banned. Resolve in the background; THIS request serves
+    // the unfiltered feed (the documented fallback for unresolved locations),
+    // the next one reads the persisted users.country.
     if (req.userId && !callerCountry && callerLocation) {
-      const geo = await geocodeAllowedRegion(callerLocation);
-      const cc = geo?.countryCode ? geo.countryCode.toUpperCase() : null;
-      if (cc) {
-        callerCountry = cc;
-        db.query('UPDATE users SET country = $1 WHERE id = $2', [cc, req.userId]).catch(() => {});
-      }
+      resolveCountryInBackground(req.userId, callerLocation);
     }
     const regionBox = (callerCountry && COUNTRY_BOUNDS[callerCountry]) || null;
 

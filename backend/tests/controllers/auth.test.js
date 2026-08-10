@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import bcrypt from 'bcryptjs';
+import bcrypt from '@node-rs/bcrypt';
 
 process.env.JWT_SECRET = 'test-secret-key';
 process.env.NODE_ENV = 'test';

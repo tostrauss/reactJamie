@@ -45,6 +45,11 @@ RUN mkdir -p uploads
 
 ENV PORT=5000
 ENV NODE_ENV=production
+# bcrypt (@node-rs) hashes on the libuv threadpool; the default of 4 threads
+# would queue logins behind each other under signup load. 8 matches the
+# auth-burst headroom we want for TV-spike nights (a Railway env var of the
+# same name overrides this if set).
+ENV UV_THREADPOOL_SIZE=8
 
 EXPOSE 5000
 CMD ["node", "src/server.js"]

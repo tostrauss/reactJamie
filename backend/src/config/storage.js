@@ -74,6 +74,26 @@ export const uploadToCloud = async (buffer, mimetype, originalname) => {
 };
 
 /**
+ * Put a buffer at an EXPLICIT key (derived variants like thumbnails — unlike
+ * uploadToCloud, which mints a fresh UUID key). Immutable cache headers: the
+ * variant is derived from an immutable original and never changes either.
+ */
+export const putObjectToCloud = async (key, buffer, mimetype) => {
+  if (!isCloudStorageEnabled()) {
+    throw new Error('Cloud storage is not configured — set STORAGE_* env vars');
+  }
+  await getS3Client().send(
+    new PutObjectCommand({
+      Bucket: process.env.STORAGE_BUCKET,
+      Key: key,
+      Body: buffer,
+      ContentType: mimetype,
+      CacheControl: 'public, max-age=31536000, immutable',
+    })
+  );
+};
+
+/**
  * Fetch an object from the bucket (used by the /media proxy route).
  * Returns the raw SDK response: `.Body` is a Node Readable stream,
  * plus ContentType / ContentLength / ETag passthrough metadata.

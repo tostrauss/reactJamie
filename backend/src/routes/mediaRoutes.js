@@ -1,5 +1,6 @@
 import express from 'express';
-import { getObjectFromCloud, isCloudStorageEnabled } from '../config/storage.js';
+import { getObjectFromCloud, putObjectToCloud, isCloudStorageEnabled } from '../config/storage.js';
+import { generateThumbnail } from '../config/imageProcessor.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // /media — same-origin image proxy in front of the R2 bucket.
@@ -19,9 +20,18 @@ import { getObjectFromCloud, isCloudStorageEnabled } from '../config/storage.js'
 // mints URLs pointing here; the startup rewrite migration (server.js) moves
 // the stored URLs over.
 //
+// ?size=thumb (audit 2026-08-10): list/card views were pulling the full
+// 1600px/100-300KB WebP where ~15KB does — the single biggest egress
+// multiplier on a cold-cache signup wave. A thumb request serves the derived
+// key uploads/thumbs/<file>; on a miss the variant is generated ONCE from the
+// original (sharp, on the threadpool), served, and written back to R2 so
+// every image — including all pre-existing ones — self-migrates on first
+// request. GIFs and oversized originals fall back to the full object.
+//
 // Load profile: objects are UUID-named and never overwritten, so responses are
 // immutable — the browser caches each image for a year and re-requests are
-// rare. The instance streams each object through without buffering it fully.
+// rare. The instance streams each object through without buffering it fully
+// (thumbnail generation buffers the one original, bounded below).
 // If image traffic ever becomes a real cost, the escape hatch is the proper
 // R2 custom domain after the planned IONOS→Cloudflare DNS move.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -33,6 +43,68 @@ const router = express.Router();
 // is a flat key directly under uploads/.
 const SAFE_FILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(webp|jpe?g|png|gif)$/i;
 
+// Don't buffer originals beyond this for thumbnailing (animated GIFs pass
+// through anyway; processed uploads are ≤ ~400 KB).
+const THUMB_SOURCE_MAX_BYTES = 5 * 1024 * 1024;
+
+// One concurrent generation per file: N simultaneous cold requests for the
+// same image (a fresh feed full of viewers) share a single resize.
+const thumbInFlight = new Map(); // file → Promise<{buffer, mimetype} | null>
+
+const streamObject = (res, obj) => {
+  res.setHeader('Content-Type', obj.ContentType || 'application/octet-stream');
+  if (obj.ContentLength != null) res.setHeader('Content-Length', obj.ContentLength);
+  if (obj.ETag) res.setHeader('ETag', obj.ETag);
+  // Objects are content-addressed by UUID and never overwritten → immutable.
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+
+  obj.Body.on('error', (err) => {
+    console.error('[media] stream error:', err.message);
+    res.destroy();
+  });
+  // If the client disconnects mid-stream, stop pulling from R2.
+  res.on('close', () => obj.Body.destroy?.());
+  obj.Body.pipe(res);
+};
+
+const isMissing = (err) =>
+  err?.name === 'NoSuchKey' || err?.$metadata?.httpStatusCode === 404;
+
+const bufferBody = async (body) => {
+  const chunks = [];
+  for await (const c of body) chunks.push(c);
+  return Buffer.concat(chunks);
+};
+
+// Generate (or join the in-flight generation of) the thumb for `file`.
+// Resolves null when the original shouldn't be thumbed (GIF, too big) —
+// the caller then serves the full object. Writes the variant back to R2
+// fire-and-forget so the next request hits the derived key directly.
+const getOrCreateThumb = (file, thumbKey) => {
+  let p = thumbInFlight.get(file);
+  if (p) return p;
+  p = (async () => {
+    const orig = await getObjectFromCloud(`uploads/${file}`);
+    if (
+      (orig.ContentLength ?? 0) > THUMB_SOURCE_MAX_BYTES ||
+      orig.ContentType === 'image/gif'
+    ) {
+      orig.Body.destroy?.();
+      return null;
+    }
+    const buf = await bufferBody(orig.Body);
+    const thumb = await generateThumbnail(buf, orig.ContentType || 'image/webp');
+    if (!thumb) return null;
+    putObjectToCloud(thumbKey, thumb.buffer, thumb.mimetype).catch((err) => {
+      console.error('[media] thumb write-back failed:', err?.message);
+    });
+    return { buffer: thumb.buffer, mimetype: thumb.mimetype };
+  })();
+  thumbInFlight.set(file, p);
+  p.finally(() => thumbInFlight.delete(file));
+  return p;
+};
+
 router.get('/uploads/:file', async (req, res) => {
   const { file } = req.params;
   if (!SAFE_FILE.test(file) || file.includes('..')) {
@@ -43,24 +115,28 @@ router.get('/uploads/:file', async (req, res) => {
     return res.status(404).end();
   }
 
-  try {
-    const obj = await getObjectFromCloud(`uploads/${file}`);
-    res.setHeader('Content-Type', obj.ContentType || 'application/octet-stream');
-    if (obj.ContentLength != null) res.setHeader('Content-Length', obj.ContentLength);
-    if (obj.ETag) res.setHeader('ETag', obj.ETag);
-    // Objects are content-addressed by UUID and never overwritten → immutable.
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  const wantThumb = req.query.size === 'thumb';
 
-    obj.Body.on('error', (err) => {
-      console.error('[media] stream error:', err.message);
-      res.destroy();
-    });
-    // If the client disconnects mid-stream, stop pulling from R2.
-    res.on('close', () => obj.Body.destroy?.());
-    obj.Body.pipe(res);
+  try {
+    if (wantThumb) {
+      try {
+        return streamObject(res, await getObjectFromCloud(`uploads/thumbs/${file}`));
+      } catch (err) {
+        if (!isMissing(err)) throw err; // original missing too → 404 below
+        const thumb = await getOrCreateThumb(file, `uploads/thumbs/${file}`);
+        if (thumb) {
+          res.setHeader('Content-Type', thumb.mimetype);
+          res.setHeader('Content-Length', thumb.buffer.length);
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          return res.end(thumb.buffer);
+        }
+        // Not thumbable (GIF/oversized) → fall through to the full object.
+      }
+    }
+
+    streamObject(res, await getObjectFromCloud(`uploads/${file}`));
   } catch (err) {
-    const status = err?.$metadata?.httpStatusCode;
-    if (err?.name === 'NoSuchKey' || status === 404) return res.status(404).end();
+    if (isMissing(err)) return res.status(404).end();
     console.error('[media] proxy error:', err?.name || '', err?.message);
     res.status(502).end();
   }

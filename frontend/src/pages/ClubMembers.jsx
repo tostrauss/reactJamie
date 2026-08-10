@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext';
 import { UserName } from '../components/UserName';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { isNativeIOS } from '../utils/platform';
+import { thumbUrl } from '../utils/images';
 import '../styles/club-detail.css';
 
 // Serves BOTH /club/:id/members and /group/:id/members — the list UI is
@@ -159,7 +160,7 @@ export const ClubMembers = () => {
                   >
                     {m.avatar_url ? (
                       <img
-                        src={m.avatar_url}
+                        src={thumbUrl(m.avatar_url)}
                         alt={m.name || ''}
                         className="cd-member-row-avatar"
                         loading="lazy"

@@ -1,5 +1,13 @@
 import db from '../config/database.js';
-import bcrypt from 'bcryptjs';
+// @node-rs/bcrypt, NOT bcryptjs: the pure-JS implementation hashed on the
+// main thread (~310ms CPU per op at cost 12) and capped the whole instance at
+// ~3 auth ops/sec — the most likely way a TV-spike takes chat/sockets down
+// with it. The Rust binding runs on the libuv threadpool (see Dockerfile
+// UV_THREADPOOL_SIZE), ships musl prebuilds for the alpine image, and both
+// directions of hash compatibility with the existing $2a$ hashes are verified.
+// Behavior delta: compare() REJECTS on a malformed stored hash instead of
+// resolving false — every call site guards null and catches to false.
+import bcrypt from '@node-rs/bcrypt';
 import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { generateToken, setAuthCookie, clearAuthCookie, invalidateSessionCache } from '../middleware/auth.js';
@@ -341,7 +349,7 @@ export const login = async (req, res) => {
       return res.status(401).json({ error: 'Dieses Konto verwendet Google-Anmeldung. Bitte melde dich mit Google an.' });
     }
 
-    const validPassword = await bcrypt.compare(password, user.password);
+    const validPassword = await bcrypt.compare(password, user.password).catch(() => false);
     if (!validPassword) {
       const attempts = (user.login_attempts || 0) + 1;
       const lockUntil = attempts >= 5 ? new Date(Date.now() + 30 * 60 * 1000) : null;
@@ -676,7 +684,7 @@ export const changePassword = async (req, res) => {
       return res.status(400).json({ error: 'Dieses Konto verwendet Google-Anmeldung. Passwort kann nicht geändert werden.' });
     }
 
-    const valid = await bcrypt.compare(currentPassword, result.rows[0].password);
+    const valid = await bcrypt.compare(currentPassword, result.rows[0].password).catch(() => false);
     if (!valid) {
       return res.status(401).json({ error: 'Aktuelles Passwort ist falsch' });
     }
@@ -725,7 +733,7 @@ export const deleteAccount = async (req, res) => {
       if (!password) {
         return res.status(400).json({ error: 'Password required to delete account' });
       }
-      const valid = await bcrypt.compare(password, user.password);
+      const valid = await bcrypt.compare(password, user.password).catch(() => false);
       if (!valid) {
         return res.status(401).json({ error: 'Password is incorrect' });
       }

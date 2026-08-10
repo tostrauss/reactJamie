@@ -2,6 +2,7 @@ import { useState, useEffect, useContext, useRef, useMemo, useCallback } from 'r
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { groups, clubs, directMessages } from '../utils/api';
+import { thumbUrl } from '../utils/images';
 import { SocketContext } from '../context/SocketContext';
 import { useToast } from '../context/ToastContext';
 import { RequestCard } from '../components/RequestCard';
@@ -460,7 +461,7 @@ export const ChatList = () => {
     <div key={`${chat.isDM ? 'dm' : 'g'}-${chat.id}`} className="chat-item" {...pressProps(chat)} onClick={guardedOpen(chat)}>
       <div className="chat-avatar-wrapper">
         {chat.avatar
-          ? <img src={chat.avatar} alt={chat.name} className={`chat-avatar${avatarRing(chat)}`} loading="lazy" />
+          ? <img src={thumbUrl(chat.avatar)} alt={chat.name} className={`chat-avatar${avatarRing(chat)}`} loading="lazy" />
           : <div className={`chat-avatar-placeholder${avatarRing(chat)}`}>{(chat.name || '?')[0].toUpperCase()}</div>}
       </div>
       <div className="chat-info">
@@ -509,7 +510,7 @@ export const ChatList = () => {
               <div className="chat-item-main" onClick={() => openChat(chat)}>
                 <div className="chat-avatar-wrapper">
                   {chat.avatar
-                    ? <img src={chat.avatar} alt={chat.name} className={`chat-avatar${avatarRing(chat)}`} loading="lazy" />
+                    ? <img src={thumbUrl(chat.avatar)} alt={chat.name} className={`chat-avatar${avatarRing(chat)}`} loading="lazy" />
                     : <div className={`chat-avatar-placeholder${avatarRing(chat)}`}>{(chat.name || '?')[0].toUpperCase()}</div>}
                 </div>
                 <div className="chat-info">
@@ -688,7 +689,7 @@ export const ChatList = () => {
                   {nextReq && (
                     <div className="next-card-preview">
                       {nextReq.user_avatar
-                        ? <img src={nextReq.user_avatar} alt="" loading="lazy" decoding="async" />
+                        ? <img src={thumbUrl(nextReq.user_avatar)} alt="" loading="lazy" decoding="async" />
                         : <div className="next-card-preview-ph">{(nextReq.user_name || '?')[0].toUpperCase()}</div>}
                     </div>
                   )}
@@ -749,7 +750,7 @@ export const ChatList = () => {
                 >
                   <div className="chat-avatar-wrapper">
                     {chat.avatar
-                      ? <img src={chat.avatar} alt={chat.name} className={`chat-avatar${avatarRing(chat)}`} loading="lazy" />
+                      ? <img src={thumbUrl(chat.avatar)} alt={chat.name} className={`chat-avatar${avatarRing(chat)}`} loading="lazy" />
                       : <div className={`chat-avatar-placeholder${avatarRing(chat)}`}>{(chat.name || '?')[0].toUpperCase()}</div>}
                   </div>
                   <div className="chat-info">

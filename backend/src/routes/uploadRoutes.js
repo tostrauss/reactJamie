@@ -6,7 +6,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import crypto from 'crypto';
 import { authenticate } from '../middleware/auth.js';
 import { uploadLimiter } from '../middleware/rateLimiter.js';
-import { uploadToCloud, isCloudStorageEnabled } from '../config/storage.js';
+import { uploadToCloud, putObjectToCloud, isCloudStorageEnabled } from '../config/storage.js';
 import { checkImageSafety } from '../config/moderation.js';
 import { processImage, generateThumbnail } from '../config/imageProcessor.js';
 
@@ -107,7 +107,13 @@ router.post('/', authenticate, uploadLimiter, (req, res, next) => {
     if (isCloudStorageEnabled()) {
       imageUrl = await uploadToCloud(processed.buffer, processed.mimetype, processedName);
       if (thumbnail) {
-        thumbUrl = await uploadToCloud(thumbnail.buffer, thumbnail.mimetype, `thumb${thumbnail.extension}`).catch(() => null);
+        // Store the variant under uploads/thumbs/<same basename> — the derived
+        // key the /media proxy serves for ?size=thumb, so the thumb is
+        // addressable from the main URL alone (no second UUID to persist).
+        const basename = imageUrl.split('/').pop();
+        thumbUrl = await putObjectToCloud(`uploads/thumbs/${basename}`, thumbnail.buffer, thumbnail.mimetype)
+          .then(() => `${imageUrl}?size=thumb`)
+          .catch(() => null);
       }
     } else {
       // Development fallback: write to local /uploads directory

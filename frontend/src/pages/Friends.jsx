@@ -6,6 +6,7 @@ import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { UserName } from '../components/UserName';
 import useOnPullRefresh from '../hooks/useOnPullRefresh';
+import { thumbUrl } from '../utils/images';
 import '../styles/friends.css';
 
 export const Friends = () => {
@@ -142,7 +143,7 @@ export const Friends = () => {
   const Avatar = ({ src, name, size = 48 }) => (
     <div className="fr-avatar" style={{ width: size, height: size, fontSize: size * 0.4 }}>
       {src
-        ? <img src={src} alt={name} loading="lazy" decoding="async" />
+        ? <img src={thumbUrl(src)} alt={name} loading="lazy" decoding="async" />
         : <span>{(name || '?')[0].toUpperCase()}</span>
       }
     </div>
