@@ -84,11 +84,16 @@
   background-color: transparent !important;
   border: none !important;
   box-shadow: none !important;
-  border-radius: 0;
+  /* !important: global.css's input:not(...) selector is (0,3,1) and beats any
+     single class — without it these render as global's 16px/20px padding +
+     12px radius (visibly fatter than the near-identical chat search bar).
+     chat.css documents + defeats the same trap; this never got the fix.
+     font-size deliberately NOT forced down: global's 16px also prevents the
+     iOS zoom-on-focus. */
+  border-radius: 0 !important;
   color: var(--text-white);
-  font-size: 14px;
   font-family: inherit;
-  padding: 11px 0;
+  padding: 11px 0 !important;
   outline: none;
 }
 

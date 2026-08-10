@@ -68,7 +68,10 @@ export const NotificationPrompt = () => {
       // nav on 0-inset Android (Tobi 2026-07-28: "abgeschnitten"). Single
       // knob: var(--nav-safe-bottom) in global.css :root (2026-08-04).
       bottom: 'calc(70px + var(--nav-safe-bottom))',
-      zIndex: 900, maxWidth: 480, margin: '0 auto',
+      // 9000 = same magnitude as its sibling banners (ConsentBanner 9000,
+      // update 9999, install 9998). The old 900 sat BELOW .bottom-nav (1000)
+      // — one layout tweak away from rendering behind the nav icons.
+      zIndex: 9000, maxWidth: 480, margin: '0 auto',
       background: 'var(--bg-card, #1e2235)', border: '1px solid rgba(253,118,102,0.35)',
       borderRadius: 16, padding: 14, boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
       display: 'flex', alignItems: 'center', gap: 12,

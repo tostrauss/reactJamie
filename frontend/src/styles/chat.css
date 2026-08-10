@@ -172,6 +172,9 @@
   flex-shrink: 0;
   width: 28px;
   height: 28px;
+  /* 28px visual, 44px tap: the ::after below expands the hit area to the
+     app's touch-target floor without growing the chip. */
+  position: relative;
   border: none;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.08);
@@ -182,6 +185,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.chat-search-clear::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+/* Filter pills: 34px visual, 44px tap (see .chat-filter-bubble). */
+.chat-filter-bubble::after {
+  content: '';
+  position: absolute;
+  inset: -5px 0;
 }
 .chat-search-empty {
   text-align: center;
@@ -371,9 +385,9 @@
 }
 
 .club-badge {
-  background: rgba(168, 85, 247, 0.2);
-  color: #c084fc;
-  border: 1px solid rgba(168, 85, 247, 0.3);
+  background: rgba(var(--accent-club-rgb), 0.2);
+  color: var(--accent-club-light);
+  border: 1px solid rgba(var(--accent-club-rgb), 0.3);
 }
 
 .chat-requests-hint {
@@ -1127,10 +1141,15 @@
   align-items: flex-end;
   gap: 12px;
   padding: 12px 20px;
-  /* Fixed bottom padding — user wants the input flush with the WebView
-     bottom edge. iOS home indicator may visually sit close to the input
-     button row; accepted trade-off, consistent with .bottom-nav. */
-  padding-bottom: 12px;
+  /* Safe-area clearance (audit 2026-08-10): the old fixed 12px kept the send
+     button flush against the iPhone home-indicator/swipe zone. Its comment
+     claimed consistency with a flush .bottom-nav — stale since 24.07., when
+     the nav got its safe-area padding. Bare env() on purpose (chat is
+     fullscreen without the bottom nav, same class as .lightbox-counter):
+     Android keeps exactly 12px, iPhones get the real inset when the keyboard
+     is closed — and iOS collapses the inset to ~0 while the keyboard is up,
+     so the composer still sits snug above it. */
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
   background: var(--bg-secondary);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -1284,6 +1303,9 @@
   align-items: center;
   gap: 6px;
   min-height: 34px;
+  /* 34px visual pill, 44px tap: ::after expands the hit area to the
+     touch-target floor without changing the row's look. */
+  position: relative;
   padding: 0 14px;
   background: var(--bg-card);
   border: 1px solid transparent;
@@ -1496,7 +1518,7 @@
   box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4.5px var(--accent-coral);
 }
 .chat-avatar--ring-club {
-  box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4.5px #c084fc;
+  box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4.5px var(--accent-club-light);
 }
 
 /* Absender im Nachrichten-Preview leicht fetter als der Text (Tobi

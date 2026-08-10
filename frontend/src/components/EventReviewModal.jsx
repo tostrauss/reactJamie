@@ -156,10 +156,11 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
 
                 {/* ✓ / ✗ toggles */}
                 <div style={{ display: 'flex', gap: 8 }}>
+                  {/* 44px = app touch-target floor */}
                   <button
                     onClick={() => toggle(member.id, true)}
                     style={{
-                      width: 40, height: 40, borderRadius: '50%', border: 'none',
+                      width: 44, height: 44, borderRadius: '50%', border: 'none',
                       background: state === true ? '#4ade80' : 'rgba(74,222,128,0.12)',
                       color: state === true ? '#fff' : '#4ade80',
                       fontSize: 18, cursor: 'pointer', fontWeight: 700,
@@ -171,7 +172,7 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
                   <button
                     onClick={() => toggle(member.id, false)}
                     style={{
-                      width: 40, height: 40, borderRadius: '50%', border: 'none',
+                      width: 44, height: 44, borderRadius: '50%', border: 'none',
                       background: state === false ? '#f87171' : 'rgba(248,113,113,0.12)',
                       color: state === false ? '#fff' : '#f87171',
                       fontSize: 18, cursor: 'pointer', fontWeight: 700,

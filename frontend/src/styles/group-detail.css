@@ -663,12 +663,15 @@
 
 .gd-event-input {
   width: 100%;
-  background: var(--bg-input);
-  border: 1px solid var(--border-input);
-  border-radius: 10px;
-  padding: 10px 14px;
+  /* !important: defeats global.css's higher-specificity input reset (see
+     .fr-search-input) — global's 16px/20px padding ate ~40px out of the
+     90px-wide --sm participant-count field. font-size stays global's 16px
+     (iOS anti-zoom). */
+  background: var(--bg-input) !important;
+  border: 1px solid var(--border-input) !important;
+  border-radius: 10px !important;
+  padding: 10px 14px !important;
   color: var(--text-white);
-  font-size: 14px;
   font-family: inherit;
   box-sizing: border-box;
   -webkit-appearance: none;

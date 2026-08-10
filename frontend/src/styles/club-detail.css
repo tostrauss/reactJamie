@@ -476,8 +476,10 @@
    40px keeps the app's touch-target floor on small screens. */
 .cd-member-remove {
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
+  /* 44px = the app's documented touch-target floor (an earlier comment
+     claimed 40px was the floor — it never was). */
+  width: 44px;
+  height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

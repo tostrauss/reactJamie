@@ -198,7 +198,9 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
               {t('boost.creditsAvailable', { count: credits })}
             </p>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '22px', cursor: 'pointer' }}>✕</button>
+          {/* .modal-close = the app-wide 32px circular close target — this was
+              the one modal whose ✕ had no hit area beyond the glyph's ink box. */}
+          <button onClick={onClose} className="modal-close">✕</button>
         </div>
 
         {/* Tabs */}

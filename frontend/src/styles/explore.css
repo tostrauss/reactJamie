@@ -882,8 +882,8 @@
 }
 
 .sr-type-badge.club {
-  background: rgba(168,85,247,0.15);
-  color: #a855f7;
+  background: rgba(var(--accent-club-rgb), 0.15);
+  color: var(--accent-club);
 }
 
 .sr-arrow {

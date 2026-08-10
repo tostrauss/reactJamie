@@ -153,6 +153,12 @@
   --accent-coral: #FD7666;
   --accent-coral-light: #ff8a7a;
   --accent-coral-dark: #e5574a;
+  /* Club accent (coral = group, purple = club). ONE purple: the badge/ring/
+     pin drifted across three hexes and two rgba bases (audit 2026-08-10) —
+     always reference these, never a literal. */
+  --accent-club: #a855f7;
+  --accent-club-light: #c084fc;   /* text/rings on dark backgrounds */
+  --accent-club-rgb: 168, 85, 247; /* for rgba(var(--accent-club-rgb), α) */
   /* Alias — lots of pages reference var(--coral); without this it resolves
      to nothing and the elements silently inherit their parent color. */
   --coral: var(--accent-coral);
