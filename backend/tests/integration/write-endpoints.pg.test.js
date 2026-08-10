@@ -119,6 +119,7 @@ suite('write endpoints against real Postgres', () => {
     C = {
       updateProfile: a.updateProfile, completeOnboarding: a.completeOnboarding,
       createGroup: g.createGroup, updateGroup: g.updateGroup, createClub: c.createClub,
+      inviteMember: g.inviteMember,
       sendFriendRequest: f.sendFriendRequest, respondFriendRequest: f.respondFriendRequest,
       removeFriend: f.removeFriend, blockUser: f.blockUser, unblockUser: f.unblockUser,
       sendDM: dm.sendDM, submitReview: rv.submitReview, getPendingReviews: rv.getPendingReviews,
@@ -221,5 +222,26 @@ suite('write endpoints against real Postgres', () => {
   // ── boosts (A boosts own group, funded by credits) ───────────────────────
   it('applyBoost on own group', async () => {
     ok(await call(C.applyBoost, { userId: A, body: { target_type: 'group', target_id: groupId, hours: 24 } }));
+  });
+
+  // ── audit 2026-08-10 regressions ─────────────────────────────────────────
+  it('inviteMember A invites friend B (group_members has no id column)', async () => {
+    // Was 500 forever: the membership pre-check selected the nonexistent
+    // group_members.id (42703). A and B are friends; B not in groupId.
+    ok(await call(C.inviteMember, { userId: A, params: { id: String(groupId), friendId: String(B) } }));
+    const m = await db.query('SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2', [groupId, B]);
+    expect(m.rows.length).toBe(1);
+  });
+  it('re-request after the cron expired the old one (uniq_friend_pair lockout)', async () => {
+    ok(await call(C.sendFriendRequest, { userId: B, body: { userId: D } }));
+    // Simulate the 04:00 expiry cron.
+    await db.query(`UPDATE friendships SET status='expired'
+                    WHERE requester_id=$1 AND addressee_id=$2`, [B, D]);
+    // Was 400 "already pending" forever: no expired branch → INSERT → 23505.
+    ok(await call(C.sendFriendRequest, { userId: B, body: { userId: D } }));
+    const r = await db.query(`SELECT status FROM friendships
+                              WHERE (requester_id=$1 AND addressee_id=$2)
+                                 OR (requester_id=$2 AND addressee_id=$1)`, [B, D]);
+    expect(r.rows).toEqual([{ status: 'pending' }]);
   });
 });

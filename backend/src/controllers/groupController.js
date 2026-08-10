@@ -1937,7 +1937,8 @@ export const inviteMember = async (req, res) => {
          AND status = 'accepted'`,
         [req.userId, friendId]
       ),
-      db.query('SELECT id FROM group_members WHERE group_id = $1 AND user_id = $2', [id, friendId]),
+      // group_members has a composite PK and NO id column — selecting one 42703s
+      db.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [id, friendId]),
     ]);
     if (friendship.rows.length === 0) return res.status(403).json({ error: 'Nur Freunde können eingeladen werden' });
     if (existing.rows.length) return res.status(400).json({ error: 'Already a member' });

@@ -5,6 +5,7 @@ import { auth, restoreSession, setMemToken, clearMemToken, clearApiCache, subscr
 // for those users (Sentry JAMIE-REACT-J). Auth truth is the httpOnly cookie;
 // this cache is only a paint-speed nicety and may silently not persist.
 import { safeStorage } from '../utils/safeStorage';
+import { unsubscribeFromPush } from '../utils/pushNotifications';
 
 export const AuthContext = createContext();
 
@@ -116,10 +117,17 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const logout = useCallback(async () => {
-    // Clear local auth state FIRST so the UI updates instantly. Awaiting the
-    // network call meant a slow/offline request left the app looking logged-in
-    // for up to the 10s axios timeout. The server still clears the httpOnly
-    // cookie via the best-effort call below.
+    // Deregister this device's push subscription BEFORE clearing auth — the
+    // API call needs the in-memory token, and a logged-out device must stop
+    // receiving this account's DMs (shared-device leak, audit 2026-08-10).
+    // Hard 800ms cap so logout stays effectively instant even offline (the
+    // old fully-awaited network call meant up to 10s of looking logged-in).
+    try {
+      await Promise.race([
+        unsubscribeFromPush(),
+        new Promise((resolve) => setTimeout(resolve, 800)),
+      ]);
+    } catch { /* best-effort */ }
     clearAuth();
     auth.logout?.().catch(() => {});
   }, []);

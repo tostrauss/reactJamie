@@ -32,17 +32,18 @@ export const sendFriendRequest = async (req, res) => {
       }
       if (f.status === 'accepted') return res.status(400).json({ error: 'Already friends' });
       if (f.status === 'pending') return res.status(400).json({ error: 'Friend request already pending' });
-      if (f.status === 'rejected') {
-        // Allow re-requesting after rejection
-        await db.query(
-          `UPDATE friendships SET status = 'pending', requester_id = $1, addressee_id = $2,
-           updated_at = CURRENT_TIMESTAMP, expires_at = NOW() + INTERVAL '30 days'
-           WHERE id = $3`,
-          [req.userId, userId, f.id]
-        );
-        notifyFriendRequest(req.userId, userId).catch(() => {});
-        return res.json({ message: 'Friend request sent', status: 'pending' });
-      }
+      // Any other status ('rejected', cron-minted 'expired', future values) →
+      // re-request by reusing the row. Falling through to the INSERT instead
+      // would collide with uniq_friend_pair (23505) and permanently lock the
+      // pair out of friendship, so this branch must catch everything.
+      await db.query(
+        `UPDATE friendships SET status = 'pending', requester_id = $1, addressee_id = $2,
+         updated_at = CURRENT_TIMESTAMP, expires_at = NOW() + INTERVAL '30 days'
+         WHERE id = $3`,
+        [req.userId, userId, f.id]
+      );
+      notifyFriendRequest(req.userId, userId).catch(() => {});
+      return res.json({ message: 'Friend request sent', status: 'pending' });
     }
 
     // Create new friend request — expires after 30 days

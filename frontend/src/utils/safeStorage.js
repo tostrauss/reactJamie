@@ -23,4 +23,19 @@ export const safeStorage = {
   },
 };
 
+// Same contract for sessionStorage — the SAME contexts deny it, and unguarded
+// sessionStorage reads crashed lazy routes/Register/OAuth for those users
+// (audit 2026-08-10). Every sessionStorage access must go through this.
+export const safeSession = {
+  getItem(key) {
+    try { return window.sessionStorage.getItem(key); } catch { return null; }
+  },
+  setItem(key, value) {
+    try { window.sessionStorage.setItem(key, value); } catch { /* denied */ }
+  },
+  removeItem(key) {
+    try { window.sessionStorage.removeItem(key); } catch { /* denied */ }
+  },
+};
+
 export default safeStorage;

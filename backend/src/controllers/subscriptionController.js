@@ -396,13 +396,39 @@ export const withdrawSubscription = async (req, res) => {
     // paid plan, and return refunded:false so support can reconcile.
     let refunded = false;
     try {
-      const stripeSub = await stripe.subscriptions.retrieve(sub.stripe_subscription_id, {
-        expand: ['latest_invoice.payment_intent'],
-      });
-      const pi = stripeSub.latest_invoice?.payment_intent;
-      if (pi?.id && pi.amount_received > 0) {
-        await stripe.refunds.create({ payment_intent: pi.id });
-        refunded = true;
+      // dahlia removed invoice.payment_intent (payments moved to the invoice's
+      // `payments` list) — expanding the old path makes the whole retrieve
+      // throw, which used to skip the refund entirely. Fetch the invoice
+      // separately and read the payment intent out of EITHER shape.
+      const stripeSub = await stripe.subscriptions.retrieve(sub.stripe_subscription_id);
+      const invoiceId = typeof stripeSub.latest_invoice === 'string'
+        ? stripeSub.latest_invoice
+        : stripeSub.latest_invoice?.id;
+      if (invoiceId) {
+        let invoice;
+        try {
+          invoice = await stripe.invoices.retrieve(invoiceId, { expand: ['payments'] });
+        } catch {
+          invoice = await stripe.invoices.retrieve(invoiceId);
+        }
+        if (invoice.amount_paid > 0) {
+          const payments = invoice.payments?.data ?? [];
+          const paidEntry = payments.find(p => p.status === 'paid') ?? payments[0];
+          const piRef = invoice.payment_intent ?? paidEntry?.payment?.payment_intent ?? null;
+          const piId = typeof piRef === 'string' ? piRef : piRef?.id;
+          const chargeRef = invoice.charge ?? paidEntry?.payment?.charge ?? null;
+          const chargeId = typeof chargeRef === 'string' ? chargeRef : chargeRef?.id;
+          if (piId) {
+            await stripe.refunds.create({ payment_intent: piId });
+            refunded = true;
+          } else if (chargeId) {
+            await stripe.refunds.create({ charge: chargeId });
+            refunded = true;
+          } else {
+            console.error('Widerruf: paid invoice but no payment ref found', invoiceId);
+          }
+        }
+        // amount_paid === 0 (trial phase) → nothing to refund, cancel is enough.
       }
     } catch (refErr) {
       console.error('Widerruf refund failed:', refErr.message);
@@ -429,12 +455,10 @@ export const withdrawSubscription = async (req, res) => {
 // ==========================================
 // API-VERSION RESILIENCE HELPERS
 // ==========================================
-// Our SDK is pinned to apiVersion '2023-10-16', so every call we MAKE
-// (create/retrieve) returns that shape: current_period_end on the subscription
-// itself, invoice.subscription present. But webhook payloads are serialized
-// with the ENDPOINT's API version, and this Stripe account's dashboard only
-// offers 2026-xx ('dahlia') versions — where current_period_end moved onto the
-// subscription's items and invoice.subscription was replaced by
+// Our own calls are pinned to 'dahlia' (see getStripe), but webhook payloads
+// are serialized with the ENDPOINT's API version and historical events may
+// carry older shapes: current_period_end moved onto the subscription's items,
+// and invoice.subscription was replaced by
 // invoice.parent.subscription_details.subscription. These read a value out of
 // EITHER shape so the webhook works no matter which version Stripe used.
 // Without this, subscription.updated wrote current_period_end = NULL and

@@ -16,6 +16,8 @@
  * state, and exchanges the code server-side (authController.googleLoginCode)
  * — auth-code exchange needs a client secret, so it can't happen client-side.
  */
+import { safeSession } from './safeStorage.js';
+
 export const GOOGLE_CALLBACK_PATH = '/auth/google/callback';
 const STATE_KEY = 'jamie_google_oauth_state';
 
@@ -39,7 +41,10 @@ export const googleRedirectUri = () => `${window.location.origin}${GOOGLE_CALLBA
 /** Navigate the whole page to Google's consent screen. */
 export function startGoogleLogin(clientId) {
   const state = randomState();
-  sessionStorage.setItem(STATE_KEY, state);
+  // safeSession: storage-denied contexts can't hold the CSRF state, so the
+  // callback's validation will fail closed into /login?error=google — a clean
+  // error instead of this click handler throwing (dead button).
+  safeSession.setItem(STATE_KEY, state);
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: googleRedirectUri(),
@@ -54,7 +59,7 @@ export function startGoogleLogin(clientId) {
 /** Validate the state GoogleCallback received against what startGoogleLogin
  * stored. One-shot — always clears it, so a replayed callback can't reuse it. */
 export function consumeGoogleState(receivedState) {
-  const expected = sessionStorage.getItem(STATE_KEY);
-  sessionStorage.removeItem(STATE_KEY);
+  const expected = safeSession.getItem(STATE_KEY);
+  safeSession.removeItem(STATE_KEY);
   return !!expected && !!receivedState && expected === receivedState;
 }

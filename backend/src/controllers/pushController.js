@@ -88,6 +88,14 @@ export const subscribe = async (req, res) => {
     if ((count.rows[0]?.n ?? 0) >= 25) {
       return res.status(429).json({ error: 'Zu viele Push-Subscriptions. Lösche alte zuerst.' });
     }
+    // One endpoint = one browser profile on one device. If it's still
+    // registered under ANOTHER account (previous user of a shared device who
+    // logged out without unsubscribing), that row must go — otherwise both
+    // accounts' notifications (incl. DM content) pop on this device.
+    await db.query(
+      `DELETE FROM push_subscriptions WHERE endpoint = $1 AND user_id <> $2`,
+      [endpoint, req.userId]
+    );
     await db.query(
       `INSERT INTO push_subscriptions (user_id, platform, endpoint, p256dh, auth_key)
        VALUES ($1, 'web', $2, $3, $4)
@@ -130,6 +138,12 @@ export const saveApnsToken = async (req, res) => {
   if (!token) return res.status(400).json({ error: 'token required' });
 
   try {
+    // Same shared-device rule as web subscribe: a device token belongs to
+    // exactly one phone — evict any row registered under a different account.
+    await db.query(
+      `DELETE FROM push_subscriptions WHERE device_token = $1 AND user_id <> $2`,
+      [token, req.userId]
+    );
     await db.query(
       `INSERT INTO push_subscriptions (user_id, platform, device_token)
        VALUES ($1, 'apns', $2)
@@ -156,8 +170,9 @@ async function dispatchToSubscription(sub, title, body, url, apnCtxRef) {
     if (!process.env.VAPID_PUBLIC_KEY) return;
     const pushSub = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } };
     webpush.sendNotification(pushSub, JSON.stringify({ title, body, url })).catch((err) => {
-      // 410 Gone = subscription expired, clean it up
-      if (err.statusCode === 410) {
+      // 410 Gone = expired; FCM signals dead subscriptions with 404
+      // ("NotRegistered") — both are permanent, clean them up.
+      if (err.statusCode === 410 || err.statusCode === 404) {
         db.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]).catch(() => {});
       } else {
         console.error('Push send error:', err.statusCode, err.message);

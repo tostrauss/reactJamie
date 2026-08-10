@@ -28,12 +28,15 @@ export const isTWA = () => {
   if (_twaCached !== null) return _twaCached;
   if (typeof window === 'undefined') return false;
   try {
-    const fromReferrer = document.referrer.startsWith('android-app://');
+    // Match OUR package exactly: Chrome also sets android-app://<other.app>
+    // when a link is opened FROM another app (WhatsApp share → real browser),
+    // and those users must not be treated as in-TWA (they'd lose checkout).
+    const fromReferrer = document.referrer.startsWith('android-app://jamie.app');
     const latched = sessionStorage.getItem('jamie_twa') === '1';
     if (fromReferrer) sessionStorage.setItem('jamie_twa', '1');
     _twaCached = fromReferrer || latched;
   } catch {
-    _twaCached = typeof document !== 'undefined' && document.referrer.startsWith('android-app://');
+    _twaCached = typeof document !== 'undefined' && document.referrer.startsWith('android-app://jamie.app');
   }
   return _twaCached;
 };
