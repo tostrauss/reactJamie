@@ -35,3 +35,6 @@ Thumbs.db
 
 # Local credential notes - never commit (Tobi, 2026-08-04)
 cloudflare-auth.md
+
+# Dependencies - never commit (886 root node_modules files slipped in without this)
+node_modules/
