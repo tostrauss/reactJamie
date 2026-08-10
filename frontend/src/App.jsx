@@ -609,20 +609,39 @@ function useViewportRestore() {
 }
 
 // ==========================================
-// NATIVE IOS PUSH REGISTRATION
+// NATIVE IOS PUSH REGISTRATION + TAP ROUTING
 // ==========================================
 function useNativePush(user) {
+  const navigate = useNavigate();
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+  const userId = user?.id;
+
+  // Keyed on user id, NOT the user object: profile refreshes replace the
+  // object every time, and the old cleanup was returned from inside .then()
+  // where React never sees it — so each refresh ADDED a listener set and
+  // removed none. addListener returns a Promise<handle> in Capacitor 5+, so
+  // handles are collected async and removed by the real effect cleanup.
   useEffect(() => {
-    if (!user || !isNativeIOS()) return;
+    if (!userId || !isNativeIOS()) return;
+
+    let cancelled = false;
+    const handles = [];
+    const listen = (plugin, eventName, cb) => {
+      plugin.addListener(eventName, cb)
+        .then((h) => { if (cancelled) h.remove(); else handles.push(h); })
+        .catch(() => {});
+    };
 
     // Dynamic import — only available inside Capacitor native shell
     import('@capacitor/push-notifications').then(({ PushNotifications }) => {
+      if (cancelled) return;
       PushNotifications.requestPermissions().then(({ receive }) => {
-        if (receive !== 'granted') return;
+        if (receive !== 'granted' || cancelled) return;
         PushNotifications.register();
       });
 
-      const regListener = PushNotifications.addListener('registration', ({ value: token }) => {
+      listen(PushNotifications, 'registration', ({ value: token }) => {
         // Send APNs device token to backend
         import('./utils/api.js').then(({ push }) => {
           push.saveApnsToken(token).catch(() => {});
@@ -633,13 +652,62 @@ function useNativePush(user) {
       // token — most commonly a missing "Push Notifications" capability/
       // entitlement in the build (aps-environment). Silent otherwise, so on a
       // device run via Xcode this is the line that explains "no token, no push".
-      const errListener = PushNotifications.addListener('registrationError', (err) => {
+      listen(PushNotifications, 'registrationError', (err) => {
         console.error('[APNs] registrationError:', err?.error || err);
       });
 
-      return () => { regListener.remove(); errListener.remove(); };
+      // Tapping a push must open its target. The backend puts the route into
+      // the APNs payload ({ url }, pushController) and sw.js routes it for
+      // web/TWA — native iOS had NO handler, so the app just foregrounded
+      // wherever it last was and the DM/notification never opened.
+      listen(PushNotifications, 'pushNotificationActionPerformed', (action) => {
+        const url = action?.notification?.data?.url;
+        navigateRef.current(typeof url === 'string' && url.startsWith('/') ? url : '/notifications');
+      });
     }).catch(() => {});
-  }, [user]);
+
+    return () => {
+      cancelled = true;
+      handles.forEach((h) => { try { h.remove(); } catch { /* already gone */ } });
+    };
+  }, [userId]);
+}
+
+// ==========================================
+// UNIVERSAL LINKS → SPA ROUTES (native iOS)
+// ==========================================
+// The AASA file routes /reset-password and /verify-email (+ /club, /group,
+// /user once the 0cb4a57 file is deployed) into the installed app. Capacitor
+// fires appUrlOpen for those — without a global listener the path was simply
+// DROPPED: iOS opened the app on its last screen and e.g. a password-reset
+// link dead-ended for exactly the user who can't log in. Custom-scheme URLs
+// (jamie://spotify-callback) are ignored here — their scoped listener in
+// spotifyAuth.js owns them.
+function useAppUrlOpen() {
+  const navigate = useNavigate();
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+
+  useEffect(() => {
+    if (!isNativeIOS()) return;
+    let cancelled = false;
+    let handle = null;
+
+    import('@capacitor/app').then(({ App: CapApp }) =>
+      CapApp.addListener('appUrlOpen', ({ url }) => {
+        let parsed;
+        try { parsed = new URL(url); } catch { return; }
+        if (parsed.protocol !== 'https:') return;
+        if (parsed.hostname !== 'app.jamie-app.com') return;
+        navigateRef.current(parsed.pathname + parsed.search + parsed.hash);
+      }).then((h) => { if (cancelled) h.remove(); else handle = h; })
+    ).catch(() => {});
+
+    return () => {
+      cancelled = true;
+      try { handle?.remove(); } catch { /* already gone */ }
+    };
+  }, []);
 }
 
 // Main App Routes
@@ -647,6 +715,7 @@ function AppRoutes() {
   const { user } = useContext(AuthContext);
   const { t } = useTranslation();
   useNativePush(user);
+  useAppUrlOpen();
   useHideKeyboardAccessoryBar();
   useViewportRestore();
   useAnalytics();
