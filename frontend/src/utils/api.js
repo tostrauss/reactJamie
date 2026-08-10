@@ -501,9 +501,16 @@ export const directMessages = {
   send: (receiverId, content) => 
     axiosInstance.post('/dm', { receiverId, content }),
   
-  // Get conversation with user
-  getConversation: (userId, limit = 50, offset = 0) => 
-    axiosInstance.get(`/dm/${userId}`, { params: { limit, offset } }),
+  // Get conversation with user. Prefer { before: <oldest message id> } for
+  // paging — OFFSET drifts when new messages arrive between pages (backend
+  // supports both; offset kept for older bundles).
+  getConversation: (userId, opts = {}) =>
+    axiosInstance.get(`/dm/${userId}`, {
+      params: {
+        limit: opts.limit ?? 50,
+        ...(opts.before ? { before: opts.before } : { offset: opts.offset ?? 0 }),
+      },
+    }),
   
   // Get all conversations list
   getConversations: () =>

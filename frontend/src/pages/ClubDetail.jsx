@@ -607,8 +607,12 @@ export const ClubDetail = () => {
                 {events.map(ev => {
                   // Recurring events show the next occurrence so the badge never
                   // shows a past date once the first week has passed.
-                  const displayDate = (nextOccurrence(ev) || new Date(ev.date)).toISOString();
-                  const dateParts = formatEventDate(displayDate, dateLocale);
+                  // isNaN guard: a date-less/unparseable event made
+                  // .toISOString() throw DURING RENDER → whole club page
+                  // "Hoppla!" (GroupDetail's twin list survives via
+                  // formatEventDate's own guard — this line bypassed it).
+                  const rawDate = nextOccurrence(ev) || new Date(ev.date);
+                  const dateParts = isNaN(rawDate) ? null : formatEventDate(rawDate.toISOString(), dateLocale);
                   const evIsOwner = user && Number(ev.owner_id) === Number(user.id);
                   return (
                     <div key={ev.id} className="cd-event-card" onClick={() => navigate(`/group/${ev.id}`)}>

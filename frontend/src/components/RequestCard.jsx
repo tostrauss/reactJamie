@@ -22,6 +22,9 @@ export function RequestCard({ request }) {
       ? (typeof request.user_interests === 'string' ? JSON.parse(request.user_interests) : request.user_interests)
       : [];
   } catch { /* malformed interests JSON — just show none */ }
+  // Parsed-but-not-an-array (object/number from a legacy row) would throw on
+  // .slice().map below and take down the whole requests deck.
+  if (!Array.isArray(interests)) interests = [];
 
   return (
     <div className="request-card">

@@ -79,12 +79,28 @@ export const syncPushSubscription = async () => {
   if (Notification.permission !== 'granted') return false;
   try {
     const reg = await navigator.serviceWorker.ready;
+    const { data } = await pushApi.getVapidKey();
+    const serverKey = urlBase64ToUint8Array(data.publicKey);
     let sub = await reg.pushManager.getSubscription();
+
+    // Self-heal after a VAPID key rotation: subscribe() over an existing sub
+    // with a DIFFERENT applicationServerKey throws (was caught and swallowed
+    // → push permanently dead for the whole installed base with no repair
+    // path). Detect the mismatch and re-subscribe under the new key.
+    if (sub?.options?.applicationServerKey) {
+      const current = new Uint8Array(sub.options.applicationServerKey);
+      const mismatch = current.length !== serverKey.length
+        || current.some((b, i) => b !== serverKey[i]);
+      if (mismatch) {
+        await sub.unsubscribe().catch(() => {});
+        sub = null;
+      }
+    }
+
     if (!sub) {
-      const { data } = await pushApi.getVapidKey();
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(data.publicKey),
+        applicationServerKey: serverKey,
       });
     }
     await pushApi.subscribe(sub.toJSON());

@@ -16,7 +16,11 @@ import { useToast } from '../context/ToastContext';
 import { captureException } from '../utils/sentry';
 
 // Must be a stable reference — recreating it triggers a full Maps reload
-const LIBRARIES = [];
+// 'places' matches the hand-rolled loader (utils/googleMaps.js): whichever
+// loads the SDK first, the other reuses it — the API being "included multiple
+// times" intermittently broke Autocomplete/marker bindings and re-forced its
+// language.
+const LIBRARIES = ['places'];
 
 const WIEN = { lat: 48.2082, lng: 16.3738 };
 

@@ -47,10 +47,11 @@ export const Friends = () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       if (abortRef.current) abortRef.current.abort();
-      abortRef.current = new AbortController();
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
       setSearching(true);
       try {
-        const res = await usersApi.search(q, { signal: abortRef.current.signal });
+        const res = await usersApi.search(q, { signal: ctrl.signal });
         const rows = (res.data || []).filter(u => u.id !== currentUser?.id);
         setSearchResults(rows);
       } catch (err) {
@@ -58,10 +59,16 @@ export const Friends = () => {
           setSearchResults([]);
         }
       } finally {
-        setSearching(false);
+        // Only the STILL-CURRENT request may clear the spinner — the aborted
+        // predecessor's finally used to drop it while the successor was in
+        // flight (flash of "Keine Ergebnisse").
+        if (abortRef.current === ctrl) setSearching(false);
       }
     }, 300);
-    return () => clearTimeout(debounceRef.current);
+    return () => {
+      clearTimeout(debounceRef.current);
+      abortRef.current?.abort(); // stale query or unmount — stop the request
+    };
   }, [query, currentUser?.id]);
 
   const loadAll = async () => {

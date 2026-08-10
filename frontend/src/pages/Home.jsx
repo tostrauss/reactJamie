@@ -130,10 +130,19 @@ export const Home = () => {
   // closure, so tab switches are picked up without useCallback).
   useOnPullRefresh(() => loadData());
 
+  // Last-write-wins guard: a fast Gruppen→Clubs switch on a slow connection
+  // let the STALE tab's response settle last and overwrite the shared
+  // favorites/joined sets with the other tab's ids (wrong hearts, joined
+  // clubs offering "Beitreten"). Every fetch takes a sequence number; only
+  // the newest may write.
+  const loadSeqRef = useRef(0);
+
   const loadData = async () => {
     // The Karte tab renders MapView, which fetches its own pins — the four
     // club/group calls below were fired and their results thrown away.
     if (activeTab === 'karte') { setLoading(false); return; }
+    const seq = ++loadSeqRef.current;
+    const isStale = () => seq !== loadSeqRef.current;
     setLoading(true);
     try {
       if (activeTab === "gruppen") {
@@ -146,6 +155,7 @@ export const Home = () => {
           clubs.getJoined().catch(() => ({ data: [] })),
           dealsApi.getAll().catch(() => ({ data: [] })),
         ]);
+        if (isStale()) return;
         setGroupList(groupsRes.data || []);
         setDealList(dealsRes.data || []);
         setFavorites(new Set((favGroupsRes.data || []).map(g => g.id)));
@@ -162,6 +172,7 @@ export const Home = () => {
           clubs.getFavorites().catch(() => ({ data: [] })),
           groups.getJoined().catch(() => ({ data: [] })),
         ]);
+        if (isStale()) return;
         setClubList(allClubsRes.data || []);
         setMyClubs(myClubsRes.data || []);
         setFavorites(new Set((favClubsRes.data || []).map(c => c.id)));
@@ -171,13 +182,15 @@ export const Home = () => {
         ]));
       }
     } catch (error) {
+      if (isStale()) return;
       if (!error.response) {
         toast.error(t('home.toast.serverDown'));
       } else {
         toast.error(t('home.toast.loadError'));
       }
     } finally {
-      setLoading(false);
+      // A superseded fetch must not clear the skeleton the newer one shows.
+      if (!isStale()) setLoading(false);
     }
   };
 

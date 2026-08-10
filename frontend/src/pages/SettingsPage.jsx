@@ -286,13 +286,37 @@ export const SettingsPage = () => {
     setExportLoading(true);
     try {
       const { data } = await auth.exportData();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `jamie-data-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const json = JSON.stringify(data, null, 2);
+      const filename = `jamie-data-${new Date().toISOString().slice(0, 10)}.json`;
+
+      if (isNativeIOS()) {
+        // WKWebView has no download handler — the <a download> click below
+        // silently does NOTHING in the iOS app (same root cause as the
+        // removed .ics calendar path) while still toasting success. GDPR
+        // Art. 20 export must actually deliver the file: write it to the app
+        // cache and hand it to the system share sheet (save to Files, AirDrop,
+        // Mail, …). Needs the iOS 1.4 build (@capacitor/filesystem pod).
+        const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem');
+        const { Share } = await import('@capacitor/share');
+        const written = await Filesystem.writeFile({
+          path: filename, data: json, directory: Directory.Cache, encoding: Encoding.UTF8,
+        });
+        try {
+          await Share.share({ title: filename, url: written.uri });
+        } catch (shareErr) {
+          // User dismissed the sheet — not an error, but no success toast.
+          if (/cancel/i.test(shareErr?.message || '')) return;
+          throw shareErr;
+        }
+      } else {
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
       toast.success(t('settings.toast.exportSuccess'));
     } catch {
       toast.error(t('settings.toast.exportError'));
