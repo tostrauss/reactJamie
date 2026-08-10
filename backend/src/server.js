@@ -502,6 +502,12 @@ app.use('/api', (_req, res) => {
 if (process.env.NODE_ENV === 'production') {
   const publicPath = path.resolve(__dirname, '../public');
   app.get('*', (_req, res) => {
+    // Same no-store policy as express.static's index.html: sendFile bypasses
+    // that setHeaders hook and defaulted to `public, max-age=0` — letting
+    // intermediaries cache the shell on deep-link navigations (/club/77 is
+    // how most TWA sessions start) and risk serving a stale index after a
+    // deploy.
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(publicPath, 'index.html'));
   });
 }

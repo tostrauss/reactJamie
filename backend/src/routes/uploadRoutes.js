@@ -51,6 +51,25 @@ const upload = multer({
   limits: { fileSize: 15 * 1024 * 1024 },
 });
 
+// Global concurrency cap for the expensive section (moderation Blob copy +
+// two sharp passes + cloud upload ≈ 2-3× file size of transient RSS each).
+// The per-USER uploadLimiter doesn't help when a signup wave has hundreds of
+// DIFFERENT users adding avatars at once — 50 concurrent 15 MB uploads was a
+// multi-GB spike on a container that must also keep sockets alive. Excess
+// requests queue (FIFO) instead of OOM-ing the instance.
+const MAX_CONCURRENT_UPLOADS = 4;
+let uploadSlotsInUse = 0;
+const uploadQueue = [];
+const acquireUploadSlot = () => new Promise((resolve) => {
+  if (uploadSlotsInUse < MAX_CONCURRENT_UPLOADS) { uploadSlotsInUse++; resolve(); }
+  else uploadQueue.push(resolve);
+});
+const releaseUploadSlot = () => {
+  const next = uploadQueue.shift();
+  if (next) next(); // slot passes directly to the next waiter
+  else uploadSlotsInUse--;
+};
+
 // Surface multer errors (file-too-large, wrong mimetype) as JSON so the
 // frontend can show a useful message instead of a generic "upload failed".
 const handleUpload = upload.single('image');
@@ -69,10 +88,13 @@ router.post('/', authenticate, uploadLimiter, (req, res, next) => {
     next();
   });
 }, async (req, res) => {
+  let slotHeld = false;
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Kein Bild ausgewählt.' });
     }
+    await acquireUploadSlot();
+    slotHeld = true;
 
     // Validate actual file bytes — reject if magic bytes don't match a known image format
     const detectedMime = detectMime(req.file.buffer);
@@ -134,6 +156,8 @@ router.post('/', authenticate, uploadLimiter, (req, res, next) => {
   } catch (error) {
     console.error('Upload error:', error);
     res.status(500).json({ error: 'Upload failed' });
+  } finally {
+    if (slotHeld) releaseUploadSlot();
   }
 });
 

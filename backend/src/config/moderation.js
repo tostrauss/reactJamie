@@ -242,7 +242,11 @@ export const checkTextSafety = async (text) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ input: text }),
-      signal: AbortSignal.timeout(5000),
+      // 2.5s, was 5s: this call is AWAITED inside every chat/DM send, so when
+      // OpenAI sheds load each throttled response stalled sends by up to 5s —
+      // chat feels broken exactly under spike traffic. Normal latency is
+      // 150-400ms; past 2.5s we fail-open onto the always-on blocklist floor.
+      signal: AbortSignal.timeout(2500),
     });
 
     if (!response.ok) {

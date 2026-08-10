@@ -10,6 +10,14 @@
 const _cache = new Map(); // key → { result, expiresAt }
 const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+// Evict expired entries hourly — entries had a TTL but nothing ever removed
+// them (every unique free-text city grew the Map forever). unref(): never
+// keeps the process alive.
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of _cache) { if (now >= v.expiresAt) _cache.delete(k); }
+}, 60 * 60 * 1000).unref();
+
 // Serialise concurrent requests for the same string — one fetch, multiple waiters
 const _inflight = new Map();
 

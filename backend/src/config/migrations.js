@@ -718,6 +718,10 @@ const runStartupMigrations = async () => {
         UNIQUE (user_id, other_user_id)
       )
     `);
+    // schema.sql-bootstrapped DBs have this table WITHOUT is_archived (the
+    // CREATE above no-ops on an existing table) — the first archive tap then
+    // 42703'd and was silently dropped. Explicit ALTER covers both paths.
+    await db.query(`ALTER TABLE dm_conversations ADD COLUMN IF NOT EXISTS is_archived BOOLEAN DEFAULT FALSE`);
     // getConversations does WHERE user_id = $1 ORDER BY updated_at DESC. The
     // intended composite was historically created as `idx_dmc_user`, which
     // collides with schema.sql's idx_dmc_user(user_id) — IF NOT EXISTS then

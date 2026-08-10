@@ -18,11 +18,19 @@ const AVATARS_TTL = 60_000;  // 60 s — avatars change only on join/leave
 // rectangles: this is a soft market gate, so the shared Alpine borders overlap a
 // little (a user near the border may see immediately-adjacent cross-border
 // groups) — far-away groups (Vienna/Rome for a Berliner) are correctly hidden.
+// Value = ARRAY of boxes (Spain needs mainland + Canaries; anything else is
+// one box). FR/ES were missing entirely after the 2026-08-04 market launch —
+// French/Spanish users silently got the unfiltered worldwide feed.
 const COUNTRY_BOUNDS = {
-  AT: { latMin: 46.37, latMax: 49.02, lngMin: 9.53, lngMax: 17.16 },
-  DE: { latMin: 47.27, latMax: 55.06, lngMin: 5.87, lngMax: 15.04 },
-  CH: { latMin: 45.82, latMax: 47.81, lngMin: 5.96, lngMax: 10.49 },
-  IT: { latMin: 35.49, latMax: 47.09, lngMin: 6.62, lngMax: 18.52 },
+  AT: [{ latMin: 46.37, latMax: 49.02, lngMin: 9.53, lngMax: 17.16 }],
+  DE: [{ latMin: 47.27, latMax: 55.06, lngMin: 5.87, lngMax: 15.04 }],
+  CH: [{ latMin: 45.82, latMax: 47.81, lngMin: 5.96, lngMax: 10.49 }],
+  IT: [{ latMin: 35.49, latMax: 47.09, lngMin: 6.62, lngMax: 18.52 }],
+  FR: [{ latMin: 41.30, latMax: 51.12, lngMin: -5.15, lngMax: 9.57 }],
+  ES: [
+    { latMin: 35.90, latMax: 43.85, lngMin: -9.35, lngMax: 4.40 },
+    { latMin: 27.55, latMax: 29.50, lngMin: -18.25, lngMax: -13.30 },
+  ],
 };
 
 // Background one-shot resolution of users.country from the profile city.
@@ -319,7 +327,7 @@ export const createGroup = async (req, res) => {
     // out-of-region pin. Unresolvable location → created without a pin (unchanged).
     const geo = await resolveCreateLocation(location);
     if (!geo.ok) {
-      return res.status(400).json({ error: 'Dieser Ort liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien).' });
+      return res.status(400).json({ error: 'Dieser Ort liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien, Frankreich, Spanien).' });
     }
     const coords = geo.coords;
 
@@ -497,10 +505,14 @@ export const getGroups = async (req, res) => {
     // Same-country box filter (see COUNTRY_BOUNDS). Groups without coordinates are
     // kept (can't place them — don't over-hide). Only applied for known markets.
     if (regionBox) {
-      where += ` AND (g.lat IS NULL OR (g.lat BETWEEN $${paramIndex} AND $${paramIndex + 1}
-                                        AND g.lng BETWEEN $${paramIndex + 2} AND $${paramIndex + 3}))`;
-      params.push(regionBox.latMin, regionBox.latMax, regionBox.lngMin, regionBox.lngMax);
-      paramIndex += 4;
+      const boxClauses = regionBox.map((b) => {
+        const clause = `(g.lat BETWEEN $${paramIndex} AND $${paramIndex + 1}
+                         AND g.lng BETWEEN $${paramIndex + 2} AND $${paramIndex + 3})`;
+        params.push(b.latMin, b.latMax, b.lngMin, b.lngMax);
+        paramIndex += 4;
+        return clause;
+      });
+      where += ` AND (g.lat IS NULL OR ${boxClauses.join(' OR ')})`;
     }
 
     if (type) {
@@ -812,7 +824,7 @@ export const updateGroup = async (req, res) => {
       // Region gate — see createGroup: reject out-of-region, no pin if unresolvable.
       const geo = await resolveCreateLocation(location);
       if (!geo.ok) {
-        return res.status(400).json({ error: 'Dieser Ort liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien).' });
+        return res.status(400).json({ error: 'Dieser Ort liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien, Frankreich, Spanien).' });
       }
       latUpdate = geo.coords?.lat ?? null;
       lngUpdate = geo.coords?.lng ?? null;
@@ -843,7 +855,9 @@ export const updateGroup = async (req, res) => {
        WHERE id = $10
        RETURNING *`,
       [
-        name, description, (catList.length ? catList[0] : null), date, location, image_url, max_members, is_private, skill_level,
+        // '' → null: an empty date field must mean "keep existing" (COALESCE),
+        // not a 500 from casting '' to timestamp (updateClub does the same).
+        name, description, (catList.length ? catList[0] : null), (date === '' ? null : date), location, image_url, max_members, is_private, skill_level,
         id, latUpdate, lngUpdate, chat_only_owner ?? null,
         ageMinU === undefined ? '__keep__' : (ageMinU === null ? '__null__' : String(ageMinU)),
         ageMaxU === undefined ? '__keep__' : (ageMaxU === null ? '__null__' : String(ageMaxU)),
@@ -923,7 +937,7 @@ export const joinGroup = async (req, res) => {
               gm.user_id AS already_member
        FROM groups g
        LEFT JOIN group_members gm ON gm.group_id = g.id AND gm.user_id = $2
-       WHERE g.id = $1`,
+       WHERE g.id = $1 AND g.deleted_at IS NULL AND g.is_active = TRUE`,
       [id, req.userId]
     );
     if (groupRes.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
@@ -1151,9 +1165,10 @@ export const toggleFavorite = async (req, res) => {
       return res.json({ favorited: false, message: 'Removed from favorites' });
     }
 
-    // Add favorite
+    // Add favorite — ON CONFLICT: two rapid taps both pass the SELECT above;
+    // the loser used to 500 on the PK for a benign action.
     await db.query(
-      'INSERT INTO group_favorites (group_id, user_id) VALUES ($1, $2)',
+      'INSERT INTO group_favorites (group_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
       [id, req.userId]
     );
     res.json({ favorited: true, message: 'Added to favorites' });
@@ -1778,7 +1793,7 @@ export const joinWaitlist = async (req, res) => {
 
     // Three checks in parallel: group exists, already member, already on waitlist
     const [groupRes, memberCheck, waitlistCheck] = await Promise.all([
-      db.query('SELECT members_count, max_members, parent_club_id FROM groups WHERE id = $1', [id]),
+      db.query('SELECT members_count, max_members, parent_club_id FROM groups WHERE id = $1 AND deleted_at IS NULL AND is_active = TRUE', [id]),
       db.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
       db.query('SELECT position FROM group_waitlist WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
     ]);
@@ -1801,10 +1816,21 @@ export const joinWaitlist = async (req, res) => {
       return res.status(400).json({ error: 'Group not full. Join directly.' });
     }
 
+    // ON CONFLICT: two rapid taps both pass the parallel checks — the loser
+    // used to 500 on UNIQUE(group_id, user_id). No row returned = the other
+    // tap won; report the existing position.
     const result = await db.query(
-      'INSERT INTO group_waitlist (group_id, user_id) VALUES ($1, $2) RETURNING *',
+      `INSERT INTO group_waitlist (group_id, user_id) VALUES ($1, $2)
+       ON CONFLICT (group_id, user_id) DO NOTHING RETURNING position`,
       [id, req.userId]
     );
+    if (result.rows.length === 0) {
+      const pos = await db.query(
+        'SELECT position FROM group_waitlist WHERE group_id = $1 AND user_id = $2',
+        [id, req.userId]
+      );
+      return res.json({ message: 'Already on waitlist', position: pos.rows[0]?.position });
+    }
 
     res.json({ message: 'Added to waitlist', position: result.rows[0].position });
   } catch (err) {

@@ -208,6 +208,7 @@ CREATE TABLE dm_conversations (
     last_message_at TIMESTAMP,
     unread_count    INTEGER DEFAULT 0,
     is_hidden       BOOLEAN DEFAULT FALSE,                 -- "Ausgeblendet" section
+    is_archived     BOOLEAN DEFAULT FALSE,                 -- per-user archive (chat rebuild 2026-08)
     is_muted        BOOLEAN DEFAULT FALSE,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

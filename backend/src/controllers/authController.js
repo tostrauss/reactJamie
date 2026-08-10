@@ -329,10 +329,12 @@ export const login = async (req, res) => {
 
     const user = result.rows[0];
 
-    // Account lockout check — return the SAME generic error as wrong password,
-    // so an attacker can't distinguish "locked because exists" from
-    // "wrong password". Authenticated users still get a clear message because
-    // they will quickly succeed on a correct password (lockout TTL).
+    // Account lockout check. NOTE (audit 2026-08-10): the distinct 429 IS an
+    // existence oracle — only a real account can be locked, so 5 deliberate
+    // failures answer "does this email have an account?". Accepted: hiding it
+    // would leave locked-out legitimate users with a misleading "wrong
+    // password" and no idea they must wait (support burden > oracle value,
+    // and signup already discloses existence — see sendEmailCode).
     if (user.locked_until && new Date(user.locked_until) > new Date()) {
       // Still consume time so timing is consistent
       await bcrypt.compare(password, DUMMY_BCRYPT_HASH).catch(() => false);
@@ -1046,7 +1048,13 @@ export const sendEmailCode = async (req, res) => {
     const { name } = req.body;
     if (!email || !isValidEmail(email)) return res.status(400).json({ error: 'Ungültige E-Mail-Adresse' });
 
-    // Check email not already registered (case-insensitive)
+    // Check email not already registered (case-insensitive).
+    // KNOWN, ACCEPTED enumeration oracle (audit 2026-08-10): this response
+    // reveals whether an email has an account. The alternative (generic
+    // "check your inbox") breaks the signup UX for the common "you already
+    // have an account — log in instead" case, and the per-IP budget here is
+    // deliberately generous for the 2M2M carrier-NAT scenario, so we accept
+    // the trade-off like most consumer apps do.
     const existing = await db.query('SELECT id FROM users WHERE LOWER(email) = $1', [email]);
     if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'Diese E-Mail ist bereits registriert' });

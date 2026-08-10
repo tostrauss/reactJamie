@@ -450,14 +450,48 @@ export const deleteUser = async (req, res) => {
     if (target.rows[0].is_admin) {
       return res.status(403).json({ error: 'Admins können hier nicht gelöscht werden' });
     }
-    await db.query('DELETE FROM users WHERE id = $1', [targetId]);
+    // groups.owner_id is ON DELETE CASCADE — a bare DELETE would take every
+    // group/club the target OWNS down with it, destroying communities for all
+    // their members (and the admin path is used against exactly the accounts
+    // likely to own groups others joined). Same ownership transfer as the
+    // self-service deleteAccount: earliest other member inherits, solo-owned
+    // groups cascade away harmlessly.
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `WITH transfer AS (
+           SELECT DISTINCT ON (gm.group_id) gm.group_id, gm.user_id AS new_owner
+           FROM group_members gm
+           JOIN groups g ON g.id = gm.group_id
+           WHERE g.owner_id = $1 AND gm.user_id <> $1
+           ORDER BY gm.group_id, gm.joined_at ASC
+         ),
+         upd_groups AS (
+           UPDATE groups g SET owner_id = t.new_owner
+           FROM transfer t WHERE g.id = t.group_id
+           RETURNING g.id, t.new_owner
+         )
+         UPDATE group_members gm SET role = 'owner'
+         FROM upd_groups u
+         WHERE gm.group_id = u.id AND gm.user_id = u.new_owner`,
+        [targetId]
+      );
+      await client.query('DELETE FROM users WHERE id = $1', [targetId]);
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
     res.json({
       success: true,
       deleted: { id: target.rows[0].id, email: target.rows[0].email, name: target.rows[0].name },
     });
   } catch (err) {
     console.error('Admin deleteUser error:', err);
-    res.status(500).json({ error: 'Nutzer konnte nicht gelöscht werden', detail: err.message });
+    res.status(500).json({ error: 'Nutzer konnte nicht gelöscht werden' });
   }
 };
 

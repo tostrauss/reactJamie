@@ -3,7 +3,7 @@ import { geocodeLocation, resolveCreateLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
-import { notifyJoinRequest, notifyGroupJoin, evictFromRoom, creatorHasAvatar } from './groupController.js';
+import { notifyJoinRequest, notifyGroupJoin, evictFromRoom, creatorHasAvatar, promoteFromWaitlist } from './groupController.js';
 import { isUserPro } from './subscriptionController.js';
 import { sendPushToUser, sendPushToUsers } from './pushController.js';
 
@@ -102,7 +102,7 @@ export const createClub = async (req, res) => {
     // Unresolvable location → club still created, just without a map pin.
     const geo = await resolveCreateLocation(location);
     if (!geo.ok) {
-      return res.status(400).json({ error: 'Dieser Ort liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien).' });
+      return res.status(400).json({ error: 'Dieser Ort liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien, Frankreich, Spanien).' });
     }
     const coords = geo.coords;
 
@@ -391,7 +391,7 @@ export const updateClub = async (req, res) => {
       // Region gate — see createGroup: reject out-of-region, no pin if unresolvable.
       const geo = await resolveCreateLocation(location);
       if (!geo.ok) {
-        return res.status(400).json({ error: 'Dieser Ort liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien).' });
+        return res.status(400).json({ error: 'Dieser Ort liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien, Frankreich, Spanien).' });
       }
       latUpdate = geo.coords?.lat ?? null;
       lngUpdate = geo.coords?.lng ?? null;
@@ -446,11 +446,10 @@ export const updateClub = async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating club:', err);
-    res.status(500).json({
-      error: 'Club konnte nicht aktualisiert werden',
-      detail: err.message,
-      code: err.code,
-    });
+    // Log the details server-side only — err.message/err.code expose raw
+    // Postgres constraint/column names to the client (no other controller
+    // echoes them).
+    res.status(500).json({ error: 'Club konnte nicht aktualisiert werden' });
   }
 };
 
@@ -651,6 +650,16 @@ export const leaveClub = async (req, res) => {
       return res.status(400).json({ error: 'Not a member of this club' });
     }
 
+    // A seat just opened — clubs have waitlists too (getClubById serves
+    // waitlist_status/position), but only the GROUP leave/kick handlers ever
+    // promoted; club-side departures left waiters at "waiting" forever.
+    promoteFromWaitlist(id).then(promoted => {
+      if (promoted) {
+        sendPushToUser(promoted.userId, 'Platz frei!', `Ein Platz in "${promoted.groupName}" ist frei geworden`, `/club/${id}`);
+      }
+    }).catch(() => {});
+    deleteCached('user_groups:' + req.userId);
+
     res.json({ message: 'Left club successfully' });
   } catch (err) {
     console.error('Error leaving club:', err);
@@ -687,8 +696,9 @@ export const toggleClubFavorite = async (req, res) => {
       return res.json({ favorited: false, message: 'Removed from favorites' });
     }
 
+    // ON CONFLICT: double-tap race — the loser used to 500 on the PK.
     await db.query(
-      'INSERT INTO group_favorites (group_id, user_id) VALUES ($1, $2)',
+      'INSERT INTO group_favorites (group_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
       [id, req.userId]
     );
     res.json({ favorited: true, message: 'Added to favorites' });
@@ -1009,6 +1019,14 @@ export const kickClubMember = async (req, res) => {
 
     // Evict the removed member's live sockets from the chat room (see kickMember).
     await evictFromRoom(req.app.get('io'), userId, id);
+
+    // Freed seat → promote the next waiter (mirrors leaveClub/kickMember).
+    promoteFromWaitlist(id).then(promoted => {
+      if (promoted) {
+        sendPushToUser(promoted.userId, 'Platz frei!', `Ein Platz in "${promoted.groupName}" ist frei geworden`, `/club/${id}`);
+      }
+    }).catch(() => {});
+    deleteCached('user_groups:' + userId);
 
     res.json({ message: 'Member removed successfully' });
   } catch (err) {
@@ -1449,7 +1467,9 @@ export const updateClubEvent = async (req, res) => {
     }
 
     // date/time only rebuilt when a date is supplied (mirrors createClubEvent).
-    const dateTime = date !== undefined ? (date && time ? `${date}T${time}` : date) : null;
+    // `date || null`: an empty string must mean "keep existing" (COALESCE) —
+    // ''::timestamp is a 500, not a no-op.
+    const dateTime = date !== undefined ? (date && time ? `${date}T${time}` : (date || null)) : null;
 
     // Re-geocode only when location changes. Empty string inherits the club's
     // location (text + coords) — same fallback as createClubEvent.

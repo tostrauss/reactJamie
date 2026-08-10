@@ -150,9 +150,10 @@ export const saveApnsToken = async (req, res) => {
        ON CONFLICT (user_id, device_token) DO NOTHING`,
       [req.userId, token]
     );
-    // TEMP debug (2026-08-05): confirm the native iPhone actually reaches this
-    // endpoint. Remove once iOS push is verified.
-    console.log(`[APNs] token registered — user ${req.userId}, token ${String(token).slice(0, 8)}… (len ${String(token).length})`);
+    // TEMP debug (2026-08-05): confirms the native iPhone reaches this
+    // endpoint — needed until APNs goes live. Deliberately WITHOUT user id or
+    // token material (the original line correlated both in the logs).
+    console.log(`[APNs] token registered (len ${String(token).length})`);
     res.json({ success: true });
   } catch (err) {
     console.error('APNs token save error:', err);

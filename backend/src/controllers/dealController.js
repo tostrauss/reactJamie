@@ -174,7 +174,7 @@ export const createDeal = async (req, res) => {
     // Region gate — reject an address that resolves outside the launch markets.
     const geo = await resolveCreateLocation(address);
     if (!geo.ok) {
-      return res.status(400).json({ error: 'Diese Adresse liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien).' });
+      return res.status(400).json({ error: 'Diese Adresse liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien, Frankreich, Spanien).' });
     }
     if (geo.coords) { dealLat = geo.coords.lat; dealLng = geo.coords.lng; }
   }
@@ -263,7 +263,7 @@ export const updateDeal = async (req, res) => {
     // Region gate — reject an address that resolves outside the launch markets.
     const geo = await resolveCreateLocation(address);
     if (!geo.ok) {
-      return res.status(400).json({ error: 'Diese Adresse liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien).' });
+      return res.status(400).json({ error: 'Diese Adresse liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien, Frankreich, Spanien).' });
     }
     if (geo.coords) { fields.lat = geo.coords.lat; fields.lng = geo.coords.lng; }
   }

@@ -45,6 +45,11 @@ export const getPendingReviews = async (req, res) => {
        WHERE g.type = 'group'
          AND g.did_not_take_place = FALSE
          AND g.date IS NOT NULL
+         -- Ongoing weekly series: stored date = FIRST occurrence, so without
+         -- this guard every member got the "Wer war dabei?" modal one day
+         -- after week one — for a series still running (and the answers wrote
+         -- permanent trusted_count data). Mirrors getReviewForGroup.
+         AND g.is_recurring_weekly IS NOT TRUE
          -- "Past" = the event's DAY is over. Date-only events store at midnight,
          -- so the old "date + 6h < NOW()" surfaced the review at 06:00 ON the
          -- event day, before it happened (Lea's 14:00 picnic). Day-based

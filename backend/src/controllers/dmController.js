@@ -212,6 +212,12 @@ export const getConversation = async (req, res) => {
     }
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    // Cursor pagination (preferred): ?before=<oldest loaded message id>.
+    // OFFSET drifts in an active thread — every message that arrives between
+    // page loads shifts the window, so "load earlier" repeated or skipped
+    // rows. The offset form stays supported for older app bundles.
+    const before = parseInt(req.query.before, 10);
+    const hasBefore = Number.isFinite(before) && before > 0;
 
     // Gate history access: accepted friends, or any thread involving an admin
     // (so the admin can open it AND the recipient can read/reply). Same rule as
@@ -233,8 +239,9 @@ export const getConversation = async (req, res) => {
       LEFT JOIN users r ON dm.receiver_id = r.id
       WHERE LEAST(dm.sender_id, dm.receiver_id)    = LEAST($1::int, $2::int)
         AND GREATEST(dm.sender_id, dm.receiver_id) = GREATEST($1::int, $2::int)
+        ${hasBefore ? 'AND dm.id < $4' : ''}
       ORDER BY dm.created_at DESC
-      LIMIT $3 OFFSET $4
+      LIMIT $3 ${hasBefore ? '' : 'OFFSET $4'}
     `;
     // NOTE: fetch the NEWEST page (DESC + LIMIT) then reverse to chronological
     // before responding — the old ASC LIMIT returned the 50 OLDEST messages,
@@ -243,7 +250,7 @@ export const getConversation = async (req, res) => {
     // to result.rows just before res.json below.
     let result;
     try {
-      result = await db.query(querySql, [req.userId, userId, limit, offset]);
+      result = await db.query(querySql, [req.userId, userId, limit, hasBefore ? before : offset]);
     } catch (err) {
       // Fresh DB without seed schema → table missing. Create it inline and
       // return an empty conversation so the user can start chatting.
@@ -356,11 +363,17 @@ export const setConversationArchived = async (req, res) => {
     const archived = req.body.archived === true || req.body.archived === 'true';
     // No conversation row yet (no message ever sent) → nothing to hide; the
     // chat wouldn't appear in the list anyway, so treat as a no-op success.
-    await db.query(
+    const doUpdate = () => db.query(
       `UPDATE dm_conversations SET is_archived = $1 WHERE user_id = $2::int AND other_user_id = $3::int`,
       [archived, req.userId, otherUserId]
-    ).catch(async (err) => {
-      if (isMissingRelationError(err)) { await ensureDmTables(); return; }
+    );
+    await doUpdate().catch(async (err) => {
+      if (isMissingRelationError(err)) {
+        // Heal AND RETRY — the old code healed but returned {archived:true}
+        // without writing, silently dropping the user's first tap.
+        await ensureDmTables();
+        return doUpdate();
+      }
       throw err;
     });
     res.json({ archived });

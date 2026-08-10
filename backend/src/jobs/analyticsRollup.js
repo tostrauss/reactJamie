@@ -147,7 +147,11 @@ export async function backfillIfEmpty() {
         UNION ALL SELECT MIN(created_at) FROM groups
         UNION ALL SELECT MIN(created_at) FROM messages
       ) x`);
-    let start = earliest.rows[0].start ? earliest.rows[0].start.toISOString().slice(0, 10) : todayUTC();
+    // MIN(d)::date is OID 1082, which the pinned DATE parser (database.js)
+    // returns as a STRING — .toISOString() on it was a TypeError that the
+    // outer catch swallowed, so restored/bootstrapped DBs silently never
+    // backfilled. String() handles both shapes.
+    let start = earliest.rows[0].start ? String(earliest.rows[0].start).slice(0, 10) : todayUTC();
     const cap = addDays(todayUTC(), -400);
     if (start < cap) start = cap;
 
