@@ -141,6 +141,17 @@ export const createSubscription = async (req, res) => {
     if (['active', 'canceling', 'trialing'].includes(existing?.status)) {
       return res.status(400).json({ error: 'Bereits ein aktives Abonnement vorhanden' });
     }
+    // past_due blocks too: Stripe's smart retries recover most failed renewals
+    // within days. Selling a SECOND subscription in that window double-charges
+    // the user as soon as retry succeeds — and cancel/getStatus only ever see
+    // the newest row, so the old one would keep billing invisibly. The user
+    // fixes the card via the portal ("Abo verwalten") instead.
+    if (existing?.status === 'past_due') {
+      return res.status(400).json({
+        error: 'Deine letzte Abo-Zahlung ist fehlgeschlagen. Bitte aktualisiere deine Zahlungsmethode unter Einstellungen → „Abo verwalten“, statt ein neues Abo zu starten.',
+        code: 'PAST_DUE',
+      });
+    }
 
     // Get or create Stripe customer. A stored customer id can be invalid under
     // the CURRENT keys — a TEST-mode id left in the DB from pre-launch testing
@@ -166,11 +177,16 @@ export const createSubscription = async (req, res) => {
       customerId = customer.id;
     }
 
-    // Cancel any stale incomplete/pending Stripe subscriptions to avoid orphans
+    // Cancel any stale incomplete/pending Stripe subscriptions to avoid orphans.
+    // A trial sub abandoned at the card form is 'trialing' WITHOUT a payment
+    // method on Stripe's side (it would auto-cancel at trial end) — cancel it
+    // too, so a retried checkout doesn't stack a second trial next to it.
     if (existing?.stripe_subscription_id && existing?.status === 'pending') {
       try {
         const staleSub = await stripe.subscriptions.retrieve(existing.stripe_subscription_id);
-        if (staleSub.status === 'incomplete') {
+        const abandonedTrial = staleSub.status === 'trialing'
+          && !staleSub.default_payment_method && !staleSub.default_source;
+        if (staleSub.status === 'incomplete' || abandonedTrial) {
           await stripe.subscriptions.cancel(existing.stripe_subscription_id);
         }
       } catch (_) { /* ignore — subscription may not exist in Stripe anymore */ }
@@ -336,7 +352,22 @@ export const cancelSubscription = async (req, res) => {
     }
 
     const { stripe_subscription_id } = result.rows[0];
-    await stripe.subscriptions.update(stripe_subscription_id, { cancel_at_period_end: true });
+    try {
+      await stripe.subscriptions.update(stripe_subscription_id, { cancel_at_period_end: true });
+    } catch (e) {
+      // Sub deleted/fully canceled out-of-band (dashboard action, missed
+      // subscription.deleted webhook): don't 500 — settle the DB row so the
+      // in-app cancel button isn't permanently broken for this user.
+      const alreadyGone = e?.code === 'resource_missing'
+        || /canceled subscription/i.test(e?.message || '');
+      if (!alreadyGone) throw e;
+      await db.query(
+        `UPDATE subscriptions SET status = 'canceled', updated_at = NOW()
+         WHERE stripe_subscription_id = $1`,
+        [stripe_subscription_id]
+      );
+      return res.json({ success: true, message: 'Abonnement ist bereits beendet' });
+    }
 
     await db.query(
       `UPDATE subscriptions SET status = 'canceling', updated_at = NOW()
@@ -473,6 +504,26 @@ const invoiceSubId = (invoice) =>
   ?? invoice?.lines?.data?.[0]?.subscription
   ?? null;
 
+// Single mapping from a Stripe subscription object to our DB status. Used by
+// EVERY webhook branch that writes status — the old invoice.payment_succeeded
+// handler derived 'active' from cancel_at_period_end alone, which (a) wrote
+// 'active' over a trialing sub (whole trial cohort mislabeled) and (b) let a
+// delayed/retried invoice event resurrect a canceled+refunded sub to Pro.
+// Trialing counts only once a payment method is actually on file: a sub is
+// born 'trialing' BEFORE confirmSetup, and treating that as Pro handed out
+// 14 free days with no card (abandoned checkout still burned nothing, but
+// got full Pro until trial end).
+const mapSubStatus = (sub) => {
+  if (sub.status === 'active') return sub.cancel_at_period_end ? 'canceling' : 'active';
+  if (sub.status === 'trialing') {
+    if (!sub.default_payment_method && !sub.default_source) return 'pending';
+    return sub.cancel_at_period_end ? 'canceling' : 'trialing';
+  }
+  if (sub.status === 'canceled') return 'canceled';
+  if (sub.status === 'past_due') return 'past_due';
+  return 'inactive';
+};
+
 // ==========================================
 // STRIPE WEBHOOK — handle subscription lifecycle
 // ==========================================
@@ -496,11 +547,7 @@ export const subscriptionWebhook = async (req, res) => {
   try {
     if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.created') {
       const sub = event.data.object;
-      let status = 'inactive';
-      if (sub.status === 'active') status = sub.cancel_at_period_end ? 'canceling' : 'active';
-      else if (sub.status === 'trialing') status = sub.cancel_at_period_end ? 'canceling' : 'trialing';
-      else if (sub.status === 'canceled') status = 'canceled';
-      else if (sub.status === 'past_due') status = 'past_due';
+      const status = mapSubStatus(sub);
       // Resolve period end from either API shape. If the event carries neither
       // (some dahlia payloads omit it on the raw object), fall back to a pinned
       // retrieve, which returns the 2023-10-16 shape with a top-level value.
@@ -531,12 +578,18 @@ export const subscriptionWebhook = async (req, res) => {
         const stripeSub = await stripe.subscriptions.retrieve(subId);
         const periodEndUnix = subPeriodEndUnix(stripeSub);
         const periodEnd = periodEndUnix ? new Date(periodEndUnix * 1000) : null;
-        const status = stripeSub.cancel_at_period_end ? 'canceling' : 'active';
-        await db.query(
-          `UPDATE subscriptions SET status = $1, current_period_end = $2, updated_at = NOW()
-           WHERE stripe_subscription_id = $3`,
-          [status, periodEnd, subId]
-        );
+        // Map the sub's REAL status — never assume "payment ⇒ active". Skip
+        // the write entirely for unmapped states (e.g. a retrieve racing the
+        // incomplete→active transition) so a 'pending' row isn't downgraded;
+        // the following customer.subscription.updated settles it.
+        const status = mapSubStatus(stripeSub);
+        if (status !== 'inactive') {
+          await db.query(
+            `UPDATE subscriptions SET status = $1, current_period_end = $2, updated_at = NOW()
+             WHERE stripe_subscription_id = $3`,
+            [status, periodEnd, subId]
+          );
+        }
       }
     } else if (event.type === 'invoice.payment_failed') {
       const invoice = event.data.object;
@@ -558,6 +611,65 @@ export const subscriptionWebhook = async (req, res) => {
   }
 
   res.json({ received: true });
+};
+
+// ==========================================
+// HELPER: revoke Pro when a SUBSCRIPTION payment is refunded/disputed
+// ==========================================
+// charge.refunded / charge.dispute.created are delivered to the BOOST webhook
+// endpoint (that's where the events are configured in the dashboard); its
+// claw-back only knows boost_transactions, so a support refund of a
+// subscription payment from the Stripe dashboard used to leave the user with
+// full Pro AND an auto-renewing sub. Called by the boost webhook for every
+// such charge; no-ops unless the charge maps to one of OUR subscriptions.
+// Idempotent: canceling an already-canceled sub is caught, the DB write is a
+// plain status UPDATE.
+export const revokeSubscriptionForCharge = async (charge) => {
+  const stripe = getStripe();
+  if (!stripe || !charge) return;
+
+  const piId = typeof charge.payment_intent === 'string'
+    ? charge.payment_intent
+    : charge.payment_intent?.id;
+
+  // Invoice id out of either API shape: pre-basil charges carry .invoice;
+  // newer versions map PI → invoice via the invoice_payments list.
+  let invoiceId = typeof charge.invoice === 'string' ? charge.invoice : charge.invoice?.id;
+  if (!invoiceId && piId) {
+    try {
+      const payments = await stripe.invoicePayments.list({
+        payment: { type: 'payment_intent', payment_intent: piId },
+        limit: 1,
+      });
+      invoiceId = payments?.data?.[0]?.invoice ?? null;
+      if (invoiceId && typeof invoiceId !== 'string') invoiceId = invoiceId.id;
+    } catch { /* not an invoice payment (e.g. a boost PI) — nothing to do */ }
+  }
+  if (!invoiceId) return;
+
+  const invoice = await stripe.invoices.retrieve(invoiceId);
+  const subId = invoiceSubId(invoice);
+  if (!subId) return;
+
+  const row = await db.query(
+    'SELECT id FROM subscriptions WHERE stripe_subscription_id = $1',
+    [subId]
+  );
+  if (!row.rows.length) return;
+
+  try {
+    await stripe.subscriptions.cancel(subId);
+  } catch (e) {
+    const alreadyGone = e?.code === 'resource_missing'
+      || /canceled subscription/i.test(e?.message || '');
+    if (!alreadyGone) throw e; // real failure → caller 500s → Stripe retries
+  }
+  await db.query(
+    `UPDATE subscriptions SET status = 'canceled', updated_at = NOW()
+     WHERE stripe_subscription_id = $1`,
+    [subId]
+  );
+  console.log(`[subscription] revoked for refunded/disputed charge ${charge.id} (sub ${subId})`);
 };
 
 // ==========================================

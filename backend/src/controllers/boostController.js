@@ -1,7 +1,7 @@
 import db from '../config/database.js';
 import Stripe from 'stripe';
 import crypto from 'crypto';
-import { isUserPro } from './subscriptionController.js';
+import { isUserPro, revokeSubscriptionForCharge } from './subscriptionController.js';
 import { invalidatePrefix } from '../utils/cache.js';
 import { REFERRAL_CREDITS_ENABLED, isAppShellRequest } from '../config/features.js';
 
@@ -278,8 +278,12 @@ export const stripeWebhook = async (req, res) => {
       const charge = event.data.object;
       const paymentIntentId = charge.payment_intent || charge.id;
       await revokeCreditsForPayment(paymentIntentId);
+      // These events land on THIS endpoint for subscription payments too —
+      // a dashboard refund/dispute of a sub must also end the sub + Pro
+      // (no-op for boost charges).
+      await revokeSubscriptionForCharge(charge);
     } catch (err) {
-      console.error('revokeCreditsForPayment failed (will 500 for retry):', err);
+      console.error('refund/dispute revoke failed (will 500 for retry):', err);
       return res.status(500).json({ error: 'revoke_failed' });
     }
   }

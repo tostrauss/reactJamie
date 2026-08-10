@@ -200,6 +200,12 @@ async function grantBoostCredits(client, userId, credits) {
 }
 
 async function activateSubscription(client, userId, plan, originalTxId, expiresMs) {
+  // Without this, every receipt missing its originalTransactionId would key
+  // on the SAME 'apple:undefined' row — the ON CONFLICT below would then
+  // extend the FIRST such user's Pro with everyone else's renewals.
+  if (!originalTxId) {
+    throw new Error('activateSubscription: missing originalTransactionId');
+  }
   const periodEnd = expiresMs ? new Date(expiresMs) : null;
   // The subscriptions table mirrors the Stripe one but with the Apple
   // originalTransactionId standing in for stripe_subscription_id. The Pro
