@@ -575,7 +575,8 @@
     "unknownName": "Membro",
     "remove": "Rimuovi",
     "removeConfirm": "Rimuovere davvero {{name}}?",
-    "gatedHint": "Vedi altri {{count}} membri con JAMIE Pro",
+    "gatedHint_one": "Vedi {{count}} altro membro con JAMIE Pro",
+    "gatedHint_other": "Vedi altri {{count}} membri con JAMIE Pro",
     "gatedCta": "Sblocca Pro",
     "toast": {
       "loadError": "Impossibile caricare i membri",
@@ -675,13 +676,15 @@
       "requestsTab": {
         "remaining": "{{count}} in attesa",
         "doneTitle": "Tutte le richieste gestite!",
-        "doneText": "Hai gestito {{count}} richieste 🎉",
+        "doneText_one": "Hai gestito {{count}} richiesta 🎉",
+        "doneText_other": "Hai gestito {{count}} richieste 🎉",
         "emptyTitle": "Nessuna richiesta in attesa",
         "emptyText": "Le nuove richieste per i tuoi gruppi e club appariranno qui."
       },
       "manage": {
         "edit": "Modifica",
-        "membersFmt": "{{count}} membri",
+        "membersFmt_one": "{{count}} membro",
+        "membersFmt_other": "{{count}} membri",
         "empty": "Non hai ancora gruppi o club tuoi",
         "emptyCta": "Creane uno ora"
       },
@@ -974,7 +977,8 @@
       "favorites": "Preferiti",
       "notifications": "Notifiche",
       "app": "App",
-      "legal": "Informazioni legali"
+      "legal": "Informazioni legali",
+      "iap": "Acquisti"
     },
     "subscription": {
       "statusActive": "Attivo",
@@ -999,7 +1003,13 @@
       "withdrawDoneNoRefundToast": "Recesso effettuato. Per domande sul rimborso scrivi a office@jamie-app.com.",
       "withdrawError": "Recesso non riuscito. Riprova o contatta office@jamie-app.com.",
       "portalBtn": "Gestisci abbonamento (pagamento, fatture)",
-      "portalError": "Impossibile aprire il portale. Riprova."
+      "portalError": "Impossibile aprire il portale. Riprova.",
+      "restoreSuccess_one": "{{count}} acquisto ripristinato",
+      "restoreSuccess_other": "{{count}} acquisti ripristinati",
+      "restoreNone": "Nessun acquisto da ripristinare",
+      "restoreError": "Ripristino non riuscito",
+      "restoreBtn": "Ripristina acquisti",
+      "restoreHelper": "Nuovo dispositivo? Ripristina abbonamenti attivi e acquisti non riscattati."
     },
     "boostPurchases": {
       "title": "Acquisti Boost",
@@ -1266,7 +1276,15 @@
         "popular": "Popolare",
         "bestValue": "Migliore offerta"
       }
-    }
+    },
+    "unexpectedStatus": "Non ha funzionato. Riprova.",
+    "restoreNone": "Nessun acquisto da ripristinare trovato",
+    "restoreError": "Ripristino non riuscito",
+    "iosUnavailable": "JAMIE Pro al momento non è disponibile su iPhone.",
+    "restoreBtn": "Ripristina acquisti",
+    "iosTerms": "JAMIE Pro si rinnova automaticamente al prezzo selezionato alla fine di ogni periodo. Disdici in qualsiasi momento in Impostazioni iOS → ID Apple → Abbonamenti, almeno 24 ore prima della scadenza.",
+    "terms": "Termini",
+    "privacy": "Privacy"
   },
   "boost": {
     "title": "🚀 Boost",
@@ -1303,13 +1321,15 @@
       "choosePayment": "Scegli metodo di pagamento",
       "applePay": "🍎 Apple Pay / Carta",
       "stripeError": "Impossibile avviare Stripe",
-      "creditsAddedToast": "+{{count}} crediti Boost accreditati!",
+      "creditsAddedToast_one": "+{{count}} credito Boost accreditato!",
+      "creditsAddedToast_other": "+{{count}} crediti Boost accreditati!",
       "paymentError": "Impossibile completare il pagamento"
     },
     "stripe": {
       "back": "Indietro",
       "processing": "Elaborazione...",
-      "pay": "Paga ora"
+      "pay": "Paga ora",
+      "unexpectedStatus": "Impossibile completare il pagamento. Riprova."
     },
     "referral": {
       "title": "Invita amici",
@@ -1359,7 +1379,8 @@
     "loading": "Caricamento richieste...",
     "errorPermission": "Nessuna autorizzazione – non sei il creatore di questo gruppo",
     "errorLoad": "Impossibile caricare le richieste",
-    "countFmt": "{{count}} richieste",
+    "countFmt_one": "{{count}} richiesta",
+    "countFmt_other": "{{count}} richieste",
     "empty": "Nessuna richiesta",
     "allDoneTitle": "Tutte le richieste gestite!",
     "allDoneText": "Hai esaminato tutte le richieste di ingresso.",
@@ -1568,7 +1589,8 @@
       "eventsAll": "Tutti i membri del club",
       "visibility": "Visibilità",
       "visibilityPrivate": "Privato — solo su richiesta",
-      "visibilityPublic": "Pubblico — chiunque può unirsi"
+      "visibilityPublic": "Pubblico — chiunque può unirsi",
+      "categoryRemove": "Rimuovi"
     },
     "favoriteAria": "Aggiungi ai preferiti",
     "favError": "Impossibile salvare il preferito",
@@ -1659,7 +1681,8 @@
     "errorGeneric": "Errore durante il salvataggio. Riprova.",
     "successText": "Sei in lista! Ti contatteremo appena JAMIE arriverà da te.",
     "voteTitle": "🗳️ Qual è il prossimo paese in cui lanciare JAMIE?",
-    "votesTitle": "Votazione attuale ({{count}} voti)",
+    "votesTitle_one": "Votazione attuale ({{count}} voto)",
+    "votesTitle_other": "Votazione attuale ({{count}} voti)",
     "footerPrefix": "Sei già in uno dei nostri paesi?",
     "footerLink": "Apri l'app",
     "countries": {
@@ -1919,5 +1942,24 @@
       "deleted": "Utente eliminato",
       "cancel": "Annulla"
     }
+  },
+  "imageUpload": {
+    "label": "Carica immagine",
+    "uploading": "Caricamento...",
+    "typeError": "Sono consentiti solo JPEG, PNG, WebP o GIF",
+    "sizeError": "L'immagine può pesare al massimo {{max}} MB",
+    "failed": "Caricamento non riuscito"
+  },
+  "errorBoundary": {
+    "title": "Ops!",
+    "heading": "Qualcosa è andato storto",
+    "body": "Si è verificato un errore imprevisto. Prova a ricaricare la pagina.",
+    "reload": "Ricarica la pagina",
+    "retry": "Riprova"
+  },
+  "lightbox": {
+    "close": "Chiudi",
+    "prevPhoto": "Foto precedente",
+    "nextPhoto": "Foto successiva"
   }
 }

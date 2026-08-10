@@ -1,5 +1,13 @@
 import React from 'react';
 import { captureException } from '../utils/sentry';
+// Class component → the i18n singleton directly (no hook). defaultValue
+// fallbacks stay: the crash screen must render even if i18n itself is what
+// broke.
+import i18n from '../i18n';
+
+const safeT = (key, fallback) => {
+  try { return i18n.t(key, { defaultValue: fallback }); } catch { return fallback; }
+};
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -34,10 +42,14 @@ class ErrorBoundary extends React.Component {
           color: '#fff',
           textAlign: 'center'
         }}>
-          <div style={{ fontSize: '64px', marginBottom: '16px' }}>Hoppla!</div>
-          <h1 style={{ fontSize: '24px', marginBottom: '12px' }}>Etwas ist schiefgelaufen</h1>
+          <div style={{ fontSize: '64px', marginBottom: '16px' }}>
+            {safeT('errorBoundary.title', 'Hoppla!')}
+          </div>
+          <h1 style={{ fontSize: '24px', marginBottom: '12px' }}>
+            {safeT('errorBoundary.heading', 'Etwas ist schiefgelaufen')}
+          </h1>
           <p style={{ color: '#9BA2B0', marginBottom: '24px', maxWidth: '400px' }}>
-            Ein unerwarteter Fehler ist aufgetreten. Bitte versuche die Seite neu zu laden.
+            {safeT('errorBoundary.body', 'Ein unerwarteter Fehler ist aufgetreten. Bitte versuche die Seite neu zu laden.')}
           </p>
           <div style={{ display: 'flex', gap: '12px' }}>
             <button
@@ -52,7 +64,7 @@ class ErrorBoundary extends React.Component {
                 cursor: 'pointer'
               }}
             >
-              Seite neu laden
+              {safeT('errorBoundary.reload', 'Seite neu laden')}
             </button>
             <button
               onClick={this.handleReset}
@@ -66,7 +78,7 @@ class ErrorBoundary extends React.Component {
                 cursor: 'pointer'
               }}
             >
-              Nochmal versuchen
+              {safeT('errorBoundary.retry', 'Nochmal versuchen')}
             </button>
           </div>
         </div>

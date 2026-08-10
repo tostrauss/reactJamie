@@ -575,7 +575,8 @@
     "unknownName": "Member",
     "remove": "Remove",
     "removeConfirm": "Really remove {{name}}?",
-    "gatedHint": "See {{count}} more members with JAMIE Pro",
+    "gatedHint_one": "See {{count}} more member with JAMIE Pro",
+    "gatedHint_other": "See {{count}} more members with JAMIE Pro",
     "gatedCta": "Unlock Pro",
     "toast": {
       "loadError": "Could not load members",
@@ -675,13 +676,15 @@
       "requestsTab": {
         "remaining": "{{count}} open",
         "doneTitle": "All requests handled!",
-        "doneText": "You handled {{count}} requests 🎉",
+        "doneText_one": "You handled {{count}} request 🎉",
+        "doneText_other": "You handled {{count}} requests 🎉",
         "emptyTitle": "No open requests",
         "emptyText": "New join requests for your groups and clubs will show up here."
       },
       "manage": {
         "edit": "Edit",
-        "membersFmt": "{{count}} members",
+        "membersFmt_one": "{{count}} member",
+        "membersFmt_other": "{{count}} members",
         "empty": "You don't own any groups or clubs yet",
         "emptyCta": "Create one now"
       },
@@ -974,7 +977,8 @@
       "favorites": "Favorites",
       "notifications": "Notifications",
       "app": "App",
-      "legal": "Legal"
+      "legal": "Legal",
+      "iap": "Purchases"
     },
     "subscription": {
       "statusActive": "Active",
@@ -999,7 +1003,13 @@
       "withdrawDoneNoRefundToast": "Withdrawal complete. For refund questions, contact office@jamie-app.com.",
       "withdrawError": "Withdrawal failed. Please try again or contact office@jamie-app.com.",
       "portalBtn": "Manage subscription (payment, invoices)",
-      "portalError": "Could not open portal. Please try again."
+      "portalError": "Could not open portal. Please try again.",
+      "restoreSuccess_one": "{{count}} purchase restored",
+      "restoreSuccess_other": "{{count}} purchases restored",
+      "restoreNone": "No purchases to restore",
+      "restoreError": "Restore failed",
+      "restoreBtn": "Restore purchases",
+      "restoreHelper": "New device? Restores active subscriptions and unredeemed purchases."
     },
     "boostPurchases": {
       "title": "Boost purchases",
@@ -1266,7 +1276,15 @@
         "popular": "Popular",
         "bestValue": "Best value"
       }
-    }
+    },
+    "unexpectedStatus": "That didn't work. Please try again.",
+    "restoreNone": "No purchases found to restore",
+    "restoreError": "Restore failed",
+    "iosUnavailable": "JAMIE Pro is currently not available on iPhone.",
+    "restoreBtn": "Restore purchases",
+    "iosTerms": "JAMIE Pro renews automatically at the selected price at the end of each period. Cancel anytime in iOS Settings → Apple ID → Subscriptions, at least 24 hours before renewal.",
+    "terms": "Terms",
+    "privacy": "Privacy"
   },
   "boost": {
     "title": "🚀 Boost",
@@ -1303,13 +1321,15 @@
       "choosePayment": "Choose payment method",
       "applePay": "🍎 Apple Pay / Card",
       "stripeError": "Could not start Stripe",
-      "creditsAddedToast": "+{{count}} boost credits added!",
+      "creditsAddedToast_one": "+{{count}} boost credit added!",
+      "creditsAddedToast_other": "+{{count}} boost credits added!",
       "paymentError": "Payment could not be completed"
     },
     "stripe": {
       "back": "Back",
       "processing": "Processing...",
-      "pay": "Pay now"
+      "pay": "Pay now",
+      "unexpectedStatus": "Payment could not be completed. Please try again."
     },
     "referral": {
       "title": "Invite friends",
@@ -1359,7 +1379,8 @@
     "loading": "Loading requests...",
     "errorPermission": "No permission – you are not the creator of this group",
     "errorLoad": "Requests could not be loaded",
-    "countFmt": "{{count}} requests",
+    "countFmt_one": "{{count}} request",
+    "countFmt_other": "{{count}} requests",
     "empty": "No requests",
     "allDoneTitle": "All requests handled!",
     "allDoneText": "You've reviewed all join requests.",
@@ -1568,7 +1589,8 @@
       "eventsAll": "All club members",
       "visibility": "Visibility",
       "visibilityPrivate": "Private — by request only",
-      "visibilityPublic": "Public — anyone can join"
+      "visibilityPublic": "Public — anyone can join",
+      "categoryRemove": "Remove"
     },
     "favoriteAria": "Add to favourites",
     "favError": "Could not save favourite",
@@ -1659,7 +1681,8 @@
     "errorGeneric": "Could not save. Please try again.",
     "successText": "You're on the list! We'll be in touch as soon as JAMIE launches near you.",
     "voteTitle": "🗳️ Where should we launch next?",
-    "votesTitle": "Current vote ({{count}} votes)",
+    "votesTitle_one": "Current vote ({{count}} vote)",
+    "votesTitle_other": "Current vote ({{count}} votes)",
     "footerPrefix": "Already in one of our countries?",
     "footerLink": "Open app",
     "countries": {
@@ -1919,5 +1942,24 @@
       "deleted": "User deleted",
       "cancel": "Cancel"
     }
+  },
+  "imageUpload": {
+    "label": "Upload image",
+    "uploading": "Uploading...",
+    "typeError": "Only JPEG, PNG, WebP or GIF allowed",
+    "sizeError": "Image must be at most {{max}} MB",
+    "failed": "Upload failed"
+  },
+  "errorBoundary": {
+    "title": "Oops!",
+    "heading": "Something went wrong",
+    "body": "An unexpected error occurred. Please try reloading the page.",
+    "reload": "Reload page",
+    "retry": "Try again"
+  },
+  "lightbox": {
+    "close": "Close",
+    "prevPhoto": "Previous photo",
+    "nextPhoto": "Next photo"
   }
 }

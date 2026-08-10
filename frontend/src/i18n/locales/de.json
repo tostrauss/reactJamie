@@ -575,7 +575,8 @@
     "unknownName": "Mitglied",
     "remove": "Entfernen",
     "removeConfirm": "{{name}} wirklich entfernen?",
-    "gatedHint": "{{count}} weitere Mitglieder mit JAMIE Pro sehen",
+    "gatedHint_one": "{{count}} weiteres Mitglied mit JAMIE Pro sehen",
+    "gatedHint_other": "{{count}} weitere Mitglieder mit JAMIE Pro sehen",
     "gatedCta": "Pro freischalten",
     "toast": {
       "loadError": "Mitglieder konnten nicht geladen werden",
@@ -675,13 +676,15 @@
       "requestsTab": {
         "remaining": "{{count}} offen",
         "doneTitle": "Alle Anfragen erledigt!",
-        "doneText": "Du hast {{count}} Anfragen bearbeitet 🎉",
+        "doneText_one": "Du hast {{count}} Anfrage bearbeitet 🎉",
+        "doneText_other": "Du hast {{count}} Anfragen bearbeitet 🎉",
         "emptyTitle": "Keine offenen Anfragen",
         "emptyText": "Neue Beitrittsanfragen für deine Gruppen und Clubs landen hier."
       },
       "manage": {
         "edit": "Bearbeiten",
-        "membersFmt": "{{count}} Mitglieder",
+        "membersFmt_one": "{{count}} Mitglied",
+        "membersFmt_other": "{{count}} Mitglieder",
         "empty": "Du hast noch keine eigenen Gruppen oder Clubs",
         "emptyCta": "Jetzt erstellen"
       },
@@ -974,7 +977,8 @@
       "favorites": "Favoriten",
       "notifications": "Benachrichtigungen",
       "app": "App",
-      "legal": "Rechtliches"
+      "legal": "Rechtliches",
+      "iap": "Käufe"
     },
     "subscription": {
       "statusActive": "Aktiv",
@@ -999,7 +1003,13 @@
       "withdrawDoneNoRefundToast": "Widerruf erfolgreich. Bei Fragen zur Rückerstattung melde dich bitte unter office@jamie-app.com.",
       "withdrawError": "Widerruf fehlgeschlagen. Bitte erneut versuchen oder office@jamie-app.com kontaktieren.",
       "portalBtn": "Abo verwalten (Zahlung, Rechnungen)",
-      "portalError": "Portal konnte nicht geöffnet werden. Bitte erneut versuchen."
+      "portalError": "Portal konnte nicht geöffnet werden. Bitte erneut versuchen.",
+      "restoreSuccess_one": "{{count}} Kauf wiederhergestellt",
+      "restoreSuccess_other": "{{count}} Käufe wiederhergestellt",
+      "restoreNone": "Keine Käufe zum Wiederherstellen",
+      "restoreError": "Wiederherstellung fehlgeschlagen",
+      "restoreBtn": "Käufe wiederherstellen",
+      "restoreHelper": "Auf neuem Gerät? Stellt aktive Abos und nicht eingelöste Käufe wieder her."
     },
     "boostPurchases": {
       "title": "Boost-Käufe",
@@ -1266,7 +1276,15 @@
         "popular": "Beliebt",
         "bestValue": "Bestes Angebot"
       }
-    }
+    },
+    "unexpectedStatus": "Das hat leider nicht geklappt. Bitte versuche es erneut.",
+    "restoreNone": "Keine Käufe zum Wiederherstellen gefunden",
+    "restoreError": "Wiederherstellung fehlgeschlagen",
+    "iosUnavailable": "JAMIE Pro ist auf dem iPhone derzeit nicht verfügbar.",
+    "restoreBtn": "Käufe wiederherstellen",
+    "iosTerms": "JAMIE Pro verlängert sich automatisch zum gewählten Preis am Ende jeder Laufzeit. Kündbar jederzeit über iOS-Einstellungen → Apple-ID → Abos, mindestens 24 Std. vor Ablauf.",
+    "terms": "AGB",
+    "privacy": "Datenschutz"
   },
   "boost": {
     "title": "🚀 Boost",
@@ -1303,13 +1321,15 @@
       "choosePayment": "Zahlungsmethode wählen",
       "applePay": "🍎 Apple Pay / Karte",
       "stripeError": "Stripe konnte nicht gestartet werden",
-      "creditsAddedToast": "+{{count}} Boost-Credits gutgeschrieben!",
+      "creditsAddedToast_one": "+{{count}} Boost-Credit gutgeschrieben!",
+      "creditsAddedToast_other": "+{{count}} Boost-Credits gutgeschrieben!",
       "paymentError": "Zahlung konnte nicht abgeschlossen werden"
     },
     "stripe": {
       "back": "Zurück",
       "processing": "Verarbeite...",
-      "pay": "Jetzt bezahlen"
+      "pay": "Jetzt bezahlen",
+      "unexpectedStatus": "Zahlung konnte nicht abgeschlossen werden. Bitte erneut versuchen."
     },
     "referral": {
       "title": "Lade Freunde ein",
@@ -1359,7 +1379,8 @@
     "loading": "Lade Anfragen...",
     "errorPermission": "Keine Berechtigung – du bist nicht der Ersteller dieser Gruppe",
     "errorLoad": "Anfragen konnten nicht geladen werden",
-    "countFmt": "{{count}} Anfragen",
+    "countFmt_one": "{{count}} Anfrage",
+    "countFmt_other": "{{count}} Anfragen",
     "empty": "Keine Anfragen",
     "allDoneTitle": "Alle Anfragen bearbeitet!",
     "allDoneText": "Du hast alle Beitrittsanfragen durchgesehen.",
@@ -1568,7 +1589,8 @@
       "eventsAll": "Alle Clubmitglieder",
       "visibility": "Sichtbarkeit",
       "visibilityPrivate": "Privat — nur auf Anfrage",
-      "visibilityPublic": "Öffentlich — jeder kann beitreten"
+      "visibilityPublic": "Öffentlich — jeder kann beitreten",
+      "categoryRemove": "Entfernen"
     },
     "favoriteAria": "Zu Favoriten hinzufügen",
     "favError": "Favorit konnte nicht gespeichert werden",
@@ -1659,7 +1681,8 @@
     "errorGeneric": "Fehler beim Speichern. Bitte versuche es erneut.",
     "successText": "Du bist auf der Liste! Wir melden uns, sobald JAMIE bei dir startet.",
     "voteTitle": "🗳️ Wo sollen wir als Nächstes starten?",
-    "votesTitle": "Aktuelle Abstimmung ({{count}} Stimmen)",
+    "votesTitle_one": "Aktuelle Abstimmung ({{count}} Stimme)",
+    "votesTitle_other": "Aktuelle Abstimmung ({{count}} Stimmen)",
     "footerPrefix": "Schon in einem unserer Länder?",
     "footerLink": "App öffnen",
     "countries": {
@@ -1919,5 +1942,24 @@
       "deleted": "Nutzer gelöscht",
       "cancel": "Abbrechen"
     }
+  },
+  "imageUpload": {
+    "label": "Bild hochladen",
+    "uploading": "Lädt hoch...",
+    "typeError": "Nur JPEG, PNG, WebP oder GIF erlaubt",
+    "sizeError": "Bild darf maximal {{max}} MB groß sein",
+    "failed": "Upload fehlgeschlagen"
+  },
+  "errorBoundary": {
+    "title": "Hoppla!",
+    "heading": "Etwas ist schiefgelaufen",
+    "body": "Ein unerwarteter Fehler ist aufgetreten. Bitte versuche die Seite neu zu laden.",
+    "reload": "Seite neu laden",
+    "retry": "Nochmal versuchen"
+  },
+  "lightbox": {
+    "close": "Schließen",
+    "prevPhoto": "Vorheriges Foto",
+    "nextPhoto": "Nächstes Foto"
   }
 }

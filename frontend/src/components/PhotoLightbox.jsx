@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Full-screen photo viewer. Tap a thumbnail anywhere → see the photo large.
@@ -15,6 +16,7 @@ import { useEffect, useCallback } from 'react';
  *   • Esc to close
  */
 export function PhotoLightbox({ photos, index, onIndex, onClose }) {
+  const { t } = useTranslation();
   const open = index != null && Array.isArray(photos) && photos.length > 0;
   const count = photos?.length || 0;
 
@@ -45,7 +47,7 @@ export function PhotoLightbox({ photos, index, onIndex, onClose }) {
 
   return (
     <div className="lightbox-backdrop" onClick={onClose} role="dialog" aria-modal="true">
-      <button className="lightbox-close" onClick={onClose} aria-label="Schließen">
+      <button className="lightbox-close" onClick={onClose} aria-label={t('lightbox.close')}>
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
           <path d="M18 6L6 18M6 6l12 12"/>
         </svg>
@@ -55,7 +57,7 @@ export function PhotoLightbox({ photos, index, onIndex, onClose }) {
         <button
           className="lightbox-nav lightbox-nav--prev"
           onClick={(e) => { e.stopPropagation(); go(-1); }}
-          aria-label="Vorheriges Foto"
+          aria-label={t('lightbox.prevPhoto')}
         >
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M15 18l-6-6 6-6"/>
@@ -75,7 +77,7 @@ export function PhotoLightbox({ photos, index, onIndex, onClose }) {
         <button
           className="lightbox-nav lightbox-nav--next"
           onClick={(e) => { e.stopPropagation(); go(1); }}
-          aria-label="Nächstes Foto"
+          aria-label={t('lightbox.nextPhoto')}
         >
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 18l6-6-6-6"/>

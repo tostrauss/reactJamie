@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { upload } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 
 // triggerRef (optional): parent passes a ref and can then open the file
 // picker from its own UI (e.g. the onboarding photo tiles) via
 // triggerRef.current?.() — keeps validation/upload logic in one place.
-export const ImageUpload = ({ onUpload, label = "Bild hochladen", triggerRef }) => {
+export const ImageUpload = ({ onUpload, label, triggerRef }) => {
+  const { t } = useTranslation();
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef(null);
   const toast = useToast();
@@ -26,13 +28,13 @@ export const ImageUpload = ({ onUpload, label = "Bild hochladen", triggerRef }) 
     if (!file) return;
 
     if (!ALLOWED_TYPES.includes(file.type)) {
-      toast.error('Nur JPEG, PNG, WebP oder GIF erlaubt');
+      toast.error(t('imageUpload.typeError'));
       e.target.value = '';
       return;
     }
 
     if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-      toast.error(`Bild darf maximal ${MAX_SIZE_MB} MB groß sein`);
+      toast.error(t('imageUpload.sizeError', { max: MAX_SIZE_MB }));
       e.target.value = '';
       return;
     }
@@ -42,7 +44,7 @@ export const ImageUpload = ({ onUpload, label = "Bild hochladen", triggerRef }) 
       const res = await upload.image(file);
       onUpload(res.data.url);
     } catch (err) {
-      toast.error(err?.response?.data?.error || 'Upload fehlgeschlagen');
+      toast.error(err?.response?.data?.error || t('imageUpload.failed'));
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -66,12 +68,12 @@ export const ImageUpload = ({ onUpload, label = "Bild hochladen", triggerRef }) 
         {uploading ? (
           <>
             <span className="upload-spinner" />
-            Lädt hoch...
+            {t('imageUpload.uploading')}
           </>
         ) : (
           <>
             <span>📷</span>
-            {label}
+            {label ?? t('imageUpload.label')}
           </>
         )}
         <input

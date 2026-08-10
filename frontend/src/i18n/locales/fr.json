@@ -575,7 +575,8 @@
     "unknownName": "Membre",
     "remove": "Retirer",
     "removeConfirm": "Vraiment retirer {{name}} ?",
-    "gatedHint": "Voir {{count}} membres de plus avec JAMIE Pro",
+    "gatedHint_one": "Voir {{count}} membre de plus avec JAMIE Pro",
+    "gatedHint_other": "Voir {{count}} membres de plus avec JAMIE Pro",
     "gatedCta": "Débloquer Pro",
     "toast": {
       "loadError": "Les membres n'ont pas pu être chargés",
@@ -675,13 +676,15 @@
       "requestsTab": {
         "remaining": "{{count}} en attente",
         "doneTitle": "Toutes les demandes traitées !",
-        "doneText": "Tu as traité {{count}} demandes 🎉",
+        "doneText_one": "Tu as traité {{count}} demande 🎉",
+        "doneText_other": "Tu as traité {{count}} demandes 🎉",
         "emptyTitle": "Aucune demande en attente",
         "emptyText": "Les nouvelles demandes d'adhésion à tes groupes et clubs apparaîtront ici."
       },
       "manage": {
         "edit": "Modifier",
-        "membersFmt": "{{count}} membres",
+        "membersFmt_one": "{{count}} membre",
+        "membersFmt_other": "{{count}} membres",
         "empty": "Tu n'as pas encore de groupes ou de clubs à toi",
         "emptyCta": "Créer maintenant"
       },
@@ -974,7 +977,8 @@
       "favorites": "Favoris",
       "notifications": "Notifications",
       "app": "App",
-      "legal": "Informations légales"
+      "legal": "Informations légales",
+      "iap": "Achats"
     },
     "subscription": {
       "statusActive": "Actif",
@@ -999,7 +1003,13 @@
       "withdrawDoneNoRefundToast": "Rétractation réussie. Pour toute question sur le remboursement, écris à office@jamie-app.com.",
       "withdrawError": "Échec de la rétractation. Réessaie ou contacte office@jamie-app.com.",
       "portalBtn": "Gérer l'abonnement (paiement, factures)",
-      "portalError": "Le portail n'a pas pu être ouvert. Réessaie, s'il te plaît."
+      "portalError": "Le portail n'a pas pu être ouvert. Réessaie, s'il te plaît.",
+      "restoreSuccess_one": "{{count}} achat restauré",
+      "restoreSuccess_other": "{{count}} achats restaurés",
+      "restoreNone": "Aucun achat à restaurer",
+      "restoreError": "Échec de la restauration",
+      "restoreBtn": "Restaurer les achats",
+      "restoreHelper": "Nouvel appareil ? Restaure les abonnements actifs et les achats non utilisés."
     },
     "boostPurchases": {
       "title": "Achats de boosts",
@@ -1266,7 +1276,15 @@
         "popular": "Populaire",
         "bestValue": "Meilleure offre"
       }
-    }
+    },
+    "unexpectedStatus": "Ça n'a pas fonctionné. Réessaie.",
+    "restoreNone": "Aucun achat à restaurer trouvé",
+    "restoreError": "Échec de la restauration",
+    "iosUnavailable": "JAMIE Pro n'est pas disponible sur iPhone pour le moment.",
+    "restoreBtn": "Restaurer les achats",
+    "iosTerms": "JAMIE Pro se renouvelle automatiquement au prix choisi à la fin de chaque période. Résiliable à tout moment dans Réglages iOS → Identifiant Apple → Abonnements, au moins 24 h avant l'échéance.",
+    "terms": "CGV",
+    "privacy": "Confidentialité"
   },
   "boost": {
     "title": "🚀 Boost",
@@ -1303,13 +1321,15 @@
       "choosePayment": "Choisir le moyen de paiement",
       "applePay": "🍎 Apple Pay / carte",
       "stripeError": "Stripe n'a pas pu démarrer",
-      "creditsAddedToast": "+{{count}} crédits boost ajoutés !",
+      "creditsAddedToast_one": "+{{count}} crédit boost ajouté !",
+      "creditsAddedToast_other": "+{{count}} crédits boost ajoutés !",
       "paymentError": "Le paiement n'a pas pu être finalisé"
     },
     "stripe": {
       "back": "Retour",
       "processing": "Traitement...",
-      "pay": "Payer maintenant"
+      "pay": "Payer maintenant",
+      "unexpectedStatus": "Le paiement n'a pas pu être finalisé. Réessaie."
     },
     "referral": {
       "title": "Invite des amis",
@@ -1359,7 +1379,8 @@
     "loading": "Chargement des demandes...",
     "errorPermission": "Pas d'autorisation – tu n'es pas le créateur de ce groupe",
     "errorLoad": "Les demandes n'ont pas pu être chargées",
-    "countFmt": "{{count}} demandes",
+    "countFmt_one": "{{count}} demande",
+    "countFmt_other": "{{count}} demandes",
     "empty": "Aucune demande",
     "allDoneTitle": "Toutes les demandes traitées !",
     "allDoneText": "Tu as examiné toutes les demandes d'adhésion.",
@@ -1568,7 +1589,8 @@
       "eventsAll": "Tous les membres du club",
       "visibility": "Visibilité",
       "visibilityPrivate": "Privé — sur demande uniquement",
-      "visibilityPublic": "Public — tout le monde peut rejoindre"
+      "visibilityPublic": "Public — tout le monde peut rejoindre",
+      "categoryRemove": "Retirer"
     },
     "favoriteAria": "Ajouter aux favoris",
     "favError": "Le favori n'a pas pu être enregistré",
@@ -1659,7 +1681,8 @@
     "errorGeneric": "Erreur lors de l'enregistrement. Réessaie, s'il te plaît.",
     "successText": "Tu es sur la liste ! Nous te contacterons dès que JAMIE démarre chez toi.",
     "voteTitle": "🗳️ Où devrions-nous démarrer ensuite ?",
-    "votesTitle": "Vote en cours ({{count}} voix)",
+    "votesTitle_one": "Vote en cours ({{count}} voix)",
+    "votesTitle_other": "Vote en cours ({{count}} voix)",
     "footerPrefix": "Déjà dans l'un de nos pays ?",
     "footerLink": "Ouvrir l'app",
     "countries": {
@@ -1919,5 +1942,24 @@
       "deleted": "Utilisateur supprimé",
       "cancel": "Annuler"
     }
+  },
+  "imageUpload": {
+    "label": "Ajouter une photo",
+    "uploading": "Envoi en cours...",
+    "typeError": "Seuls les formats JPEG, PNG, WebP ou GIF sont acceptés",
+    "sizeError": "L'image ne doit pas dépasser {{max}} Mo",
+    "failed": "Échec de l'envoi"
+  },
+  "errorBoundary": {
+    "title": "Oups !",
+    "heading": "Une erreur s'est produite",
+    "body": "Une erreur inattendue s'est produite. Essaie de recharger la page.",
+    "reload": "Recharger la page",
+    "retry": "Réessayer"
+  },
+  "lightbox": {
+    "close": "Fermer",
+    "prevPhoto": "Photo précédente",
+    "nextPhoto": "Photo suivante"
   }
 }
