@@ -3,7 +3,7 @@ import { resolveCreateLocation, geocodeAllowedRegion } from '../utils/geocode.js
 import { checkTextSafety } from '../config/moderation.js';
 import { sendPushToUser, sendPushToUsers } from './pushController.js';
 import { expandMatchTerms } from '../utils/categoryFanout.js';
-import { normalizeLocale, categoryPushText, joinRequestText } from '../utils/pushLocale.js';
+import { normalizeLocale, categoryPushText, joinRequestText, pushTexts } from '../utils/pushLocale.js';
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
 import { isUserPro } from './subscriptionController.js';
@@ -1121,7 +1121,7 @@ export const leaveGroup = async (req, res) => {
     // status, and looked up a group name it never SELECTed (always empty push).
     promoteFromWaitlist(id).then(promoted => {
       if (promoted) {
-        sendPushToUser(promoted.userId, 'Platz frei!', `Ein Platz in "${promoted.groupName}" ist frei geworden`, `/group/${id}`);
+        sendPushToUser(promoted.userId, pushTexts('slotFreed', { groupName: promoted.groupName }), null, `/group/${id}`);
       }
     }).catch(() => {});
 
@@ -1238,8 +1238,7 @@ async function notifyEventLike(likerId, ownerId, groupName) {
   try {
     const { rows } = await db.query('SELECT name FROM users WHERE id = $1', [likerId]);
     const name = rows[0]?.name || 'Jemand';
-    const label = groupName ? `„${groupName}"` : 'deinen Moment';
-    sendPushToUser(ownerId, 'Neuer Like ❤️', `${name} hat ${label} geliked`, '/explore');
+    sendPushToUser(ownerId, pushTexts('newLike', { name, groupName }), null, '/explore');
   } catch { /* non-critical */ }
 }
 
@@ -1633,7 +1632,7 @@ export const handleJoinRequest = async (req, res) => {
 
       if (!didAccept) return; // already-handled path already responded
 
-      sendPushToUser(joinReq.user_id, 'Beitrittsanfrage akzeptiert', `Du bist jetzt Mitglied von "${gname}"`, `/group/${id}`);
+      sendPushToUser(joinReq.user_id, pushTexts('joinAccepted', { name: gname }), null, `/group/${id}`);
 
       // Post "X ist beigetreten 🎉" so existing members see it. Fire-and-forget.
       db.query('SELECT name FROM users WHERE id = $1', [joinReq.user_id])
@@ -1708,7 +1707,7 @@ export const kickMember = async (req, res) => {
     // though kicking is exactly how owners of full groups make room).
     promoteFromWaitlist(id).then(promoted => {
       if (promoted) {
-        sendPushToUser(promoted.userId, 'Platz frei!', `Ein Platz in "${promoted.groupName}" ist frei geworden`, `/group/${id}`);
+        sendPushToUser(promoted.userId, pushTexts('slotFreed', { groupName: promoted.groupName }), null, `/group/${id}`);
       }
     }).catch(() => {});
 
@@ -2125,7 +2124,7 @@ export async function notifyGroupJoin(joinerUserId, ownerUserId, groupName, grou
     const name = rows[0]?.name || 'Jemand';
     // Link to the group itself — '/my-groups' is not a real route (the SW
     // opened it on tap and the owner landed on the 404 page).
-    sendPushToUser(ownerUserId, 'Neues Mitglied', `${name} ist "${groupName}" beigetreten`, groupId ? `/${basePath}/${groupId}` : '/chats');
+    sendPushToUser(ownerUserId, pushTexts('newMember', { name, groupName }), null, groupId ? `/${basePath}/${groupId}` : '/chats');
   } catch { /* non-critical */ }
 }
 

@@ -6,6 +6,7 @@ import { postSystemMessage } from '../utils/systemMessage.js';
 import { notifyJoinRequest, notifyGroupJoin, evictFromRoom, creatorHasAvatar, promoteFromWaitlist } from './groupController.js';
 import { isUserPro } from './subscriptionController.js';
 import { sendPushToUser, sendPushToUsers } from './pushController.js';
+import { pushTexts } from '../utils/pushLocale.js';
 
 const CLUBS_TTL = 30_000; // 30 s
 const DISCOVER_EVENTS_KEY = 'discover_events';
@@ -655,7 +656,7 @@ export const leaveClub = async (req, res) => {
     // promoted; club-side departures left waiters at "waiting" forever.
     promoteFromWaitlist(id).then(promoted => {
       if (promoted) {
-        sendPushToUser(promoted.userId, 'Platz frei!', `Ein Platz in "${promoted.groupName}" ist frei geworden`, `/club/${id}`);
+        sendPushToUser(promoted.userId, pushTexts('slotFreed', { groupName: promoted.groupName }), null, `/club/${id}`);
       }
     }).catch(() => {});
     deleteCached('user_groups:' + req.userId);
@@ -953,7 +954,7 @@ export const handleClubJoinRequest = async (req, res) => {
 
       // Notify the requester they're in (parity with group join-accept).
       if (didAccept) {
-        sendPushToUser(joinReq.user_id, 'Beitrittsanfrage akzeptiert', `Du bist jetzt Mitglied von "${club.rows[0].name || ''}"`, `/club/${id}`);
+        sendPushToUser(joinReq.user_id, pushTexts('joinAccepted', { name: club.rows[0].name || '' }), null, `/club/${id}`);
       }
 
       res.json({ message: 'Request accepted', status: 'accepted' });
@@ -1023,7 +1024,7 @@ export const kickClubMember = async (req, res) => {
     // Freed seat → promote the next waiter (mirrors leaveClub/kickMember).
     promoteFromWaitlist(id).then(promoted => {
       if (promoted) {
-        sendPushToUser(promoted.userId, 'Platz frei!', `Ein Platz in "${promoted.groupName}" ist frei geworden`, `/club/${id}`);
+        sendPushToUser(promoted.userId, pushTexts('slotFreed', { groupName: promoted.groupName }), null, `/club/${id}`);
       }
     }).catch(() => {});
     deleteCached('user_groups:' + userId);
@@ -1377,11 +1378,11 @@ export const createClubEvent = async (req, res) => {
     // club otherwise fired 300 round trips behind a single event creation).
     db.query('SELECT user_id FROM group_members WHERE group_id = $1 AND user_id <> $2', [id, userId])
       .then(({ rows }) => {
-        const clubName = club.rows[0].name || 'Dein Club';
+        const clubName = club.rows[0].name || 'Club';
         sendPushToUsers(
           rows.map(r => r.user_id),
-          clubName,
-          `Neues Event: ${name.trim()}`,
+          pushTexts('clubEvent', { clubName, eventName: name.trim() }),
+          null,
           `/group/${event.id}`
         );
       })

@@ -1,5 +1,6 @@
 import db from '../config/database.js';
 import { sendPushToUser } from './pushController.js';
+import { pushTexts } from '../utils/pushLocale.js';
 
 // ==========================================
 // SEND FRIEND REQUEST
@@ -388,7 +389,7 @@ async function notifyFriendRequest(fromUserId, toUserId) {
     // Accept/Reject buttons for an incoming pending request, so the recipient
     // can act on it in one tap. (Was '/friends', which only opened the default
     // "Freunde" tab and never surfaced the request or the sender's profile.)
-    sendPushToUser(toUserId, 'Neue Freundschaftsanfrage', `${name} möchte dein Freund sein`, `/user/${fromUserId}`);
+    sendPushToUser(toUserId, pushTexts('friendRequest', { name }), null, `/user/${fromUserId}`);
   } catch { /* non-critical */ }
 }
 
@@ -398,6 +399,6 @@ async function notifyFriendAccepted(fromUserId, toUserId) {
     const name = rows[0]?.name || 'Jemand';
     // Open the profile of the person who accepted (now a friend) — from there
     // the recipient can message them directly.
-    sendPushToUser(toUserId, 'Freundschaft bestätigt', `${name} hat deine Anfrage angenommen`, `/user/${fromUserId}`);
+    sendPushToUser(toUserId, pushTexts('friendAccepted', { name }), null, `/user/${fromUserId}`);
   } catch { /* non-critical */ }
 }

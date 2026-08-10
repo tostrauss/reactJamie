@@ -1,5 +1,6 @@
 import db from '../config/database.js';
 import { sendPushToUsers } from './pushController.js';
+import { pushTexts } from '../utils/pushLocale.js';
 import { resolveCreateLocation } from '../utils/geocode.js';
 
 // Try to extract the city from a free-form address. Most DACH addresses end in
@@ -35,8 +36,8 @@ async function notifyNearbyUsersAboutDeal(deal) {
     // sequential per-user sends.
     await sendPushToUsers(
       result.rows.map(r => r.id),
-      `Neues Angebot in ${city}`,
-      `${deal.name} — ${deal.deal_label}`,
+      pushTexts('newDeal', { city, dealText: `${deal.name} — ${deal.deal_label}` }),
+      null,
       `/deal/${deal.id}`
     );
   } catch (err) {

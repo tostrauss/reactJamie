@@ -202,6 +202,15 @@ async function dispatchToSubscription(sub, title, body, url, apnCtxRef) {
   }
 }
 
+// `title` may be a plain string (with `body`) OR a builder function
+// `(locale) => ({ title, body })` from utils/pushLocale.pushTexts — the
+// recipient's users.locale rides along on the subscriptions SELECT (one JOIN,
+// no extra round trip), so every push type localizes per recipient.
+const resolveTexts = (titleOrBuilder, body, locale) =>
+  typeof titleOrBuilder === 'function'
+    ? titleOrBuilder(locale)
+    : { title: titleOrBuilder, body };
+
 export const sendPushToUser = async (userId, title, body, url = '/notifications') => {
   // No web AND no APNs configured — nothing to send. (If only one is configured
   // we still proceed; sends to the other platform will silently no-op.)
@@ -210,8 +219,9 @@ export const sendPushToUser = async (userId, title, body, url = '/notifications'
   let subs;
   try {
     const result = await db.query(
-      `SELECT id, platform, endpoint, p256dh, auth_key, device_token
-       FROM push_subscriptions WHERE user_id = $1`,
+      `SELECT ps.id, ps.platform, ps.endpoint, ps.p256dh, ps.auth_key, ps.device_token, u.locale
+       FROM push_subscriptions ps JOIN users u ON u.id = ps.user_id
+       WHERE ps.user_id = $1`,
       [userId]
     );
     subs = result.rows;
@@ -219,14 +229,17 @@ export const sendPushToUser = async (userId, title, body, url = '/notifications'
     console.error('Push fetch error:', err);
     return;
   }
+  if (!subs.length) return;
 
+  const texts = resolveTexts(title, body, subs[0].locale);
   const apnCtxRef = {};
-  for (const sub of subs) await dispatchToSubscription(sub, title, body, url, apnCtxRef);
+  for (const sub of subs) await dispatchToSubscription(sub, texts.title, texts.body, url, apnCtxRef);
 };
 
 // Bulk variant: ONE subscriptions SELECT for all recipients instead of N
 // (deal fan-out queried up to 500 users, then sendPushToUser ran its own
-// SELECT per user → up to 500 sequential round trips). Same per-sub dispatch.
+// SELECT per user → up to 500 sequential round trips). Same per-sub dispatch;
+// builder texts are computed once per distinct locale, not per subscription.
 export const sendPushToUsers = async (userIds, title, body, url = '/notifications') => {
   if (!process.env.VAPID_PUBLIC_KEY && !process.env.APNS_KEY_ID) return;
   const ids = [...new Set((userIds || []).map(Number).filter(Boolean))];
@@ -235,8 +248,9 @@ export const sendPushToUsers = async (userIds, title, body, url = '/notification
   let subs;
   try {
     const result = await db.query(
-      `SELECT id, platform, endpoint, p256dh, auth_key, device_token
-       FROM push_subscriptions WHERE user_id = ANY($1::int[])`,
+      `SELECT ps.id, ps.platform, ps.endpoint, ps.p256dh, ps.auth_key, ps.device_token, u.locale
+       FROM push_subscriptions ps JOIN users u ON u.id = ps.user_id
+       WHERE ps.user_id = ANY($1::int[])`,
       [ids]
     );
     subs = result.rows;
@@ -245,6 +259,12 @@ export const sendPushToUsers = async (userIds, title, body, url = '/notification
     return;
   }
 
+  const textCache = new Map();
   const apnCtxRef = {};
-  for (const sub of subs) await dispatchToSubscription(sub, title, body, url, apnCtxRef);
+  for (const sub of subs) {
+    const key = sub.locale || 'de';
+    let texts = textCache.get(key);
+    if (!texts) { texts = resolveTexts(title, body, sub.locale); textCache.set(key, texts); }
+    await dispatchToSubscription(sub, texts.title, texts.body, url, apnCtxRef);
+  }
 };

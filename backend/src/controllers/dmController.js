@@ -1,6 +1,7 @@
 import db from '../config/database.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { sendPushToUser } from './pushController.js';
+import { pushTexts } from '../utils/pushLocale.js';
 
 // Self-heal: production databases bootstrapped without the seed schema.sql may
 // be missing the direct_messages / dm_conversations tables OR have them with an
@@ -188,7 +189,7 @@ export const sendDM = async (req, res) => {
           });
         }
         // Web push for the closed/backgrounded receiver.
-        sendPushToUser(receiverId, 'Neue Nachricht', `${senderName} hat dir eine Nachricht geschickt`, `/dm/${req.userId}`);
+        sendPushToUser(receiverId, pushTexts('newDm', { name: senderName }), null, `/dm/${req.userId}`);
       } catch { /* non-critical */ }
     })();
 

@@ -2,6 +2,7 @@ import db from '../config/database.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { deleteCached } from '../utils/cache.js';
 import { sendPushToUsers } from './pushController.js';
+import { pushTexts } from '../utils/pushLocale.js';
 
 // Stamp the caller's read marker for a group chat and drop their cached
 // joined-groups list (it embeds unread_count, TTL 15s — without the
@@ -126,8 +127,8 @@ export const sendMessage = async (req, res) => {
       if (pushRecipients.length) {
         sendPushToUsers(
           pushRecipients,
-          group_name || 'Neue Nachricht',
-          `${senderName}: ${preview}`,
+          pushTexts('groupMessage', { groupName: group_name, line: `${senderName}: ${preview}` }),
+          null,
           `/chat/${groupId}`
         );
       }
