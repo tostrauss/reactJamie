@@ -4,8 +4,9 @@
 #
 #   bash ios/4-preflight.sh
 #
-# Idempotent — safe to run any number of times. It fixes the three things
-# `cap sync` does NOT handle (2026-07-03 pre-resubmission audit):
+# Idempotent — safe to run any number of times. It fixes the four things
+# `cap sync` does NOT handle (2026-07-03 pre-resubmission audit; push added
+# 2026-08-27):
 #
 #   1. Copies the current PrivacyInfo.xcprivacy into the Xcode project
 #      (cap sync never touches it; the repo copy is the source of truth).
@@ -15,6 +16,11 @@
 #   3. Ensures the three permission usage strings exist — Apple REJECTS or
 #      crashes the app when camera/photos/location are used without them.
 #      Existing values are left untouched.
+#   4. Installs the Push Notifications (APNs) entitlement — copies
+#      ios/App.entitlements into the project and wires CODE_SIGN_ENTITLEMENTS
+#      into project.pbxproj. `npx cap add ios` does NOT add the Push
+#      capability, so without this step register() gets no APNs token and iOS
+#      push can never work. See store/PUSH-SETUP.md for the Apple/Railway side.
 set -e
 
 PB="/usr/libexec/PlistBuddy"
@@ -64,7 +70,40 @@ ensure_string NSCameraUsageDescription        "JAMIE braucht die Kamera, um Prof
 ensure_string NSPhotoLibraryUsageDescription  "JAMIE braucht Zugriff auf deine Fotos, um Bilder hochzuladen."
 ensure_string NSLocationWhenInUseUsageDescription "JAMIE nutzt deinen Standort, um Aktivitäten in der Nähe zu zeigen."
 
+echo "🔔  4/4 Push Notifications entitlement (aps-environment)..."
+ENT_SRC="ios/App.entitlements"
+ENT_DST="frontend/ios/App/App/App.entitlements"
+PBXPROJ="frontend/ios/App/App.xcodeproj/project.pbxproj"
+if [ ! -f "$ENT_SRC" ]; then
+  echo "    ⚠️  $ENT_SRC missing — SKIPPED. iOS push will NOT work without it."
+elif [ ! -f "$PBXPROJ" ]; then
+  echo "    ⚠️  $PBXPROJ not found — SKIPPED (native project not generated yet)."
+else
+  cp "$ENT_SRC" "$ENT_DST"
+  echo "    ✓ copied $ENT_SRC → App/App.entitlements"
+  if grep -q "CODE_SIGN_ENTITLEMENTS" "$PBXPROJ"; then
+    echo "    ✓ CODE_SIGN_ENTITLEMENTS already wired in project.pbxproj"
+  else
+    # Insert the build setting right after each PRODUCT_BUNDLE_IDENTIFIER line
+    # (App target → Debug + Release). App.xcodeproj/project.pbxproj holds ONLY
+    # the App target, so this never touches Pods. awk (not BSD sed) so the
+    # append behaves identically on macOS; \t is a real tab in awk strings.
+    awk '{ print }
+         /PRODUCT_BUNDLE_IDENTIFIER = / { print "\t\t\t\tCODE_SIGN_ENTITLEMENTS = App/App.entitlements;" }' \
+      "$PBXPROJ" > "$PBXPROJ.tmp" && mv "$PBXPROJ.tmp" "$PBXPROJ"
+    echo "    + wired CODE_SIGN_ENTITLEMENTS = App/App.entitlements (Debug + Release)"
+  fi
+fi
+
 echo ""
 echo "✅  Preflight done. Remaining manual steps in Xcode:"
 echo "    1. Bump the Build number (last uploaded: 3 → use 4+; duplicates are rejected)"
 echo "    2. Product → Archive → Distribute App"
+echo ""
+echo "🔔  For iOS PUSH to actually deliver, the entitlement above is NOT enough:"
+echo "    • Apple Developer → Keys: create an APNs Auth Key (.p8), note the Key ID"
+echo "    • Enable Push on the App ID (com.jamie-app.app), then in Xcode let"
+echo "      automatic signing regenerate the provisioning profile"
+echo "    • Railway env: APNS_KEY_ID, APNS_TEAM_ID, APNS_KEY (.p8 contents),"
+echo "      APNS_BUNDLE_ID=com.jamie-app.app"
+echo "    Full runbook: store/PUSH-SETUP.md"

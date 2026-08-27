@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Push Notifications (APNs) entitlement — source of truth, copied into the
+	  regenerated native project by ios/4-preflight.sh.
+
+	  Value is "development" on purpose: this is exactly what Xcode writes when
+	  you add the "Push Notifications" capability. With Xcode-managed (automatic)
+	  signing, Xcode substitutes "production" automatically for an App Store /
+	  TestFlight archive, and keeps "development" for a device run from Xcode
+	  (sandbox APNs). Do NOT hardcode "production" here — that breaks local
+	  device debugging. See store/PUSH-SETUP.md.
+	-->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>
