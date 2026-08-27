@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext, useCallback, useRef, memo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { groups, deals as dealsApi, upload as uploadApi } from '../utils/api';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import { AuthContext } from '../context/AuthContext';
@@ -244,6 +244,7 @@ export const Explore = () => {
   const [hallItems, setHallItems]     = useState([]);
   const [dealList, setDealList]       = useState([]);
   const [likedIds, setLikedIds]       = useState(() => new Set());
+  const [showDealsInfo, setShowDealsInfo] = useState(false);
 
   // Shared by the mount effect and pull-to-refresh (which skips the full-page
   // loading state — the top spinner is the feedback there).
@@ -404,21 +405,83 @@ export const Explore = () => {
             </div>
           )
         ) : (
-          dealList.length === 0 ? (
-            <div className="explore-empty">
-              <div className="explore-empty-icon">🤝</div>
-              <p>{t('explore.empty.deals')}</p>
+          <>
+            {/* Compact explainer directly under the Deals tab (Tina 2026-08-27).
+                Coral copy + bold underlined "Mehr Infos?" opens the details modal. */}
+            <div className="ef-deals-explainer">
+              <p className="ef-deals-explainer-text">
+                {t('explore.dealsInfo.explainer')}{' '}
+                <button
+                  type="button"
+                  className="ef-deals-explainer-link"
+                  onClick={() => setShowDealsInfo(true)}
+                >
+                  {t('explore.dealsInfo.moreInfo')}
+                </button>
+              </p>
             </div>
-          ) : (
-            <div className="ef-deal-feed">
-              {dealList.map(deal => (
-                <DealCard key={`deal-${deal.id}`} deal={deal} variant="explore" />
-              ))}
-            </div>
-          )
+            {dealList.length === 0 ? (
+              <div className="explore-empty">
+                <div className="explore-empty-icon">🤝</div>
+                <p>{t('explore.empty.deals')}</p>
+              </div>
+            ) : (
+              <div className="ef-deal-feed">
+                {dealList.map(deal => (
+                  <DealCard key={`deal-${deal.id}`} deal={deal} variant="explore" />
+                ))}
+              </div>
+            )}
+          </>
         )}
 
       </div>
+
+      {showDealsInfo && (
+        <div className="modal-overlay" onClick={() => setShowDealsInfo(false)}>
+          <div className="modal-content ef-deals-modal" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="ef-deals-modal-close"
+              onClick={() => setShowDealsInfo(false)}
+              aria-label={t('explore.dealsInfo.close')}
+            >
+              ×
+            </button>
+
+            <div className="ef-deals-modal-scroll">
+              <h3 className="ef-deals-h">{t('explore.dealsInfo.whatTitle')}</h3>
+              <p className="ef-deals-p">{t('explore.dealsInfo.whatBody')}</p>
+
+              <h3 className="ef-deals-h">{t('explore.dealsInfo.howTitle')}</h3>
+              <ol className="ef-deals-steps">
+                <li>{t('explore.dealsInfo.step1')}</li>
+                <li>{t('explore.dealsInfo.step2')}</li>
+                <li>{t('explore.dealsInfo.step3')}</li>
+                <li>{t('explore.dealsInfo.step4')}</li>
+              </ol>
+
+              <p className="ef-deals-p ef-deals-disclaimer">{t('explore.dealsInfo.disclaimer')}</p>
+
+              <h3 className="ef-deals-h">{t('explore.dealsInfo.missingTitle')}</h3>
+              <p className="ef-deals-p">
+                <Trans
+                  i18nKey="explore.dealsInfo.missingBody"
+                  components={{ mail: <a className="ef-deals-mail" href="mailto:office@jamie-app.com" /> }}
+                />
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="ef-deals-cta"
+              onClick={() => setShowDealsInfo(false)}
+            >
+              {t('explore.dealsInfo.cta')}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -435,6 +435,22 @@
       "hallOfFame": "Hall of Fame",
       "deals": "Deals"
     },
+    "dealsInfo": {
+      "explainer": "Mostra il deal sul posto e tocca “Riscatta ora” davanti al personale. Attenzione: spesso riscattabile una sola volta.",
+      "moreInfo": "Più info?",
+      "whatTitle": "Cosa sono i Deals?",
+      "whatBody": "Abbiamo organizzato per voi deal esclusivi presso partner selezionati: offerte scontate per scoprire nuovi posti e attività e per conoscervi.",
+      "howTitle": "Come funzionano i deal?",
+      "step1": "Tocca un deal per vedere tutte le info.",
+      "step2": "Con “Riscatta ora” puoi usare il deal.",
+      "step3": "Sul posto, tocca “Riscatta ora” solo quando sei davanti al personale. Molti deal si possono riscattare una sola volta.",
+      "step4": "Per i deal online, il pulsante ti porta direttamente alla pagina del partner dove puoi prenotare l'offerta o comprare i biglietti.",
+      "disclaimer": "Organizziamo i deal per voi, ma non siamo il fornitore dei rispettivi prodotti o servizi. Il rispettivo partner è responsabile del riscatto, della disponibilità, del pagamento e della prestazione stessa.",
+      "missingTitle": "Il tuo locale preferito non c'è?",
+      "missingBody": "Allora scrivici pure una mail a <mail>office@jamie-app.com</mail> e vediamo cosa possiamo fare.",
+      "cta": "Let’s go",
+      "close": "Chiudi"
+    },
     "timeAgo": {
       "justNow": "Proprio ora",
       "minutesAgo_one": "{{count}} min fa",

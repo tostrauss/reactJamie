@@ -435,6 +435,22 @@
       "hallOfFame": "Hall of Fame",
       "deals": "Ofertas"
     },
+    "dealsInfo": {
+      "explainer": "Muestra la oferta en el local y toca «Canjear ahora» delante del personal. Atención: a menudo solo se puede canjear una vez.",
+      "moreInfo": "¿Más info?",
+      "whatTitle": "¿Qué son los Deals?",
+      "whatBody": "Hemos organizado para vosotros ofertas exclusivas en socios seleccionados: ofertas con descuento para descubrir nuevos lugares y actividades y para conoceros.",
+      "howTitle": "¿Cómo funcionan las ofertas?",
+      "step1": "Toca una oferta para ver toda la información.",
+      "step2": "Con «Canjear ahora» puedes usar la oferta.",
+      "step3": "En el local, toca «Canjear ahora» solo cuando estés delante del personal. Muchas ofertas solo se pueden canjear una vez.",
+      "step4": "En las ofertas online, el botón te lleva directamente a la página del socio donde puedes reservar la oferta o comprar entradas.",
+      "disclaimer": "Organizamos las ofertas para vosotros, pero no somos el proveedor de los respectivos productos o servicios. El socio correspondiente es responsable del canje, la disponibilidad, el pago y la prestación en sí.",
+      "missingTitle": "¿No está tu sitio favorito?",
+      "missingBody": "Entonces escríbenos un correo a <mail>office@jamie-app.com</mail> y veremos qué podemos hacer.",
+      "cta": "Let’s go",
+      "close": "Cerrar"
+    },
     "timeAgo": {
       "justNow": "Ahora mismo",
       "minutesAgo_one": "Hace {{count}} min",

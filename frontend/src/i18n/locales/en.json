@@ -435,6 +435,22 @@
       "hallOfFame": "Hall of Fame",
       "deals": "Deals"
     },
+    "dealsInfo": {
+      "explainer": "Show the deal on site and tap “Redeem now” in front of the staff. Note: often redeemable only once.",
+      "moreInfo": "More info?",
+      "whatTitle": "What are Deals?",
+      "whatBody": "We've arranged exclusive deals for you at selected partners — discounted offers to discover new places and activities and to get to know each other.",
+      "howTitle": "How do the deals work?",
+      "step1": "Tap a deal to see all the details.",
+      "step2": "Use “Redeem now” to use the deal.",
+      "step3": "On site, please tap “Redeem now” only once you're standing in front of the staff. Many deals can be redeemed only once.",
+      "step4": "For online deals, the button takes you straight to the partner's page where you can book the offer or buy tickets.",
+      "disclaimer": "We organise the deals for you but are not the provider of the respective products or services. The respective partner is responsible for redemption, availability, payment and the service itself.",
+      "missingTitle": "Your favourite spot isn't included?",
+      "missingBody": "Then feel free to send us an email at <mail>office@jamie-app.com</mail> and we'll see what we can do.",
+      "cta": "Let’s go",
+      "close": "Close"
+    },
     "timeAgo": {
       "justNow": "Just now",
       "minutesAgo_one": "{{count}} min ago",

@@ -1495,6 +1495,106 @@
   padding: 14px 16px;
 }
 
+/* Compact Deals explainer directly under the tab (Tina 2026-08-27) */
+.ef-deals-explainer {
+  padding: 12px 20px 2px;
+  text-align: center;
+}
+.ef-deals-explainer-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--accent-coral);
+}
+.ef-deals-explainer-link {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 2px 4px;
+  font: inherit;
+  color: var(--accent-coral);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  white-space: nowrap; /* keep "Mehr Infos?" on one line */
+}
+/* Deals info modal: X top-right, scrollable body, pinned "Let's go" CTA */
+.ef-deals-modal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* the inner .ef-deals-modal-scroll scrolls, CTA stays put */
+}
+.ef-deals-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-light);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ef-deals-modal-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 30px 2px 6px; /* top gap clears the X */
+}
+.ef-deals-h {
+  margin: 20px 0 6px;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-white);
+}
+.ef-deals-h:first-child { margin-top: 4px; }
+.ef-deals-p {
+  margin: 0 0 8px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text-light);
+}
+.ef-deals-steps {
+  margin: 0 0 8px;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text-light);
+}
+.ef-deals-disclaimer {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.ef-deals-mail {
+  color: var(--accent-coral);
+  font-weight: 700;
+  text-decoration: underline;
+}
+.ef-deals-cta {
+  flex: 0 0 auto;
+  margin-top: 14px;
+  padding: 15px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--accent-coral);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.ef-deals-cta:active { transform: scale(0.99); }
+
 .ef-media-placeholder {
   width: 100%;
   height: 100%;

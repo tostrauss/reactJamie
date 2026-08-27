@@ -435,6 +435,22 @@
       "hallOfFame": "Hall of Fame",
       "deals": "Offres"
     },
+    "dealsInfo": {
+      "explainer": "Montre l'offre sur place et appuie sur « Utiliser maintenant » devant le personnel. Attention : souvent utilisable une seule fois.",
+      "moreInfo": "Plus d'infos ?",
+      "whatTitle": "Qu'est-ce que les Deals ?",
+      "whatBody": "Nous avons organisé pour vous des offres exclusives chez des partenaires sélectionnés : des offres à prix réduit pour découvrir de nouveaux lieux et activités et faire connaissance.",
+      "howTitle": "Comment fonctionnent les offres ?",
+      "step1": "Appuie sur une offre pour voir toutes les infos.",
+      "step2": "Avec « Utiliser maintenant », tu peux profiter de l'offre.",
+      "step3": "Sur place, appuie sur « Utiliser maintenant » seulement quand tu es devant le personnel. De nombreuses offres ne sont utilisables qu'une seule fois.",
+      "step4": "Pour les offres en ligne, le bouton t'amène directement sur la page du partenaire où tu peux réserver l'offre ou acheter des billets.",
+      "disclaimer": "Nous organisons les offres pour vous, mais ne sommes pas le fournisseur des produits ou services concernés. Le partenaire concerné est responsable de l'utilisation, de la disponibilité, du paiement et de la prestation elle-même.",
+      "missingTitle": "Ton endroit préféré n'y est pas ?",
+      "missingBody": "Alors n'hésite pas à nous envoyer un e-mail à <mail>office@jamie-app.com</mail> et nous verrons ce que nous pouvons faire.",
+      "cta": "Let’s go",
+      "close": "Fermer"
+    },
     "timeAgo": {
       "justNow": "À l'instant",
       "minutesAgo_one": "Il y a {{count}} min",

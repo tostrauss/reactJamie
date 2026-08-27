@@ -435,6 +435,22 @@
       "hallOfFame": "Hall of Fame",
       "deals": "Deals"
     },
+    "dealsInfo": {
+      "explainer": "Zeig den Deal vor Ort und tippe vor dem Personal auf „Jetzt einlösen“. Achtung: Oft nur 1× einlösbar.",
+      "moreInfo": "Mehr Infos?",
+      "whatTitle": "Was sind Deals?",
+      "whatBody": "Wir haben für euch exklusive Deals bei ausgewählten Partnern organisiert. Vergünstigte Angebote, um neue Orte und Aktivitäten zu entdecken und euch kennenzulernen.",
+      "howTitle": "Wie funktionieren die Deals?",
+      "step1": "Klickt auf einen Deal, um alle Infos zu sehen.",
+      "step2": "Über „Jetzt einlösen“ könnt ihr den Deal nutzen.",
+      "step3": "Vor Ort bitte erst direkt vor dem Personal auf „Jetzt einlösen“ klicken. Viele Deals können nur einmal eingelöst werden.",
+      "step4": "Bei Online-Deals führt euch der Button direkt zur jeweiligen Seite, auf der ihr das Angebot buchen oder Tickets kaufen könnt.",
+      "disclaimer": "Wir organisieren die Deals für euch, sind aber nicht Anbieter der jeweiligen Produkte oder Leistungen. Für die Einlösung, Verfügbarkeit, Bezahlung und die Leistung selbst ist der jeweilige Partner verantwortlich.",
+      "missingTitle": "Dein Lieblingsladen ist nicht dabei?",
+      "missingBody": "Ja, dann schreib uns doch gerne eine Mail an <mail>office@jamie-app.com</mail> und wir schauen, was wir machen können.",
+      "cta": "Let’s go",
+      "close": "Schließen"
+    },
     "timeAgo": {
       "justNow": "Gerade eben",
       "minutesAgo_one": "Vor {{count}} min",
