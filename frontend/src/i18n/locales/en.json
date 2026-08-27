@@ -1165,6 +1165,12 @@
       "cta": "Upload profile photo",
       "cancel": "Later"
     },
+    "avatarNudge": {
+      "title": "Add a profile photo?",
+      "text": "With a real photo you're more likely to get invited to groups and people will recognise you. It only takes a moment.",
+      "cta": "Add profile photo",
+      "cancel": "Later"
+    },
     "createModal": {
       "title": "What would you like to create?",
       "groupTitle": "Create group",

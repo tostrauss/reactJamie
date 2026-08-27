@@ -723,6 +723,7 @@ function AppRoutes() {
   const [showProModal, setShowProModal] = useState(false);
   const [pendingReviews, setPendingReviews] = useState(null);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showAvatarNudge, setShowAvatarNudge] = useState(false);
 
   // Periodic feedback prompt: first one ~2 weeks in, then every ~3 months.
   // Stores the next-due timestamp in localStorage so it survives reloads and
@@ -744,6 +745,30 @@ function AppRoutes() {
   const dismissFeedback = () => {
     safeStorage.setItem('jamie_feedback_next', String(Date.now() + 90 * 24 * 60 * 60 * 1000));
     setShowFeedback(false);
+  };
+
+  // Soft nudge for members who are still avatar-less — mostly users
+  // grandfathered in before the join-time avatar gate (2026-08-04), which no
+  // join/create/invite path re-checks retroactively (Tina 2026-08-27). Never a
+  // hard block for existing users; dismissible and re-shown after ~7 days until
+  // they add a photo. Suppressed on the auth/onboarding routes (the photo step
+  // lives there) and while another modal is up. Clears itself the moment
+  // avatar_url is set.
+  useEffect(() => {
+    if (!user || user.isGuest || user.avatar_url) return;
+    if (/^\/(onboarding|welcome|login|register)/.test(window.location.pathname)) return;
+    const KEY = 'jamie_avatar_nudge_next';
+    const now = Date.now();
+    const next = parseInt(safeStorage.getItem(KEY) || '0', 10);
+    if (next && now < next) return;
+    const tid = setTimeout(() => setShowAvatarNudge(true), 1800);
+    return () => clearTimeout(tid);
+  }, [user?.id, user?.avatar_url]);
+
+  const dismissAvatarNudge = () => {
+    // Re-nudge in ~7 days if they still have no photo.
+    safeStorage.setItem('jamie_avatar_nudge_next', String(Date.now() + 7 * 24 * 60 * 60 * 1000));
+    setShowAvatarNudge(false);
   };
 
   // Show intro when user first logs in
@@ -918,6 +943,11 @@ function AppRoutes() {
           is up. Self-gates on support / permission / prior dismissal. */}
       {user && !user.isGuest && !showFeedback && !pendingReviews && !showIntro && (
         <NotificationPrompt />
+      )}
+      {/* Avatar nudge for grandfathered avatar-less members — soft, dismissible,
+          suppressed while other modals are up. */}
+      {showAvatarNudge && !showFeedback && !pendingReviews && !showIntro && (
+        <AvatarGateModal isOpen soft onClose={dismissAvatarNudge} />
       )}
     </>
   );

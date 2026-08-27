@@ -1165,6 +1165,12 @@
       "cta": "Carica immagine del profilo",
       "cancel": "Più tardi"
     },
+    "avatarNudge": {
+      "title": "Vuoi aggiungere una foto del profilo?",
+      "text": "Con una foto vera è più facile essere invitati nei gruppi e farsi riconoscere. Ci vuole solo un attimo.",
+      "cta": "Aggiungi foto del profilo",
+      "cancel": "Più tardi"
+    },
     "createModal": {
       "title": "Cosa vuoi creare?",
       "groupTitle": "Crea gruppo",

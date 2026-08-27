@@ -945,8 +945,9 @@ export const joinGroup = async (req, res) => {
 
     // Profile-photo gate on JOIN (Tina/Tobi meeting 2026-08-04): joining now
     // requires an avatar, same rule as creating. Was UX-only (AvatarGateModal)
-    // since 2026-08-02 — now enforced server-side. Owner INVITES stay ungated
-    // (inviteMember inserts membership directly). A waitlist claim ("Platz
+    // since 2026-08-02 — now enforced server-side. Owner INVITES are now gated
+    // too (inviteMember checks the invitee's avatar as of 2026-08-27). A
+    // waitlist claim ("Platz
     // frei!" push → tap join) DOES pass through here and is gated on purpose —
     // the rule is universal; the claimer sees the AvatarGateModal, uploads,
     // and joins (seat-loss risk while doing so is accepted).
@@ -1578,6 +1579,19 @@ export const handleJoinRequest = async (req, res) => {
     deleteCached(`user_groups:${req.userId}`);
 
     if (action === 'accept') {
+      // Re-verify the applicant still has a profile photo at acceptance time.
+      // The gate on joinGroup only checks at REQUEST time, so without this a
+      // member could slip in avatar-less two ways: (1) request with a photo,
+      // then clear it via updateProfile before the owner accepts (TOCTOU);
+      // (2) a request created before the 2026-08-04 avatar rule. Same universal
+      // rule as joining directly (Tina 2026-08-27). Leaves the request pending
+      // so the owner can accept once the applicant adds a photo.
+      if (!(await creatorHasAvatar(joinReq.user_id))) {
+        return res.status(422).json({
+          error: 'Dieser Nutzer hat noch kein Profilbild und kann noch nicht aufgenommen werden.',
+          requiresAvatar: true,
+        });
+      }
       // Enforce capacity inside a transaction to prevent race with concurrent accepts
       let didAccept = false;
       const client = await db.pool.connect();
@@ -1989,6 +2003,18 @@ export const inviteMember = async (req, res) => {
     ]);
     if (friendship.rows.length === 0) return res.status(403).json({ error: 'Nur Freunde können eingeladen werden' });
     if (existing.rows.length) return res.status(400).json({ error: 'Already a member' });
+
+    // Invited friend must have a profile photo too (Tobi/Tina 2026-08-27).
+    // inviteMember inserts membership directly with no accept step, so the
+    // invitee never passes the joinGroup avatar gate — this was the last
+    // self-service way to become an avatar-less member. Now the universal rule
+    // holds for invites as well; the owner is told to ask the friend for a photo.
+    if (!(await creatorHasAvatar(friendId))) {
+      return res.status(422).json({
+        error: 'Dieser Freund hat noch kein Profilbild und kann noch nicht eingeladen werden.',
+        requiresAvatar: true,
+      });
+    }
 
     // Capacity check + insert inside a transaction with FOR UPDATE so two
     // concurrent invites cannot both pass the count check and both insert,

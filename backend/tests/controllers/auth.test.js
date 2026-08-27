@@ -299,11 +299,16 @@ describe('updateProfile image URL validation', () => {
   const isUpdate = (c) => /UPDATE users/.test(c[0]);
   const ranUpdate = () => db.query.mock.calls.some(isUpdate);
 
-  // Save with an avatar and no birthday → 2 queries (UPDATE, return SELECT).
+  // Save with an avatar and no birthday. A same-origin avatar now triggers a
+  // pre-UPDATE "SELECT avatar_url" (change-detection for the quality backstop);
+  // we return the SAME url so it reads as unchanged and the stored-image check
+  // is skipped — this suite only exercises URL validation, not image content.
   const saveAvatar = async (avatar_url) => {
-    db.query
-      .mockResolvedValueOnce({ rows: [] })          // UPDATE
-      .mockResolvedValueOnce({ rows: [{ id: 1 }] }); // return SELECT
+    db.query.mockImplementation(async (sql) => {
+      if (/SELECT avatar_url FROM users/.test(sql)) return { rows: [{ avatar_url }] };
+      if (/UPDATE users/.test(sql)) return { rows: [] };
+      return { rows: [{ id: 1 }] }; // return SELECT
+    });
     const res = makeRes();
     await updateProfile({ userId: 1, body: { avatar_url } }, res, vi.fn());
     return res;

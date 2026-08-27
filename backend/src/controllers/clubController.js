@@ -895,6 +895,16 @@ export const handleClubJoinRequest = async (req, res) => {
     deleteCached(`user_groups:${req.userId}`);
 
     if (action === 'accept') {
+      // Re-verify the applicant still has a profile photo at acceptance time —
+      // mirrors groupController.handleJoinRequest. The joinClub gate only runs
+      // at REQUEST time, so this closes the TOCTOU hole (request with a photo,
+      // clear it, then get accepted) and blocks legacy pre-2026-08-04 requests.
+      if (!(await creatorHasAvatar(joinReq.user_id))) {
+        return res.status(422).json({
+          error: 'Dieser Nutzer hat noch kein Profilbild und kann noch nicht aufgenommen werden.',
+          requiresAvatar: true,
+        });
+      }
       // Enforce capacity inside a transaction so two concurrent accepts
       // can't both push the club over max_members. Mirror of the same
       // fix in groupController.handleJoinRequest.

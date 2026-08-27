@@ -257,7 +257,7 @@ export const ProfileEdit = () => {
   const uploadProfilePhoto = async (file) => {
     setPhotoUploading(true);
     try {
-      const res = await upload.image(file);
+      const res = await upload.image(file, 'avatar');
       setFormData(prev => prev.avatar_url
         ? { ...prev, photos: [...(prev.photos || []), res.data.url] }
         : { ...prev, avatar_url: res.data.url });

@@ -760,8 +760,13 @@ export const reviews = {
 // ==========================================
 
 export const upload = {
-  image: (file) => {
+  // purpose: pass 'avatar' for profile photos so the backend runs the
+  // solid-colour/near-blank quality gate. Left unset for group/club/event
+  // banners, which may legitimately be a flat colour. Appended BEFORE the file
+  // so it lands in req.body reliably.
+  image: (file, purpose) => {
     const formData = new FormData();
+    if (purpose) formData.append('purpose', purpose);
     formData.append('image', file);
     return axiosInstance.post('/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

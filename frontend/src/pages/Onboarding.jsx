@@ -370,6 +370,7 @@ export const Onboarding = () => {
             <ImageUpload
               onUpload={handlePhotoUpload}
               triggerRef={uploadTriggerRef}
+              purpose="avatar"
               label={t('onboarding.photos.addPhoto', { current: formData.photos.length, total: 6 })}
             />
           </div>

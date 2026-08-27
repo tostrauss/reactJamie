@@ -6,7 +6,7 @@ import { useToast } from '../context/ToastContext';
 // triggerRef (optional): parent passes a ref and can then open the file
 // picker from its own UI (e.g. the onboarding photo tiles) via
 // triggerRef.current?.() — keeps validation/upload logic in one place.
-export const ImageUpload = ({ onUpload, label, triggerRef }) => {
+export const ImageUpload = ({ onUpload, label, triggerRef, purpose }) => {
   const { t } = useTranslation();
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef(null);
@@ -41,7 +41,7 @@ export const ImageUpload = ({ onUpload, label, triggerRef }) => {
 
     setUploading(true);
     try {
-      const res = await upload.image(file);
+      const res = await upload.image(file, purpose);
       onUpload(res.data.url);
     } catch (err) {
       toast.error(err?.response?.data?.error || t('imageUpload.failed'));

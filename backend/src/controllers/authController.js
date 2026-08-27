@@ -15,6 +15,50 @@ import { sendPasswordResetEmail, sendVerificationEmail, sendOTPEmail } from '../
 import { REFERRAL_CREDITS_ENABLED } from '../config/features.js';
 import { normalizeLocale } from '../utils/pushLocale.js';
 import { checkTextSafety } from '../config/moderation.js';
+import { checkImageQuality } from '../config/imageProcessor.js';
+import { getObjectFromCloud, isCloudStorageEnabled } from '../config/storage.js';
+import { readFile } from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __authDir = path.dirname(fileURLToPath(import.meta.url));
+
+// Same-origin uploaded image (mirrors the first branch of isSafeImageUrl).
+const isSameOriginUpload = (u) => typeof u === 'string' && /^\/(?:media|uploads)\/[^/\\]/.test(u);
+
+const streamToBuffer = (stream) => new Promise((resolve, reject) => {
+  const chunks = [];
+  stream.on('data', (c) => chunks.push(c));
+  stream.on('end', () => resolve(Buffer.concat(chunks)));
+  stream.on('error', reject);
+});
+
+// Server-side avatar quality backstop. The /upload route only runs the
+// solid-colour/near-blank entropy gate when the client sends purpose:'avatar'
+// (added 2026-08-27), so older shipped builds — notably iOS binaries in the
+// field — skip it. Re-fetch the STORED avatar here and run the same gate when a
+// user sets/changes their photo, so the rule holds regardless of app version.
+// Fails OPEN on any fetch/analyse error — a storage hiccup must never block a
+// profile save. Only inspects same-origin uploads (external/OAuth photos are
+// real images and aren't fetched).
+async function inspectStoredAvatarQuality(url) {
+  try {
+    const file = url.replace(/^\/(?:media|uploads)\//, '').split('?')[0];
+    if (!file) return { ok: true };
+    let buffer;
+    if (isCloudStorageEnabled()) {
+      const obj = await getObjectFromCloud(`uploads/${file}`);
+      buffer = await streamToBuffer(obj.Body);
+    } else {
+      buffer = await readFile(path.join(__authDir, '../../uploads', file));
+    }
+    const mimetype = file.toLowerCase().endsWith('.gif') ? 'image/gif' : 'image/webp';
+    return await checkImageQuality(buffer, mimetype);
+  } catch (err) {
+    console.error('inspectStoredAvatarQuality failed (allowing save):', err?.message || err);
+    return { ok: true };
+  }
+}
 
 // Validate that a user-supplied image field is an internal/https(s) URL, not a
 // javascript:/data: payload or an arbitrary external host. Mirrors the http(s)
@@ -450,6 +494,19 @@ export const updateProfile = async (req, res) => {
     if (avatar_url !== undefined && avatar_url !== null && avatar_url !== '' && !isSafeImageUrl(avatar_url)) {
       return res.status(400).json({ error: 'Ungültige Avatar-URL' });
     }
+    // Avatar quality backstop (Tobi 2026-08-27): reject a solid-colour / blank
+    // block set as the profile photo, independent of app version. Only runs when
+    // the avatar is CHANGING to a same-origin upload — so an unrelated profile
+    // save (bio, interests…) doesn't re-fetch the image on every request.
+    if (avatar_url && isSameOriginUpload(avatar_url)) {
+      const curAv = await db.query('SELECT avatar_url FROM users WHERE id = $1', [req.userId]);
+      if (curAv.rows[0]?.avatar_url !== avatar_url) {
+        const quality = await inspectStoredAvatarQuality(avatar_url);
+        if (!quality.ok) {
+          return res.status(422).json({ error: quality.reason, requiresAvatar: true });
+        }
+      }
+    }
     if (gender !== undefined && gender !== null && !GENDER_VALUES.has(gender)) {
       return res.status(400).json({ error: 'Ungültige Geschlechtsangabe' });
     }
@@ -604,6 +661,15 @@ export const completeOnboarding = async (req, res) => {
     }
     if (avatar_url !== undefined && avatar_url !== null && avatar_url !== '' && !isSafeImageUrl(avatar_url)) {
       return res.status(400).json({ error: 'Ungültige Avatar-URL' });
+    }
+    // Avatar quality backstop — same as updateProfile. Only fires for a
+    // same-origin upload, so a Google/Apple provider photo (external URL) is
+    // never fetched or blocked.
+    if (avatar_url && isSameOriginUpload(avatar_url)) {
+      const quality = await inspectStoredAvatarQuality(avatar_url);
+      if (!quality.ok) {
+        return res.status(422).json({ error: quality.reason, requiresAvatar: true });
+      }
     }
 
     const interestsStr = JSON.stringify(interests || []);

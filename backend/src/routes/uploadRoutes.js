@@ -8,7 +8,7 @@ import { authenticate } from '../middleware/auth.js';
 import { uploadLimiter } from '../middleware/rateLimiter.js';
 import { uploadToCloud, putObjectToCloud, isCloudStorageEnabled } from '../config/storage.js';
 import { checkImageSafety } from '../config/moderation.js';
-import { processImage, generateThumbnail } from '../config/imageProcessor.js';
+import { processImage, generateThumbnail, checkImageQuality } from '../config/imageProcessor.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -104,6 +104,19 @@ router.post('/', authenticate, uploadLimiter, (req, res, next) => {
     // Use the detected (safe) extension, never the user-supplied filename
     const safeExt = MIME_TO_EXT[detectedMime];
     const safeOriginalname = `upload${safeExt}`;
+
+    // Avatar quality gate — only when the client marks this as a profile photo
+    // (purpose:'avatar'). Rejects a solid-colour / near-blank block that would
+    // otherwise satisfy the "has avatar" join requirement (Tina 2026-08-27).
+    // Scoped so group/club/event banners — which may be flat by design — are
+    // untouched. Runs before the external moderation call, so junk avatars are
+    // rejected without spending a Sightengine request.
+    if (req.body?.purpose === 'avatar') {
+      const quality = await checkImageQuality(req.file.buffer, detectedMime);
+      if (!quality.ok) {
+        return res.status(422).json({ error: quality.reason });
+      }
+    }
 
     // Moderation check — runs on the original buffer before processing
     const { safe, reason } = await checkImageSafety(

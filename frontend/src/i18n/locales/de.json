@@ -1165,6 +1165,12 @@
       "cta": "Profilbild hochladen",
       "cancel": "Später"
     },
+    "avatarNudge": {
+      "title": "Magst du ein Profilbild ergänzen?",
+      "text": "Mit einem echten Foto wirst du eher zu Gruppen eingeladen und Leute erkennen dich. Dauert nur einen Moment.",
+      "cta": "Profilbild hinzufügen",
+      "cancel": "Später"
+    },
     "createModal": {
       "title": "Was möchtest du erstellen?",
       "groupTitle": "Gruppe erstellen",

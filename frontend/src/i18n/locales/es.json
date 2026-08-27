@@ -1165,6 +1165,12 @@
       "cta": "Subir foto de perfil",
       "cancel": "Más tarde"
     },
+    "avatarNudge": {
+      "title": "¿Añadir una foto de perfil?",
+      "text": "Con una foto real es más fácil que te inviten a grupos y que te reconozcan. Solo lleva un momento.",
+      "cta": "Añadir foto de perfil",
+      "cancel": "Más tarde"
+    },
     "createModal": {
       "title": "¿Qué quieres crear?",
       "groupTitle": "Crear grupo",
