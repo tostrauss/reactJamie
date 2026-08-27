@@ -1308,6 +1308,18 @@
   justify-content: center;
 }
 
+/* "+N" tile: signals a populated group (more members than the grid can show),
+   so an 11-member group doesn't read as 3. Coral tint + bold count. */
+.avatar-slot.avatar-more {
+  background: rgba(253, 118, 102, 0.16); /* --accent-coral @ ~16% */
+}
+.avatar-more-count {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--accent-coral);
+  letter-spacing: -0.02em;
+}
+
 .avatar-gamble {
   width: 26px;
   height: 26px;

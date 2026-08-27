@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { nextOccurrence } from '../utils/recurrence';
-import { isNativeIOS } from '../utils/platform';
+import { isNativeIOS, purchasesEnabled } from '../utils/platform';
 import { thumbUrl } from '../utils/images';
 
 // Dispatched on every Pro-gate click (member-preview lock on group cards).
@@ -89,18 +89,27 @@ export const GroupCard = memo(({
 
   const maxMembers  = group.max_members || 10;
   const isFull      = group.members_count >= maxMembers;
-  // Gate the 4th tile only for non-Pro, non-admin viewers on non-club cards —
-  // and only when a member is actually hidden behind it (4+ members). With ≤3
-  // members everyone is already visible, so a lock would imply hidden people
-  // that don't exist (tester feedback 2026-06-11). Admins + Pro always see
-  // all four real/empty tiles.
-  // Auf nativem iOS nie: der Lock bewirbt Pro, das dort nicht kaufbar ist
-  // (Apple 3.1.1) — die Karte zeigt stattdessen einfach 4 normale Tiles.
-  const showProGate = !isNativeIOS() && !isClub && !isPro && !isAdmin && (group.members_count || 0) > 3;
-  // Tiles available for avatars/empties before the gate: 3 when gated, else 4.
-  const realSlots    = showProGate ? 3 : 4;
-  const visibleAvatars = isClub ? [] : memberAvatars.slice(0, realSlots);
-  const emptySpots   = isClub ? 0 : Math.max(0, realSlots - visibleAvatars.length);
+  // Card avatar grid = 2×2 (4 tiles). members_count is the source of truth for
+  // how populated the group is; member_previews (max 4 from the backend) are the
+  // faces we can actually show.
+  const GRID = 4;
+  const count = group.members_count || 0;
+  // Pro gate on the 4th tile: only when Pro is actually purchasable
+  // (purchasesEnabled). Otherwise it advertised Pro while payments are OFF and,
+  // combined with the backend's old 3-preview cap, made an 11-member group look
+  // like 3 members (Thomas 2026-08-27). Never on native iOS (Apple 3.1.1),
+  // clubs, Pro/admins, or when nobody is hidden (≤3 members).
+  const showProGate = purchasesEnabled() && !isNativeIOS() && !isClub && !isPro && !isAdmin && count > 3;
+  // Big group without a gate: reserve the last tile for a "+N" counter (mirrors
+  // the detail page) so the group reads as "3 faces + N more", not "3 members".
+  const hasOverflow  = !isClub && !showProGate && count > GRID;
+  const avatarSlots  = (showProGate || hasOverflow) ? GRID - 1 : GRID;
+  const visibleAvatars = isClub ? [] : memberAvatars.slice(0, avatarSlots);
+  const overflowCount  = hasOverflow ? Math.max(0, count - visibleAvatars.length) : 0;
+  // Empty "join" slots only for small groups (no gate, no overflow tile).
+  const emptySpots   = (isClub || showProGate || hasOverflow)
+    ? 0
+    : Math.max(0, GRID - visibleAvatars.length);
 
   const locale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : ((i18n.resolvedLanguage || i18n.language || 'de').startsWith('fr') ? 'fr-FR' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('es') ? 'es-ES' : 'de-DE');
   // Recurring groups: badge tracks the next occurrence so a Tuesday meetup
@@ -210,6 +219,13 @@ export const GroupCard = memo(({
                 </button>
               </div>
             ))}
+            {/* Last tile: "+N" counter for big groups (no Pro gate). Makes an
+                11-member group read as "3 faces + 8 more" instead of "3". */}
+            {overflowCount > 0 && (
+              <div className="avatar-slot avatar-more" aria-hidden="true">
+                <span className="avatar-more-count">+{overflowCount}</span>
+              </div>
+            )}
             {/* 4th (bottom-right) tile: Pro gate for non-Pro non-admin. Only
                 this tile is blurred + locked — the others stay clear. */}
             {showProGate && (

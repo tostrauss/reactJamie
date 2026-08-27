@@ -459,8 +459,14 @@ export const getGroups = async (req, res) => {
     }
     const regionBox = (callerCountry && COUNTRY_BOUNDS[callerCountry]) || null;
 
-    // Admins bypass the gate entirely → full 4 previews like Pro.
-    const previewLimit = (callerIsPro || callerIsAdmin) ? 4 : 3;
+    // Member previews: ALWAYS return 4 to fill the card's 2×2 grid. The old
+    // Pro gate (3 for non-Pro, 4 for Pro/admin) made an 11-member group render
+    // as "3 members" on the card, and gated a Pro upsell while payments are OFF
+    // (Thomas 2026-08-27). The frontend hides the Pro lock via purchasesEnabled()
+    // and shows a "+N" counter for big groups. Re-introduce a preview cap here
+    // only if Pro monetization returns. (callerIsPro/callerIsAdmin still feed the
+    // cache key below, so keep them.)
+    const previewLimit = 4;
 
     // Cache only filter combinations that don't involve free-text search or location
     // (those are low-frequency, high-variability and not worth the memory).
