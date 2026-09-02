@@ -8,7 +8,7 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import compression from 'compression';
 import db from './config/database.js';
-import { runStartupMigrations } from './config/migrations.js';
+import { runStartupMigrations, getMigrationHealth } from './config/migrations.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -124,6 +124,12 @@ const app = express();
 const trustProxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS ?? '1', 10);
 app.set('trust proxy', Number.isNaN(trustProxyHops) ? 1 : trustProxyHops);
 console.log(`[boot] trust proxy = ${app.get('trust proxy')}`);
+
+// Which build is this instance running? Railway injects the deploy's git SHA;
+// surfaced in the boot log (always) and the non-prod health body so a rollback
+// or a mixed-replica deploy is verifiable in seconds. Prod health stays
+// {status}-only by design (no infra fingerprinting).
+const APP_VERSION = (process.env.RAILWAY_GIT_COMMIT_SHA || '').slice(0, 7) || 'dev';
 const server = http.createServer(app);
 // Protect against slow-client / Slowloris attacks
 server.keepAliveTimeout = 65_000; // 65s — must exceed Railway LB idle timeout (60s)
@@ -462,11 +468,27 @@ app.get('/api/health', async (_req, res) => {
     checks.redis = 'missing';
     allOk = false;
   }
+  // A failed post-migration schema assertion means this instance would serve
+  // 500s on core paths — pull it from rotation instead (healthy until the
+  // assertion actually FAILS, so the accepts-traffic-before-migrations boot
+  // window stays green).
+  const mig = getMigrationHealth();
+  if (mig.schemaAssertionError) {
+    checks.schema = 'error';
+    allOk = false;
+  }
   const status = allOk ? 'ok' : 'degraded';
   if (process.env.NODE_ENV === 'production') {
     return res.status(allOk ? 200 : 503).json({ status });
   }
-  res.status(allOk ? 200 : 503).json({ status, ...checks, timestamp: new Date().toISOString() });
+  res.status(allOk ? 200 : 503).json({
+    status,
+    ...checks,
+    version: APP_VERSION,
+    migrationStepFailures: mig.stepFailures.length,
+    ...(mig.schemaAssertionError ? { schemaAssertionError: mig.schemaAssertionError } : {}),
+    timestamp: new Date().toISOString(),
+  });
 });
 // HEAD /api/health — for cheap uptime monitors that only care about status code
 app.head('/api/health', async (_req, res) => {
@@ -594,7 +616,7 @@ const PORT = process.env.PORT || 5000; // 5000 in dev so Vite dev server can use
 
 
 server.listen(PORT, async () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT} — version ${APP_VERSION}`);
   console.log(`API: http://localhost:${PORT}/api`);
   console.log(`Socket.io ready`);
   // Warm up DB pool — acquires one connection so the first real request isn't the cold-start

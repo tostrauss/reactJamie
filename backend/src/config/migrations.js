@@ -2,6 +2,16 @@
 // (integration smoke tests) without booting the HTTP server. Every step is
 // idempotent (CREATE/ALTER ... IF NOT EXISTS) and failure-isolated via migrate().
 import db from './database.js';
+import { Sentry } from './sentry.js';
+
+// Failure ledger (audit 2026-09-02, operability): steps stay log-and-continue
+// (the fresh-DB bootstrap deliberately tolerates step errors — schema.sql runs
+// first there), but failures are now RECORDED and surfaced via
+// getMigrationHealth() + Sentry instead of vanishing into the boot log.
+const _migrationFailures = []; // { label, message }
+// null = healthy; a string = the post-migration schema assertion failed and
+// /api/health reports this instance degraded (Railway pulls it from rotation).
+let _schemaAssertionError = null;
 
 // Helper: run a single migration step, log and continue on error
 const migrate = async (label, fn) => {
@@ -9,8 +19,25 @@ const migrate = async (label, fn) => {
     await fn();
   } catch (err) {
     console.error(`⚠️ Migration "${label}" failed: ${err.message}`);
+    _migrationFailures.push({ label, message: err.message });
+    Sentry.captureException?.(err, { tags: { area: 'migrations' }, extra: { label } });
   }
 };
+
+// Invariants the app cannot serve correctly without — checked AFTER the
+// steps. Distinct from per-step failures: a missing optional index is noise,
+// a missing revocation column is an incident. Each probe throws on a missing
+// table/column (42P01/42703).
+const CRITICAL_SCHEMA_PROBES = [
+  ['users.sessions_valid_after (session revocation)', 'SELECT sessions_valid_after FROM users LIMIT 1'],
+  ['users.date_of_birth_changed (DOB lock)', 'SELECT date_of_birth_changed FROM users LIMIT 1'],
+  ['groups.parent_club_id (club events)', 'SELECT parent_club_id FROM groups LIMIT 1'],
+  ['group_members (membership core)', 'SELECT user_id FROM group_members LIMIT 1'],
+  ['messages.message_type (system messages)', 'SELECT message_type FROM messages LIMIT 1'],
+  ['direct_messages (DM core)', 'SELECT id FROM direct_messages LIMIT 1'],
+  ['email_verification_codes (signup OTP)', 'SELECT code FROM email_verification_codes LIMIT 1'],
+  ['push_subscriptions (push delivery)', 'SELECT id FROM push_subscriptions LIMIT 1'],
+];
 
 const runStartupMigrations = async () => {
   // Wait up to 90s for DB to be reachable before running migrations.
@@ -985,7 +1012,34 @@ const runStartupMigrations = async () => {
     CREATE INDEX IF NOT EXISTS idx_backup_runs_kind_started ON backup_runs (kind, started_at DESC)
   `));
 
-  console.log('✅ Startup migrations done');
+  // ── Post-migration schema assertion ────────────────────────────────────
+  // The server accepts traffic BEFORE migrations finish (listen → migrate),
+  // so health stays green during the boot window; only a PROVEN-broken
+  // schema flips this instance to degraded.
+  _schemaAssertionError = null;
+  for (const [what, sql] of CRITICAL_SCHEMA_PROBES) {
+    try {
+      await db.query(sql);
+    } catch (err) {
+      _schemaAssertionError = `${what}: ${err.message}`;
+      console.error(`🛑 Schema assertion FAILED (${what}) — /api/health will report degraded:`, err.message);
+      Sentry.captureException?.(err, { tags: { area: 'migrations', kind: 'schema-assertion' }, extra: { what } });
+      break;
+    }
+  }
+
+  if (_migrationFailures.length) {
+    console.warn(`⚠️ Startup migrations done with ${_migrationFailures.length} failed step(s): ${_migrationFailures.map(f => f.label).join(', ')}`);
+  } else {
+    console.log('✅ Startup migrations done');
+  }
 };
 
-export { runStartupMigrations };
+// Consumed by /api/health: schemaAssertionError degrades the instance;
+// stepFailures are informational (surfaced in the non-prod health body).
+const getMigrationHealth = () => ({
+  stepFailures: [..._migrationFailures],
+  schemaAssertionError: _schemaAssertionError,
+});
+
+export { runStartupMigrations, getMigrationHealth };
