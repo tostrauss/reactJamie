@@ -9,6 +9,7 @@ import { uploadLimiter } from '../middleware/rateLimiter.js';
 import { uploadToCloud, putObjectToCloud, isCloudStorageEnabled } from '../config/storage.js';
 import { checkImageSafety } from '../config/moderation.js';
 import { processImage, generateThumbnail, checkImageQuality } from '../config/imageProcessor.js';
+import { createSemaphore } from '../utils/semaphore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,17 +59,7 @@ const upload = multer({
 // multi-GB spike on a container that must also keep sockets alive. Excess
 // requests queue (FIFO) instead of OOM-ing the instance.
 const MAX_CONCURRENT_UPLOADS = 4;
-let uploadSlotsInUse = 0;
-const uploadQueue = [];
-const acquireUploadSlot = () => new Promise((resolve) => {
-  if (uploadSlotsInUse < MAX_CONCURRENT_UPLOADS) { uploadSlotsInUse++; resolve(); }
-  else uploadQueue.push(resolve);
-});
-const releaseUploadSlot = () => {
-  const next = uploadQueue.shift();
-  if (next) next(); // slot passes directly to the next waiter
-  else uploadSlotsInUse--;
-};
+const uploadSlots = createSemaphore(MAX_CONCURRENT_UPLOADS);
 
 // Surface multer errors (file-too-large, wrong mimetype) as JSON so the
 // frontend can show a useful message instead of a generic "upload failed".
@@ -93,7 +84,7 @@ router.post('/', authenticate, uploadLimiter, (req, res, next) => {
     if (!req.file) {
       return res.status(400).json({ error: 'Kein Bild ausgewählt.' });
     }
-    await acquireUploadSlot();
+    await uploadSlots.acquire();
     slotHeld = true;
 
     // Validate actual file bytes — reject if magic bytes don't match a known image format
@@ -170,7 +161,7 @@ router.post('/', authenticate, uploadLimiter, (req, res, next) => {
     console.error('Upload error:', error);
     res.status(500).json({ error: 'Upload failed' });
   } finally {
-    if (slotHeld) releaseUploadSlot();
+    if (slotHeld) uploadSlots.release();
   }
 });
 

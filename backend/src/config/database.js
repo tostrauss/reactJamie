@@ -59,6 +59,13 @@ pool.on('error', (err) => {
   console.error('❌ Unexpected error on idle client', err);
 });
 
+// Sizing rule when scaling replicas (audit 2026-09-02, risk #5): Postgres has
+// ONE global connection ceiling (~100 on common Railway plans) shared by ALL
+// replicas → set DB_POOL_MAX = floor((PG max_connections − headroom) / replicas),
+// e.g. 2 replicas on a 100-conn plan → 40 each with 20 headroom. Beyond 2
+// replicas, front with PgBouncer (transaction mode) instead of shrinking further.
+console.log(`[db-pool] max=${pool.options.max} min=${pool.options.min} (DB_POOL_MAX env ${process.env.DB_POOL_MAX ? 'set' : 'unset'})`);
+
 // Log when the pool is exhausted — signals need to raise DB_POOL_MAX or add caching
 pool.on('connect', () => {
   if (pool.totalCount >= pool.options.max) {

@@ -1,6 +1,7 @@
 import express from 'express';
 import { getObjectFromCloud, putObjectToCloud, isCloudStorageEnabled } from '../config/storage.js';
 import { generateThumbnail } from '../config/imageProcessor.js';
+import { createSemaphore } from '../utils/semaphore.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // /media — same-origin image proxy in front of the R2 bucket.
@@ -51,6 +52,12 @@ const THUMB_SOURCE_MAX_BYTES = 5 * 1024 * 1024;
 // same image (a fresh feed full of viewers) share a single resize.
 const thumbInFlight = new Map(); // file → Promise<{buffer, mimetype} | null>
 
+// Cross-file cap: without it, a cold-cache feed wave of N DISTINCT images runs
+// N concurrent sharp pipelines (each buffering up to 5 MB) on the same libuv
+// threadpool bcrypt logins hash on. Mirrors MAX_CONCURRENT_UPLOADS on the
+// upload path; joiners of an in-flight generation don't consume a slot.
+const thumbSlots = createSemaphore(4);
+
 const streamObject = (res, obj) => {
   res.setHeader('Content-Type', obj.ContentType || 'application/octet-stream');
   if (obj.ContentLength != null) res.setHeader('Content-Length', obj.ContentLength);
@@ -83,7 +90,7 @@ const bufferBody = async (body) => {
 const getOrCreateThumb = (file, thumbKey) => {
   let p = thumbInFlight.get(file);
   if (p) return p;
-  p = (async () => {
+  p = thumbSlots.run(async () => {
     const orig = await getObjectFromCloud(`uploads/${file}`);
     if (
       (orig.ContentLength ?? 0) > THUMB_SOURCE_MAX_BYTES ||
@@ -99,7 +106,7 @@ const getOrCreateThumb = (file, thumbKey) => {
       console.error('[media] thumb write-back failed:', err?.message);
     });
     return { buffer: thumb.buffer, mimetype: thumb.mimetype };
-  })();
+  });
   thumbInFlight.set(file, p);
   p.finally(() => thumbInFlight.delete(file));
   return p;

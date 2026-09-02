@@ -90,6 +90,19 @@ if (process.env.NODE_ENV === 'production') {
     console.error('FATAL: DISABLE_RATE_LIMIT must not be set in production');
     fatal = true;
   }
+  // Set REQUIRE_REDIS=true the moment replica count can exceed 1: without
+  // Redis, every rate limit multiplies per replica and Socket.IO fan-out
+  // splits per instance (chat silently stops across replicas) while health
+  // still returns 200. Fail the boot rather than degrade invisibly.
+  if (process.env.REQUIRE_REDIS === 'true' && !process.env.REDIS_URL) {
+    console.error('FATAL: REQUIRE_REDIS=true but REDIS_URL is not set — refusing to boot without cross-replica Redis');
+    fatal = true;
+  }
+  if (process.env.REQUIRE_REDIS !== 'true' && !process.env.REDIS_URL) {
+    // Single-instance is legitimate today, but this must never be invisible in
+    // an incident review — surface it in Sentry, not only a boot log line.
+    Sentry.captureMessage('REDIS_URL not set — rate limits and socket fan-out are single-instance only; do NOT scale replicas', 'warning');
+  }
 
   if (fatal) process.exit(1);
 
@@ -102,7 +115,15 @@ if (process.env.NODE_ENV === 'production') {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const app = express();
-app.set('trust proxy', 1); // Trust Railway's reverse proxy — use real client IP for rate limiting
+// Railway sits one proxy hop in front of us; hop count 1 makes req.ip the real
+// client for the per-IP credential limiters (authLimiter & co. key on req.ip).
+// If the topology ever adds a layer (CDN, extra LB), req.ip silently becomes
+// an edge IP and those limiters collapse into ONE shared budget for the whole
+// audience — verify with GET /api/admin/ip-diagnostics on prod and correct via
+// the TRUST_PROXY_HOPS env var instead of a code change.
+const trustProxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS ?? '1', 10);
+app.set('trust proxy', Number.isNaN(trustProxyHops) ? 1 : trustProxyHops);
+console.log(`[boot] trust proxy = ${app.get('trust proxy')}`);
 const server = http.createServer(app);
 // Protect against slow-client / Slowloris attacks
 server.keepAliveTimeout = 65_000; // 65s — must exceed Railway LB idle timeout (60s)
@@ -434,6 +455,12 @@ app.get('/api/health', async (_req, res) => {
       checks.redis = 'error';
       allOk = false;
     }
+  } else if (process.env.REQUIRE_REDIS === 'true') {
+    // Redis is declared load-bearing (replicas > 1) but absent — report
+    // degraded so the orchestrator pulls this instance instead of letting it
+    // serve with split rate limits and per-instance socket fan-out.
+    checks.redis = 'missing';
+    allOk = false;
   }
   const status = allOk ? 'ok' : 'degraded';
   if (process.env.NODE_ENV === 'production') {

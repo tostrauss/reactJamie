@@ -17,6 +17,7 @@ import {
   getGrowth,
   getUserOrigins,
   getUserDetail,
+  getIpDiagnostics,
 } from '../controllers/adminController.js';
 import { getFeedbackAdmin } from '../controllers/feedbackController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
@@ -48,6 +49,7 @@ router.get('/top-clubs',   getTopClubs);
 router.get('/online-users', getOnlineUsers);
 router.get('/growth',      getGrowth);
 router.get('/user-origins', getUserOrigins);
+router.get('/ip-diagnostics', getIpDiagnostics);
 router.get('/feedback',    getFeedbackAdmin);
 router.get('/export/users',       exportUsers);
 router.get('/export/screens',     exportScreens);

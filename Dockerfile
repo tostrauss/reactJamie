@@ -45,11 +45,12 @@ RUN mkdir -p uploads
 
 ENV PORT=5000
 ENV NODE_ENV=production
-# bcrypt (@node-rs) hashes on the libuv threadpool; the default of 4 threads
-# would queue logins behind each other under signup load. 8 matches the
-# auth-burst headroom we want for TV-spike nights (a Railway env var of the
-# same name overrides this if set).
-ENV UV_THREADPOOL_SIZE=8
+# bcrypt (@node-rs) hashes on the libuv threadpool, and sharp resizes share
+# the SAME pool (upload path + /media?size=thumb). At 8, a signup wave with
+# avatar uploads capped auth at ~26 bcrypt ops/sec/instance (audit 2026-09-02,
+# risk #4). 16 doubles that headroom for TV-spike nights; size vCPU to match
+# (a Railway env var of the same name overrides this if set).
+ENV UV_THREADPOOL_SIZE=16
 
 EXPOSE 5000
 CMD ["node", "src/server.js"]

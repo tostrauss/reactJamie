@@ -656,3 +656,22 @@ export const getOnlineUsers = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+// ==========================================
+// IP DIAGNOSTICS (rate-limiter sanity check)
+// ==========================================
+// One-request prod verification that req.ip resolves to the REAL client and
+// not a Railway edge address (which would collapse the per-IP credential
+// limiters into a single global budget — audit 2026-09-02, risk #1).
+// Expected on Railway with trust proxy = 1: reqIp equals the LAST entry of
+// xForwardedFor (the hop Railway appended). If reqIp is instead an internal/
+// edge address, raise TRUST_PROXY_HOPS in Railway env and re-check.
+export const getIpDiagnostics = (req, res) => {
+  res.json({
+    reqIp: req.ip,
+    reqIps: req.ips,
+    xForwardedFor: req.headers['x-forwarded-for'] || null,
+    socketRemoteAddress: req.socket?.remoteAddress || null,
+    trustProxy: req.app.get('trust proxy'),
+  });
+};
