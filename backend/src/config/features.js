@@ -33,5 +33,13 @@ export const paymentsEnabled = () => process.env.PAYMENTS_ENABLED === 'true';
 export const isAppShellRequest = (req) => {
   const p = (req.get?.('x-client-platform') || req.headers?.['x-client-platform'] || '')
     .toString().toLowerCase();
-  return p === 'ios' || p === 'android';
+  if (p === 'ios' || p === 'android') return true;
+  // Play-TWA (the live Android app) is ordinary web and sends no
+  // X-Client-Platform — it marks itself via X-Client-Shell instead
+  // (frontend api.js; separate header so the native geofence exemption
+  // doesn't leak to TWA users). Closed BEFORE the payments flag flips on:
+  // Play billing policy applies to the TWA exactly like to Capacitor shells.
+  const s = (req.get?.('x-client-shell') || req.headers?.['x-client-shell'] || '')
+    .toString().toLowerCase();
+  return s === 'twa';
 };

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import i18n from '../i18n';
-import { isNative, isNativeIOS, NATIVE_API_ORIGIN } from './platform';
+import { isNative, isNativeIOS, isTWA, NATIVE_API_ORIGIN } from './platform';
 
 // ==========================================
 // AXIOS INSTANCE SETUP
@@ -42,6 +42,13 @@ axiosInstance.interceptors.request.use(
     // header and keeps its Austria-only signup gate.
     if (isNative()) {
       config.headers['X-Client-Platform'] = isNativeIOS() ? 'ios' : 'android';
+    } else if (isTWA()) {
+      // Play-TWA marker for the SERVER-side payments backstop ONLY (store
+      // billing policy — no Stripe checkout inside the Play app). Deliberately
+      // a SEPARATE header from X-Client-Platform: that one also grants the
+      // native geofence exemption, and the TWA's signup-gate behavior must
+      // not change as a side effect of the payments launch.
+      config.headers['X-Client-Shell'] = 'twa';
     }
     // App language for server-initiated pushes (login/refresh persist it to
     // users.locale). The APP language, not Accept-Language — the device may be

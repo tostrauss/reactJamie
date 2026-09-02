@@ -136,4 +136,21 @@ describe('payments kill-switch on the money endpoints', () => {
       expect.objectContaining({ code: 'PAYMENTS_WEB_ONLY' })
     );
   });
+
+  it('the Play-TWA (X-Client-Shell: twa) is an app shell too — no Stripe checkout', async () => {
+    process.env.PAYMENTS_ENABLED = 'true';
+    process.env.STRIPE_SECRET_KEY = 'sk_test';
+    // TWA sends no X-Client-Platform (it must keep the web geofence), only
+    // the shell marker — the backstop must still refuse checkout.
+    const req = {
+      body: {}, userId: 42,
+      get: (h) => (h.toLowerCase() === 'x-client-shell' ? 'twa' : undefined),
+    };
+    const res = makeRes();
+    await boostMod.createStripeIntent(req, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'PAYMENTS_WEB_ONLY' })
+    );
+  });
 });
