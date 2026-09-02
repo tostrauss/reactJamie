@@ -80,6 +80,22 @@ const shouldRetry = (error) => {
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Single-flight session refresh (audit 2026-09-02, risk #7): when several
+// parallel requests 401 at once, exactly ONE /auth/refresh runs and every
+// waiter shares its outcome. The refresh POST itself matches the
+// isAuthAttempt regex in the interceptor, so a failing refresh can never
+// re-enter the rescue path (no recursion).
+let _refreshInFlight = null;
+const refreshSessionOnce = () => {
+  if (!_refreshInFlight) {
+    _refreshInFlight = axiosInstance.post('/auth/refresh', {})
+      .then(({ data }) => data?.token || null)
+      .catch(() => null)
+      .finally(() => { _refreshInFlight = null; });
+  }
+  return _refreshInFlight;
+};
+
 // Response Interceptor - Handle errors + retry
 axiosInstance.interceptors.response.use(
   (response) => response,
@@ -122,6 +138,28 @@ axiosInstance.interceptors.response.use(
         window.location.href = '/register';
       }
       return Promise.reject(error);
+    }
+
+    // Refresh-and-retry BEFORE the hard logout: the httpOnly cookie is the
+    // auth source of truth and can still be valid while the in-memory token
+    // is stale or was never set (offline cold-start, long-backgrounded tab).
+    // One shared refresh rescues the session; only a dead cookie falls
+    // through to the logout below. NOTE: /auth/refresh rotates a still-valid
+    // cookie — it cannot revive an expired one, which is exactly the split
+    // we want between "rescue silently" and "re-authenticate".
+    if (!isAuthAttempt && error.response?.status === 401 && _memToken !== 'guest_token'
+        && config && !config._retriedAfterRefresh) {
+      config._retriedAfterRefresh = true;
+      const freshToken = await refreshSessionOnce();
+      if (freshToken) {
+        setMemToken(freshToken);
+        // Let AuthContext adopt the token so React state (and with it the
+        // SocketProvider, keyed on `token`) re-keys onto the fresh one.
+        try {
+          window.dispatchEvent(new CustomEvent('jamie:token-refreshed', { detail: { token: freshToken } }));
+        } catch { /* non-DOM env (tests) */ }
+        return axiosInstance(config);
+      }
     }
 
     if (!isAuthAttempt && error.response?.status === 401 && _memToken !== 'guest_token') {

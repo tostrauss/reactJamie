@@ -6,6 +6,7 @@ import { auth, restoreSession, setMemToken, clearMemToken, clearApiCache, subscr
 // this cache is only a paint-speed nicety and may silently not persist.
 import { safeStorage } from '../utils/safeStorage';
 import { unsubscribeFromPush } from '../utils/pushNotifications';
+import { useNetwork } from './NetworkContext';
 
 export const AuthContext = createContext();
 
@@ -179,6 +180,43 @@ export const AuthProvider = ({ children }) => {
       // cookie re-authenticates every request once connectivity returns.
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Adopt tokens minted by the api-layer's 401 refresh-and-retry (audit
+  // 2026-09-02, risk #7): React state must follow the interceptor, or
+  // SocketProvider (keyed on `token`) keeps handing the socket a stale token
+  // until the next full reload.
+  useEffect(() => {
+    const onRefreshed = (e) => {
+      const tok = e.detail?.token;
+      if (tok) { setToken(tok); setMemToken(tok); }
+    };
+    window.addEventListener('jamie:token-refreshed', onRefreshed);
+    return () => window.removeEventListener('jamie:token-refreshed', onRefreshed);
+  }, []);
+
+  // Offline cold-start rescue (risk #7): the mount restore above runs exactly
+  // once — an offline launch keeps the cached user but never gets a token, so
+  // REST recovers via the cookie while the socket never connects. When
+  // connectivity returns and we're still in that half-state, restore again.
+  const { isOnline } = useNetwork();
+  const onlineRetryArmed = useRef(false);
+  const restoreRetryBusy = useRef(false);
+  useEffect(() => {
+    // Skip the mount pass — that one belongs to the effect above.
+    if (!onlineRetryArmed.current) { onlineRetryArmed.current = true; return; }
+    if (!isOnline || token || !user || restoreRetryBusy.current) return;
+    restoreRetryBusy.current = true;
+    restoreSession().then(({ token: tok, unauthorized }) => {
+      if (tok) {
+        setToken(tok);
+        setMemToken(tok);
+        refreshProStatus();
+      } else if (unauthorized) {
+        // Cookie genuinely dead → same cleanup as the mount path.
+        clearAuth();
+      }
+    }).finally(() => { restoreRetryBusy.current = false; });
+  }, [isOnline, token, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Whenever we log in fresh, fetch Pro status.
   useEffect(() => {
