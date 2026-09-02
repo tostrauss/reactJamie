@@ -36,8 +36,26 @@ vi.mock('../../src/utils/geocode.js', () => ({
   geocodeLocation: vi.fn(async () => ({ lat: 48.2, lng: 16.37 })),
 }));
 
+// Mock outbound email — createReport fires sendAdminReportEmail unawaited and
+// would otherwise hit the real Resend API from the smoke run.
+vi.mock('../../src/utils/email.js', () => ({
+  sendPasswordResetEmail: vi.fn(async () => {}),
+  sendVerificationEmail: vi.fn(async () => {}),
+  sendAdminReportEmail: vi.fn(async () => {}),
+  sendAdminClubPendingEmail: vi.fn(async () => {}),
+  sendContactEmail: vi.fn(async () => {}),
+  sendFeedbackEmail: vi.fn(async () => {}),
+  sendOTPEmail: vi.fn(async () => {}),
+}));
+
 // Socket.IO is looked up via req.app.get('io'); provide a chainable no-op.
-const fakeIo = { to: () => ({ emit: () => {} }) };
+// sendMessage additionally chains .except() on to() and reads the room
+// presence via io.in(room).fetchSockets() (push suppression, audit risk #8).
+const emitChain = { emit: () => {}, except: () => emitChain };
+const fakeIo = {
+  to: () => emitChain,
+  in: () => ({ fetchSockets: async () => [] }),
+};
 const fakeApp = { get: (k) => (k === 'io' ? fakeIo : undefined) };
 
 const makeRes = () => {
@@ -46,9 +64,9 @@ const makeRes = () => {
   res.json = (o) => { res.body = o; return res; };
   return res;
 };
-const call = async (fn, { userId, params = {}, body = {} }) => {
+const call = async (fn, { userId, params = {}, body = {}, query = {} }) => {
   const res = makeRes();
-  await fn({ userId, params, body, app: fakeApp }, res, () => {});
+  await fn({ userId, params, body, query, app: fakeApp }, res, () => {});
   return res;
 };
 const avatar = 'https://app.jamie-app.com/media/uploads/a.webp';
@@ -116,6 +134,8 @@ suite('write endpoints against real Postgres', () => {
     const rv = await import('../../src/controllers/reviewController.js');
     const dl = await import('../../src/controllers/dealController.js');
     const bo = await import('../../src/controllers/boostController.js');
+    const ms = await import('../../src/controllers/messageController.js');
+    const rp = await import('../../src/controllers/reportController.js');
     C = {
       updateProfile: a.updateProfile, completeOnboarding: a.completeOnboarding,
       createGroup: g.createGroup, updateGroup: g.updateGroup, createClub: c.createClub,
@@ -124,6 +144,9 @@ suite('write endpoints against real Postgres', () => {
       removeFriend: f.removeFriend, blockUser: f.blockUser, unblockUser: f.unblockUser,
       sendDM: dm.sendDM, submitReview: rv.submitReview, getPendingReviews: rv.getPendingReviews,
       createDeal: dl.createDeal, redeemDeal: dl.redeemDeal, applyBoost: bo.applyBoost,
+      sendMessage: ms.sendMessage, getMessages: ms.getMessages,
+      markChatRead: ms.markChatRead, deleteMessage: ms.deleteMessage,
+      createReport: rp.createReport, getReports: rp.getReports,
     };
   }, 90000);
 
@@ -243,5 +266,53 @@ suite('write endpoints against real Postgres', () => {
                               WHERE (requester_id=$1 AND addressee_id=$2)
                                  OR (requester_id=$2 AND addressee_id=$1)`, [B, D]);
     expect(r.rows).toEqual([{ status: 'pending' }]);
+  });
+
+  // ── group chat (messageController — the hottest write path, audit risk #6) ─
+  let msgId;
+  it('sendMessage persists to the group chat (A is member via createGroup)', async () => {
+    const res = await call(C.sendMessage, { userId: A, body: { groupId, content: 'hallo Gruppe' } });
+    expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+    expect(res.body?.content).toBe('hallo Gruppe');
+    msgId = res.body?.id;
+    expect(msgId).toBeTruthy();
+  });
+  it('sendMessage 403s for a non-member', async () => {
+    const res = await call(C.sendMessage, { userId: D, body: { groupId, content: 'lass mich rein' } });
+    expect(res.statusCode, JSON.stringify(res.body)).toBe(403);
+  });
+  it('getMessages pages the chat (query params hit real SQL)', async () => {
+    const res = await call(C.getMessages, {
+      userId: A, params: { groupId: String(groupId) }, query: { limit: '10' },
+    });
+    ok(res);
+    const msgs = res.body?.messages ?? res.body;
+    expect(Array.isArray(msgs)).toBe(true);
+    expect(msgs.some(m => m.id === msgId)).toBe(true);
+  });
+  it('markChatRead stamps last_read_at', async () => {
+    ok(await call(C.markChatRead, { userId: B, params: { groupId: String(groupId) } }));
+    const r = await db.query(
+      'SELECT last_read_at FROM group_members WHERE group_id=$1 AND user_id=$2', [groupId, B]);
+    expect(r.rows[0]?.last_read_at).toBeTruthy();
+  });
+  it('deleteMessage by its author', async () => {
+    ok(await call(C.deleteMessage, { userId: A, params: { messageId: String(msgId) } }));
+  });
+
+  // ── reports (reportController — window query + ON CONFLICT dedup) ────────
+  it('createReport inserts, and an identical re-report dedups (ON CONFLICT)', async () => {
+    ok(await call(C.createReport, { userId: B, body: {
+      reported_type: 'user', reported_id: D, reason: 'spam', details: 'smoke' } }));
+    noServerError(await call(C.createReport, { userId: B, body: {
+      reported_type: 'user', reported_id: D, reason: 'spam', details: 'smoke again' } }));
+    const r = await db.query(
+      "SELECT COUNT(*)::int AS n FROM reports WHERE reporter_id=$1 AND reported_type='user' AND reported_id=$2",
+      [B, D]);
+    expect(r.rows[0].n).toBe(1);
+  });
+  it('getReports serves the admin list (COUNT(*) OVER() window SQL)', async () => {
+    const res = await call(C.getReports, { userId: A, query: { status: 'pending', limit: '10', offset: '0' } });
+    ok(res);
   });
 });

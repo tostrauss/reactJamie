@@ -36,11 +36,27 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
 
   backend:
-    name: Backend (lint · test · audit)
+    name: Backend (lint · test · smoke · audit)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
+    # Real Postgres for the write-path smoke suite — catches the class of SQL
+    # error mocked unit tests can't see (the 42P08 that once 500'd every
+    # profile save). Same image/credentials as scripts/smoke-local.sh.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: pw
+          POSTGRES_DB: jamie_smoke
+        ports:
+          - 55433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -51,4 +67,8 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      - name: Smoke suite (real Postgres)
+        run: npm run test:smoke
+        env:
+          SMOKE_DATABASE_URL: postgres://postgres:pw@localhost:55433/jamie_smoke
       - run: npm audit --omit=dev --audit-level=high
