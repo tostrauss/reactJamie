@@ -1,4 +1,6 @@
 import db from '../config/database.js';
+import { invalidateSessionCache } from '../middleware/auth.js';
+import { disconnectUserSockets } from '../socket.js';
 
 // ==========================================
 // OVERVIEW STATS
@@ -485,6 +487,10 @@ export const deleteUser = async (req, res) => {
     } finally {
       client.release();
     }
+    // End the deleted account's live access immediately: evict the 30s-cached
+    // session state and kill any open sockets (cluster-wide via the adapter).
+    invalidateSessionCache(targetId);
+    disconnectUserSockets(req.app.get('io'), targetId);
     res.json({
       success: true,
       deleted: { id: target.rows[0].id, email: target.rows[0].email, name: target.rows[0].name },

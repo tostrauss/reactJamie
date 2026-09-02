@@ -334,20 +334,32 @@ export const createGroup = async (req, res) => {
     // Weekly recurrence only applies to events (type='group'); silently ignored for clubs.
     const recurringWeekly = !!is_recurring_weekly && (type === 'group' || !type);
 
-    const result = await db.query(
-      `INSERT INTO groups (name, description, type, category, categories, date, location, image_url, max_members, is_private, skill_level, owner_id, lat, lng, chat_only_owner, target_age_min, target_age_max, is_recurring_weekly)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-       RETURNING *`,
-      [name, description, type || 'group', (catList[0] || category), (catList.length ? catList : null), dateTime, location, image_url, max_members || 10, is_private || false, skill_level, userId, coords?.lat ?? null, coords?.lng ?? null, chat_only_owner || false, ageMin, ageMax, recurringWeekly]
-    );
-
-    const newGroup = result.rows[0];
-
-    // Auto-add creator as member
-    await db.query(
-      'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
-      [newGroup.id, userId, 'owner']
-    );
+    // Group row + owner membership are ATOMIC: under pool pressure the second
+    // INSERT could fail and leave an ownerless group whose chat/roster is
+    // broken for its own creator (audit 2026-09-02, risk #10).
+    const client = await db.pool.connect();
+    let newGroup;
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `INSERT INTO groups (name, description, type, category, categories, date, location, image_url, max_members, is_private, skill_level, owner_id, lat, lng, chat_only_owner, target_age_min, target_age_max, is_recurring_weekly)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+         RETURNING *`,
+        [name, description, type || 'group', (catList[0] || category), (catList.length ? catList : null), dateTime, location, image_url, max_members || 10, is_private || false, skill_level, userId, coords?.lat ?? null, coords?.lng ?? null, chat_only_owner || false, ageMin, ageMax, recurringWeekly]
+      );
+      newGroup = result.rows[0];
+      // Auto-add creator as member
+      await client.query(
+        'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
+        [newGroup.id, userId, 'owner']
+      );
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
 
     // Pioneer check (fire-and-forget — must not block the response)
     if (coords?.lat && coords?.lng) {

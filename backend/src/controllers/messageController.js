@@ -13,6 +13,35 @@ const stampChatRead = (groupId, userId) =>
     [groupId, userId]
   ).then(() => deleteCached(`user_groups:${userId}`));
 
+// ── Push discipline for the chat hot path (audit 2026-09-02, risk #8) ──────
+// A rapid conversation must produce ONE banner per member, not sixty, and a
+// member who has the chat OPEN (live socket in the room, already receiving
+// `receive_message`) must get none. Cooldown state is per-process — replica-
+// local best-effort, which is fine: each HTTP send lands on one replica and
+// stamps its own map; worst case across replicas is an extra banner.
+const PUSH_COOLDOWN_MS = 30_000;
+const _pushCooldown = new Map(); // `${userId}:${groupId}` → last-push epoch ms
+setInterval(() => {
+  const cutoff = Date.now() - PUSH_COOLDOWN_MS;
+  for (const [k, t] of _pushCooldown) if (t < cutoff) _pushCooldown.delete(k);
+}, 60_000).unref();
+
+// Pure + exported for unit tests: decide who gets a push and stamp the
+// cooldown for exactly those members.
+export const computePushRecipients = (memberRows, activeUserIds, cooldownMap, groupId, now = Date.now()) => {
+  const recipients = [];
+  for (const r of memberRows) {
+    if (r.notifications_muted) continue;
+    if (activeUserIds.has(Number(r.user_id))) continue; // reading it live right now
+    const key = `${r.user_id}:${groupId}`;
+    const last = cooldownMap.get(key);
+    if (last != null && now - last < PUSH_COOLDOWN_MS) continue;
+    cooldownMap.set(key, now);
+    recipients.push(r.user_id);
+  }
+  return recipients;
+};
+
 // ==========================================
 // SEND MESSAGE
 // ==========================================
@@ -120,10 +149,23 @@ export const sendMessage = async (req, res) => {
       const preview = content.slice(0, 120);
       // Skip members who muted this group's notifications via the chat-header
       // bell — the in-app nudge above still updates their unread badge, but no
-      // push is sent (Tina 2026-07-31).
-      const pushRecipients = memberRows.rows
-        .filter(r => !r.notifications_muted)
-        .map(r => r.user_id);
+      // push is sent (Tina 2026-07-31). Additionally suppress members with a
+      // live socket IN THIS ROOM (they just received `receive_message`) and
+      // apply the per-member 30s cooldown. fetchSockets() is cluster-correct
+      // under the Redis adapter; remote sockets expose only socket.data, so
+      // the handshake mirrors userId into data (socket.js).
+      let activeInRoom = new Set();
+      if (io) {
+        try {
+          const roomSockets = await io.in(String(groupId)).fetchSockets();
+          activeInRoom = new Set(
+            roomSockets.map(s => Number(s.data?.userId ?? s.userId)).filter(Boolean)
+          );
+        } catch { /* best-effort — fall back to pushing everyone non-muted */ }
+      }
+      const pushRecipients = computePushRecipients(
+        memberRows.rows, activeInRoom, _pushCooldown, groupId
+      );
       if (pushRecipients.length) {
         sendPushToUsers(
           pushRecipients,

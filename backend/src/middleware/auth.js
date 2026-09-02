@@ -77,8 +77,10 @@ async function getSessionState(userId) {
 export const invalidateSessionCache = (userId) => _sessionCache.delete(userId);
 
 // true if this decoded token is still valid for the account (exists, active,
-// issued after the revocation watermark).
-async function sessionAccepted(decoded) {
+// issued after the revocation watermark). Exported so the Socket.IO handshake
+// enforces the SAME revocation the HTTP path does (audit 2026-09-02, risk #12:
+// a just-banned/deleted user kept a live socket and realtime chat).
+export async function sessionAccepted(decoded) {
   const state = await getSessionState(decoded.id);
   if (!state.exists || !state.isActive) return false;
   // decoded.iat is in seconds; reject tokens issued at/*before* the watermark.

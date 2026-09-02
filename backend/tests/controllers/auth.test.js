@@ -386,14 +386,17 @@ describe('sendEmailCode per-email throttle', () => {
     await sendEmailCode({ body: { email, name: 'T' } }, res, vi.fn());
     return res;
   };
-  // Query order: user-exists, CREATE TABLE, throttle SELECT, then (if allowed)
-  // invalidate-UPDATE, cleanup-DELETE (fire-and-forget), INSERT RETURNING.
+  // Route responses by SQL shape, not call position: the cold-boot
+  // CREATE TABLE guard is memoized to ONE call per process (audit 2026-09-02,
+  // risk #12), so a positional slot for it would only line up in whichever
+  // test happens to run first.
   const arm = (throttleRow) => {
-    db.query
-      .mockResolvedValueOnce({ rows: [] })            // email not registered
-      .mockResolvedValueOnce({ rows: [] })            // CREATE TABLE IF NOT EXISTS
-      .mockResolvedValueOnce({ rows: [throttleRow] }) // throttle history
-      .mockResolvedValue({ rows: [{ id: 7 }] });      // everything after
+    db.query.mockImplementation(async (sql) => {
+      if (/SELECT id FROM users WHERE LOWER\(email\)/.test(sql)) return { rows: [] }; // not registered
+      if (/CREATE TABLE IF NOT EXISTS email_verification_codes/.test(sql)) return { rows: [] };
+      if (/MAX\(created_at\) AS last_sent/.test(sql)) return { rows: [throttleRow] }; // throttle history
+      return { rows: [{ id: 7 }] }; // invalidate-UPDATE / cleanup / INSERT RETURNING
+    });
   };
 
   it('429s within the 60s resend cooldown', async () => {

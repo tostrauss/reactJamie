@@ -113,53 +113,63 @@ export const createClub = async (req, res) => {
     const isAdminOwner = !!adminCheck.rows[0]?.is_admin;
     const approval = isAdminOwner ? 'approved' : 'pending';
 
-    const result = await db.query(
-      `INSERT INTO groups (
-        name,
-        description,
-        type,
-        category,
-        categories,
-        date,
-        location,
-        image_url,
-        max_members,
-        is_private,
-        skill_level,
-        owner_id,
-        lat,
-        lng,
-        approval_status,
-        events_owner_only
-      )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-       RETURNING *`,
-      [
-        name,
-        description,
-        CLUB_TYPE,
-        primaryCategory,
-        catList.length ? catList : null,
-        dateTime,
-        location,
-        image_url,
-        max_members || 100, // Clubs are larger communities by default
-        is_private || false,
-        skill_level,
-        userId,
-        coords?.lat ?? null,
-        coords?.lng ?? null,
-        approval,
-        events_owner_only || false
-      ]
-    );
-
-    const newClub = result.rows[0];
-
-    await db.query(
-      'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
-      [newClub.id, userId, 'owner']
-    );
+    // Club row + owner membership are ATOMIC (see createGroup — risk #10).
+    const client = await db.pool.connect();
+    let newClub;
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `INSERT INTO groups (
+          name,
+          description,
+          type,
+          category,
+          categories,
+          date,
+          location,
+          image_url,
+          max_members,
+          is_private,
+          skill_level,
+          owner_id,
+          lat,
+          lng,
+          approval_status,
+          events_owner_only
+        )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+         RETURNING *`,
+        [
+          name,
+          description,
+          CLUB_TYPE,
+          primaryCategory,
+          catList.length ? catList : null,
+          dateTime,
+          location,
+          image_url,
+          max_members || 100, // Clubs are larger communities by default
+          is_private || false,
+          skill_level,
+          userId,
+          coords?.lat ?? null,
+          coords?.lng ?? null,
+          approval,
+          events_owner_only || false
+        ]
+      );
+      newClub = result.rows[0];
+      await client.query(
+        'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
+        [newClub.id, userId, 'owner']
+      );
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
 
     // Welcome system message — no live broadcast (chat is empty on creation).
     postSystemMessage(newClub.id, `Willkommen bei ${newClub.name}! Stell euch kurz vor 👋`).catch(() => {});
@@ -1310,7 +1320,7 @@ export const createClubEvent = async (req, res) => {
 
   try {
     const club = await db.query(
-      'SELECT id, name, category, owner_id, events_owner_only, location, is_private FROM groups WHERE id = $1 AND type = $2',
+      'SELECT id, name, category, owner_id, events_owner_only, location, is_private, lat, lng FROM groups WHERE id = $1 AND type = $2',
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club nicht gefunden' });
@@ -1340,7 +1350,17 @@ export const createClubEvent = async (req, res) => {
     // location (text AND coords). The inherited text must be stored too, not
     // just geocoded: otherwise the event renders without any address line.
     const eventLocation = (location && location.trim()) || club.rows[0].location || null;
-    const coords = await geocodeLocation(eventLocation);
+    // Inherited (or identical) location → inherit the club's pin too: no
+    // Nominatim call, no drift between club pin and event pin. Only a custom
+    // location still geocodes (unrestricted, as before — club events carry no
+    // region gate by design).
+    const inheritsClubPin =
+      eventLocation != null &&
+      eventLocation === club.rows[0].location &&
+      club.rows[0].lat != null;
+    const coords = inheritsClubPin
+      ? { lat: club.rows[0].lat, lng: club.rows[0].lng }
+      : await geocodeLocation(eventLocation);
 
     // An event inherits its parent club's privacy: a PRIVATE club's events are
     // private too, so joinGroup routes joins through owner approval instead of an
@@ -1349,33 +1369,44 @@ export const createClubEvent = async (req, res) => {
     // club's events publicly joinable and marked "Öffentlich".
     const eventIsPrivate = !!club.rows[0].is_private;
 
-    const result = await db.query(
-      `INSERT INTO groups
-         (name, description, type, category, date, location, max_members, owner_id,
-          parent_club_id, is_private, lat, lng, is_recurring_weekly)
-       VALUES ($1, $2, 'event', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-       RETURNING *`,
-      [
-        name.trim(),
-        description || null,
-        club.rows[0].category || null,
-        dateTime,
-        eventLocation,
-        max_members || 20,
-        userId,
-        parseInt(id, 10),
-        eventIsPrivate,
-        coords?.lat ?? null,
-        coords?.lng ?? null,
-        !!is_recurring_weekly,
-      ]
-    );
-
-    const event = result.rows[0];
-    await db.query(
-      'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
-      [event.id, userId, 'owner']
-    );
+    // Event row + owner membership are ATOMIC (see createGroup — risk #10).
+    const client = await db.pool.connect();
+    let event;
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `INSERT INTO groups
+           (name, description, type, category, date, location, max_members, owner_id,
+            parent_club_id, is_private, lat, lng, is_recurring_weekly)
+         VALUES ($1, $2, 'event', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         RETURNING *`,
+        [
+          name.trim(),
+          description || null,
+          club.rows[0].category || null,
+          dateTime,
+          eventLocation,
+          max_members || 20,
+          userId,
+          parseInt(id, 10),
+          eventIsPrivate,
+          coords?.lat ?? null,
+          coords?.lng ?? null,
+          !!is_recurring_weekly,
+        ]
+      );
+      event = result.rows[0];
+      await client.query(
+        'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
+        [event.id, userId, 'owner']
+      );
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
 
     invalidatePrefix('clubs:');
     invalidatePrefix(DISCOVER_EVENTS_KEY);

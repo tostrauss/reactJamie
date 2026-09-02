@@ -21,6 +21,14 @@ setInterval(() => {
 // Serialise concurrent requests for the same string — one fetch, multiple waiters
 const _inflight = new Map();
 
+// Nominatim's usage policy is 1 req/s — cold lookups for DISTINCT strings
+// queue behind one slot instead of fanning out (a create burst for different
+// cities previously fired parallel calls; an egress throttle/ban would then
+// degrade every create AND fail the region gate open). The 24h cache and the
+// _inflight dedup sit in front, so only genuinely cold lookups ever queue.
+import { createSemaphore } from './semaphore.js';
+const nominatimSlot = createSemaphore(1);
+
 export async function geocodeLocation(location) {
   if (!location || typeof location !== 'string' || !location.trim()) return null;
 
@@ -93,6 +101,7 @@ async function _fetchNominatim(location, countrycodes = null) {
   const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1&addressdetails=1`
     + (countrycodes ? `&countrycodes=${countrycodes}` : '');
 
+  return nominatimSlot.run(async () => {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
@@ -122,6 +131,7 @@ async function _fetchNominatim(location, countrycodes = null) {
   } catch {
     return null;
   }
+  });
 }
 
 /**

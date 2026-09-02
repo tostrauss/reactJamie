@@ -1,5 +1,17 @@
 import jwt from 'jsonwebtoken';
 import db from './config/database.js';
+import { JWT_VERIFY_OPTS, sessionAccepted } from './middleware/auth.js';
+
+// Kill every live socket of one user — cluster-wide under the Redis adapter.
+// Called when the session-revocation watermark bumps (password change/reset,
+// account delete, admin delete) so realtime access ends WITH the session
+// instead of surviving until the next reconnect (audit 2026-09-02, risk #12).
+export const disconnectUserSockets = (io, userId) => {
+  if (!io || !userId) return;
+  try {
+    io.in(`user_${userId}`).disconnectSockets(true);
+  } catch { /* best-effort */ }
+};
 
 // 10-second in-process membership cache for join_room.
 // At 1 000 concurrent users each joining 3-5 group rooms, this prevents
@@ -67,7 +79,7 @@ async function areFriends(a, b) {
 
 const socketHandler = (io) => {
   // Verify JWT on every connection attempt
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) {
       return next(new Error('Authentication required'));
@@ -82,15 +94,19 @@ const socketHandler = (io) => {
       return next(new Error('Guest access is disabled'));
     }
     try {
-      // Verifier options must match middleware/auth.js exactly — otherwise
-      // a token valid for HTTP could be rejected on the socket or vice
-      // versa. Pinning iss/aud blocks cross-service token replay.
-      const decoded = jwt.verify(token, process.env.JWT_SECRET, {
-        algorithms: ['HS256'],
-        issuer: 'jamie-api',
-        audience: 'jamie-app',
-      });
+      // Shared verifier options (JWT_VERIFY_OPTS) — a token valid for HTTP
+      // must be exactly as valid here, and vice versa. Pinned iss/aud blocks
+      // cross-service token replay.
+      const decoded = jwt.verify(token, process.env.JWT_SECRET, JWT_VERIFY_OPTS);
+      // Same revocation check as the HTTP path (30s-cached): a banned/deleted
+      // user or a pre-password-change token gets no socket, not just no REST.
+      if (!(await sessionAccepted(decoded))) {
+        return next(new Error('Invalid or expired token'));
+      }
       socket.userId = decoded.id;
+      // Mirror into socket.data: fetchSockets() across replicas serializes
+      // ONLY socket.data, and the chat push suppression reads userId from it.
+      socket.data.userId = decoded.id;
       socket.isGuest = false;
       next();
     } catch {

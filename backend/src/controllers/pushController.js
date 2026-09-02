@@ -1,5 +1,13 @@
 import webpush from 'web-push';
 import db from '../config/database.js';
+import { createSemaphore } from '../utils/semaphore.js';
+
+// Cap concurrent outbound push sends (audit 2026-09-02, risk #8): before this,
+// dispatch fired every FCM/APNs TLS request at once without awaiting — a
+// 200-member club message was an unbounded outbound burst competing with the
+// event loop and DB pool. 8 in flight keeps throughput high while bounding
+// sockets + memory; excess sends queue FIFO.
+const pushSendSlots = createSemaphore(8);
 
 // Configure VAPID once on first import
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
@@ -166,11 +174,13 @@ export const saveApnsToken = async (req, res) => {
 // ==========================================
 // Dispatch one already-fetched subscription row. apnCtxRef is a holder object
 // ({ ctx }) so a whole batch resolves the APNs provider at most once.
+// RETURNS the send promise (errors handled inside, never rejects) so callers
+// can drive real backpressure through the semaphore instead of fire-and-forget.
 async function dispatchToSubscription(sub, title, body, url, apnCtxRef) {
   if (sub.platform === 'web' && sub.endpoint) {
     if (!process.env.VAPID_PUBLIC_KEY) return;
     const pushSub = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } };
-    webpush.sendNotification(pushSub, JSON.stringify({ title, body, url })).catch((err) => {
+    return webpush.sendNotification(pushSub, JSON.stringify({ title, body, url })).catch((err) => {
       // 410 Gone = expired; FCM signals dead subscriptions with 404
       // ("NotRegistered") — both are permanent, clean them up.
       if (err.statusCode === 410 || err.statusCode === 404) {
@@ -189,7 +199,7 @@ async function dispatchToSubscription(sub, title, body, url, apnCtxRef) {
     notification.sound = 'default';
     notification.payload = { url };
     notification.priority = 10; // display immediately
-    provider.send(notification, sub.device_token).then((result) => {
+    return provider.send(notification, sub.device_token).then((result) => {
       for (const failure of (result.failed || [])) {
         const reason = failure.response?.reason || '';
         if (reason === 'BadDeviceToken' || reason === 'Unregistered' || failure.status === '410') {
@@ -233,7 +243,9 @@ export const sendPushToUser = async (userId, title, body, url = '/notifications'
 
   const texts = resolveTexts(title, body, subs[0].locale);
   const apnCtxRef = {};
-  for (const sub of subs) await dispatchToSubscription(sub, texts.title, texts.body, url, apnCtxRef);
+  await Promise.all(subs.map((sub) =>
+    pushSendSlots.run(() => dispatchToSubscription(sub, texts.title, texts.body, url, apnCtxRef))
+  ));
 };
 
 // Bulk variant: ONE subscriptions SELECT for all recipients instead of N
@@ -261,10 +273,12 @@ export const sendPushToUsers = async (userIds, title, body, url = '/notification
 
   const textCache = new Map();
   const apnCtxRef = {};
-  for (const sub of subs) {
+  // Bounded parallelism: up to 8 sends in flight (semaphore), the rest queue.
+  // Each dispatch handles its own errors, so this Promise.all never rejects.
+  await Promise.all(subs.map((sub) => {
     const key = sub.locale || 'de';
     let texts = textCache.get(key);
     if (!texts) { texts = resolveTexts(title, body, sub.locale); textCache.set(key, texts); }
-    await dispatchToSubscription(sub, texts.title, texts.body, url, apnCtxRef);
-  }
+    return pushSendSlots.run(() => dispatchToSubscription(sub, texts.title, texts.body, url, apnCtxRef));
+  }));
 };

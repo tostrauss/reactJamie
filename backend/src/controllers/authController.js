@@ -11,6 +11,7 @@ import bcrypt from '@node-rs/bcrypt';
 import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { generateToken, setAuthCookie, clearAuthCookie, invalidateSessionCache } from '../middleware/auth.js';
+import { disconnectUserSockets } from '../socket.js';
 import { sendPasswordResetEmail, sendVerificationEmail, sendOTPEmail } from '../utils/email.js';
 import { REFERRAL_CREDITS_ENABLED } from '../config/features.js';
 import { normalizeLocale } from '../utils/pushLocale.js';
@@ -767,6 +768,9 @@ export const changePassword = async (req, res) => {
       [hashed, req.userId]
     );
     invalidateSessionCache(req.userId);
+    // Kill sockets carrying pre-change tokens (iat < the new watermark) —
+    // the client reconnects with the fresh token below.
+    disconnectUserSockets(req.app.get('io'), req.userId);
     const freshToken = generateToken(req.userId);
     setAuthCookie(res, freshToken);
 
@@ -865,8 +869,10 @@ export const deleteAccount = async (req, res) => {
     }
 
     // Evict the cached session state now so any other live token for this
-    // (now-deleted) account is rejected immediately rather than after the TTL.
+    // (now-deleted) account is rejected immediately rather than after the TTL,
+    // and kill every open socket of the deleted account.
     invalidateSessionCache(req.userId);
+    disconnectUserSockets(req.app.get('io'), req.userId);
     clearAuthCookie(res);
     res.json({ message: 'Account deleted successfully' });
   } catch (error) {
@@ -1053,6 +1059,9 @@ export const resetPassword = async (req, res) => {
       [hashed, resetToken.user_id]
     );
     invalidateSessionCache(resetToken.user_id);
+    // A reset usually means "someone else may have my password" — cut every
+    // live socket now; old tokens fail the watermark check on reconnect.
+    disconnectUserSockets(req.app.get('io'), resetToken.user_id);
 
     // Mark token as used
     await db.query('UPDATE password_reset_tokens SET used = TRUE WHERE id = $1', [resetToken.id]);
@@ -1108,6 +1117,23 @@ export const sendVerification = async (req, res) => {
 // ==========================================
 // SEND EMAIL OTP (pre-registration, no auth)
 // ==========================================
+
+// Cold-boot guard for the OTP table, memoized to one DDL per process (the
+// server accepts traffic before runStartupMigrations finishes — see
+// server.js listen callback). Reset on failure so a transient DB error
+// doesn't poison every later OTP request.
+let _evcTableReady = null;
+const ensureEvcTable = () => {
+  if (!_evcTableReady) {
+    _evcTableReady = db.query(`CREATE TABLE IF NOT EXISTS email_verification_codes (
+      id SERIAL PRIMARY KEY, email VARCHAR(255) NOT NULL,
+      code VARCHAR(6) NOT NULL, expires_at TIMESTAMPTZ NOT NULL,
+      used BOOLEAN DEFAULT FALSE, created_at TIMESTAMPTZ DEFAULT NOW())`)
+      .catch((err) => { _evcTableReady = null; throw err; });
+  }
+  return _evcTableReady;
+};
+
 export const sendEmailCode = async (req, res) => {
   try {
     const email = normalizeEmail(req.body.email);
@@ -1126,11 +1152,11 @@ export const sendEmailCode = async (req, res) => {
       return res.status(400).json({ error: 'Diese E-Mail ist bereits registriert' });
     }
 
-    // Ensure table exists (guards against startup migration race on cold boot)
-    await db.query(`CREATE TABLE IF NOT EXISTS email_verification_codes (
-      id SERIAL PRIMARY KEY, email VARCHAR(255) NOT NULL,
-      code VARCHAR(6) NOT NULL, expires_at TIMESTAMPTZ NOT NULL,
-      used BOOLEAN DEFAULT FALSE, created_at TIMESTAMPTZ DEFAULT NOW())`);
+    // Ensure table exists (guards against the startup-migration race on cold
+    // boot — the server accepts traffic before runStartupMigrations finishes).
+    // Memoized: ONE DDL round trip per process, not one per OTP request in a
+    // signup wave (audit 2026-09-02, risk #12).
+    await ensureEvcTable();
 
     // ── Per-EMAIL throttle (2M2M TV-spike readiness, 2026-08-04) ─────────
     // The per-IP registrationLimiter was raised for carrier-NAT bursts, so
