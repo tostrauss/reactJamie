@@ -1,6 +1,6 @@
 import db from '../config/database.js';
-import { invalidateSessionCache } from '../middleware/auth.js';
-import { disconnectUserSockets } from '../socket.js';
+import { revokeUserSessions } from '../socket.js';
+import { getClientIp } from '../utils/clientIp.js';
 
 // ==========================================
 // OVERVIEW STATS
@@ -489,8 +489,7 @@ export const deleteUser = async (req, res) => {
     }
     // End the deleted account's live access immediately: evict the 30s-cached
     // session state and kill any open sockets (cluster-wide via the adapter).
-    invalidateSessionCache(targetId);
-    disconnectUserSockets(req.app.get('io'), targetId);
+    revokeUserSessions(targetId);
     res.json({
       success: true,
       deleted: { id: target.rows[0].id, email: target.rows[0].email, name: target.rows[0].name },
@@ -674,8 +673,11 @@ export const getOnlineUsers = async (req, res) => {
 // edge address, raise TRUST_PROXY_HOPS in Railway env and re-check.
 export const getIpDiagnostics = (req, res) => {
   res.json({
+    // What the per-IP rate limiters key on (trusted-hop resolution):
     reqIp: req.ip,
     reqIps: req.ips,
+    // What the geofence keys on (leftmost XFF — spoofable, UX-grade only):
+    clientIp: getClientIp(req),
     xForwardedFor: req.headers['x-forwarded-for'] || null,
     socketRemoteAddress: req.socket?.remoteAddress || null,
     trustProxy: req.app.get('trust proxy'),

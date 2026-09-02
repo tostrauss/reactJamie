@@ -8,6 +8,7 @@ import {
   redeemReferral,
 } from '../controllers/boostController.js';
 import { authenticate } from '../middleware/auth.js';
+import { requirePayments } from '../middleware/requirePayments.js';
 import { generalLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
@@ -25,7 +26,7 @@ router.post('/apply', authenticate, applyBoost);
 router.post('/redeem-referral', authenticate, redeemReferral);
 
 // Stripe
-router.post('/stripe/create-intent', authenticate, createStripeIntent);
+router.post('/stripe/create-intent', authenticate, requirePayments, createStripeIntent);
 // Stripe webhook needs raw body — mounted separately in server.js
 
 export default router;

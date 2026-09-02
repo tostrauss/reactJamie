@@ -28,3 +28,20 @@ export class AppError extends Error {
 // hangs the request until the client times out.
 export const asyncHandler = (fn) => (req, res, next) =>
   Promise.resolve(fn(req, res, next)).catch(next);
+
+// Final Express error middleware (mounted last in server.js, after Sentry's
+// handler). ONLY an AppError may speak to the client in its own words —
+// third-party errors routinely carry a `status`/`code` of their own
+// (body-parser 400s, pg SQLSTATEs like 42P08, ECONNREFUSED) and passing
+// those through would leak internals the old handler always masked.
+// Everything untyped: logged, masked 500, no code field.
+export const finalErrorHandler = (err, _req, res, _next) => {
+  if (err?.name === 'AppError') {
+    return res.status(err.status).json({
+      error: err.message,
+      ...(err.code ? { code: err.code } : {}),
+    });
+  }
+  console.error('Server Error:', err?.stack || err);
+  res.status(500).json({ error: 'Etwas ist schiefgelaufen!' });
+};

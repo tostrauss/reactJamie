@@ -1146,12 +1146,13 @@ export const cancelClub = async (req, res) => {
     const clubName = club.rows[0].name;
     const io = req.app?.get('io');
 
+    let notified = 0;
     if (members.rows.length > 0) {
       // Chunked + live-emitting fan-out — shared core (services/
       // entityLifecycle.js). The old inline copy here was UNCHUNKED: a club
       // past ~13k members would have blown Postgres' bind-parameter limit
       // and notified nobody.
-      await notifyCancellationFanout({
+      notified = await notifyCancellationFanout({
         memberIds: members.rows.map(m => m.user_id),
         senderId: req.userId,
         type: 'club_cancelled',
@@ -1163,7 +1164,8 @@ export const cancelClub = async (req, res) => {
       });
     }
 
-    res.json({ message: 'Club cancelled and members notified', notified: members.rows.length });
+    // Report what was actually INSERTED, not the member count — one source of truth.
+    res.json({ message: 'Club cancelled and members notified', notified });
   } catch (err) {
     console.error('Error cancelling club:', err);
     res.status(500).json({ error: 'Club konnte nicht deaktiviert werden' });

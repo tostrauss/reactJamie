@@ -6,28 +6,27 @@
 // entity-specific validation/authorization and pass the differences in.
 import db from '../config/database.js';
 
-// Entity row + owner membership in ONE transaction (audit risk #10): under
-// pool pressure the second INSERT could fail and leave an ownerless entity
-// whose chat/roster is broken for its own creator. `insertSql` must INSERT
-// INTO groups ... RETURNING *.
+// Entity row + owner membership ATOMICALLY (audit risk #10): without this,
+// a failure between the two INSERTs left an ownerless entity whose
+// chat/roster is broken for its own creator. Implemented as ONE
+// data-modifying CTE — both arms run in the same implicit transaction and
+// snapshot, so it's atomic with a single round trip and NO pool-client
+// checkout (an explicit BEGIN/COMMIT doubled per-create pool occupancy and
+// its unguarded ROLLBACK could mask the real error on a dead connection —
+// review 2026-09-02). Triggers (members_count) fire normally.
+// `insertSql` must INSERT INTO groups ... RETURNING *.
 export async function createEntityWithOwner(insertSql, params, ownerId) {
-  const client = await db.pool.connect();
-  try {
-    await client.query('BEGIN');
-    const result = await client.query(insertSql, params);
-    const entity = result.rows[0];
-    await client.query(
-      'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
-      [entity.id, ownerId, 'owner']
-    );
-    await client.query('COMMIT');
-    return entity;
-  } catch (txErr) {
-    await client.query('ROLLBACK');
-    throw txErr;
-  } finally {
-    client.release();
-  }
+  const ownerParam = params.length + 1;
+  const result = await db.query(
+    `WITH ins AS (${insertSql}),
+          member AS (
+            INSERT INTO group_members (group_id, user_id, role)
+            SELECT id, $${ownerParam}, 'owner' FROM ins
+          )
+     SELECT * FROM ins`,
+    [...params, ownerId]
+  );
+  return result.rows[0];
 }
 
 // Cancellation fan-out: batched notifications INSERT + live `new_notification`

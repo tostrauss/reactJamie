@@ -56,14 +56,15 @@ const sendEmail = async ({ to, subject, html }) => {
 
   const payload = { from: FROM_HEADER, to, subject, html };
 
-  // ONE retry, and only on 429 (2M2M TV-spike readiness): Resend rate-limits
-  // per second — during a signup burst a brief 429 is expected and retrying
-  // ~300ms later lands in the next token-bucket window. 5xx no longer
-  // retries: on a provider outage every attempt eats its full timeout inside
-  // a user-facing request, so failing fast (the user taps "erneut senden")
-  // beats doubling the wait. Worst case is now ~6.3s, was ~8.8s.
+  // ONE retry on 429 AND 5xx after a short backoff (2M2M TV-spike readiness):
+  // Resend rate-limits per second, so a burst 429 usually clears in the next
+  // token-bucket window — and the 5xx retry matters for forgotPassword,
+  // which deliberately tells the user "check your inbox" EITHER WAY
+  // (anti-enumeration), so a transiently dropped reset mail would be silent
+  // and unrecoverable (review 2026-09-02). 3s/attempt + 300ms backoff keeps
+  // the in-request worst case ~6.3s (was ~8.8s at 4s/800ms).
   let response = await sendOnce(apiKey, payload);
-  if (!response.ok && response.status === 429) {
+  if (!response.ok && (response.status === 429 || response.status >= 500)) {
     await new Promise(r => setTimeout(r, 300));
     response = await sendOnce(apiKey, payload);
   }

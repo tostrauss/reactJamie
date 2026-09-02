@@ -15,10 +15,11 @@ import fs from 'fs';
 import pinoHttp from 'pino-http';
 import cron from 'node-cron';
 import { initSentry, Sentry } from './config/sentry.js';
-import { redisClient, redisSubscriber } from './config/redis.js';
+import { redisClient, redisSubscriber, REDIS_REQUIRED } from './config/redis.js';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { generalLimiter, authLimiter } from './middleware/rateLimiter.js';
 import { sanitizeInputs } from './middleware/sanitize.js';
+import { finalErrorHandler } from './middleware/errors.js';
 
 // Fix for __dirname in ES Modules
 const __filename = fileURLToPath(import.meta.url);
@@ -94,11 +95,11 @@ if (process.env.NODE_ENV === 'production') {
   // Redis, every rate limit multiplies per replica and Socket.IO fan-out
   // splits per instance (chat silently stops across replicas) while health
   // still returns 200. Fail the boot rather than degrade invisibly.
-  if (process.env.REQUIRE_REDIS === 'true' && !process.env.REDIS_URL) {
-    console.error('FATAL: REQUIRE_REDIS=true but REDIS_URL is not set — refusing to boot without cross-replica Redis');
+  if (REDIS_REQUIRED && !redisClient) {
+    console.error('FATAL: REQUIRE_REDIS is set but Redis is not configured — refusing to boot without cross-replica Redis');
     fatal = true;
   }
-  if (process.env.REQUIRE_REDIS !== 'true' && !process.env.REDIS_URL) {
+  if (!REDIS_REQUIRED && !redisClient) {
     // Single-instance is legitimate today, but this must never be invisible in
     // an incident review — surface it in Sentry, not only a boot log line.
     Sentry.captureMessage('REDIS_URL not set — rate limits and socket fan-out are single-instance only; do NOT scale replicas', 'warning');
@@ -115,12 +116,14 @@ if (process.env.NODE_ENV === 'production') {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const app = express();
-// Railway sits one proxy hop in front of us; hop count 1 makes req.ip the real
-// client for the per-IP credential limiters (authLimiter & co. key on req.ip).
-// If the topology ever adds a layer (CDN, extra LB), req.ip silently becomes
-// an edge IP and those limiters collapse into ONE shared budget for the whole
-// audience — verify with GET /api/admin/ip-diagnostics on prod and correct via
-// the TRUST_PROXY_HOPS env var instead of a code change.
+// The per-IP credential limiters (authLimiter & co.) key on req.ip, whose
+// meaning depends on this hop count. CAUTION: middleware/geofence.js records
+// that req.ip resolved to a Railway EDGE address in production (2026-08-07
+// incident) — if that still holds, hop count 1 means those limiters share ONE
+// budget across the whole audience TODAY. This is exactly what
+// GET /api/admin/ip-diagnostics exists to settle on prod (it prints req.ip
+// AND getClientIp side by side); if req.ip is an edge IP, raise
+// TRUST_PROXY_HOPS in Railway env — never re-key limiters on XFF (spoofable).
 const trustProxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS ?? '1', 10);
 app.set('trust proxy', Number.isNaN(trustProxyHops) ? 1 : trustProxyHops);
 console.log(`[boot] trust proxy = ${app.get('trust proxy')}`);
@@ -444,7 +447,10 @@ app.use('/media', mediaRoutes);
 // Health check — verifies DB + optional services for Railway health probes.
 // In production we return ONLY {status} so an attacker can't fingerprint
 // our infra topology (which subsystem failed) from a public endpoint.
-app.get('/api/health', async (_req, res) => {
+// ONE definition of "healthy" shared by GET and HEAD — the two previously
+// diverged, so a monitor probing HEAD stayed green through exactly the
+// degradations GET was built to surface (review 2026-09-02).
+const evaluateHealth = async () => {
   const checks = { db: 'error', redis: 'skipped' };
   let allOk = true;
   try {
@@ -461,7 +467,7 @@ app.get('/api/health', async (_req, res) => {
       checks.redis = 'error';
       allOk = false;
     }
-  } else if (process.env.REQUIRE_REDIS === 'true') {
+  } else if (REDIS_REQUIRED) {
     // Redis is declared load-bearing (replicas > 1) but absent — report
     // degraded so the orchestrator pulls this instance instead of letting it
     // serve with split rate limits and per-instance socket fan-out.
@@ -477,6 +483,10 @@ app.get('/api/health', async (_req, res) => {
     checks.schema = 'error';
     allOk = false;
   }
+  return { allOk, checks, mig };
+};
+app.get('/api/health', async (_req, res) => {
+  const { allOk, checks, mig } = await evaluateHealth();
   const status = allOk ? 'ok' : 'degraded';
   if (process.env.NODE_ENV === 'production') {
     return res.status(allOk ? 200 : 503).json({ status });
@@ -492,8 +502,7 @@ app.get('/api/health', async (_req, res) => {
 });
 // HEAD /api/health — for cheap uptime monitors that only care about status code
 app.head('/api/health', async (_req, res) => {
-  try { await db.query('SELECT 1'); res.status(200).end(); }
-  catch { res.status(503).end(); }
+  res.status((await evaluateHealth()).allOk ? 200 : 503).end();
 });
 
 // .well-known files (assetlinks.json + apple-app-site-association) are served
@@ -536,17 +545,7 @@ app.set('io', io);
 // ==========================================
 Sentry.setupExpressErrorHandler(app);
 
-app.use((err, _req, res, _next) => {
-  // Typed AppError (middleware/errors.js) carries its own status/message —
-  // a thrown 400/404 must not surface as a generic 500. Anything untyped
-  // stays a masked 500 (no internals in the body; Sentry got it above).
-  const status = Number.isInteger(err?.status) && err.status >= 400 && err.status < 600 ? err.status : 500;
-  if (status === 500) console.error('Server Error:', err.stack);
-  res.status(status).json({
-    error: status === 500 ? 'Etwas ist schiefgelaufen!' : err.message,
-    ...(err?.code ? { code: err.code } : {}),
-  });
-});
+app.use(finalErrorHandler);
 
 // API 404 — fires for all unmatched /api/* routes (must be before the SPA fallback)
 app.use('/api', (_req, res) => {
@@ -739,18 +738,18 @@ cron.schedule('*/15 * * * *', async () => {
       )
       RETURNING id, owner_id, name
     `);
-    for (const ev of claimed.rows) {
-      try {
-        await sendPushToUser(
-          ev.owner_id,
-          '📸 Teile deinen JAMIE Moment',
-          `Wie war ${ev.name}? Lade jetzt dein Erinnerungsfoto hoch und hol's in die Hall of Fame.`,
-          '/explore',
-        );
-      } catch (err) {
-        console.error(`[cron] moment push failed for group ${ev.id}:`, err.message);
-      }
-    }
+    // sendPushToUser awaits its real network sends now (risk-#8 fix) — run the
+    // owners in parallel; the push semaphore provides the backpressure the old
+    // sequential loop was improvising, and one slow APNs round trip no longer
+    // serializes the whole 200-row tick.
+    await Promise.all(claimed.rows.map(ev =>
+      sendPushToUser(
+        ev.owner_id,
+        '📸 Teile deinen JAMIE Moment',
+        `Wie war ${ev.name}? Lade jetzt dein Erinnerungsfoto hoch und hol's in die Hall of Fame.`,
+        '/explore',
+      ).catch(err => console.error(`[cron] moment push failed for group ${ev.id}:`, err.message))
+    ));
     if (claimed.rowCount > 0) {
       console.log(`[cron] moment prompts sent: ${claimed.rowCount}`);
     }

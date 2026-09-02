@@ -35,6 +35,12 @@ const makeSubscriber = () => {
 export const redisClient     = process.env.REDIS_URL ? makePublisher()  : null;
 export const redisSubscriber = process.env.REDIS_URL ? makeSubscriber() : null;
 
+// Single source of truth for "Redis is load-bearing" (replicas > 1): the boot
+// gate, the Sentry warning, and /api/health all key on THIS, so the notions
+// can't drift. Tolerant parse — 'true'/'1'/'TRUE' all count, so a slightly-off
+// env value can't silently disable the very fail-loud it configures.
+export const REDIS_REQUIRED = ['true', '1'].includes((process.env.REQUIRE_REDIS || '').trim().toLowerCase());
+
 if (process.env.REDIS_URL) {
   console.log('[Redis] Connecting to', process.env.REDIS_URL.replace(/:\/\/.*@/, '://***@'));
 } else if (process.env.NODE_ENV === 'production') {

@@ -1767,9 +1767,10 @@ export const cancelGroup = async (req, res) => {
     const groupName = groupRes.rows[0].name;
     const io = req.app?.get('io');
 
+    let notified = 0;
     if (members.rows.length > 0) {
       // Chunked + live-emitting fan-out — shared core (services/entityLifecycle.js).
-      await notifyCancellationFanout({
+      notified = await notifyCancellationFanout({
         memberIds: members.rows.map(m => m.user_id),
         senderId: req.userId,
         type: 'group_cancelled',
@@ -1781,7 +1782,8 @@ export const cancelGroup = async (req, res) => {
       });
     }
 
-    res.json({ message: 'Group cancelled and members notified', notified: members.rows.length });
+    // Report what was actually INSERTED, not the member count — one source of truth.
+    res.json({ message: 'Group cancelled and members notified', notified });
   } catch (err) {
     console.error('Error cancelling group:', err);
     res.status(500).json({ error: 'Gruppe konnte nicht deaktiviert werden' });

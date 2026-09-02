@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Capture the axios instance api.js builds so the test can drive its
-// response-error interceptor directly (no network, no jsdom navigation).
+// response-error interceptor and module functions directly (no network).
 const { instanceRef } = vi.hoisted(() => ({ instanceRef: {} }));
 
 vi.mock('axios', () => {
@@ -25,68 +25,96 @@ const api = await import('../utils/api');
 // handler under test.
 const errorHandler = instanceRef.current.interceptors.response.use.mock.calls[0][1];
 
-const make401 = (url = '/groups/1', method = 'get') => ({
-  config: { url, method },
-  response: { status: 401 },
-});
-
-describe('401 refresh-and-retry (audit 2026-09-02, risk #7)', () => {
+describe('restoreSession single-flight (audit 2026-09-02, risk #7)', () => {
   beforeEach(() => {
     api.clearMemToken();
     instanceRef.current.post.mockReset();
     instanceRef.current.mockClear();
   });
 
-  it('refreshes once and replays the original request on success', async () => {
-    instanceRef.current.post.mockResolvedValue({ data: { token: 'fresh-tok' } });
-    const result = await errorHandler(make401());
-    expect(instanceRef.current.post).toHaveBeenCalledWith('/auth/refresh', {});
-    // The original request was replayed through the instance.
-    expect(instanceRef.current).toHaveBeenCalledWith(
-      expect.objectContaining({ url: '/groups/1', _retriedAfterRefresh: true })
-    );
-    expect(result.data).toBe('retried-ok');
-  });
-
-  it('is single-flight: N parallel 401s share ONE refresh call', async () => {
+  it('N parallel restores share ONE /auth/refresh POST', async () => {
     let release;
     instanceRef.current.post.mockReturnValue(
       new Promise((r) => { release = () => r({ data: { token: 'fresh-tok' } }); })
     );
-    const p1 = errorHandler(make401('/a'));
-    const p2 = errorHandler(make401('/b'));
-    const p3 = errorHandler(make401('/c'));
+    const p1 = api.restoreSession();
+    const p2 = api.restoreSession();
     release();
-    await Promise.all([p1, p2, p3]);
+    const [r1, r2] = await Promise.all([p1, p2]);
     expect(instanceRef.current.post).toHaveBeenCalledTimes(1);
+    expect(instanceRef.current.post).toHaveBeenCalledWith('/auth/refresh', {});
+    expect(r1.token).toBe('fresh-tok');
+    expect(r2.token).toBe('fresh-tok');
   });
 
-  it('does not loop: a request already retried once rejects instead of refreshing again', async () => {
-    instanceRef.current.post.mockResolvedValue({ data: { token: 'fresh-tok' } });
-    const err = make401();
-    err.config._retriedAfterRefresh = true;
-    await expect(errorHandler(err)).rejects.toBe(err);
-    expect(instanceRef.current.post).not.toHaveBeenCalled();
+  it('flags unauthorized on 401 but NOT on a network failure', async () => {
+    instanceRef.current.post.mockRejectedValueOnce({ response: { status: 401 } });
+    expect(await api.restoreSession()).toEqual({ token: null, unauthorized: true });
+    instanceRef.current.post.mockRejectedValueOnce(new Error('Network Error'));
+    expect(await api.restoreSession()).toEqual({ token: null, unauthorized: false });
+  });
+});
+
+describe('429 handling (audit risk #11 — no amplification)', () => {
+  beforeEach(() => {
+    api.clearMemToken();
+    instanceRef.current.post.mockReset();
+    instanceRef.current.mockClear();
   });
 
-  it('never tries to rescue an auth attempt (login 401 = wrong password)', async () => {
-    const err = { config: { url: '/auth/login', method: 'post' }, response: { status: 401 } };
-    await expect(errorHandler(err)).rejects.toBe(err);
-    expect(instanceRef.current.post).not.toHaveBeenCalled();
+  const make429 = (headers = {}, method = 'get') => ({
+    config: { url: '/groups', method },
+    response: { status: 429, headers },
   });
 
-  it('falls through to rejection when the refresh itself fails (dead cookie)', async () => {
-    instanceRef.current.post.mockRejectedValue({ response: { status: 401 } });
-    const err = make401();
+  it('retries ONCE when the server sends a small Retry-After (GET only)', async () => {
+    const result = await errorHandler(make429({ 'retry-after': '0' }));
+    expect(instanceRef.current).toHaveBeenCalledWith(
+      expect.objectContaining({ url: '/groups', _retried429: true })
+    );
+    expect(result.data).toBe('retried-ok');
+  });
+
+  it('does NOT retry without Retry-After', async () => {
+    const err = make429({});
     await expect(errorHandler(err)).rejects.toBe(err);
-    expect(instanceRef.current.post).toHaveBeenCalledTimes(1);
-    // No replay happened.
     expect(instanceRef.current).not.toHaveBeenCalled();
   });
 
-  it('never rescues (or logs out) the guest token', async () => {
-    api.setMemToken('guest_token');
-    const err = make401('/groups/1', 'get'); // safe method → no guest bounce either
+  it('does NOT retry when Retry-After is large (server wants a real backoff)', async () => {
+    const err = make429({ 'retry-after': '30' });
+    await expect(errorHandler(err)).rejects.toBe(err);
+    expect(instanceRef.current).not.toHaveBeenCalled();
+  });
+
+  it('does NOT retry writes, and never retries twice', async () => {
+    const postErr = make429({ 'retry-after': '0' }, 'post');
+    await expect(errorHandler(postErr)).rejects.toBe(postErr);
+
+    const again = make429({ 'retry-after': '0' });
+    again.config._retried429 = true;
+    await expect(errorHandler(again)).rejects.toBe(again);
+    expect(instanceRef.current).not.toHaveBeenCalled();
+  });
+});
+
+describe('401 session expiry (rescue removed — review 2026-09-02)', () => {
+  beforeEach(() => {
+    api.clearMemToken();
+    instanceRef.current.post.mockReset();
+    instanceRef.current.mockClear();
+  });
+
+  it('an expired-session 401 fires NO refresh (same cookie would 401 too) and clears the token', async () => {
+    api.setMemToken('stale-tok');
+    const err = { config: { url: '/groups/1', method: 'get' }, response: { status: 401 } };
+    await expect(errorHandler(err)).rejects.toBe(err);
+    expect(instanceRef.current.post).not.toHaveBeenCalled();
+    expect(instanceRef.current).not.toHaveBeenCalled();
+  });
+
+  it('a login 401 (wrong password) is left entirely alone', async () => {
+    const err = { config: { url: '/auth/login', method: 'post' }, response: { status: 401 } };
     await expect(errorHandler(err)).rejects.toBe(err);
     expect(instanceRef.current.post).not.toHaveBeenCalled();
   });

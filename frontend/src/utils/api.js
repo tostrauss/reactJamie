@@ -80,17 +80,16 @@ const shouldRetry = (error) => {
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Single-flight session refresh (audit 2026-09-02, risk #7): when several
-// parallel requests 401 at once, exactly ONE /auth/refresh runs and every
-// waiter shares its outcome. The refresh POST itself matches the
-// isAuthAttempt regex in the interceptor, so a failing refresh can never
-// re-enter the rescue path (no recursion).
+// Single-flight session refresh (audit 2026-09-02, risk #7): the mount
+// restore and the online-flip restore can race each other — every caller
+// shares ONE in-flight POST /auth/refresh so the cookie is never rotated
+// twice concurrently. (A 401-interceptor "refresh-and-retry" was reviewed
+// and removed: /auth/refresh authenticates with the SAME cookie as the
+// failing request, so it can never succeed where the request just 401'd.)
 let _refreshInFlight = null;
-const refreshSessionOnce = () => {
+const refreshRequestOnce = () => {
   if (!_refreshInFlight) {
     _refreshInFlight = axiosInstance.post('/auth/refresh', {})
-      .then(({ data }) => data?.token || null)
-      .catch(() => null)
       .finally(() => { _refreshInFlight = null; });
   }
   return _refreshInFlight;
@@ -110,6 +109,20 @@ axiosInstance.interceptors.response.use(
       config._retryCount += 1;
       const delay = RETRY_DELAY * Math.pow(2, config._retryCount - 1) + Math.random() * 500;
       await sleep(delay);
+      return axiosInstance(config);
+    }
+
+    // 429: never exponential-hammered (audit risk #11) — but ONE respectful
+    // retry, only when the server itself says how long to wait (Retry-After
+    // ≤ 5s, GETs only), keeps a cold-launch parallel burst from surfacing
+    // errors while still never amplifying a struggling backend: the pacing
+    // is the server's, applied once.
+    const retryAfterSec = Number(error.response?.headers?.['retry-after']);
+    if (error.response?.status === 429 && config && !config._retried429
+        && SAFE_METHODS.has((config.method || '').toLowerCase())
+        && Number.isFinite(retryAfterSec) && retryAfterSec >= 0 && retryAfterSec <= 5) {
+      config._retried429 = true;
+      await sleep(retryAfterSec * 1000 + Math.random() * 250);
       return axiosInstance(config);
     }
 
@@ -138,28 +151,6 @@ axiosInstance.interceptors.response.use(
         window.location.href = '/register';
       }
       return Promise.reject(error);
-    }
-
-    // Refresh-and-retry BEFORE the hard logout: the httpOnly cookie is the
-    // auth source of truth and can still be valid while the in-memory token
-    // is stale or was never set (offline cold-start, long-backgrounded tab).
-    // One shared refresh rescues the session; only a dead cookie falls
-    // through to the logout below. NOTE: /auth/refresh rotates a still-valid
-    // cookie — it cannot revive an expired one, which is exactly the split
-    // we want between "rescue silently" and "re-authenticate".
-    if (!isAuthAttempt && error.response?.status === 401 && _memToken !== 'guest_token'
-        && config && !config._retriedAfterRefresh) {
-      config._retriedAfterRefresh = true;
-      const freshToken = await refreshSessionOnce();
-      if (freshToken) {
-        setMemToken(freshToken);
-        // Let AuthContext adopt the token so React state (and with it the
-        // SocketProvider, keyed on `token`) re-keys onto the fresh one.
-        try {
-          window.dispatchEvent(new CustomEvent('jamie:token-refreshed', { detail: { token: freshToken } }));
-        } catch { /* non-DOM env (tests) */ }
-        return axiosInstance(config);
-      }
     }
 
     if (!isAuthAttempt && error.response?.status === 401 && _memToken !== 'guest_token') {
@@ -252,7 +243,9 @@ export const auth = {
  */
 export const restoreSession = async () => {
   try {
-    const { data } = await auth.refresh();
+    // Shares the single-flight POST — a mount restore racing an online-flip
+    // restore performs ONE cookie rotation, both callers get its result.
+    const { data } = await refreshRequestOnce();
     return { token: data.token || null };
   } catch (err) {
     // Distinguish an EXPIRED/invalid cookie (401/403 → clear the session) from a

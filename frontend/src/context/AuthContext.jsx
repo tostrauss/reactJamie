@@ -181,10 +181,11 @@ export const AuthProvider = ({ children }) => {
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Adopt tokens minted by the api-layer's 401 refresh-and-retry (audit
-  // 2026-09-02, risk #7): React state must follow the interceptor, or
-  // SocketProvider (keyed on `token`) keeps handing the socket a stale token
-  // until the next full reload.
+  // Adopt tokens announced via the jamie:token-refreshed window event —
+  // today's dispatcher is SettingsPage after a password change: the server
+  // revoked every token AND disconnected our socket, so React state must
+  // pick up the fresh token or SocketProvider (keyed on `token`) reconnects
+  // with the revoked one and realtime stays dead until a full reload.
   useEffect(() => {
     const onRefreshed = (e) => {
       const tok = e.detail?.token;

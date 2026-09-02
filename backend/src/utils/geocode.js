@@ -7,6 +7,8 @@
  * This both respects Nominatim's rate limit under concurrent group/club
  * creates and speeds up repeated lookups for popular cities.
  */
+import { createSemaphore } from './semaphore.js';
+
 const _cache = new Map(); // key → { result, expiresAt }
 const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -22,12 +24,15 @@ setInterval(() => {
 const _inflight = new Map();
 
 // Nominatim's usage policy is 1 req/s — cold lookups for DISTINCT strings
-// queue behind one slot instead of fanning out (a create burst for different
-// cities previously fired parallel calls; an egress throttle/ban would then
-// degrade every create AND fail the region gate open). The 24h cache and the
-// _inflight dedup sit in front, so only genuinely cold lookups ever queue.
-import { createSemaphore } from './semaphore.js';
-const nominatimSlot = createSemaphore(1);
+// serialize behind one slot (a concurrency cap, which approximates the rate
+// given each call's network latency) instead of fanning out; an egress
+// throttle/ban would degrade every create AND fail the region gate open.
+// The 24h cache and the _inflight dedup sit in front, so only genuinely cold
+// lookups ever queue — and the queue is CAPPED: caller #10+ during a burst
+// fails fast to the null path (entity created without a map pin, the
+// documented fail-open behavior) instead of holding its Express handler and
+// pool connection for minutes (review 2026-09-02).
+const nominatimSlot = createSemaphore(1, { maxQueue: 8 });
 
 export async function geocodeLocation(location) {
   if (!location || typeof location !== 'string' || !location.trim()) return null;
@@ -102,16 +107,13 @@ async function _fetchNominatim(location, countrycodes = null) {
     + (countrycodes ? `&countrycodes=${countrycodes}` : '');
 
   return nominatimSlot.run(async () => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-
     const res = await fetch(url, {
       headers: { 'User-Agent': 'JAMIE-App/1.0 (contact@jamie-app.com)' },
       signal: controller.signal,
     });
-
-    clearTimeout(timeout);
 
     if (!res.ok) return null;
 
@@ -130,6 +132,9 @@ async function _fetchNominatim(location, countrycodes = null) {
     };
   } catch {
     return null;
+  } finally {
+    // In a finally so an aborted/thrown fetch can't leak a live 5s timer.
+    clearTimeout(timeout);
   }
   });
 }

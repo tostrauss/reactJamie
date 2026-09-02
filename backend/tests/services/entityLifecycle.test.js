@@ -3,23 +3,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 process.env.JWT_SECRET = 'test-secret-key';
 process.env.NODE_ENV = 'test';
 
-// Programmable fake pool client + query recorder.
+// Programmable fake db + query recorder. Every query flows through ONE base
+// implementation that records into `statements` and delegates to the
+// per-test `dbQueryImpl` (mockResolvedValueOnce would bypass the recorder).
 const statements = [];
-let clientQueryImpl;
+let dbQueryImpl;
 
 vi.mock('../../src/config/database.js', () => {
-  const fakeClient = {
-    query: vi.fn(async (text, params) => {
-      statements.push({ text, params });
-      return clientQueryImpl(text, params);
-    }),
-    release: vi.fn(),
-  };
+  const fakeClient = { query: vi.fn(), release: vi.fn() };
   return {
     default: {
       query: vi.fn(async (text, params) => {
         statements.push({ text, params });
-        return { rows: params ? params.filter((_, i) => i % 7 === 0).map(uid => ({ user_id: uid })) : [] };
+        return dbQueryImpl(text, params);
       }),
       pool: { connect: vi.fn(async () => fakeClient) },
       _fakeClient: fakeClient,
@@ -33,34 +29,37 @@ const { createEntityWithOwner, notifyCancellationFanout } = await import('../../
 beforeEach(() => {
   statements.length = 0;
   db._fakeClient.release.mockClear();
-  clientQueryImpl = async (text) => {
-    if (text.startsWith('INSERT INTO groups')) return { rows: [{ id: 42 }] };
-    return { rows: [] };
-  };
+  // Default behavior: fanout INSERTs echo back one row per recipient
+  // (RETURNING * emulation — user_id sits at every 7th param position).
+  dbQueryImpl = async (text, params) => ({
+    rows: params ? params.filter((_, i) => i % 7 === 0).map(uid => ({ user_id: uid })) : [],
+  });
 });
 
-describe('createEntityWithOwner', () => {
-  it('runs entity INSERT + owner INSERT inside BEGIN/COMMIT and returns the row', async () => {
-    const entity = await createEntityWithOwner('INSERT INTO groups (name) VALUES ($1) RETURNING *', ['X'], 7);
-    expect(entity).toEqual({ id: 42 });
-    const kinds = statements.map(s => s.text.split(' ')[0] + (s.text.includes('group_members') ? ':members' : ''));
-    expect(kinds).toEqual(['BEGIN', 'INSERT', 'INSERT:members', 'COMMIT']);
-    expect(statements[2].params).toEqual([42, 7, 'owner']);
-    expect(db._fakeClient.release).toHaveBeenCalledTimes(1);
+describe('createEntityWithOwner (single atomic CTE)', () => {
+  it('issues ONE query containing both INSERTs, appends the owner param, returns the row', async () => {
+    dbQueryImpl = async () => ({ rows: [{ id: 42, name: 'X' }] });
+    const entity = await createEntityWithOwner(
+      'INSERT INTO groups (name, owner_id) VALUES ($1, $2) RETURNING *', ['X', 7], 7);
+    expect(entity).toEqual({ id: 42, name: 'X' });
+    const cteCalls = statements.filter(s => s.text.includes('WITH ins AS'));
+    expect(cteCalls).toHaveLength(1);
+    const { text, params } = cteCalls[0];
+    expect(text).toContain('INSERT INTO groups');
+    expect(text).toContain('INSERT INTO group_members');
+    // Owner param is appended after the caller's params, numbered correctly.
+    expect(text).toContain("SELECT id, $3, 'owner' FROM ins");
+    expect(params).toEqual(['X', 7, 7]);
   });
 
-  it('ROLLBACKs and releases when the owner INSERT fails (no ownerless entity)', async () => {
-    clientQueryImpl = async (text) => {
-      if (text.startsWith('INSERT INTO groups')) return { rows: [{ id: 42 }] };
-      if (text.includes('group_members')) throw new Error('pool pressure');
-      return { rows: [] };
-    };
+  it('propagates a failure — atomic by construction, no partial state possible', async () => {
+    dbQueryImpl = async () => { throw new Error('deadlock detected'); };
     await expect(
       createEntityWithOwner('INSERT INTO groups (name) VALUES ($1) RETURNING *', ['X'], 7)
-    ).rejects.toThrow('pool pressure');
-    expect(statements.some(s => s.text.startsWith('ROLLBACK'))).toBe(true);
-    expect(statements.some(s => s.text.startsWith('COMMIT'))).toBe(false);
-    expect(db._fakeClient.release).toHaveBeenCalledTimes(1);
+    ).rejects.toThrow('deadlock detected');
+    // No client checkout, no explicit tx statements to leak.
+    expect(statements.some(s => s.text.startsWith('BEGIN'))).toBe(false);
+    expect(db._fakeClient.release).not.toHaveBeenCalled();
   });
 });
 

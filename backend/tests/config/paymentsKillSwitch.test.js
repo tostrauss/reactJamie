@@ -22,6 +22,7 @@ vi.mock('stripe', () => {
 });
 
 const { paymentsEnabled } = await import('../../src/config/features.js');
+const { requirePayments } = await import('../../src/middleware/requirePayments.js');
 const boostMod = await import('../../src/controllers/boostController.js');
 const subMod = await import('../../src/controllers/subscriptionController.js');
 const iapMod = await import('../../src/controllers/iapController.js');
@@ -105,6 +106,23 @@ describe('payments kill-switch on the money endpoints', () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ error: 'Stripe not configured' })
     );
+  });
+
+  it('requirePayments middleware (route-level gate) blocks while off, passes while on', () => {
+    // Off (env unset): 403, next never called — this is what gates restoreApple
+    // at the route, which the in-controller guard couldn't reach.
+    const resOff = makeRes();
+    const nextOff = vi.fn();
+    requirePayments({}, resOff, nextOff);
+    expectPaymentsDisabled(resOff);
+    expect(nextOff).not.toHaveBeenCalled();
+
+    process.env.PAYMENTS_ENABLED = 'true';
+    const resOn = makeRes();
+    const nextOn = vi.fn();
+    requirePayments({}, resOn, nextOn);
+    expect(nextOn).toHaveBeenCalledTimes(1);
+    expect(resOn.status).not.toHaveBeenCalled();
   });
 
   it('the app-shell store-policy backstop still runs after the gate', async () => {

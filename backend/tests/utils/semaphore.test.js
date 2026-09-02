@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createSemaphore } from '../../src/utils/semaphore.js';
+import { createSemaphore, QUEUE_FULL } from '../../src/utils/semaphore.js';
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
@@ -41,6 +41,19 @@ describe('createSemaphore', () => {
   it('propagates the return value', async () => {
     const sem = createSemaphore(3);
     expect(await sem.run(async () => 42)).toBe(42);
+  });
+
+  it('maxQueue: rejects fast with QUEUE_FULL past the cap, recovers after release', async () => {
+    const sem = createSemaphore(1, { maxQueue: 1 });
+    await sem.acquire();                       // slot taken
+    const queued = sem.acquire();              // 1 waiter — allowed
+    await expect(sem.run(async () => 'x')).rejects.toMatchObject({ code: QUEUE_FULL });
+    sem.release();                             // wakes the queued waiter
+    await queued;
+    expect(sem.inUse).toBe(1);
+    sem.release();
+    // Queue drained → capacity is back.
+    expect(await sem.run(async () => 'ok')).toBe('ok');
   });
 
   it('manual acquire/release keeps the count consistent (upload-route pattern)', async () => {

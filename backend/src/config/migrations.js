@@ -35,7 +35,7 @@ const CRITICAL_SCHEMA_PROBES = [
   ['group_members (membership core)', 'SELECT user_id FROM group_members LIMIT 1'],
   ['messages.message_type (system messages)', 'SELECT message_type FROM messages LIMIT 1'],
   ['direct_messages (DM core)', 'SELECT id FROM direct_messages LIMIT 1'],
-  ['email_verification_codes (signup OTP)', 'SELECT code FROM email_verification_codes LIMIT 1'],
+  ['email_verification_codes (signup OTP)', 'SELECT code, attempts, verified_at FROM email_verification_codes LIMIT 1'],
   ['push_subscriptions (push delivery)', 'SELECT id FROM push_subscriptions LIMIT 1'],
 ];
 
@@ -1021,10 +1021,19 @@ const runStartupMigrations = async () => {
     try {
       await db.query(sql);
     } catch (err) {
-      _schemaAssertionError = `${what}: ${err.message}`;
-      console.error(`🛑 Schema assertion FAILED (${what}) — /api/health will report degraded:`, err.message);
-      Sentry.captureException?.(err, { tags: { area: 'migrations', kind: 'schema-assertion' }, extra: { what } });
-      break;
+      // Latch degraded ONLY on definitive schema errors (42P01 undefined
+      // table / 42703 undefined column). A transient connection error here
+      // must NOT permanently 503 a healthy instance — on a Railway cold
+      // start that would fail the deploy's healthcheck and roll back a good
+      // release; live connectivity is the health endpoint's own db check.
+      if (err.code === '42P01' || err.code === '42703') {
+        _schemaAssertionError = `${what}: ${err.message}`;
+        console.error(`🛑 Schema assertion FAILED (${what}) — /api/health will report degraded:`, err.message);
+        Sentry.captureException?.(err, { tags: { area: 'migrations', kind: 'schema-assertion' }, extra: { what } });
+      } else {
+        console.warn(`[migrations] schema probe transient error (${what}) — not latching degraded:`, err.message);
+      }
+      break; // either way, don't hammer a struggling DB with more probes
     }
   }
 

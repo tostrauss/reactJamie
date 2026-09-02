@@ -1,7 +1,7 @@
 import express from 'express';
 import { getObjectFromCloud, putObjectToCloud, isCloudStorageEnabled } from '../config/storage.js';
 import { generateThumbnail } from '../config/imageProcessor.js';
-import { createSemaphore } from '../utils/semaphore.js';
+import { createSemaphore, QUEUE_FULL } from '../utils/semaphore.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // /media — same-origin image proxy in front of the R2 bucket.
@@ -56,7 +56,11 @@ const thumbInFlight = new Map(); // file → Promise<{buffer, mimetype} | null>
 // N concurrent sharp pipelines (each buffering up to 5 MB) on the same libuv
 // threadpool bcrypt logins hash on. Mirrors MAX_CONCURRENT_UPLOADS on the
 // upload path; joiners of an in-flight generation don't consume a slot.
-const thumbSlots = createSemaphore(4);
+// The slot deliberately spans the R2 fetch + buffering too — it bounds
+// transient RSS (4 × 5 MB max), not just CPU. maxQueue: past 30 waiting
+// generations the request falls back to serving the FULL object (existing
+// null path) instead of hanging unboundedly behind a degraded R2.
+const thumbSlots = createSemaphore(4, { maxQueue: 30 });
 
 const streamObject = (res, obj) => {
   res.setHeader('Content-Type', obj.ContentType || 'application/octet-stream');
@@ -91,25 +95,35 @@ const getOrCreateThumb = (file, thumbKey) => {
   let p = thumbInFlight.get(file);
   if (p) return p;
   p = thumbSlots.run(async () => {
-    const orig = await getObjectFromCloud(`uploads/${file}`);
-    if (
-      (orig.ContentLength ?? 0) > THUMB_SOURCE_MAX_BYTES ||
-      orig.ContentType === 'image/gif'
-    ) {
-      orig.Body.destroy?.();
-      return null;
-    }
-    const buf = await bufferBody(orig.Body);
-    const thumb = await generateThumbnail(buf, orig.ContentType || 'image/webp');
-    if (!thumb) return null;
-    putObjectToCloud(thumbKey, thumb.buffer, thumb.mimetype).catch((err) => {
-      console.error('[media] thumb write-back failed:', err?.message);
-    });
-    return { buffer: thumb.buffer, mimetype: thumb.mimetype };
+    return generateOne(file, thumbKey);
+  }).catch((err) => {
+    // Queue saturated → null → the route serves the full object this once;
+    // the thumb self-heals on a later, calmer request. Real generation
+    // errors keep propagating to the route's 404/502 handling.
+    if (err?.code === QUEUE_FULL) return null;
+    throw err;
   });
   thumbInFlight.set(file, p);
   p.finally(() => thumbInFlight.delete(file));
   return p;
+};
+
+const generateOne = async (file, thumbKey) => {
+  const orig = await getObjectFromCloud(`uploads/${file}`);
+  if (
+    (orig.ContentLength ?? 0) > THUMB_SOURCE_MAX_BYTES ||
+    orig.ContentType === 'image/gif'
+  ) {
+    orig.Body.destroy?.();
+    return null;
+  }
+  const buf = await bufferBody(orig.Body);
+  const thumb = await generateThumbnail(buf, orig.ContentType || 'image/webp');
+  if (!thumb) return null;
+  putObjectToCloud(thumbKey, thumb.buffer, thumb.mimetype).catch((err) => {
+    console.error('[media] thumb write-back failed:', err?.message);
+  });
+  return { buffer: thumb.buffer, mimetype: thumb.mimetype };
 };
 
 router.get('/uploads/:file', async (req, res) => {

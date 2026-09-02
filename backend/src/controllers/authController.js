@@ -10,8 +10,8 @@ import db from '../config/database.js';
 import bcrypt from '@node-rs/bcrypt';
 import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
-import { generateToken, setAuthCookie, clearAuthCookie, invalidateSessionCache } from '../middleware/auth.js';
-import { disconnectUserSockets } from '../socket.js';
+import { generateToken, setAuthCookie, clearAuthCookie } from '../middleware/auth.js';
+import { revokeUserSessions } from '../socket.js';
 import { sendPasswordResetEmail, sendVerificationEmail, sendOTPEmail } from '../utils/email.js';
 import { REFERRAL_CREDITS_ENABLED } from '../config/features.js';
 import { normalizeLocale } from '../utils/pushLocale.js';
@@ -767,10 +767,10 @@ export const changePassword = async (req, res) => {
       'UPDATE users SET password = $1, sessions_valid_after = NOW(), updated_at = CURRENT_TIMESTAMP WHERE id = $2',
       [hashed, req.userId]
     );
-    invalidateSessionCache(req.userId);
-    // Kill sockets carrying pre-change tokens (iat < the new watermark) —
-    // the client reconnects with the fresh token below.
-    disconnectUserSockets(req.app.get('io'), req.userId);
+    // Evict cached session state + kill sockets carrying pre-change tokens
+    // (iat < the new watermark) — the client reconnects with the fresh token
+    // below (SettingsPage dispatches jamie:token-refreshed to adopt it).
+    revokeUserSessions(req.userId);
     const freshToken = generateToken(req.userId);
     setAuthCookie(res, freshToken);
 
@@ -871,8 +871,7 @@ export const deleteAccount = async (req, res) => {
     // Evict the cached session state now so any other live token for this
     // (now-deleted) account is rejected immediately rather than after the TTL,
     // and kill every open socket of the deleted account.
-    invalidateSessionCache(req.userId);
-    disconnectUserSockets(req.app.get('io'), req.userId);
+    revokeUserSessions(req.userId);
     clearAuthCookie(res);
     res.json({ message: 'Account deleted successfully' });
   } catch (error) {
@@ -1058,10 +1057,10 @@ export const resetPassword = async (req, res) => {
       'UPDATE users SET password = $1, sessions_valid_after = NOW(), updated_at = CURRENT_TIMESTAMP WHERE id = $2',
       [hashed, resetToken.user_id]
     );
-    invalidateSessionCache(resetToken.user_id);
-    // A reset usually means "someone else may have my password" — cut every
-    // live socket now; old tokens fail the watermark check on reconnect.
-    disconnectUserSockets(req.app.get('io'), resetToken.user_id);
+    // A reset usually means "someone else may have my password" — evict the
+    // cached session state and cut every live socket now; old tokens fail the
+    // watermark check on reconnect.
+    revokeUserSessions(resetToken.user_id);
 
     // Mark token as used
     await db.query('UPDATE password_reset_tokens SET used = TRUE WHERE id = $1', [resetToken.id]);
@@ -1125,10 +1124,15 @@ export const sendVerification = async (req, res) => {
 let _evcTableReady = null;
 const ensureEvcTable = () => {
   if (!_evcTableReady) {
+    // FULL column set — must match config/migrations.js exactly. The old
+    // short copy (without attempts/verified_at) could win the cold-boot race,
+    // making the migration's CREATE IF NOT EXISTS a no-op and 42703-breaking
+    // verify + register until the ALTERs healed it (review 2026-09-02).
     _evcTableReady = db.query(`CREATE TABLE IF NOT EXISTS email_verification_codes (
       id SERIAL PRIMARY KEY, email VARCHAR(255) NOT NULL,
       code VARCHAR(6) NOT NULL, expires_at TIMESTAMPTZ NOT NULL,
-      used BOOLEAN DEFAULT FALSE, created_at TIMESTAMPTZ DEFAULT NOW())`)
+      used BOOLEAN DEFAULT FALSE, created_at TIMESTAMPTZ DEFAULT NOW(),
+      attempts INTEGER NOT NULL DEFAULT 0, verified_at TIMESTAMPTZ)`)
       .catch((err) => { _evcTableReady = null; throw err; });
   }
   return _evcTableReady;

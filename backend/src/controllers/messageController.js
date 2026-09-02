@@ -96,6 +96,13 @@ export const sendMessage = async (req, res) => {
       [groupId, req.userId, content]
     );
 
+    // Respond FIRST: everything below is delivery-side bookkeeping (emits,
+    // presence lookup, push) whose result never feeds the response body. The
+    // presence check in particular is a cross-replica adapter round trip under
+    // Redis (up to its 5s request timeout) — the sender must not wait on it
+    // (review 2026-09-02; this is the app's hottest write path).
+    res.status(201).json(result.rows[0]);
+
     // Nudge every member's personal `user_<id>` room (DM pattern) so nav
     // badges + chat-list rows update for members who do NOT have this chat
     // open — `receive_message` is room-scoped and never reaches them.
@@ -177,11 +184,13 @@ export const sendMessage = async (req, res) => {
     } catch {
       // Best-effort: unread truth lives in the DB, the next refetch catches up
     }
-
-    res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Error sending message:', error);
-    res.status(500).json({ error: 'Nachricht konnte nicht gesendet werden' });
+    // Only if the response hasn't been sent — post-201 failures are best-effort
+    // delivery bookkeeping and must not attempt a second write.
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Nachricht konnte nicht gesendet werden' });
+    }
   }
 };
 

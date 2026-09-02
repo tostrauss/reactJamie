@@ -4,11 +4,12 @@ import {
 } from '../controllers/subscriptionController.js';
 import { authenticate } from '../middleware/auth.js';
 import { strictLimiter } from '../middleware/rateLimiter.js';
+import { requirePayments } from '../middleware/requirePayments.js';
 
 const router = express.Router();
 
 router.get('/status', authenticate, getStatus);
-router.post('/create', authenticate, createSubscription);
+router.post('/create', authenticate, requirePayments, createSubscription);
 router.post('/cancel', authenticate, cancelSubscription);
 // Stripe Billing Portal — Pro user manages subscription/payment method/invoices.
 router.post('/portal', authenticate, createPortalSession);

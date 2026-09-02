@@ -1,16 +1,27 @@
 import jwt from 'jsonwebtoken';
 import db from './config/database.js';
-import { JWT_VERIFY_OPTS, sessionAccepted } from './middleware/auth.js';
+import { JWT_VERIFY_OPTS, sessionAccepted, invalidateSessionCache } from './middleware/auth.js';
+
+// io reference captured at boot (socketHandler) so revocation works from ANY
+// context — HTTP handlers, crons, scripts — not only where a `req` exists.
+let _io = null;
 
 // Kill every live socket of one user — cluster-wide under the Redis adapter.
-// Called when the session-revocation watermark bumps (password change/reset,
-// account delete, admin delete) so realtime access ends WITH the session
-// instead of surviving until the next reconnect (audit 2026-09-02, risk #12).
 export const disconnectUserSockets = (io, userId) => {
   if (!io || !userId) return;
   try {
     io.in(`user_${userId}`).disconnectSockets(true);
   } catch { /* best-effort */ }
+};
+
+// THE revocation call: evict the 30s-cached session state AND kill live
+// sockets, as one operation (audit 2026-09-02, risk #12). Callers were
+// pairing the two calls by hand — the exact convention whose forgotten
+// second half this fix removed; one entry point means the next revocation
+// path can't ship with half the pair again.
+export const revokeUserSessions = (userId) => {
+  invalidateSessionCache(userId);
+  disconnectUserSockets(_io, userId);
 };
 
 // 10-second in-process membership cache for join_room.
@@ -78,6 +89,8 @@ async function areFriends(a, b) {
 // former socket-side counter was removed with the send_dm broadcast.
 
 const socketHandler = (io) => {
+  _io = io; // registers the instance for revokeUserSessions()
+
   // Verify JWT on every connection attempt
   io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token;

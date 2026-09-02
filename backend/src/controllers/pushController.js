@@ -5,9 +5,11 @@ import { createSemaphore } from '../utils/semaphore.js';
 // Cap concurrent outbound push sends (audit 2026-09-02, risk #8): before this,
 // dispatch fired every FCM/APNs TLS request at once without awaiting — a
 // 200-member club message was an unbounded outbound burst competing with the
-// event loop and DB pool. 8 in flight keeps throughput high while bounding
-// sockets + memory; excess sends queue FIFO.
-const pushSendSlots = createSemaphore(8);
+// event loop and DB pool. TWO pools so a 500-subscription bulk blast can never
+// head-of-line-block a latency-critical 1:1 push (DM banner, friend request):
+// bulk fan-outs queue in their own lane.
+const bulkPushSlots = createSemaphore(6);
+const userPushSlots = createSemaphore(4);
 
 // Configure VAPID once on first import
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
@@ -31,37 +33,41 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
 // Dynamic import keeps the boot loop alive if @parse/node-apn is not yet
 // installed (degrades gracefully — iOS push silently no-ops, web still works).
 // ──────────────────────────────────────────────────────────────────────────
-let _apnModule = null;
-let _apnProvider = null;
-let _apnInitTried = false;
+// Promise-memoized: the FIRST caller starts init and every CONCURRENT caller
+// awaits the same promise (dispatch fans out via Promise.all since the risk-#8
+// fix). The previous boolean `_apnInitTried` guard made concurrent callers get
+// null while call #1 was still importing the module — their iOS pushes were
+// silently dropped (review 2026-09-02). A null result (env unset, module
+// missing) is memoized too, matching the old degrade-gracefully behavior.
+let _apnCtxPromise = null;
 
-async function getApnContext() {
-  if (_apnProvider) return { apn: _apnModule, provider: _apnProvider };
-  if (_apnInitTried) return null;
-  _apnInitTried = true;
-
-  const { APNS_KEY_ID, APNS_TEAM_ID, APNS_KEY, APNS_BUNDLE_ID } = process.env;
-  if (!APNS_KEY_ID || !APNS_TEAM_ID || !APNS_KEY || !APNS_BUNDLE_ID) {
-    return null;
+function getApnContext() {
+  if (!_apnCtxPromise) {
+    _apnCtxPromise = (async () => {
+      const { APNS_KEY_ID, APNS_TEAM_ID, APNS_KEY, APNS_BUNDLE_ID } = process.env;
+      if (!APNS_KEY_ID || !APNS_TEAM_ID || !APNS_KEY || !APNS_BUNDLE_ID) {
+        return null;
+      }
+      try {
+        const imported = await import('@parse/node-apn');
+        const apn = imported.default || imported;
+        const provider = new apn.Provider({
+          token: {
+            key: APNS_KEY.replace(/\\n/g, '\n'),
+            keyId: APNS_KEY_ID,
+            teamId: APNS_TEAM_ID,
+          },
+          production: process.env.NODE_ENV === 'production',
+        });
+        console.log('[APNs] Provider initialized');
+        return { apn, provider };
+      } catch (err) {
+        console.error('[APNs] Init failed (is @parse/node-apn installed?):', err.message);
+        return null;
+      }
+    })();
   }
-
-  try {
-    const imported = await import('@parse/node-apn');
-    _apnModule = imported.default || imported;
-    _apnProvider = new _apnModule.Provider({
-      token: {
-        key: APNS_KEY.replace(/\\n/g, '\n'),
-        keyId: APNS_KEY_ID,
-        teamId: APNS_TEAM_ID,
-      },
-      production: process.env.NODE_ENV === 'production',
-    });
-    console.log('[APNs] Provider initialized');
-    return { apn: _apnModule, provider: _apnProvider };
-  } catch (err) {
-    console.error('[APNs] Init failed (is @parse/node-apn installed?):', err.message);
-    return null;
-  }
+  return _apnCtxPromise;
 }
 
 // ==========================================
@@ -172,11 +178,12 @@ export const saveApnsToken = async (req, res) => {
 // ==========================================
 // INTERNAL: SEND PUSH TO USER (called from notificationController)
 // ==========================================
-// Dispatch one already-fetched subscription row. apnCtxRef is a holder object
-// ({ ctx }) so a whole batch resolves the APNs provider at most once.
-// RETURNS the send promise (errors handled inside, never rejects) so callers
-// can drive real backpressure through the semaphore instead of fire-and-forget.
-async function dispatchToSubscription(sub, title, body, url, apnCtxRef) {
+// Dispatch one already-fetched subscription row. RETURNS the send promise
+// (errors handled inside, never rejects) so callers can drive real
+// backpressure through the semaphore instead of fire-and-forget. The APNs
+// context comes from the promise-memoized getApnContext() — safe under
+// concurrent dispatch, no per-batch holder needed.
+async function dispatchToSubscription(sub, title, body, url) {
   if (sub.platform === 'web' && sub.endpoint) {
     if (!process.env.VAPID_PUBLIC_KEY) return;
     const pushSub = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } };
@@ -190,9 +197,9 @@ async function dispatchToSubscription(sub, title, body, url, apnCtxRef) {
       }
     });
   } else if (sub.platform === 'apns' && sub.device_token) {
-    if (apnCtxRef.ctx === undefined) apnCtxRef.ctx = await getApnContext();
-    if (!apnCtxRef.ctx) return;
-    const { apn, provider } = apnCtxRef.ctx;
+    const ctx = await getApnContext();
+    if (!ctx) return;
+    const { apn, provider } = ctx;
     const notification = new apn.Notification();
     notification.alert = { title, body };
     notification.topic = process.env.APNS_BUNDLE_ID;
@@ -242,9 +249,8 @@ export const sendPushToUser = async (userId, title, body, url = '/notifications'
   if (!subs.length) return;
 
   const texts = resolveTexts(title, body, subs[0].locale);
-  const apnCtxRef = {};
   await Promise.all(subs.map((sub) =>
-    pushSendSlots.run(() => dispatchToSubscription(sub, texts.title, texts.body, url, apnCtxRef))
+    userPushSlots.run(() => dispatchToSubscription(sub, texts.title, texts.body, url))
   ));
 };
 
@@ -272,13 +278,13 @@ export const sendPushToUsers = async (userIds, title, body, url = '/notification
   }
 
   const textCache = new Map();
-  const apnCtxRef = {};
-  // Bounded parallelism: up to 8 sends in flight (semaphore), the rest queue.
+  // Bounded parallelism: up to 6 bulk sends in flight (semaphore), the rest
+  // queue — in the BULK lane, so 1:1 pushes never wait behind a blast.
   // Each dispatch handles its own errors, so this Promise.all never rejects.
   await Promise.all(subs.map((sub) => {
     const key = sub.locale || 'de';
     let texts = textCache.get(key);
     if (!texts) { texts = resolveTexts(title, body, sub.locale); textCache.set(key, texts); }
-    return pushSendSlots.run(() => dispatchToSubscription(sub, texts.title, texts.body, url, apnCtxRef));
+    return bulkPushSlots.run(() => dispatchToSubscription(sub, texts.title, texts.body, url));
   }));
 };
