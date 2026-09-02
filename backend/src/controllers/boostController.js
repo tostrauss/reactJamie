@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 import crypto from 'crypto';
 import { isUserPro, revokeSubscriptionForCharge } from './subscriptionController.js';
 import { invalidatePrefix } from '../utils/cache.js';
-import { REFERRAL_CREDITS_ENABLED, isAppShellRequest } from '../config/features.js';
+import { REFERRAL_CREDITS_ENABLED, isAppShellRequest, paymentsEnabled } from '../config/features.js';
 
 // Execute a function inside a real DB transaction on a single dedicated connection.
 // This is required because db.query() pulls from a pool — consecutive calls may land
@@ -197,6 +197,11 @@ export const applyBoost = async (req, res) => {
 // CREATE STRIPE PAYMENT INTENT
 // ==========================================
 export const createStripeIntent = async (req, res) => {
+  // Server-side kill-switch: while payments are off, the frontend flag alone
+  // is bypassable with a direct API call — refuse to create new charges.
+  if (!paymentsEnabled()) {
+    return res.status(403).json({ error: 'Zahlungen sind derzeit deaktiviert.', code: 'PAYMENTS_DISABLED' });
+  }
   const stripe = getStripe();
   if (!stripe) return res.status(503).json({ error: 'Stripe not configured' });
   // Store-policy backstop: no Stripe checkout from the Play/iOS app shells.

@@ -21,6 +21,7 @@
  */
 
 import db from '../config/database.js';
+import { paymentsEnabled } from '../config/features.js';
 
 // Mirror of the iOS app's product catalogue. Server is authoritative on
 // what each product gives you so a manipulated client can't fake amounts.
@@ -87,6 +88,11 @@ async function loadAppleRootCAs() {
  * Body: { product_type, product_id, receipt (JWS), transaction_id? }
  */
 export const verifyApple = async (req, res) => {
+  // Server-side payments kill-switch — no entitlement grants while payments
+  // are off. restoreApple funnels through this same handler, so it's covered.
+  if (!paymentsEnabled()) {
+    return res.status(403).json({ error: 'Zahlungen sind derzeit deaktiviert.', code: 'PAYMENTS_DISABLED' });
+  }
   const { product_id, receipt, transaction_id } = req.body || {};
 
   if (!product_id || !receipt) {

@@ -1,6 +1,6 @@
 import db from '../config/database.js';
 import Stripe from 'stripe';
-import { isAppShellRequest } from '../config/features.js';
+import { isAppShellRequest, paymentsEnabled } from '../config/features.js';
 
 const getStripe = () => {
   if (!process.env.STRIPE_SECRET_KEY) return null;
@@ -96,6 +96,12 @@ export const getStatus = async (req, res) => {
 // CREATE SUBSCRIPTION (returns Stripe client_secret)
 // ==========================================
 export const createSubscription = async (req, res) => {
+  // Server-side kill-switch: while payments are off, the frontend flag alone
+  // is bypassable with a direct API call — refuse to create new subscriptions.
+  // createPortalSession stays open (manage/cancel existing subs, no new money).
+  if (!paymentsEnabled()) {
+    return res.status(403).json({ error: 'Zahlungen sind derzeit deaktiviert.', code: 'PAYMENTS_DISABLED' });
+  }
   const stripe = getStripe();
   if (!stripe) return res.status(503).json({ error: 'Stripe not configured' });
   // Store-policy backstop: no Stripe checkout from the Play/iOS app shells.

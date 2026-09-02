@@ -8,6 +8,20 @@
 // Empfehlung wieder zu aktivieren.
 export const REFERRAL_CREDITS_ENABLED = false;
 
+// Master payments kill-switch — the SERVER-SIDE counterpart of the frontend's
+// PAYMENTS_ENABLED const (frontend/src/utils/platform.js). platform.js has
+// instructed setting `PAYMENTS_ENABLED=false` in Railway since 2026-08-05
+// („härtet die API ab") — but until now NOTHING read it: with the frontend
+// flag off, the live Stripe intent/subscription endpoints were still directly
+// callable by any authenticated user (audit 2026-09-02). This makes the
+// documented env var real. Fail-closed: payments are OFF unless Railway
+// explicitly sets PAYMENTS_ENABLED=true (flip it together with the frontend
+// const when Pro/Boosts launch). Gates NEW money only — createStripeIntent,
+// createSubscription, and the Apple IAP verify path. Webhooks and the Stripe
+// Customer Portal stay open on purpose: refunds/disputes must keep processing
+// and any existing (test) subscriber must still be able to cancel.
+export const paymentsEnabled = () => process.env.PAYMENTS_ENABLED === 'true';
+
 // Stripe checkout must run in a real web browser, never inside the Play-Store
 // TWA or the iOS app shell — offering third-party billing for digital goods
 // inside a store app violates Google Play / Apple billing policy and risks app
