@@ -62,6 +62,11 @@ Code ist FERTIG (beide Enden). Im Meeting passiert nur Teil A + B:
       Browser-Checkout, Karte geht trotzdem. Nicht blocking.
 - Fixe `price_…`-IDs (Step 7 DEV TODO): NICHT blocking — Runtime
   `prices.create()` funktioniert (dahlia-gepinnt).
+- ⚠️ **Preise (heute im Doc korrigiert):** Pro = **1,99 / 4,99 / 19,99 €**
+  (weekly/monthly/6mo — Code `PRO_PLANS` ist autoritativ); die alte
+  Step-7b-Tabelle nannte fälschlich 4,99/14,99/29,99. Boosts stimmen:
+  1,99 / 7,99 / 19,99 €. Falls Produkte im Dashboard angelegt werden:
+  DIESE Beträge.
 
 ### Der Flip (exakte Reihenfolge — wichtig!)
 1. **Railway zuerst:** `PAYMENTS_ENABLED=true` setzen → Redeploy. Server

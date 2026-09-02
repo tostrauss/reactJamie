@@ -166,9 +166,13 @@ dashboard.stripe.com -> **Product catalog** -> **+ Add product**. Three products
 
 | Product | Product ID (IAP) | Billing period | Price (EUR) | Note |
 |---|---|---|---|---|
-| JAMIE Pro — Wöchentlich | pro_weekly | every 1 week | 4,99 € | baseline |
-| JAMIE Pro — Monatlich | pro_monthly | every 1 month | 14,99 € | default, badge "Beliebt" (~3,46 €/Woche) |
-| JAMIE Pro — 6 Monate | pro_sixmonth | every 6 months | 29,99 € | badge "Bestes Angebot" (~1,15 €/Woche) |
+| JAMIE Pro — Wöchentlich | pro_weekly | every 1 week | 1,99 € | baseline |
+| JAMIE Pro — Monatlich | pro_monthly | every 1 month | 4,99 € | default, badge "Beliebt" (~1,15 €/Woche, „42% sparen") |
+| JAMIE Pro — 6 Monate | pro_sixmonth | every 6 months | 19,99 € | badge "Bestes Angebot" (~0,77 €/Woche, „61% sparen") |
+
+> **Korrigiert 2026-09-02:** Die Tabelle nannte vorher 4,99/14,99/29,99 — das
+> widersprach dem Code. Autoritativ ist `subscriptionController.js` PRO_PLANS:
+> **199 / 499 / 1999 Cent** (so lief auch der echte Live-Trial am 03.08.).
 
 These prices and product IDs match `subscriptionController.js` (PRO_PLANS), `boostController.js` (BOOST_PACKAGES), `frontend/src/utils/iap.js`, and the App Store products in `STOREKIT-SETUP.md`. Keep all of them in sync.
 
@@ -250,7 +254,7 @@ Refund after the test: Dashboard -> open the payment -> Refund -> Full refund.
 
 ### Optional: subscription + portal test
 
-1. App -> Pro modal -> cheapest plan (Wöchentlich, 4,99 €) -> Subscribe with a real card
+1. App -> Pro modal -> cheapest plan (Wöchentlich, 1,99 €) -> Subscribe with a real card
 2. Dashboard -> Customers -> account now has an active subscription
 3. In the app: Settings -> "Abo verwalten" -> the Stripe Customer Portal opens (this verifies Step 5)
 4. Cancel in the portal -> Dashboard subscription status moves to "cancel_at_period_end"
