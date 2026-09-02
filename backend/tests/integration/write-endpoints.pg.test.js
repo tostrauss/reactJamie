@@ -147,6 +147,7 @@ suite('write endpoints against real Postgres', () => {
       sendMessage: ms.sendMessage, getMessages: ms.getMessages,
       markChatRead: ms.markChatRead, deleteMessage: ms.deleteMessage,
       createReport: rp.createReport, getReports: rp.getReports,
+      joinGroup: g.joinGroup, handleJoinRequest: g.handleJoinRequest, kickMember: g.kickMember,
     };
   }, 90000);
 
@@ -314,5 +315,50 @@ suite('write endpoints against real Postgres', () => {
   it('getReports serves the admin list (COUNT(*) OVER() window SQL)', async () => {
     const res = await call(C.getReports, { userId: A, query: { status: 'pending', limit: '10', offset: '0' } });
     ok(res);
+  });
+
+  // ── join / accept / kick (the FOR-UPDATE transaction cores) ──────────────
+  // Pins the riskiest duplicated tx logic ahead of the planned extraction
+  // into services/entityLifecycle.js (audit 2026-09-02, phase 6).
+  let E, privateGroupId, joinReqId;
+  it('joinGroup: public join lands in the capacity transaction', async () => {
+    E = await (async () => {
+      const r = await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ('smoke-e@x.com','Eva','1998-05-05','female',$1, TRUE, 'email') RETURNING id`,
+        [avatar]
+      );
+      return r.rows[0].id;
+    })();
+    ok(await call(C.joinGroup, { userId: E, params: { id: String(groupId) }, body: {} }));
+    const m = await db.query('SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2', [groupId, E]);
+    expect(m.rows.length).toBe(1);
+    // Churn counter bumped exactly once by the tx.
+    const jc = await db.query('SELECT join_count FROM group_join_counts WHERE group_id=$1 AND user_id=$2', [groupId, E]);
+    expect(jc.rows[0]?.join_count).toBe(1);
+  });
+  it('joinGroup on a private group files a join request instead', async () => {
+    const future = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+    const created = await call(C.createGroup, { userId: A, body: {
+      name: 'Private Smoke', description: 'x', type: 'group', category: 'Sport',
+      date: future, time: '19:00', location: 'Wien', max_members: 8, is_private: true } });
+    expect(created.statusCode, JSON.stringify(created.body)).toBe(201);
+    privateGroupId = created.body.id;
+    noServerError(await call(C.joinGroup, { userId: E, params: { id: String(privateGroupId) }, body: { message: 'darf ich?' } }));
+    const r = await db.query(
+      "SELECT id, status FROM group_join_requests WHERE group_id=$1 AND user_id=$2", [privateGroupId, E]);
+    expect(r.rows[0]?.status).toBe('pending');
+    joinReqId = r.rows[0].id;
+  });
+  it('handleJoinRequest accept runs the capacity-checked tx and adds the member', async () => {
+    ok(await call(C.handleJoinRequest, {
+      userId: A, params: { id: String(privateGroupId), requestId: String(joinReqId) }, body: { action: 'accept' } }));
+    const m = await db.query('SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2', [privateGroupId, E]);
+    expect(m.rows.length).toBe(1);
+  });
+  it('kickMember (owner) removes the member again', async () => {
+    ok(await call(C.kickMember, { userId: A, params: { id: String(privateGroupId), userId: String(E) } }));
+    const m = await db.query('SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2', [privateGroupId, E]);
+    expect(m.rows.length).toBe(0);
   });
 });

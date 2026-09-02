@@ -7,6 +7,8 @@ import { normalizeLocale, categoryPushText, joinRequestText, pushTexts } from '.
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
 import { isUserPro } from './subscriptionController.js';
+import { normalizeCategories } from '../utils/normalizeCategories.js';
+import { createEntityWithOwner, notifyCancellationFanout } from '../services/entityLifecycle.js';
 
 const GROUPS_TTL  = 30_000;  // 30 s — acceptable staleness for list views
 const AVATARS_TTL = 60_000;  // 60 s — avatars change only on join/leave
@@ -128,10 +130,8 @@ async function checkAndAwardPioneer(userId, groupId, lat, lng) {
 // ==========================================
 // Sanitize a multi-category selection → deduped, trimmed, max-3 string array
 // (mirrors clubController). The singular `category` stays the primary.
-function normalizeCategories(categories, category) {
-  const src = Array.isArray(categories) ? categories : (category ? [category] : []);
-  return [...new Set(src.filter(c => typeof c === 'string' && c.trim()).map(c => c.trim()))].slice(0, 3);
-}
+// normalizeCategories moved to utils/normalizeCategories.js — one copy for
+// groups AND clubs (imported at the top of this file).
 
 // "Neue Gruppe — bist du dabei?" push to users whose profile interests match
 // the group's categories (Tobi, 2026-07-30). Fire-and-forget after creation.
@@ -334,32 +334,15 @@ export const createGroup = async (req, res) => {
     // Weekly recurrence only applies to events (type='group'); silently ignored for clubs.
     const recurringWeekly = !!is_recurring_weekly && (type === 'group' || !type);
 
-    // Group row + owner membership are ATOMIC: under pool pressure the second
-    // INSERT could fail and leave an ownerless group whose chat/roster is
-    // broken for its own creator (audit 2026-09-02, risk #10).
-    const client = await db.pool.connect();
-    let newGroup;
-    try {
-      await client.query('BEGIN');
-      const result = await client.query(
-        `INSERT INTO groups (name, description, type, category, categories, date, location, image_url, max_members, is_private, skill_level, owner_id, lat, lng, chat_only_owner, target_age_min, target_age_max, is_recurring_weekly)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-         RETURNING *`,
-        [name, description, type || 'group', (catList[0] || category), (catList.length ? catList : null), dateTime, location, image_url, max_members || 10, is_private || false, skill_level, userId, coords?.lat ?? null, coords?.lng ?? null, chat_only_owner || false, ageMin, ageMax, recurringWeekly]
-      );
-      newGroup = result.rows[0];
-      // Auto-add creator as member
-      await client.query(
-        'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
-        [newGroup.id, userId, 'owner']
-      );
-      await client.query('COMMIT');
-    } catch (txErr) {
-      await client.query('ROLLBACK');
-      throw txErr;
-    } finally {
-      client.release();
-    }
+    // Group row + owner membership in ONE transaction (audit risk #10) —
+    // shared core in services/entityLifecycle.js.
+    const newGroup = await createEntityWithOwner(
+      `INSERT INTO groups (name, description, type, category, categories, date, location, image_url, max_members, is_private, skill_level, owner_id, lat, lng, chat_only_owner, target_age_min, target_age_max, is_recurring_weekly)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+       RETURNING *`,
+      [name, description, type || 'group', (catList[0] || category), (catList.length ? catList : null), dateTime, location, image_url, max_members || 10, is_private || false, skill_level, userId, coords?.lat ?? null, coords?.lng ?? null, chat_only_owner || false, ageMin, ageMax, recurringWeekly],
+      userId
+    );
 
     // Pioneer check (fire-and-forget — must not block the response)
     if (coords?.lat && coords?.lng) {
@@ -1785,27 +1768,17 @@ export const cancelGroup = async (req, res) => {
     const io = req.app?.get('io');
 
     if (members.rows.length > 0) {
-      const title = `${groupName} wurde abgesagt`;
-      const body = reason || 'Das Event wurde vom Ersteller abgesagt.';
-      // Batch into chunks of 1000 to avoid PostgreSQL's 65535 bind-parameter limit (5 params × 1000 = 5000)
-      const CHUNK = 1000;
-      for (let start = 0; start < members.rows.length; start += CHUNK) {
-        const chunk = members.rows.slice(start, start + CHUNK);
-        const valuesClauses = chunk.map(
-          (_, i) => `($${i * 5 + 1}, $${i * 5 + 2}, 'group_cancelled', $${i * 5 + 3}, $${i * 5 + 4}, 'group', $${i * 5 + 5})`
-        ).join(', ');
-        const params = chunk.flatMap(m => [m.user_id, req.userId, title, body, id]);
-        const notifResult = await db.query(
-          `INSERT INTO notifications (user_id, sender_id, type, title, message, reference_type, reference_id)
-           VALUES ${valuesClauses} RETURNING *`,
-          params
-        );
-        if (io) {
-          for (const notif of notifResult.rows) {
-            io.to(`user_${notif.user_id}`).emit('new_notification', notif);
-          }
-        }
-      }
+      // Chunked + live-emitting fan-out — shared core (services/entityLifecycle.js).
+      await notifyCancellationFanout({
+        memberIds: members.rows.map(m => m.user_id),
+        senderId: req.userId,
+        type: 'group_cancelled',
+        referenceType: 'group',
+        referenceId: id,
+        title: `${groupName} wurde abgesagt`,
+        body: reason || 'Das Event wurde vom Ersteller abgesagt.',
+        io,
+      });
     }
 
     res.json({ message: 'Group cancelled and members notified', notified: members.rows.length });

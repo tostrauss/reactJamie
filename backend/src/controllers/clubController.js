@@ -7,6 +7,8 @@ import { notifyJoinRequest, notifyGroupJoin, evictFromRoom, creatorHasAvatar, pr
 import { isUserPro } from './subscriptionController.js';
 import { sendPushToUser, sendPushToUsers } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
+import { normalizeCategories } from '../utils/normalizeCategories.js';
+import { createEntityWithOwner, notifyCancellationFanout } from '../services/entityLifecycle.js';
 
 const CLUBS_TTL = 30_000; // 30 s
 const DISCOVER_EVENTS_KEY = 'discover_events';
@@ -40,13 +42,8 @@ const userManagesClub = async (clubId, ownerId, userId) => {
 // ==========================================
 // CREATE CLUB
 // ==========================================
-// Sanitize a multi-category selection → deduped, trimmed, max-3 string array.
-// Falls back to the single `category` when no array is given (legacy clients).
-// Returns [] when nothing valid is provided.
-export function normalizeCategories(categories, category) {
-  const src = Array.isArray(categories) ? categories : (category ? [category] : []);
-  return [...new Set(src.filter(c => typeof c === 'string' && c.trim()).map(c => c.trim()))].slice(0, 3);
-}
+// (normalizeCategories moved to utils/normalizeCategories.js — one copy for
+// groups AND clubs, imported above.)
 
 export const createClub = async (req, res) => {
   const {
@@ -113,63 +110,49 @@ export const createClub = async (req, res) => {
     const isAdminOwner = !!adminCheck.rows[0]?.is_admin;
     const approval = isAdminOwner ? 'approved' : 'pending';
 
-    // Club row + owner membership are ATOMIC (see createGroup — risk #10).
-    const client = await db.pool.connect();
-    let newClub;
-    try {
-      await client.query('BEGIN');
-      const result = await client.query(
-        `INSERT INTO groups (
-          name,
-          description,
-          type,
-          category,
-          categories,
-          date,
-          location,
-          image_url,
-          max_members,
-          is_private,
-          skill_level,
-          owner_id,
-          lat,
-          lng,
-          approval_status,
-          events_owner_only
-        )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-         RETURNING *`,
-        [
-          name,
-          description,
-          CLUB_TYPE,
-          primaryCategory,
-          catList.length ? catList : null,
-          dateTime,
-          location,
-          image_url,
-          max_members || 100, // Clubs are larger communities by default
-          is_private || false,
-          skill_level,
-          userId,
-          coords?.lat ?? null,
-          coords?.lng ?? null,
-          approval,
-          events_owner_only || false
-        ]
-      );
-      newClub = result.rows[0];
-      await client.query(
-        'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
-        [newClub.id, userId, 'owner']
-      );
-      await client.query('COMMIT');
-    } catch (txErr) {
-      await client.query('ROLLBACK');
-      throw txErr;
-    } finally {
-      client.release();
-    }
+    // Club row + owner membership in ONE transaction (audit risk #10) —
+    // shared core in services/entityLifecycle.js.
+    const newClub = await createEntityWithOwner(
+      `INSERT INTO groups (
+        name,
+        description,
+        type,
+        category,
+        categories,
+        date,
+        location,
+        image_url,
+        max_members,
+        is_private,
+        skill_level,
+        owner_id,
+        lat,
+        lng,
+        approval_status,
+        events_owner_only
+      )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+       RETURNING *`,
+      [
+        name,
+        description,
+        CLUB_TYPE,
+        primaryCategory,
+        catList.length ? catList : null,
+        dateTime,
+        location,
+        image_url,
+        max_members || 100, // Clubs are larger communities by default
+        is_private || false,
+        skill_level,
+        userId,
+        coords?.lat ?? null,
+        coords?.lng ?? null,
+        approval,
+        events_owner_only || false
+      ],
+      userId
+    );
 
     // Welcome system message — no live broadcast (chat is empty on creation).
     postSystemMessage(newClub.id, `Willkommen bei ${newClub.name}! Stell euch kurz vor 👋`).catch(() => {});
@@ -1164,22 +1147,20 @@ export const cancelClub = async (req, res) => {
     const io = req.app?.get('io');
 
     if (members.rows.length > 0) {
-      const title = `${clubName} wurde geschlossen`;
-      const body = reason || 'Der Club wurde vom Ersteller geschlossen.';
-      const valuesClauses = members.rows.map(
-        (_, i) => `($${i * 5 + 1}, $${i * 5 + 2}, 'club_cancelled', $${i * 5 + 3}, $${i * 5 + 4}, 'club', $${i * 5 + 5})`
-      ).join(', ');
-      const params = members.rows.flatMap(m => [m.user_id, req.userId, title, body, id]);
-      const notifResult = await db.query(
-        `INSERT INTO notifications (user_id, sender_id, type, title, message, reference_type, reference_id)
-         VALUES ${valuesClauses} RETURNING *`,
-        params
-      );
-      if (io) {
-        for (const notif of notifResult.rows) {
-          io.to(`user_${notif.user_id}`).emit('new_notification', notif);
-        }
-      }
+      // Chunked + live-emitting fan-out — shared core (services/
+      // entityLifecycle.js). The old inline copy here was UNCHUNKED: a club
+      // past ~13k members would have blown Postgres' bind-parameter limit
+      // and notified nobody.
+      await notifyCancellationFanout({
+        memberIds: members.rows.map(m => m.user_id),
+        senderId: req.userId,
+        type: 'club_cancelled',
+        referenceType: 'club',
+        referenceId: id,
+        title: `${clubName} wurde geschlossen`,
+        body: reason || 'Der Club wurde vom Ersteller geschlossen.',
+        io,
+      });
     }
 
     res.json({ message: 'Club cancelled and members notified', notified: members.rows.length });
@@ -1369,44 +1350,30 @@ export const createClubEvent = async (req, res) => {
     // club's events publicly joinable and marked "Öffentlich".
     const eventIsPrivate = !!club.rows[0].is_private;
 
-    // Event row + owner membership are ATOMIC (see createGroup — risk #10).
-    const client = await db.pool.connect();
-    let event;
-    try {
-      await client.query('BEGIN');
-      const result = await client.query(
-        `INSERT INTO groups
-           (name, description, type, category, date, location, max_members, owner_id,
-            parent_club_id, is_private, lat, lng, is_recurring_weekly)
-         VALUES ($1, $2, 'event', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-         RETURNING *`,
-        [
-          name.trim(),
-          description || null,
-          club.rows[0].category || null,
-          dateTime,
-          eventLocation,
-          max_members || 20,
-          userId,
-          parseInt(id, 10),
-          eventIsPrivate,
-          coords?.lat ?? null,
-          coords?.lng ?? null,
-          !!is_recurring_weekly,
-        ]
-      );
-      event = result.rows[0];
-      await client.query(
-        'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
-        [event.id, userId, 'owner']
-      );
-      await client.query('COMMIT');
-    } catch (txErr) {
-      await client.query('ROLLBACK');
-      throw txErr;
-    } finally {
-      client.release();
-    }
+    // Event row + owner membership in ONE transaction (audit risk #10) —
+    // shared core in services/entityLifecycle.js.
+    const event = await createEntityWithOwner(
+      `INSERT INTO groups
+         (name, description, type, category, date, location, max_members, owner_id,
+          parent_club_id, is_private, lat, lng, is_recurring_weekly)
+       VALUES ($1, $2, 'event', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       RETURNING *`,
+      [
+        name.trim(),
+        description || null,
+        club.rows[0].category || null,
+        dateTime,
+        eventLocation,
+        max_members || 20,
+        userId,
+        parseInt(id, 10),
+        eventIsPrivate,
+        coords?.lat ?? null,
+        coords?.lng ?? null,
+        !!is_recurring_weekly,
+      ],
+      userId
+    );
 
     invalidatePrefix('clubs:');
     invalidatePrefix(DISCOVER_EVENTS_KEY);

@@ -537,8 +537,15 @@ app.set('io', io);
 Sentry.setupExpressErrorHandler(app);
 
 app.use((err, _req, res, _next) => {
-  console.error('Server Error:', err.stack);
-  res.status(500).json({ error: 'Etwas ist schiefgelaufen!' });
+  // Typed AppError (middleware/errors.js) carries its own status/message —
+  // a thrown 400/404 must not surface as a generic 500. Anything untyped
+  // stays a masked 500 (no internals in the body; Sentry got it above).
+  const status = Number.isInteger(err?.status) && err.status >= 400 && err.status < 600 ? err.status : 500;
+  if (status === 500) console.error('Server Error:', err.stack);
+  res.status(status).json({
+    error: status === 500 ? 'Etwas ist schiefgelaufen!' : err.message,
+    ...(err?.code ? { code: err.code } : {}),
+  });
 });
 
 // API 404 — fires for all unmatched /api/* routes (must be before the SPA fallback)
