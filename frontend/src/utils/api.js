@@ -71,7 +71,11 @@ const shouldRetry = (error) => {
   if (!SAFE_METHODS.has(method)) return false;
   if (!error.response) return true; // Network error / timeout
   const status = error.response.status;
-  return status === 408 || status === 429 || status >= 500;
+  // 429 is deliberately NOT retried: the server explicitly asked us to back
+  // off, and thousands of clients auto-retrying into a rate-limited backend
+  // is a self-reinforcing load multiplier at exactly the wrong moment
+  // (TV-spike scenario). The component surfaces the error instead.
+  return status === 408 || status >= 500;
 };
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
