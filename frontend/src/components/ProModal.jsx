@@ -164,6 +164,14 @@ const FEATURE_KEYS = [
   { icon:'⭐', titleKey:'deals',         descKey:'dealsDesc' },
 ];
 
+// Context-specific rows, prepended when the modal is opened from the feature
+// the user just bumped into — so the first bubble answers "why am I seeing
+// this?" instead of making them hunt for it in the generic list.
+// Keyed by the `feature` in the jamie:open-pro-modal event detail.
+const CONTEXT_FEATURE = {
+  paidEvents: { icon:'🎟️', titleKey:'paidEvents', descKey:'paidEventsDesc' },
+};
+
 // ── Confetti piece ───────────────────────────────────────────────────────
 function Confetto({ i }) {
   const angle = (i / CONFETTI_CHARS.length) * 360;
@@ -288,7 +296,7 @@ function PlanTile({ plan, selected, onSelect, t }) {
 }
 
 // ── Main modal ───────────────────────────────────────────────────────────
-export const ProModal = ({ onClose, onSuccess }) => {
+export const ProModal = ({ onClose, onSuccess, feature = null }) => {
   const { t } = useTranslation();
   const toast = useToast();
   const [step,          setStep]          = useState('features');
@@ -530,7 +538,7 @@ export const ProModal = ({ onClose, onSuccess }) => {
 
               {/* Feature cards */}
               <div style={{ display:'flex', flexDirection:'column', gap:'10px', marginBottom:'22px' }}>
-                {FEATURE_KEYS.map((f, i) => (
+                {[...(CONTEXT_FEATURE[feature] ? [CONTEXT_FEATURE[feature]] : []), ...FEATURE_KEYS].map((f, i) => (
                   <div key={i} style={{
                     display:'flex', alignItems:'center', gap:'14px',
                     background:'rgba(255,255,255,0.04)',

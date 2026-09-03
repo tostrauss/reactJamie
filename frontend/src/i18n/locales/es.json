@@ -1275,7 +1275,9 @@
       "topPlacement": "Primera posición",
       "topPlacementDesc": "Siempre arriba del todo en la lista Descubrir",
       "deals": "Para ti – ofertas exclusivas",
-      "dealsDesc": "Descuentos y ofertas especiales en socios de Viena"
+      "dealsDesc": "Descuentos y ofertas especiales en socios de Viena",
+      "paidEvents": "Crear eventos de pago",
+      "paidEventsDesc": "Vende entradas con tu propio enlace"
     },
     "title": "JAMIE Pro",
     "priceMonth": "/ mes",

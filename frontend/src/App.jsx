@@ -721,6 +721,10 @@ function AppRoutes() {
   useAnalytics();
   const [showIntro, setShowIntro] = useState(() => !!user && !user?.isGuest && shouldShowIntro());
   const [showProModal, setShowProModal] = useState(false);
+  // Which feature the user bumped into, from the open event's detail — the
+  // modal prepends a matching bubble so the first thing they read is the
+  // reason they were sent here. null = the generic Pro pitch.
+  const [proModalFeature, setProModalFeature] = useState(null);
   const [pendingReviews, setPendingReviews] = useState(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showAvatarNudge, setShowAvatarNudge] = useState(false);
@@ -794,7 +798,12 @@ function AppRoutes() {
   // Garantie für jeden künftigen Trigger.
   useEffect(() => {
     if (isNativeIOS()) return;
-    const open = () => setShowProModal(true);
+    // CustomEvent detail is optional — a plain Event (every existing caller)
+    // just yields the generic pitch.
+    const open = (e) => {
+      setProModalFeature(e?.detail?.feature ?? null);
+      setShowProModal(true);
+    };
     window.addEventListener('jamie:open-pro-modal', open);
     return () => window.removeEventListener('jamie:open-pro-modal', open);
   }, []);
@@ -930,6 +939,7 @@ function AppRoutes() {
       {showProModal && (
         <Suspense fallback={null}>
           <ProModal
+            feature={proModalFeature}
             onClose={() => setShowProModal(false)}
             onSuccess={() => setShowProModal(false)}
           />

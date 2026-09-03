@@ -597,7 +597,14 @@ export const ClubDetail = () => {
                         // Turning OFF "kostenfrei" = wanting a paid event.
                         if (!isPro) {
                           // iOS must never show a purchase entry point (Apple 3.1.1).
-                          if (!isNativeIOS()) window.dispatchEvent(new Event('jamie:open-pro-modal'));
+                          // detail.feature makes the modal lead with the
+                          // "Kostenpflichtige Events" bubble instead of the
+                          // generic pitch, so the reason is the first thing read.
+                          if (!isNativeIOS()) {
+                            window.dispatchEvent(new CustomEvent('jamie:open-pro-modal', {
+                              detail: { feature: 'paidEvents' },
+                            }));
+                          }
                           return; // stays free
                         }
                         setEventForm(f => ({ ...f, is_paid: true }));

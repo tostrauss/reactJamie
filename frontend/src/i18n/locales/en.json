@@ -1275,7 +1275,9 @@
       "topPlacement": "Top placement",
       "topPlacementDesc": "Always on top of the Explore list",
       "deals": "For You – exclusive deals",
-      "dealsDesc": "Discounts & specials with partners in Vienna"
+      "dealsDesc": "Discounts & specials with partners in Vienna",
+      "paidEvents": "Create paid events",
+      "paidEventsDesc": "Sell tickets via your own link"
     },
     "title": "JAMIE Pro",
     "priceMonth": "/ month",

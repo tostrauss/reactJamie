@@ -1275,7 +1275,9 @@
       "topPlacement": "Top-Platzierung",
       "topPlacementDesc": "Immer ganz oben in der Entdecken-Liste",
       "deals": "Für Dich – exklusive Deals",
-      "dealsDesc": "Rabatte & Specials bei Partnern in Wien"
+      "dealsDesc": "Rabatte & Specials bei Partnern in Wien",
+      "paidEvents": "Kostenpflichtige Events erstellen",
+      "paidEventsDesc": "Verkaufe Tickets über deinen eigenen Link"
     },
     "title": "JAMIE Pro",
     "priceMonth": "/ Monat",

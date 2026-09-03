@@ -1275,7 +1275,9 @@
       "topPlacement": "Placement en tête",
       "topPlacementDesc": "Toujours tout en haut de la liste Découvrir",
       "deals": "Pour toi – offres exclusives",
-      "dealsDesc": "Réductions & offres spéciales chez des partenaires à Vienne"
+      "dealsDesc": "Réductions & offres spéciales chez des partenaires à Vienne",
+      "paidEvents": "Créer des événements payants",
+      "paidEventsDesc": "Vends des billets via ton propre lien"
     },
     "title": "JAMIE Pro",
     "priceMonth": "/ mois",
