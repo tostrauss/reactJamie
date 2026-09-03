@@ -183,11 +183,25 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
           width: '100%', maxWidth: '480px',
           // Top is a plain 18px (NOT safe-area + 16): maxHeight already caps the
           // sheet top at safe-area + 12px, so adding the inset here too left a
-          // big empty gap. Bottom trimmed 90px → safe-area + 12px (the sheet
-          // sits above the nav via its own z-index, so it never needed 90px).
-          padding: '18px 20px calc(env(safe-area-inset-bottom, 0px) + 12px)',
+          // big empty gap.
+          //
+          // BOTTOM = nav clearance, NOT the bare safe-area inset. .bottom-nav is
+          // a flex child at the end of the dvh-bounded #root column (60px strip +
+          // --nav-safe-bottom), so it owns the bottom of the screen — while this
+          // sheet is position:fixed and flush to the VIEWPORT bottom. Its last
+          // ~75px therefore land behind the nav. A previous pass trimmed this to
+          // "safe-area + 12px" reasoning the sheet's z-index puts it above the
+          // nav; that clipped the last control off every tall sheet (the
+          // "Benachrichtige mich" button, Tina 2026-09-03). Same invariant as
+          // .requests-modal-scroll in chat.css — keep the nav term.
+          padding: `18px 20px calc(60px + var(--nav-safe-bottom) + 16px)`,
+          // Cap to the space ABOVE the nav so a long sheet scrolls inside its own
+          // box instead of growing under it.
           maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 12px)',
           overflowY: 'auto',
+          // Momentum scrolling + don't chain the scroll to the page behind.
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
         }}
       >
         {/* Header */}

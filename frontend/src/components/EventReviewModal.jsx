@@ -87,11 +87,20 @@ export const EventReviewModal = ({ pendingReviews, onDone }) => {
         width: '100%', maxWidth: 480,
         background: '#1e2235',
         borderRadius: '24px 24px 0 0',
-        padding: 'calc(env(safe-area-inset-top, 0px) + 20px) 20px calc(env(safe-area-inset-bottom, 0px) + 24px)',
+        // Bottom = nav clearance (60px strip + --nav-safe-bottom), not the bare
+        // home-indicator inset: .bottom-nav owns the bottom of the screen while
+        // this sheet is fixed to the viewport bottom, so a bare inset leaves the
+        // last row behind the nav. Same invariant as Boost/ProModal (2026-09-03).
+        padding: 'calc(env(safe-area-inset-top, 0px) + 20px) 20px calc(60px + var(--nav-safe-bottom) + 16px)',
         // Cap the sheet so its top edge stops 12px below the status bar
         // even when there are many pending reviews to scroll through.
         maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 12px)',
         overflowY: 'auto',
+        overscrollBehavior: 'contain',
+        // A max-height-capped flex COLUMN needs min-height:0 on its scroll box,
+        // otherwise flex children refuse to shrink and the last one is clipped
+        // instead of scrolled — the recurring "sheet won't scroll" bug class.
+        minHeight: 0,
         display: 'flex', flexDirection: 'column',
       }}>
         {/* Skip — always visible at top */}

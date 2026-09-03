@@ -395,10 +395,18 @@ export const ProModal = ({ onClose, onSuccess }) => {
             // Top padding is a plain 18px (NOT safe-area + 16): maxHeight below
             // already caps the sheet's top edge at safe-area + 12px, so adding
             // the inset here too double-counted it and left a big empty gap.
-            // Bottom keeps the home-indicator inset so the last row isn't clipped.
+            //
+            // BOTTOM = nav clearance, not the bare home-indicator inset.
+            // .bottom-nav is a flex child at the end of the dvh-bounded #root
+            // column (60px strip + --nav-safe-bottom) and owns the bottom of the
+            // screen, while this sheet is position:fixed flush to the VIEWPORT
+            // bottom — so a bare inset leaves the last row (here: the plan CTA)
+            // sitting behind the nav. Same fix + invariant as BoostModal
+            // (Tina 2026-09-03). Success is full-screen and centered, so it only
+            // needs the plain inset.
             padding: isSuccess
               ? `env(safe-area-inset-top, 0px) 22px calc(env(safe-area-inset-bottom, 0px) + 12px)`
-              : `18px 22px calc(env(safe-area-inset-bottom, 0px) + 12px)`,
+              : `18px 22px calc(60px + var(--nav-safe-bottom) + 16px)`,
             // Full height on success so the celebration owns the screen; capped
             // half-sheet otherwise (top edge 12px below the status bar).
             height: isSuccess ? '100dvh' : 'auto',
