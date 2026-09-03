@@ -427,11 +427,12 @@ export default function MapView({ typeFilter }) {
               silently mounts the overlay into NO pane, so the bubble never showed
               (root cause found 2026-07-31; backend data was correct all along). */}
           {requestBubbles.map(b => {
-            // Nomadtable-style avatar bubble: the requester's profile picture +
-            // "Neue Anfrage" (Tina/Tobi 2026-07-31). Multiple pending → count.
+            // Avatar bubble with a pulsing rim: the requester's profile picture +
+            // "<Name> möchte deiner Gruppe beitreten!" (Tina/Tobi 2026-09-03).
+            // Multiple pending → count instead of a single name.
             const label = b.pending_count > 1
               ? t('map.requestBubbleMany', { count: b.pending_count > 10 ? '10+' : b.pending_count })
-              : t('map.requestBubbleNew');
+              : t('map.requestBubbleOne', { name: b.latest_name || '?' });
             return (
               <OverlayViewF
                 key={`req-${b.group_id}`}

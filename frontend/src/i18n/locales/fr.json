@@ -1381,7 +1381,7 @@
     "popupEvent": "Événement",
     "popupMembersFmt": "{{current}} / {{max}} membres",
     "popupMembersUnlimited": "{{current}} / ∞ membres",
-    "requestBubbleOne": "{{name}} veut te rejoindre !",
+    "requestBubbleOne": "{{name}} veut rejoindre ton groupe !",
     "requestBubbleNew": "Nouvelle demande",
     "requestBubbleMany": "{{count}} nouvelles demandes",
     "pioneer": {

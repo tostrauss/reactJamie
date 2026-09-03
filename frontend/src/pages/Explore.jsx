@@ -256,7 +256,11 @@ export const Explore = () => {
       isAuthed ? groups.getMyLikes().catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
     ]);
     const all = allRes.data || [];
-    setHallItems(all.filter(g => isPast(g.date)));
+    // Hall of Fame only showcases past events whose creator actually added a
+    // photo (Tina 2026-09-03) — a photoless card is just a colored placeholder
+    // and cheapens the wall. moment_photo_url (an uploaded "moment") or the
+    // group's own image_url both count as "a photo was added".
+    setHallItems(all.filter(g => isPast(g.date) && (g.moment_photo_url || g.image_url)));
     setDealList(dealsRes.data || []);
     // getMyLikes returns a bare array of group ids the caller has liked.
     setLikedIds(new Set(likesRes.data || []));
