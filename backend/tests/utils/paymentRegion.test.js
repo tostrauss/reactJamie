@@ -57,7 +57,7 @@ describe('checkSubscriptionCountry', () => {
     expect(r).toMatchObject({ allowed: true, source: 'geoip' });
   });
 
-  it('blocks when BOTH signals name a country we do not sell in', async () => {
+  it('blocks on a KNOWN profile country we do not sell in', async () => {
     profile('IT');
     lookup.mockReturnValue({ country: 'IT' });
     const r = await checkSubscriptionCountry(reqWith('203.0.113.7'));
@@ -73,6 +73,15 @@ describe('checkSubscriptionCountry', () => {
       const r = await checkSubscriptionCountry(reqWith('203.0.113.7'));
       expect(r.allowed, `${c} must be blocked for subscriptions`).toBe(false);
     }
+  });
+
+  // GeoIP must never block on its own — it is not trustworthy enough. An
+  // un-geocoded profile plus a mis-attributed mobile range must still sell.
+  it('does NOT block on GeoIP alone when the profile has no country', async () => {
+    profile(null);
+    lookup.mockReturnValue({ country: 'NL' });
+    const r = await checkSubscriptionCountry(reqWith('203.0.113.7'));
+    expect(r).toMatchObject({ allowed: true, source: 'geoip-unblocked' });
   });
 
   it('fails OPEN when neither signal is usable', async () => {

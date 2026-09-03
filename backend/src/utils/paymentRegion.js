@@ -66,24 +66,25 @@ export const checkSubscriptionCountry = async (req, userId = req?.userId) => {
     return { allowed: true, country: profileCountry.toUpperCase(), source: 'profile' };
   }
 
-  // 2. GeoIP fallback.
+  // 2. GeoIP — may only ever GRANT, never block.
   const ip = getClientIp(req);
   const geoCountry = isPrivateIp(ip) ? null : (geoip.lookup(ip)?.country || null);
   if (allowedList(geoCountry)) {
     return { allowed: true, country: geoCountry, source: 'geoip' };
   }
 
-  // Neither signal is usable → fail OPEN.
-  if (!profileCountry && !geoCountry) {
-    return { allowed: true, country: null, source: 'unknown' };
+  // Only a KNOWN profile country may block. If the profile has no country yet
+  // (not geocoded), we allow — even when GeoIP names a country we don't sell
+  // in. Letting GeoIP block on its own is what refused a Vienna customer on 4G
+  // (2026-09-03), and geoip-lite is simply not trustworthy enough for that: a
+  // mis-attributed mobile range would silently cost a real sale, while the
+  // opposite error (an occasional out-of-market sale) is caught downstream —
+  // Stripe Tax declines to itemize VAT for an unregistered country and logs it
+  // as 'tax-fallback'. Cheap error vs. expensive error.
+  if (profileCountry) {
+    return { allowed: false, country: profileCountry.toUpperCase(), source: 'profile' };
   }
-
-  // At least one signal exists and none names an allowed country → block.
-  return {
-    allowed: false,
-    country: profileCountry || geoCountry,
-    source: profileCountry ? 'profile' : 'geoip',
-  };
+  return { allowed: true, country: geoCountry, source: geoCountry ? 'geoip-unblocked' : 'unknown' };
 };
 
 // Synchronous GeoIP-only view, for diagnostics that must not touch the DB.
