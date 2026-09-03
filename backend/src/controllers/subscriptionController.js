@@ -167,7 +167,7 @@ export const createSubscription = async (req, res) => {
   }
   // Sell only where we are tax-registered (AT+DE). The app itself stays open in
   // every launch market — this gates the PAID product only.
-  const region = checkSubscriptionCountry(req);
+  const region = await checkSubscriptionCountry(req);
   if (!region.allowed) {
     return res.status(403).json({
       error: 'JAMIE Pro ist derzeit nur in Österreich und Deutschland verfügbar.',

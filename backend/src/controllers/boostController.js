@@ -213,7 +213,7 @@ export const createStripeIntent = async (req, res) => {
   // PaymentIntents, which Stripe Tax cannot itemize at all — so restricting
   // WHERE they sell matters even more here: the VAT has to be declared from the
   // gross amount by hand, and that only works for a country we're registered in.
-  const region = checkSubscriptionCountry(req);
+  const region = await checkSubscriptionCountry(req);
   if (!region.allowed) {
     return res.status(403).json({
       error: 'Boosts sind derzeit nur in Österreich und Deutschland verfügbar.',

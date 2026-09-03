@@ -1,6 +1,8 @@
 import db from '../config/database.js';
 import { revokeUserSessions } from '../socket.js';
 import { getClientIp } from '../utils/clientIp.js';
+import geoip from 'geoip-lite';
+import { checkSubscriptionCountry, getSubscriptionCountries } from '../utils/paymentRegion.js';
 
 // ==========================================
 // OVERVIEW STATS
@@ -671,15 +673,38 @@ export const getOnlineUsers = async (req, res) => {
 // Expected on Railway with trust proxy = 1: reqIp equals the LAST entry of
 // xForwardedFor (the hop Railway appended). If reqIp is instead an internal/
 // edge address, raise TRUST_PROXY_HOPS in Railway env and re-check.
-export const getIpDiagnostics = (req, res) => {
+export const getIpDiagnostics = async (req, res) => {
+  // GeoIP resolution as the payment region gate actually sees it. Added
+  // 2026-09-03 because a real Vienna customer on 4G was refused Pro: we need to
+  // know whether geoip-lite returned the WRONG country or none at all, and the
+  // two have opposite fixes (stale mobile ranges vs. IPv6 not in the DB).
+  const clientIp = getClientIp(req);
+  const geo = clientIp ? geoip.lookup(clientIp) : null;
+  const region = await checkSubscriptionCountry(req);
+  let profileCountry = null;
+  try {
+    const r = await db.query('SELECT country FROM users WHERE id = $1', [req.userId]);
+    profileCountry = r.rows[0]?.country ?? null;
+  } catch { /* diagnostics only */ }
+
   res.json({
     // What the per-IP rate limiters key on (trusted-hop resolution):
     reqIp: req.ip,
     reqIps: req.ips,
     // What the geofence keys on (leftmost XFF — spoofable, UX-grade only):
-    clientIp: getClientIp(req),
+    clientIp,
     xForwardedFor: req.headers['x-forwarded-for'] || null,
     socketRemoteAddress: req.socket?.remoteAddress || null,
     trustProxy: req.app.get('trust proxy'),
+    // Payment region gate (AT+DE) — the verdict a checkout would get:
+    geoipCountry: geo?.country ?? null,
+    geoipRegion: geo?.region ?? null,
+    geoipCity: geo?.city ?? null,
+    clientIpFamily: clientIp?.includes(':') ? 'IPv6' : 'IPv4',
+    profileCountry,
+    subscriptionCountries: getSubscriptionCountries(),
+    subscriptionAllowed: region.allowed,
+    subscriptionVerdictCountry: region.country,
+    subscriptionVerdictSource: region.source,
   });
 };
