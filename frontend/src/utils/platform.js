@@ -68,12 +68,24 @@ export const NATIVE_API_ORIGIN = 'https://api.jamie-app.com';
 // Button in „Stripe not configured". Auf true stellen, sobald Stripe steht.
 // Dann gilt automatisch: Käufe NUR im echten Web-Browser (purchasesEnabled),
 // in Play-TWA + iOS-App ausgeblendet (Store-Billing-Pflicht).
-// 2026-08-05: Tobi + Tina bewusst WIEDER AUS („noch zu früh") — obwohl Stripe
-// live konfiguriert ist. Damit greift überall (Web + Android + iOS) der Coming-
-// Soon-Zweig statt eines echten Kaufs; keine Kartendetails erreichbar. Zusätzlich
-// im Railway-Backend `PAYMENTS_ENABLED=false` setzen (härtet die API ab). Auf
-// true, wenn Pro/Boosts wirklich starten sollen.
-export const PAYMENTS_ENABLED = false;
+// 2026-08-05: Tobi + Tina bewusst WIEDER AUS („noch zu früh").
+// 2026-09-03: GO LIVE — von Tobi + Tina im Meeting freigeschaltet.
+// Die Reihenfolge war wichtig und ist eingehalten: ZUERST Railway
+// `PAYMENTS_ENABLED=true` (Server nimmt an, UI noch aus = harmloser
+// Zwischenstand), DANN diese Konstante. Umgekehrt wäre es kaputt: Kauf-UI
+// sichtbar, Server antwortet 403.
+// Vorbedingungen erfüllt: Stripe live; BEIDE Webhooks inkl. `charge.refunded`
+// + `charge.dispute.created` registriert (die Claw-back war bis heute toter
+// Code — die Events kamen nie an); Customer Portal auf Kündigen /
+// Zahlungsmethode / Rechnungen beschränkt (kein Tarifwechsel, da das Portal
+// bewusst NICHT am Kill-Switch hängt); Stripe Tax aktiv mit AT-Registrierung
+// und gross-inclusive (die angezeigten 1,99/4,99/19,99 € bleiben der
+// Endbetrag, die USt wird herausgerechnet); Verkauf serverseitig auf AT+DE
+// begrenzt (backend utils/paymentRegion.js).
+// ROLLBACK: Railway `PAYMENTS_ENABLED=false` — der Server 403t dann sofort
+// jeden NEUEN Kauf, egal was dieses Bundle zeigt; diese Zeile darf in Ruhe
+// im nächsten Deploy nachziehen.
+export const PAYMENTS_ENABLED = true;
 
 // ── iOS In-App-Käufe ────────────────────────────────────────────────────
 // StoreKit IAP ist noch nicht fertig (Plugin + Apple-Quittungsprüfung offen —
