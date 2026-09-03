@@ -1052,7 +1052,9 @@
       "newPasswordPlaceholder": "Nuova password (min. 6 caratteri)",
       "confirmPasswordPlaceholder": "Conferma nuova password",
       "blockedUsers": "Utenti bloccati",
-      "adminDashboard": "Dashboard admin"
+      "adminDashboard": "Dashboard admin",
+      "proTitle": "JAMIE Pro",
+      "proHint": "Sblocca tutti i vantaggi"
     },
     "favorites": {
       "tabGroups": "Gruppi",

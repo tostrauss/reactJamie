@@ -397,6 +397,33 @@ export const SettingsPage = () => {
           {t('settings.sections.account')}
         </h3>
 
+        {/* JAMIE Pro — first entry under Konto (Tina/Tobi 2026-09-03). Only an
+            UPSELL: Pro users already get the full "Pro-Abonnement" management
+            section further down, so showing it to them would be a dead end.
+            Hidden on native iOS because there is no purchase path there
+            (IAP isn't built) and Apple 3.1.1 forbids the entry point.
+            The modal itself renders the "bald verfügbar" teaser while
+            PAYMENTS_ENABLED is still false, so this is safe before the flip. */}
+        {!sub?.is_pro && !isNativeIOS() && (
+          <div
+            className="settings-row"
+            onClick={() => window.dispatchEvent(new Event('jamie:open-pro-modal'))}
+          >
+            <div className="settings-row-left">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-coral)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+              <div className="settings-row-stacked">
+                <span style={{ color: 'var(--accent-coral)', fontWeight: 600 }}>
+                  {t('settings.account.proTitle')}
+                </span>
+                <span className="settings-row-detail">{t('settings.account.proHint')}</span>
+              </div>
+            </div>
+            {chevron}
+          </div>
+        )}
+
         <div className="settings-row" onClick={() => navigate('/profile/edit')}>
           <div className="settings-row-left">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
