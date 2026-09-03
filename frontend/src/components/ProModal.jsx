@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -311,6 +311,24 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
   // §18 FAGG: the consumer must actively consent to immediate performance and
   // the resulting loss of the 14-day withdrawal right BEFORE purchase.
   const [consented,     setConsented]     = useState(false);
+  // Whether THIS user still gets the 14-day trial. Asked up front, because the
+  // trial is first-subscription-only (anti-farming) — advertising "14 Tage
+  // kostenlos" to a returning subscriber who is then charged immediately is a
+  // false promise, and in AT/DE a consumer-law problem (Tobi hit it on
+  // 2026-09-03). null = not yet known: until the answer arrives we show the
+  // NEUTRAL copy, never the trial claim, so a slow request can't over-promise.
+  const [trialEligible, setTrialEligible] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    subscriptionApi.getStatus()
+      .then(res => { if (!cancelled) setTrialEligible(res.data?.trial_eligible !== false); })
+      // On error assume NO trial — the safe direction: understating the offer is
+      // recoverable, promising a trial that doesn't materialise is not.
+      .catch(() => { if (!cancelled) setTrialEligible(false); });
+    return () => { cancelled = true; };
+  }, []);
+  const showTrialOffer = trialEligible === true;
 
   const maxSavings = Math.max(...PRO_PLANS.map(p => p.savings || 0));
 
@@ -521,7 +539,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                     </span>
                   </div>
                 )}
-                {purchasesEnabled() && (
+                {purchasesEnabled() && showTrialOffer && (
                   <p style={{ margin:'12px 0 0', fontSize:'13.5px', fontWeight:'800', color:'#4ade80' }}>
                     {t('pro.trialHeadline')}
                   </p>
@@ -628,7 +646,9 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                       display:'flex', alignItems:'center', justifyContent:'center', gap:'8px',
                     }}
                   >
-                    {loading ? <><Spinner /> {t('pro.loading')}</> : t('pro.ctaTrialStart')}
+                    {loading
+                      ? <><Spinner /> {t('pro.loading')}</>
+                      : showTrialOffer ? t('pro.ctaTrialStart') : t('pro.ctaSubscribe')}
                   </button>
                 </>
               ) : paymentsComingSoon() ? (

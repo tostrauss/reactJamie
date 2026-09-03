@@ -119,12 +119,29 @@ export const getStatus = async (req, res) => {
     const withinWindow = !!sub?.created_at &&
       (Date.now() - new Date(sub.created_at).getTime()) <= WITHDRAWAL_WINDOW_MS;
 
+    // Is this user still entitled to the 14-day trial? Same query as
+    // createSubscription's trialEligible — deliberately an EXISTS over ALL rows,
+    // not a look at the newest one: an abandoned checkout leaves a 'pending' row
+    // on top of an older 'canceled' one, and judging by the newest row alone
+    // would report "trial available" while the purchase then charges instantly.
+    // Any divergence here re-creates the bug this flag exists to fix (Tobi,
+    // 2026-09-03: his 03.08. test sub had consumed the trial, yet the modal
+    // still advertised "14 Tage kostenlos" and charged immediately).
+    const priorSub = await db.query(
+      `SELECT 1 FROM subscriptions
+       WHERE user_id = $1 AND status IN ('active','trialing','canceling','canceled','past_due')
+       LIMIT 1`,
+      [req.userId]
+    );
+    const trialEligible = priorSub.rows.length === 0;
+
     res.json({
       is_pro: !!isActive,
       is_trial: sub?.status === 'trialing',
       status: sub?.status || 'none',
       current_period_end: sub?.current_period_end || null,
       withdrawal_eligible: !!isActive && !isAppleManaged && withinWindow,
+      trial_eligible: trialEligible,
     });
   } catch (err) {
     console.error('getStatus error:', err);
