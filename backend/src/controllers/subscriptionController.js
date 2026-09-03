@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { isAppShellRequest, paymentsEnabled } from '../config/features.js';
 import { Sentry } from '../config/sentry.js';
 import { getClientIp } from '../utils/clientIp.js';
+import { checkSubscriptionCountry } from '../utils/paymentRegion.js';
 
 // Stripe Tax (IMPIBAG is USt-pflichtig, decided 2026-09-03). Own env switch,
 // separate from PAYMENTS_ENABLED, so tax can be turned off without touching the
@@ -146,6 +147,16 @@ export const createSubscription = async (req, res) => {
   // Store-policy backstop: no Stripe checkout from the Play/iOS app shells.
   if (isAppShellRequest(req)) {
     return res.status(403).json({ error: 'Abos sind nur im Browser verfügbar.', code: 'PAYMENTS_WEB_ONLY' });
+  }
+  // Sell only where we are tax-registered (AT+DE). The app itself stays open in
+  // every launch market — this gates the PAID product only.
+  const region = checkSubscriptionCountry(req);
+  if (!region.allowed) {
+    return res.status(403).json({
+      error: 'JAMIE Pro ist derzeit nur in Österreich und Deutschland verfügbar.',
+      code: 'SUBSCRIPTION_REGION_BLOCKED',
+      country: region.country,
+    });
   }
 
   // Resolve the requested plan against the server-side catalog. Unknown /
