@@ -85,7 +85,13 @@ export const NATIVE_API_ORIGIN = 'https://api.jamie-app.com';
 // ROLLBACK: Railway `PAYMENTS_ENABLED=false` — der Server 403t dann sofort
 // jeden NEUEN Kauf, egal was dieses Bundle zeigt; diese Zeile darf in Ruhe
 // im nächsten Deploy nachziehen.
-export const PAYMENTS_ENABLED = true;
+// 2026-09-03, NACH dem Go-Live wieder AUS (Tobi+Tina): dieses Release geht
+// mit Push-Notifications + allen UI-Aenderungen raus, ABER ohne Kaeufe.
+// Grund: ~70 % der Nutzer sind auf iOS, und dort ist Stripe fuer digitale
+// Gueter unzulaessig (StoreKit-IAP noch nicht gebaut) — ein Web-only-Verkauf
+// haette die Mehrheit ausgesperrt. Erst wieder true, wenn IAP steht.
+// Railway `PAYMENTS_ENABLED` MUSS ebenfalls auf false (Server fail-closed).
+export const PAYMENTS_ENABLED = false;
 
 // ── iOS In-App-Käufe ────────────────────────────────────────────────────
 // StoreKit IAP ist noch nicht fertig (Plugin + Apple-Quittungsprüfung offen —

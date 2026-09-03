@@ -9,155 +9,170 @@ export default function CommunityGuidelines() {
         </Link>
       </div>
 
-      <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 8 }}>JAMIE Community Guidelines</h1>
+      <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 8 }}>JAMIE.Groups Community Guidelines</h1>
       <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 32 }}>
-        Last updated: 09.06.2026
+        Last updated: 03.09.2026
       </p>
 
-      <Section title="Welcome to JAMIE!">
+      <Section title="Welcome to JAMIE.Groups!">
         <p>
-          JAMIE is a place to connect with people, build communities, organise activities,
-          and create meaningful experiences. To help keep the platform safe, welcoming, and
-          enjoyable for everyone, we ask all users to follow these Community Guidelines.
+          JAMIE.Groups is a place to connect with people, build communities, organise
+          activities and create meaningful experiences in real life. To keep the platform
+          safe, welcoming and enjoyable for everyone, we ask all users to follow these
+          Community Guidelines.
         </p>
       </Section>
 
-      <Section title="1. Be Respectful">
-        <p>Treat other users with kindness and respect.</p>
-        <p>Do not:</p>
-        <ul>
-          <li>Harass, bully, intimidate, or threaten others.</li>
-          <li>Engage in hate speech or discriminatory behaviour.</li>
-          <li>Promote violence or extremism.</li>
-          <li>
-            Target individuals or groups based on race, ethnicity, nationality, religion,
-            gender, sexual orientation, disability, or any other protected characteristic.
-          </li>
-        </ul>
-        <p>Healthy disagreements are welcome, but personal attacks are not.</p>
-      </Section>
-
-      <Section title="2. Be Authentic">
-        <p>Be yourself.</p>
-        <p>You may not:</p>
-        <ul>
-          <li>Impersonate another person or organisation.</li>
-          <li>Create fake or misleading profiles.</li>
-          <li>Misrepresent your identity or affiliations.</li>
-          <li>Create multiple accounts to avoid restrictions or enforcement actions.</li>
-        </ul>
-        <p>Use accurate information and help build a trustworthy community.</p>
-      </Section>
-
-      <Section title="3. Share Appropriate Content">
-        <p>You're responsible for the content you post.</p>
-        <p>Do not share:</p>
-        <ul>
-          <li>Illegal content.</li>
-          <li>Pornographic or sexually explicit material.</li>
-          <li>Graphic or excessively violent content.</li>
-          <li>Terrorist or extremist material.</li>
-          <li>Content promoting criminal or dangerous activities.</li>
-          <li>Fraudulent or deceptive information.</li>
-          <li>Content that infringes someone else's intellectual property rights.</li>
-        </ul>
-        <p>Only post content that you have the right to share.</p>
-      </Section>
-
-      <Section title="4. Keep Conversations Safe">
-        <p>Messaging and group chats should help people connect positively.</p>
-        <p>Do not:</p>
-        <ul>
-          <li>Send spam or unsolicited promotions.</li>
-          <li>Scam or deceive other users.</li>
-          <li>Send abusive or threatening messages.</li>
-          <li>Repeatedly contact users who do not wish to engage.</li>
-        </ul>
-        <p>Respect personal boundaries and privacy.</p>
-      </Section>
-
-      <Section title="5. Organise Activities Responsibly">
-        <p>JAMIE helps people discover activities and communities, but users organise their own events.</p>
-        <p>When creating activities or clubs:</p>
-        <ul>
-          <li>Provide accurate information.</li>
-          <li>Be honest about costs and expectations.</li>
-          <li>Treat participants fairly and respectfully.</li>
-          <li>Follow all applicable laws and local regulations.</li>
-        </ul>
-        <p>Always use good judgment when meeting people or attending activities.</p>
-      </Section>
-
-      <Section title="6. Build Positive Communities">
-        <p>Club and Group administrators should create welcoming environments.</p>
-        <p>Administrators should:</p>
-        <ul>
-          <li>Moderate discussions responsibly.</li>
-          <li>Encourage respectful behaviour.</li>
-          <li>Remove harmful or inappropriate content where appropriate.</li>
-          <li>
-            Follow these Guidelines and the{' '}
-            <Link to="/terms" style={{ color: 'var(--coral)' }}>Terms of Service</Link>.
-          </li>
-        </ul>
-        <p>Verified or featured status does not exempt anyone from these rules.</p>
-      </Section>
-
-      <Section title="7. Respect Businesses and Third Parties">
-        <p>Many activities may involve local businesses or organisations.</p>
-        <p>Do not:</p>
-        <ul>
-          <li>Post false or misleading reviews.</li>
-          <li>Misrepresent commercial relationships.</li>
-          <li>Abuse promotional offers or discounts.</li>
-        </ul>
-        <p>Treat businesses and community partners with the same respect as other users.</p>
-      </Section>
-
-      <Section title="8. Protect Privacy">
-        <p>Respect the privacy of others.</p>
-        <p>Do not:</p>
-        <ul>
-          <li>Share personal information without permission.</li>
-          <li>Publish private conversations or confidential information.</li>
-          <li>Stalk, track, or intimidate other users.</li>
-        </ul>
-        <p>Always obtain consent before sharing someone else's personal details or photos.</p>
-      </Section>
-
-      <Section title="9. Help Keep JAMIE Safe">
-        <p>If you see behaviour that violates these Guidelines:</p>
-        <ul>
-          <li>Report the content or user.</li>
-          <li>Avoid engaging in harassment or retaliation.</li>
-          <li>Help create a positive and safe community.</li>
-        </ul>
-        <p>Our moderation systems and team may review reported content and take appropriate action.</p>
-      </Section>
-
-      <Section title="10. Enforcement">
-        <p>Violations of these Guidelines may result in actions including:</p>
-        <ul>
-          <li>Content removal;</li>
-          <li>Warnings;</li>
-          <li>Temporary restrictions;</li>
-          <li>Temporary suspension;</li>
-          <li>Permanent account removal;</li>
-          <li>Removal of Clubs or Groups.</li>
-        </ul>
-        <p>We may take action where necessary to protect users and maintain the integrity of the JAMIE community.</p>
-      </Section>
-
-      <Section title="Our Community Values">
-        <p>JAMIE is built around a few simple principles:</p>
+      <Section title="1. Be respectful">
+        <p>Treat others with respect – online and in real life.</p>
         <p>
-          <strong>Be respectful.</strong> Treat people the way you'd like to be treated.<br />
-          <strong>Be genuine.</strong> Create real connections and honest communities.<br />
-          <strong>Be responsible.</strong> Take ownership of your actions, both online and offline.<br />
-          <strong>Be inclusive.</strong> Everyone should feel welcome and safe.<br />
-          <strong>Have fun.</strong> Meet new people, discover communities, and enjoy the experience.
+          Do not harass, bully, intimidate or threaten others. Hate speech, discrimination,
+          exclusion, violence and extremist content or behaviour have no place on
+          JAMIE.Groups.
         </p>
-        <p>Together, we can make JAMIE a positive place for everyone.</p>
+        <p>
+          Do not target individuals or groups based on race, ethnicity, nationality,
+          religion, gender, sexual orientation, disability or any other protected
+          characteristic.
+        </p>
+        <p>Healthy disagreements are welcome. Personal attacks are not.</p>
+      </Section>
+
+      <Section title="2. Find your vibe – but stay open">
+        <p>Not every activity or group is for everyone, and that's okay.</p>
+        <p>
+          You can create private groups and decide who joins your activity to make sure the
+          group feels like a good fit. At the same time, JAMIE.Groups is built around
+          openness, inclusion and meeting people beyond your existing circle.
+        </p>
+        <p>
+          Use group settings responsibly and never to discriminate against or intentionally
+          exclude people based on protected characteristics.
+        </p>
+      </Section>
+
+      <Section title="3. Keep Groups social, not commercial">
+        <p>
+          Groups on JAMIE.Groups are designed for people to connect through shared
+          activities and should generally be non-commercial in nature.
+        </p>
+        <p>
+          Do not use Groups primarily to advertise businesses, sell products or services,
+          recruit customers or repeatedly promote commercial offers.
+        </p>
+        <p>
+          Verified Clubs and partners may promote their own activities or events. Where
+          tickets or paid services are offered, payments and transactions may be handled by
+          third-party providers. JAMIE.Groups is not the seller or organiser unless
+          explicitly stated otherwise.
+        </p>
+      </Section>
+
+      <Section title="4. Be authentic">
+        <p>JAMIE.Groups works best when people know who they are meeting.</p>
+        <p>Do not:</p>
+        <ul>
+          <li>impersonate another person or organisation;</li>
+          <li>create fake or intentionally misleading profiles;</li>
+          <li>misrepresent your identity or affiliation;</li>
+          <li>use another person's photos as your own; or</li>
+          <li>
+            create additional accounts to avoid restrictions, suspensions or other
+            enforcement actions.
+          </li>
+        </ul>
+        <p>
+          When participating in Groups or Clubs, your profile must include a recognisable
+          photo of yourself where your face is clearly visible.
+        </p>
+      </Section>
+
+      <Section title="5. Share appropriate content">
+        <p>Only share content that is appropriate for the JAMIE.Groups community.</p>
+        <p>
+          Do not post or share illegal content, pornography or sexually explicit content,
+          graphic violence, extremist material, scams, spam or content intended to deceive
+          or harm others.
+        </p>
+        <p>Content involving sexual exploitation or abuse is strictly prohibited.</p>
+      </Section>
+
+      <Section title="6. Keep conversations safe">
+        <p>Chats should help people connect – not make others uncomfortable or unsafe.</p>
+        <p>
+          Do not send unwanted sexual messages, threats, repeated unwanted messages, spam or
+          abusive content. Respect people's boundaries. If someone does not want to continue
+          a conversation or asks you to stop contacting them, respect that.
+        </p>
+      </Section>
+
+      <Section title="7. Organise activities responsibly">
+        <p>
+          If you create a Group or activity, provide accurate information about what
+          participants can expect.
+        </p>
+        <p>
+          Do not intentionally mislead people about the activity, location, costs,
+          participants or purpose of a Group. Activities must comply with applicable laws
+          and should not unnecessarily put participants or others at risk.
+        </p>
+        <p>
+          Everyone remains responsible for their own decisions, actions and personal safety
+          when meeting others in real life.
+        </p>
+      </Section>
+
+      <Section title="8. Respect Clubs, businesses and third parties">
+        <p>Clubs, venues and other partners are part of the JAMIE.Groups community too.</p>
+        <p>
+          Respect their rules, staff, venues and offers. Do not misuse Deals, tickets,
+          promotions or other benefits.
+        </p>
+        <p>
+          Unless explicitly stated otherwise, third-party businesses and organisers are
+          responsible for their own events, products, services, payments and offers.
+        </p>
+      </Section>
+
+      <Section title="9. Protect privacy">
+        <p>Respect your own privacy and the privacy of others.</p>
+        <p>
+          Do not share someone else's private information, photos, messages or contact
+          details without their permission. Never use JAMIE.Groups to collect, publish or
+          misuse personal information about another person.
+        </p>
+        <p>
+          Think carefully before sharing sensitive personal information with people you have
+          not met.
+        </p>
+      </Section>
+
+      <Section title="10. Help keep JAMIE.Groups safe">
+        <p>
+          If you see something that violates these Guidelines or makes you feel unsafe,
+          please report it.
+        </p>
+        <p>
+          Depending on the situation, JAMIE.Groups may remove content, restrict features,
+          remove Groups or activities, issue warnings, temporarily suspend accounts or
+          permanently remove users from the platform.
+        </p>
+        <p>Serious or repeated violations may result in immediate suspension or removal.</p>
+      </Section>
+
+      <Section title="11. Our Community Values">
+        <p>
+          <strong>Be real. Be respectful. Be open.</strong>
+        </p>
+        <p>
+          JAMIE.Groups exists to make it easier to meet new people and spend less time
+          scrolling and more time experiencing real life together.
+        </p>
+        <p>
+          Different personalities, backgrounds and interests are what make a community
+          interesting. Treat people the way you'd want to be treated, respect boundaries and
+          help us build a community where people feel comfortable showing up.
+        </p>
       </Section>
     </div>
   );
