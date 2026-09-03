@@ -22,6 +22,19 @@ const DEAL_INTERVAL_HOME = 8;
 
 const MapView = lazyWithReload(() => import("../components/MapView"));
 
+// category name (lowercase) → emoji, flattened from the shared hierarchy so the
+// Clubs-tab category bar shows the same icons as the Events page and everywhere
+// else. Mirrors the helper in Events.jsx.
+const CAT_EMOJI = (() => {
+  const m = {};
+  for (const main of CATEGORY_HIERARCHY) {
+    if (main.label) m[main.label.toLowerCase()] = main.icon;
+    for (const sub of (main.subs || [])) m[sub.name.toLowerCase()] = sub.icon;
+  }
+  return m;
+})();
+const catEmojiFor = (cat) => CAT_EMOJI[(cat || '').toLowerCase()] || '🎉';
+
 const AgeRangeSlider = ({ value, onChange }) => {
   const MIN = 18, MAX = 70;
   const [lo, hi] = value;
@@ -98,6 +111,9 @@ export const Home = () => {
   const [alterFilter, setAlterFilter] = useState([18, 70]);
   const [sichtFilter, setSichtFilter] = useState('alle');
   const [kategorieFilter, setKategorieFilter] = useState(() => new Set());
+  // Clubs tab: inline single-select category bar (same UX as the Events page),
+  // separate from the Gruppen filter sheet. null = "Alle Kategorien".
+  const [clubCategory, setClubCategory] = useState(null);
 
   // Staged filters (selected inside open panel, not yet applied)
   const [showFilters, setShowFilters] = useState(false);
@@ -310,11 +326,21 @@ export const Home = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [groupList, searchQuery, zeitFilter, zeitFrom, zeitTo, alterFilter, sichtFilter, kategorieFilter]);
 
+  // Category pills for the Clubs tab are built from the categories actually
+  // present in the loaded clubs, so the bar never shows an empty filter.
+  const clubCategories = useMemo(() => {
+    const set = new Set();
+    for (const c of clubList) if (c.category) set.add(c.category);
+    return [...set].sort((a, b) => a.localeCompare(b, 'de'));
+  }, [clubList]);
+
+  // Clubs are filtered by the inline search + the inline category bar only
+  // (the extended filter sheet was dropped here — Tina/Tobi 2026-09-03).
   const filteredClubs = useMemo(() => clubList.filter(c =>
     matchesSearch(c) &&
-    matchesAlter(c) && matchesSicht(c) && matchesKategorie(c)
+    (!clubCategory || (c.category || '') === clubCategory)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [clubList, searchQuery, alterFilter, sichtFilter, kategorieFilter]);
+  ), [clubList, searchQuery, clubCategory]);
 
   // ── Filter panel actions ─────────────────────────────────────────
   const openFilters = () => {
@@ -500,58 +526,28 @@ export const Home = () => {
           </button>
         </div>
 
-        {/* Search + categories — sticky, only shown for non-map tabs */}
-        {activeTab !== 'karte' && (
+        {/* Sticky search bar — Gruppen tab only. The whole bar is a button that
+            opens the filter sheet (Tina 2026-07-27) — group discovery is filter-
+            driven, not free-text. Deliberately NOT an <input>: tapping a
+            read-only input still focuses it on iOS, which shoves the sticky
+            header via the visual viewport and doesn't restore on close (the
+            "page dragged down" bug). A plain div can't focus.
+            The Clubs tab moved its search + category bar into the scroll content
+            below Meine Clubs (Tina/Tobi 2026-09-03). */}
+        {activeTab === 'gruppen' && (
           <div className="home-search-area">
             <div className="search-container">
-              {activeTab === 'gruppen' ? (
-                /* Gruppen tab: the whole bar is just a button that opens the
-                   filter sheet (Tina 2026-07-27) — group discovery is filter-
-                   driven, not free-text. Deliberately NOT an <input>: tapping a
-                   read-only input still focuses it on iOS, which shoves the
-                   sticky header via the visual viewport and doesn't restore on
-                   close (the "page dragged down" bug). A plain div can't focus. */
-                <div
-                  className="search-input-wrapper"
-                  role="button"
-                  tabIndex={0}
-                  aria-label={t('home.search.filterAria')}
-                  onClick={openFilters}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFilters(); } }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="search-input">{t('home.filter.title')}</div>
-                  <span className={`search-filter-btn${activeFilterCount > 0 ? ' has-active' : ''}`} aria-hidden="true">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                      <line x1="4" y1="6" x2="20" y2="6"/>
-                      <line x1="8" y1="12" x2="16" y2="12"/>
-                      <line x1="12" y1="18" x2="12" y2="18" strokeWidth="3"/>
-                      <circle cx="9" cy="6" r="2" fill="currentColor" stroke="none"/>
-                      <circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/>
-                    </svg>
-                    {activeFilterCount > 0 && (
-                      <span className="filter-active-badge">{activeFilterCount}</span>
-                    )}
-                  </span>
-                </div>
-              ) : (
-              <div className="search-input-wrapper">
-                <input
-                  type="search"
-                  placeholder={t('home.search.placeholder')}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="search-input"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck="false"
-                />
-                <button
-                  className={`search-filter-btn${activeFilterCount > 0 ? ' has-active' : ''}`}
-                  onClick={openFilters}
-                  aria-label={t('home.search.filterAria')}
-                >
+              <div
+                className="search-input-wrapper"
+                role="button"
+                tabIndex={0}
+                aria-label={t('home.search.filterAria')}
+                onClick={openFilters}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openFilters(); } }}
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="search-input">{t('home.filter.title')}</div>
+                <span className={`search-filter-btn${activeFilterCount > 0 ? ' has-active' : ''}`} aria-hidden="true">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                     <line x1="4" y1="6" x2="20" y2="6"/>
                     <line x1="8" y1="12" x2="16" y2="12"/>
@@ -562,11 +558,9 @@ export const Home = () => {
                   {activeFilterCount > 0 && (
                     <span className="filter-active-badge">{activeFilterCount}</span>
                   )}
-                </button>
+                </span>
               </div>
-              )}
             </div>
-
           </div>
         )}
       </div>
@@ -676,6 +670,43 @@ export const Home = () => {
               <div className="section-header">
                 <h2 className="section-heading">{t('home.sections.trending')}</h2>
               </div>
+
+              {/* Same "Alle Kategorien" filter as the Events page + a thin,
+                  in-content search bar (Tina/Tobi 2026-09-03). The bar is built
+                  from the categories actually present so it's never empty. */}
+              {clubCategories.length > 0 && (
+                <div className="clubs-cat-row">
+                  <button
+                    type="button"
+                    className={`events-filter-pill${clubCategory === null ? ' active' : ''}`}
+                    onClick={() => setClubCategory(null)}
+                  >
+                    {t('events.filters.allCategories')}
+                  </button>
+                  {clubCategories.map(cat => (
+                    <button
+                      key={cat}
+                      type="button"
+                      className={`events-filter-pill${clubCategory === cat ? ' active' : ''}`}
+                      onClick={() => setClubCategory(clubCategory === cat ? null : cat)}
+                    >
+                      {catEmojiFor(cat)} {cat}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <input
+                className="clubs-search"
+                type="search"
+                placeholder={t('home.search.placeholder')}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
+              />
+
               {loading ? renderFeedSkeleton(4) : filteredClubs.length > 0 ? (
                 <div className="groups-grid clubs-grid">
                   {filteredClubs.map(renderClubCard)}

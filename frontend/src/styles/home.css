@@ -829,6 +829,37 @@
   margin-bottom: 28px;
 }
 
+/* Clubs tab — inline "Alle Kategorien" bar + thin search (Tina/Tobi 2026-09-03).
+   Lives inside .clubs-feed which already carries the 20px side gutter, so these
+   need no horizontal padding of their own. */
+.clubs-cat-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  margin: 0 0 12px;
+  padding-bottom: 2px;
+}
+.clubs-cat-row::-webkit-scrollbar { display: none; }
+.clubs-search {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-white);
+  font-family: inherit;
+  font-size: 14px;
+  margin: 0 0 18px;
+}
+.clubs-search::placeholder { color: var(--text-muted); }
+.clubs-search:focus {
+  outline: none;
+  border-color: var(--accent-coral);
+}
+
 .my-clubs-scroll {
   display: flex;
   gap: 14px;
