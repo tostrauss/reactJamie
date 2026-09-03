@@ -109,6 +109,33 @@ Wenn nicht: dem Console-Flow folgen (Identität + Signing-Keys bestätigen).
 
 ---
 
+## ④ UX-Feedback Tina (03.09) — Quick Wins + Brainstorm
+
+**Bereits umgesetzt (Code fertig, im selben Deploy):**
+1. Erstell-Sheet: „Plane eine Aktivität mit 4-20 Leuten" →
+   **„Erstelle eine Aktivität für 4-20 Leute"** (weniger „Arbeit"-Druck).
+   Alle 5 Sprachen.
+2. Clubs-Tab-Button „Club Events entdecken" → **„Events entdecken"** (führt
+   auf die Events-Seite; Label passt jetzt zum Ziel). Alle 5 Sprachen.
+3. **Event-Karten zeigen jetzt Datum + Ort** (📅/📍 unter dem Club-Namen) —
+   Daten kamen schon vom Backend, nur nicht angezeigt. Lokalisiert,
+   Recurring rollt auf den nächsten Termin.
+
+**Brainstorm — Ticketing (NICHT heute bauen):** Veranstalter wählt
+„kostenlos" / „mit Ticket", „mit Ticket" = Pro-Feature. Starker Pro-Hebel
+(Verkäufer haben Zahlungsbereitschaft). ABER echtes bezahltes Ticketing =
+fremdes Geld → Stripe **Connect** (Auszahlungen, Refunds, USt je
+Veranstalter, ggf. KYC) = eigenes Projekt, kein Toggle. **Billiger v1:**
+„mit Ticket" (Pro-only) setzt nur Preis + Kapazität + manuelles Abhaken der
+Zahler; Zahlung erst mal off-platform → Pro-Upsell + Nachfrage validieren,
+bevor Auszahlungen gebaut werden.
+
+Offene kleine Frage fürs Meeting: Wenn Ticket-Events ein Pro-Aushängeschild
+werden, evtl. Event-Erstellung im „+"-Sheet prominenter (heute unter
+„Gruppe erstellen" versteckt).
+
+---
+
 ## Nach dem Meeting (Tobi, DEV)
 - [ ] iOS-1.4-Build begleiten (Pods! `@capacitor/filesystem` neu) → dann
       AASA deployen (Reihenfolge!).

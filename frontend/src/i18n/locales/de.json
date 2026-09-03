@@ -626,7 +626,7 @@
       "eventsForYou": "Events für dich",
       "seeAll": "Alle anzeigen"
     },
-    "clubEventsDiscover": "Club Events entdecken",
+    "clubEventsDiscover": "Events entdecken",
     "filter": {
       "title": "Filter",
       "categories": "Kategorien",
@@ -1190,7 +1190,7 @@
     "createModal": {
       "title": "Was möchtest du erstellen?",
       "groupTitle": "Gruppe erstellen",
-      "groupDesc": "Plane eine Aktivität mit 4-20 Leuten",
+      "groupDesc": "Erstelle eine Aktivität für 4-20 Leute",
       "clubTitle": "Club gründen",
       "clubDesc": "Starte eine dauerhafte Community",
       "friendsTitle": "Freunde finden",
