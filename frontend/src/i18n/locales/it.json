@@ -428,7 +428,8 @@
         "join": "Partecipa",
         "participants": "{{current}} / {{max}} partecipanti"
       }
-    }
+    },
+    "ticketButton": "Acquista biglietti"
   },
   "explore": {
     "tabs": {
@@ -576,7 +577,15 @@
       "leaveError": "Uscita non riuscita",
       "requestSent": "Richiesta di ingresso inviata",
       "membersOnly": "Gli eventi sono visibili solo ai membri del club",
-      "membersOnlyHint": "Unisciti al club per vedere gli eventi"
+      "membersOnlyHint": "Unisciti al club per vedere gli eventi",
+      "freeLabel": "Evento gratuito",
+      "freeHint": "Partecipazione senza biglietto — togli la spunta per un evento a pagamento",
+      "paidLabel": "Evento a pagamento",
+      "paidHint": "Gli ospiti acquistano il biglietto tramite il tuo link",
+      "ticketLinkLabel": "Link biglietti",
+      "ticketLinkPlaceholder": "https://tuo-shop-biglietti.it/evento",
+      "ticketLinkHint": "Il link appare come pulsante biglietti sulla pagina dell'evento. La vendita avviene sul tuo shop.",
+      "errorTicketRequired": "Inserisci un link per i biglietti"
     }
   },
   "clubMembers": {

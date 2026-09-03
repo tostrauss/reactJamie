@@ -428,7 +428,8 @@
         "join": "Join",
         "participants": "{{current}} / {{max}} participants"
       }
-    }
+    },
+    "ticketButton": "Buy tickets"
   },
   "explore": {
     "tabs": {
@@ -576,7 +577,15 @@
       "leaveError": "Could not leave",
       "requestSent": "Join request sent",
       "membersOnly": "Events are only visible to club members",
-      "membersOnlyHint": "Join the club to see events"
+      "membersOnlyHint": "Join the club to see events",
+      "freeLabel": "Free event",
+      "freeHint": "Join without a ticket — uncheck for a paid event",
+      "paidLabel": "Paid event",
+      "paidHint": "Guests buy their ticket via your link",
+      "ticketLinkLabel": "Ticket link",
+      "ticketLinkPlaceholder": "https://your-ticketshop.com/event",
+      "ticketLinkHint": "The link appears as a ticket button on the event page. Sales run through your own shop.",
+      "errorTicketRequired": "Please enter a ticket link"
     }
   },
   "clubMembers": {

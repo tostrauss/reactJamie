@@ -414,6 +414,31 @@
   overflow-wrap: break-word;
 }
 
+/* Ticket link for paid events — sits between the description and the map
+   (Tina/Tobi 2026-09-03). Orange to separate it from the coral app actions:
+   this one leaves JAMIE and costs money. */
+.gd-ticket-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 16px;
+  margin-bottom: 24px;
+  border-radius: var(--radius-md, 14px);
+  background: rgba(255, 149, 0, 0.12);
+  border: 1px solid rgba(255, 149, 0, 0.5);
+  color: #ff9500;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.15s;
+}
+.gd-ticket-btn:active { background: rgba(255, 149, 0, 0.2); }
+.gd-ticket-btn-icon { font-size: 18px; line-height: 1; }
+.gd-ticket-btn-text { flex: 1; min-width: 0; }
+
 /* Location mini-map */
 .gd-map-section {
   margin-bottom: 20px;

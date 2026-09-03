@@ -43,7 +43,7 @@ const formatEventDate = (dateStr, locale) => {
 export const ClubDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useContext(AuthContext);
+  const { user, isPro } = useContext(AuthContext);
   const toast = useToast();
   const { t, i18n } = useTranslation();
   const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : ((i18n.resolvedLanguage || i18n.language || 'de').startsWith('fr') ? 'fr-FR' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('es') ? 'es-ES' : 'de-AT');
@@ -65,7 +65,7 @@ export const ClubDetail = () => {
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsLocked, setEventsLocked] = useState(false);
   const [showCreateEvent, setShowCreateEvent] = useState(false);
-  const [eventForm, setEventForm] = useState({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20, is_recurring_weekly: false });
+  const [eventForm, setEventForm] = useState({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20, is_recurring_weekly: false, is_paid: false, ticket_url: '' });
   const [eventSubmitting, setEventSubmitting] = useState(false);
   const [joiningEventId, setJoiningEventId] = useState(null);
   const eventLocationRef = useRef(null);
@@ -274,6 +274,11 @@ export const ClubDetail = () => {
     e.preventDefault();
     if (!eventForm.name.trim()) { toast.error(t('clubDetail.events.errorNameRequired')); return; }
     if (!eventForm.date) { toast.error(t('clubDetail.events.errorDateRequired')); return; }
+    // A paid event without a ticket link would leave attendees no way to buy.
+    if (eventForm.is_paid && !eventForm.ticket_url.trim()) {
+      toast.error(t('clubDetail.events.errorTicketRequired'));
+      return;
+    }
     // Recurring events legitimately start "now/in the past" — they roll forward
     // each week — so only enforce the future check on one-off events.
     if (!eventForm.is_recurring_weekly) {
@@ -290,12 +295,13 @@ export const ClubDetail = () => {
         location: eventForm.location.trim() || undefined,
         max_members: parseInt(eventForm.max_members, 10) || 20,
         is_recurring_weekly: eventForm.is_recurring_weekly,
+        ticket_url: eventForm.is_paid ? eventForm.ticket_url.trim() : undefined,
       });
       const newEvent = res.data;
       newEvent.is_member = true;
       setEvents(prev => [newEvent, ...prev].sort((a, b) => new Date(a.date) - new Date(b.date)));
       setShowCreateEvent(false);
-      setEventForm({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20, is_recurring_weekly: false });
+      setEventForm({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20, is_recurring_weekly: false, is_paid: false, ticket_url: '' });
       toast.success(t('clubDetail.events.createdToast'));
     } catch (err) {
       toast.error(err.response?.data?.error || t('clubDetail.events.createError'));
@@ -576,6 +582,64 @@ export const ClubDetail = () => {
                     <span className="cd-event-recurring-hint">{t('clubDetail.events.weeklyHint')}</span>
                   </span>
                 </label>
+
+                {/* Kostenfrei ⇄ kostenpflichtig (Tina/Tobi 2026-09-03). Checked
+                    (default) = free. Unchecking it is the PRO gate: non-Pro
+                    users get the ProModal and the box stays checked. Paid mode
+                    reveals the external ticket-link field — JAMIE never takes
+                    the money, it only links out to the organiser's shop. */}
+                <label className={`cd-event-recurring cd-event-paid${eventForm.is_paid ? ' is-paid' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={!eventForm.is_paid}
+                    onChange={e => {
+                      if (!e.target.checked) {
+                        // Turning OFF "kostenfrei" = wanting a paid event.
+                        if (!isPro) {
+                          // iOS must never show a purchase entry point (Apple 3.1.1).
+                          if (!isNativeIOS()) window.dispatchEvent(new Event('jamie:open-pro-modal'));
+                          return; // stays free
+                        }
+                        setEventForm(f => ({ ...f, is_paid: true }));
+                      } else {
+                        setEventForm(f => ({ ...f, is_paid: false, ticket_url: '' }));
+                      }
+                    }}
+                  />
+                  <span className="cd-event-recurring-text">
+                    <span className="cd-event-recurring-title">
+                      {eventForm.is_paid
+                        ? t('clubDetail.events.paidLabel')
+                        : t('clubDetail.events.freeLabel')}
+                    </span>
+                    <span className="cd-event-recurring-hint">
+                      {eventForm.is_paid
+                        ? t('clubDetail.events.paidHint')
+                        : t('clubDetail.events.freeHint')}
+                    </span>
+                  </span>
+                </label>
+
+                {eventForm.is_paid && (
+                  <div className="cd-event-ticket-banner">
+                    <label className="cd-event-ticket-label" htmlFor="cd-ticket-url">
+                      🎟️ {t('clubDetail.events.ticketLinkLabel')}
+                    </label>
+                    <input
+                      id="cd-ticket-url"
+                      className="cd-event-input cd-event-ticket-input"
+                      type="url"
+                      inputMode="url"
+                      placeholder={t('clubDetail.events.ticketLinkPlaceholder')}
+                      value={eventForm.ticket_url}
+                      onChange={e => setEventForm(f => ({ ...f, ticket_url: e.target.value }))}
+                      autoComplete="off"
+                      autoCapitalize="off"
+                      spellCheck="false"
+                    />
+                    <span className="cd-event-ticket-hint">{t('clubDetail.events.ticketLinkHint')}</span>
+                  </div>
+                )}
                 <button type="submit" className="cd-event-submit-btn" disabled={eventSubmitting}>
                   {eventSubmitting ? t('clubDetail.events.creating') : t('clubDetail.events.create')}
                 </button>

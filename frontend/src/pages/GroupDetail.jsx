@@ -788,6 +788,25 @@ export const GroupDetail = () => {
               <p className="gd-description">{group.description}</p>
             )}
 
+            {/* Ticket link for paid events — between the description and the
+                map (Tina/Tobi 2026-09-03). Opens the organiser's own shop in a
+                new tab; JAMIE never processes the payment. rel=noopener keeps
+                the target page from reaching back via window.opener. */}
+            {group.ticket_url && (
+              <a
+                className="gd-ticket-btn"
+                href={group.ticket_url}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+              >
+                <span className="gd-ticket-btn-icon" aria-hidden="true">🎟️</span>
+                <span className="gd-ticket-btn-text">{t('groups.ticketButton')}</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </a>
+            )}
+
             {/* Location mini-map */}
             {group.lat != null && group.lng != null && (
               <div className="gd-map-section">

@@ -740,6 +740,31 @@
   background: var(--accent-coral);
   border-color: var(--accent-coral);
 }
+
+/* Paid-event toggle + ticket banner (Tina/Tobi 2026-09-03). Unchecked = paid,
+   and the label then turns orange to mark it as the Pro/monetised branch. */
+.cd-event-paid.is-paid { border-color: rgba(255, 149, 0, 0.45); }
+.cd-event-paid.is-paid .cd-event-recurring-title { color: #ff9500; }
+.cd-event-ticket-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 149, 0, 0.08);
+  border: 1px solid rgba(255, 149, 0, 0.35);
+}
+.cd-event-ticket-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ff9500;
+}
+.cd-event-ticket-input { width: 100%; }
+.cd-event-ticket-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
 .cd-event-recurring input[type="checkbox"]:checked::after {
   content: '';
   position: absolute;

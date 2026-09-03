@@ -428,7 +428,8 @@
         "join": "Participar",
         "participants": "{{current}} / {{max}} participantes"
       }
-    }
+    },
+    "ticketButton": "Comprar entradas"
   },
   "explore": {
     "tabs": {
@@ -576,7 +577,15 @@
       "leaveError": "Error al salir",
       "requestSent": "Solicitud de ingreso enviada",
       "membersOnly": "Los eventos solo son visibles para los miembros del club",
-      "membersOnlyHint": "Únete al club para ver los eventos"
+      "membersOnlyHint": "Únete al club para ver los eventos",
+      "freeLabel": "Evento gratuito",
+      "freeHint": "Participa sin entrada — desmarca para un evento de pago",
+      "paidLabel": "Evento de pago",
+      "paidHint": "Los invitados compran su entrada con tu enlace",
+      "ticketLinkLabel": "Enlace de entradas",
+      "ticketLinkPlaceholder": "https://tu-tienda-entradas.com/evento",
+      "ticketLinkHint": "El enlace aparece como botón de entradas en la página del evento. La venta se realiza en tu propia tienda.",
+      "errorTicketRequired": "Introduce un enlace de entradas"
     }
   },
   "clubMembers": {

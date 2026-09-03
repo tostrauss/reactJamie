@@ -692,6 +692,14 @@ const runStartupMigrations = async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS is_recurring_weekly BOOLEAN NOT NULL DEFAULT FALSE`);
   });
 
+  // Paid events (Tina/Tobi 2026-09-03): a Pro-only toggle turns an event from
+  // "Kostenfreies Event" into "Kostenpflichtiges Event" with an external ticket
+  // link. JAMIE never handles the money — we only link out to the organiser's
+  // own ticket shop, so no Stripe Connect / payout obligations here.
+  await migrate('groups.ticket_url', async () => {
+    await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS ticket_url TEXT`);
+  });
+
   await migrate('groups.target_age_min_max', async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS target_age_min INTEGER`);
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS target_age_max INTEGER`);

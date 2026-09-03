@@ -428,7 +428,8 @@
         "join": "Mitmachen",
         "participants": "{{current}} / {{max}} Teilnehmer"
       }
-    }
+    },
+    "ticketButton": "Tickets kaufen"
   },
   "explore": {
     "tabs": {
@@ -576,7 +577,15 @@
       "leaveError": "Verlassen fehlgeschlagen",
       "requestSent": "Beitrittsanfrage gesendet",
       "membersOnly": "Events sind nur für Clubmitglieder sichtbar",
-      "membersOnlyHint": "Tritt dem Club bei, um Events zu sehen"
+      "membersOnlyHint": "Tritt dem Club bei, um Events zu sehen",
+      "freeLabel": "Kostenfreies Event",
+      "freeHint": "Teilnahme ohne Ticket — Haken entfernen für ein kostenpflichtiges Event",
+      "paidLabel": "Kostenpflichtiges Event",
+      "paidHint": "Gäste kaufen ihr Ticket über deinen Link",
+      "ticketLinkLabel": "Ticket-Link",
+      "ticketLinkPlaceholder": "https://dein-ticketshop.at/event",
+      "ticketLinkHint": "Der Link erscheint als Ticket-Button auf der Event-Seite. Der Verkauf läuft über deinen eigenen Shop.",
+      "errorTicketRequired": "Bitte gib einen Ticket-Link an"
     }
   },
   "clubMembers": {

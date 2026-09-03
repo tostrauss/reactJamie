@@ -17,6 +17,28 @@ const DISCOVER_EVENTS_TTL = 60_000; // 60 s — discover feed needn't be real-ti
 // Helper to ensure we always target clubs
 const CLUB_TYPE = 'club';
 
+// Ticket links are rendered as a tappable button on the event page, so only
+// http(s) may pass — a `javascript:` or `data:` URL there would be an XSS
+// vector. Returns the cleaned absolute URL, or null when absent/invalid.
+// A bare "shop.example.com/tickets" is upgraded to https:// rather than
+// rejected, since organisers paste links without a scheme all the time.
+export const normalizeTicketUrl = (raw) => {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (trimmed.length > 2048) return null;
+  const candidate = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed) ? trimmed : `https://${trimmed}`;
+  let parsed;
+  try {
+    parsed = new URL(candidate);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+  if (!parsed.hostname) return null;
+  return parsed.toString();
+};
+
 // Anti-churn cap: a user may join any given club at most this many times
 // (counted across leaves via group_join_counts) to stop join/leave spam.
 const MAX_CLUB_JOINS = 2;
@@ -1294,12 +1316,23 @@ export const getDiscoverEvents = async (req, res) => {
 // ==========================================
 export const createClubEvent = async (req, res) => {
   const { id } = req.params;
-  const { name, description, date, time, location, max_members, is_recurring_weekly } = req.body;
+  const { name, description, date, time, location, max_members, is_recurring_weekly, ticket_url } = req.body;
   const userId = req.userId;
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
   if (!date) return res.status(400).json({ error: 'Datum ist erforderlich' });
+
+  // Paid events are a Pro feature (Tina/Tobi 2026-09-03). The frontend gates
+  // the toggle behind the ProModal, but that's bypassable with a direct API
+  // call — so validate the link AND the subscription here too.
+  const ticketUrl = normalizeTicketUrl(ticket_url);
+  if (ticket_url && !ticketUrl) {
+    return res.status(400).json({ error: 'Ungültiger Ticket-Link (nur http/https)' });
+  }
+  if (ticketUrl && !(await isUserPro(userId))) {
+    return res.status(403).json({ error: 'Kostenpflichtige Events sind ein Pro-Feature.', code: 'PRO_REQUIRED' });
+  }
 
   try {
     const club = await db.query(
@@ -1357,8 +1390,8 @@ export const createClubEvent = async (req, res) => {
     const event = await createEntityWithOwner(
       `INSERT INTO groups
          (name, description, type, category, date, location, max_members, owner_id,
-          parent_club_id, is_private, lat, lng, is_recurring_weekly)
-       VALUES ($1, $2, 'event', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          parent_club_id, is_private, lat, lng, is_recurring_weekly, ticket_url)
+       VALUES ($1, $2, 'event', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         name.trim(),
@@ -1373,6 +1406,7 @@ export const createClubEvent = async (req, res) => {
         coords?.lat ?? null,
         coords?.lng ?? null,
         !!is_recurring_weekly,
+        ticketUrl,
       ],
       userId
     );
@@ -1451,11 +1485,25 @@ export const deleteClubEvent = async (req, res) => {
 // the discover feed, and the map all reflect the edit immediately.
 export const updateClubEvent = async (req, res) => {
   const { id, eventId } = req.params;
-  const { name, description, date, time, location, max_members, is_recurring_weekly, image_url } = req.body;
+  const { name, description, date, time, location, max_members, is_recurring_weekly, image_url, ticket_url } = req.body;
   const userId = req.userId;
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   if (name !== undefined && !String(name).trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
+
+  // Ticket link (Pro-only, same rules as createClubEvent). An explicit empty
+  // string clears it — that's "back to a free event" and needs no Pro check.
+  let ticketUrl = null;
+  if (ticket_url !== undefined) {
+    const isClearing = typeof ticket_url === 'string' && !ticket_url.trim();
+    ticketUrl = isClearing ? '' : normalizeTicketUrl(ticket_url);
+    if (!isClearing && !ticketUrl) {
+      return res.status(400).json({ error: 'Ungültiger Ticket-Link (nur http/https)' });
+    }
+    if (ticketUrl && !(await isUserPro(userId))) {
+      return res.status(403).json({ error: 'Kostenpflichtige Events sind ein Pro-Feature.', code: 'PRO_REQUIRED' });
+    }
+  }
 
   try {
     const event = await db.query(
@@ -1500,6 +1548,10 @@ export const updateClubEvent = async (req, res) => {
              max_members         = COALESCE($5, max_members),
              is_recurring_weekly = COALESCE($6, is_recurring_weekly),
              image_url           = COALESCE($10, image_url),
+             -- '' clears the link (free event again); NULL leaves it untouched.
+             ticket_url          = CASE WHEN $11 IS NULL THEN ticket_url
+                                        WHEN $11 = '' THEN NULL
+                                        ELSE $11 END,
              lat = CASE WHEN $4 IS NOT NULL THEN $7 ELSE lat END,
              lng = CASE WHEN $4 IS NOT NULL THEN $8 ELSE lng END,
              updated_at = CURRENT_TIMESTAMP
@@ -1516,6 +1568,7 @@ export const updateClubEvent = async (req, res) => {
         coords?.lng ?? null,
         eventId,
         image_url !== undefined ? (image_url || null) : null,
+        ticketUrl,
       ]
     );
 
