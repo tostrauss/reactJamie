@@ -1320,7 +1320,10 @@
     "restoreBtn": "Restore purchases",
     "iosTerms": "JAMIE Pro renews automatically at the selected price at the end of each period. Cancel anytime in iOS Settings → Apple ID → Subscriptions, at least 24 hours before renewal.",
     "terms": "Terms",
-    "privacy": "Privacy"
+    "privacy": "Privacy",
+    "contextCta": {
+      "paidEvents": "Create your paid event now!"
+    }
   },
   "boost": {
     "title": "🚀 Boost",

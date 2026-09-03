@@ -1320,7 +1320,10 @@
     "restoreBtn": "Restaurar compras",
     "iosTerms": "JAMIE Pro se renueva automáticamente al precio elegido al final de cada período. Cancelable en cualquier momento en Ajustes de iOS → ID de Apple → Suscripciones, al menos 24 h antes del vencimiento.",
     "terms": "Términos",
-    "privacy": "Privacidad"
+    "privacy": "Privacidad",
+    "contextCta": {
+      "paidEvents": "¡Crea ahora tu evento de pago!"
+    }
   },
   "boost": {
     "title": "🚀 Boost",

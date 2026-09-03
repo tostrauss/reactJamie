@@ -1320,7 +1320,10 @@
     "restoreBtn": "Käufe wiederherstellen",
     "iosTerms": "JAMIE Pro verlängert sich automatisch zum gewählten Preis am Ende jeder Laufzeit. Kündbar jederzeit über iOS-Einstellungen → Apple-ID → Abos, mindestens 24 Std. vor Ablauf.",
     "terms": "AGB",
-    "privacy": "Datenschutz"
+    "privacy": "Datenschutz",
+    "contextCta": {
+      "paidEvents": "Erstelle jetzt dein kostenpflichtiges Event!"
+    }
   },
   "boost": {
     "title": "🚀 Boost",

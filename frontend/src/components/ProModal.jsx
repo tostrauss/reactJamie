@@ -499,6 +499,16 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                 <h2 style={{ fontSize:'28px', fontWeight:'900', color:'#fff', margin:'0 0 8px' }}>
                   {t('pro.title')}
                 </h2>
+                {/* Context call-out: when the modal was opened from a specific
+                    locked feature, name that feature right under the title in
+                    coral so it reads as "this is what you came for", not a
+                    generic upsell. Pairs with the matching first feature bubble
+                    below (Tina/Tobi 2026-09-03). */}
+                {CONTEXT_FEATURE[feature] && (
+                  <p style={{ margin:'0 0 10px', fontSize:'13.5px', fontWeight:'800', color:'#FD7666' }}>
+                    {t(`pro.contextCta.${feature}`)}
+                  </p>
+                )}
                 {/* "NEU – Spare bis zu XX%" pill — nur wenn auch wirklich kaufbar.
                     Im "Bald verfügbar"-Zustand wäre ein Spar-Versprechen irreführend. */}
                 {purchasesEnabled() && (

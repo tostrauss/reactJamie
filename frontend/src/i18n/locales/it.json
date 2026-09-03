@@ -1320,7 +1320,10 @@
     "restoreBtn": "Ripristina acquisti",
     "iosTerms": "JAMIE Pro si rinnova automaticamente al prezzo selezionato alla fine di ogni periodo. Disdici in qualsiasi momento in Impostazioni iOS → ID Apple → Abbonamenti, almeno 24 ore prima della scadenza.",
     "terms": "Termini",
-    "privacy": "Privacy"
+    "privacy": "Privacy",
+    "contextCta": {
+      "paidEvents": "Crea subito il tuo evento a pagamento!"
+    }
   },
   "boost": {
     "title": "🚀 Boost",
