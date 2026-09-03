@@ -585,7 +585,8 @@
       "ticketLinkLabel": "Link biglietti",
       "ticketLinkPlaceholder": "https://tuo-shop-biglietti.it/evento",
       "ticketLinkHint": "Il link appare come pulsante biglietti sulla pagina dell'evento. La vendita avviene sul tuo shop.",
-      "errorTicketRequired": "Inserisci un link per i biglietti"
+      "errorTicketRequired": "Inserisci un link per i biglietti",
+      "errorProRequired": "Gli eventi a pagamento sono una funzione di JAMIE Pro."
     }
   },
   "clubMembers": {

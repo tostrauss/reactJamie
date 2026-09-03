@@ -585,7 +585,8 @@
       "ticketLinkLabel": "Ticket-Link",
       "ticketLinkPlaceholder": "https://dein-ticketshop.at/event",
       "ticketLinkHint": "Der Link erscheint als Ticket-Button auf der Event-Seite. Der Verkauf läuft über deinen eigenen Shop.",
-      "errorTicketRequired": "Bitte gib einen Ticket-Link an"
+      "errorTicketRequired": "Bitte gib einen Ticket-Link an",
+      "errorProRequired": "Kostenpflichtige Events sind ein JAMIE Pro Feature."
     }
   },
   "clubMembers": {

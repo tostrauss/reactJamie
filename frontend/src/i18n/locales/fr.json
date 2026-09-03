@@ -585,7 +585,8 @@
       "ticketLinkLabel": "Lien billetterie",
       "ticketLinkPlaceholder": "https://ta-billetterie.fr/evenement",
       "ticketLinkHint": "Le lien apparaît comme bouton billetterie sur la page de l'événement. La vente se fait via ta propre boutique.",
-      "errorTicketRequired": "Indique un lien de billetterie"
+      "errorTicketRequired": "Indique un lien de billetterie",
+      "errorProRequired": "Les événements payants sont une fonctionnalité JAMIE Pro."
     }
   },
   "clubMembers": {

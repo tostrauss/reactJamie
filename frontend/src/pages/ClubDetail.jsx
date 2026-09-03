@@ -274,6 +274,25 @@ export const ClubDetail = () => {
     e.preventDefault();
     if (!eventForm.name.trim()) { toast.error(t('clubDetail.events.errorNameRequired')); return; }
     if (!eventForm.date) { toast.error(t('clubDetail.events.errorDateRequired')); return; }
+    // Pro gate for paid events, enforced here rather than on the checkbox so
+    // the user can fill the whole thing in first (Tina/Tobi 2026-09-03).
+    // Checked BEFORE the ticket-link check: nagging a non-Pro user about a link
+    // they can't use yet is the wrong message — show them the offer instead.
+    // The server re-checks (createClubEvent), this is only the UX path.
+    if (eventForm.is_paid && !isPro) {
+      if (isNativeIOS()) {
+        // Apple 3.1.1: no purchase entry point on iOS, so the modal never
+        // opens there — without this the button would silently do nothing.
+        toast.error(t('clubDetail.events.errorProRequired'));
+      } else {
+        // detail.feature makes the modal lead with the "Kostenpflichtige
+        // Events" bubble instead of the generic pitch.
+        window.dispatchEvent(new CustomEvent('jamie:open-pro-modal', {
+          detail: { feature: 'paidEvents' },
+        }));
+      }
+      return;
+    }
     // A paid event without a ticket link would leave attendees no way to buy.
     if (eventForm.is_paid && !eventForm.ticket_url.trim()) {
       toast.error(t('clubDetail.events.errorTicketRequired'));
@@ -584,34 +603,21 @@ export const ClubDetail = () => {
                 </label>
 
                 {/* Kostenfrei ⇄ kostenpflichtig (Tina/Tobi 2026-09-03). Checked
-                    (default) = free. Unchecking it is the PRO gate: non-Pro
-                    users get the ProModal and the box stays checked. Paid mode
-                    reveals the external ticket-link field — JAMIE never takes
-                    the money, it only links out to the organiser's shop. */}
+                    (default) = free; unchecking reveals the external ticket-link
+                    field — JAMIE never takes the money, it only links out to the
+                    organiser's shop.
+                    The Pro gate deliberately sits on SUBMIT, not here: everyone
+                    can untick and fill the link in, and only "Event erstellen"
+                    opens the Pro modal. Letting people see and complete the
+                    feature first sells it far better than a checkbox that
+                    refuses to move (and it kills the dead-control feel). */}
                 <label className={`cd-event-recurring cd-event-paid${eventForm.is_paid ? ' is-paid' : ''}`}>
                   <input
                     type="checkbox"
                     checked={!eventForm.is_paid}
-                    onChange={e => {
-                      if (!e.target.checked) {
-                        // Turning OFF "kostenfrei" = wanting a paid event.
-                        if (!isPro) {
-                          // iOS must never show a purchase entry point (Apple 3.1.1).
-                          // detail.feature makes the modal lead with the
-                          // "Kostenpflichtige Events" bubble instead of the
-                          // generic pitch, so the reason is the first thing read.
-                          if (!isNativeIOS()) {
-                            window.dispatchEvent(new CustomEvent('jamie:open-pro-modal', {
-                              detail: { feature: 'paidEvents' },
-                            }));
-                          }
-                          return; // stays free
-                        }
-                        setEventForm(f => ({ ...f, is_paid: true }));
-                      } else {
-                        setEventForm(f => ({ ...f, is_paid: false, ticket_url: '' }));
-                      }
-                    }}
+                    onChange={e => setEventForm(f => e.target.checked
+                      ? { ...f, is_paid: false, ticket_url: '' }
+                      : { ...f, is_paid: true })}
                   />
                   <span className="cd-event-recurring-text">
                     <span className="cd-event-recurring-title">

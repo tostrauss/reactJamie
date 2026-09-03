@@ -585,7 +585,8 @@
       "ticketLinkLabel": "Ticket link",
       "ticketLinkPlaceholder": "https://your-ticketshop.com/event",
       "ticketLinkHint": "The link appears as a ticket button on the event page. Sales run through your own shop.",
-      "errorTicketRequired": "Please enter a ticket link"
+      "errorTicketRequired": "Please enter a ticket link",
+      "errorProRequired": "Paid events are a JAMIE Pro feature."
     }
   },
   "clubMembers": {
