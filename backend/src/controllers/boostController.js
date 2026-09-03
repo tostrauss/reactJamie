@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { isUserPro, revokeSubscriptionForCharge } from './subscriptionController.js';
 import { invalidatePrefix } from '../utils/cache.js';
 import { REFERRAL_CREDITS_ENABLED, isAppShellRequest, paymentsEnabled } from '../config/features.js';
+import { checkSubscriptionCountry } from '../utils/paymentRegion.js';
 
 // Execute a function inside a real DB transaction on a single dedicated connection.
 // This is required because db.query() pulls from a pool — consecutive calls may land
@@ -207,6 +208,18 @@ export const createStripeIntent = async (req, res) => {
   // Store-policy backstop: no Stripe checkout from the Play/iOS app shells.
   if (isAppShellRequest(req)) {
     return res.status(403).json({ error: 'Boosts sind nur im Browser verfügbar.', code: 'PAYMENTS_WEB_ONLY' });
+  }
+  // Same tax-registration gate as Pro (AT+DE). Boosts are one-off
+  // PaymentIntents, which Stripe Tax cannot itemize at all — so restricting
+  // WHERE they sell matters even more here: the VAT has to be declared from the
+  // gross amount by hand, and that only works for a country we're registered in.
+  const region = checkSubscriptionCountry(req);
+  if (!region.allowed) {
+    return res.status(403).json({
+      error: 'Boosts sind derzeit nur in Österreich und Deutschland verfügbar.',
+      code: 'PAYMENTS_REGION_BLOCKED',
+      country: region.country,
+    });
   }
 
   const { package_id } = req.body;
