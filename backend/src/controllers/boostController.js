@@ -312,7 +312,12 @@ async function _creditUserInTx(client, userId, credits, provider, paymentId) {
     [provider, paymentId]
   );
   if (claim.rowCount === 0) {
-    // Already credited (replay) — no-op, return silently.
+    // Normally a webhook replay (already credited) — expected and harmless.
+    // But the SAME branch fires when no pending row exists at all, i.e. the
+    // customer was charged and the credits will never be granted. We can't tell
+    // the two apart here, so log it: without this, "paid but got nothing" left
+    // no trace anywhere to correlate against the Stripe payment.
+    console.warn(`creditUser: no pending ${provider} transaction claimed for payment ${paymentId} (replay, or the customer was charged with no pending row)`);
     return { credited: false };
   }
   // Use the txn's recorded user_id/credits — never trust caller-supplied values

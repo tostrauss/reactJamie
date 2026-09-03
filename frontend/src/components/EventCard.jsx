@@ -27,13 +27,20 @@ export function EventCard({ event }) {
 
   // Date + location on the card — so people can judge an event at a glance
   // without opening it (Tina, 03.09).
+  //
+  // ALWAYS format in UTC. Event start times are a naive wall-clock in
+  // groups.date; on the UTC server they round-trip tagged UTC, so formatting in
+  // the device's zone shifts them +1/+2h (CEST) — the card would say 22:00 for
+  // an event the detail page says is at 20:00. Same fix as ClubDetail's
+  // formatEventDate and GroupDetail's dateParts. The 00:00 guard must use
+  // getUTC* for the same reason (Home.jsx's 'ganztags' filter documents it).
   const locale = DATE_LOCALES[i18n.language?.slice(0, 2)] || 'de-DE';
   let dateLabel = null;
   if (occ) {
-    dateLabel = occ.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short' });
+    dateLabel = occ.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
     // Append the time only when one was actually set (date-only events store 00:00).
-    if (occ.getHours() !== 0 || occ.getMinutes() !== 0) {
-      dateLabel += ', ' + occ.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+    if (occ.getUTCHours() !== 0 || occ.getUTCMinutes() !== 0) {
+      dateLabel += ', ' + occ.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
     }
   }
 

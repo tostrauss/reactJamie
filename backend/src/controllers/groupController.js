@@ -8,6 +8,7 @@ import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/c
 import { postSystemMessage } from '../utils/systemMessage.js';
 import { isUserPro } from './subscriptionController.js';
 import { normalizeCategories } from '../utils/normalizeCategories.js';
+import { checkImageField } from '../utils/safeUrl.js';
 import { createEntityWithOwner, notifyCancellationFanout } from '../services/entityLifecycle.js';
 
 const GROUPS_TTL  = 30_000;  // 30 s — acceptable staleness for list views
@@ -230,6 +231,13 @@ export const createGroup = async (req, res) => {
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
+  // image_url renders to every viewer (feed, map, discover, push deep-links).
+  // Unvalidated it accepted javascript:/data: URLs and was the one image field
+  // with no check at all — see utils/safeUrl.js.
+  {
+    const bad = checkImageField(image_url);
+    if (bad) return res.status(400).json({ error: bad });
+  }
   if (name.length > 100) return res.status(400).json({ error: 'Name darf maximal 100 Zeichen lang sein' });
   if (description && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
   if (location && location.length > 200) return res.status(400).json({ error: 'Ort darf maximal 200 Zeichen lang sein' });
@@ -728,6 +736,10 @@ export const updateGroup = async (req, res) => {
     const catList = normalizeCategories(categories, category);
 
     if (name !== undefined && name.length > 100) return res.status(400).json({ error: 'Name darf maximal 100 Zeichen lang sein' });
+    for (const [val, label] of [[image_url, 'Bild-URL'], [moment_photo_url, 'Foto-URL']]) {
+      const bad = checkImageField(val, label);
+      if (bad) return res.status(400).json({ error: bad });
+    }
     if (description !== undefined && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
     if (location !== undefined && location.length > 200) return res.status(400).json({ error: 'Ort darf maximal 200 Zeichen lang sein' });
 

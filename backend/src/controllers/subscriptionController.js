@@ -1,6 +1,24 @@
 import db from '../config/database.js';
 import Stripe from 'stripe';
 import { isAppShellRequest, paymentsEnabled } from '../config/features.js';
+import { Sentry } from '../config/sentry.js';
+
+// A webhook UPDATE that matches zero rows means Stripe knows about a
+// subscription we have no row for — i.e. someone was CHARGED and their Pro
+// status will never sync. Previously these returned 200 silently, so the only
+// symptom was a support ticket with nothing in the logs to correlate it to.
+// Throwing makes the outer catch return 500, which makes Stripe retry on its
+// backoff schedule; every one of these updates is idempotent, so a retry is
+// safe and usually wins once the racing INSERT has landed.
+function assertWebhookMatched(result, eventType, stripeSubId) {
+  if (result?.rowCount > 0) return;
+  const msg = `subscriptionWebhook: ${eventType} matched NO subscriptions row for ${stripeSubId} — user may be charged without Pro`;
+  console.error(msg);
+  Sentry.captureMessage?.(msg, { level: 'error', tags: { area: 'payments', kind: 'webhook-orphan' }, extra: { eventType, stripeSubId } });
+  const err = new Error('WEBHOOK_ROW_NOT_FOUND');
+  err.retryable = true;
+  throw err;
+}
 
 const getStripe = () => {
   if (!process.env.STRIPE_SECRET_KEY) return null;
@@ -10,7 +28,16 @@ const getStripe = () => {
   // "unknown parameter … Did you mean product?"). So we target dahlia
   // explicitly to keep requests AND response shapes consistent, and matching
   // the two webhook endpoints (also dahlia).
-  return new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2026-04-22.dahlia' });
+  // timeout/maxNetworkRetries: the SDK defaults to 80s per request WITH retries.
+  // createSubscription makes up to 6 calls, so a degraded Stripe could keep a
+  // request (and, before the fix below, a DB pool connection) alive for minutes
+  // — enough concurrent subscribes would exhaust the pool and 500 the WHOLE api,
+  // not just payments. Fail fast instead; the user can retry.
+  return new Stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: '2026-04-22.dahlia',
+    timeout: 8000,
+    maxNetworkRetries: 1,
+  });
 };
 
 // dahlia dropped inline price_data.product_data on subscription items — the
@@ -119,12 +146,27 @@ export const createSubscription = async (req, res) => {
   // Serialize concurrent create calls per user (double-tap, two tabs) so we
   // never create TWO Stripe subscriptions for one person → double charge. A
   // session-level advisory lock in the (7001, userId) namespace; released in
-  // finally. Subscription creation is rare, so briefly holding a pool client
-  // across the Stripe round-trip is acceptable.
+  // finally.
+  //
+  // TRY, don't wait: the lock is held across the Stripe round-trip, so a
+  // blocking pg_advisory_lock made every duplicate tap queue up while ALSO
+  // holding its own pool connection — N taps pinned N connections behind one
+  // slow Stripe call. Since the only thing a waiter could do after acquiring is
+  // discover the subscription the winner just created and 400, failing it
+  // immediately is both cheaper and clearer. Combined with the 8s Stripe
+  // timeout above, one subscribe can now occupy a connection for seconds, not
+  // minutes — which is what keeps a subscribe wave from exhausting the pool and
+  // 500ing the entire API.
   const lockClient = await db.pool.connect();
   let locked = false;
   try {
-    await lockClient.query('SELECT pg_advisory_lock(7001, $1)', [req.userId]);
+    const lockRes = await lockClient.query('SELECT pg_try_advisory_lock(7001, $1) AS ok', [req.userId]);
+    if (!lockRes.rows[0]?.ok) {
+      return res.status(409).json({
+        error: 'Dein Abo wird gerade eingerichtet. Bitte einen Moment warten.',
+        code: 'SUBSCRIPTION_IN_PROGRESS',
+      });
+    }
     locked = true;
 
     const userResult = await db.query(
@@ -565,18 +607,20 @@ export const subscriptionWebhook = async (req, res) => {
         } catch { /* leave null — a later invoice.payment_succeeded backfills it */ }
       }
       const periodEnd = periodEndUnix ? new Date(periodEndUnix * 1000) : null;
-      await db.query(
+      const r = await db.query(
         `UPDATE subscriptions SET status = $1, current_period_end = $2, updated_at = NOW()
          WHERE stripe_subscription_id = $3`,
         [status, periodEnd, sub.id]
       );
+      assertWebhookMatched(r, event.type, sub.id);
     } else if (event.type === 'customer.subscription.deleted') {
       const sub = event.data.object;
-      await db.query(
+      const r = await db.query(
         `UPDATE subscriptions SET status = 'canceled', updated_at = NOW()
          WHERE stripe_subscription_id = $1`,
         [sub.id]
       );
+      assertWebhookMatched(r, event.type, sub.id);
     } else if (event.type === 'invoice.payment_succeeded') {
       const invoice = event.data.object;
       const subId = invoiceSubId(invoice);
@@ -590,22 +634,24 @@ export const subscriptionWebhook = async (req, res) => {
         // the following customer.subscription.updated settles it.
         const status = mapSubStatus(stripeSub);
         if (status !== 'inactive') {
-          await db.query(
+          const r = await db.query(
             `UPDATE subscriptions SET status = $1, current_period_end = $2, updated_at = NOW()
              WHERE stripe_subscription_id = $3`,
             [status, periodEnd, subId]
           );
+          assertWebhookMatched(r, event.type, subId);
         }
       }
     } else if (event.type === 'invoice.payment_failed') {
       const invoice = event.data.object;
       const subId = invoiceSubId(invoice);
       if (subId) {
-        await db.query(
+        const r = await db.query(
           `UPDATE subscriptions SET status = 'past_due', updated_at = NOW()
            WHERE stripe_subscription_id = $1`,
           [subId]
         );
+        assertWebhookMatched(r, event.type, subId);
       }
     }
   } catch (dbErr) {

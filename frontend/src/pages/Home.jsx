@@ -326,19 +326,29 @@ export const Home = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [groupList, searchQuery, zeitFilter, zeitFrom, zeitTo, alterFilter, sichtFilter, kategorieFilter]);
 
-  // Category pills for the Clubs tab are built from the categories actually
-  // present in the loaded clubs, so the bar never shows an empty filter.
+  // Clubs are MULTI-category: normalizeCategories stores up to 3 in
+  // groups.categories (text[]) and `category` is only categories[0]. Reading
+  // just `category` would hide a club under its 2nd/3rd category — the server's
+  // own filter is `category ILIKE $n OR $n = ANY(categories)`, so the pill bar
+  // has to match that or clubs become undiscoverable under their other
+  // categories (cafeconcertowien = Konzert + Bar-Hopping + Kultur).
+  const catsOf = (c) =>
+    (Array.isArray(c.categories) && c.categories.length ? c.categories : [c.category]).filter(Boolean);
+
+  // Pills are built from the categories actually present, so the bar is never
+  // empty and never offers a filter that matches nothing.
   const clubCategories = useMemo(() => {
     const set = new Set();
-    for (const c of clubList) if (c.category) set.add(c.category);
+    for (const c of clubList) for (const cat of catsOf(c)) set.add(cat);
     return [...set].sort((a, b) => a.localeCompare(b, 'de'));
   }, [clubList]);
 
   // Clubs are filtered by the inline search + the inline category bar only
   // (the extended filter sheet was dropped here — Tina/Tobi 2026-09-03).
+  // Case-insensitive to mirror the server's ILIKE.
   const filteredClubs = useMemo(() => clubList.filter(c =>
     matchesSearch(c) &&
-    (!clubCategory || (c.category || '') === clubCategory)
+    (!clubCategory || catsOf(c).some(cat => cat.toLowerCase() === clubCategory.toLowerCase()))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [clubList, searchQuery, clubCategory]);
 

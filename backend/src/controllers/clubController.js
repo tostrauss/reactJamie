@@ -8,6 +8,7 @@ import { isUserPro } from './subscriptionController.js';
 import { sendPushToUser, sendPushToUsers } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 import { normalizeCategories } from '../utils/normalizeCategories.js';
+import { checkImageField } from '../utils/safeUrl.js';
 import { createEntityWithOwner, notifyCancellationFanout } from '../services/entityLifecycle.js';
 
 const CLUBS_TTL = 30_000; // 30 s
@@ -97,6 +98,11 @@ export const createClub = async (req, res) => {
     return res.status(400).json({ error: 'Club-Name muss mindestens einen Buchstaben oder eine Zahl enthalten' });
   }
   if (description && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
+  // See utils/safeUrl.js — this field renders to every viewer and had no check.
+  {
+    const bad = checkImageField(image_url);
+    if (bad) return res.status(400).json({ error: bad });
+  }
 
   try {
     // Profile-photo gate (Tina 2026-08-03) — same rule as createGroup.
@@ -377,6 +383,10 @@ export const updateClub = async (req, res) => {
       return res.status(400).json({ error: 'Club-Name muss mindestens einen Buchstaben oder eine Zahl enthalten' });
     }
     if (description !== undefined && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
+    {
+      const bad = checkImageField(image_url);
+      if (bad) return res.status(400).json({ error: bad });
+    }
 
     // Normalize empty-string date to null. Frontend sends "" when the club has
     // no date set, but Postgres `''::timestamp` throws invalid-input — we want
@@ -1490,6 +1500,10 @@ export const updateClubEvent = async (req, res) => {
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   if (name !== undefined && !String(name).trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
+  {
+    const bad = checkImageField(image_url);
+    if (bad) return res.status(400).json({ error: bad });
+  }
 
   // Ticket link (Pro-only, same rules as createClubEvent). An explicit empty
   // string clears it — that's "back to a free event" and needs no Pro check.

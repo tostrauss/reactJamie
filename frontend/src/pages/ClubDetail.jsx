@@ -628,7 +628,12 @@ export const ClubDetail = () => {
                     <input
                       id="cd-ticket-url"
                       className="cd-event-input cd-event-ticket-input"
-                      type="url"
+                      // NOT type="url": this input lives inside a <form>, so
+                      // native constraint validation would reject a bare
+                      // "shop.example.com/tickets" before submit — exactly the
+                      // scheme-less paste normalizeTicketUrl deliberately
+                      // upgrades to https://. Server-side validation still runs.
+                      type="text"
                       inputMode="url"
                       placeholder={t('clubDetail.events.ticketLinkPlaceholder')}
                       value={eventForm.ticket_url}

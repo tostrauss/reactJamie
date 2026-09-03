@@ -260,7 +260,17 @@ export const Explore = () => {
     // photo (Tina 2026-09-03) — a photoless card is just a colored placeholder
     // and cheapens the wall. moment_photo_url (an uploaded "moment") or the
     // group's own image_url both count as "a photo was added".
-    setHallItems(all.filter(g => isPast(g.date) && (g.moment_photo_url || g.image_url)));
+    //
+    // EXCEPT for the owner's own events: this card is the ONLY entry point for
+    // uploading a moment (showMomentPrompt below), and the 15-min server cron
+    // pushes "Teile deinen JAMIE Moment → /explore" to exactly the owners of
+    // photoless past events. Hiding them here would make that push a dead end
+    // and the upload flow unreachable. Owners keep seeing their own.
+    const myId = user?.id;
+    setHallItems(all.filter(g =>
+      isPast(g.date) &&
+      (g.moment_photo_url || g.image_url || (myId && Number(g.owner_id) === Number(myId)))
+    ));
     setDealList(dealsRes.data || []);
     // getMyLikes returns a bare array of group ids the caller has liked.
     setLikedIds(new Set(likesRes.data || []));
