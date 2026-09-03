@@ -2,6 +2,18 @@ import db from '../config/database.js';
 import Stripe from 'stripe';
 import { isAppShellRequest, paymentsEnabled } from '../config/features.js';
 import { Sentry } from '../config/sentry.js';
+import { getClientIp } from '../utils/clientIp.js';
+
+// Stripe Tax (IMPIBAG is USt-pflichtig, decided 2026-09-03). Own env switch,
+// separate from PAYMENTS_ENABLED, so tax can be turned off without touching the
+// payment kill switch or shipping a deploy. Off => byte-identical to the
+// pre-tax behaviour.
+//
+// Prices stay GROSS: 4,99 € is what the customer is charged either way, and
+// 'inclusive' makes Stripe carve the VAT out of it (4,158 + 0,832 @ 20% AT)
+// instead of adding it on top. That is also why enabling this later cost no
+// customer anything — nobody is ever charged more than the advertised price.
+const stripeTaxEnabled = () => process.env.STRIPE_TAX_ENABLED === 'true';
 
 // A webhook UPDATE that matches zero rows means Stripe knows about a
 // subscription we have no row for — i.e. someone was CHARGED and their Pro
@@ -206,6 +218,13 @@ export const createSubscription = async (req, res) => {
     // (it 404s under live keys), or a customer deleted in the dashboard. Reusing
     // it makes subscriptions.create fail with "No such customer", so verify it
     // resolves and fall through to creating a fresh one if it doesn't.
+    // Stripe Tax needs a customer LOCATION or automatic_tax refuses to price the
+    // subscription. We have no billing address (the PaymentElement doesn't
+    // collect one), so we hand Stripe the caller's IP and let it infer the
+    // country. Same helper the geofence uses — the plain req.ip is a Railway
+    // edge address, which would put every customer in the wrong country.
+    const taxIp = stripeTaxEnabled() ? getClientIp(req) : null;
+
     let customerId = existing?.stripe_customer_id;
     if (customerId) {
       try {
@@ -216,11 +235,21 @@ export const createSubscription = async (req, res) => {
         else throw e;
       }
     }
+    if (customerId && taxIp) {
+      // An existing customer created before Stripe Tax has no tax location —
+      // refresh it, otherwise automatic_tax fails for every returning buyer.
+      try {
+        await stripe.customers.update(customerId, { tax: { ip_address: taxIp } });
+      } catch (e) {
+        console.warn('stripe tax: could not set ip_address on existing customer', customerId, e?.message);
+      }
+    }
     if (!customerId) {
       const customer = await stripe.customers.create({
         email,
         name,
         metadata: { user_id: String(req.userId) },
+        ...(taxIp ? { tax: { ip_address: taxIp } } : {}),
       });
       customerId = customer.id;
     }
@@ -266,11 +295,15 @@ export const createSubscription = async (req, res) => {
           product: productId,
           unit_amount: plan.amount_cents,
           recurring: { interval: plan.interval, interval_count: plan.interval_count },
+          // GROSS price: the advertised 1,99/4,99/19,99 € is the total charged;
+          // Stripe carves the VAT out of it rather than adding it on top.
+          ...(stripeTaxEnabled() ? { tax_behavior: 'inclusive' } : {}),
         },
       }],
       payment_behavior: 'default_incomplete',
       payment_settings: { save_default_payment_method: 'on_subscription' },
       metadata: { user_id: String(req.userId), plan: planKey, plan_label: plan.label },
+      ...(stripeTaxEnabled() ? { automatic_tax: { enabled: true } } : {}),
     };
     if (trialEligible) {
       // Trial → no upfront charge, so Stripe issues a SetupIntent (not a
@@ -285,7 +318,29 @@ export const createSubscription = async (req, res) => {
       subParams.expand = ['latest_invoice.confirmation_secret'];
     }
 
-    const subscription = await stripe.subscriptions.create(subParams);
+    // FAIL-OPEN ON TAX, never on the sale. automatic_tax throws when Stripe
+    // can't resolve the customer's location (IP inference failed, VPN, a
+    // country we hold no registration for). Letting that bubble up would mean
+    // "nobody can subscribe" — far worse than an un-itemized invoice, since the
+    // customer is charged the identical gross amount either way and the VAT is
+    // still declarable from it. So: retry once without automatic_tax, and make
+    // the fallback loud so it can't quietly become the normal path.
+    let subscription;
+    try {
+      subscription = await stripe.subscriptions.create(subParams);
+    } catch (taxErr) {
+      const isTaxFailure = stripeTaxEnabled() && (
+        /tax/i.test(taxErr?.message || '') ||
+        /customer_tax_location_invalid|tax_id_invalid/.test(taxErr?.code || '')
+      );
+      if (!isTaxFailure) throw taxErr;
+      const msg = `stripe tax: automatic_tax failed for user ${req.userId} (${taxErr?.code || 'no code'}: ${taxErr?.message}) — retrying WITHOUT tax; invoice will not itemize VAT`;
+      console.error(msg);
+      Sentry.captureMessage?.(msg, { level: 'warning', tags: { area: 'payments', kind: 'tax-fallback' }, extra: { userId: req.userId, code: taxErr?.code } });
+      delete subParams.automatic_tax;
+      delete subParams.items[0].price_data.tax_behavior;
+      subscription = await stripe.subscriptions.create(subParams);
+    }
 
     // Upsert subscription record
     await db.query(
