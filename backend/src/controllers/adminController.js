@@ -3,7 +3,7 @@ import { revokeUserSessions } from '../socket.js';
 import { getClientIp } from '../utils/clientIp.js';
 import geoip from 'geoip-lite';
 import { checkSubscriptionCountry, getSubscriptionCountries } from '../utils/paymentRegion.js';
-import { isBackupConfigured, missingBackupEnv } from '../jobs/backup.js';
+import { isBackupConfigured, missingBackupEnv, listBackupObjects, DB_BACKUP_PREFIX } from '../jobs/backup.js';
 
 // ==========================================
 // OVERVIEW STATS
@@ -706,15 +706,49 @@ export const getBackupStatus = async (req, res) => {
         bytes: r.bytes == null ? null : Number(r.bytes),
       };
     }
-    // The DB dump is nightly (03:15 UTC) — anything older than ~26 h means the
-    // last run did not complete, whatever the boot log claims.
+    // Look in the VAULT, not just at this process's ledger. backup_runs is
+    // written ONLY by the in-process cron; the GitHub-Action leg is a bash
+    // script that uploads straight to R2 and records nothing here. Reporting
+    // "no backup" while a valid dump sits in the bucket is the same class of
+    // blind spot this endpoint exists to remove (2026-09-04: the Action
+    // produced the first ever backup and this endpoint still said healthy=false).
+    let vault = { reachable: false, objects: null, newest: null, error: null };
+    try {
+      const objs = await listBackupObjects(DB_BACKUP_PREFIX);
+      const dumps = (objs || []).filter(o => o.Key?.endsWith('.sql.gz.enc'));
+      dumps.sort((a, b) => new Date(b.LastModified) - new Date(a.LastModified));
+      const n = dumps[0];
+      vault = {
+        reachable: true,
+        objects: dumps.length,
+        newest: n ? {
+          key: n.Key,
+          at: n.LastModified,
+          ageHours: Math.round(((Date.now() - new Date(n.LastModified).getTime()) / 3.6e6) * 10) / 10,
+          bytes: Number(n.Size),
+        } : null,
+        error: null,
+      };
+    } catch (e) {
+      // AccessDenied here = the vault credentials are dead (2026-09-04) — the
+      // single most important thing to see, so it is surfaced, not swallowed.
+      vault = { reachable: false, objects: null, newest: null, error: `${e.name}: ${e.message}`.slice(0, 200) };
+    }
+
+    // Healthy = a fresh dump EXISTS somewhere, from either leg. The nightly
+    // schedules are 03:00 (Action) and 03:15 (in-process), so >26 h without a
+    // new object means the last night produced nothing.
     const db_ = lastSuccess.db;
-    const healthy = !!db_ && db_.ageHours <= 26;
+    const ledgerFresh = !!db_ && db_.ageHours <= 26;
+    const vaultFresh = !!vault.newest && vault.newest.ageHours <= 26;
+    const healthy = ledgerFresh || vaultFresh;
 
     res.json({
       configured: isBackupConfigured(),
       missingEnv: missingBackupEnv(),
       healthy,
+      healthySource: vaultFresh ? 'vault' : (ledgerFresh ? 'ledger' : null),
+      vault,
       lastSuccess,
       recentRuns: runsRes.rows.map(r => ({
         ...r,
