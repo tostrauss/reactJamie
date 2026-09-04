@@ -1548,6 +1548,13 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 30px 2px 6px; /* top gap clears the X */
+  /* A max-height-capped flex COLUMN needs min-height:0 on its scroll box:
+     without it this box refuses to shrink below its content, grows past the
+     sheet's cap and pushes the pinned CTA out through the parent's
+     overflow:hidden — the button was cut in half instead of the text
+     scrolling (Tina 2026-09-03). Same ingredient as EventReviewModal. */
+  min-height: 0;
+  overscroll-behavior: contain; /* don't chain the scroll to the feed behind */
 }
 .ef-deals-h {
   margin: 20px 0 6px;

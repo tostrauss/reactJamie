@@ -722,7 +722,13 @@ select:focus {
   max-width: 500px;
   background: var(--bg-secondary);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-  padding: 20px 24px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  /* BOTTOM = nav clearance, NOT the bare home-indicator inset. .bottom-nav is
+     a flex child at the end of the dvh-bounded #root column (60px strip +
+     --nav-safe-bottom) and owns the bottom of the screen, while this sheet is
+     fixed flush to the VIEWPORT bottom — so the bare inset left the last row
+     behind the nav (the Deals-Infos "Let's go" button, Tina 2026-09-03). Same
+     invariant and same term as Boost/Pro/EventReview (2026-09-03). */
+  padding: 20px 24px calc(60px + var(--nav-safe-bottom) + 16px);
   /* Cap the sheet so its top edge always stops 12px below the iOS status
      bar / Dynamic Island even when content is tall. Without this, a long
      modal would draw under the notch. */

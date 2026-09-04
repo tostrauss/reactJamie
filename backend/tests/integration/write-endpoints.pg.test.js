@@ -148,6 +148,7 @@ suite('write endpoints against real Postgres', () => {
       markChatRead: ms.markChatRead, deleteMessage: ms.deleteMessage,
       createReport: rp.createReport, getReports: rp.getReports,
       joinGroup: g.joinGroup, handleJoinRequest: g.handleJoinRequest, kickMember: g.kickMember,
+      getGroups: g.getGroups,
     };
   }, 90000);
 
@@ -360,5 +361,59 @@ suite('write endpoints against real Postgres', () => {
     ok(await call(C.kickMember, { userId: A, params: { id: String(privateGroupId), userId: String(E) } }));
     const m = await db.query('SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2', [privateGroupId, E]);
     expect(m.rows.length).toBe(0);
+  });
+
+  // ── Gruppen feed: club events, public clubs only ───────────────────────────
+  // Tobi 2026-09-04: "nur events von öffentlichen clubs bei gruppen". The gate
+  // is a live parent-club lookup in getGroups, so it needs a real database —
+  // a mocked db.query would happily "pass" a broken EXISTS subquery.
+  it('include_club_events adds PUBLIC club events to the Gruppen feed and never private ones', async () => {
+    const mkClub = async (name, isPrivate) => {
+      const r = await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, is_private, approval_status)
+         VALUES ($1,'club',$2,'Sport','Wien',100,$3,'approved') RETURNING id`,
+        [name, A, isPrivate]
+      );
+      return r.rows[0].id;
+    };
+    const mkEvent = async (name, clubId, isPrivate) => {
+      const r = await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, date, parent_club_id, is_private)
+         VALUES ($1,'event',$2,'Sport','Wien',20, NOW() + INTERVAL '3 days', $3, $4) RETURNING id`,
+        [name, A, clubId, isPrivate]
+      );
+      return r.rows[0].id;
+    };
+    const publicClub  = await mkClub('Smoke Public Club', false);
+    const privateClub = await mkClub('Smoke Private Club', true);
+    const publicEvent  = await mkEvent('Smoke Public Event', publicClub, false);
+    const privateEvent = await mkEvent('Smoke Private Event', privateClub, true);
+
+    const idsOf = async (query) => {
+      const res = await call(C.getGroups, { userId: B, query });
+      ok(res);
+      return res.body.map(r => r.id);
+    };
+
+    const withEvents = await idsOf({ type: 'group', upcoming: 'true', include_club_events: 'true' });
+    expect(withEvents).toContain(publicEvent);
+    expect(withEvents).not.toContain(privateEvent);
+
+    // Without the flag the feed stays groups-only — the other callers of this
+    // route (groups.getAll) must not start seeing events.
+    const withoutEvents = await idsOf({ type: 'group', upcoming: 'true' });
+    expect(withoutEvents).not.toContain(publicEvent);
+    expect(withoutEvents).not.toContain(privateEvent);
+
+    // A club that flips to private takes its already-created events out of the
+    // feed with it: the gate reads the club's CURRENT flag, not the copy
+    // createClubEvent stamped onto the event row. (updateClub busts this same
+    // cache prefix in production — do it here too, or the 30s-cached response
+    // above answers the query and the assertion proves nothing.)
+    await db.query('UPDATE groups SET is_private = TRUE WHERE id = $1', [publicClub]);
+    const { invalidatePrefix } = await import('../../src/utils/cache.js');
+    invalidatePrefix('groups:');
+    const afterFlip = await idsOf({ type: 'group', upcoming: 'true', include_club_events: 'true' });
+    expect(afterFlip).not.toContain(publicEvent);
   });
 });

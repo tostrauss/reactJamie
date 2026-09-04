@@ -386,9 +386,18 @@ export const createGroup = async (req, res) => {
 // ==========================================
 export const getGroups = async (req, res) => {
   try {
-    const { type, search, category, location, upcoming, limit, offset } = req.query;
+    const { type, search, category, location, upcoming, limit, offset, include_club_events } = req.query;
 
     if (search && search.length > 100) return res.status(400).json({ error: 'Suchbegriff zu lang' });
+
+    // Gruppen-Feed: club EVENTS belong in the groups list too, but ONLY those of
+    // PUBLIC clubs (Tobi 2026-09-04 — "nur events von öffentlichen clubs bei
+    // gruppen"). This is deliberately stricter than the standalone /events page,
+    // which shows every club's events including private ones (Robert 2026-06-17).
+    // Opt-in flag rather than a change to `type=group` so the other callers of
+    // this route (groups.getAll, tests) keep their exact result set. Only widens
+    // a groups request — asking for clubs with this flag stays a clubs request.
+    const includeClubEvents = include_club_events === 'true' && (!type || type === 'group');
 
     // #1 Pro gate: non-Pro, non-admin callers see only 3 member previews per
     // group; Pro users AND admins see up to 4. The frontend blurs just the 4th
@@ -476,7 +485,7 @@ export const getGroups = async (req, res) => {
     // Pro flag + admin flag + caller age are part of the key so users with
     // different visibility never share a cache row.
     const cacheKey = !search && !location
-      ? `groups:${type || ''}:${category || ''}:${upcoming || ''}:${limit || ''}:${offset || ''}:p${callerIsPro ? 1 : 0}:adm${callerIsAdmin ? 1 : 0}:a${callerAge ?? 'x'}:c${callerCountry ?? 'x'}`
+      ? `groups:${type || ''}:${category || ''}:${upcoming || ''}:${limit || ''}:${offset || ''}:p${callerIsPro ? 1 : 0}:adm${callerIsAdmin ? 1 : 0}:a${callerAge ?? 'x'}:c${callerCountry ?? 'x'}:ev${includeClubEvents ? 1 : 0}`
       : null;
     if (cacheKey) {
       const cached = getCached(cacheKey);
@@ -489,7 +498,26 @@ export const getGroups = async (req, res) => {
     // per-row projections.
     const params = [];
     let paramIndex = 1;
-    let where = `g.is_active = TRUE AND g.deleted_at IS NULL AND g.type IN ('group', 'club')`;
+    let where = `g.is_active = TRUE AND g.deleted_at IS NULL AND g.type IN ('group', 'club'${includeClubEvents ? ", 'event'" : ''})`;
+
+    // Public-club gate for the events let in above. Checked against the LIVE
+    // parent club, not the event's own inherited is_private: createClubEvent
+    // copies the club's flag at creation time, so a club that later flips to
+    // private would keep leaking its old events into the public feed. The club
+    // must also still be approved and alive — deleteClub soft-deletes only the
+    // club row, leaving its events is_active, so without this an orphaned
+    // event would outlive its club here.
+    if (includeClubEvents) {
+      where += ` AND (g.type <> 'event' OR EXISTS (
+                   SELECT 1 FROM groups c
+                   WHERE c.id = g.parent_club_id
+                     AND c.type = 'club'
+                     AND c.is_private IS NOT TRUE
+                     AND c.approval_status = 'approved'
+                     AND c.is_active = TRUE
+                     AND c.deleted_at IS NULL
+                 ))`;
+    }
 
     // Clubs awaiting moderation must NOT surface in the public feed — getClubs
     // and getMapPins already gate on approval_status, but getGroups (a public
@@ -525,7 +553,11 @@ export const getGroups = async (req, res) => {
     }
 
     if (type) {
-      where += ` AND g.type = $${paramIndex++}`;
+      // The Gruppen feed asks for type=group but wants public-club events in the
+      // same list, so the filter widens instead of pinning the single type.
+      where += includeClubEvents
+        ? ` AND (g.type = $${paramIndex++} OR g.type = 'event')`
+        : ` AND g.type = $${paramIndex++}`;
       params.push(type);
     }
     if (search) {

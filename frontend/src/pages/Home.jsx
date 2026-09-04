@@ -165,7 +165,11 @@ export const Home = () => {
         const [groupsRes, favGroupsRes, joinedGroupsRes, joinedClubsRes, dealsRes] = await Promise.all([
           // upcoming:true so past one-off events leave the feed (the backend
           // keeps weekly-recurring groups via their next occurrence).
-          api.get("/groups", { params: { type: "group", upcoming: "true" } }),
+          // include_club_events: club events belong in the Gruppen feed too —
+          // but only those of PUBLIC clubs (Tobi 2026-09-04). The server decides
+          // that against the live parent club; nothing is filtered here, so a
+          // private club's events never reach the client at all.
+          api.get("/groups", { params: { type: "group", upcoming: "true", include_club_events: "true" } }),
           groups.getFavorites().catch(() => ({ data: [] })),
           groups.getJoined().catch(() => ({ data: [] })),
           clubs.getJoined().catch(() => ({ data: [] })),

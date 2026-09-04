@@ -503,6 +503,10 @@ export const deleteClub = async (req, res) => {
     // filter deleted_at — this removes the cache-staleness window).
     invalidatePrefix('user_groups:');
     invalidatePrefix(DISCOVER_EVENTS_KEY);
+    // The club itself AND its events sit in the Gruppen feed — the events stay
+    // is_active (only the club row is soft-deleted), so the feed's live
+    // parent-club check is what removes them and it must not serve a stale page.
+    invalidatePrefix('groups:');
     res.json({ message: 'Club deleted successfully' });
   } catch (err) {
     console.error('Error deleting club:', err);
@@ -1424,6 +1428,9 @@ export const createClubEvent = async (req, res) => {
     invalidatePrefix('clubs:');
     invalidatePrefix(DISCOVER_EVENTS_KEY);
     invalidatePrefix('map:'); // a geocoded event is a new map pin
+    // A public club's events are part of the Gruppen feed (include_club_events),
+    // so that cache has to drop too or the new event shows up ≤30s late.
+    invalidatePrefix('groups:');
 
     // Notify club members about the new event (fire-and-forget, excludes the
     // creator). Deep-links to the event detail page.
@@ -1479,6 +1486,7 @@ export const deleteClubEvent = async (req, res) => {
     invalidatePrefix('clubs:');
     invalidatePrefix(DISCOVER_EVENTS_KEY);
     invalidatePrefix('map:'); // removed event → drop its map pin
+    invalidatePrefix('groups:'); // …and out of the Gruppen feed
     res.json({ message: 'Veranstaltung gelöscht' });
   } catch (err) {
     console.error('Error deleting club event:', err);
@@ -1589,6 +1597,7 @@ export const updateClubEvent = async (req, res) => {
     invalidatePrefix('clubs:');
     invalidatePrefix(DISCOVER_EVENTS_KEY);
     invalidatePrefix('map:'); // location/coords may have moved the pin
+    invalidatePrefix('groups:'); // …and its card in the Gruppen feed
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating club event:', err);
