@@ -2000,5 +2000,11 @@
     "close": "Chiudi",
     "prevPhoto": "Foto precedente",
     "nextPhoto": "Foto successiva"
+  },
+  "nativePushDenied": {
+    "title": "Le notifiche sono disattivate in iOS",
+    "text": "Ti perdi messaggi e richieste di adesione. Riattivale nelle Impostazioni.",
+    "open": "Apri Impostazioni",
+    "later": "Più tardi"
   }
 }

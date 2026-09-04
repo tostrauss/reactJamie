@@ -18,6 +18,7 @@ import { useAnalytics } from './hooks/useAnalytics';
 import { EventReviewModal } from './components/EventReviewModal';
 import { FeedbackModal } from './components/FeedbackModal';
 import { NotificationPrompt } from './components/NotificationPrompt';
+import { NativePushDeniedBanner } from './components/NativePushDeniedBanner';
 import PullToRefresh from './components/PullToRefresh';
 import AvatarGateModal from './components/AvatarGateModal';
 import { reviews } from './utils/api';
@@ -616,6 +617,9 @@ function useNativePush(user) {
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
   const userId = user?.id;
+  // iOS notification permission as the plugin reports it:
+  // 'unknown' | 'prompt' | 'granted' | 'denied'. Drives NativePushDeniedBanner.
+  const [permission, setPermission] = useState('unknown');
 
   // Keyed on user id, NOT the user object: profile refreshes replace the
   // object every time, and the old cleanup was returned from inside .then()
@@ -633,44 +637,118 @@ function useNativePush(user) {
         .catch(() => {});
     };
 
+    // Every outcome is reported to the server ([APNs-diag] in Railway logs).
+    // Until 2026-09-04 a denied permission, a plugin missing from the binary,
+    // a registrationError and a failed token POST were ALL invisible from the
+    // backend — "no push" could only be debugged with a Mac and a cable.
+    // Deduped per app start so a flapping state can't spam the endpoint.
+    const reported = new Set();
+    let appVersion = null;
+    const versionReady = import('@capacitor/app')
+      .then(({ App }) => App.getInfo())
+      .then((info) => { appVersion = `${info?.version || '?'} (${info?.build || '?'})`; })
+      .catch(() => {});
+    const report = (event, extra = {}) => {
+      const key = `${event}:${extra.permission || ''}:${extra.detail || ''}`;
+      if (reported.has(key)) return;
+      reported.add(key);
+      versionReady
+        .then(() => import('./utils/api.js'))
+        .then(({ push }) => push.reportDiagnostics({ platform: 'ios', app_version: appVersion, event, ...extra }))
+        .catch(() => {});
+    };
+    const errText = (e) => String(e?.error || e?.message || e || 'unknown').slice(0, 160);
+
+    let PN = null;
+    let registerCalled = false;
+    const register = () => {
+      if (registerCalled || cancelled || !PN) return;
+      registerCalled = true;
+      PN.register().catch((e) => { registerCalled = false; report('registration_error', { detail: errText(e) }); });
+    };
+
+    // checkPermissions first, requestPermissions only while still
+    // undetermined: iOS shows its dialog exactly once per install, so for a
+    // previously-denied user the old unconditional requestPermissions() came
+    // back 'denied' with no dialog and the hook returned in silence. Now the
+    // state is surfaced (banner) and reported.
+    const evaluate = () => {
+      if (!PN || cancelled) return;
+      PN.checkPermissions().then(({ receive }) => {
+        if (cancelled) return;
+        if (receive === 'granted') { setPermission('granted'); report('permission', { permission: 'granted' }); register(); return; }
+        if (receive === 'denied')  { setPermission('denied');  report('permission', { permission: 'denied' });  return; }
+        setPermission('prompt');
+        return PN.requestPermissions().then(({ receive: r }) => {
+          if (cancelled) return;
+          setPermission(r === 'granted' ? 'granted' : 'denied');
+          report('permission', { permission: r });
+          if (r === 'granted') register();
+        });
+      }).catch((e) => {
+        // The Capacitor proxy throws "PushNotifications plugin is not
+        // implemented on ios" when the package is missing from the binary.
+        report('plugin_unavailable', { detail: errText(e) });
+      });
+    };
+
     // Dynamic import — only available inside Capacitor native shell
     import('@capacitor/push-notifications').then(({ PushNotifications }) => {
       if (cancelled) return;
-      PushNotifications.requestPermissions().then(({ receive }) => {
-        if (receive !== 'granted' || cancelled) return;
-        PushNotifications.register();
-      });
+      PN = PushNotifications;
 
-      listen(PushNotifications, 'registration', ({ value: token }) => {
-        // Send APNs device token to backend
+      listen(PN, 'registration', ({ value: token }) => {
         import('./utils/api.js').then(({ push }) => {
-          push.saveApnsToken(token).catch(() => {});
+          push.saveApnsToken(token)
+            .then(() => report('registered', { detail: `len ${String(token).length}` }))
+            .catch((e) => {
+              // Was `.catch(() => {})` — a 401/500 here looked exactly like
+              // "the phone never sent anything".
+              console.error('[APNs] token save failed:', e?.response?.status, e?.message);
+              report('token_save_failed', { detail: `${e?.response?.status || 'net'} ${errText(e?.response?.data?.error || e)}` });
+            });
         });
       });
 
-      // Surfaces the case where permission is granted but register() gets NO
-      // token — most commonly a missing "Push Notifications" capability/
-      // entitlement in the build (aps-environment). Silent otherwise, so on a
-      // device run via Xcode this is the line that explains "no token, no push".
-      listen(PushNotifications, 'registrationError', (err) => {
+      // Permission granted but register() produced NO token — typically the
+      // aps-environment entitlement / provisioning profile is missing from
+      // the build. Now reported, not just console'd.
+      listen(PN, 'registrationError', (err) => {
         console.error('[APNs] registrationError:', err?.error || err);
+        report('registration_error', { detail: errText(err) });
       });
 
       // Tapping a push must open its target. The backend puts the route into
       // the APNs payload ({ url }, pushController) and sw.js routes it for
       // web/TWA — native iOS had NO handler, so the app just foregrounded
       // wherever it last was and the DM/notification never opened.
-      listen(PushNotifications, 'pushNotificationActionPerformed', (action) => {
+      listen(PN, 'pushNotificationActionPerformed', (action) => {
         const url = action?.notification?.data?.url;
         navigateRef.current(typeof url === 'string' && url.startsWith('/') ? url : '/notifications');
       });
+
+      evaluate();
+    }).catch((e) => report('import_failed', { detail: errText(e) }));
+
+    // Re-evaluate when the app returns to the foreground — i.e. when the user
+    // comes back from iOS Settings after enabling notifications via the
+    // banner. Registers right away; no force-quit needed (2026-09-04).
+    let appStateHandle = null;
+    import('@capacitor/app').then(({ App }) => {
+      if (cancelled) return;
+      App.addListener('appStateChange', ({ isActive }) => { if (isActive) evaluate(); })
+        .then((h) => { if (cancelled) h.remove(); else appStateHandle = h; })
+        .catch(() => {});
     }).catch(() => {});
 
     return () => {
       cancelled = true;
       handles.forEach((h) => { try { h.remove(); } catch { /* already gone */ } });
+      try { appStateHandle?.remove(); } catch { /* already gone */ }
     };
   }, [userId]);
+
+  return { permission };
 }
 
 // ==========================================
@@ -714,7 +792,7 @@ function useAppUrlOpen() {
 function AppRoutes() {
   const { user } = useContext(AuthContext);
   const { t } = useTranslation();
-  useNativePush(user);
+  const nativePush = useNativePush(user);
   useAppUrlOpen();
   useHideKeyboardAccessoryBar();
   useViewportRestore();
@@ -953,6 +1031,12 @@ function AppRoutes() {
           is up. Self-gates on support / permission / prior dismissal. */}
       {user && !user.isGuest && !showFeedback && !pendingReviews && !showIntro && (
         <NotificationPrompt />
+      )}
+      {/* Native-iOS counterpart: the OS permission is DENIED (sticky — iOS
+          never re-prompts), so the only way back is Settings. useNativePush
+          owns the state and re-checks on return; this is display + snooze. */}
+      {user && !user.isGuest && !showFeedback && !pendingReviews && !showIntro && (
+        <NativePushDeniedBanner permission={nativePush.permission} />
       )}
       {/* Avatar nudge for grandfathered avatar-less members — soft, dismissible,
           suppressed while other modals are up. */}

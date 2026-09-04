@@ -2000,5 +2000,11 @@
     "close": "Close",
     "prevPhoto": "Previous photo",
     "nextPhoto": "Next photo"
+  },
+  "nativePushDenied": {
+    "title": "Notifications are turned off in iOS",
+    "text": "You're missing messages and join requests. Turn them back on in Settings.",
+    "open": "Open Settings",
+    "later": "Later"
   }
 }

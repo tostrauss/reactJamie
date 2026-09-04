@@ -701,6 +701,9 @@ export const push = {
   subscribe: (subscription) => axiosInstance.post('/push/subscribe', subscription),
   unsubscribe: (endpoint) => axiosInstance.post('/push/unsubscribe', { endpoint }),
   saveApnsToken: (token) => axiosInstance.post('/push/apns-token', { token }),
+  // Native iOS: report permission / registration outcome to the server so a
+  // silent failure on the device shows up in Railway logs ([APNs-diag]).
+  reportDiagnostics: (payload) => axiosInstance.post('/push/diagnostics', payload),
 };
 
 // ==========================================

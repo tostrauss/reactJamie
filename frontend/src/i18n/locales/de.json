@@ -2000,5 +2000,11 @@
     "close": "Schließen",
     "prevPhoto": "Vorheriges Foto",
     "nextPhoto": "Nächstes Foto"
+  },
+  "nativePushDenied": {
+    "title": "Benachrichtigungen sind in iOS deaktiviert",
+    "text": "Du verpasst Nachrichten und Beitritts-Anfragen. In den Einstellungen wieder einschalten.",
+    "open": "Einstellungen öffnen",
+    "later": "Später"
   }
 }

@@ -2000,5 +2000,11 @@
     "close": "Cerrar",
     "prevPhoto": "Foto anterior",
     "nextPhoto": "Foto siguiente"
+  },
+  "nativePushDenied": {
+    "title": "Las notificaciones están desactivadas en iOS",
+    "text": "Te pierdes mensajes y solicitudes de unión. Actívalas de nuevo en Ajustes.",
+    "open": "Abrir Ajustes",
+    "later": "Más tarde"
   }
 }

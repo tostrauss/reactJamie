@@ -1,6 +1,7 @@
 import webpush from 'web-push';
 import db from '../config/database.js';
 import { createSemaphore } from '../utils/semaphore.js';
+import { Sentry } from '../config/sentry.js';
 
 // Cap concurrent outbound push sends (audit 2026-09-02, risk #8): before this,
 // dispatch fired every FCM/APNs TLS request at once without awaiting — a
@@ -51,15 +52,23 @@ function getApnContext() {
       try {
         const imported = await import('@parse/node-apn');
         const apn = imported.default || imported;
+        // .trim(): these go verbatim into the JWT (kid / iss) and the
+        // apns-topic header. A trailing newline from a dashboard paste turns
+        // a valid key into InvalidProviderToken / BadTopic with no other clue.
+        const keyId = APNS_KEY_ID.trim();
+        const teamId = APNS_TEAM_ID.trim();
+        const production = process.env.NODE_ENV === 'production';
         const provider = new apn.Provider({
           token: {
             key: APNS_KEY.replace(/\\n/g, '\n'),
-            keyId: APNS_KEY_ID,
-            teamId: APNS_TEAM_ID,
+            keyId,
+            teamId,
           },
-          production: process.env.NODE_ENV === 'production',
+          production,
         });
-        console.log('[APNs] Provider initialized');
+        // Key id / team id are public identifiers, not secrets — logging them
+        // is what lets a team-id mismatch be spotted from Railway.
+        console.log(`[APNs] Provider initialized key=${keyId} team=${teamId} gateway=${production ? 'production' : 'sandbox'}`);
         return { apn, provider };
       } catch (err) {
         console.error('[APNs] Init failed (is @parse/node-apn installed?):', err.message);
@@ -176,6 +185,44 @@ export const saveApnsToken = async (req, res) => {
 };
 
 // ==========================================
+// CLIENT-REPORTED PUSH DIAGNOSTICS (native iOS)
+// ==========================================
+// Exists because every device-side failure was invisible from the server:
+// a denied permission returned silently, registrationError only reached the
+// device console, a missing plugin was an unhandled rejection, and the token
+// POST swallowed its own errors. "iOS push doesn't arrive" could only be
+// debugged with a Mac and a cable (2026-09-04). Now the app reports what
+// happened and the answer is one Railway log search away: `[APNs-diag]`.
+// Deliberately log-only (no table): this is an incident tool, not analytics.
+const DIAG_EVENTS = new Set([
+  'permission',          // detail: granted | denied | prompt | prompt-with-rationale
+  'registered',          // token reached the backend
+  'registration_error',  // iOS refused registerForRemoteNotifications (entitlement / profile)
+  'plugin_unavailable',  // "PushNotifications plugin is not implemented on ios" — not in the binary
+  'import_failed',       // the JS chunk for the plugin did not load
+  'token_save_failed',   // POST /push/apns-token failed (detail carries the HTTP status)
+]);
+const clip = (v, n = 160) => (v == null ? '' : String(v).replace(/\s+/g, ' ').slice(0, n));
+
+export const reportPushDiagnostics = (req, res) => {
+  const { event, permission, detail, app_version, platform } = req.body || {};
+  if (!DIAG_EVENTS.has(event)) return res.status(400).json({ error: 'invalid event' });
+  const line = `[APNs-diag] user=${req.userId} platform=${clip(platform, 16) || '-'} app=${clip(app_version, 32) || '-'} event=${event} permission=${clip(permission, 32) || '-'} detail=${clip(detail) || '-'}`;
+  const isProblem = event !== 'registered' && !(event === 'permission' && permission === 'granted');
+  if (isProblem) {
+    console.warn(line);
+    // A denied permission is expected churn; the other four mean the build or
+    // the server is broken for everyone on that version — surface them.
+    if (event !== 'permission') {
+      Sentry.captureMessage?.(line, { level: 'warning', tags: { area: 'push', kind: event }, extra: { userId: req.userId } });
+    }
+  } else {
+    console.log(line);
+  }
+  res.json({ ok: true });
+};
+
+// ==========================================
 // INTERNAL: SEND PUSH TO USER (called from notificationController)
 // ==========================================
 // Dispatch one already-fetched subscription row. RETURNS the send promise
@@ -202,17 +249,38 @@ async function dispatchToSubscription(sub, title, body, url) {
     const { apn, provider } = ctx;
     const notification = new apn.Notification();
     notification.alert = { title, body };
-    notification.topic = process.env.APNS_BUNDLE_ID;
+    notification.topic = (process.env.APNS_BUNDLE_ID || '').trim();
     notification.sound = 'default';
     notification.payload = { url };
     notification.priority = 10; // display immediately
+    // apns-push-type is required on watchOS and "recommended, may be delayed
+    // or dropped without it" on iOS 13+; node-apn only emits the header when
+    // pushType is set. expiry lets APNs hold the push while the phone is
+    // offline instead of discarding it (0 = deliver-now-or-never).
+    notification.pushType = 'alert';
+    notification.expiry = Math.floor(Date.now() / 1000) + 3600;
     return provider.send(notification, sub.device_token).then((result) => {
+      // Every outcome logs. node-apn 8 never rejects — it resolves
+      // {sent, failed} — so an un-logged branch here is a push that
+      // vanished without trace (2026-09-04 incident: three of them did).
+      if (result.sent?.length) console.log(`[APNs] sent sub=${sub.id}`);
       for (const failure of (result.failed || [])) {
         const reason = failure.response?.reason || '';
-        if (reason === 'BadDeviceToken' || reason === 'Unregistered' || failure.status === '410') {
+        const status = failure.status;
+        // BadDeviceToken = token not valid for THIS gateway (sandbox token on
+        // production, or garbage); Unregistered/410 = app uninstalled. All
+        // permanent for this row — prune, but say so.
+        if (reason === 'BadDeviceToken' || reason === 'Unregistered' || status === 410 || status === '410') {
+          console.warn(`[APNs] pruning dead token sub=${sub.id} reason=${reason || status}`);
           db.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]).catch(() => {});
         } else if (reason) {
-          console.error('[APNs] send failure:', reason, 'status', failure.status);
+          console.error(`[APNs] send failure: ${reason} status ${status} sub=${sub.id}`);
+        } else if (failure.error) {
+          // Transport-level: timeout, TLS/HTTP2, JWT signing, DNS — no APNs
+          // JSON body, so `reason` is empty and this used to be silent.
+          console.error(`[APNs] transport failure: ${failure.error.message} status ${status ?? '-'} sub=${sub.id}`);
+        } else {
+          console.error('[APNs] send failure (unrecognised shape):', JSON.stringify(failure).slice(0, 300));
         }
       }
     }).catch((err) => console.error('[APNs] send error:', err.message));
