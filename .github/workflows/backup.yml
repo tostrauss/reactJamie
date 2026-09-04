@@ -1,8 +1,16 @@
 name: DB Backup
 
-# Täglicher verschlüsselter DB-Dump nach Cloudflare R2 (übertrifft die
-# Wochenvorgabe). Läuft unabhängig vom App-Server — auch wenn Railway schläft.
-# Siehe BACKUP-KONZEPT.md. Secrets unter: Repo → Settings → Secrets → Actions.
+# Zweites, vom App-Server UNABHÄNGIGES Backup-Bein: täglicher verschlüsselter
+# DB-Dump → Cloudflare R2 (Object-Lock). Läuft auch, wenn Railway schläft oder
+# der Container kaputt ist — genau dafür existiert es. Das erste Bein ist der
+# In-Prozess-Cron (backend/src/jobs/backup.js, 03:15 UTC).
+# Siehe BACKUP-KONZEPT.md. Secrets: Repo → Settings → Secrets and variables → Actions.
+#
+# SECRET-NAMEN: identisch zu Railway und backend/.env.example (BACKUP_R2_*).
+# Vorher erwartete dieser Workflow BACKUP_S3_* — dieselben Werte unter anderem
+# Namen. Genau daran ist es gescheitert: die Werte wurden 04.08. auf Railway
+# gesetzt, in GitHub nie, und 60 nächtliche Läufe (07.07.–04.09.2026) starben
+# still nach 20 s an leeren Variablen. Eine Vokabel für beide Beine.
 
 on:
   schedule:
@@ -20,6 +28,33 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
+
+      # Fehlende Secrets sofort und VOLLSTÄNDIG benennen. Vorher brach das
+      # Skript beim ERSTEN fehlenden Wert ab ("DATABASE_URL fehlt") — was wie
+      # ein Datenbank-Problem aussah, obwohl schlicht kein einziges Secret
+      # gesetzt war. Diese Liste hätte das in Sekunden gezeigt.
+      - name: Check secrets are present
+        env:
+          DATABASE_URL:              ${{ secrets.DATABASE_URL }}
+          BACKUP_ENCRYPTION_KEY:     ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          BACKUP_R2_BUCKET:          ${{ secrets.BACKUP_R2_BUCKET }}
+          BACKUP_R2_ACCOUNT_ID:      ${{ secrets.BACKUP_R2_ACCOUNT_ID }}
+          BACKUP_R2_ACCESS_KEY_ID:   ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
+          BACKUP_R2_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_SECRET_ACCESS_KEY }}
+        run: |
+          missing=()
+          for v in DATABASE_URL BACKUP_ENCRYPTION_KEY BACKUP_R2_BUCKET \
+                   BACKUP_R2_ACCOUNT_ID BACKUP_R2_ACCESS_KEY_ID BACKUP_R2_SECRET_ACCESS_KEY; do
+            [ -n "${!v:-}" ] || missing+=("$v")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Backup-Secrets fehlen: ${missing[*]}"
+            echo "Setzen unter: Repo → Settings → Secrets and variables → Actions → New repository secret."
+            echo "Dieselben Werte stehen bereits in den Railway-Variablen (gleiche Namen);"
+            echo "DATABASE_URL ist die PUBLIC-URL der Railway-Postgres (nicht die interne .railway.internal)."
+            exit 1
+          fi
+          echo "Alle 6 Secrets vorhanden."
 
       # awscli NICHT per apt installieren: das Paket existiert in Ubuntu 24.04
       # nicht mehr (exit 100 — daran scheiterte jeder Lauf seit 17.06.), und
@@ -40,10 +75,14 @@ jobs:
         env:
           DATABASE_URL:          ${{ secrets.DATABASE_URL }}
           BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
-          BACKUP_S3_BUCKET:      ${{ secrets.BACKUP_S3_BUCKET }}
-          BACKUP_S3_ENDPOINT:    ${{ secrets.BACKUP_S3_ENDPOINT }}
-          AWS_ACCESS_KEY_ID:     ${{ secrets.BACKUP_S3_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_KEY }}
+          # Das Skript spricht S3-Vokabular; die Secrets tragen die R2-Namen aus
+          # Railway/.env.example. Hier wird gemappt, damit es nur EINEN Satz
+          # Namen zu pflegen gibt. Endpoint wird aus der Account-ID abgeleitet —
+          # genauso wie in backend/src/jobs/backup.js.
+          BACKUP_S3_BUCKET:      ${{ secrets.BACKUP_R2_BUCKET }}
+          BACKUP_S3_ENDPOINT:    https://${{ secrets.BACKUP_R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          AWS_ACCESS_KEY_ID:     ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_SECRET_ACCESS_KEY }}
           # Neuere AWS-CLI-Versionen senden Default-Integritäts-Checksummen,
           # die S3-kompatible Anbieter wie R2 ablehnen können — nur bei Bedarf.
           AWS_REQUEST_CHECKSUM_CALCULATION:  when_required
