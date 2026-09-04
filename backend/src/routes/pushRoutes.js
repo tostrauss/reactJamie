@@ -11,7 +11,10 @@ const router = express.Router();
 // case left no trace anywhere. One line, no token material, no user id.
 const apnsTokenEntryLog = (req, _res, next) => {
   const auth = req.headers.authorization ? 'header' : (req.headers.cookie ? 'cookie' : 'none');
-  console.log(`[APNs] apns-token POST received auth=${auth} platform=${req.get('x-client-platform') || '-'} len=${String(req.body?.token || '').length}`);
+  // Header value is client-controlled → allowlist to a short identifier so it
+  // can't carry control characters into the log viewer.
+  const platform = String(req.get('x-client-platform') || '-').replace(/[^\w.-]/g, '').slice(0, 16) || '-';
+  console.log(`[APNs] apns-token POST received auth=${auth} platform=${platform} len=${String(req.body?.token || '').length}`);
   next();
 };
 
@@ -24,6 +27,10 @@ router.post('/unsubscribe', authenticate, unsubscribe);
 router.post('/apns-token', apnsTokenEntryLog, authenticate, saveApnsToken);
 // Native app reports what happened on the device (permission / registration
 // outcome) so "no push" is diagnosable from Railway logs — see controller.
-router.post('/diagnostics', generalLimiter, authenticate, reportPushDiagnostics);
+// No route-level generalLimiter: the SAME instance is already mounted on all
+// of /api (server.js), and repeating it double-counts every request
+// (express-rate-limit ERR_ERL_DOUBLE_COUNT). Sentry escalation is throttled
+// per user inside the controller.
+router.post('/diagnostics', authenticate, reportPushDiagnostics);
 
 export default router;

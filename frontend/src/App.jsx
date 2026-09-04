@@ -681,14 +681,27 @@ function useNativePush(user) {
         setPermission('prompt');
         return PN.requestPermissions().then(({ receive: r }) => {
           if (cancelled) return;
+          if (r !== 'granted') {
+            // Fresh in-session "Nicht erlauben": don't nag 3 s later with the
+            // Settings banner (the web NotificationPrompt snoozes 14 d on a
+            // denial too). Writing the banner's snooze key is the only thing
+            // that works here — the system dialog bounces the app through
+            // appStateChange, whose re-evaluate lands in the sticky 'denied'
+            // branch above within a second. App Reviewers deny first prompts.
+            safeStorage.setItem('jamie_native_push_denied_dismissed', String(Date.now()));
+          }
           setPermission(r === 'granted' ? 'granted' : 'denied');
           report('permission', { permission: r });
           if (r === 'granted') register();
         });
       }).catch((e) => {
-        // The Capacitor proxy throws "PushNotifications plugin is not
-        // implemented on ios" when the package is missing from the binary.
-        report('plugin_unavailable', { detail: errText(e) });
+        // Capacitor's proxy throws code 'UNIMPLEMENTED' ("PushNotifications
+        // plugin is not implemented on ios") when the package is missing from
+        // the binary. Anything else landing here is a real permission error
+        // (iOS can reject requestAuthorization) — label it as such, or the
+        // log line sends us hunting for a missing pod that is there.
+        const unimplemented = e?.code === 'UNIMPLEMENTED' || /not implemented/i.test(String(e?.message || ''));
+        report(unimplemented ? 'plugin_unavailable' : 'permission_error', { detail: errText(e) });
       });
     };
 
@@ -706,6 +719,10 @@ function useNativePush(user) {
               // "the phone never sent anything".
               console.error('[APNs] token save failed:', e?.response?.status, e?.message);
               report('token_save_failed', { detail: `${e?.response?.status || 'net'} ${errText(e?.response?.data?.error || e)}` });
+              // Let the next foreground evaluate() re-register: iOS hands the
+              // cached token straight back, so this is what turns "offline at
+              // launch" into a retry instead of a token lost until cold start.
+              registerCalled = false;
             });
         });
       });
@@ -716,6 +733,10 @@ function useNativePush(user) {
       listen(PN, 'registrationError', (err) => {
         console.error('[APNs] registrationError:', err?.error || err);
         report('registration_error', { detail: errText(err) });
+        // On iOS register() resolves immediately (the real outcome arrives via
+        // this event), so the .catch in register() never fires — reset here or
+        // the foreground re-check can never retry.
+        registerCalled = false;
       });
 
       // Tapping a push must open its target. The backend puts the route into
@@ -1029,13 +1050,16 @@ function AppRoutes() {
       )}
       {/* Proactive web-push enable nudge — hidden on native iOS + when a modal
           is up. Self-gates on support / permission / prior dismissal. */}
-      {user && !user.isGuest && !showFeedback && !pendingReviews && !showIntro && (
+      {user && !user.isGuest && !showFeedback && !pendingReviews && !showIntro && !showAvatarNudge && (
         <NotificationPrompt />
       )}
       {/* Native-iOS counterpart: the OS permission is DENIED (sticky — iOS
           never re-prompts), so the only way back is Settings. useNativePush
-          owns the state and re-checks on return; this is display + snooze. */}
-      {user && !user.isGuest && !showFeedback && !pendingReviews && !showIntro && (
+          owns the state and re-checks on return; this is display + snooze.
+          Both prompts also yield to the soft avatar-nudge sheet — it's a
+          bottom sheet at z 2000, the banners float at 9000 and would sit on
+          top of its CTA. */}
+      {user && !user.isGuest && !showFeedback && !pendingReviews && !showIntro && !showAvatarNudge && (
         <NativePushDeniedBanner permission={nativePush.permission} />
       )}
       {/* Avatar nudge for grandfathered avatar-less members — soft, dismissible,

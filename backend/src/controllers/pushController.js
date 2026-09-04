@@ -201,20 +201,59 @@ const DIAG_EVENTS = new Set([
   'plugin_unavailable',  // "PushNotifications plugin is not implemented on ios" — not in the binary
   'import_failed',       // the JS chunk for the plugin did not load
   'token_save_failed',   // POST /push/apns-token failed (detail carries the HTTP status)
+  'permission_error',    // checkPermissions/requestPermissions rejected (iOS UNUserNotificationCenter error)
 ]);
-const clip = (v, n = 160) => (v == null ? '' : String(v).replace(/\s+/g, ' ').slice(0, n));
+// Client strings go into a log line that Railway's viewer RENDERS: strip
+// control chars (ESC → ANSI colour/cursor codes, C0/C1, DEL) and Unicode
+// bidi/zero-width overrides before collapsing whitespace — otherwise a client
+// can recolour or visually reorder the operator's log. sanitizeInputs upstream
+// even decodes `&#27;` into a real ESC, so this must happen here.
+const clip = (v, n = 160) => (v == null ? '' : String(v)
+  .replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u2028-\u202E\u2060-\u2069\uFEFF]/g, '')
+  .replace(/\s+/g, ' ')
+  .slice(0, n));
+
+// Sentry gets at most ONE event per (user, kind) per hour. Without this, every
+// POST became its own Sentry issue (the message embedded the per-request
+// detail, and Sentry groups by text), so a single authenticated client could
+// mint thousands of issues inside generalLimiter's budget. The log line is
+// still written every time — Sentry is for "a build is broken", not a tally.
+const DIAG_SENTRY_WINDOW_MS = 60 * 60 * 1000;
+const DIAG_SENTRY_MAX_KEYS = 5000;
+const diagSentryLast = new Map();
+const shouldEscalate = (key, now) => {
+  const last = diagSentryLast.get(key);
+  if (last && now - last < DIAG_SENTRY_WINDOW_MS) return false;
+  if (diagSentryLast.size >= DIAG_SENTRY_MAX_KEYS) {
+    for (const [k, t] of diagSentryLast) { if (now - t >= DIAG_SENTRY_WINDOW_MS) diagSentryLast.delete(k); }
+    if (diagSentryLast.size >= DIAG_SENTRY_MAX_KEYS) return false; // still full → log only
+  }
+  diagSentryLast.set(key, now);
+  return true;
+};
 
 export const reportPushDiagnostics = (req, res) => {
+  // Guests (ALLOW_GUEST_TOKEN) have no device row to diagnose and would only
+  // add user=0 noise + Sentry events from an unauthenticated caller.
+  if (req.isGuest || !req.userId) return res.status(403).json({ error: 'Guests cannot report diagnostics' });
   const { event, permission, detail, app_version, platform } = req.body || {};
   if (!DIAG_EVENTS.has(event)) return res.status(400).json({ error: 'invalid event' });
-  const line = `[APNs-diag] user=${req.userId} platform=${clip(platform, 16) || '-'} app=${clip(app_version, 32) || '-'} event=${event} permission=${clip(permission, 32) || '-'} detail=${clip(detail) || '-'}`;
+  const app = clip(app_version, 32) || '-';
+  const line = `[APNs-diag] user=${req.userId} platform=${clip(platform, 16) || '-'} app=${app} event=${event} permission=${clip(permission, 32) || '-'} detail=${clip(detail) || '-'}`;
   const isProblem = event !== 'registered' && !(event === 'permission' && permission === 'granted');
   if (isProblem) {
     console.warn(line);
     // A denied permission is expected churn; the other four mean the build or
-    // the server is broken for everyone on that version — surface them.
-    if (event !== 'permission') {
-      Sentry.captureMessage?.(line, { level: 'warning', tags: { area: 'push', kind: event }, extra: { userId: req.userId } });
+    // the server is broken for everyone on that version — surface them, but
+    // with a STABLE fingerprint (event + app version) so they group into one
+    // issue per broken build, and throttled per user.
+    if (event !== 'permission' && shouldEscalate(`${req.userId}:${event}`, Date.now())) {
+      Sentry.captureMessage?.(`[APNs-diag] ${event} app=${app}`, {
+        level: 'warning',
+        fingerprint: ['apns-diag', event, app],
+        tags: { area: 'push', kind: event, app },
+        extra: { userId: req.userId, detail: clip(detail), permission: clip(permission, 32) },
+      });
     }
   } else {
     console.log(line);

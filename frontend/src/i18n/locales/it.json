@@ -2003,7 +2003,7 @@
   },
   "nativePushDenied": {
     "title": "Le notifiche sono disattivate in iOS",
-    "text": "Ti perdi messaggi e richieste di adesione. Riattivale nelle Impostazioni.",
+    "text": "Ti perdi messaggi e richieste di ingresso. Riattivale nelle Impostazioni.",
     "open": "Apri Impostazioni",
     "later": "Più tardi"
   }

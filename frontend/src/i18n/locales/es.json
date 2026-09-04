@@ -2003,7 +2003,7 @@
   },
   "nativePushDenied": {
     "title": "Las notificaciones están desactivadas en iOS",
-    "text": "Te pierdes mensajes y solicitudes de unión. Actívalas de nuevo en Ajustes.",
+    "text": "Te pierdes mensajes y solicitudes de ingreso. Actívalas de nuevo en Ajustes.",
     "open": "Abrir Ajustes",
     "later": "Más tarde"
   }

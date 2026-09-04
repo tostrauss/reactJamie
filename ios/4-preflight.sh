@@ -95,6 +95,59 @@ else
   fi
 fi
 
+echo "📨  5/5 AppDelegate → Capacitor push-token forwarding..."
+# @capacitor/push-notifications receives the APNs device token ONLY through two
+# NotificationCenter posts that the app's own AppDelegate.swift must make
+# (plugin README + PushNotificationsPlugin.swift observers). `cap sync` never
+# touches AppDelegate, and the file lives outside the repo, so nothing else
+# guarantees they exist. Without them iOS registers fine, the JS 'registration'
+# event never fires — no token, no push, no error anywhere (incident 2026-09-04).
+APPDEL="frontend/ios/App/App/AppDelegate.swift"
+if [ ! -f "$APPDEL" ]; then
+  echo "    ⚠️  $APPDEL not found — SKIPPED (native project not generated yet)."
+elif grep -q "capacitorDidRegisterForRemoteNotifications" "$APPDEL" \
+  && grep -q "capacitorDidFailToRegisterForRemoteNotifications" "$APPDEL"; then
+  echo "    ✓ AppDelegate already forwards didRegister/didFail to Capacitor"
+elif grep -q "didRegisterForRemoteNotificationsWithDeviceToken" "$APPDEL"; then
+  # A hand-written or legacy (Capacitor 2) version exists without the posts —
+  # inserting ours would be an "invalid redeclaration" compile error.
+  echo "    ❌  AppDelegate has didRegisterForRemoteNotificationsWithDeviceToken but does NOT post"
+  echo "        .capacitorDidRegisterForRemoteNotifications — fix it by hand (see"
+  echo "        node_modules/@capacitor/push-notifications/README.md, iOS section). STOP: push cannot work."
+else
+  export CAP_PUSH_SNIPPET='
+    // Capacitor push (added by ios/4-preflight.sh): the PushNotifications plugin
+    // receives the APNs device token ONLY via these two NotificationCenter posts.
+    // Without them iOS registers fine, but the JS "registration" event never
+    // fires — no token, no push, no error (incident 2026-09-04).
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+    }
+'
+  # Insert before the LAST line that is just "}" — the end of the AppDelegate
+  # class. Buffered in awk so it works identically with macOS/BSD awk.
+  awk '
+    { lines[NR] = $0 }
+    END {
+      last = 0
+      for (i = NR; i >= 1; i--) if (lines[i] ~ /^}[[:space:]]*$/) { last = i; break }
+      for (i = 1; i <= NR; i++) {
+        if (i == last) print ENVIRON["CAP_PUSH_SNIPPET"]
+        print lines[i]
+      }
+    }' "$APPDEL" > "$APPDEL.tmp" && mv "$APPDEL.tmp" "$APPDEL"
+  unset CAP_PUSH_SNIPPET
+  if grep -q "capacitorDidRegisterForRemoteNotifications" "$APPDEL"; then
+    echo "    + added didRegister/didFail forwarders to AppDelegate.swift"
+  else
+    echo "    ❌  could not insert the forwarders (no closing brace found?) — fix AppDelegate.swift by hand. STOP."
+  fi
+fi
+
 echo ""
 echo "✅  Preflight done. Remaining manual steps in Xcode:"
 echo "    1. Set Version + bump the Build number (last uploaded: 1.4 build 9 → next is 1.4.1 build 10+;"

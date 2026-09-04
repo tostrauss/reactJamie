@@ -2003,7 +2003,7 @@
   },
   "nativePushDenied": {
     "title": "Les notifications sont désactivées dans iOS",
-    "text": "Tu rates des messages et des demandes d’adhésion. Réactive-les dans les Réglages.",
+    "text": "Tu rates des messages et des demandes d'adhésion. Réactive-les dans les Réglages.",
     "open": "Ouvrir les Réglages",
     "later": "Plus tard"
   }

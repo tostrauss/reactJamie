@@ -78,6 +78,35 @@ describe('reportPushDiagnostics', () => {
     },
   );
 
+  it('rejects guest tokens with 403 (no device row to diagnose, no Sentry)', () => {
+    const res = mockRes();
+    reportPushDiagnostics({ userId: 0, isGuest: true, body: { event: 'registration_error' } }, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(Sentry.captureMessage).not.toHaveBeenCalled();
+  });
+
+  it('escalates to Sentry with a STABLE fingerprint and only once per user+event per hour', () => {
+    // Different user id than the it.each above so the throttle map is fresh.
+    reportPushDiagnostics({ userId: 777, body: { event: 'import_failed', detail: 'chunk A', app_version: '1.4.1 (10)' } }, mockRes());
+    reportPushDiagnostics({ userId: 777, body: { event: 'import_failed', detail: 'chunk B', app_version: '1.4.1 (10)' } }, mockRes());
+    // Both requests are LOGGED …
+    expect(warn).toHaveBeenCalledTimes(2);
+    // … but Sentry sees one event, grouped by (event, app), never by the free-text detail.
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
+    const [msg, opts] = Sentry.captureMessage.mock.calls[0];
+    expect(msg).toBe('[APNs-diag] import_failed app=1.4.1 (10)');
+    expect(opts).toMatchObject({ fingerprint: ['apns-diag', 'import_failed', '1.4.1 (10)'], tags: { kind: 'import_failed' } });
+    expect(opts.extra.detail).toBe('chunk A');
+  });
+
+  it('strips control characters and bidi overrides from client strings', () => {
+    const detail = 'x\u001b[31mRED\u001b[0m\u202ey';
+    reportPushDiagnostics({ userId: 778, body: { event: 'registration_error', detail } }, mockRes());
+    const line = warn.mock.calls[0][0];
+    expect(line).not.toMatch(/[\u0000-\u001F\u007F-\u009F\u202E]/);
+    expect(line).toContain('detail=x[31mRED[0my');
+  });
+
   it('clips oversized / multi-line detail so a client cannot flood the log', () => {
     const detail = ('x'.repeat(50) + '\n\n' + 'y'.repeat(500));
     reportPushDiagnostics(req({ event: 'registration_error', detail }), mockRes());

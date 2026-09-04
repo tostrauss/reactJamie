@@ -66,9 +66,13 @@ cd ..
 bash ios/4-preflight.sh
 ```
 
-- Dauert ein paar Minuten. Am Ende des letzten Befehls muss stehen:
-  **„4/4 Push Notifications entitlement … ✓ … already wired"** und
-  **„Preflight done"**. Fehlt das → Screenshot an Tobi.
+- Dauert ein paar Minuten. Am Ende des letzten Befehls müssen **drei** Dinge
+  stehen:
+  **„4/4 Push Notifications entitlement … ✓"**,
+  **„5/5 AppDelegate … ✓ already forwards"** oder **„+ added … forwarders"**,
+  und **„Preflight done"**.
+  Steht bei 5/5 ein rotes **❌ … STOP** → **STOPP, Tobi** (dann kann Push
+  in diesem Build nicht funktionieren, das Archivieren wäre umsonst).
 - Der Hinweis „@capacitor/core … doesn't match @capacitor/ios" ist eine
   Warnung, kein Fehler — ignorieren.
 - `pod: command not found` → einmalig `sudo gem install cocoapods`, dann
