@@ -69,10 +69,14 @@ export const GroupEdit = () => {
       setMembers(memberList);
       const memberIds = new Set(memberList.map(m => m.id || m.user_id));
       setFriends((friendsRes.data || []).filter(f => !memberIds.has(f.friend_id)));
-      // Events carry a real time-of-day; split it into local date + time for
-      // the two inputs (local getters match how the event is displayed
-      // everywhere else). Groups set their time in chat, so they keep the
-      // date-only field and no time input.
+      // Events carry a real time-of-day; split it into date + time for the two
+      // inputs. UTC getters, NOT local: groups.date is a naive wall-clock that
+      // round-trips from the UTC server tagged "Z", and every display in the
+      // app formats it in UTC (ClubDetail/GroupDetail/EventCard). Local getters
+      // showed a 20:00 event as 22:00 on a Vienna phone, and "Speichern"
+      // without touching the field then PERSISTED 22:00 (release audit
+      // 2026-09-04). Groups set their time in chat, so they keep the date-only
+      // field and no time input.
       const dt = g.date ? new Date(g.date) : null;
       const validDt = dt && !isNaN(dt.getTime());
       const pad = (n) => String(n).padStart(2, '0');
@@ -88,9 +92,9 @@ export const GroupEdit = () => {
           ? Math.max(4, Math.min(g.max_members || 10, Math.max(20, g.members_count || 0)))
           : (g.max_members || 10),
         date: isEventType && validDt
-          ? `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`
+          ? `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`
           : (g.date ? g.date.slice(0, 10) : ''),
-        time: isEventType && validDt ? `${pad(dt.getHours())}:${pad(dt.getMinutes())}` : '',
+        time: isEventType && validDt ? `${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}` : '',
         image_url: g.image_url || null,
         categories: (Array.isArray(g.categories) && g.categories.length) ? g.categories : (g.category ? [g.category] : []),
         mainCategory: mainCategoryOf((Array.isArray(g.categories) && g.categories[0]) || g.category),

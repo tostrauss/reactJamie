@@ -189,16 +189,21 @@ const socketHandler = (io) => {
     // arbitrary userIds and silently receive every receive_dm broadcast.
     // Same applies to typing — without the gate, a stranger can impersonate
     // typing indicators inside a victim's DM thread.
-    socket.on('join_dm_room', async ({ otherUserId }) => {
-      const other = parseInt(otherUserId, 10);
+    // NEVER destructure the payload in a socket handler: `({ otherUserId })`
+    // throws a TypeError on `emit('join_dm_room')` with no/null/string data.
+    // In the sync handler below that TypeError escaped socket.io as an
+    // uncaughtException → gracefulShutdown → process.exit — i.e. any logged-in
+    // user could kill the API with one packet (release audit 2026-09-04).
+    socket.on('join_dm_room', async (data) => {
+      const other = parseInt(data?.otherUserId, 10);
       if (!other || other <= 0 || other === socket.userId) return;
       if (!(await areFriends(socket.userId, other))) return;
       const roomName = `dm_${Math.min(socket.userId, other)}_${Math.max(socket.userId, other)}`;
       socket.join(roomName);
     });
 
-    socket.on('leave_dm_room', ({ otherUserId }) => {
-      const other = parseInt(otherUserId, 10);
+    socket.on('leave_dm_room', (data) => {
+      const other = parseInt(data?.otherUserId, 10);
       if (!other || other <= 0) return;
       const roomName = `dm_${Math.min(socket.userId, other)}_${Math.max(socket.userId, other)}`;
       socket.leave(roomName);
@@ -213,16 +218,16 @@ const socketHandler = (io) => {
     // server-side checkTextSafety.
     socket.on('send_dm', () => { /* delivery moved to HTTP path */ });
 
-    socket.on('dm_typing', async ({ receiverId }) => {
-      const recv = parseInt(receiverId, 10);
+    socket.on('dm_typing', async (data) => {
+      const recv = parseInt(data?.receiverId, 10);
       if (!recv || recv <= 0 || recv === socket.userId) return;
       if (!(await areFriends(socket.userId, recv))) return;
       const roomName = `dm_${Math.min(socket.userId, recv)}_${Math.max(socket.userId, recv)}`;
       socket.to(roomName).emit('dm_user_typing', { userId: socket.userId });
     });
 
-    socket.on('dm_stop_typing', async ({ receiverId }) => {
-      const recv = parseInt(receiverId, 10);
+    socket.on('dm_stop_typing', async (data) => {
+      const recv = parseInt(data?.receiverId, 10);
       if (!recv || recv <= 0 || recv === socket.userId) return;
       if (!(await areFriends(socket.userId, recv))) return;
       const roomName = `dm_${Math.min(socket.userId, recv)}_${Math.max(socket.userId, recv)}`;

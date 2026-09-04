@@ -114,6 +114,7 @@ elif grep -q "didRegisterForRemoteNotificationsWithDeviceToken" "$APPDEL"; then
   echo "    ❌  AppDelegate has didRegisterForRemoteNotificationsWithDeviceToken but does NOT post"
   echo "        .capacitorDidRegisterForRemoteNotifications — fix it by hand (see"
   echo "        node_modules/@capacitor/push-notifications/README.md, iOS section). STOP: push cannot work."
+  exit 1
 else
   export CAP_PUSH_SNIPPET='
     // Capacitor push (added by ios/4-preflight.sh): the PushNotifications plugin
@@ -145,6 +146,7 @@ else
     echo "    + added didRegister/didFail forwarders to AppDelegate.swift"
   else
     echo "    ❌  could not insert the forwarders (no closing brace found?) — fix AppDelegate.swift by hand. STOP."
+    exit 1
   fi
 fi
 

@@ -298,7 +298,12 @@ export const blockUser = async (req, res) => {
     );
 
     if (existing.rows.length > 0) {
-      // Take over the row regardless of who created it so requester_id is the blocker.
+      // Take over the row so requester_id is the blocker — EXCEPT when the
+      // other side has already blocked us. Taking over their block let a
+      // blocked user "block back", then unblock (which deletes the row), and
+      // then send a request + push to the person who blocked them (release
+      // audit 2026-09-04). Their block stays theirs; from our side the effect
+      // (no contact) is identical, so we still answer 200.
       await db.query(
         `UPDATE friendships
            SET status = 'blocked',
@@ -306,7 +311,8 @@ export const blockUser = async (req, res) => {
                addressee_id = $2,
                updated_at = CURRENT_TIMESTAMP,
                expires_at = NULL
-         WHERE id = $3`,
+         WHERE id = $3
+           AND NOT (status = 'blocked' AND requester_id = $2)`,
         [req.userId, targetId, existing.rows[0].id]
       );
     } else {

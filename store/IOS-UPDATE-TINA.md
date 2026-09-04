@@ -150,10 +150,10 @@ Nicht rumprobieren. Schick Tobi **drei Dinge**:
    oder Text an Tobi):
 
 ```bash
-codesign -d --entitlements :- ~/Library/Developer/Xcode/Archives/$(date +%Y-%m-%d)/*.xcarchive/Products/Applications/App.app 2>/dev/null | grep -B1 -A1 aps-environment
+codesign -d --entitlements :- "$(ls -td ~/Library/Developer/Xcode/Archives/*/*.xcarchive | head -1)/Products/Applications/App.app" 2>/dev/null | grep -B1 -A1 aps-environment
 ```
 ```bash
-grep -n "didRegisterForRemoteNotificationsWithDeviceToken\|capacitorDidRegisterForRemoteNotifications" ~/reactJamie/frontend/ios/App/App/AppDelegate.swift
+grep -n -e didRegisterForRemoteNotificationsWithDeviceToken -e capacitorDidRegisterForRemoteNotifications ~/reactJamie/frontend/ios/App/App/AppDelegate.swift
 ```
 ```bash
 grep -n "aps-environment" -A1 ~/reactJamie/frontend/ios/App/App/App.entitlements
