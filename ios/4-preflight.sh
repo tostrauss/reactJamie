@@ -97,7 +97,8 @@ fi
 
 echo ""
 echo "✅  Preflight done. Remaining manual steps in Xcode:"
-echo "    1. Bump the Build number (last uploaded: 3 → use 4+; duplicates are rejected)"
+echo "    1. Set Version + bump the Build number (last uploaded: 1.4 build 9 → next is 1.4.1 build 10+;"
+echo "       a version already in the App Store cannot be re-submitted; duplicate builds are rejected)"
 echo "    2. Product → Archive → Distribute App"
 echo ""
 echo "🔔  For iOS PUSH to actually deliver, the entitlement above is NOT enough:"
