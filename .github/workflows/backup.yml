@@ -70,6 +70,17 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-18
+          # /usr/bin/pg_dump on Ubuntu is postgresql-common's WRAPPER, not a
+          # binary: it picks a version on its own and happily chose the
+          # runner's preinstalled 16 even with 18 installed — the run then died
+          # with "server version mismatch (server 18.6, pg_dump 16.15)".
+          # Put the real 18 binaries first for every following step.
+          echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
+          # Assert it, like the Dockerfile does: a client older than the server
+          # can never dump it, so this must fail HERE and not at 03:00 UTC.
+          MAJOR="$(/usr/lib/postgresql/18/bin/pg_dump --version | awk '{print $3}' | cut -d. -f1)"
+          echo "pg_dump major: $MAJOR"
+          [ "$MAJOR" -ge 18 ] || { echo "::error::pg_dump >= 18 required, got $MAJOR"; exit 1; }
 
       - name: Run encrypted backup
         env:
