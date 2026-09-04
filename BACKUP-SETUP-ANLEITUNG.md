@@ -375,3 +375,58 @@ aws s3 cp "s3://jamie-backups/db/jamie-db-<STAMP>.sql.gz.enc" - \
 (Unsere Dumps sind byte-kompatibel zum OpenSSL-Format `Salted__` + PBKDF2/
 SHA-256/10000 Iterationen. Meckert ein exotisches openssl, explizit
 `-md sha256 -iter 10000` anhängen.)
+
+---
+
+## Restore-Drills — Nachweis, dass die Backups wirklich tragen
+
+Ein Dump ist erst ein Backup, wenn er zurückgespielt wurde. Jeder Drill wird
+hier protokolliert; das ist die Evidenz, nach der die Versicherung fragt.
+
+### Drill #1 — 2026-09-04, bestanden ✅
+
+| | |
+|---|---|
+| Objekt | `db/jamie-db-2026-09-04T15-08-44Z.sql.gz.enc` (643 KB verschlüsselt) |
+| Ziel | Wegwerf-Container `postgres:18-alpine` (18.6 = Produktionsversion), Port 55444 |
+| Dry-Run | ✅ herunterladbar, entschlüsselbar, entpackt sauber → 2,30 MB SQL |
+| Restore | ✅ 2,30 MB in **1,6 s**, `--single-transaction` + `ON_ERROR_STOP=1` |
+| Schema | 43 Tabellen · 169 Indizes · 53 Fremdschlüssel · 30 Sequenzen |
+| Daten | users 1197 · groups 314 · group_members 2290 · messages 3459 · direct_messages 594 · friendships 771 · push_subscriptions 67 · deals 10 |
+| Aktualität | neuester User 14:59, neueste Nachricht 15:06 — Dump um 15:08, also **2 Minuten Rückstand** |
+| Integrität | **alle 53 Fremdschlüssel per `VALIDATE CONSTRAINT` geprüft — keine verwaisten Zeilen** |
+| Aufräumen | Container entfernt, kein Klartext auf Platte (Stream direkt in psql) |
+
+**Ablauf zum Wiederholen** (keine Produktionsdaten anfassen!):
+
+```bash
+# 1. Wegwerf-DB in Produktionsversion starten
+docker run -d --name jamie-restore-drill -e POSTGRES_PASSWORD=drill   -e POSTGRES_DB=jamie_drill -p 55444:5432 postgres:18-alpine
+
+# 2. Dry-Run: lädt, entschlüsselt, entpackt — fasst KEINE Datenbank an
+cd backend && node scripts/restore-backup.js --list
+node scripts/restore-backup.js --latest
+
+# 3. Echter Restore (braucht psql im PATH; auf Windows via
+#    `docker exec -i jamie-restore-drill psql` umleiten)
+node scripts/restore-backup.js --latest --execute   --target postgresql://postgres:drill@127.0.0.1:55444/jamie_drill
+
+# 4. Prüfen: Tabellen/Zeilen zählen, Aktualität, FKs validieren
+docker exec jamie-restore-drill psql -U postgres -d jamie_drill -c "\dt"
+
+# 5. Spurlos aufräumen
+docker rm -f jamie-restore-drill
+```
+
+**Erforderliche ENV für Schritt 2/3:** `BACKUP_R2_ACCOUNT_ID`,
+`BACKUP_R2_ACCESS_KEY_ID`, `BACKUP_R2_SECRET_ACCESS_KEY`, `BACKUP_R2_BUCKET`,
+`BACKUP_ENCRYPTION_KEY` — dieselben Werte wie auf Railway.
+
+⚠️ **Ohne `BACKUP_ENCRYPTION_KEY` ist jeder Dump wertloser Zufall.** Der
+Schlüssel gehört in den Passwort-Manager UND in den versiegelten Umschlag,
+niemals in dasselbe Cloudflare-Konto wie der Tresor. Bei Rotation: alte Dumps
+brauchen weiterhin den ALTEN Schlüssel.
+
+**Nächster Drill:** nach der nächsten grösseren Schema-Migration, spätestens
+in 6 Monaten.
+
