@@ -25,12 +25,24 @@ FROM node:20-alpine
 WORKDIR /app
 
 # pg_dump/psql for the nightly encrypted offsite DB backup (src/jobs/backup.js)
-# and scripts/restore-backup.js — see BACKUP-KONZEPT.md. Prefer the newest
-# client the Alpine release offers: pg_dump must be >= the server's major
-# version (it can always dump OLDER servers, never newer ones).
-RUN apk add --no-cache postgresql17-client \
- || apk add --no-cache postgresql16-client \
- || apk add --no-cache postgresql-client
+# and scripts/restore-backup.js — see BACKUP-KONZEPT.md.
+# pg_dump MUST be >= the server's major version -- it can dump older servers,
+# never newer ones. Railway's Postgres is 18.x, so 18 is a hard requirement,
+# NOT a preference. The previous `17 || 16 || any` fallback chain is exactly
+# what hid the outage: the build happily installed pg_dump 17, and every
+# nightly dump from 2026-08-18 to 2026-09-04 died with "aborting because of
+# server version mismatch (server 18.6, pg_dump 17.11)" while the boot log
+# still said [backup] ARMED. No silent fallback: if a pg_dump >= 18 cannot be
+# installed the BUILD fails, loudly, now -- instead of the backup failing
+# quietly at 03:15 UTC for another two months. The Alpine release behind
+# node:20-alpine may predate PG18, hence the edge/community fallback.
+RUN (apk add --no-cache postgresql18-client \
+     || apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community postgresql18-client \
+     || apk add --no-cache postgresql17-client) \
+ && PGDUMP_MAJOR="$(pg_dump --version | awk '{print $3}' | cut -d. -f1)" \
+ && echo "pg_dump major: $PGDUMP_MAJOR" \
+ && [ "$PGDUMP_MAJOR" -ge 18 ] \
+ || (echo "FATAL: pg_dump >= 18 required (Railway Postgres is 18.x), got $(pg_dump --version 2>&1)" >&2; exit 1)
 
 COPY backend/package.json backend/package-lock.json ./
 RUN npm ci --omit=dev
