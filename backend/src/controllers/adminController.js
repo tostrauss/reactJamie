@@ -3,6 +3,7 @@ import { revokeUserSessions } from '../socket.js';
 import { getClientIp } from '../utils/clientIp.js';
 import geoip from 'geoip-lite';
 import { checkSubscriptionCountry, getSubscriptionCountries } from '../utils/paymentRegion.js';
+import { isBackupConfigured, missingBackupEnv } from '../jobs/backup.js';
 
 // ==========================================
 // OVERVIEW STATS
@@ -673,6 +674,70 @@ export const getOnlineUsers = async (req, res) => {
 // Expected on Railway with trust proxy = 1: reqIp equals the LAST entry of
 // xForwardedFor (the hop Railway appended). If reqIp is instead an internal/
 // edge address, raise TRUST_PROXY_HOPS in Railway env and re-check.
+// ==========================================
+// BACKUP HEALTH (insurance audit trail)
+// ==========================================
+// backup_runs is the ledger the insurer would ask for, but nothing surfaced it:
+// checking whether a backup ever ran meant shell access to the Railway console.
+// That blind spot is exactly how 60 consecutive failures of the GitHub-Action
+// leg went unnoticed from 2026-07-07 to 2026-09-04. One endpoint, so "do we
+// have backups?" is answerable in a browser.
+export const getBackupStatus = async (req, res) => {
+  try {
+    const [runsRes, lastOkRes] = await Promise.all([
+      db.query(
+        `SELECT kind, status, started_at, finished_at, object_key, bytes, detail
+           FROM backup_runs ORDER BY started_at DESC LIMIT 20`
+      ),
+      db.query(
+        `SELECT DISTINCT ON (kind) kind, started_at, finished_at, object_key, bytes
+           FROM backup_runs WHERE status = 'success'
+          ORDER BY kind, started_at DESC`
+      ),
+    ]);
+
+    const lastSuccess = {};
+    for (const r of lastOkRes.rows) {
+      const ageH = (Date.now() - new Date(r.finished_at || r.started_at).getTime()) / 3.6e6;
+      lastSuccess[r.kind] = {
+        at: r.finished_at || r.started_at,
+        ageHours: Math.round(ageH * 10) / 10,
+        objectKey: r.object_key,
+        bytes: r.bytes == null ? null : Number(r.bytes),
+      };
+    }
+    // The DB dump is nightly (03:15 UTC) — anything older than ~26 h means the
+    // last run did not complete, whatever the boot log claims.
+    const db_ = lastSuccess.db;
+    const healthy = !!db_ && db_.ageHours <= 26;
+
+    res.json({
+      configured: isBackupConfigured(),
+      missingEnv: missingBackupEnv(),
+      healthy,
+      lastSuccess,
+      recentRuns: runsRes.rows.map(r => ({
+        ...r,
+        bytes: r.bytes == null ? null : Number(r.bytes),
+      })),
+    });
+  } catch (err) {
+    // Table missing = migrations never created it = no backup has ever run.
+    if (err.code === '42P01') {
+      return res.json({
+        configured: isBackupConfigured(),
+        missingEnv: missingBackupEnv(),
+        healthy: false,
+        lastSuccess: {},
+        recentRuns: [],
+        note: 'backup_runs table does not exist — no backup has ever been recorded',
+      });
+    }
+    console.error('getBackupStatus error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 export const getIpDiagnostics = async (req, res) => {
   // GeoIP resolution as the payment region gate actually sees it. Added
   // 2026-09-03 because a real Vienna customer on 4G was refused Pro: we need to

@@ -18,6 +18,7 @@ import {
   getUserOrigins,
   getUserDetail,
   getIpDiagnostics,
+  getBackupStatus,
 } from '../controllers/adminController.js';
 import { getFeedbackAdmin } from '../controllers/feedbackController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
@@ -50,6 +51,8 @@ router.get('/online-users', getOnlineUsers);
 router.get('/growth',      getGrowth);
 router.get('/user-origins', getUserOrigins);
 router.get('/ip-diagnostics', getIpDiagnostics);
+// Insurance audit trail: is there a recent, successful backup? (backup_runs)
+router.get('/backup-status', getBackupStatus);
 router.get('/feedback',    getFeedbackAdmin);
 router.get('/export/users',       exportUsers);
 router.get('/export/screens',     exportScreens);
