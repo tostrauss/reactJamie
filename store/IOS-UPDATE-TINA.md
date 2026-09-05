@@ -32,11 +32,13 @@ liegt. Tobi muss den neuen Code erst hochladen — er sagt dir Bescheid.
 
 **b) Eine Zahl für Tobi nachschauen (20 Sekunden).** Auf
 https://developer.apple.com/account → **Mitgliedschaftsdetails** → dort steht
-eine **Team-ID** (10 Zeichen, z. B. `RTJNBK94F8`). **Schick Tobi genau diese
-Zeichenfolge.** Hintergrund: Der Server benutzt eine Team-ID zum Signieren der
-Benachrichtigungen — wenn die nicht zu deinem Account passt, lehnt Apple jede
-einzelne ab. Wir haben zwei verschiedene Werte im Umlauf und müssen wissen,
-welcher stimmt.
+eine **Team-ID** (10 Zeichen, Buchstaben und Ziffern gemischt). **Mach einen
+Screenshot von dieser Seite und schick ihn Tobi** — nicht abtippen. Steht oben
+rechts im Portal ein Team-Wechsler mit mehreren Teams, bitte alle
+durchklicken und je einen Screenshot machen. Hintergrund: Der Server benutzt
+eine Team-ID zum Signieren der Benachrichtigungen — wenn die nicht zu dem Team
+passt, dem die App gehört, lehnt Apple jede einzelne ab. Wir haben zwei
+verschiedene Werte im Umlauf und müssen wissen, welcher stimmt.
 
 ## 1. Neuesten Code holen
 
