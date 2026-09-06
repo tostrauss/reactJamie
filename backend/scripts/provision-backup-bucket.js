@@ -52,7 +52,7 @@ function readCreds(file) {
   }
   const creds = {};
   for (const raw of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
-    const line = raw.replace(/^﻿/, '').trim();
+    const line = raw.replace(/^\uFEFF/, '').trim();
     if (!line || line.startsWith('#')) continue;
     const eq = line.indexOf('=');
     if (eq === -1) continue;

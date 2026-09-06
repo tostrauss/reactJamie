@@ -103,6 +103,7 @@ describe('reportPushDiagnostics', () => {
     const detail = 'x\u001b[31mRED\u001b[0m\u202ey';
     reportPushDiagnostics({ userId: 778, body: { event: 'registration_error', detail } }, mockRes());
     const line = warn.mock.calls[0][0];
+    // eslint-disable-next-line no-control-regex -- asserting control chars are GONE
     expect(line).not.toMatch(/[\u0000-\u001F\u007F-\u009F\u202E]/);
     expect(line).toContain('detail=x[31mRED[0my');
   });
