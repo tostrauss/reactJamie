@@ -132,19 +132,19 @@ const PUSH_TEXTS = {
   },
   // Sent 30–60 min before a TIMED event; "Heute 19:00" stays true at any lead.
   eventReminderHour: {
-    de: (p) => ({ title: p.time ? `Heute ${p.time}: ${p.groupName}` : `Gleich: ${p.groupName}`, body: dots(p.location, 'Bis gleich! 👋') }),
-    en: (p) => ({ title: p.time ? `Today ${p.time}: ${p.groupName}` : `Soon: ${p.groupName}`, body: dots(p.location, 'See you soon! 👋') }),
-    it: (p) => ({ title: p.time ? `Oggi ${p.time}: ${p.groupName}` : `A breve: ${p.groupName}`, body: dots(p.location, 'A tra poco! 👋') }),
-    fr: (p) => ({ title: p.time ? `Aujourd’hui ${p.time} : ${p.groupName}` : `Bientôt : ${p.groupName}`, body: dots(p.location, 'À tout à l’heure ! 👋') }),
-    es: (p) => ({ title: p.time ? `Hoy ${p.time}: ${p.groupName}` : `Pronto: ${p.groupName}`, body: dots(p.location, '¡Hasta ahora! 👋') }),
+    de: (p) => ({ title: p.time ? `Heute ${p.time} · ${p.groupName}` : `Gleich: ${p.groupName}`, body: dots(p.location, 'Bis gleich! 👋') }),
+    en: (p) => ({ title: p.time ? `Today ${p.time} · ${p.groupName}` : `Soon: ${p.groupName}`, body: dots(p.location, 'See you soon! 👋') }),
+    it: (p) => ({ title: p.time ? `Oggi ${p.time} · ${p.groupName}` : `A breve: ${p.groupName}`, body: dots(p.location, 'A tra poco! 👋') }),
+    fr: (p) => ({ title: p.time ? `Aujourd’hui ${p.time} · ${p.groupName}` : `Bientôt : ${p.groupName}`, body: dots(p.location, 'À tout à l’heure ! 👋') }),
+    es: (p) => ({ title: p.time ? `Hoy ${p.time} · ${p.groupName}` : `Pronto: ${p.groupName}`, body: dots(p.location, '¡Hasta ahora! 👋') }),
   },
   // Owner, two days out, few sign-ups → the share nudge that drives the loop.
   ownerNudge: {
-    de: (p) => ({ title: `Noch 2 Tage bis "${p.groupName}"`, body: p.others ? `Erst ${p.others} dabei – teile dein Event, damit's voll wird 🚀` : `Noch niemand dabei – teile dein Event, damit's voll wird 🚀` }),
-    en: (p) => ({ title: `2 days until "${p.groupName}"`, body: p.others ? `Only ${p.others} in so far – share it to fill the spots 🚀` : `Nobody's in yet – share it to fill the spots 🚀` }),
-    it: (p) => ({ title: `Mancano 2 giorni a "${p.groupName}"`, body: p.others ? `Solo ${p.others} finora – condividilo per riempire i posti 🚀` : `Ancora nessuno – condividilo per riempire i posti 🚀` }),
-    fr: (p) => ({ title: `Plus que 2 jours avant « ${p.groupName} »`, body: p.others ? `Seulement ${p.others} pour l’instant – partage-le pour remplir les places 🚀` : `Personne pour l’instant – partage-le pour remplir les places 🚀` }),
-    es: (p) => ({ title: `Faltan 2 días para "${p.groupName}"`, body: p.others ? `Solo ${p.others} por ahora – compártelo para llenar las plazas 🚀` : `Aún nadie – compártelo para llenar las plazas 🚀` }),
+    de: (p) => ({ title: `Noch 2 Tage bis "${p.groupName}"`, body: p.others ? `Außer dir erst ${p.others} dabei – teile dein Event, damit's voll wird 🚀` : `Noch niemand dabei – teile dein Event, damit's voll wird 🚀` }),
+    en: (p) => ({ title: `2 days until "${p.groupName}"`, body: p.others ? `Besides you, only ${p.others} so far – share it to fill the spots 🚀` : `Nobody's in yet – share it to fill the spots 🚀` }),
+    it: (p) => ({ title: `Mancano 2 giorni a "${p.groupName}"`, body: p.others ? `Oltre a te solo ${p.others} finora – condividilo per riempire i posti 🚀` : `Ancora nessuno – condividilo per riempire i posti 🚀` }),
+    fr: (p) => ({ title: `Plus que 2 jours avant « ${p.groupName} »`, body: p.others ? `À part toi, seulement ${p.others} pour l’instant – partage-le pour remplir les places 🚀` : `Personne pour l’instant – partage-le pour remplir les places 🚀` }),
+    es: (p) => ({ title: `Faltan 2 días para "${p.groupName}"`, body: p.others ? `Aparte de ti, solo ${p.others} por ahora – compártelo para llenar las plazas 🚀` : `Aún nadie – compártelo para llenar las plazas 🚀` }),
   },
   friendJoined: {
     de: (p) => ({ title: `${p.name || SOMEONE.de} ist dabei`, body: `${p.name || SOMEONE.de} ist "${p.groupName}" beigetreten – auch dabei?` }),

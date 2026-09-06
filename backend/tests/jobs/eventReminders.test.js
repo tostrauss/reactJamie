@@ -173,7 +173,7 @@ describe('hour-before', () => {
     expect(membersSelects()[0].params).toEqual([[21]]);
     expect(pushUsersMock).toHaveBeenCalledTimes(1);
     expect(pushUsersMock).toHaveBeenCalledWith([5], expect.any(Function), null, '/group/21');
-    expect(pushUsersMock.mock.calls[0][1]('de')).toEqual({ title: 'Heute 19:00: Tennis', body: 'Bis gleich! 👋' });
+    expect(pushUsersMock.mock.calls[0][1]('de')).toEqual({ title: 'Heute 19:00 · Tennis', body: 'Bis gleich! 👋' });
     expect(pushUserMock).not.toHaveBeenCalled();
     expect(out).toEqual({ dayBefore: 0, hourBefore: 1, ownerNudge: 0, pushes: 1 });
   });
@@ -184,7 +184,7 @@ describe('hour-before', () => {
       members: [{ group_id: 21, user_id: 5 }],
     });
     await runEventReminders({ now: NOW });
-    expect(pushUsersMock.mock.calls[0][1]('de')).toEqual({ title: 'Heute 19:00: Tennis', body: 'Prater · Bis gleich! 👋' });
+    expect(pushUsersMock.mock.calls[0][1]('de')).toEqual({ title: 'Heute 19:00 · Tennis', body: 'Prater · Bis gleich! 👋' });
   });
 });
 
@@ -207,7 +207,7 @@ describe('owner nudge', () => {
     expect(pushUserMock).toHaveBeenNthCalledWith(2, 5, expect.any(Function), null, '/group/32?via=nudge');
     expect(pushUserMock.mock.calls[0][1]('de')).toEqual({
       title: 'Noch 2 Tage bis "Bar Abend"',
-      body: "Erst 1 dabei – teile dein Event, damit's voll wird 🚀",
+      body: "Außer dir erst 1 dabei – teile dein Event, damit's voll wird 🚀",
     });
     const yoga = pushUserMock.mock.calls[1][1]('de');
     expect(yoga.title).toBe('Noch 2 Tage bis "Yoga"');

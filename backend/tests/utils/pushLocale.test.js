@@ -146,8 +146,10 @@ describe('pushTexts', () => {
   describe('eventReminderHour', () => {
     it('puts the wall-clock time in the title and a see-you-soon line in the body', () => {
       const build = pushTexts('eventReminderHour', { groupName: 'Tennis', time: '19:00' });
-      expect(build('de')).toEqual({ title: 'Heute 19:00: Tennis', body: 'Bis gleich! 👋' });
-      expect(build('en').title).toBe('Today 19:00: Tennis');
+      // Middle dot, not a colon: "19:00: Tennis" read like a seconds separator
+      // on the lock screen (review 2026-09-06).
+      expect(build('de')).toEqual({ title: 'Heute 19:00 · Tennis', body: 'Bis gleich! 👋' });
+      expect(build('en').title).toBe('Today 19:00 · Tennis');
     });
 
     it('prefixes the location to the body when present', () => {
@@ -167,9 +169,11 @@ describe('pushTexts', () => {
       const build = pushTexts('ownerNudge', { groupName: 'Bar Abend', others: 1 });
       expect(build('de')).toEqual({
         title: 'Noch 2 Tage bis "Bar Abend"',
-        body: "Erst 1 dabei – teile dein Event, damit's voll wird 🚀",
+        // "Außer dir": the day-before push says "2 dabei" (incl. owner) for the
+        // same event — the nudge must make its owner-excluded basis explicit.
+        body: "Außer dir erst 1 dabei – teile dein Event, damit's voll wird 🚀",
       });
-      expect(pushTexts('ownerNudge', { groupName: 'Bar Abend', others: 3 })('en').body).toMatch(/^Only 3 in so far/);
+      expect(pushTexts('ownerNudge', { groupName: 'Bar Abend', others: 3 })('en').body).toMatch(/^Besides you, only 3 so far/);
     });
 
     it('switches to a "nobody yet" line at zero', () => {
