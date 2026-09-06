@@ -1,5 +1,5 @@
 import express from 'express';
-import { getVapidKey, subscribe, unsubscribe, saveApnsToken, reportPushDiagnostics } from '../controllers/pushController.js';
+import { getVapidKey, subscribe, unsubscribe, saveApnsToken, reportPushDiagnostics, updatePushPreferences } from '../controllers/pushController.js';
 import { authenticate } from '../middleware/auth.js';
 import { generalLimiter } from '../middleware/rateLimiter.js';
 
@@ -32,5 +32,8 @@ router.post('/apns-token', apnsTokenEntryLog, authenticate, saveApnsToken);
 // (express-rate-limit ERR_ERL_DOUBLE_COUNT). Sentry escalation is throttled
 // per user inside the controller.
 router.post('/diagnostics', authenticate, reportPushDiagnostics);
+// Per-user toggles (reminders / friend activity / recommendations). Lives here
+// rather than under /api/auth so it doesn't eat the authLimiter budget.
+router.put('/preferences', authenticate, updatePushPreferences);
 
 export default router;

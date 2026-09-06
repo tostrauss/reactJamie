@@ -1020,6 +1020,40 @@ const runStartupMigrations = async () => {
     CREATE INDEX IF NOT EXISTS idx_backup_runs_kind_started ON backup_runs (kind, started_at DESC)
   `));
 
+  // ── Per-user push preferences (Settings → Benachrichtigungen, 2026-09-06) ─
+  // Transactional kinds default ON; "recommendations" (digest, re-engagement)
+  // is marketing under App Store 4.5.4 → opt-IN, default OFF, no UI yet.
+  // Enforced in the senders' recipient SELECTs (jobs/eventReminders.js,
+  // utils/friendActivity.js), not centrally — sendPushToUser has no "kind".
+  await migrate('users push preferences', async () => {
+    await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS push_reminders BOOLEAN NOT NULL DEFAULT TRUE`);
+    await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS push_friends BOOLEAN NOT NULL DEFAULT TRUE`);
+    await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS push_recommendations BOOLEAN NOT NULL DEFAULT FALSE`);
+  });
+
+  // ── Event reminder / owner nudge markers ──────────────────────────────────
+  // TIMESTAMP (naive) on purpose — each holds a COPY of groups.date as of the
+  // send, so `marker <> date` after an edit re-arms the push for the new date
+  // without touching the edit endpoints. Not a sent-at (unlike
+  // moment_prompt_sent_at). See jobs/eventReminders.js.
+  await migrate('groups reminder markers', async () => {
+    await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS reminder_day_sent_for TIMESTAMP`);
+    await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS reminder_hour_sent_for TIMESTAMP`);
+    await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS owner_nudge_sent_for TIMESTAMP`);
+  });
+
+  // ── Friend-activity daily cap ─────────────────────────────────────────────
+  // "Lisa ist X beigetreten" is capped per recipient per LOCAL day; the row is
+  // claimed atomically before sending (utils/friendActivity.js).
+  await migrate('friend_push_state', () => db.query(`
+    CREATE TABLE IF NOT EXISTS friend_push_state (
+      user_id     INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      day         DATE NOT NULL,
+      sent_count  INTEGER NOT NULL DEFAULT 0,
+      updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `));
+
   // ── Post-migration schema assertion ────────────────────────────────────
   // The server accepts traffic BEFORE migrations finish (listen → migrate),
   // so health stays green during the boot window; only a PROVEN-broken

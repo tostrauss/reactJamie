@@ -209,6 +209,7 @@ const DIAG_EVENTS = new Set([
 // can recolour or visually reorder the operator's log. sanitizeInputs upstream
 // even decodes `&#27;` into a real ESC, so this must happen here.
 const clip = (v, n = 160) => (v == null ? '' : String(v)
+  // eslint-disable-next-line no-control-regex -- matching control chars IS the point here
   .replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u2028-\u202E\u2060-\u2069\uFEFF]/g, '')
   .replace(/\s+/g, ' ')
   .slice(0, n));
@@ -259,6 +260,32 @@ export const reportPushDiagnostics = (req, res) => {
     console.log(line);
   }
   res.json({ ok: true });
+};
+
+// Per-user push preference toggles (Settings → Benachrichtigungen). Server-side
+// flags so they govern APNs on iOS too, not just web push. Column names come
+// from this allowlist — never from the body — and only keys sent as REAL
+// booleans are written, so a one-key PUT can't reset the others. Honoured by
+// the recipient SELECTs in jobs/eventReminders.js + utils/friendActivity.js.
+const PUSH_PREF_KEYS = ['push_reminders', 'push_friends', 'push_recommendations'];
+export const updatePushPreferences = async (req, res) => {
+  if (req.isGuest || !req.userId) return res.status(403).json({ error: 'Guests have no push preferences' });
+  const keys = PUSH_PREF_KEYS.filter(k => typeof req.body?.[k] === 'boolean');
+  if (!keys.length) return res.status(400).json({ error: 'Keine gültige Einstellung übergeben' });
+  try {
+    const sets = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
+    const { rows } = await db.query(
+      `UPDATE users SET ${sets}, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1
+       RETURNING push_reminders, push_friends, push_recommendations`,
+      [req.userId, ...keys.map(k => req.body[k])]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Error updating push preferences:', err);
+    res.status(500).json({ error: 'Einstellung konnte nicht gespeichert werden' });
+  }
 };
 
 // ==========================================

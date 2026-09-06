@@ -1064,9 +1064,10 @@
       "emptyClubs": "Aucun club favori"
     },
     "notifications": {
-      "newMessages": "Nouveaux messages",
-      "friendRequests": "Demandes d'amitié",
-      "groupActivity": "Activités de groupe",
+      "reminders": "Rappels",
+      "remindersHint": "Avant tes événements et des conseils pour tes propres groupes",
+      "friendActivity": "Activité des amis",
+      "friendActivityHint": "Quand des amis rejoignent ou créent des groupes",
       "push": "Notifications push",
       "pushHint": "Notifications même quand l'app est fermée"
     },
@@ -1107,7 +1108,8 @@
       "exportSuccess": "Données téléchargées avec succès",
       "exportError": "Échec de l'export. Réessaie, s'il te plaît.",
       "passwordRequired": "Mot de passe requis",
-      "deleteError": "Erreur lors de la suppression"
+      "deleteError": "Erreur lors de la suppression",
+      "prefSaveError": "Impossible d'enregistrer le réglage"
     }
   },
   "blockedUsers": {

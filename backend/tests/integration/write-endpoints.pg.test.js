@@ -136,8 +136,13 @@ suite('write endpoints against real Postgres', () => {
     const bo = await import('../../src/controllers/boostController.js');
     const ms = await import('../../src/controllers/messageController.js');
     const rp = await import('../../src/controllers/reportController.js');
+    const pu = await import('../../src/controllers/pushController.js');
+    const er = await import('../../src/jobs/eventReminders.js');
+    const fa = await import('../../src/utils/friendActivity.js');
     C = {
-      updateProfile: a.updateProfile, completeOnboarding: a.completeOnboarding,
+      updateProfile: a.updateProfile, completeOnboarding: a.completeOnboarding, getProfile: a.getProfile,
+      updatePushPreferences: pu.updatePushPreferences,
+      runEventReminders: er.runEventReminders, notifyFriendsOfActivity: fa.notifyFriendsOfActivity,
       createGroup: g.createGroup, updateGroup: g.updateGroup, createClub: c.createClub,
       inviteMember: g.inviteMember,
       sendFriendRequest: f.sendFriendRequest, respondFriendRequest: f.respondFriendRequest,
@@ -415,5 +420,223 @@ suite('write endpoints against real Postgres', () => {
     invalidatePrefix('groups:');
     const afterFlip = await idsOf({ type: 'group', upcoming: 'true', include_club_events: 'true' });
     expect(afterFlip).not.toContain(publicEvent);
+  });
+
+  // ── Batch 1 (2026-09-06): push preferences, event reminders, friend feed ──
+  // Three new pieces of backend code whose SQL is time-zone arithmetic and
+  // atomic UPDATE … RETURNING claims — exactly what a mocked db.query cannot
+  // judge. Push DELIVERY is a no-op here (no VAPID/APNs env), so every case
+  // asserts return values and DB state, never delivery.
+  //
+  // Clock facts used below: September 2026 is CEST (UTC+2), so 16:30Z = 18:30
+  // Vienna. groups.date is a NAIVE timestamp holding Vienna wall-clock; the
+  // job turns it into an instant via AT TIME ZONE 'Europe/Vienna'. Windows are
+  // half-open [from, to) — the `to` side uses a strict `>`.
+  describe('push preferences, event reminders, friend activity', () => {
+    const naive = (col) => `to_char(${col}, 'YYYY-MM-DD HH24:MI:SS')`;
+    const markers = async (id) => {
+      const r = await db.query(
+        `SELECT ${naive('reminder_day_sent_for')} AS day, ${naive('reminder_hour_sent_for')} AS hour,
+                ${naive('owner_nudge_sent_for')} AS nudge, members_count
+         FROM groups WHERE id = $1`, [id]);
+      return r.rows[0];
+    };
+    // Raw seed, mirroring createEntityWithOwner: the owner is a group_members
+    // row too, so members_count (schema.sql trigger) INCLUDES the owner.
+    const mkGroup = async (name, { type = 'group', owner = A, date = null, members = [],
+      isActive = true, recurring = false, isPrivate = false } = {}) => {
+      const r = await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, date,
+                             is_active, is_recurring_weekly, is_private)
+         VALUES ($1,$2,$3,'Sport','Wien',10,$4::timestamp,$5,$6,$7) RETURNING id`,
+        [name, type, owner, date, isActive, recurring, isPrivate]);
+      const id = r.rows[0].id;
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner')`, [id, owner]);
+      for (const uid of members) {
+        await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'member')`, [id, uid]);
+      }
+      return id;
+    };
+    const tick = (iso) => C.runEventReminders({ now: new Date(iso) });
+
+    // ── A. updatePushPreferences (pushController) ────────────────────────────
+    it('updatePushPreferences writes only the boolean keys sent and returns all three', async () => {
+      const res = await call(C.updatePushPreferences, { userId: A, body: { push_reminders: false } });
+      ok(res);
+      expect(res.body).toEqual({ push_reminders: false, push_friends: true, push_recommendations: false });
+    });
+    it('getProfile carries the new columns (SAFE_USER_COLS)', async () => {
+      const res = await call(C.getProfile, { userId: A });
+      ok(res);
+      expect(res.body.push_reminders).toBe(false);
+      expect(res.body.push_friends).toBe(true);
+      expect(res.body.push_recommendations).toBe(false);
+    });
+    it('updatePushPreferences: guest → 403, non-boolean value → 400 (nothing written)', async () => {
+      // `call` never sets req.isGuest — build the guest request by hand.
+      const guest = makeRes();
+      await C.updatePushPreferences({ userId: 0, isGuest: true, body: { push_reminders: false }, app: fakeApp }, guest, () => {});
+      expect(guest.statusCode).toBe(403);
+      const bad = await call(C.updatePushPreferences, { userId: A, body: { push_reminders: 'true' } });
+      expect(bad.statusCode).toBe(400);
+      const r = await db.query('SELECT push_reminders FROM users WHERE id = $1', [A]);
+      expect(r.rows[0].push_reminders).toBe(false);
+    });
+    it('updatePushPreferences turns A back on (the reminder cases below count A as a recipient)', async () => {
+      const res = await call(C.updatePushPreferences, { userId: A, body: { push_reminders: true } });
+      ok(res);
+      expect(res.body.push_reminders).toBe(true);
+    });
+
+    // ── B. runEventReminders (jobs/eventReminders) ───────────────────────────
+    let G1, G2, K1, G3, G4, G5, G6, G7;
+    it('seed: timed group, all-day group, club, inactive, weekly — and pre-claim every earlier row', async () => {
+      // Every group the suite created so far is dated RELATIVE to the wall
+      // clock (NOW() ± n days), so on some run dates one of them would fall
+      // into a fixed window below and inflate the counts. Stamping marker =
+      // date is the job's own "already sent for this date" state → they are
+      // skipped and the counts are exact on any run date.
+      await db.query(`UPDATE groups SET reminder_day_sent_for = date, reminder_hour_sent_for = date,
+                                        owner_nudge_sent_for = date WHERE date IS NOT NULL`);
+      G1 = await mkGroup('Rem Timed',    { date: '2026-09-20 19:00:00', members: [B] });
+      G2 = await mkGroup('Rem AllDay',   { date: '2026-09-21 00:00:00', members: [B] });
+      K1 = await mkGroup('Rem Club',     { date: '2026-09-20 19:00:00', members: [B], type: 'club' });
+      G3 = await mkGroup('Rem Inactive', { date: '2026-09-20 19:00:00', members: [B], isActive: false });
+      G4 = await mkGroup('Rem Weekly',   { date: '2026-09-20 19:00:00', members: [B], recurring: true });
+      expect((await markers(G1)).members_count).toBe(2);
+    });
+    it('D-1 18:30 Vienna: day-before claims the timed group; all-day not yet; club/inactive/weekly never', async () => {
+      // 2026-09-19T16:30Z = 18:30 CEST Sep 19.
+      //   G1 (Sep 20 19:00): day window [Sep 19 18:00, Sep 20 00:00) Vienna = [16:00Z, 22:00Z) → in.
+      //   G2 (Sep 21 00:00): day window opens Sep 20 18:00 Vienna → not yet.
+      //   G2 owner nudge:   [Sep 19 11:00, Sep 20 00:00) Vienna, 1 other, not full → fires NOW.
+      //   G1 owner nudge:   [Sep 18 11:00, Sep 19 00:00) → already over (and 1 other — it simply never got one).
+      // pushes = G1 day → A + B (2) + G2 nudge → owner A (1).
+      const r = await tick('2026-09-19T16:30:00Z');
+      expect(r).toEqual({ dayBefore: 1, hourBefore: 0, ownerNudge: 1, pushes: 3 });
+      expect((await markers(G1)).day).toBe('2026-09-20 19:00:00');
+      expect((await markers(G2)).nudge).toBe('2026-09-21 00:00:00');
+      for (const id of [G2, K1, G3, G4]) expect((await markers(id)).day, `day marker of ${id}`).toBeNull();
+      for (const id of [G1, K1, G3, G4]) expect((await markers(id)).nudge, `nudge marker of ${id}`).toBeNull();
+    });
+    it('same tick again → nothing (marker = date is the idempotency key)', async () => {
+      expect(await tick('2026-09-19T16:30:00Z')).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, pushes: 0 });
+    });
+    it('D-day 18:30 Vienna: all-day group gets its day-before (muted member skipped); 30 min before is OUTSIDE the hour window', async () => {
+      await db.query('UPDATE group_members SET notifications_muted = TRUE WHERE group_id = $1 AND user_id = $2', [G2, B]);
+      // 2026-09-20T16:30Z = 18:30 CEST Sep 20.
+      //   G2 day window [Sep 20 18:00, Sep 21 00:00) Vienna = [16:00Z, 22:00Z) → in; recipients A only (B muted).
+      //   G1 hour window = start 17:00Z − [60, 30) min = [16:00Z, 16:30Z): the upper bound is a strict `>`,
+      //   so exactly 30 min before (16:30Z) is EXCLUDED.
+      const r = await tick('2026-09-20T16:30:00Z');
+      expect(r).toEqual({ dayBefore: 1, hourBefore: 0, ownerNudge: 0, pushes: 1 });
+      expect((await markers(G2)).day).toBe('2026-09-21 00:00:00');
+      expect((await markers(G1)).hour).toBeNull();
+    });
+    it('D-day 18:15 Vienna (45 min before): hour-before claims the timed group; recipients A + B', async () => {
+      // 2026-09-20T16:15Z = 18:15 CEST → inside [16:00Z, 16:30Z). Ticks are injected, so probing the
+      // boundary first and the interior second is fine — the claim only cares about marker <> date.
+      const r = await tick('2026-09-20T16:15:00Z');
+      expect(r).toEqual({ dayBefore: 0, hourBefore: 1, ownerNudge: 0, pushes: 2 });
+      expect((await markers(G1)).hour).toBe('2026-09-20 19:00:00');
+      expect((await markers(G2)).hour).toBeNull();
+    });
+    it('all-day group never gets an hour-before, even 45 min before its midnight', async () => {
+      // 2026-09-20T21:15Z = 23:15 CEST Sep 20. If G2's 00:00 were treated as a real start (22:00Z),
+      // its hour window would be [21:00Z, 21:30Z) and 21:15Z would be inside — the `date::time <> '00:00'`
+      // guard is the only thing keeping it out.
+      expect(await tick('2026-09-20T21:15:00Z')).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, pushes: 0 });
+      expect((await markers(G2)).hour).toBeNull();
+    });
+    it('owner nudge at 12:00 Vienna on D-2: lonely owner yes; opted-out owner no; 3 others no', async () => {
+      await db.query('UPDATE users SET push_reminders = FALSE WHERE id = $1', [D]);
+      const F = (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ('smoke-f@x.com','Fay','1997-07-07','female',$1, TRUE, 'email') RETURNING id`, [avatar])).rows[0].id;
+      G5 = await mkGroup('Nudge Lonely',   { date: '2026-09-25 19:00:00' });
+      G6 = await mkGroup('Nudge OptedOut', { date: '2026-09-25 19:00:00', owner: D });
+      G7 = await mkGroup('Nudge Busy',     { date: '2026-09-25 19:00:00', members: [B, D, F] });
+      expect((await markers(G7)).members_count).toBe(4);
+      // 2026-09-23T10:00Z = 12:00 CEST Sep 23: nudge window [Sep 23 11:00, Sep 24 00:00) Vienna = [09:00Z, 22:00Z) → in.
+      // Day/hour windows for Sep 25 open on Sep 24 18:00 / Sep 25 18:00 → 0.
+      const r = await tick('2026-09-23T10:00:00Z');
+      expect(r).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 1, pushes: 1 });
+      expect((await markers(G5)).nudge).toBe('2026-09-25 19:00:00');
+      expect((await markers(G6)).nudge).toBeNull();
+      expect((await markers(G7)).nudge).toBeNull();
+      // The G6 exclusion was the owner's toggle and nothing else: flip it back → nudged on the next tick.
+      await db.query('UPDATE users SET push_reminders = TRUE WHERE id = $1', [D]);
+      expect(await tick('2026-09-23T10:15:00Z')).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 1, pushes: 1 });
+      expect((await markers(G6)).nudge).toBe('2026-09-25 19:00:00');
+      expect((await markers(G7)).nudge).toBeNull();
+    });
+    it('re-arms after an edit: marker <> new date → day-before fires again, marker = NEW date', async () => {
+      await db.query(`UPDATE groups SET date = '2026-09-27 19:00:00' WHERE id = $1`, [G1]);
+      // 2026-09-26T16:30Z = 18:30 CEST Sep 26: G1 day window [Sep 26 18:00, Sep 27 00:00) → in.
+      // Hour window (Sep 27 18:00–18:30) not yet; nudge window ([Sep 25 11:00, Sep 26 00:00)) already over.
+      const r = await tick('2026-09-26T16:30:00Z');
+      expect(r).toEqual({ dayBefore: 1, hourBefore: 0, ownerNudge: 0, pushes: 2 });
+      const m = await markers(G1);
+      expect(m.day).toBe('2026-09-27 19:00:00');
+      expect(m.hour).toBe('2026-09-20 19:00:00'); // stale → re-armed too, its window just hasn't opened
+    });
+
+    // ── C. notifyFriendsOfActivity (utils/friendActivity) ────────────────────
+    const friendState = async (uid) => {
+      const r = await db.query(
+        `SELECT sent_count, day = (NOW() AT TIME ZONE 'Europe/Vienna')::date AS today,
+                to_char(updated_at, 'YYYY-MM-DD HH24:MI:SS.US') AS updated_at
+         FROM friend_push_state WHERE user_id = $1`, [uid]);
+      return r.rows[0] ?? null;
+    };
+    const notify = (groupId, kind) => C.notifyFriendsOfActivity({ actorId: A, groupId, kind });
+    const far = '2026-10-10 19:00:00'; // outside every reminder window used above
+
+    it('friend feed precondition: B is A\'s only accepted friend (from the friendship cases above)', async () => {
+      const r = await db.query(
+        `SELECT requester_id, addressee_id FROM friendships
+         WHERE (requester_id = $1 OR addressee_id = $1) AND status = 'accepted'`, [A]);
+      expect(r.rows).toEqual([{ requester_id: A, addressee_id: B }]);
+    });
+    it('public group by A → B claimed once; friend_push_state stamped with today (Vienna)', async () => {
+      const P1 = await mkGroup('Friend P1', { date: far });
+      expect(await notify(P1, 'created')).toBe(1);
+      expect(await friendState(B)).toMatchObject({ sent_count: 1, today: true });
+    });
+    it('private group → 0 and the state row is untouched (visibility gate returns before the claim)', async () => {
+      const before = await friendState(B);
+      const P2 = await mkGroup('Friend P2', { date: far, isPrivate: true });
+      expect(await notify(P2, 'created')).toBe(0);
+      expect(await friendState(B)).toEqual(before);
+    });
+    it('second activity → 1 (sent_count 2); third → 0 (FRIEND_PUSH_DAILY_CAP = 2)', async () => {
+      const P3 = await mkGroup('Friend P3', { date: far });
+      expect(await notify(P3, 'joined')).toBe(1);
+      expect((await friendState(B)).sent_count).toBe(2);
+      const P4 = await mkGroup('Friend P4', { date: far });
+      expect(await notify(P4, 'created')).toBe(0);
+      expect((await friendState(B)).sent_count).toBe(2);
+    });
+    it('a stale day resets the cap: yesterday at 2 → today counts 1 again', async () => {
+      await db.query('UPDATE friend_push_state SET day = day - 1 WHERE user_id = $1', [B]);
+      const P = await mkGroup('Friend P-rollover', { date: far });
+      expect(await notify(P, 'created')).toBe(1);
+      expect(await friendState(B)).toMatchObject({ sent_count: 1, today: true });
+    });
+    it('B already a member → 0 even with budget left', async () => {
+      await db.query('DELETE FROM friend_push_state WHERE user_id = $1', [B]);
+      const P5 = await mkGroup('Friend P5', { date: far, members: [B] });
+      expect(await notify(P5, 'created')).toBe(0);
+      expect(await friendState(B)).toBeNull();
+    });
+    it('push_friends = FALSE → 0 and no state row; back ON → 1', async () => {
+      await db.query('UPDATE users SET push_friends = FALSE WHERE id = $1', [B]);
+      const P6 = await mkGroup('Friend P6', { date: far });
+      expect(await notify(P6, 'created')).toBe(0);
+      expect(await friendState(B)).toBeNull();
+      await db.query('UPDATE users SET push_friends = TRUE WHERE id = $1', [B]);
+      expect(await notify(P6, 'created')).toBe(1);
+      expect(await friendState(B)).toMatchObject({ sent_count: 1, today: true });
+    });
   });
 });

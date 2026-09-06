@@ -1064,9 +1064,10 @@
       "emptyClubs": "Sin clubes favoritos"
     },
     "notifications": {
-      "newMessages": "Nuevos mensajes",
-      "friendRequests": "Solicitudes de amistad",
-      "groupActivity": "Actividades de grupo",
+      "reminders": "Recordatorios",
+      "remindersHint": "Antes de tus eventos y consejos para tus propios grupos",
+      "friendActivity": "Actividad de amigos",
+      "friendActivityHint": "Cuando tus amigos se unen a grupos o los crean",
       "push": "Notificaciones push",
       "pushHint": "Notificaciones también con la app cerrada"
     },
@@ -1107,7 +1108,8 @@
       "exportSuccess": "Datos descargados correctamente",
       "exportError": "Error en la exportación. Inténtalo de nuevo.",
       "passwordRequired": "Contraseña requerida",
-      "deleteError": "Error al eliminar"
+      "deleteError": "Error al eliminar",
+      "prefSaveError": "No se pudo guardar el ajuste"
     }
   },
   "blockedUsers": {

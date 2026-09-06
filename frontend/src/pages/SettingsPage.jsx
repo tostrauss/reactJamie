@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { switchLanguage } from '../i18n';
 import { AuthContext } from '../context/AuthContext';
-import { auth, groups as groupsApi, clubs as clubsApi, subscription as subscriptionApi, boost as boostApi } from '../utils/api';
+import { auth, groups as groupsApi, clubs as clubsApi, subscription as subscriptionApi, boost as boostApi, push as pushApi } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import {
   isPushSupported,
@@ -19,7 +19,7 @@ import { FeedbackModal } from '../components/FeedbackModal';
 import '../styles/profile.css';
 
 export const SettingsPage = () => {
-  const { user, logout, refreshProfile } = useContext(AuthContext);
+  const { user, setUser, logout, refreshProfile } = useContext(AuthContext);
   const navigate = useNavigate();
   const toast = useToast();
   const { t, i18n } = useTranslation();
@@ -188,16 +188,33 @@ export const SettingsPage = () => {
     } catch { return ''; }
   };
 
-  // Notification prefs — persisted to localStorage
-  const lsGet = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
-  const lsSet = (key, val) => { try { localStorage.setItem(key, val); } catch { /* private browsing */ } };
-  const [notifMessages, setNotifMessages] = useState(() => lsGet('notif_messages') !== 'false');
-  const [notifRequests, setNotifRequests] = useState(() => lsGet('notif_requests') !== 'false');
-  const [notifGroups, setNotifGroups] = useState(() => lsGet('notif_groups') !== 'false');
+  // Server-side push preferences (users.push_reminders / push_friends). Live on
+  // the user object from GET /auth/profile, so they apply to APNs on iOS too —
+  // unlike the web-push master switch below, which is per-browser.
+  const [prefBusy, setPrefBusy] = useState(null); // 'push_reminders' | 'push_friends' | null
 
-  useEffect(() => { lsSet('notif_messages', notifMessages); }, [notifMessages]);
-  useEffect(() => { lsSet('notif_requests', notifRequests); }, [notifRequests]);
-  useEffect(() => { lsSet('notif_groups', notifGroups); }, [notifGroups]);
+  // Optimistic flip so the switch feels instant; rollback + toast if the PUT
+  // fails (axios never retries PUT). Undefined on a stale cached user = server
+  // default (true).
+  const prefOn = (key) => user?.[key] !== false;
+  const handlePrefToggle = async (key) => {
+    if (prefBusy) return;
+    const next = !prefOn(key);
+    const prev = user?.[key];
+    setUser(u => ({ ...u, [key]: next }));
+    setPrefBusy(key);
+    try {
+      const res = await pushApi.updatePreferences({ [key]: next });
+      // Functional updater: refreshProfile() from mount may resolve mid-flight;
+      // merging onto the LATEST user keeps server truth without clobbering it.
+      setUser(u => ({ ...u, ...res.data }));
+    } catch (err) {
+      setUser(u => ({ ...u, [key]: prev }));
+      toast.error(err.response?.data?.error || t('settings.toast.prefSaveError'));
+    } finally {
+      setPrefBusy(null);
+    }
+  };
 
   // Favorites
   const [favTab, setFavTab] = useState('groups');
@@ -812,31 +829,28 @@ export const SettingsPage = () => {
           {t('settings.sections.notifications')}
         </h3>
 
+        {/* Server-side preference toggles — deliberately OUTSIDE the
+            pushSupported guard below: that guard is false on native iOS
+            (no web-push API in WKWebView), but these flags gate APNs too and
+            must stay reachable there. */}
         <div className="settings-row">
           <div className="settings-row-left">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
             </svg>
-            <span>{t('settings.notifications.newMessages')}</span>
+            <div className="settings-row-stacked">
+              <span>{t('settings.notifications.reminders')}</span>
+              <span className="settings-row-detail">{t('settings.notifications.remindersHint')}</span>
+            </div>
           </div>
-          <label className="settings-toggle">
-            <input type="checkbox" checked={notifMessages} onChange={() => setNotifMessages(!notifMessages)} />
-            <span className="settings-toggle-slider" />
-          </label>
-        </div>
-
-        <div className="settings-row">
-          <div className="settings-row-left">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-              <circle cx="8.5" cy="7" r="4"/>
-              <line x1="20" y1="8" x2="20" y2="14"/>
-              <line x1="23" y1="11" x2="17" y2="11"/>
-            </svg>
-            <span>{t('settings.notifications.friendRequests')}</span>
-          </div>
-          <label className="settings-toggle">
-            <input type="checkbox" checked={notifRequests} onChange={() => setNotifRequests(!notifRequests)} />
+          <label className="settings-toggle" style={{ opacity: prefBusy === 'push_reminders' ? 0.5 : 1 }}>
+            <input
+              type="checkbox"
+              checked={prefOn('push_reminders')}
+              onChange={() => handlePrefToggle('push_reminders')}
+              disabled={prefBusy === 'push_reminders'}
+            />
             <span className="settings-toggle-slider" />
           </label>
         </div>
@@ -849,10 +863,18 @@ export const SettingsPage = () => {
               <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
               <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
             </svg>
-            <span>{t('settings.notifications.groupActivity')}</span>
+            <div className="settings-row-stacked">
+              <span>{t('settings.notifications.friendActivity')}</span>
+              <span className="settings-row-detail">{t('settings.notifications.friendActivityHint')}</span>
+            </div>
           </div>
-          <label className="settings-toggle">
-            <input type="checkbox" checked={notifGroups} onChange={() => setNotifGroups(!notifGroups)} />
+          <label className="settings-toggle" style={{ opacity: prefBusy === 'push_friends' ? 0.5 : 1 }}>
+            <input
+              type="checkbox"
+              checked={prefOn('push_friends')}
+              onChange={() => handlePrefToggle('push_friends')}
+              disabled={prefBusy === 'push_friends'}
+            />
             <span className="settings-toggle-slider" />
           </label>
         </div>

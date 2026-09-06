@@ -10,6 +10,7 @@ import { isUserPro } from './subscriptionController.js';
 import { normalizeCategories } from '../utils/normalizeCategories.js';
 import { checkImageField } from '../utils/safeUrl.js';
 import { createEntityWithOwner, notifyCancellationFanout } from '../services/entityLifecycle.js';
+import { notifyFriendsOfActivity } from '../utils/friendActivity.js';
 
 const GROUPS_TTL  = 30_000;  // 30 s — acceptable staleness for list views
 const AVATARS_TTL = 60_000;  // 60 s — avatars change only on join/leave
@@ -363,6 +364,10 @@ export const createGroup = async (req, res) => {
     if ((type || 'group') === 'group') {
       const groupCountry = coords?.countryCode ? coords.countryCode.toUpperCase() : null;
       notifyCategoryMatches(newGroup, catList, groupCountry, userId).catch(() => {});
+      // Friend feed: "X hat 'Y' erstellt – bist du dabei?" to the creator's
+      // accepted friends. The helper re-checks visibility (public only) and
+      // applies the per-day cap.
+      notifyFriendsOfActivity({ actorId: userId, groupId: newGroup.id, kind: 'created' }).catch(() => {});
     }
 
     // Welcome system message (fire-and-forget, no live broadcast — nobody is
@@ -1119,6 +1124,13 @@ export const joinGroup = async (req, res) => {
     // Notify group owner (fire-and-forget), gated on a real join.
     if (didJoin && g.owner_id && Number(g.owner_id) !== Number(req.userId)) {
       notifyGroupJoin(req.userId, g.owner_id, g.name || '', id).catch(() => {});
+    }
+    // Friend feed: "X ist 'Y' beigetreten – auch dabei?" to the joiner's
+    // friends. Public joins only by construction (a private group returned
+    // above with status 'pending'); a club event is re-checked against the
+    // LIVE parent club inside the helper.
+    if (didJoin) {
+      notifyFriendsOfActivity({ actorId: req.userId, groupId: id, kind: 'joined' }).catch(() => {});
     }
 
     // Post a "X ist beigetreten 🎉" system message, broadcast live to anyone

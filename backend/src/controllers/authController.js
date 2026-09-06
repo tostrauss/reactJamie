@@ -149,7 +149,8 @@ const SAFE_USER_COLS = `
   date_of_birth, date_of_birth_changed, bio, location, avatar_url, photos, pinnwand, interests, favorite_song,
   pinterest_url, spotify_token_expiry, spotify_connected, onboarding_completed,
   onboarding_step, profile_completion, is_verified, is_active, last_seen,
-  is_admin, created_at, updated_at, is_pioneer, is_trusted_user, trusted_count
+  is_admin, created_at, updated_at, is_pioneer, is_trusted_user, trusted_count,
+  push_reminders, push_friends, push_recommendations
 `;
 
 // ==========================================
@@ -889,7 +890,8 @@ export const exportData = async (req, res) => {
       db.query(
         `SELECT id, email, name, username, gender, date_of_birth, bio, location,
                 avatar_url, photos, interests, favorite_song, pinterest_url,
-                onboarding_completed, is_verified, created_at
+                onboarding_completed, is_verified, created_at,
+                push_reminders, push_friends, push_recommendations
          FROM users WHERE id = $1`,
         [req.userId]
       ),

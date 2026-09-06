@@ -27,6 +27,19 @@ export function normalizeLocale(raw) {
 // — pushController resolves the recipient's users.locale and calls the
 // builder (see resolveTexts there).
 // ─────────────────────────────────────────────────────────────────────────────
+// Shared bits for the batch-1 texts (reminders, owner nudge, friend feed).
+const SOMEONE = { de: 'Jemand', en: 'Someone', it: 'Qualcuno', fr: 'Quelqu’un', es: 'Alguien' };
+const GOING = {
+  de: (n) => `${n} dabei`,
+  en: (n) => `${n} going`,
+  it: (n) => (n === 1 ? '1 partecipante' : `${n} partecipanti`),
+  fr: (n) => (n === 1 ? '1 participant' : `${n} participants`),
+  es: (n) => (n === 1 ? '1 apuntado' : `${n} apuntados`),
+};
+const dots = (...parts) => parts.filter(Boolean).join(' · ');
+// "19:00 · 6 dabei · Prater" — time and location only when present.
+const reminderBody = (p, l) => dots(p.time, GOING[l](p.count), p.location);
+
 const PUSH_TEXTS = {
   slotFreed: {
     de: (p) => ({ title: 'Platz frei!', body: `Ein Platz in "${p.groupName}" ist frei geworden` }),
@@ -104,6 +117,48 @@ const PUSH_TEXTS = {
     it: (p) => ({ title: p.groupName || 'Nuovo messaggio', body: p.line }),
     fr: (p) => ({ title: p.groupName || 'Nouveau message', body: p.line }),
     es: (p) => ({ title: p.groupName || 'Nuevo mensaje', body: p.line }),
+  },
+
+  // ── Batch 1 (2026-09-06): event reminders, owner nudge, friend feed ──────
+  // `time` is the organiser's typed wall-clock (formatted in SQL, may be null
+  // for all-day), `count` includes the owner, `others` does not.
+  // jobs/eventReminders.js · utils/friendActivity.js
+  eventReminderDay: {
+    de: (p) => ({ title: `Morgen: ${p.groupName}`, body: reminderBody(p, 'de') }),
+    en: (p) => ({ title: `Tomorrow: ${p.groupName}`, body: reminderBody(p, 'en') }),
+    it: (p) => ({ title: `Domani: ${p.groupName}`, body: reminderBody(p, 'it') }),
+    fr: (p) => ({ title: `Demain : ${p.groupName}`, body: reminderBody(p, 'fr') }),
+    es: (p) => ({ title: `Mañana: ${p.groupName}`, body: reminderBody(p, 'es') }),
+  },
+  // Sent 30–60 min before a TIMED event; "Heute 19:00" stays true at any lead.
+  eventReminderHour: {
+    de: (p) => ({ title: p.time ? `Heute ${p.time}: ${p.groupName}` : `Gleich: ${p.groupName}`, body: dots(p.location, 'Bis gleich! 👋') }),
+    en: (p) => ({ title: p.time ? `Today ${p.time}: ${p.groupName}` : `Soon: ${p.groupName}`, body: dots(p.location, 'See you soon! 👋') }),
+    it: (p) => ({ title: p.time ? `Oggi ${p.time}: ${p.groupName}` : `A breve: ${p.groupName}`, body: dots(p.location, 'A tra poco! 👋') }),
+    fr: (p) => ({ title: p.time ? `Aujourd’hui ${p.time} : ${p.groupName}` : `Bientôt : ${p.groupName}`, body: dots(p.location, 'À tout à l’heure ! 👋') }),
+    es: (p) => ({ title: p.time ? `Hoy ${p.time}: ${p.groupName}` : `Pronto: ${p.groupName}`, body: dots(p.location, '¡Hasta ahora! 👋') }),
+  },
+  // Owner, two days out, few sign-ups → the share nudge that drives the loop.
+  ownerNudge: {
+    de: (p) => ({ title: `Noch 2 Tage bis "${p.groupName}"`, body: p.others ? `Erst ${p.others} dabei – teile dein Event, damit's voll wird 🚀` : `Noch niemand dabei – teile dein Event, damit's voll wird 🚀` }),
+    en: (p) => ({ title: `2 days until "${p.groupName}"`, body: p.others ? `Only ${p.others} in so far – share it to fill the spots 🚀` : `Nobody's in yet – share it to fill the spots 🚀` }),
+    it: (p) => ({ title: `Mancano 2 giorni a "${p.groupName}"`, body: p.others ? `Solo ${p.others} finora – condividilo per riempire i posti 🚀` : `Ancora nessuno – condividilo per riempire i posti 🚀` }),
+    fr: (p) => ({ title: `Plus que 2 jours avant « ${p.groupName} »`, body: p.others ? `Seulement ${p.others} pour l’instant – partage-le pour remplir les places 🚀` : `Personne pour l’instant – partage-le pour remplir les places 🚀` }),
+    es: (p) => ({ title: `Faltan 2 días para "${p.groupName}"`, body: p.others ? `Solo ${p.others} por ahora – compártelo para llenar las plazas 🚀` : `Aún nadie – compártelo para llenar las plazas 🚀` }),
+  },
+  friendJoined: {
+    de: (p) => ({ title: `${p.name || SOMEONE.de} ist dabei`, body: `${p.name || SOMEONE.de} ist "${p.groupName}" beigetreten – auch dabei?` }),
+    en: (p) => ({ title: `${p.name || SOMEONE.en} is in`, body: `${p.name || SOMEONE.en} joined "${p.groupName}" – you in too?` }),
+    it: (p) => ({ title: `${p.name || SOMEONE.it} partecipa`, body: `${p.name || SOMEONE.it} partecipa a "${p.groupName}" – ci stai anche tu?` }),
+    fr: (p) => ({ title: `${p.name || SOMEONE.fr} est de la partie`, body: `${p.name || SOMEONE.fr} a rejoint « ${p.groupName} » – tu en es aussi ?` }),
+    es: (p) => ({ title: `${p.name || SOMEONE.es} se apunta`, body: `${p.name || SOMEONE.es} se ha unido a "${p.groupName}" – ¿te apuntas también?` }),
+  },
+  friendCreated: {
+    de: (p) => ({ title: `Neu von ${p.name || SOMEONE.de}`, body: `${p.name || SOMEONE.de} hat "${p.groupName}" erstellt – bist du dabei?` }),
+    en: (p) => ({ title: `New from ${p.name || SOMEONE.en}`, body: `${p.name || SOMEONE.en} created "${p.groupName}" – are you in?` }),
+    it: (p) => ({ title: `Novità da ${p.name || SOMEONE.it}`, body: `${p.name || SOMEONE.it} ha creato "${p.groupName}" – ci stai?` }),
+    fr: (p) => ({ title: `Du nouveau de ${p.name || SOMEONE.fr}`, body: `${p.name || SOMEONE.fr} a créé « ${p.groupName} » – tu en es ?` }),
+    es: (p) => ({ title: `Novedad de ${p.name || SOMEONE.es}`, body: `${p.name || SOMEONE.es} ha creado "${p.groupName}" – ¿te apuntas?` }),
   },
 };
 

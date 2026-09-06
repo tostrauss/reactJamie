@@ -161,6 +161,7 @@ import { subscriptionWebhook } from './controllers/subscriptionController.js';
 import { runDailyRollup, backfillIfEmpty } from './jobs/analyticsRollup.js';
 import { runDbBackup, isBackupConfigured, missingBackupEnv, getBackupConfig } from './jobs/backup.js';
 import { runMediaBackupSync } from './jobs/mediaBackupSync.js';
+import { runEventReminders } from './jobs/eventReminders.js';
 import { stripeWebhook as boostStripeWebhook } from './controllers/boostController.js';
 import { appleServerNotification } from './controllers/iapController.js';
 import { sendPushToUser, sendPushToUsers } from './controllers/pushController.js';
@@ -756,6 +757,13 @@ cron.schedule('*/15 * * * *', async () => {
   } catch (err) {
     console.error('[cron] moment prompt cron failed:', err.message);
   }
+});
+
+// Event reminders (day-before 18:00, ~1 h before) + owner nudge (2 days out,
+// few sign-ups) — jobs/eventReminders.js. Offset from the moment cron's
+// :00/:15/:30/:45 so the two claims don't hit the pool in the same second.
+cron.schedule('5,20,35,50 * * * *', () => {
+  runEventReminders().catch(err => console.error('[cron] event reminders failed:', err.message));
 });
 
 // Friend request expiration: auto-reject pending requests older than 30 days, runs at 04:00

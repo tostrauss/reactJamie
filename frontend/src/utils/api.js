@@ -704,6 +704,9 @@ export const push = {
   // Native iOS: report permission / registration outcome to the server so a
   // silent failure on the device shows up in Railway logs ([APNs-diag]).
   reportDiagnostics: (payload) => axiosInstance.post('/push/diagnostics', payload),
+  // Per-user push preference toggles (Settings → Benachrichtigungen). Server-side
+  // flags, so they apply to APNs on iOS too — not just web push.
+  updatePreferences: (prefs) => axiosInstance.put('/push/preferences', prefs),
 };
 
 // ==========================================

@@ -1064,9 +1064,10 @@
       "emptyClubs": "No favorite clubs yet"
     },
     "notifications": {
-      "newMessages": "New messages",
-      "friendRequests": "Friend requests",
-      "groupActivity": "Group activity",
+      "reminders": "Reminders",
+      "remindersHint": "Before your events and tips for your own groups",
+      "friendActivity": "Friend activity",
+      "friendActivityHint": "When friends join or create groups",
       "push": "Push notifications",
       "pushHint": "Notifications even when the app is closed"
     },
@@ -1107,7 +1108,8 @@
       "exportSuccess": "Data downloaded successfully",
       "exportError": "Export failed. Please try again.",
       "passwordRequired": "Password required",
-      "deleteError": "Could not delete account"
+      "deleteError": "Could not delete account",
+      "prefSaveError": "Could not save setting"
     }
   },
   "blockedUsers": {

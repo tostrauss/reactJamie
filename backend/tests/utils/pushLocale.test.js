@@ -113,4 +113,97 @@ describe('pushTexts', () => {
       expect(build('es').title).toBe('Nuevo mensaje');
     });
   });
+
+  // ── Batch 1 (2026-09-06): reminders, owner nudge, friend feed ─────────────
+  describe('eventReminderDay', () => {
+    it('joins time · count · location with middle dots, per locale', () => {
+      const build = pushTexts('eventReminderDay', { groupName: 'Bar Abend', time: '19:00', count: 6, location: 'Prater' });
+      expect(build('de')).toEqual({ title: 'Morgen: Bar Abend', body: '19:00 · 6 dabei · Prater' });
+      expect(build('en').body).toBe('19:00 · 6 going · Prater');
+      expect(build('fr').title).toBe('Demain : Bar Abend');
+    });
+
+    it('all-day event without location collapses to just the count (singular)', () => {
+      const build = pushTexts('eventReminderDay', { groupName: 'Picknick', time: null, count: 1, location: null });
+      expect(build('de').body).toBe('1 dabei');
+      expect(build('it').body).toBe('1 partecipante');
+      expect(build('es').body).toBe('1 apuntado');
+    });
+
+    it('pluralises the count where the language needs it', () => {
+      const build = pushTexts('eventReminderDay', { groupName: 'Picknick', time: null, count: 2, location: null });
+      expect(build('it').body).toBe('2 partecipanti');
+      expect(build('fr').body).toBe('2 participants');
+      expect(build('es').body).toBe('2 apuntados');
+    });
+
+    it('falls back to German for unsupported locales', () => {
+      const build = pushTexts('eventReminderDay', { groupName: 'Bar Abend', time: '19:00', count: 6, location: 'Prater' });
+      expect(build('pt').title).toBe('Morgen: Bar Abend');
+    });
+  });
+
+  describe('eventReminderHour', () => {
+    it('puts the wall-clock time in the title and a see-you-soon line in the body', () => {
+      const build = pushTexts('eventReminderHour', { groupName: 'Tennis', time: '19:00' });
+      expect(build('de')).toEqual({ title: 'Heute 19:00: Tennis', body: 'Bis gleich! 👋' });
+      expect(build('en').title).toBe('Today 19:00: Tennis');
+    });
+
+    it('prefixes the location to the body when present', () => {
+      const build = pushTexts('eventReminderHour', { groupName: 'Tennis', time: '19:00', location: 'Prater' });
+      expect(build('de').body).toBe('Prater · Bis gleich! 👋');
+    });
+
+    it('without a time the title says "Gleich" / "Soon"', () => {
+      const build = pushTexts('eventReminderHour', { groupName: 'Tennis', time: null });
+      expect(build('de').title).toBe('Gleich: Tennis');
+      expect(build('en').title).toBe('Soon: Tennis');
+    });
+  });
+
+  describe('ownerNudge', () => {
+    it('names the count of others when there are some', () => {
+      const build = pushTexts('ownerNudge', { groupName: 'Bar Abend', others: 1 });
+      expect(build('de')).toEqual({
+        title: 'Noch 2 Tage bis "Bar Abend"',
+        body: "Erst 1 dabei – teile dein Event, damit's voll wird 🚀",
+      });
+      expect(pushTexts('ownerNudge', { groupName: 'Bar Abend', others: 3 })('en').body).toMatch(/^Only 3 in so far/);
+    });
+
+    it('switches to a "nobody yet" line at zero', () => {
+      const build = pushTexts('ownerNudge', { groupName: 'Bar Abend', others: 0 });
+      expect(build('de').body).toMatch(/^Noch niemand dabei/);
+      expect(build('en').body).toMatch(/^Nobody's in yet/);
+    });
+  });
+
+  describe('friendJoined', () => {
+    it('leads with the friend name in title and body', () => {
+      const build = pushTexts('friendJoined', { name: 'Lisa', groupName: 'Bar Abend' });
+      expect(build('de')).toEqual({ title: 'Lisa ist dabei', body: 'Lisa ist "Bar Abend" beigetreten – auch dabei?' });
+      expect(build('en').title).toBe('Lisa is in');
+    });
+
+    it('falls back to a localised "Someone" when the name is empty', () => {
+      const build = pushTexts('friendJoined', { name: '', groupName: 'Bar Abend' });
+      expect(build('de').title).toBe('Jemand ist dabei');
+      expect(build('en').title).toBe('Someone is in');
+      expect(build('it').title).toBe('Qualcuno partecipa');
+      expect(build('es').title).toBe('Alguien se apunta');
+    });
+  });
+
+  describe('friendCreated', () => {
+    it('announces the new event by its creator', () => {
+      const build = pushTexts('friendCreated', { name: 'Lisa', groupName: 'Bar Abend' });
+      expect(build('de')).toEqual({ title: 'Neu von Lisa', body: 'Lisa hat "Bar Abend" erstellt – bist du dabei?' });
+      expect(build('fr').body).toContain('« Bar Abend »');
+    });
+
+    it('falls back to "Someone" when the name is missing entirely', () => {
+      expect(pushTexts('friendCreated', { groupName: 'Bar Abend' })('en').title).toBe('New from Someone');
+    });
+  });
 });
