@@ -188,8 +188,17 @@ export const sendDM = async (req, res) => {
             timestamp: msgRow.created_at,
           });
         }
-        // Web push for the closed/backgrounded receiver.
-        sendPushToUser(receiverId, pushTexts('newDm', { name: senderName }), null, `/dm/${req.userId}`);
+        // Push for the closed/backgrounded receiver — WITH the text, like the
+        // group-chat push (same 120-char cut, messageController). Until
+        // 2026-09-06 only the socket payload above carried a preview; the push
+        // said "X hat dir eine Nachricht geschickt" (Stefan: "warum gibts keine
+        // vorschau?"). Content is already moderated (checkTextSafety above).
+        sendPushToUser(
+          receiverId,
+          pushTexts('newDm', { name: senderName, preview: (msgRow.content || '').slice(0, 120) }),
+          null,
+          `/dm/${req.userId}`
+        );
       } catch { /* non-critical */ }
     })();
 

@@ -84,12 +84,18 @@ const PUSH_TEXTS = {
     fr: (p) => ({ title: 'Nouveau membre', body: `${p.name} a rejoint "${p.groupName}"` }),
     es: (p) => ({ title: 'Nuevo miembro', body: `${p.name} se ha unido a "${p.groupName}"` }),
   },
+  // DM: with a preview the push reads like any messenger — sender as title,
+  // text as body (Stefan 2026-09-06: "warum gibts keine vorschau der
+  // nachrichten?"). Group chat has shipped previews since day one (groupMessage
+  // below); the DM call site simply never passed the text. Recipients who don't
+  // want text on the lock screen use iOS/Android "Show Previews", exactly as
+  // for every other messenger. Without a preview the old generic line stays.
   newDm: {
-    de: (p) => ({ title: 'Neue Nachricht', body: `${p.name} hat dir eine Nachricht geschickt` }),
-    en: (p) => ({ title: 'New message', body: `${p.name} sent you a message` }),
-    it: (p) => ({ title: 'Nuovo messaggio', body: `${p.name} ti ha inviato un messaggio` }),
-    fr: (p) => ({ title: 'Nouveau message', body: `${p.name} t'a envoyé un message` }),
-    es: (p) => ({ title: 'Nuevo mensaje', body: `${p.name} te ha enviado un mensaje` }),
+    de: (p) => p.preview ? { title: p.name, body: p.preview } : { title: 'Neue Nachricht', body: `${p.name} hat dir eine Nachricht geschickt` },
+    en: (p) => p.preview ? { title: p.name, body: p.preview } : { title: 'New message', body: `${p.name} sent you a message` },
+    it: (p) => p.preview ? { title: p.name, body: p.preview } : { title: 'Nuovo messaggio', body: `${p.name} ti ha inviato un messaggio` },
+    fr: (p) => p.preview ? { title: p.name, body: p.preview } : { title: 'Nouveau message', body: `${p.name} t'a envoyé un message` },
+    es: (p) => p.preview ? { title: p.name, body: p.preview } : { title: 'Nuevo mensaje', body: `${p.name} te ha enviado un mensaje` },
   },
   // Group chat: title = group name (data), only the no-name fallback needs i18n.
   groupMessage: {

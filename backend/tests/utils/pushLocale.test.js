@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   normalizeLocale,
+  pushTexts,
   categoryPushText,
   categoryDigestText,
   joinRequestText,
@@ -62,5 +63,54 @@ describe('joinRequestText', () => {
     expect(joinRequestText('it', {}).title).toBe('🎉 Qualcuno vuole unirsi!');
     expect(joinRequestText('fr', {}).title).toBe('🎉 Quelqu’un veut participer !');
     expect(joinRequestText('es', {}).title).toBe('🎉 ¡Alguien quiere unirse!');
+  });
+});
+
+// pushTexts returns a BUILDER (locale) → { title, body }; pushController resolves
+// the recipient's users.locale and calls it. Pinned here because the DM entry
+// gained a preview branch (2026-09-06) and the whole catalog had no test before.
+describe('pushTexts', () => {
+  it('throws on an unknown key instead of sending an empty push', () => {
+    expect(() => pushTexts('nope')).toThrow(/unknown key nope/);
+  });
+
+  describe('newDm', () => {
+    it('with a preview reads like a messenger: sender as title, text as body, in every locale', () => {
+      const build = pushTexts('newDm', { name: 'Tobi', preview: 'kommst heute?' });
+      for (const l of ['de', 'en', 'it', 'fr', 'es']) {
+        expect(build(l)).toEqual({ title: 'Tobi', body: 'kommst heute?' });
+      }
+    });
+
+    it('without a preview keeps the generic per-locale line', () => {
+      const build = pushTexts('newDm', { name: 'Tobi' });
+      expect(build('de')).toEqual({ title: 'Neue Nachricht', body: 'Tobi hat dir eine Nachricht geschickt' });
+      expect(build('en')).toEqual({ title: 'New message', body: 'Tobi sent you a message' });
+      expect(build('it').title).toBe('Nuovo messaggio');
+      expect(build('fr').title).toBe('Nouveau message');
+      expect(build('es').title).toBe('Nuevo mensaje');
+    });
+
+    it('treats an empty preview as none (content is validated non-empty upstream — defensive)', () => {
+      expect(pushTexts('newDm', { name: 'Tobi', preview: '' })('de').title).toBe('Neue Nachricht');
+    });
+
+    it('falls back to German for unsupported locales like the rest of the file', () => {
+      expect(pushTexts('newDm', { name: 'Tobi' })('pt').title).toBe('Neue Nachricht');
+    });
+  });
+
+  describe('groupMessage (the DM preview mirrors this contract)', () => {
+    it('uses the group name as title and the "Sender: text" line as body', () => {
+      const build = pushTexts('groupMessage', { groupName: 'Fußball im Prater', line: 'Tobi: bin da' });
+      expect(build('it')).toEqual({ title: 'Fußball im Prater', body: 'Tobi: bin da' });
+    });
+
+    it('only the no-name title fallback is localised', () => {
+      const build = pushTexts('groupMessage', { line: 'Tobi: bin da' });
+      expect(build('de').title).toBe('Neue Nachricht');
+      expect(build('en').title).toBe('New message');
+      expect(build('es').title).toBe('Nuevo mensaje');
+    });
   });
 });
