@@ -20,7 +20,7 @@ Code ist FERTIG (beide Enden). Im Meeting passiert nur Teil A + B:
    Push Notifications anhaken (falls nicht schon an).
 2. **Teil B (Railway, ~5 min):** Die 4 Variablen setzen — Tina fügt den
    `.p8`-Inhalt DIREKT in Railway ein (nie per WhatsApp/Mail schicken):
-   `APNS_KEY_ID` · `APNS_TEAM_ID=3FMA7660T8` · `APNS_KEY` (kompletter
+   `APNS_KEY_ID` · `APNS_TEAM_ID=RTJNBK94F8` · `APNS_KEY` (kompletter
    PEM-Inhalt) · `APNS_BUNDLE_ID=com.jamie-app.app`.
    Nach Redeploy: Log-Zeile `[APNs] Provider initialized` beim ersten Push.
 3. **Erwartung managen:** Zustellung auf echte iPhones braucht das

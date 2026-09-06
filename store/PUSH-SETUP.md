@@ -14,7 +14,7 @@ Apple-side config, Railway env vars, and one automated build step.
 What is still missing to actually deliver a notification: **Parts A + B + C below.**
 
 Known values (fill the blanks):
-- **Team ID:** `3FMA7660T8`
+- **Team ID:** `RTJNBK94F8`
 - **Bundle ID / APNs topic:** `com.jamie-app.app`
 - **iOS App ID (App Store Connect):** `6784212397`
 
@@ -36,7 +36,7 @@ Known values (fill the blanks):
    (If it was already on, nothing to do.)
 
 After this you have: the `.p8` file, its **Key ID**, and the **Team ID**
-(`3FMA7660T8`).
+(`RTJNBK94F8`).
 
 ---
 
@@ -48,7 +48,7 @@ uninitialised and iOS sends silently no-op (web/Android push keep working).
 | Variable          | Value                                                        |
 |-------------------|-------------------------------------------------------------|
 | `APNS_KEY_ID`     | the 10-char Key ID from Part A                               |
-| `APNS_TEAM_ID`    | `3FMA7660T8`                                                 |
+| `APNS_TEAM_ID`    | `RTJNBK94F8`                                                 |
 | `APNS_KEY`        | the **full contents** of `AuthKey_XXXXXXXXXX.p8`            |
 | `APNS_BUNDLE_ID`  | `com.jamie-app.app`                                          |
 
@@ -77,7 +77,7 @@ bash ios/4-preflight.sh      # step 4/4 installs the Push entitlement
 `CODE_SIGN_ENTITLEMENTS` into `project.pbxproj` (Debug + Release). Then in Xcode:
 
 1. Open: `bash ios/2-open-xcode.sh`
-2. *Signing & Capabilities* → Team = **3FMA7660T8**, automatic signing ON.
+2. *Signing & Capabilities* → Team = **RTJNBK94F8**, automatic signing ON.
    Xcode sees the `aps-environment` entitlement and regenerates a provisioning
    profile that includes Push (needs Part A step 2 done first).
 3. Bump the **Build** number, then **Product → Archive → Distribute App**.
@@ -115,7 +115,8 @@ Steps:
 |---|---|---|
 | `[APNs] registrationError` on the device; no token reaches the backend | Push capability / `aps-environment` entitlement missing in the build | Re-run `ios/4-preflight.sh`; confirm *Signing & Capabilities* shows Push Notifications; let automatic signing regenerate the profile |
 | No `[APNs] Provider initialized` in logs | One of the 4 env vars missing/empty | Recheck Part B; all four must be set |
-| `[APNs] send failure: BadDeviceToken` | Sandbox token hitting the production gateway (Xcode dev build), or wrong Team/Key | Test via TestFlight (Part D); verify `APNS_TEAM_ID` / `APNS_KEY_ID` match the key |
+| `[APNs] send failure: InvalidProviderToken status 403` | Apple rejects the JWT itself: `APNS_TEAM_ID` does not own key `APNS_KEY_ID`, or `APNS_KEY` is not the `.p8` for that Key ID. **This is what blocked iOS push 04.–06.09.2026** — the Team ID had been copied from an unverified note; the real one is on the portal's *Membership details* page. "Variable is set" ≠ "variable is right": only a real send (or the JWT one-liner in `project_ios_push_incident` → `BadDeviceToken` = consistent) proves the four values fit together | Read the Team ID from *Membership details* of the team that owns the App ID; set `APNS_TEAM_ID`, redeploy, trigger one DM, look for `[APNs] sent` |
+| `[APNs] send failure: BadDeviceToken` | Sandbox token hitting the production gateway (Xcode dev build) — Team/Key/Topic are already consistent when you see this | Test via TestFlight (Part D) |
 | `[APNs] send failure: TopicDisallowed` / `DeviceTokenNotForTopic` | `APNS_BUNDLE_ID` ≠ the app's bundle id | Set `APNS_BUNDLE_ID=com.jamie-app.app` |
 | Token saved but nothing arrives, no failure logged | No subscription row, or notification suppressed by iOS Focus/DND | Confirm the row in `push_subscriptions` (platform `apns`); check the device's notification settings |
 

@@ -26,7 +26,7 @@ Nutzer teilen sich eine IPv4). Dieses Dokument ist Checkliste + Stand.
    Backend-Service **`REDIS_URL`** auf dessen URL setzen. Ohne Redis: nur
    1 Replika fahren! (Socket.IO-Adapter + Rate-Limit-Store sind sonst
    instanz-lokal — Code ist vorbereitet, aktiviert sich über die Env-Var.)
-4. **APNs-Push:** `APNS_KEY_ID`, `APNS_TEAM_ID`=`3FMA7660T8`, `APNS_KEY`
+4. **APNs-Push:** `APNS_KEY_ID`, `APNS_TEAM_ID`=`RTJNBK94F8`, `APNS_KEY`
    (.p8-Inhalt, `\n`-escaped), `APNS_BUNDLE_ID`=`com.jamie-app.app`.
 5. **Resend-Plan prüfen** (resend.com → Settings/Usage): Welcher Plan, wie
    viele **Requests/Sekunde** und **E-Mails/Monat**? Free = 100 Mails/Tag →

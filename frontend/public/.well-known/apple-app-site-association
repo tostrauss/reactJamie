@@ -3,7 +3,7 @@
     "apps": [],
     "details": [
       {
-        "appIDs": ["3FMA7660T8.com.jamie-app.app"],
+        "appIDs": ["RTJNBK94F8.com.jamie-app.app"],
         "components": [
           { "/": "/reset-password*" },
           { "/": "/verify-email*" },
@@ -15,6 +15,6 @@
     ]
   },
   "webcredentials": {
-    "apps": ["3FMA7660T8.com.jamie-app.app"]
+    "apps": ["RTJNBK94F8.com.jamie-app.app"]
   }
 }
