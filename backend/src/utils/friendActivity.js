@@ -27,6 +27,8 @@ export async function notifyFriendsOfActivity({ actorId, groupId, kind }) {
   // 1) Visibility + actor name in one round trip. Mirrors the public feed's
   //    gate (groupController.getGroups) incl. the LIVE parent club for club
   //    events — the event's own is_private is only a creation-time copy.
+  //    Capacity: no "auch dabei?" into a group this very join just filled
+  //    (members_count is already bumped by the trigger when we run).
   const { rows: g } = await db.query(
     `SELECT g.id, g.name, u.name AS actor_name
      FROM groups g
@@ -36,6 +38,7 @@ export async function notifyFriendsOfActivity({ actorId, groupId, kind }) {
        AND g.is_active = TRUE
        AND g.deleted_at IS NULL
        AND g.is_private IS NOT TRUE
+       AND (g.max_members IS NULL OR g.members_count < g.max_members)
        AND (g.parent_club_id IS NULL OR EXISTS (
          SELECT 1 FROM groups c
          WHERE c.id = g.parent_club_id

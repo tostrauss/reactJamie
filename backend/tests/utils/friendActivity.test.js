@@ -75,6 +75,8 @@ describe('notifyFriendsOfActivity — visibility gate', () => {
       'g.is_active = TRUE',
       'g.deleted_at IS NULL',
       'g.is_private IS NOT TRUE',
+      // No "auch dabei?" into a group this very join just filled (review 2026-09-06).
+      '(g.max_members IS NULL OR g.members_count < g.max_members)',
       'g.parent_club_id IS NULL OR EXISTS',
       'c.id = g.parent_club_id',
       "c.type = 'club'",

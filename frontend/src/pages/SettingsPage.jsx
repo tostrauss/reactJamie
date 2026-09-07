@@ -208,6 +208,9 @@ export const SettingsPage = () => {
       // Functional updater: refreshProfile() from mount may resolve mid-flight;
       // merging onto the LATEST user keeps server truth without clobbering it.
       setUser(u => ({ ...u, ...res.data }));
+      // The jamie_user cache is written only by refreshProfile — without this a
+      // cold start paints the stale toggle until the background GET resolves.
+      refreshProfile?.();
     } catch (err) {
       setUser(u => ({ ...u, [key]: prev }));
       toast.error(err.response?.data?.error || t('settings.toast.prefSaveError'));
@@ -844,12 +847,12 @@ export const SettingsPage = () => {
               <span className="settings-row-detail">{t('settings.notifications.remindersHint')}</span>
             </div>
           </div>
-          <label className="settings-toggle" style={{ opacity: prefBusy === 'push_reminders' ? 0.5 : 1 }}>
+          <label className="settings-toggle" style={{ opacity: prefBusy ? 0.5 : 1 }}>
             <input
               type="checkbox"
               checked={prefOn('push_reminders')}
               onChange={() => handlePrefToggle('push_reminders')}
-              disabled={prefBusy === 'push_reminders'}
+              disabled={!!prefBusy}
             />
             <span className="settings-toggle-slider" />
           </label>
@@ -868,12 +871,12 @@ export const SettingsPage = () => {
               <span className="settings-row-detail">{t('settings.notifications.friendActivityHint')}</span>
             </div>
           </div>
-          <label className="settings-toggle" style={{ opacity: prefBusy === 'push_friends' ? 0.5 : 1 }}>
+          <label className="settings-toggle" style={{ opacity: prefBusy ? 0.5 : 1 }}>
             <input
               type="checkbox"
               checked={prefOn('push_friends')}
               onChange={() => handlePrefToggle('push_friends')}
-              disabled={prefBusy === 'push_friends'}
+              disabled={!!prefBusy}
             />
             <span className="settings-toggle-slider" />
           </label>

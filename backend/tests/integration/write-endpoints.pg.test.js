@@ -581,6 +581,44 @@ suite('write endpoints against real Postgres', () => {
       expect(m.hour).toBe('2026-09-20 19:00:00'); // stale → re-armed too, its window just hasn't opened
     });
 
+    // Review 2026-09-06 follow-ups — each pins one guard added after the review.
+    it('00:30 start: day-before yes, hour-before NEVER — its window would lie on the evening before and say "Heute"', async () => {
+      const G8 = await mkGroup('Rem Midnight', { date: '2026-09-21 00:30:00', members: [B] });
+      // 2026-09-20T21:35Z = 23:35 CEST Sep 20. Day window [Sep 20 18:00, Sep 21 00:00) → in.
+      // Hour window [start-60, start-30) = [21:30Z, 22:00Z) → in too — but the event's LOCAL DAY
+      // (Sep 21 00:00 Vienna = 22:00Z) has not begun, so the clamp keeps it out. G2's day marker is
+      // already set from the 16:30Z tick, so only G8 counts.
+      const r = await tick('2026-09-20T21:35:00Z');
+      expect(r).toEqual({ dayBefore: 1, hourBefore: 0, ownerNudge: 0, pushes: 2 });
+      const m = await markers(G8);
+      expect(m.day).toBe('2026-09-21 00:30:00');
+      expect(m.hour).toBeNull();
+      // 00:05 local on the event day: the un-clamped window is over anyway → nothing.
+      expect(await tick('2026-09-20T22:05:00Z')).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, pushes: 0 });
+      expect((await markers(G8)).hour).toBeNull();
+    });
+    it('sole-owner event: no day-before while nobody else is in; once someone joins, the next tick sends it', async () => {
+      const G9 = await mkGroup('Rem Lonely', { date: '2026-09-22 19:00:00' }); // owner A only
+      // 2026-09-21T16:30Z = 18:30 CEST Sep 21: day window open, but members_count = 1 → not claimed.
+      expect(await tick('2026-09-21T16:30:00Z')).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, pushes: 0 });
+      expect((await markers(G9)).day).toBeNull();
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'member')`, [G9, B]);
+      const r = await tick('2026-09-21T16:45:00Z');
+      expect(r).toEqual({ dayBefore: 1, hourBefore: 0, ownerNudge: 0, pushes: 2 });
+      expect((await markers(G9)).day).toBe('2026-09-22 19:00:00');
+    });
+    it('owner nudge waits until the event is 6 h old — no "Noch niemand dabei" five minutes after publishing', async () => {
+      const G10 = await mkGroup('Nudge Fresh', { date: '2026-09-30 19:00:00' });
+      // created_at is a naive TIMESTAMP written in the DB session zone (UTC here and on Railway).
+      await db.query(`UPDATE groups SET created_at = '2026-09-28 08:00:00' WHERE id = $1`, [G10]);
+      // 2026-09-28T10:00Z = 12:00 CEST on D-2 → window open, but the event is only 2 h old.
+      expect(await tick('2026-09-28T10:00:00Z')).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, pushes: 0 });
+      expect((await markers(G10)).nudge).toBeNull();
+      // 15:00Z: 7 h old → nudged.
+      expect(await tick('2026-09-28T15:00:00Z')).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 1, pushes: 1 });
+      expect((await markers(G10)).nudge).toBe('2026-09-30 19:00:00');
+    });
+
     // ── C. notifyFriendsOfActivity (utils/friendActivity) ────────────────────
     const friendState = async (uid) => {
       const r = await db.query(
@@ -637,6 +675,15 @@ suite('write endpoints against real Postgres', () => {
       await db.query('UPDATE users SET push_friends = TRUE WHERE id = $1', [B]);
       expect(await notify(P6, 'created')).toBe(1);
       expect(await friendState(B)).toMatchObject({ sent_count: 1, today: true });
+    });
+    it('a join that FILLS the group sends no "auch dabei?" — nobody could follow it (review 2026-09-06)', async () => {
+      await db.query('DELETE FROM friend_push_state WHERE user_id = $1', [B]);
+      const P7 = await mkGroup('Friend P7 full', { date: far, owner: D, members: [A] });
+      await db.query('UPDATE groups SET max_members = 2 WHERE id = $1', [P7]); // D + A → full
+      expect(await notify(P7, 'joined')).toBe(0);
+      expect(await friendState(B)).toBeNull();
+      await db.query('UPDATE groups SET max_members = 5 WHERE id = $1', [P7]);
+      expect(await notify(P7, 'joined')).toBe(1);
     });
   });
 });

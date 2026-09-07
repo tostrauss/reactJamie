@@ -37,6 +37,8 @@ const CRITICAL_SCHEMA_PROBES = [
   ['direct_messages (DM core)', 'SELECT id FROM direct_messages LIMIT 1'],
   ['email_verification_codes (signup OTP)', 'SELECT code, attempts, verified_at FROM email_verification_codes LIMIT 1'],
   ['push_subscriptions (push delivery)', 'SELECT id FROM push_subscriptions LIMIT 1'],
+  // In SAFE_USER_COLS → a silently failed ALTER would 500 EVERY profile load.
+  ['users.push_* (Settings toggles, read by every profile SELECT)', 'SELECT push_reminders, push_friends, push_recommendations FROM users LIMIT 1'],
 ];
 
 const runStartupMigrations = async () => {

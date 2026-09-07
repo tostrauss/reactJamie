@@ -51,21 +51,36 @@ const LIVE_EVENT = `
 // $1 = now (timestamptz). Windows are half-open [from, to) in local wall-clock.
 // Day-before: the evening before, 18:00 → midnight. Strict end: after midnight
 // "Morgen" would be a lie, and a timed event still gets its hour push.
+// Both member-facing windows skip events whose only member is the owner: an
+// event created INSIDE its own window would otherwise "remind" its creator five
+// minutes after creation (review 2026-09-06). Not claimed → re-evaluated next
+// tick, so the push goes out as soon as someone has joined.
 const DAY_WINDOW = `
-           ((x.date::date - 1)::timestamp + TIME '18:00') AT TIME ZONE '${APP_TZ}' <= $1::timestamptz
+           x.members_count > 1
+           AND ((x.date::date - 1)::timestamp + TIME '18:00') AT TIME ZONE '${APP_TZ}' <= $1::timestamptz
            AND (x.date::date::timestamp) AT TIME ZONE '${APP_TZ}' > $1::timestamptz`;
 // Hour-before: timed events only, 60 → 30 min before the true start. 30 min
 // wide so one missed 15-min tick can't lose it; text says "Heute 19:00", which
 // is honest at any lead time inside the window.
+// Clamped to the event's LOCAL DAY: a 00:30 start has its whole window on the
+// evening before, where "Heute" would be false — and, sharing the URL, would
+// overwrite the correct "Morgen" banner. Such events get the day-before only.
 const HOUR_WINDOW = `
-           x.date::time <> '00:00'
+           x.members_count > 1
+           AND x.date::time <> '00:00'
+           AND (x.date::date::timestamp) AT TIME ZONE '${APP_TZ}' <= $1::timestamptz
            AND (x.date AT TIME ZONE '${APP_TZ}') - INTERVAL '60 minutes' <= $1::timestamptz
            AND (x.date AT TIME ZONE '${APP_TZ}') - INTERVAL '30 minutes' > $1::timestamptz`;
 // Owner nudge: anchored to 11:00 two days before (never a midnight push for
 // date-only events), open until the day before starts. Only while not full and
 // short of NUDGE_MIN_OTHERS others.
+// The 6 h minimum age keeps "Noch niemand dabei – teile dein Event" from landing
+// five minutes after the owner published it. created_at is a naive TIMESTAMP
+// written in the DB session zone, so comparing it to a timestamptz casts back
+// through that same zone — consistent on any host.
 const NUDGE_WINDOW = `
-           ((x.date::date - 2)::timestamp + TIME '11:00') AT TIME ZONE '${APP_TZ}' <= $1::timestamptz
+           x.created_at < $1::timestamptz - INTERVAL '6 hours'
+           AND ((x.date::date - 2)::timestamp + TIME '11:00') AT TIME ZONE '${APP_TZ}' <= $1::timestamptz
            AND ((x.date::date - 1)::timestamp) AT TIME ZONE '${APP_TZ}' > $1::timestamptz
            AND x.members_count - 1 < ${NUDGE_MIN_OTHERS}
            AND (x.max_members IS NULL OR x.members_count < x.max_members)`;
@@ -87,6 +102,10 @@ export const nudgeParams = (row) => ({
 
 // Atomic claim: stamp the marker with the CURRENT date and hand back the rows.
 // `join` lets a variant filter on the owner row (nudge → owner's preference).
+// `FOR UPDATE OF x`: lock only the group row — without OF, the nudge's JOIN
+// also locks the owner's users row, and an in-flight profile save would make
+// SKIP LOCKED skip the event for a tick. `claimed_date` (as text, no tz
+// round-trip) lets fanOut undo exactly this stamp if the roster lookup fails.
 async function claim(markerCol, windowSql, { join = '', where = '' } = {}, now, limit) {
   const { rows } = await db.query(
     `UPDATE groups g SET ${markerCol} = g.date
@@ -97,10 +116,11 @@ async function claim(markerCol, windowSql, { join = '', where = '' } = {}, now, 
          AND (x.${markerCol} IS NULL OR x.${markerCol} <> x.date)
          AND ${windowSql}
          ${where}
-       FOR UPDATE SKIP LOCKED
+       FOR UPDATE OF x SKIP LOCKED
        LIMIT $2
      )
      RETURNING g.id, g.owner_id, g.name, g.location, g.members_count,
+       to_char(g.date, 'YYYY-MM-DD HH24:MI:SS') AS claimed_date,
        CASE WHEN g.date::time = '00:00' THEN NULL ELSE to_char(g.date, 'HH24:MI') END AS time_hhmm`,
     [now, limit]
   );
@@ -140,8 +160,14 @@ async function fanOut(events, markerCol, textKey, url, counters, key) {
     recipients = await reminderRecipients(events.map(e => e.id));
   } catch (err) {
     console.error(`[cron] ${textKey}: roster lookup failed, re-arming ${events.length} event(s):`, err.message);
-    await db.query(`UPDATE groups SET ${markerCol} = NULL WHERE id = ANY($1::int[])`, [events.map(e => e.id)])
-      .catch(e2 => console.error(`[cron] ${textKey}: re-arm failed too:`, e2.message));
+    // Undo only OUR stamp: if the owner moved the event meanwhile and another
+    // run already claimed + sent for the new date, that marker must survive.
+    await db.query(
+      `UPDATE groups g SET ${markerCol} = NULL
+       FROM unnest($1::int[], $2::timestamp[]) AS c(id, d)
+       WHERE g.id = c.id AND g.${markerCol} = c.d`,
+      [events.map(e => e.id), events.map(e => e.claimed_date)]
+    ).catch(e2 => console.error(`[cron] ${textKey}: re-arm failed too:`, e2.message));
     return;
   }
   counters[key] = events.length;

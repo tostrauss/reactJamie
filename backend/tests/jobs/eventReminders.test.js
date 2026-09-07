@@ -85,7 +85,10 @@ describe('claim SQL guards', () => {
     expect(text).toContain('x.deleted_at IS NULL');
     expect(text).toContain('x.did_not_take_place = FALSE');
     expect(text).toContain('x.is_recurring_weekly IS NOT TRUE');
-    expect(text).toContain('FOR UPDATE SKIP LOCKED');
+    // OF x: lock the group row only — the nudge JOINs users, and without OF a
+    // concurrent profile save would make SKIP LOCKED skip the event for a tick.
+    expect(text).toContain('FOR UPDATE OF x SKIP LOCKED');
+    expect(text).toContain("to_char(g.date, 'YYYY-MM-DD HH24:MI:SS') AS claimed_date");
     expect(text).toContain("AT TIME ZONE 'Europe/Vienna'");
     // Re-arm predicate: the marker stores the EVENT DATE, so a moved event
     // no longer matches and gets reminded again for the new date.
@@ -120,6 +123,14 @@ describe('claim SQL guards', () => {
     expect(nudge).toContain('o.push_reminders = TRUE');
     expect(nudge).toContain('x.members_count - 1 < 3');
     expect(nudge).toContain("TIME '11:00'");
+
+    // Review 2026-09-06: sole-owner events wait for a second member (no
+    // "reminder" 5 min after creation); a 00:xx start must not get "Heute" the
+    // evening before; a freshly created event gets no immediate nudge.
+    expect(day).toContain('x.members_count > 1');
+    expect(hour).toContain('x.members_count > 1');
+    expect(hour).toContain("(x.date::date::timestamp) AT TIME ZONE 'Europe/Vienna' <= $1::timestamptz");
+    expect(nudge).toContain("x.created_at < $1::timestamptz - INTERVAL '6 hours'");
   });
 });
 
@@ -269,7 +280,7 @@ describe('failure isolation', () => {
   it('roster lookup fails AFTER the claim → markers are re-armed (NULL), nothing sent, other variants still run', async () => {
     dbQueryImpl = async (text) => {
       if (text.includes('UPDATE groups g SET') && text.includes('reminder_day_sent_for')) {
-        return { rows: [{ id: 11, owner_id: 1, name: 'Bar Abend', location: null, members_count: 2, time_hhmm: '19:00' }] };
+        return { rows: [{ id: 11, owner_id: 1, name: 'Bar Abend', location: null, members_count: 2, time_hhmm: '19:00', claimed_date: '2026-09-20 19:00:00' }] };
       }
       if (text.includes('FROM group_members gm')) throw new Error('pool exhausted');
       return { rows: [] };
@@ -280,9 +291,13 @@ describe('failure isolation', () => {
     expect(pushUsersMock).not.toHaveBeenCalled();
     expect(out.dayBefore).toBe(0);
     // Without the re-arm the stamped event would never be reminded again.
-    const rearm = statements.find(s => s.text.includes('UPDATE groups SET reminder_day_sent_for = NULL'));
+    const rearm = statements.find(s => s.text.includes('SET reminder_day_sent_for = NULL'));
     expect(rearm).toBeDefined();
-    expect(rearm.params).toEqual([[11]]);
+    // Precise undo: only rows whose marker still holds OUR stamp (unnest pairs),
+    // so a concurrent claim for a MOVED date is never wiped.
+    expect(rearm.text).toContain('FROM unnest($1::int[], $2::timestamp[])');
+    expect(rearm.text).toContain('g.reminder_day_sent_for = c.d');
+    expect(rearm.params).toEqual([[11], ['2026-09-20 19:00:00']]);
     expect(errSpy.mock.calls[0][0]).toContain('roster lookup failed, re-arming 1 event(s)');
     expect(claimOf('reminder_hour_sent_for')).toBeDefined();
     expect(claimOf('owner_nudge_sent_for')).toBeDefined();
