@@ -422,3 +422,15 @@ export const sendPushToUsers = async (userIds, title, body, url = '/notification
     return bulkPushSlots.run(() => dispatchToSubscription(sub, texts.title, texts.body, url));
   }));
 };
+
+// Ops fan-out (Batch 3): push every admin (Tobi/Tina/Robert/Arno). Used for
+// "new club awaiting approval" and "new report" — the team isn't always in the
+// app. Self-contained + best-effort: never throws into its caller.
+export const sendPushToAdmins = async (titleOrBuilder, body = null, url = '/admin') => {
+  try {
+    const { rows } = await db.query('SELECT id FROM users WHERE is_admin = TRUE');
+    if (rows.length) await sendPushToUsers(rows.map(r => r.id), titleOrBuilder, body, url);
+  } catch (err) {
+    console.error('admin push failed:', err.message);
+  }
+};

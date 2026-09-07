@@ -170,6 +170,7 @@ const FEATURE_KEYS = [
 // Keyed by the `feature` in the jamie:open-pro-modal event detail.
 const CONTEXT_FEATURE = {
   paidEvents: { icon:'🎟️', titleKey:'paidEvents', descKey:'paidEventsDesc' },
+  reviewRequests: { icon:'🗂️', titleKey:'reviewRequests', descKey:'reviewRequestsDesc' },
 };
 
 // ── Confetti piece ───────────────────────────────────────────────────────

@@ -1,5 +1,7 @@
 import db from '../config/database.js';
 import { sendAdminReportEmail } from '../utils/email.js';
+import { sendPushToAdmins } from './pushController.js';
+import { pushTexts } from '../utils/pushLocale.js';
 
 const VALID_TYPES   = ['user', 'group', 'message'];
 const VALID_REASONS = ['spam', 'inappropriate', 'harassment', 'fake', 'other'];
@@ -43,10 +45,13 @@ export const createReport = async (req, res) => {
       return res.json({ success: true, message: 'Bereits gemeldet' });
     }
 
-    // Best-effort admin email notification (non-blocking)
+    // Best-effort admin notification — email (existing) AND a device push
+    // (Batch 3): a report shouldn't wait for someone to check the inbox. The
+    // reporter is NOT pushed (they just tapped "melden" and see the toast).
     sendAdminReportEmail(reporterId, reported_type, targetId, reason).catch(
       (err) => console.error('Report email failed:', err)
     );
+    sendPushToAdmins(pushTexts('reportAdmin', {}), null, '/admin');
 
     res.json({ success: true, message: 'Meldung erfolgreich gesendet. Danke!' });
   } catch (error) {

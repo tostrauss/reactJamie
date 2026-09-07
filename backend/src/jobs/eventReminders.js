@@ -84,6 +84,15 @@ const NUDGE_WINDOW = `
            AND ((x.date::date - 1)::timestamp) AT TIME ZONE '${APP_TZ}' > $1::timestamptz
            AND x.members_count - 1 < ${NUDGE_MIN_OTHERS}
            AND (x.max_members IS NULL OR x.members_count < x.max_members)`;
+// Review nudge (Batch 3): the morning AFTER the event, once — anchored to
+// D+1 10:00 → D+2 00:00 (≈14 h). On first deploy only YESTERDAY's events fire
+// (bounded burst), and a missed 15-min tick still lands inside the window.
+// GROUP events only (club events have no review flow — mirrors getPendingReviews);
+// LIVE_EVENT already excludes cancelled/deleted/did-not-take-place/recurring.
+const REVIEW_WINDOW = `
+           x.type = 'group'
+           AND ((x.date::date + 1)::timestamp + TIME '10:00') AT TIME ZONE '${APP_TZ}' <= $1::timestamptz
+           AND ((x.date::date + 2)::timestamp) AT TIME ZONE '${APP_TZ}' > $1::timestamptz`;
 
 // Pure: SQL row → pushTexts params. Exported for tests. `time_hhmm` is
 // formatted in SQL with to_char on the raw column so the naive wall-clock is
@@ -99,6 +108,7 @@ export const nudgeParams = (row) => ({
   groupName: row.name || '',
   others: Math.max(0, (Number(row.members_count) || 0) - 1),
 });
+export const reviewNudgeParams = (row) => ({ groupName: row.name || '' });
 
 // Atomic claim: stamp the marker with the CURRENT date and hand back the rows.
 // `join` lets a variant filter on the owner row (nudge → owner's preference).
@@ -149,6 +159,32 @@ async function reminderRecipients(groupIds) {
   return byGroup;
 }
 
+// Review-nudge recipients: same opt-out gates as reminders, PLUS skip anyone who
+// already reviewed or dismissed this event (mirrors getPendingReviews) so the
+// nudge only lands on people who still have something to do.
+async function reviewNudgeRecipients(groupIds) {
+  const byGroup = new Map();
+  if (!groupIds.length) return byGroup;
+  const { rows } = await db.query(
+    `SELECT gm.group_id, gm.user_id
+     FROM group_members gm
+     JOIN users u ON u.id = gm.user_id
+     WHERE gm.group_id = ANY($1::int[])
+       AND gm.notifications_muted = FALSE
+       AND u.push_reminders = TRUE
+       AND NOT EXISTS (SELECT 1 FROM event_reviews er
+                       WHERE er.group_id = gm.group_id AND er.reviewer_id = gm.user_id)
+       AND NOT EXISTS (SELECT 1 FROM event_review_dismissals d
+                       WHERE d.group_id = gm.group_id AND d.user_id = gm.user_id)`,
+    [groupIds]
+  );
+  for (const r of rows) {
+    if (!byGroup.has(r.group_id)) byGroup.set(r.group_id, []);
+    byGroup.get(r.group_id).push(r.user_id);
+  }
+  return byGroup;
+}
+
 // If the roster lookup fails AFTER the claim stamped the markers, those events
 // would silently never be reminded (marker = date → never re-claimed). Re-arm
 // them so the next tick retries. Push-send failures themselves are contained
@@ -185,7 +221,7 @@ async function fanOut(events, markerCol, textKey, url, counters, key) {
 // variants are isolated from each other: a failing claim (e.g. 42703 in the
 // boot window before the migration lands) logs, and the next one still runs.
 export async function runEventReminders({ now = new Date(), limit = 200 } = {}) {
-  const out = { dayBefore: 0, hourBefore: 0, ownerNudge: 0, pushes: 0 };
+  const out = { dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 0, pushes: 0 };
 
   try {
     const day = await claim('reminder_day_sent_for', DAY_WINDOW, {}, now, limit);
@@ -227,8 +263,43 @@ export async function runEventReminders({ now = new Date(), limit = 200 } = {}) 
     console.error('[cron] event reminders (owner-nudge) failed:', err.message);
   }
 
-  if (out.dayBefore || out.hourBefore || out.ownerNudge) {
-    console.log(`[cron] event reminders: day-before=${out.dayBefore} hour-before=${out.hourBefore} owner-nudge=${out.ownerNudge} (${out.pushes} recipients)`);
+  try {
+    // Post-event review nudge. REVIEW_WINDOW already restricts to type='group'.
+    // Own recipient query (skips reviewed/dismissed) + own params, so it can't
+    // reuse the shared fanOut — but it mirrors its re-arm-on-lookup-failure.
+    const review = await claim('review_nudge_sent_for', REVIEW_WINDOW, {}, now, limit);
+    if (review.length) {
+      let recipients = null;
+      try {
+        recipients = await reviewNudgeRecipients(review.map(e => e.id));
+      } catch (err) {
+        console.error(`[cron] review-nudge: recipient lookup failed, re-arming ${review.length} event(s):`, err.message);
+        await db.query(
+          `UPDATE groups g SET review_nudge_sent_for = NULL
+           FROM unnest($1::int[], $2::timestamp[]) AS c(id, d)
+           WHERE g.id = c.id AND g.review_nudge_sent_for = c.d`,
+          [review.map(e => e.id), review.map(e => e.claimed_date)]
+        ).catch(e2 => console.error('[cron] review-nudge: re-arm failed too:', e2.message));
+      }
+      if (recipients) {
+        out.reviewNudge = review.length;
+        // Deep-link to '/' — App.jsx polls getPendingReviews on load and pops the
+        // EventReviewModal globally, so home is the reliable landing spot.
+        await Promise.all(review.map(ev => {
+          const ids = recipients.get(ev.id) || [];
+          if (!ids.length) return null;
+          out.pushes += ids.length;
+          return sendPushToUsers(ids, pushTexts('reviewNudge', reviewNudgeParams(ev)), null, '/')
+            .catch(err => console.error(`[cron] review-nudge failed for group ${ev.id}:`, err.message));
+        }));
+      }
+    }
+  } catch (err) {
+    console.error('[cron] event reminders (review-nudge) failed:', err.message);
+  }
+
+  if (out.dayBefore || out.hourBefore || out.ownerNudge || out.reviewNudge) {
+    console.log(`[cron] event reminders: day-before=${out.dayBefore} hour-before=${out.hourBefore} owner-nudge=${out.ownerNudge} review-nudge=${out.reviewNudge} (${out.pushes} recipients)`);
   }
   return out;
 }

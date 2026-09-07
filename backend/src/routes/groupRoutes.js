@@ -14,6 +14,7 @@ import {
   getJoinRequests,
   getAllJoinRequests,
   handleJoinRequest,
+  bulkAcceptJoinRequests,
   updateGroup,
   deleteGroup,
   getCategories,
@@ -75,6 +76,9 @@ router.post('/:id/like', authenticate, toggleLike);
 // JOIN REQUEST ROUTES (for private groups)
 // ==========================================
 router.get('/:id/requests', authenticate, getJoinRequests);
+// Bulk "Alle annehmen" (Pro) — MUST precede the parameterised :requestId route
+// so "accept-all" is never parsed as a request id.
+router.post('/:id/requests/accept-all', authenticate, bulkAcceptJoinRequests);
 router.post('/:id/requests/:requestId', authenticate, handleJoinRequest);
 
 // ==========================================

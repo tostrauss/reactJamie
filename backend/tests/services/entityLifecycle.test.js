@@ -23,11 +23,19 @@ vi.mock('../../src/config/database.js', () => {
   };
 });
 
+// Push is fire-and-forget from the seam — mock it so we can assert the forward
+// without loading web-push / APNs.
+const sendPushToUsersMock = vi.fn(async () => {});
+vi.mock('../../src/controllers/pushController.js', () => ({
+  sendPushToUsers: (...a) => sendPushToUsersMock(...a),
+}));
+
 const db = (await import('../../src/config/database.js')).default;
 const { createEntityWithOwner, notifyCancellationFanout } = await import('../../src/services/entityLifecycle.js');
 
 beforeEach(() => {
   statements.length = 0;
+  sendPushToUsersMock.mockClear();
   db._fakeClient.release.mockClear();
   // Default behavior: fanout INSERTs echo back one row per recipient
   // (RETURNING * emulation — user_id sits at every 7th param position).
@@ -98,5 +106,24 @@ describe('notifyCancellationFanout', () => {
     });
     expect(emitted.map(e => e.room)).toEqual(['user_7', 'user_14']);
     expect(emitted.every(e => e.ev === 'new_notification')).toBe(true);
+  });
+
+  // ── Batch 2 (2026-09-07): optional device push ────────────────────────────
+  it('forwards a pushBuilder + url to sendPushToUsers ONCE over all recipients', async () => {
+    const builder = () => ({ title: 't', body: 'b' });
+    await notifyCancellationFanout({
+      memberIds: [7, 14], senderId: 1, type: 'group_deleted', referenceType: 'group',
+      referenceId: 3, title: 't', body: 'b', io: null, pushBuilder: builder, pushUrl: '/notifications',
+    });
+    expect(sendPushToUsersMock).toHaveBeenCalledTimes(1);
+    expect(sendPushToUsersMock).toHaveBeenCalledWith([7, 14], builder, null, '/notifications');
+  });
+
+  it('does NOT push when no pushBuilder is passed — legacy callers are unaffected', async () => {
+    await notifyCancellationFanout({
+      memberIds: [7], senderId: 1, type: 'group_cancelled', referenceType: 'group',
+      referenceId: 3, title: 't', body: 'b', io: null,
+    });
+    expect(sendPushToUsersMock).not.toHaveBeenCalled();
   });
 });

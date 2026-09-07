@@ -1,5 +1,7 @@
 import db from '../config/database.js';
 import { revokeUserSessions } from '../socket.js';
+import { sendPushToUser } from './pushController.js';
+import { pushTexts } from '../utils/pushLocale.js';
 import { getClientIp } from '../utils/clientIp.js';
 import geoip from 'geoip-lite';
 import { checkSubscriptionCountry, getSubscriptionCountries } from '../utils/paymentRegion.js';
@@ -389,7 +391,7 @@ export const approveClub = async (req, res) => {
       `UPDATE groups
        SET approval_status = 'approved', updated_at = CURRENT_TIMESTAMP
        WHERE id = $1 AND type = 'club' AND approval_status = 'pending'
-       RETURNING id, name`,
+       RETURNING id, name, owner_id`,
       [id]
     );
     if (result.rowCount === 0) {
@@ -401,6 +403,10 @@ export const approveClub = async (req, res) => {
       invalidatePrefix('clubs:');
       invalidatePrefix('map:');
     } catch { /* non-fatal */ }
+    // Batch 3: tell the owner their club is live (was silent — they only found
+    // out when it surfaced in listings).
+    const c = result.rows[0];
+    if (c.owner_id) sendPushToUser(c.owner_id, pushTexts('clubApproved', { groupName: c.name || '' }), null, `/club/${c.id}`);
     res.json({ success: true, club: result.rows[0] });
   } catch (err) {
     console.error('approveClub error:', err);
@@ -415,12 +421,16 @@ export const rejectClub = async (req, res) => {
       `UPDATE groups
        SET approval_status = 'rejected', is_active = FALSE, updated_at = CURRENT_TIMESTAMP
        WHERE id = $1 AND type = 'club' AND approval_status = 'pending'
-       RETURNING id, name`,
+       RETURNING id, name, owner_id`,
       [id]
     );
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Pending club not found' });
     }
+    // Batch 3: tell the owner the decision (deep-link to /notifications — the
+    // rejected club is is_active=FALSE and not in any listing).
+    const c = result.rows[0];
+    if (c.owner_id) sendPushToUser(c.owner_id, pushTexts('clubRejected', { groupName: c.name || '' }), null, '/notifications');
     res.json({ success: true, club: result.rows[0] });
   } catch (err) {
     console.error('rejectClub error:', err);

@@ -1042,6 +1042,8 @@ const runStartupMigrations = async () => {
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS reminder_day_sent_for TIMESTAMP`);
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS reminder_hour_sent_for TIMESTAMP`);
     await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS owner_nudge_sent_for TIMESTAMP`);
+    // Batch 3: post-event review nudge (fires once the day after an event).
+    await db.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS review_nudge_sent_for TIMESTAMP`);
   });
 
   // ── Friend-activity daily cap ─────────────────────────────────────────────

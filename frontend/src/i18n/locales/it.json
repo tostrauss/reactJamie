@@ -1280,7 +1280,9 @@
       "deals": "Per te – offerte esclusive",
       "dealsDesc": "Sconti e promozioni dai partner a Vienna",
       "paidEvents": "Crea eventi a pagamento",
-      "paidEventsDesc": "Vendi biglietti tramite il tuo link"
+      "paidEventsDesc": "Vendi biglietti tramite il tuo link",
+      "reviewRequests": "Strumenti richieste",
+      "reviewRequestsDesc": "Accetta tutte, ordina e filtra"
     },
     "title": "JAMIE Pro",
     "priceMonth": "/ mese",
@@ -1324,7 +1326,8 @@
     "terms": "Termini",
     "privacy": "Privacy",
     "contextCta": {
-      "paidEvents": "Crea subito il tuo evento a pagamento!"
+      "paidEvents": "Crea subito il tuo evento a pagamento!",
+      "reviewRequests": "Gestisci le tue richieste come un professionista!"
     }
   },
   "boost": {
@@ -1432,7 +1435,24 @@
     "acceptError": "Errore durante l'accettazione",
     "declinedToast": "Richiesta di {{name}} rifiutata",
     "declineError": "Errore durante il rifiuto",
-    "requestedOnFmt": "Richiesta del {{date}}"
+    "requestedOnFmt": "Richiesta del {{date}}",
+    "title": "Richieste",
+    "reviewAllHint": "Esamina con calma tutte le richieste prima di decidere.",
+    "manageCta": "Vedi le richieste",
+    "proTools": "Strumenti Pro",
+    "acceptAll": "Accetta tutte",
+    "acceptAllConfirm_one": "Accettare {{count}} richiesta?",
+    "acceptAllConfirm_other": "Accettare tutte le {{count}} richieste?",
+    "acceptedAllToast_one": "{{count}} membro aggiunto",
+    "acceptedAllToast_other": "{{count}} membri aggiunti",
+    "acceptAllError": "Alcune richieste non è stato possibile accettarle",
+    "sortLabel": "Ordina",
+    "sortNewest": "Prima le più recenti",
+    "sortOldest": "Prima le più vecchie",
+    "sortVerified": "Prima i verificati",
+    "filterVerifiedOnly": "Solo verificati",
+    "emptyFiltered": "Nessuna richiesta per questo filtro",
+    "proBadge": "Pro"
   },
   "createGroup": {
     "title": "Crea gruppo",

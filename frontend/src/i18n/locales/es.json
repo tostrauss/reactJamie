@@ -1280,7 +1280,9 @@
       "deals": "Para ti – ofertas exclusivas",
       "dealsDesc": "Descuentos y ofertas especiales en socios de Viena",
       "paidEvents": "Crear eventos de pago",
-      "paidEventsDesc": "Vende entradas con tu propio enlace"
+      "paidEventsDesc": "Vende entradas con tu propio enlace",
+      "reviewRequests": "Herramientas de solicitudes",
+      "reviewRequestsDesc": "Acepta todas, ordena y filtra"
     },
     "title": "JAMIE Pro",
     "priceMonth": "/ mes",
@@ -1324,7 +1326,8 @@
     "terms": "Términos",
     "privacy": "Privacidad",
     "contextCta": {
-      "paidEvents": "¡Crea ahora tu evento de pago!"
+      "paidEvents": "¡Crea ahora tu evento de pago!",
+      "reviewRequests": "¡Gestiona tus solicitudes como un profesional!"
     }
   },
   "boost": {
@@ -1432,7 +1435,24 @@
     "acceptError": "Error al aceptar",
     "declinedToast": "{{name}} ha sido rechazado",
     "declineError": "Error al rechazar",
-    "requestedOnFmt": "Solicitado el {{date}}"
+    "requestedOnFmt": "Solicitado el {{date}}",
+    "title": "Solicitudes",
+    "reviewAllHint": "Revisa todas las solicitudes con calma antes de decidir.",
+    "manageCta": "Ver solicitudes",
+    "proTools": "Herramientas Pro",
+    "acceptAll": "Aceptar todas",
+    "acceptAllConfirm_one": "¿Aceptar {{count}} solicitud?",
+    "acceptAllConfirm_other": "¿Aceptar las {{count}} solicitudes?",
+    "acceptedAllToast_one": "{{count}} miembro añadido",
+    "acceptedAllToast_other": "{{count}} miembros añadidos",
+    "acceptAllError": "Algunas solicitudes no se pudieron aceptar",
+    "sortLabel": "Ordenar",
+    "sortNewest": "Más recientes primero",
+    "sortOldest": "Más antiguas primero",
+    "sortVerified": "Verificados primero",
+    "filterVerifiedOnly": "Solo verificados",
+    "emptyFiltered": "No hay solicitudes para este filtro",
+    "proBadge": "Pro"
   },
   "createGroup": {
     "title": "Crear grupo",

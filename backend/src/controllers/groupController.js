@@ -752,6 +752,18 @@ export const getGroupById = async (req, res) => {
       group.join_request_status = requestCheck.rows[0]?.status || null;
       group.waitlist_status = waitlistCheck.rows[0]?.status || null;
       group.waitlist_position = waitlistCheck.rows[0]?.position || null;
+      // Manager only: how many join requests are pending — powers the
+      // "Anfragen (N)" entry on the group page → the review-all overview
+      // (2026-09-07). Gated to a manager so a non-member can't probe a private
+      // group's request volume. 0 for entities without requests (events).
+      if (group.is_manager) {
+        const pend = await db.query(
+          `SELECT COUNT(*)::int AS c FROM group_join_requests
+           WHERE group_id = $1 AND status = 'pending'`,
+          [id]
+        );
+        group.pending_request_count = pend.rows[0]?.c || 0;
+      }
     }
 
     res.json(group);
@@ -800,8 +812,10 @@ export const updateGroup = async (req, res) => {
       return res.status(400).json({ error: 'Mindestalter darf nicht größer als Maximalalter sein' });
     }
 
-    // Verify ownership (type also feeds the 4-20 group-size rule below)
-    const group = await db.query('SELECT owner_id, type FROM groups WHERE id = $1', [id]);
+    // Verify ownership (type also feeds the 4-20 group-size rule below).
+    // date/location/max_members/name come along for the Batch-2 edit-notify +
+    // waitlist-promote diff after the write.
+    const group = await db.query('SELECT owner_id, type, date, location, max_members, name FROM groups WHERE id = $1', [id]);
     if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
     if (Number(group.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
 
@@ -922,6 +936,44 @@ export const updateGroup = async (req, res) => {
     invalidatePrefix('groups:');
     invalidatePrefix('map:');
 
+    // ── Batch 2 (2026-09-07): tell members when the WHEN or WHERE moved, and
+    // promote the waitlist if the cap was raised. Both fire-and-forget so a
+    // notify failure can never fail the edit itself (the response already
+    // carries the updated row).
+    const before = group.rows[0];
+    const after = result.rows[0];
+    const ts = (d) => (d ? new Date(d).getTime() : null);
+    const dateChanged = ts(before.date) !== ts(after.date);
+    const locationChanged = (before.location || '') !== (after.location || '');
+    // Recurring-weekly stores the FIRST occurrence in `date` — a change there
+    // isn't a rescheduled meetup, so only notify a date move for non-recurring.
+    const recurring = !!after.is_recurring_weekly;
+    if (locationChanged || (dateChanged && !recurring)) {
+      (async () => {
+        const mem = await db.query(
+          'SELECT user_id FROM group_members WHERE group_id = $1 AND user_id != $2',
+          [id, req.userId]
+        );
+        const ids = mem.rows.map(r => r.user_id);
+        if (!ids.length) return;
+        const build = pushTexts('eventEdited', {
+          groupName: after.name,
+          when: (dateChanged && !recurring) ? formatEventWhen(after.date) : null,
+          location: locationChanged ? after.location : null,
+        });
+        const de = build('de');
+        await notifyCancellationFanout({
+          memberIds: ids, senderId: req.userId, type: 'group_updated',
+          referenceType: 'group', referenceId: id, title: de.title, body: de.body,
+          io: req.app?.get('io'), pushBuilder: build, pushUrl: `/group/${id}`,
+        });
+      })().catch(err => console.error('event-edit notify failed:', err.message));
+    }
+    if (after.max_members && before.max_members && Number(after.max_members) > Number(before.max_members)) {
+      promoteWaitlistSeats(id, Number(after.max_members) - Number(before.max_members), 'group')
+        .catch(err => console.error('waitlist promote failed:', err.message));
+    }
+
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating group:', err);
@@ -936,10 +988,16 @@ export const deleteGroup = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify ownership
-    const group = await db.query('SELECT owner_id FROM groups WHERE id = $1 AND deleted_at IS NULL', [id]);
+    // Verify ownership (name feeds the Batch-2 deletion notice)
+    const group = await db.query('SELECT owner_id, name FROM groups WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
     if (Number(group.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
+
+    // Members to notify (except the owner) — read BEFORE the soft-delete so the
+    // roster is intact (soft-delete keeps group_members, but read it up front).
+    const members = await db.query(
+      'SELECT user_id FROM group_members WHERE group_id = $1 AND user_id != $2', [id, req.userId]
+    );
 
     // Soft delete — preserves messages, reviews, and member history
     await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [id]);
@@ -949,6 +1007,28 @@ export const deleteGroup = async (req, res) => {
     // from every member's "Chats" immediately instead of lingering for the 15s
     // user_groups TTL (the query already filters deleted_at, this kills the lag).
     invalidatePrefix('user_groups:');
+
+    // Batch 2 (2026-09-07): members get told the group is gone (in-app row +
+    // socket + push) — same class as a cancellation, which was In-App-only.
+    // Deep-link to /notifications, not the group: the deleted_at row 404s on
+    // getGroupById. Fire-and-forget so the delete response stays fast.
+    if (members.rows.length > 0) {
+      const build = pushTexts('eventCancelled', { groupName: group.rows[0].name });
+      const de = build('de');
+      notifyCancellationFanout({
+        memberIds: members.rows.map(m => m.user_id),
+        senderId: req.userId,
+        type: 'group_deleted',
+        referenceType: 'group',
+        referenceId: id,
+        title: de.title,
+        body: de.body,
+        io: req.app?.get('io'),
+        pushBuilder: build,
+        pushUrl: '/notifications',
+      }).catch(err => console.error('group-delete notify failed:', err.message));
+    }
+
     res.json({ message: 'Group deleted successfully' });
   } catch (err) {
     console.error('Error deleting group:', err);
@@ -1380,15 +1460,17 @@ export const getGroupMembers = async (req, res) => {
     );
     const total = fullList.rows.length;
 
-    // #1 Pro gate: for GROUPS, seeing the FULL member roster is a Pro feature —
-    // only Pro users (and admins) get the whole list; EVERYONE else, including
-    // members who already joined, sees only the first 3 entries (the frontend
-    // renders the next slot as a blurred locked tile with a ProModal CTA).
-    // Product call 2026-07-02: groups' member-bypass was removed so the roster
-    // is Pro-only. With payments off, effectively only admins see it in v1.
-    // Clubs/events KEEP the member-bypass — members see the roster; only
-    // non-members are gated there (this endpoint also serves clubs).
-    const entityType = groupRes.rows[0].type;
+    // #1 Pro gate: seeing the FULL member roster is a Pro tease for people who
+    // are NOT in the group. MEMBERS (plus the owner and admins) always see the
+    // whole roster; a non-member non-Pro non-admin sees only the first 3 entries
+    // (the frontend renders the next slot as a blurred locked tile with a
+    // ProModal CTA). Product call 2026-09-07 (Tina): members must see everyone
+    // in a group they've joined. This REVERSES the 2026-07-02 "groups' roster is
+    // Pro-only even for members" rule and re-aligns groups with clubs, which
+    // already let members through (getClubMembers) — so the gate is now purely
+    // "are you inside?" for groups AND clubs alike. Non-members stay gated so the
+    // "Alle Mitglieder sehen" Pro perk keeps its upsell surface. (This endpoint
+    // serves clubs too; a private club already 403'd its non-members above.)
     const callerIsPro = req.userId ? await isUserPro(req.userId) : false;
     // The owner always sees — and manages — their own full roster. The Pro gate
     // is a tease for OTHER viewers, not a lock on the organiser's own group.
@@ -1396,7 +1478,9 @@ export const getGroupMembers = async (req, res) => {
     // remove no-shows from the roster (Lea, 2026-07-30).
     const callerIsOwner = req.userId != null &&
       Number(groupRes.rows[0].owner_id) === Number(req.userId);
-    const gateApplies = !callerIsPro && !callerIsOwner && (entityType === 'group' || !isCallerMember);
+    // Members are ungated (groups AND clubs); only non-member non-Pro non-admins
+    // hit the 3-preview gate.
+    const gateApplies = !callerIsPro && !callerIsOwner && !isCallerMember;
     let callerIsAdmin = false;
     if (gateApplies && req.userId) {
       const adm = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);
@@ -1739,6 +1823,118 @@ export const handleJoinRequest = async (req, res) => {
 };
 
 // ==========================================
+// BULK ACCEPT JOIN REQUESTS (owner only — Pro "Alle annehmen")
+// ==========================================
+// Accepts a set of pending requests in ONE round trip instead of N client
+// calls. Body { ids: number[] } picks the caller's filtered/visible set; omit
+// ids to accept every pending request. Mirrors handleJoinRequest's accept rules
+// — avatar re-check (TOCTOU) + capacity — but batched under a SINGLE group-row
+// lock so a big "Alle annehmen" can't race the members_count trigger or
+// overshoot max_members. Requests that can't be taken (no avatar, or the group
+// filled up mid-batch) are LEFT pending and reported back as skip counts.
+export const bulkAcceptJoinRequests = async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Normalise the requested ids to positive ints; null = "all pending".
+    const idSet = Array.isArray(req.body?.ids)
+      ? new Set(req.body.ids.map(Number).filter(n => Number.isInteger(n) && n > 0))
+      : null;
+
+    const groupRes = await db.query(
+      'SELECT owner_id, name FROM groups WHERE id = $1 AND deleted_at IS NULL',
+      [id]
+    );
+    if (groupRes.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    if (Number(groupRes.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
+    const gname = groupRes.rows[0].name;
+
+    // Owner's pending_request_count changes → bust their chat-list cache.
+    deleteCached(`user_groups:${req.userId}`);
+
+    const acceptedIds = [];      // request ids that flipped to accepted
+    const acceptedUserIds = [];  // for the post-commit push/system-message fan-out
+    let skippedNoAvatar = 0;
+    let skippedFull = 0;
+
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const cap = await client.query(
+        'SELECT members_count, max_members FROM groups WHERE id = $1 FOR UPDATE',
+        [id]
+      );
+      // Track remaining seats in JS off the initial read — independent of when
+      // the members_count trigger fires per INSERT inside this transaction.
+      let available = cap.rows[0].max_members
+        ? Math.max(0, cap.rows[0].max_members - cap.rows[0].members_count)
+        : Infinity;
+
+      // Oldest-first so a group that fills mid-batch admits people fairly.
+      // avatar_url rides along for the re-check without a per-row query.
+      const pend = await client.query(
+        `SELECT jr.id, jr.user_id, u.avatar_url
+           FROM group_join_requests jr
+           JOIN users u ON u.id = jr.user_id
+          WHERE jr.group_id = $1 AND jr.status = 'pending'
+          ORDER BY jr.created_at ASC`,
+        [id]
+      );
+
+      for (const row of pend.rows) {
+        if (idSet && !idSet.has(row.id)) continue;
+        const hasAvatar = typeof row.avatar_url === 'string' && row.avatar_url.trim().length > 0;
+        if (!hasAvatar) { skippedNoAvatar++; continue; } // stays pending
+        if (available <= 0) { skippedFull++; continue; }  // stays pending
+
+        // Status guard so a request handled concurrently (single-accept, or a
+        // double-submit) is a clean no-op, never a double member/churn bump.
+        const upd = await client.query(
+          `UPDATE group_join_requests SET status = 'accepted', updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1 AND status = 'pending'`,
+          [row.id]
+        );
+        if (upd.rowCount === 0) continue;
+        const ins = await client.query(
+          'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
+          [id, row.user_id, 'member']
+        );
+        if (ins.rowCount > 0) {
+          await client.query(
+            `INSERT INTO group_join_counts (group_id, user_id, join_count) VALUES ($1, $2, 1)
+              ON CONFLICT (group_id, user_id) DO UPDATE SET join_count = group_join_counts.join_count + 1`,
+            [id, row.user_id]
+          );
+          available -= 1;
+        }
+        acceptedIds.push(row.id);
+        acceptedUserIds.push(row.user_id);
+      }
+      await client.query('COMMIT');
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
+    }
+
+    // Post-commit fan-out (fire-and-forget) — same signals as a single accept,
+    // one per newly-admitted member.
+    const io = req.app.get('io');
+    for (const uid of acceptedUserIds) {
+      sendPushToUser(uid, pushTexts('joinAccepted', { name: gname }), null, `/group/${id}`);
+      db.query('SELECT name FROM users WHERE id = $1', [uid])
+        .then(r => postSystemMessage(id, `${r.rows[0]?.name || 'Jemand'} ist der Gruppe beigetreten 🎉`, io).catch(() => {}))
+        .catch(() => {});
+    }
+
+    res.json({ acceptedIds, accepted: acceptedIds.length, skippedNoAvatar, skippedFull });
+  } catch (err) {
+    console.error('Error bulk-accepting join requests:', err);
+    res.status(500).json({ error: 'Anfragen konnten nicht verarbeitet werden' });
+  }
+};
+
+// ==========================================
 // KICK/REMOVE MEMBER (owner only)
 // ==========================================
 export const kickMember = async (req, res) => {
@@ -1826,15 +2022,21 @@ export const cancelGroup = async (req, res) => {
     let notified = 0;
     if (members.rows.length > 0) {
       // Chunked + live-emitting fan-out — shared core (services/entityLifecycle.js).
+      // Batch 2: now also PUSHES (localised per recipient). The de() output is the
+      // same German string this shipped before, so the in-app row is unchanged.
+      const build = pushTexts('eventCancelled', { groupName, reason });
+      const de = build('de');
       notified = await notifyCancellationFanout({
         memberIds: members.rows.map(m => m.user_id),
         senderId: req.userId,
         type: 'group_cancelled',
         referenceType: 'group',
         referenceId: id,
-        title: `${groupName} wurde abgesagt`,
-        body: reason || 'Das Event wurde vom Ersteller abgesagt.',
+        title: de.title,
+        body: de.body,
         io,
+        pushBuilder: build,
+        pushUrl: `/group/${id}`,
       });
     }
 
@@ -2096,6 +2298,9 @@ export const inviteMember = async (req, res) => {
        VALUES ($1, $2, 'group_invite', $3, $4, 'group', $5)`,
       [friendId, req.userId, `Einladung: ${g.name}`, `Du wurdest zur Gruppe "${g.name}" eingeladen!`, id]
     );
+    // Batch 3: the invitee gets a device push too (they're a member already —
+    // inviteMember has no accept step — but only learned by opening the app).
+    sendPushToUser(friendId, pushTexts('groupInvite', { groupName: g.name }), null, `/group/${id}`);
 
     res.json({ success: true });
   } catch (err) {
@@ -2105,22 +2310,25 @@ export const inviteMember = async (req, res) => {
 };
 
 // ── Push helpers (fire-and-forget) ──────────────────────────────────────────
-export async function notifyJoinRequest(requesterUserId, ownerUserId, groupName, groupId) {
+// `deepLink` defaults to the per-group requests page (owner flow). Club
+// co-managers are NOT the owner, so getJoinRequests would 403 them there —
+// clubController passes '/chats' (the aggregated Anfragen tab) for them (Batch 3).
+export async function notifyJoinRequest(requesterUserId, recipientUserId, groupName, groupId, deepLink = `/group/${groupId}/requests`) {
   try {
-    // Requester name + OWNER's app language in one round trip — the push must
+    // Requester name + RECIPIENT's app language in one round trip — the push must
     // read in the recipient's locale, and it should feel like a small win
     // ("leute müssen geil drauf werden, anfragen zu bekommen" — Tobi 2026-07-30).
     const { rows } = await db.query(
       `SELECT r.name AS requester_name, o.locale AS owner_locale
        FROM users r LEFT JOIN users o ON o.id = $2
        WHERE r.id = $1`,
-      [requesterUserId, ownerUserId]
+      [requesterUserId, recipientUserId]
     );
     const { title, body } = joinRequestText(rows[0]?.owner_locale, {
       requesterName: rows[0]?.requester_name,
       groupName,
     });
-    sendPushToUser(ownerUserId, title, body, `/group/${groupId}/requests`);
+    sendPushToUser(recipientUserId, title, body, deepLink);
   } catch { /* non-critical */ }
 }
 
@@ -2174,6 +2382,39 @@ export async function promoteFromWaitlist(groupId) {
   } finally {
     client.release();
   }
+}
+
+// Wall-clock formatter for lifecycle-edit pushes (Batch 2). groups.date is a
+// naive Vienna wall-clock TIMESTAMP; node-postgres builds the JS Date in the
+// process-local zone, so getHours()/getDate() read back exactly the stored
+// wall-clock regardless of the server zone (Railway=UTC) — the same one-CET
+// approximation the reminder cron documents. "12.09. 19:00" for a timed event,
+// "12.09." for an all-day one, null for no/invalid date.
+export function formatEventWhen(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return null;
+  const pad = (n) => String(n).padStart(2, '0');
+  const datePart = `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.`;
+  const timed = d.getHours() !== 0 || d.getMinutes() !== 0;
+  return timed ? `${datePart} ${pad(d.getHours())}:${pad(d.getMinutes())}` : datePart;
+}
+
+// Raising max_members on a full group/club/event frees seats → notify the next
+// waiters, exactly ONE per freed seat (never over-notify). promoteFromWaitlist
+// only flips waiting→notified (members_count is unchanged until the waiter taps
+// join), so the loop is capped at the seat delta. Fire-and-forget from the
+// update controllers; basePath deep-links to /group|/club/:id.
+export async function promoteWaitlistSeats(groupId, seats, basePath = 'group') {
+  let promoted = 0;
+  const cap = Math.min(Number(seats) || 0, 100); // guard a pathological raise
+  for (let i = 0; i < cap; i++) {
+    const p = await promoteFromWaitlist(groupId);
+    if (!p) break;
+    sendPushToUser(p.userId, pushTexts('slotFreed', { groupName: p.groupName }), null, `/${basePath}/${groupId}`);
+    promoted++;
+  }
+  return promoted;
 }
 
 // Force a user's live sockets out of a chat room (used on kick). Room

@@ -210,4 +210,62 @@ describe('pushTexts', () => {
       expect(pushTexts('friendCreated', { groupName: 'Bar Abend' })('en').title).toBe('New from Someone');
     });
   });
+
+  // ── Batch 2 (2026-09-07): lifecycle keys ──────────────────────────────────
+  describe('eventEdited', () => {
+    it('names ONLY the fields that changed, joined with a middle dot', () => {
+      const both = pushTexts('eventEdited', { groupName: 'Yoga', when: '12.09. 19:00', location: 'Prater' });
+      expect(both('de')).toEqual({ title: 'Änderung: Yoga', body: 'Neuer Termin: 12.09. 19:00 · Neuer Ort: Prater' });
+      expect(both('en')).toEqual({ title: 'Change: Yoga', body: 'New time: 12.09. 19:00 · New place: Prater' });
+    });
+    it('a location-only change omits the time clause', () => {
+      expect(pushTexts('eventEdited', { groupName: 'Yoga', location: 'Prater' })('de').body).toBe('Neuer Ort: Prater');
+    });
+    it('falls back to a generic line when neither field is passed, per locale', () => {
+      expect(pushTexts('eventEdited', { groupName: 'Yoga' })('de').body).toBe('Details wurden aktualisiert');
+      expect(pushTexts('eventEdited', { groupName: 'Yoga' })('fr').body).toBe('Les détails ont été mis à jour');
+    });
+  });
+
+  describe('eventCancelled / clubClosed', () => {
+    // The de() output MUST equal the German strings cancelGroup/cancelClub
+    // shipped before Batch 2 — the in-app row reuses it and must not change.
+    it('eventCancelled de matches the legacy in-app string; reason overrides the default; localises', () => {
+      expect(pushTexts('eventCancelled', { groupName: 'Yoga' })('de'))
+        .toEqual({ title: 'Yoga wurde abgesagt', body: 'Das Event wurde vom Ersteller abgesagt.' });
+      expect(pushTexts('eventCancelled', { groupName: 'Yoga', reason: 'Regen' })('de').body).toBe('Regen');
+      expect(pushTexts('eventCancelled', { groupName: 'Yoga' })('es').title).toBe('Yoga se ha cancelado');
+    });
+    it('clubClosed de matches the legacy in-app string; localises', () => {
+      expect(pushTexts('clubClosed', { groupName: 'Club X' })('de'))
+        .toEqual({ title: 'Club X wurde geschlossen', body: 'Der Club wurde vom Ersteller geschlossen.' });
+      expect(pushTexts('clubClosed', { groupName: 'Club X' })('it').title).toBe('Club X è stato chiuso');
+    });
+  });
+
+  // ── Batch 3 (2026-09-07): Tier 2/3 keys ───────────────────────────────────
+  describe('Batch 3 lifecycle/ops keys', () => {
+    it('groupInvite names the group, per locale', () => {
+      expect(pushTexts('groupInvite', { groupName: 'Yoga' })('de')).toEqual({ title: 'Neue Einladung', body: 'Du wurdest zu "Yoga" hinzugefügt 🎉' });
+      expect(pushTexts('groupInvite', { groupName: 'Yoga' })('fr').title).toBe('Nouvelle invitation');
+    });
+    it('clubApproved / clubRejected localise', () => {
+      expect(pushTexts('clubApproved', { groupName: 'Club X' })('de').title).toBe('Club freigeschaltet 🎉');
+      expect(pushTexts('clubApproved', { groupName: 'Club X' })('en').body).toBe('"Club X" is now public');
+      expect(pushTexts('clubRejected', { groupName: 'Club X' })('de').title).toBe('Club nicht freigegeben');
+    });
+    it('clubPendingAdmin / reportAdmin are the admin ops texts (reportAdmin ignores params)', () => {
+      expect(pushTexts('clubPendingAdmin', { groupName: 'Club X' })('de').title).toBe('Neuer Club wartet auf Freigabe');
+      expect(pushTexts('reportAdmin', {})('de')).toEqual({ title: 'Neue Meldung', body: 'Eine neue Meldung ist eingegangen' });
+      expect(pushTexts('reportAdmin', {})('es').title).toBe('Nueva denuncia');
+    });
+    it('managerAdded is positive, per locale', () => {
+      expect(pushTexts('managerAdded', { groupName: 'Club X' })('de').title).toBe('Du bist jetzt Manager 🎉');
+      expect(pushTexts('managerAdded', { groupName: 'Club X' })('it').title).toBe('Ora sei manager 🎉');
+    });
+    it('reviewNudge asks how the event was, per locale', () => {
+      expect(pushTexts('reviewNudge', { groupName: 'Bar Abend' })('de')).toEqual({ title: 'Wie war "Bar Abend"?', body: 'Bewerte, wer dabei war 🌟' });
+      expect(pushTexts('reviewNudge', { groupName: 'Bar Abend' })('en').title).toBe('How was "Bar Abend"?');
+    });
+  });
 });

@@ -374,6 +374,12 @@ export const groups = {
   handleRequest: (groupId, requestId, action) =>
     axiosInstance.post(`/groups/${groupId}/requests/${requestId}`, { action }),
 
+  // Bulk accept (Pro "Alle annehmen"). `ids` = the visible/filtered set; the
+  // server leaves un-takeable requests (no avatar / group full) pending and
+  // returns { acceptedIds, skippedNoAvatar, skippedFull }.
+  acceptAllRequests: (groupId, ids) =>
+    axiosInstance.post(`/groups/${groupId}/requests/accept-all`, { ids }),
+
   // Waitlist operations
   joinWaitlist: (id) =>
     axiosInstance.post(`/groups/${id}/waitlist/join`),

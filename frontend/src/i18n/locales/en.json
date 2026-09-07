@@ -1280,7 +1280,9 @@
       "deals": "For You – exclusive deals",
       "dealsDesc": "Discounts & specials with partners in Vienna",
       "paidEvents": "Create paid events",
-      "paidEventsDesc": "Sell tickets via your own link"
+      "paidEventsDesc": "Sell tickets via your own link",
+      "reviewRequests": "Request tools",
+      "reviewRequestsDesc": "Accept all, sort & filter"
     },
     "title": "JAMIE Pro",
     "priceMonth": "/ month",
@@ -1324,7 +1326,8 @@
     "terms": "Terms",
     "privacy": "Privacy",
     "contextCta": {
-      "paidEvents": "Create your paid event now!"
+      "paidEvents": "Create your paid event now!",
+      "reviewRequests": "Manage your join requests like a pro!"
     }
   },
   "boost": {
@@ -1432,7 +1435,24 @@
     "acceptError": "Could not accept",
     "declinedToast": "{{name}} was declined",
     "declineError": "Could not decline",
-    "requestedOnFmt": "Requested {{date}}"
+    "requestedOnFmt": "Requested {{date}}",
+    "title": "Requests",
+    "reviewAllHint": "Review every request in peace before you decide.",
+    "manageCta": "View requests",
+    "proTools": "Pro tools",
+    "acceptAll": "Accept all",
+    "acceptAllConfirm_one": "Accept {{count}} request?",
+    "acceptAllConfirm_other": "Accept all {{count}} requests?",
+    "acceptedAllToast_one": "{{count}} member added",
+    "acceptedAllToast_other": "{{count}} members added",
+    "acceptAllError": "Some requests couldn't be accepted",
+    "sortLabel": "Sort",
+    "sortNewest": "Newest first",
+    "sortOldest": "Oldest first",
+    "sortVerified": "Verified first",
+    "filterVerifiedOnly": "Verified only",
+    "emptyFiltered": "No requests for this filter",
+    "proBadge": "Pro"
   },
   "createGroup": {
     "title": "Create group",

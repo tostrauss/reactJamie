@@ -1280,7 +1280,9 @@
       "deals": "Für Dich – exklusive Deals",
       "dealsDesc": "Rabatte & Specials bei Partnern in Wien",
       "paidEvents": "Kostenpflichtige Events erstellen",
-      "paidEventsDesc": "Verkaufe Tickets über deinen eigenen Link"
+      "paidEventsDesc": "Verkaufe Tickets über deinen eigenen Link",
+      "reviewRequests": "Anfragen-Tools",
+      "reviewRequestsDesc": "Alle annehmen, sortieren & filtern"
     },
     "title": "JAMIE Pro",
     "priceMonth": "/ Monat",
@@ -1324,7 +1326,8 @@
     "terms": "AGB",
     "privacy": "Datenschutz",
     "contextCta": {
-      "paidEvents": "Erstelle jetzt dein kostenpflichtiges Event!"
+      "paidEvents": "Erstelle jetzt dein kostenpflichtiges Event!",
+      "reviewRequests": "Verwalte deine Beitrittsanfragen wie ein Profi!"
     }
   },
   "boost": {
@@ -1432,7 +1435,24 @@
     "acceptError": "Fehler beim Annehmen",
     "declinedToast": "{{name}} wurde abgelehnt",
     "declineError": "Fehler beim Ablehnen",
-    "requestedOnFmt": "Angefragt {{date}}"
+    "requestedOnFmt": "Angefragt {{date}}",
+    "title": "Anfragen",
+    "reviewAllHint": "Sieh dir alle Anfragen in Ruhe an, bevor du entscheidest.",
+    "manageCta": "Anfragen ansehen",
+    "proTools": "Pro-Tools",
+    "acceptAll": "Alle annehmen",
+    "acceptAllConfirm_one": "{{count}} Anfrage annehmen?",
+    "acceptAllConfirm_other": "Alle {{count}} Anfragen annehmen?",
+    "acceptedAllToast_one": "{{count}} Mitglied aufgenommen",
+    "acceptedAllToast_other": "{{count}} Mitglieder aufgenommen",
+    "acceptAllError": "Manche Anfragen konnten nicht angenommen werden",
+    "sortLabel": "Sortieren",
+    "sortNewest": "Neueste zuerst",
+    "sortOldest": "Älteste zuerst",
+    "sortVerified": "Verifizierte zuerst",
+    "filterVerifiedOnly": "Nur Verifizierte",
+    "emptyFiltered": "Keine Anfragen für diesen Filter",
+    "proBadge": "Pro"
   },
   "createGroup": {
     "title": "Gruppe erstellen",

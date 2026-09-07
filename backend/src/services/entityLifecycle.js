@@ -5,6 +5,7 @@
 // cancelGroup had. The shared cores live here; controllers keep their
 // entity-specific validation/authorization and pass the differences in.
 import db from '../config/database.js';
+import { sendPushToUsers } from '../controllers/pushController.js';
 
 // Entity row + owner membership ATOMICALLY (audit risk #10): without this,
 // a failure between the two INSERTs left an ownerless entity whose
@@ -34,7 +35,14 @@ export async function createEntityWithOwner(insertSql, params, ownerId) {
 // safely under Postgres' 65535 bind-parameter ceiling) — cancelClub's old
 // unchunked copy would have errored out and notified NOBODY on a huge club.
 // Everything is parameterized, including type/reference_type.
-export async function notifyCancellationFanout({ memberIds, senderId, type, referenceType, referenceId, title, body, io }) {
+// `pushBuilder` (optional) is a `(locale) => { title, body }` from
+// utils/pushLocale.pushTexts — when present, every recipient also gets a device
+// push (localised per recipient) to `pushUrl`. Batch 2 (2026-09-07): the lifecycle
+// events (cancel, delete, edit) were In-App-only; this is the one place a push
+// had to be added to cover group AND club at once. Fire-and-forget — a push
+// failure must never fail the in-app fan-out (sendPushToUsers already swallows
+// its own errors and no-ops when neither VAPID nor APNs is configured).
+export async function notifyCancellationFanout({ memberIds, senderId, type, referenceType, referenceId, title, body, io, pushBuilder = null, pushUrl = '/notifications' }) {
   let notified = 0;
   const CHUNK = 1000;
   for (let start = 0; start < memberIds.length; start += CHUNK) {
@@ -55,6 +63,11 @@ export async function notifyCancellationFanout({ memberIds, senderId, type, refe
         io.to(`user_${notif.user_id}`).emit('new_notification', notif);
       }
     }
+  }
+  // Device push to the same recipients (bulk, one subscriptions SELECT). Kept
+  // out of the chunk loop so it's ONE fan-out over all ids; fire-and-forget.
+  if (pushBuilder && memberIds.length) {
+    sendPushToUsers(memberIds, pushBuilder, null, pushUrl).catch(() => {});
   }
   return notified;
 }

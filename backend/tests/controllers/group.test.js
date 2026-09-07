@@ -58,7 +58,7 @@ vi.mock('../../src/controllers/subscriptionController.js', () => ({
   isUserPro: (...args) => isUserProMock(...args),
 }));
 
-const { getGroupMembers } = await import('../../src/controllers/groupController.js');
+const { getGroupMembers, formatEventWhen } = await import('../../src/controllers/groupController.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 beforeEach(() => {
@@ -114,15 +114,16 @@ describe('getGroupMembers — Pro gate matrix', () => {
     expect(payload.members[0]).not.toHaveProperty('joined_at');
   });
 
-  // 2026-07-02: the full GROUP roster is Pro-only — a plain (non-Pro) member no
-  // longer bypasses the gate. Clubs still let members through (see below).
-  it('gates a plain (non-Pro) GROUP member too — the full roster is Pro-only', async () => {
+  // 2026-09-07 (Tina): members of a GROUP see the FULL roster again — only
+  // non-members are gated. Re-aligns groups with clubs (reverses the 2026-07-02
+  // "roster is Pro-only even for members" rule).
+  it('lets a plain (non-Pro) GROUP member through to the full roster', async () => {
     scenario.isMember = true;
     const res = await call();
     const payload = res.json.mock.calls[0][0];
-    expect(payload.gated).toBe(true);
-    expect(payload.members).toHaveLength(3);
-    expect(payload.members[0]).not.toHaveProperty('bio');
+    expect(payload.gated).toBe(false);
+    expect(payload.members).toHaveLength(5);
+    expect(payload.members[0]).toHaveProperty('bio');
   });
 
   it('returns the full ungated roster to a Pro group member', async () => {
@@ -188,5 +189,20 @@ describe('getGroupMembers — Pro gate matrix', () => {
     expect(payload.gated).toBe(true);
     expect(payload.members).toHaveLength(3);
     expect(isUserProMock).not.toHaveBeenCalled();
+  });
+});
+
+// Batch 2 (2026-09-07): the wall-clock formatter behind the event-edit push.
+describe('formatEventWhen', () => {
+  it('formats a timed event as DD.MM. HH:MM (local-constructed Date reads back the stored wall-clock)', () => {
+    expect(formatEventWhen(new Date(2026, 8, 12, 19, 5))).toBe('12.09. 19:05');
+  });
+  it('formats an all-day (midnight) event as DD.MM. only', () => {
+    expect(formatEventWhen(new Date(2026, 8, 12, 0, 0))).toBe('12.09.');
+  });
+  it('returns null for a missing or invalid date', () => {
+    expect(formatEventWhen(null)).toBeNull();
+    expect(formatEventWhen(undefined)).toBeNull();
+    expect(formatEventWhen('not-a-date')).toBeNull();
   });
 });

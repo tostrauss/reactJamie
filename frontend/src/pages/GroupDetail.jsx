@@ -610,11 +610,22 @@ export const GroupDetail = () => {
             );
           }
           if (isJoined) {
+            // A private group's owner/manager gets a second button into the
+            // review-all "Anfragen-Übersicht" (2026-09-07) — only while requests
+            // are actually waiting (Tobi 2026-09-07: hide it at 0). Only private
+            // groups have join requests; events join directly, so exclude them.
+            const pendingCount = group.pending_request_count || 0;
+            const showRequests = (isOwner || group.is_manager) && group.is_private && !isEvent && pendingCount > 0;
             return (
-              <div className="gd-anfragen-row">
+              <div className="gd-anfragen-row" style={showRequests ? { gap: 10 } : undefined}>
                 <button className="gd-anfragen-btn joined" onClick={() => navigate(`/chat/${group.id}`)}>
                   {t('groups.detail.actions.openChat')}
                 </button>
+                {showRequests && (
+                  <button className="gd-anfragen-btn joined" onClick={() => navigate(`/group/${group.id}/requests`)}>
+                    {t('groupRequests.manageCta')}{pendingCount > 0 ? ` (${pendingCount})` : ''}
+                  </button>
+                )}
               </div>
             );
           }

@@ -36,15 +36,20 @@ const {
 // ── Helpers ───────────────────────────────────────────────────────────────
 // No fake timers in this repo: `now` is injected explicitly.
 const NOW = new Date('2026-09-19T16:30:00Z');
-const MARKERS = ['reminder_day_sent_for', 'reminder_hour_sent_for', 'owner_nudge_sent_for'];
+const MARKERS = ['reminder_day_sent_for', 'reminder_hour_sent_for', 'owner_nudge_sent_for', 'review_nudge_sent_for'];
 
 // Programs dbQueryImpl: each claim UPDATE hands back its rows, the members
-// SELECT returns `members`; anything else is a test bug and throws.
-const program = ({ day = [], hour = [], nudge = [], members = [] } = {}) => {
+// SELECT returns `members` (the review recipient SELECT — the one with the
+// event_reviews NOT EXISTS — returns `reviewMembers`); anything else throws.
+// Order matters: the review recipient SELECT also contains 'FROM group_members
+// gm', so match its distinctive 'event_reviews' first.
+const program = ({ day = [], hour = [], nudge = [], review = [], members = [], reviewMembers = [] } = {}) => {
   dbQueryImpl = async (text) => {
+    if (text.includes('review_nudge_sent_for')) return { rows: review };
     if (text.includes('reminder_day_sent_for')) return { rows: day };
     if (text.includes('reminder_hour_sent_for')) return { rows: hour };
     if (text.includes('owner_nudge_sent_for')) return { rows: nudge };
+    if (text.includes('event_reviews')) return { rows: reviewMembers };
     if (text.includes('FROM group_members gm')) return { rows: members };
     throw new Error(`unexpected SQL in test: ${text.slice(0, 80)}`);
   };
@@ -166,9 +171,9 @@ describe('day-before fan-out', () => {
     expect(build12('de')).toEqual({ title: 'Morgen: Picknick', body: '1 dabei' });
 
     expect(pushUserMock).not.toHaveBeenCalled();
-    expect(out).toEqual({ dayBefore: 2, hourBefore: 0, ownerNudge: 0, pushes: 3 });
+    expect(out).toEqual({ dayBefore: 2, hourBefore: 0, ownerNudge: 0, reviewNudge: 0, pushes: 3 });
     expect(logSpy).toHaveBeenCalledTimes(1);
-    expect(logSpy.mock.calls[0][0]).toContain('[cron] event reminders: day-before=2 hour-before=0 owner-nudge=0 (3 recipients)');
+    expect(logSpy.mock.calls[0][0]).toContain('[cron] event reminders: day-before=2 hour-before=0 owner-nudge=0 review-nudge=0 (3 recipients)');
   });
 });
 
@@ -186,7 +191,7 @@ describe('hour-before', () => {
     expect(pushUsersMock).toHaveBeenCalledWith([5], expect.any(Function), null, '/group/21');
     expect(pushUsersMock.mock.calls[0][1]('de')).toEqual({ title: 'Heute 19:00 · Tennis', body: 'Bis gleich! 👋' });
     expect(pushUserMock).not.toHaveBeenCalled();
-    expect(out).toEqual({ dayBefore: 0, hourBefore: 1, ownerNudge: 0, pushes: 1 });
+    expect(out).toEqual({ dayBefore: 0, hourBefore: 1, ownerNudge: 0, reviewNudge: 0, pushes: 1 });
   });
 
   it('prefixes the location when present', async () => {
@@ -224,9 +229,9 @@ describe('owner nudge', () => {
     expect(yoga.title).toBe('Noch 2 Tage bis "Yoga"');
     expect(yoga.body.startsWith('Noch niemand dabei')).toBe(true);
 
-    expect(out).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 2, pushes: 2 });
+    expect(out).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 2, reviewNudge: 0, pushes: 2 });
     expect(logSpy).toHaveBeenCalledTimes(1);
-    expect(logSpy.mock.calls[0][0]).toContain('owner-nudge=2 (2 recipients)');
+    expect(logSpy.mock.calls[0][0]).toContain('owner-nudge=2 review-nudge=0 (2 recipients)');
   });
 });
 
@@ -240,18 +245,18 @@ describe('edge cases', () => {
     expect(membersSelects()).toHaveLength(1);
     expect(pushUsersMock).not.toHaveBeenCalled();
     expect(pushUserMock).not.toHaveBeenCalled();
-    expect(out).toEqual({ dayBefore: 1, hourBefore: 0, ownerNudge: 0, pushes: 0 });
+    expect(out).toEqual({ dayBefore: 1, hourBefore: 0, ownerNudge: 0, reviewNudge: 0, pushes: 0 });
   });
 
-  it('nothing due: exactly the three claims in order, no roster query, no pushes, silent', async () => {
+  it('nothing due: exactly the four claims in order, no roster query, no pushes, silent', async () => {
     const out = await runEventReminders({ now: NOW });
-    expect(statements).toHaveLength(3);
+    expect(statements).toHaveLength(4);
     expect(statements.map(s => MARKERS.find(m => s.text.includes(m)))).toEqual(MARKERS);
     expect(pushUsersMock).not.toHaveBeenCalled();
     expect(pushUserMock).not.toHaveBeenCalled();
     expect(logSpy).not.toHaveBeenCalled();
     expect(errSpy).not.toHaveBeenCalled();
-    expect(out).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, pushes: 0 });
+    expect(out).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 0, pushes: 0 });
   });
 
   it('a failing send is logged and contained — the run resolves and the other event still goes out', async () => {
@@ -272,7 +277,57 @@ describe('edge cases', () => {
     expect(errSpy.mock.calls[0][1]).toBe('boom');
     // `pushes` counts attempts (incremented before the send), so the failed
     // batch stays in the tally.
-    expect(out).toEqual({ dayBefore: 2, hourBefore: 0, ownerNudge: 0, pushes: 3 });
+    expect(out).toEqual({ dayBefore: 2, hourBefore: 0, ownerNudge: 0, reviewNudge: 0, pushes: 3 });
+  });
+});
+
+describe('review nudge (Batch 3)', () => {
+  it('claims group events, skips who already reviewed/dismissed, sends one "/" push per event', async () => {
+    program({
+      review: [
+        { id: 41, owner_id: 1, name: 'Bar Abend', location: null, members_count: 5, time_hhmm: '19:00' },
+        { id: 42, owner_id: 2, name: 'Picknick', location: null, members_count: 3, time_hhmm: null },
+      ],
+      reviewMembers: [
+        { group_id: 41, user_id: 7 }, { group_id: 41, user_id: 8 }, { group_id: 42, user_id: 9 },
+      ],
+    });
+    const out = await runEventReminders({ now: NOW });
+
+    // The window is D+1 10:00 → D+2, and restricts to type='group'.
+    const claim = claimOf('review_nudge_sent_for');
+    expect(claim.text).toContain("x.type = 'group'");
+    expect(claim.text).toContain("(x.date::date + 1)::timestamp + TIME '10:00'");
+
+    // Recipients filtered by the review NOT EXISTS clauses (one query).
+    const revSel = statements.find(s => s.text.includes('event_reviews'));
+    expect(revSel).toBeDefined();
+    expect(revSel.text).toContain('event_review_dismissals');
+    expect(revSel.text).toContain('gm.notifications_muted = FALSE');
+    expect(revSel.text).toContain('u.push_reminders = TRUE');
+    expect(revSel.params).toEqual([[41, 42]]);
+
+    expect(pushUsersMock).toHaveBeenCalledTimes(2);
+    expect(pushUsersMock).toHaveBeenNthCalledWith(1, [7, 8], expect.any(Function), null, '/');
+    expect(pushUsersMock).toHaveBeenNthCalledWith(2, [9], expect.any(Function), null, '/');
+    expect(pushUsersMock.mock.calls[0][1]('de')).toEqual({ title: 'Wie war "Bar Abend"?', body: 'Bewerte, wer dabei war 🌟' });
+    expect(out).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 2, pushes: 3 });
+  });
+
+  it('re-arms the marker (NULL) if the recipient lookup fails after the claim', async () => {
+    dbQueryImpl = async (text) => {
+      if (text.includes('UPDATE groups g SET') && text.includes('review_nudge_sent_for')) {
+        return { rows: [{ id: 41, owner_id: 1, name: 'Bar Abend', members_count: 5, claimed_date: '2026-09-18 19:00:00' }] };
+      }
+      if (text.includes('event_reviews')) throw new Error('pool exhausted');
+      return { rows: [] };
+    };
+    const out = await runEventReminders({ now: NOW });
+    expect(pushUsersMock).not.toHaveBeenCalled();
+    expect(out.reviewNudge).toBe(0);
+    const rearm = statements.find(s => s.text.includes('SET review_nudge_sent_for = NULL'));
+    expect(rearm).toBeDefined();
+    expect(rearm.params).toEqual([[41], ['2026-09-18 19:00:00']]);
   });
 });
 
@@ -311,7 +366,7 @@ describe('failure isolation', () => {
 
     const out = await runEventReminders({ now: NOW });
 
-    expect(out).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, pushes: 0 });
+    expect(out).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 0, pushes: 0 });
     expect(errSpy).toHaveBeenCalledTimes(1);
     expect(errSpy.mock.calls[0][0]).toContain('event reminders (day-before) failed');
     expect(claimOf('reminder_hour_sent_for')).toBeDefined();

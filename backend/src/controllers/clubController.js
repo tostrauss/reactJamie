@@ -3,9 +3,9 @@ import { geocodeLocation, resolveCreateLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
-import { notifyJoinRequest, notifyGroupJoin, evictFromRoom, creatorHasAvatar, promoteFromWaitlist } from './groupController.js';
+import { notifyJoinRequest, notifyGroupJoin, evictFromRoom, creatorHasAvatar, promoteFromWaitlist, promoteWaitlistSeats, formatEventWhen } from './groupController.js';
 import { isUserPro } from './subscriptionController.js';
-import { sendPushToUser, sendPushToUsers } from './pushController.js';
+import { sendPushToUser, sendPushToUsers, sendPushToAdmins } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 import { normalizeCategories } from '../utils/normalizeCategories.js';
 import { checkImageField } from '../utils/safeUrl.js';
@@ -185,11 +185,13 @@ export const createClub = async (req, res) => {
     // Welcome system message — no live broadcast (chat is empty on creation).
     postSystemMessage(newClub.id, `Willkommen bei ${newClub.name}! Stell euch kurz vor 👋`).catch(() => {});
 
-    // Notify admin that a new club is waiting for review (fire-and-forget).
+    // Notify admins a new club is waiting for review — email (existing) AND a
+    // device push (Batch 3): the team isn't always in the inbox.
     if (approval === 'pending') {
       import('../utils/email.js')
         .then(({ sendAdminClubPendingEmail }) => sendAdminClubPendingEmail?.(newClub, req.userId))
         .catch(() => {});
+      sendPushToAdmins(pushTexts('clubPendingAdmin', { groupName: newClub.name || '' }), null, '/admin');
     }
 
     invalidatePrefix('clubs:');
@@ -394,7 +396,7 @@ export const updateClub = async (req, res) => {
     const dateValue = date === '' ? null : date;
 
     const club = await db.query(
-      'SELECT owner_id FROM groups WHERE id = $1 AND type = $2',
+      'SELECT owner_id, max_members, date, location, name FROM groups WHERE id = $1 AND type = $2',
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
@@ -469,6 +471,42 @@ export const updateClub = async (req, res) => {
     // stale club name/visibility for up to 60s.
     invalidatePrefix(DISCOVER_EVENTS_KEY);
     invalidatePrefix('groups:'); // clubs also appear in the public groups feed
+
+    // Batch 2: cap raised → free seats → promote that many waiters (fire-and-forget).
+    const beforeMax = club.rows[0].max_members;
+    const afterMax = result.rows[0]?.max_members;
+    if (afterMax && beforeMax && Number(afterMax) > Number(beforeMax)) {
+      promoteWaitlistSeats(id, Number(afterMax) - Number(beforeMax), 'club')
+        .catch(err => console.error('waitlist promote failed:', err.message));
+    }
+
+    // Batch 3: next-meetup date or location moved → tell members (mirrors the
+    // updateGroup edit-notify). Clubs aren't weekly-recurring, so a date here is
+    // the next meetup. Fire-and-forget.
+    const cBefore = club.rows[0];
+    const cAfter = result.rows[0];
+    const cts = (d) => (d ? new Date(d).getTime() : null);
+    const cDateChanged = cts(cBefore.date) !== cts(cAfter?.date);
+    const cLocChanged = (cBefore.location || '') !== (cAfter?.location || '');
+    if (cAfter && (cLocChanged || cDateChanged)) {
+      (async () => {
+        const mem = await db.query('SELECT user_id FROM group_members WHERE group_id = $1 AND user_id != $2', [id, req.userId]);
+        const ids = mem.rows.map(r => r.user_id);
+        if (!ids.length) return;
+        const build = pushTexts('eventEdited', {
+          groupName: cAfter.name,
+          when: cDateChanged ? formatEventWhen(cAfter.date) : null,
+          location: cLocChanged ? cAfter.location : null,
+        });
+        const de = build('de');
+        await notifyCancellationFanout({
+          memberIds: ids, senderId: req.userId, type: 'club_updated',
+          referenceType: 'club', referenceId: id, title: de.title, body: de.body,
+          io: req.app?.get('io'), pushBuilder: build, pushUrl: `/club/${id}`,
+        });
+      })().catch(err => console.error('club-edit notify failed:', err.message));
+    }
+
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating club:', err);
@@ -487,11 +525,16 @@ export const deleteClub = async (req, res) => {
     const { id } = req.params;
 
     const club = await db.query(
-      'SELECT owner_id FROM groups WHERE id = $1 AND type = $2 AND deleted_at IS NULL',
+      'SELECT owner_id, name FROM groups WHERE id = $1 AND type = $2 AND deleted_at IS NULL',
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
     if (Number(club.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
+
+    // Members to notify (except the owner), read before the soft-delete.
+    const members = await db.query(
+      'SELECT user_id FROM group_members WHERE group_id = $1 AND user_id != $2', [id, req.userId]
+    );
 
     // Soft delete — preserves messages, reviews, and member history.
     // Mirrors deleteGroup behaviour so audit trails are recoverable.
@@ -507,6 +550,26 @@ export const deleteClub = async (req, res) => {
     // is_active (only the club row is soft-deleted), so the feed's live
     // parent-club check is what removes them and it must not serve a stale page.
     invalidatePrefix('groups:');
+
+    // Batch 2 (2026-09-07): tell members the club is gone (in-app + socket +
+    // push) — same class as cancelClub. /notifications, not the 404-ing club.
+    if (members.rows.length > 0) {
+      const build = pushTexts('clubClosed', { groupName: club.rows[0].name });
+      const de = build('de');
+      notifyCancellationFanout({
+        memberIds: members.rows.map(m => m.user_id),
+        senderId: req.userId,
+        type: 'club_deleted',
+        referenceType: 'club',
+        referenceId: id,
+        title: de.title,
+        body: de.body,
+        io: req.app?.get('io'),
+        pushBuilder: build,
+        pushUrl: '/notifications',
+      }).catch(err => console.error('club-delete notify failed:', err.message));
+    }
+
     res.json({ message: 'Club deleted successfully' });
   } catch (err) {
     console.error('Error deleting club:', err);
@@ -596,6 +659,21 @@ export const joinClub = async (req, res) => {
           group_name: clubRow.name,
         });
       }
+      // Batch 3: co-managers (role='admin') review club requests too (the
+      // Anfragen tab scopes to owned OR co-managed) — notify them as well, but
+      // deep-link to /chats: getJoinRequests 403s a non-owner on the per-group
+      // requests page. Fire-and-forget; their chat-list badge is busted too.
+      db.query(`SELECT user_id FROM group_members WHERE group_id = $1 AND role = 'admin' AND user_id != $2`, [id, req.userId])
+        .then(r => {
+          for (const m of r.rows) {
+            notifyJoinRequest(req.userId, m.user_id, clubRow.name || '', id, '/chats').catch(() => {});
+            deleteCached(`user_groups:${m.user_id}`);
+            req.app.get('io')?.to(`user_${m.user_id}`).emit('join_request_update', {
+              group_id: Number(id), group_name: clubRow.name,
+            });
+          }
+        })
+        .catch(() => {});
       return res.json({ message: 'Join request sent', status: 'pending' });
     }
 
@@ -1090,7 +1168,7 @@ export const addClubManager = async (req, res) => {
     }
 
     const club = await db.query(
-      'SELECT owner_id FROM groups WHERE id = $1 AND type = $2 AND deleted_at IS NULL',
+      'SELECT owner_id, name FROM groups WHERE id = $1 AND type = $2 AND deleted_at IS NULL',
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
@@ -1113,6 +1191,9 @@ export const addClubManager = async (req, res) => {
     }
 
     invalidatePrefix('clubs:');
+    // Batch 3: the new co-manager gets a (positive) push. A demotion is
+    // deliberately NOT pushed (removeClubManager) — no "you were demoted" ping.
+    sendPushToUser(targetUserId, pushTexts('managerAdded', { groupName: club.rows[0].name || '' }), null, `/club/${id}`);
     res.json({ message: 'Manager hinzugefügt', userId: targetUserId });
   } catch (err) {
     console.error('Error adding club manager:', err);
@@ -1188,15 +1269,21 @@ export const cancelClub = async (req, res) => {
       // entityLifecycle.js). The old inline copy here was UNCHUNKED: a club
       // past ~13k members would have blown Postgres' bind-parameter limit
       // and notified nobody.
+      // Batch 2: now also PUSHES (localised). de() = the same German string
+      // this shipped before, so the in-app row is unchanged.
+      const build = pushTexts('clubClosed', { groupName: clubName, reason });
+      const de = build('de');
       notified = await notifyCancellationFanout({
         memberIds: members.rows.map(m => m.user_id),
         senderId: req.userId,
         type: 'club_cancelled',
         referenceType: 'club',
         referenceId: id,
-        title: `${clubName} wurde geschlossen`,
-        body: reason || 'Der Club wurde vom Ersteller geschlossen.',
+        title: de.title,
+        body: de.body,
         io,
+        pushBuilder: build,
+        pushUrl: `/club/${id}`,
       });
     }
 
@@ -1464,7 +1551,7 @@ export const deleteClubEvent = async (req, res) => {
     const { id, eventId } = req.params;
 
     const event = await db.query(
-      'SELECT owner_id, parent_club_id FROM groups WHERE id = $1 AND parent_club_id = $2',
+      'SELECT owner_id, parent_club_id, name FROM groups WHERE id = $1 AND parent_club_id = $2',
       [eventId, id]
     );
     if (event.rows.length === 0) return res.status(404).json({ error: 'Veranstaltung nicht gefunden' });
@@ -1478,6 +1565,11 @@ export const deleteClubEvent = async (req, res) => {
       return res.status(403).json({ error: 'Keine Berechtigung' });
     }
 
+    // Attendees to notify (except the actor), read before the soft-delete.
+    const members = await db.query(
+      'SELECT user_id FROM group_members WHERE group_id = $1 AND user_id != $2', [eventId, req.userId]
+    );
+
     await db.query(
       'UPDATE groups SET is_active = FALSE, deleted_at = CURRENT_TIMESTAMP WHERE id = $1',
       [eventId]
@@ -1487,6 +1579,26 @@ export const deleteClubEvent = async (req, res) => {
     invalidatePrefix(DISCOVER_EVENTS_KEY);
     invalidatePrefix('map:'); // removed event → drop its map pin
     invalidatePrefix('groups:'); // …and out of the Gruppen feed
+
+    // Batch 2 (2026-09-07): attendees get told the event was removed (was
+    // notifying NOBODY). /notifications, not the 404-ing event.
+    if (members.rows.length > 0) {
+      const build = pushTexts('eventCancelled', { groupName: event.rows[0].name });
+      const de = build('de');
+      notifyCancellationFanout({
+        memberIds: members.rows.map(m => m.user_id),
+        senderId: req.userId,
+        type: 'event_deleted',
+        referenceType: 'group',
+        referenceId: eventId,
+        title: de.title,
+        body: de.body,
+        io: req.app?.get('io'),
+        pushBuilder: build,
+        pushUrl: '/notifications',
+      }).catch(err => console.error('club-event-delete notify failed:', err.message));
+    }
+
     res.json({ message: 'Veranstaltung gelöscht' });
   } catch (err) {
     console.error('Error deleting club event:', err);
@@ -1529,7 +1641,8 @@ export const updateClubEvent = async (req, res) => {
 
   try {
     const event = await db.query(
-      `SELECT owner_id, parent_club_id FROM groups WHERE id = $1 AND parent_club_id = $2 AND type = 'event'`,
+      `SELECT owner_id, parent_club_id, date, location, max_members, name, is_recurring_weekly
+         FROM groups WHERE id = $1 AND parent_club_id = $2 AND type = 'event'`,
       [eventId, id]
     );
     if (event.rows.length === 0) return res.status(404).json({ error: 'Veranstaltung nicht gefunden' });
@@ -1598,6 +1711,41 @@ export const updateClubEvent = async (req, res) => {
     invalidatePrefix(DISCOVER_EVENTS_KEY);
     invalidatePrefix('map:'); // location/coords may have moved the pin
     invalidatePrefix('groups:'); // …and its card in the Gruppen feed
+
+    // ── Batch 2 (2026-09-07): notify attendees on a when/where move, promote the
+    // waitlist on a cap raise. Mirrors updateGroup; fire-and-forget.
+    const before = event.rows[0];
+    const after = result.rows[0];
+    const toTs = (d) => (d ? new Date(d).getTime() : null);
+    const dateChanged = toTs(before.date) !== toTs(after.date);
+    const locationChanged = (before.location || '') !== (after.location || '');
+    const recurring = !!after.is_recurring_weekly;
+    if (locationChanged || (dateChanged && !recurring)) {
+      (async () => {
+        const mem = await db.query(
+          'SELECT user_id FROM group_members WHERE group_id = $1 AND user_id != $2',
+          [eventId, userId]
+        );
+        const ids = mem.rows.map(r => r.user_id);
+        if (!ids.length) return;
+        const build = pushTexts('eventEdited', {
+          groupName: after.name,
+          when: (dateChanged && !recurring) ? formatEventWhen(after.date) : null,
+          location: locationChanged ? after.location : null,
+        });
+        const de = build('de');
+        await notifyCancellationFanout({
+          memberIds: ids, senderId: userId, type: 'event_updated',
+          referenceType: 'group', referenceId: eventId, title: de.title, body: de.body,
+          io: req.app?.get('io'), pushBuilder: build, pushUrl: `/group/${eventId}`,
+        });
+      })().catch(err => console.error('club-event-edit notify failed:', err.message));
+    }
+    if (after.max_members && before.max_members && Number(after.max_members) > Number(before.max_members)) {
+      promoteWaitlistSeats(eventId, Number(after.max_members) - Number(before.max_members), 'group')
+        .catch(err => console.error('waitlist promote failed:', err.message));
+    }
+
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Error updating club event:', err);

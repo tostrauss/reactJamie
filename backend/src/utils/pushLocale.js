@@ -40,6 +40,22 @@ const dots = (...parts) => parts.filter(Boolean).join(' · ');
 // "19:00 · 6 dabei · Prater" — time and location only when present.
 const reminderBody = (p, l) => dots(p.time, GOING[l](p.count), p.location);
 
+// ── Batch 2 (2026-09-07): lifecycle pushes — edit, cancel, close ──────────
+// Only the fields that ACTUALLY changed are passed (when when the date/time
+// moved, location when the place moved), so the body names exactly what the
+// member has to re-check. `when` is preformatted wall-clock (groupController
+// formatEventWhen) — locale-neutral numbers, one CET approximation like the
+// reminder cron.
+const WHEN_LABEL  = { de: 'Neuer Termin', en: 'New time', it: 'Nuovo orario', fr: 'Nouvel horaire', es: 'Nueva hora' };
+const WHERE_LABEL = { de: 'Neuer Ort',    en: 'New place', it: 'Nuovo luogo', fr: 'Nouveau lieu',   es: 'Nuevo lugar' };
+const EDIT_FALLBACK = { de: 'Details wurden aktualisiert', en: 'Details were updated', it: 'I dettagli sono stati aggiornati', fr: 'Les détails ont été mis à jour', es: 'Se han actualizado los detalles' };
+const editBody = (p, l) => {
+  const parts = [];
+  if (p.when) parts.push(`${WHEN_LABEL[l]}: ${p.when}`);
+  if (p.location) parts.push(`${WHERE_LABEL[l]}: ${p.location}`);
+  return parts.length ? parts.join(' · ') : EDIT_FALLBACK[l];
+};
+
 const PUSH_TEXTS = {
   slotFreed: {
     de: (p) => ({ title: 'Platz frei!', body: `Ein Platz in "${p.groupName}" ist frei geworden` }),
@@ -159,6 +175,94 @@ const PUSH_TEXTS = {
     it: (p) => ({ title: `Novità da ${p.name || SOMEONE.it}`, body: `${p.name || SOMEONE.it} ha creato "${p.groupName}" – ci stai?` }),
     fr: (p) => ({ title: `Du nouveau de ${p.name || SOMEONE.fr}`, body: `${p.name || SOMEONE.fr} a créé « ${p.groupName} » – tu en es ?` }),
     es: (p) => ({ title: `Novedad de ${p.name || SOMEONE.es}`, body: `${p.name || SOMEONE.es} ha creado "${p.groupName}" – ¿te apuntas?` }),
+  },
+
+  // ── Batch 2 (2026-09-07): lifecycle — event edit, cancel, club close ──────
+  // The de() output is REUSED verbatim as the in-app notification row (so push
+  // and the in-app entry read identically); the other locales localise the
+  // push. `p.reason` is the owner's optional cancellation note.
+  eventEdited: {
+    de: (p) => ({ title: `Änderung: ${p.groupName}`, body: editBody(p, 'de') }),
+    en: (p) => ({ title: `Change: ${p.groupName}`, body: editBody(p, 'en') }),
+    it: (p) => ({ title: `Modifica: ${p.groupName}`, body: editBody(p, 'it') }),
+    fr: (p) => ({ title: `Changement : ${p.groupName}`, body: editBody(p, 'fr') }),
+    es: (p) => ({ title: `Cambio: ${p.groupName}`, body: editBody(p, 'es') }),
+  },
+  // Used by cancelGroup (is_active=FALSE) AND deleteGroup/deleteClubEvent
+  // (deleted_at) — from the member's view an event that won't happen. The de
+  // title/body match the strings cancelGroup shipped before, so the in-app row
+  // is unchanged; only the push is now localised.
+  eventCancelled: {
+    de: (p) => ({ title: `${p.groupName} wurde abgesagt`, body: p.reason || 'Das Event wurde vom Ersteller abgesagt.' }),
+    en: (p) => ({ title: `${p.groupName} was cancelled`, body: p.reason || 'The event was cancelled by the organiser.' }),
+    it: (p) => ({ title: `${p.groupName} è stato annullato`, body: p.reason || "L'evento è stato annullato dall'organizzatore." }),
+    fr: (p) => ({ title: `${p.groupName} a été annulé`, body: p.reason || "L'événement a été annulé par l'organisateur." }),
+    es: (p) => ({ title: `${p.groupName} se ha cancelado`, body: p.reason || 'El organizador ha cancelado el evento.' }),
+  },
+  // Used by cancelClub + deleteClub. de matches the previous cancelClub strings.
+  clubClosed: {
+    de: (p) => ({ title: `${p.groupName} wurde geschlossen`, body: p.reason || 'Der Club wurde vom Ersteller geschlossen.' }),
+    en: (p) => ({ title: `${p.groupName} was closed`, body: p.reason || 'The club was closed by the owner.' }),
+    it: (p) => ({ title: `${p.groupName} è stato chiuso`, body: p.reason || 'Il club è stato chiuso dal proprietario.' }),
+    fr: (p) => ({ title: `${p.groupName} a été fermé`, body: p.reason || 'Le club a été fermé par le propriétaire.' }),
+    es: (p) => ({ title: `${p.groupName} se ha cerrado`, body: p.reason || 'El propietario ha cerrado el club.' }),
+  },
+
+  // ── Batch 3 (2026-09-07): Tier 2/3 engagement + ops ───────────────────────
+  // Invitee added directly (inviteMember has no accept step) — they only learned
+  // by opening the app before.
+  groupInvite: {
+    de: (p) => ({ title: 'Neue Einladung', body: `Du wurdest zu "${p.groupName}" hinzugefügt 🎉` }),
+    en: (p) => ({ title: 'New invite', body: `You were added to "${p.groupName}" 🎉` }),
+    it: (p) => ({ title: 'Nuovo invito', body: `Sei stato aggiunto a "${p.groupName}" 🎉` }),
+    fr: (p) => ({ title: 'Nouvelle invitation', body: `Tu as été ajouté à « ${p.groupName} » 🎉` }),
+    es: (p) => ({ title: 'Nueva invitación', body: `Te han añadido a "${p.groupName}" 🎉` }),
+  },
+  clubApproved: {
+    de: (p) => ({ title: 'Club freigeschaltet 🎉', body: `"${p.groupName}" ist jetzt öffentlich sichtbar` }),
+    en: (p) => ({ title: 'Club approved 🎉', body: `"${p.groupName}" is now public` }),
+    it: (p) => ({ title: 'Club approvato 🎉', body: `"${p.groupName}" ora è pubblico` }),
+    fr: (p) => ({ title: 'Club validé 🎉', body: `« ${p.groupName} » est maintenant public` }),
+    es: (p) => ({ title: 'Club aprobado 🎉', body: `"${p.groupName}" ya es público` }),
+  },
+  clubRejected: {
+    de: (p) => ({ title: 'Club nicht freigegeben', body: `"${p.groupName}" wurde leider nicht freigegeben.` }),
+    en: (p) => ({ title: 'Club not approved', body: `"${p.groupName}" was not approved.` }),
+    it: (p) => ({ title: 'Club non approvato', body: `"${p.groupName}" non è stato approvato.` }),
+    fr: (p) => ({ title: 'Club non validé', body: `« ${p.groupName} » n'a pas été validé.` }),
+    es: (p) => ({ title: 'Club no aprobado', body: `"${p.groupName}" no ha sido aprobado.` }),
+  },
+  // To ADMINS: a new club is waiting for review.
+  clubPendingAdmin: {
+    de: (p) => ({ title: 'Neuer Club wartet auf Freigabe', body: `"${p.groupName}" möchte freigeschaltet werden` }),
+    en: (p) => ({ title: 'New club awaiting approval', body: `"${p.groupName}" is waiting for review` }),
+    it: (p) => ({ title: 'Nuovo club in attesa', body: `"${p.groupName}" attende l'approvazione` }),
+    fr: (p) => ({ title: 'Nouveau club à valider', body: `« ${p.groupName} » attend une validation` }),
+    es: (p) => ({ title: 'Nuevo club pendiente', body: `"${p.groupName}" espera aprobación` }),
+  },
+  // To ADMINS: a new report came in.
+  reportAdmin: {
+    de: () => ({ title: 'Neue Meldung', body: 'Eine neue Meldung ist eingegangen' }),
+    en: () => ({ title: 'New report', body: 'A new report came in' }),
+    it: () => ({ title: 'Nuova segnalazione', body: 'È arrivata una nuova segnalazione' }),
+    fr: () => ({ title: 'Nouveau signalement', body: 'Un nouveau signalement est arrivé' }),
+    es: () => ({ title: 'Nueva denuncia', body: 'Ha llegado una nueva denuncia' }),
+  },
+  // Positive only — a demotion is deliberately NOT pushed (see removeClubManager).
+  managerAdded: {
+    de: (p) => ({ title: 'Du bist jetzt Manager 🎉', body: `Du kannst "${p.groupName}" jetzt mitverwalten` }),
+    en: (p) => ({ title: 'You are now a manager 🎉', body: `You can now help manage "${p.groupName}"` }),
+    it: (p) => ({ title: 'Ora sei manager 🎉', body: `Ora puoi gestire "${p.groupName}"` }),
+    fr: (p) => ({ title: 'Tu es maintenant manager 🎉', body: `Tu peux désormais gérer « ${p.groupName} »` }),
+    es: (p) => ({ title: 'Ahora eres manager 🎉', body: `Ya puedes gestionar "${p.groupName}"` }),
+  },
+  // Post-event: nudge attendees to review (drives the trusted-badge funnel).
+  reviewNudge: {
+    de: (p) => ({ title: `Wie war "${p.groupName}"?`, body: 'Bewerte, wer dabei war 🌟' }),
+    en: (p) => ({ title: `How was "${p.groupName}"?`, body: 'Rate who was there 🌟' }),
+    it: (p) => ({ title: `Com'è andata "${p.groupName}"?`, body: 'Valuta chi c\'era 🌟' }),
+    fr: (p) => ({ title: `Comment était « ${p.groupName} » ?`, body: 'Note les participants 🌟' }),
+    es: (p) => ({ title: `¿Qué tal "${p.groupName}"?`, body: 'Valora a quienes asistieron 🌟' }),
   },
 };
 

@@ -1280,7 +1280,9 @@
       "deals": "Pour toi – offres exclusives",
       "dealsDesc": "Réductions & offres spéciales chez des partenaires à Vienne",
       "paidEvents": "Créer des événements payants",
-      "paidEventsDesc": "Vends des billets via ton propre lien"
+      "paidEventsDesc": "Vends des billets via ton propre lien",
+      "reviewRequests": "Outils de demandes",
+      "reviewRequestsDesc": "Tout accepter, trier et filtrer"
     },
     "title": "JAMIE Pro",
     "priceMonth": "/ mois",
@@ -1324,7 +1326,8 @@
     "terms": "CGV",
     "privacy": "Confidentialité",
     "contextCta": {
-      "paidEvents": "Crée maintenant ton événement payant !"
+      "paidEvents": "Crée maintenant ton événement payant !",
+      "reviewRequests": "Gère tes demandes d'adhésion comme un pro !"
     }
   },
   "boost": {
@@ -1432,7 +1435,24 @@
     "acceptError": "Erreur lors de l'acceptation",
     "declinedToast": "{{name}} a été refusé·e",
     "declineError": "Erreur lors du refus",
-    "requestedOnFmt": "Demandé le {{date}}"
+    "requestedOnFmt": "Demandé le {{date}}",
+    "title": "Demandes",
+    "reviewAllHint": "Passe toutes les demandes en revue tranquillement avant de décider.",
+    "manageCta": "Voir les demandes",
+    "proTools": "Outils Pro",
+    "acceptAll": "Tout accepter",
+    "acceptAllConfirm_one": "Accepter {{count}} demande ?",
+    "acceptAllConfirm_other": "Accepter les {{count}} demandes ?",
+    "acceptedAllToast_one": "{{count}} membre ajouté",
+    "acceptedAllToast_other": "{{count}} membres ajoutés",
+    "acceptAllError": "Certaines demandes n'ont pas pu être acceptées",
+    "sortLabel": "Trier",
+    "sortNewest": "Plus récentes d'abord",
+    "sortOldest": "Plus anciennes d'abord",
+    "sortVerified": "Vérifiés d'abord",
+    "filterVerifiedOnly": "Vérifiés uniquement",
+    "emptyFiltered": "Aucune demande pour ce filtre",
+    "proBadge": "Pro"
   },
   "createGroup": {
     "title": "Créer un groupe",
