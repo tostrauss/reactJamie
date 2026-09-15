@@ -358,7 +358,8 @@
         "waitlistGeneric": "Liste d'attente",
         "joinWaitlist": "Rejoindre la liste d'attente",
         "boost": "🚀 Booster",
-        "clubGone": "Le club n’existe plus"
+        "clubGone": "Le club n’existe plus",
+        "requestBlocked": "Demande refusée"
       },
       "info": {
         "level": "Niveau : {{level}}",
@@ -529,7 +530,8 @@
       "openChat": "Ouvrir le chat",
       "boost": "Booster le club",
       "delete": "Supprimer le club",
-      "report": "Signaler le club"
+      "report": "Signaler le club",
+      "rejected": "Demande refusée"
     },
     "delete": {
       "confirm": "Vraiment supprimer ce club ?",
@@ -2152,6 +2154,7 @@
     "VOICE_TOO_LARGE": "Le message vocal est trop long.",
     "DOB_REQUIRED": "Indique ta date de naissance.",
     "DOB_INVALID": "Date de naissance invalide.",
-    "DOB_UNDERAGE": "Tu dois avoir au moins 18 ans pour utiliser JAMIE."
+    "DOB_UNDERAGE": "Tu dois avoir au moins 18 ans pour utiliser JAMIE.",
+    "JOIN_REQUEST_BLOCKED": "Tu as déjà fait deux demandes et elles ont été refusées. Tu ne peux plus en envoyer."
   }
 }

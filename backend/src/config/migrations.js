@@ -1071,6 +1071,54 @@ const runStartupMigrations = async () => {
     }
   });
 
+  // group_join_requests.reviewed_by had no ON DELETE clause — so NO ACTION.
+  //
+  // Harmless for as long as nothing ever wrote the column, which is exactly
+  // what happened: it has existed since the original schema.sql and every
+  // handler ignored it. The attempt budget starts writing it (so "who rejected
+  // me" is answerable once attempts can run out), which arms the constraint —
+  // and then a user who has ever accepted or rejected a request cannot be
+  // deleted. Both deletion paths transfer a multi-member group to another
+  // member and only then DELETE FROM users, so the group and its request rows
+  // survive and the FK blocks the delete inside the transaction: the whole
+  // thing rolls back and "Konto löschen" 500s. That is a GDPR path.
+  //
+  // reports.reviewed_by (migrations.js, above) already had ON DELETE SET NULL;
+  // this one was simply never brought in line because it was dead weight.
+  await migrate('group_join_requests reviewed_by ON DELETE SET NULL', async () => {
+    await db.query(`ALTER TABLE group_join_requests
+      DROP CONSTRAINT IF EXISTS group_join_requests_reviewed_by_fkey`);
+    await db.query(`ALTER TABLE group_join_requests
+      ADD CONSTRAINT group_join_requests_reviewed_by_fkey
+      FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL`);
+  });
+
+  // Join-request attempt budget (Arno 2026-09-15: "Es gibt Leute die fragen das
+  // 4. mal schon an, obwohl ich sie abgelehnt habe").
+  //
+  // group_join_requests holds ONE row per (group_id, user_id) and the join
+  // paths upserted it back to 'pending' on every re-request — so a rejection
+  // cost the applicant nothing and the owner got a fresh push, cache bust and
+  // socket emit each time. The row's own status cannot express "how often",
+  // hence a counter.
+  //
+  // Counts REJECTIONS, not requests: a request the owner simply never answers
+  // stays 'pending' and is already refused by the pending check, so counting
+  // rejections is the same budget in practice and the more forgiving reading.
+  // Tobi's rule (2026-09-15): two attempts, then no more.
+  await migrate('group_join_requests rejected_count', async () => {
+    await db.query(`ALTER TABLE group_join_requests
+      ADD COLUMN IF NOT EXISTS rejected_count INTEGER NOT NULL DEFAULT 0`);
+    // Backfill: every row already rejected has been rejected at LEAST once, but
+    // the old schema kept no count, so someone who asked four times looks
+    // identical to someone rejected once. Seed 1, never 2 — nobody gets locked
+    // out retroactively on evidence we do not have. They get one more attempt,
+    // and the counter is honest from here on.
+    await db.query(`UPDATE group_join_requests
+                       SET rejected_count = 1
+                     WHERE status = 'rejected' AND rejected_count = 0`);
+  });
+
   // ── One-shot 2026-09-15: retire events orphaned by a dead parent club ────
   // Until today no query gated a club EVENT on its parent club's approval or
   // liveness (utils/clubGate.js now does). The gates hide such rows from every

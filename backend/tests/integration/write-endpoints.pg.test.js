@@ -166,6 +166,8 @@ suite('write endpoints against real Postgres', () => {
       deleteClub: c.deleteClub, deleteClubEvent: c.deleteClubEvent,
       deleteDM: dm.deleteDM,
       joinGroup: g.joinGroup, handleJoinRequest: g.handleJoinRequest, kickMember: g.kickMember,
+      joinWaitlist: g.joinWaitlist, joinClub: c.joinClub,
+      handleClubJoinRequest: c.handleClubJoinRequest,
       getGroups: g.getGroups,
       getDiscoverEvents: c.getDiscoverEvents, getMapPins: mp.getMapPins,
       getGroupById: g.getGroupById,
@@ -1677,6 +1679,215 @@ suite('write endpoints against real Postgres', () => {
           WHERE sender_id=$1 AND receiver_id=$2 ORDER BY id DESC LIMIT 1`, [A, B]);
       expect(row.rows[0].media_url).toBe(url);
       expect(row.rows[0].content).not.toContain('http');
+    });
+  });
+
+
+  // -- Join-request attempt budget (Arno 2026-09-15) -------------------------
+  // "Es gibt Leute die fragen das 4. mal schon an, obwohl ich sie abgelehnt
+  // habe." One row per (group_id, user_id) that the join paths upserted back to
+  // 'pending' every time, so a rejection cost the applicant nothing. Tobi's
+  // rule: two attempts, then no more. Everything here needs REAL Postgres --
+  // the budget lives in an ON CONFLICT ... DO UPDATE ... WHERE, which a mocked
+  // db.query cannot evaluate at all.
+  describe('join-request attempt budget', () => {
+    let gid, applicant, reqId;
+
+    const reqRow = () => db.query(
+      'SELECT id, status, rejected_count FROM group_join_requests WHERE group_id=$1 AND user_id=$2',
+      [gid, applicant]).then(r => r.rows[0]);
+
+    const rejectCurrent = async () => {
+      const row = await reqRow();
+      return call(C.handleJoinRequest, {
+        userId: A, params: { id: String(gid), requestId: String(row.id) }, body: { action: 'reject' } });
+    };
+
+    it('seed: a private group and an applicant', async () => {
+      applicant = (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ('smoke-budget@x.com','Budget','1995-03-03','female',$1,TRUE,'email') RETURNING id`,
+        [avatar])).rows[0].id;
+      // Inserted directly, not via createGroup: A has already created plenty of
+      // groups earlier in this file and would hit the 10-per-day cap here.
+      gid = (await db.query(
+        `INSERT INTO groups (name, type, date, owner_id, category, location, max_members, is_private)
+         VALUES ($1,'group', NOW() + INTERVAL '7 days', $2, 'Sport', 'Wien', 8, TRUE) RETURNING id`,
+        ['Budget Smoke', A])).rows[0].id;
+      await db.query(
+        `INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner') ON CONFLICT DO NOTHING`,
+        [gid, A]);
+    });
+
+    it('attempt 1 is allowed', async () => {
+      ok(await call(C.joinGroup, { userId: applicant, params: { id: String(gid) }, body: { message: 'bitte' } }));
+      const row = await reqRow();
+      expect(row.status).toBe('pending');
+      expect(row.rejected_count).toBe(0);
+    });
+
+    it('rejecting counts one attempt, records who did it, and reports what is left', async () => {
+      const res = await rejectCurrent();
+      ok(res);
+      expect(res.body.attempts_left).toBe(1);
+      const row = await reqRow();
+      expect(row.status).toBe('rejected');
+      expect(row.rejected_count).toBe(1);
+      const who = await db.query('SELECT reviewed_by FROM group_join_requests WHERE id=$1', [row.id]);
+      expect(who.rows[0].reviewed_by).toBe(A);
+    });
+
+    it('attempt 2 is still allowed - the rule is TWO tries, not one', async () => {
+      ok(await call(C.joinGroup, { userId: applicant, params: { id: String(gid) }, body: { message: 'nochmal' } }));
+      const row = await reqRow();
+      expect(row.status).toBe('pending');
+      expect(row.rejected_count).toBe(1);
+    });
+
+    it('the second rejection uses the budget up', async () => {
+      const res = await rejectCurrent();
+      ok(res);
+      expect(res.body.attempts_left).toBe(0);
+      expect((await reqRow()).rejected_count).toBe(2);
+    });
+
+    it('attempt 3 is refused with a coded 403 and writes nothing', async () => {
+      const res = await call(C.joinGroup, { userId: applicant, params: { id: String(gid) }, body: { message: 'bitte bitte' } });
+      expect(res.statusCode).toBe(403);
+      expect(res.body.code).toBe('JOIN_REQUEST_BLOCKED');
+      const row = await reqRow();
+      // Still rejected, still 2 - the refusal must not upsert back to pending.
+      expect(row.status).toBe('rejected');
+      expect(row.rejected_count).toBe(2);
+    });
+
+    it('the waitlist is not a side door for a used-up applicant', async () => {
+      // Fill the group so the waitlist is the offered path, then try it.
+      await db.query('UPDATE groups SET max_members = members_count WHERE id=$1', [gid]);
+      const res = await call(C.joinWaitlist, { userId: applicant, params: { id: String(gid) }, body: {} });
+      expect(res.statusCode).toBe(403);
+      expect(res.body.code).toBe('JOIN_REQUEST_BLOCKED');
+      const w = await db.query('SELECT 1 FROM group_waitlist WHERE group_id=$1 AND user_id=$2', [gid, applicant]);
+      expect(w.rows.length).toBe(0);
+      await db.query('UPDATE groups SET max_members = 8 WHERE id=$1', [gid]);
+    });
+
+    it('undo refunds the attempt it spent', async () => {
+      const row = await reqRow();
+      ok(await call(C.handleJoinRequest, {
+        userId: A, params: { id: String(gid), requestId: String(row.id) }, body: { action: 'undo' } }));
+      const after = await reqRow();
+      expect(after.status).toBe('pending');
+      expect(after.rejected_count).toBe(1);
+    });
+
+    it('rejecting a row that is no longer pending is a no-op, not a second charge', async () => {
+      // Burn it back down to rejected (count 2), then reject the same row again.
+      const first = await rejectCurrent();
+      ok(first);
+      expect((await reqRow()).rejected_count).toBe(2);
+      const row = await reqRow();
+      const again = await call(C.handleJoinRequest, {
+        userId: A, params: { id: String(gid), requestId: String(row.id) }, body: { action: 'reject' } });
+      ok(again);
+      // The guard is what stops a stale second surface from burning attempts
+      // nobody spent - and, on an accepted row, from banning a current member.
+      expect((await reqRow()).rejected_count).toBe(2);
+    });
+
+    it('accepting works from rejected and clears the budget', async () => {
+      const row = await reqRow();
+      ok(await call(C.handleJoinRequest, {
+        userId: A, params: { id: String(gid), requestId: String(row.id) }, body: { action: 'accept' } }));
+      const after = await reqRow();
+      expect(after.status).toBe('accepted');
+      expect(after.rejected_count).toBe(0);
+      const m = await db.query('SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2', [gid, applicant]);
+      expect(m.rows.length).toBe(1);
+    });
+
+    it('deleting the reviewer does not break: reviewed_by is ON DELETE SET NULL', async () => {
+      // Writing reviewed_by for the first time armed a constraint that had been
+      // dead weight since the original schema: group_join_requests.reviewed_by
+      // had NO ON DELETE clause. Both account-deletion paths transfer a
+      // multi-member group to another member and only then DELETE FROM users,
+      // so the request row survives and the FK would abort the transaction -
+      // i.e. "Konto loeschen" 500s forever for any owner who ever handled a
+      // request. That is a GDPR path, so it is pinned here.
+      const reviewer = (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ('smoke-reviewer@x.com','Rev','1990-01-01','male',$1,TRUE,'email') RETURNING id`,
+        [avatar])).rows[0].id;
+      const rowId = (await db.query(
+        `INSERT INTO group_join_requests (group_id, user_id, status, reviewed_by)
+         VALUES ($1, $2, 'rejected', $3) RETURNING id`,
+        [gid, B, reviewer])).rows[0].id;
+      await db.query('DELETE FROM users WHERE id = $1', [reviewer]);
+      const after = await db.query('SELECT reviewed_by FROM group_join_requests WHERE id=$1', [rowId]);
+      expect(after.rows[0].reviewed_by).toBe(null);
+      await db.query('DELETE FROM group_join_requests WHERE id = $1', [rowId]);
+    });
+
+    it('exhausting the budget takes the applicant off the waitlist', async () => {
+      const waiter = (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ('smoke-waiter@x.com','Wait','1990-01-01','male',$1,TRUE,'email') RETURNING id`,
+        [avatar])).rows[0].id;
+      // Two rejections worth of history, then a live pending request + a
+      // waitlist row, then the rejection that uses the budget up.
+      await db.query(
+        `INSERT INTO group_join_requests (group_id, user_id, status, rejected_count)
+         VALUES ($1, $2, 'pending', 1) RETURNING id`, [gid, waiter]);
+      await db.query(
+        'INSERT INTO group_waitlist (group_id, user_id, position) VALUES ($1,$2,1)',
+        [gid, waiter]);
+      const row = await db.query(
+        'SELECT id FROM group_join_requests WHERE group_id=$1 AND user_id=$2', [gid, waiter]);
+      ok(await call(C.handleJoinRequest, {
+        userId: A, params: { id: String(gid), requestId: String(row.rows[0].id) },
+        body: { action: 'reject' } }));
+      const w = await db.query(
+        'SELECT 1 FROM group_waitlist WHERE group_id=$1 AND user_id=$2', [gid, waiter]);
+      // Left in place, promoteFromWaitlist would eventually claim this row,
+      // push "Platz frei!" to somebody the server refuses, and consume the
+      // opening for good (the promotion CTE only ever reads 'waiting').
+      expect(w.rows.length).toBe(0);
+    });
+
+    it('flipping the group PUBLIC lifts the block - flag and gate agree', async () => {
+      const blocked = (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ('smoke-public@x.com','Pub','1990-01-01','male',$1,TRUE,'email') RETURNING id`,
+        [avatar])).rows[0].id;
+      await db.query(
+        `INSERT INTO group_join_requests (group_id, user_id, status, rejected_count)
+         VALUES ($1, $2, 'rejected', 2)`, [gid, blocked]);
+
+      // While private: blocked, and the detail payload says so.
+      const priv = await call(C.getGroupById, { userId: blocked, params: { id: String(gid) } });
+      expect(priv.body.join_request_blocked).toBe(true);
+      expect((await call(C.joinGroup, {
+        userId: blocked, params: { id: String(gid) }, body: {} })).statusCode).toBe(403);
+
+      // Owner opens the group to everyone - the documented way to lift it.
+      await db.query('UPDATE groups SET is_private = FALSE WHERE id = $1', [gid]);
+      const pub = await call(C.getGroupById, { userId: blocked, params: { id: String(gid) } });
+      // The flag must be scoped exactly like the gate, or the button stays dead
+      // on a group anyone may now join and nothing can ever clear it.
+      expect(pub.body.join_request_blocked).toBe(false);
+      ok(await call(C.joinGroup, { userId: blocked, params: { id: String(gid) }, body: {} }));
+
+      await db.query('UPDATE groups SET is_private = TRUE WHERE id = $1', [gid]);
+      await db.query('DELETE FROM group_members WHERE group_id=$1 AND user_id=$2', [gid, blocked]);
+    });
+
+    it('a member who leaves is NOT blocked - status stays accepted, budget is clear', async () => {
+      await db.query('DELETE FROM group_members WHERE group_id=$1 AND user_id=$2', [gid, applicant]);
+      const res = await call(C.joinGroup, { userId: applicant, params: { id: String(gid) }, body: { message: 'zurueck' } });
+      // The gate keys on the counter, never on "status is not pending" - which
+      // would have barred every member who ever left or was kicked.
+      ok(res);
+      expect((await reqRow()).status).toBe('pending');
     });
   });
 

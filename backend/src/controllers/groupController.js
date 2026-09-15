@@ -12,6 +12,9 @@ import { normalizeCategories } from '../utils/normalizeCategories.js';
 import { checkImageField } from '../utils/safeUrl.js';
 import { createEntityWithOwner, notifyCancellationFanout } from '../services/entityLifecycle.js';
 import { notifyFriendsOfActivity } from '../utils/friendActivity.js';
+import {
+  MAX_JOIN_ATTEMPTS, joinAttemptsExhausted, joinBlockedBody, loadJoinAttempt,
+} from '../utils/joinAttempts.js';
 
 const GROUPS_TTL  = 30_000;  // 30 s — acceptable staleness for list views
 
@@ -869,7 +872,8 @@ export const getGroupById = async (req, res) => {
         db.query('SELECT role, notifications_muted FROM group_members WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
         db.query('SELECT 1 FROM group_favorites WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
         db.query(
-          `SELECT status FROM group_join_requests WHERE group_id = $1 AND user_id = $2 ORDER BY updated_at DESC LIMIT 1`,
+          `SELECT status, rejected_count FROM group_join_requests
+            WHERE group_id = $1 AND user_id = $2 ORDER BY updated_at DESC LIMIT 1`,
           [id, req.userId]
         ),
         db.query(
@@ -912,6 +916,17 @@ export const getGroupById = async (req, res) => {
       }
       group.is_favorite = favCheck.rows.length > 0;
       group.join_request_status = requestCheck.rows[0]?.status || null;
+      // Budget spent -> the request button must render its blocked state
+      // instead of a CTA that would only 403 (see utils/joinAttempts.js).
+      //
+      // Scoped with the SAME predicate as the gate in joinGroup, not just on
+      // the counter. The gate only applies to a private, non-club-event entity,
+      // so an owner flipping the group PUBLIC deliberately lifts the budget —
+      // and a flag computed from the counter alone would keep rendering a
+      // disabled button on a group anyone may now join, with nothing able to
+      // clear it (the client only ever turns this flag ON).
+      group.join_request_blocked = !!group.is_private && !group.parent_club_id
+        && joinAttemptsExhausted(requestCheck.rows[0]);
       group.waitlist_status = waitlistCheck.rows[0]?.status || null;
       group.waitlist_position = waitlistCheck.rows[0]?.position || null;
       // Manager only: how many join requests are pending — powers the
@@ -1321,8 +1336,30 @@ export const joinGroup = async (req, res) => {
       });
     }
 
-    // Check capacity
     const g = groupRes.rows[0];
+
+    // Attempt budget for private entities (see utils/joinAttempts.js).
+    //
+    // DELIBERATELY ABOVE the capacity check below: a full private group used to
+    // answer "Die Gruppe ist bereits voll" first, so a used-up applicant never
+    // saw this refusal and the UI offered them the waitlist instead -- and
+    // groups default to max_members 10, so "full" is the common case, not the
+    // edge one. joinWaitlist carries the same gate for the same reason.
+    //
+    // Scoped to private entities on purpose: a public group is "anyone may
+    // join" by definition, so flipping a group public lifts the budget. That is
+    // an owner's deliberate act, and it is the same shape as the rest of this
+    // branch -- but it does mean the block is not describable as permanent.
+    // Read ONCE and reuse below - the private branch used to re-select the same
+    // row a few lines later.
+    const attempt = (g.is_private && !g.parent_club_id)
+      ? await loadJoinAttempt(db, id, req.userId)
+      : null;
+    if (attempt && joinAttemptsExhausted(attempt)) {
+      return res.status(403).json(joinBlockedBody());
+    }
+
+    // Check capacity
     if (g.members_count >= g.max_members) {
       return res.status(400).json({ error: 'Die Gruppe ist bereits voll' });
     }
@@ -1333,21 +1370,27 @@ export const joinGroup = async (req, res) => {
     // per-event join request — a club member who cleared that gate joins the
     // event directly (below), a non-member was already 403'd.
     if (g.is_private && !g.parent_club_id) {
-      const existingReq = await db.query(
-        `SELECT status FROM group_join_requests WHERE group_id = $1 AND user_id = $2`,
-        [id, req.userId]
-      );
-      if (existingReq.rows.length > 0 && existingReq.rows[0].status === 'pending') {
+      if (attempt?.status === 'pending') {
         return res.status(400).json({ error: 'Beitrittsanfrage bereits ausstehend' });
       }
 
-      await db.query(
+      // The budget lives in the WHERE of the DO UPDATE as well as in the check
+      // above, so it is enforced by the write itself rather than by a read that
+      // a concurrent double-tap could race -- and so a future caller that skips
+      // the guard cannot silently revert the whole rule.
+      const upserted = await db.query(
         `INSERT INTO group_join_requests (group_id, user_id, message)
          VALUES ($1, $2, $3)
          ON CONFLICT (group_id, user_id)
-         DO UPDATE SET status = 'pending', message = $3, updated_at = CURRENT_TIMESTAMP`,
-        [id, req.userId, message || null]
+         DO UPDATE SET status = 'pending', message = $3, updated_at = CURRENT_TIMESTAMP
+               WHERE group_join_requests.rejected_count < $4`,
+        [id, req.userId, message || null, MAX_JOIN_ATTEMPTS]
       );
+      // `=== 0` and not `!upserted.rowCount`: a DB double that returns no
+      // rowCount at all must not read as a refusal.
+      if (upserted.rowCount === 0) {
+        return res.status(403).json(joinBlockedBody());
+      }
       // Notify owner about the new join request (fire-and-forget)
       if (g.owner_id && Number(g.owner_id) !== Number(req.userId)) {
         notifyJoinRequest(req.userId, g.owner_id, g.name || '', id).catch(() => {});
@@ -1967,9 +2010,17 @@ export const handleJoinRequest = async (req, res) => {
         // already-handled request) is a clean no-op instead of re-adding the
         // member, re-bumping the churn counter, and possibly 400ing "full".
         const upd = await client.query(
-          `UPDATE group_join_requests SET status = 'accepted', updated_at = CURRENT_TIMESTAMP
-           WHERE id = $1 AND status = 'pending'`,
-          [requestId]
+          // 'rejected' is accepted too, and the budget is cleared: taking
+          // somebody in is the clearest possible statement that you want them,
+          // so it must not leave a spent counter behind that bans them the day
+          // they ever leave. Previously this guard was pending-only, which made
+          // "reject by accident, then accept" return 200 "accepted" while doing
+          // absolutely nothing -- a silent success the owner could not detect.
+          `UPDATE group_join_requests
+           SET status = 'accepted', rejected_count = 0, reviewed_by = $2,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $1 AND status IN ('pending', 'rejected')`,
+          [requestId, req.userId]
         );
         if (upd.rowCount === 0) {
           await client.query('ROLLBACK');
@@ -2020,17 +2071,67 @@ export const handleJoinRequest = async (req, res) => {
 
       res.json({ message: 'Request accepted', status: 'accepted' });
     } else if (action === 'reject') {
-      await db.query(
-        `UPDATE group_join_requests SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-        [requestId]
+      // `AND status = 'pending'` is NOT cosmetic. Accept and undo have always
+      // carried a status guard; reject did not, so an owner with the swipe deck
+      // open on one device and the requests page on another could flip an
+      // ALREADY-ACCEPTED row to 'rejected' -- the member stays in the group
+      // (reject removes no membership), but their attempt budget silently burns
+      // down from an action nobody took deliberately.
+      //
+      // reviewed_by is written here for the first time: the column has existed
+      // since the original schema and nothing ever set it, so "who rejected me"
+      // was unanswerable. With a budget that runs out, it has to be answerable.
+      const rej = await db.query(
+        `UPDATE group_join_requests
+            SET status = 'rejected',
+                rejected_count = rejected_count + 1,
+                reviewed_by = $2,
+                updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1 AND status = 'pending'
+      RETURNING rejected_count`,
+        [requestId, req.userId]
       );
-      res.json({ message: 'Request rejected', status: 'rejected' });
+      if (rej.rowCount === 0) {
+        return res.json({ message: 'Request already handled', status: 'rejected' });
+      }
+      // Budget just ran out -> take them off the waitlist as well. Leaving the
+      // row would mean promoteFromWaitlist eventually claims it, flips it to
+      // 'notified' and pushes "Platz frei!" to somebody the server will then
+      // refuse — and because the promotion CTE only ever reads 'waiting', that
+      // opening is consumed for good and nobody else is offered it.
+      if (rej.rows[0].rejected_count >= MAX_JOIN_ATTEMPTS) {
+        const gone = await db.query(
+          `DELETE FROM group_waitlist WHERE group_id = $1 AND user_id = $2
+           RETURNING status`,
+          [id, joinReq.user_id]
+        );
+        // If they were the one holding the open seat, hand it to the next
+        // person instead of silently swallowing it.
+        if (gone.rows[0]?.status === 'notified') {
+          promoteFromWaitlist(id).catch(err =>
+            console.error('waitlist re-promote after block failed:', err.message));
+        }
+      }
+      res.json({
+        message: 'Request rejected',
+        status: 'rejected',
+        // So the owner's UI can say "that was their last attempt" without a
+        // second round trip.
+        attempts_left: Math.max(0, MAX_JOIN_ATTEMPTS - rej.rows[0].rejected_count),
+      });
     } else if (action === 'undo') {
       // Undo an accidental reject → back to pending. Reject has no side effects
       // (no push, no membership change), so this is a clean revert. Only touches
       // a currently-rejected row (never resurrects an accepted one).
+      // Refund the attempt the reject just spent, or an accidental swipe would
+      // permanently cost the applicant one of their two tries -- and the undo
+      // toast is the ONLY place a rejected row is ever reachable again.
       await db.query(
-        `UPDATE group_join_requests SET status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND status = 'rejected'`,
+        `UPDATE group_join_requests
+            SET status = 'pending',
+                rejected_count = GREATEST(rejected_count - 1, 0),
+                updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1 AND status = 'rejected'`,
         [requestId]
       );
       res.json({ message: 'Request restored', status: 'pending' });
@@ -2110,9 +2211,16 @@ export const bulkAcceptJoinRequests = async (req, res) => {
         // Status guard so a request handled concurrently (single-accept, or a
         // double-submit) is a clean no-op, never a double member/churn bump.
         const upd = await client.query(
-          `UPDATE group_join_requests SET status = 'accepted', updated_at = CURRENT_TIMESTAMP
+          // rejected_count = 0 for the same reason as the single accept: an
+          // accepted applicant must not carry a spent attempt that would bar
+          // them the day they leave. Stays pending-only here (unlike the single
+          // accept) because a bulk "alle annehmen" operates on the pending
+          // list — it should never resurrect a rejection the owner never saw.
+          `UPDATE group_join_requests
+              SET status = 'accepted', rejected_count = 0, reviewed_by = $2,
+                  updated_at = CURRENT_TIMESTAMP
             WHERE id = $1 AND status = 'pending'`,
-          [row.id]
+          [row.id, req.userId]
         );
         if (upd.rowCount === 0) continue;
         const ins = await client.query(
@@ -2287,7 +2395,7 @@ export const joinWaitlist = async (req, res) => {
 
     // Three checks in parallel: group exists, already member, already on waitlist
     const [groupRes, memberCheck, waitlistCheck] = await Promise.all([
-      db.query('SELECT members_count, max_members, parent_club_id FROM groups WHERE id = $1 AND deleted_at IS NULL AND is_active = TRUE', [id]),
+      db.query('SELECT members_count, max_members, parent_club_id, is_private FROM groups WHERE id = $1 AND deleted_at IS NULL AND is_active = TRUE', [id]),
       db.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
       db.query('SELECT position FROM group_waitlist WHERE group_id = $1 AND user_id = $2', [id, req.userId]),
     ]);
@@ -2306,6 +2414,23 @@ export const joinWaitlist = async (req, res) => {
     }
 
     const g = groupRes.rows[0];
+
+    // The waitlist is the same door as joinGroup, so it carries the same gate.
+    // Without it the attempt budget leaks in the worst possible way: a used-up
+    // applicant queues on the full private group, promoteFromWaitlist later
+    // claims their row (flipping it 'waiting' -> 'notified') and sends them the
+    // "Platz frei!" push -- which lands them on a join that 403s. The seat is
+    // NOT filled, but their row can never be selected again (the promotion CTE
+    // only reads 'waiting'), so that opening is silently consumed and nobody
+    // else is ever notified for it. One blocked user could sit at the head of
+    // the queue and swallow every seat the group frees.
+    if (g.is_private && !g.parent_club_id) {
+      const attempt = await loadJoinAttempt(db, id, req.userId);
+      if (joinAttemptsExhausted(attempt)) {
+        return res.status(403).json(joinBlockedBody());
+      }
+    }
+
     if (g.members_count < g.max_members) {
       return res.status(400).json({ error: 'Group not full. Join directly.' });
     }
@@ -2540,6 +2665,17 @@ export const inviteMember = async (req, res) => {
       await client.query(
         'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
         [id, friendId, 'member']
+      );
+      // An invite is the owner saying "I want this person in" — so it clears
+      // any spent attempt budget, exactly like accepting a request does. This
+      // is also the owner's only recovery path once the undo toast is gone:
+      // without the reset, an invited member who later leaves would find
+      // themselves barred by a rejection the owner already took back.
+      await client.query(
+        `UPDATE group_join_requests
+            SET status = 'accepted', rejected_count = 0, updated_at = CURRENT_TIMESTAMP
+          WHERE group_id = $1 AND user_id = $2`,
+        [id, friendId]
       );
       await client.query('COMMIT');
     } catch (txErr) {

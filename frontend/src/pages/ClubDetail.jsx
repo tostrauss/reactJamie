@@ -8,6 +8,7 @@ import { ReportModal } from '../components/ReportModal';
 import AvatarGateModal from '../components/AvatarGateModal';
 import { nextOccurrence } from '../utils/recurrence';
 import { shareLink } from '../utils/share';
+import { serverErrorMessage } from '../utils/apiError';
 import { openCalendar } from '../utils/calendarExport';
 import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
 import { ALLOWED_COUNTRIES_LOWER } from '../utils/regions';
@@ -53,6 +54,9 @@ export const ClubDetail = () => {
   const [loading, setLoading] = useState(true);
   const [isJoined, setIsJoined] = useState(false);
   const [joinRequestStatus, setJoinRequestStatus] = useState(null);
+  // Two rejections used up. Distinct from the status: after ONE rejection the
+  // person may still ask again, so the button stays live.
+  const [joinBlocked, setJoinBlocked] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBoostModal, setShowBoostModal] = useState(false);
@@ -124,6 +128,7 @@ export const ClubDetail = () => {
         setClub(entity);
         setIsJoined(!!entity.is_member);
         setJoinRequestStatus(entity.join_request_status || null);
+        setJoinBlocked(!!entity.join_request_blocked);
         setIsFavorited((favRes.data || []).some(f => f.id === parseInt(id, 10)));
         const memberData = membersRes.data;
         setMembers(Array.isArray(memberData) ? memberData : (memberData?.members || []));
@@ -191,6 +196,7 @@ export const ClubDetail = () => {
         await clubs.leave(id);
         setIsJoined(false);
         setJoinRequestStatus(null);
+        setJoinBlocked(false);
         setMembers(prev => prev.filter(m => m.id !== user.id));
         const r = await clubs.getById(id);
         setClub(r.data);
@@ -220,7 +226,11 @@ export const ClubDetail = () => {
     } catch (e) {
       // Server-side avatar gate (2026-08-04) — mirror of GroupDetail.
       if (e.response?.data?.requiresAvatar) { setShowAvatarGate(true); return; }
-      toast.error(e.response?.data?.error || t('clubDetail.toast.joinLeaveError'));
+      if (e.response?.data?.code === 'JOIN_REQUEST_BLOCKED') setJoinBlocked(true);
+      // serverErrorMessage, not the raw string: it resolves data.code through
+      // the errors.* namespace, which is the only reason this sentence is not
+      // German in the four non-German markets.
+      toast.error(serverErrorMessage(e, t, 'clubDetail.toast.joinLeaveError'));
     }
   };
 
@@ -503,6 +513,10 @@ export const ClubDetail = () => {
                   </button>
                 )}
               </>
+            ) : joinBlocked ? (
+              <button className="cd-btn cd-btn-disabled" disabled>
+                {t('clubDetail.actions.rejected')}
+              </button>
             ) : joinRequestStatus === 'pending' ? (
               <button className="cd-btn cd-btn-disabled" disabled>
                 {t('clubDetail.actions.pending')}

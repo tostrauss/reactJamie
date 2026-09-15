@@ -122,10 +122,11 @@ CREATE TABLE group_join_requests (
     user_id         INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     message         TEXT,                                   -- "Hey, hätte mega Lust dabei zu sein"
     status          VARCHAR(20) DEFAULT 'pending',         -- 'pending', 'accepted', 'rejected'
-    reviewed_by     INTEGER REFERENCES users(id),          -- Who accepted/rejected
+    reviewed_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,  -- Who accepted/rejected
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(group_id, user_id)                              -- One request row per user per group; re-apply resets status
+    rejected_count  INTEGER NOT NULL DEFAULT 0,            -- How often the owner rejected; 2 = no further requests
+    UNIQUE(group_id, user_id)                              -- One request row per user per group; a re-request resets status to pending UNLESS rejected_count has run out
 );
 
 CREATE INDEX idx_gjr_group_status ON group_join_requests(group_id, status);

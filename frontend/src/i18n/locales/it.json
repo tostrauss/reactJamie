@@ -358,7 +358,8 @@
         "waitlistGeneric": "Lista d'attesa",
         "joinWaitlist": "Entra in lista d'attesa",
         "boost": "🚀 Boost",
-        "clubGone": "Il club non esiste più"
+        "clubGone": "Il club non esiste più",
+        "requestBlocked": "Richiesta rifiutata"
       },
       "info": {
         "level": "Livello: {{level}}",
@@ -529,7 +530,8 @@
       "openChat": "Vai alla chat",
       "boost": "Boost al club",
       "delete": "Elimina club",
-      "report": "Segnala club"
+      "report": "Segnala club",
+      "rejected": "Richiesta rifiutata"
     },
     "delete": {
       "confirm": "Eliminare davvero questo club?",
@@ -2152,6 +2154,7 @@
     "VOICE_TOO_LARGE": "Il messaggio vocale è troppo lungo.",
     "DOB_REQUIRED": "Inserisci la tua data di nascita.",
     "DOB_INVALID": "Data di nascita non valida.",
-    "DOB_UNDERAGE": "Devi avere almeno 18 anni per usare JAMIE."
+    "DOB_UNDERAGE": "Devi avere almeno 18 anni per usare JAMIE.",
+    "JOIN_REQUEST_BLOCKED": "Hai già fatto richiesta due volte e sei stato rifiutato. Non puoi richiedere di nuovo."
   }
 }

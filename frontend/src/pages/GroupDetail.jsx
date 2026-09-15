@@ -174,6 +174,9 @@ export const GroupDetail = () => {
   const [loading, setLoading] = useState(true);
   const [isJoined, setIsJoined] = useState(false);
   const [joinRequestStatus, setJoinRequestStatus] = useState(null);
+  // Attempt budget spent (two rejections). Separate from the status: after ONE
+  // rejection the person may still ask again, so the CTA must stay live.
+  const [joinBlocked, setJoinBlocked] = useState(false);
   const [joinBusy, setJoinBusy] = useState(false);
   const [waitlistStatus, setWaitlistStatus] = useState(null);
   const [waitlistPosition, setWaitlistPosition] = useState(null);
@@ -217,6 +220,7 @@ export const GroupDetail = () => {
         setGroup(entity);
         setIsJoined(!!entity.is_member);
         setJoinRequestStatus(entity.join_request_status || null);
+        setJoinBlocked(!!entity.join_request_blocked);
         setWaitlistStatus(entity.waitlist_status || null);
         setWaitlistPosition(entity.waitlist_position || null);
         // Groups endpoint returns { members, total_count, gated } for Pro-gating;
@@ -326,6 +330,7 @@ export const GroupDetail = () => {
         isClub ? await clubs.leave(id) : await groups.leave(id);
         setIsJoined(false);
         setJoinRequestStatus(null);
+        setJoinBlocked(false);
         setMembers(prev => prev.filter(m => m.id !== user.id));
         const response = isClub ? await clubs.getById(id) : await groups.getById(id);
         setGroup(response.data);
@@ -348,6 +353,9 @@ export const GroupDetail = () => {
       // miss a stale `user` (avatar removed on another device) — the backend
       // 403s with requiresAvatar, route that into the same prompt.
       if (error.response?.data?.requiresAvatar) { setShowAvatarGate(true); return; }
+      // Page was open before the owner used up our last attempt - flip to the
+      // honest state rather than leaving a live button that keeps 403ing.
+      if (error.response?.data?.code === 'JOIN_REQUEST_BLOCKED') setJoinBlocked(true);
       toast.error(serverErrorMessage(error, t, 'groups.detail.toast.joinLeaveError'));
     } finally {
       setJoinBusy(false);
@@ -717,6 +725,22 @@ export const GroupDetail = () => {
                 </button>
                 <button onClick={handleLeaveWaitlist} disabled={waitlistLoading} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: '12px', cursor: 'pointer', padding: '4px' }}>
                   {waitlistLoading ? t('groups.detail.actions.loadingShort') : t('groups.detail.actions.leaveWaitlist')}
+                </button>
+              </div>
+            );
+          }
+          // Below the two waitlist arms on purpose: those hold the app's ONLY
+          // "Warteliste verlassen" control, and a blocked applicant who is
+          // already queued would otherwise be stuck on that waitlist with no
+          // way off it. Still ABOVE isFull, because the isFull arm offers
+          // "Warteliste beitreten" — which the server now refuses — and above
+          // the fallback CTA, which is the pulsing button this rule exists to
+          // take away.
+          if (joinBlocked) {
+            return (
+              <div className="gd-anfragen-row">
+                <button className="gd-anfragen-btn" disabled style={{ opacity: 0.6, cursor: 'default' }}>
+                  {t('groups.detail.actions.requestBlocked')}
                 </button>
               </div>
             );

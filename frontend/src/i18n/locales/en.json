@@ -358,7 +358,8 @@
         "waitlistGeneric": "Waitlist",
         "joinWaitlist": "Join waitlist",
         "boost": "🚀 Boost",
-        "clubGone": "Club no longer exists"
+        "clubGone": "Club no longer exists",
+        "requestBlocked": "Request declined"
       },
       "info": {
         "level": "Level: {{level}}",
@@ -529,7 +530,8 @@
       "openChat": "Open chat",
       "boost": "Boost club",
       "delete": "Delete club",
-      "report": "Report club"
+      "report": "Report club",
+      "rejected": "Request declined"
     },
     "delete": {
       "confirm": "Really delete this club?",
@@ -2152,6 +2154,7 @@
     "VOICE_TOO_LARGE": "The voice message is too long.",
     "DOB_REQUIRED": "Please enter your date of birth.",
     "DOB_INVALID": "Invalid date of birth.",
-    "DOB_UNDERAGE": "You must be at least 18 to use JAMIE."
+    "DOB_UNDERAGE": "You must be at least 18 to use JAMIE.",
+    "JOIN_REQUEST_BLOCKED": "You have already asked twice and were declined. You can’t request again."
   }
 }
