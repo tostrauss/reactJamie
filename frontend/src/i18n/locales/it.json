@@ -292,7 +292,9 @@
       "locationLabel": "📍 Città",
       "locationPlaceholder": "es. Vienna, Austria",
       "bioLabel": "✍️ Breve descrizione (facoltativa)",
-      "bioPlaceholder": "Racconta in breve chi sei e cosa ti va di fare..."
+      "bioPlaceholder": "Racconta in breve chi sei e cosa ti va di fare...",
+      "dobLabel": "Data di nascita",
+      "dobHint": "JAMIE è per maggiorenni. Sul profilo viene mostrata la tua età, non la data di nascita."
     },
     "interests": {
       "titleLine1": "Cosa ti va",
@@ -2144,6 +2146,9 @@
     "CLUB_MEMBERS_ONLY": "Questo evento appartiene a un club privato. Entra prima nel club per partecipare.",
     "CLUB_GONE": "Il club a cui appartiene questo evento non esiste più.",
     "UPLOAD_BUSY": "Ci sono molti caricamenti in corso. Attendi un momento e riprova.",
-    "VOICE_TOO_LARGE": "Il messaggio vocale è troppo lungo."
+    "VOICE_TOO_LARGE": "Il messaggio vocale è troppo lungo.",
+    "DOB_REQUIRED": "Inserisci la tua data di nascita.",
+    "DOB_INVALID": "Data di nascita non valida.",
+    "DOB_UNDERAGE": "Devi avere almeno 18 anni per usare JAMIE."
   }
 }

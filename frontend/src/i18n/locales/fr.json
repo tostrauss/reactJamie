@@ -292,7 +292,9 @@
       "locationLabel": "📍 Lieu de résidence",
       "locationPlaceholder": "p. ex. Paris, France",
       "bioLabel": "✍️ Courte description (facultatif)",
-      "bioPlaceholder": "Raconte en quelques mots qui tu es et ce qui te fait envie..."
+      "bioPlaceholder": "Raconte en quelques mots qui tu es et ce qui te fait envie...",
+      "dobLabel": "Date de naissance",
+      "dobHint": "JAMIE est réservé aux 18+. Ton âge apparaît sur ton profil, pas ta date de naissance."
     },
     "interests": {
       "titleLine1": "Qu'est-ce qui",
@@ -2144,6 +2146,9 @@
     "CLUB_MEMBERS_ONLY": "Cet événement appartient à un club privé. Rejoins d’abord le club pour participer.",
     "CLUB_GONE": "Le club auquel appartient cet événement n’existe plus.",
     "UPLOAD_BUSY": "Beaucoup d’envois sont en cours. Patiente un instant et réessaie.",
-    "VOICE_TOO_LARGE": "Le message vocal est trop long."
+    "VOICE_TOO_LARGE": "Le message vocal est trop long.",
+    "DOB_REQUIRED": "Indique ta date de naissance.",
+    "DOB_INVALID": "Date de naissance invalide.",
+    "DOB_UNDERAGE": "Tu dois avoir au moins 18 ans pour utiliser JAMIE."
   }
 }

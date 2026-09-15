@@ -176,17 +176,9 @@ export const register = async (req, res) => {
     }
 
     // Age gating: must be 18+
-    if (!date_of_birth) {
-      return res.status(400).json({ error: 'Geburtsdatum ist erforderlich' });
-    }
-    const dob = new Date(date_of_birth);
-    if (isNaN(dob.getTime())) {
-      return res.status(400).json({ error: 'Ungültiges Geburtsdatum' });
-    }
-    const ageCutoff = new Date();
-    ageCutoff.setFullYear(ageCutoff.getFullYear() - 18);
-    if (dob > ageCutoff) {
-      return res.status(400).json({ error: 'Du musst mindestens 18 Jahre alt sein, um JAMIE zu nutzen.' });
+    {
+      const bad = checkAdultDob(date_of_birth);
+      if (bad) return res.status(400).json(bad);
     }
 
     // Password policy validation (server-side mirror of frontend rules)
@@ -661,9 +653,53 @@ export const updateProfile = async (req, res) => {
 // ==========================================
 // COMPLETE ONBOARDING
 // ==========================================
+// The 18+ gate, in ONE place.
+//
+// It used to live only in `register`, so it applied to email signups and to
+// nobody else. googleLogin creates its user with date_of_birth = NULL and the
+// comment there says "onboarding collects and validates it (18+ gate)" — which
+// was simply not true: completeOnboarding never accepted the field, the
+// onboarding form never asked for it, and GoogleCallback routes straight to
+// /home. A Google signup therefore ended up as a fully onboarded, visible
+// member with NO birth date: no age on their card, and never age-checked.
+// Spotted in production by Tina on 2026-09-15 ("einen gesehen, wo kein Alter
+// dabei stand").
+//
+// Returns an error body to send, or null when the value is acceptable.
+export const checkAdultDob = (value) => {
+  if (!value) return { error: 'Geburtsdatum ist erforderlich', code: 'DOB_REQUIRED' };
+  const dob = new Date(value);
+  if (isNaN(dob.getTime())) return { error: 'Ungültiges Geburtsdatum', code: 'DOB_INVALID' };
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - 18);
+  if (dob > cutoff) {
+    return {
+      error: 'Du musst mindestens 18 Jahre alt sein, um JAMIE zu nutzen.',
+      code: 'DOB_UNDERAGE',
+    };
+  }
+  return null;
+};
+
 export const completeOnboarding = async (req, res) => {
   try {
-    const { gender, location, interests, bio, photos, avatar_url, favorite_song } = req.body;
+    const { gender, location, interests, bio, photos, avatar_url, favorite_song, date_of_birth } = req.body;
+
+    // Onboarding is where a social-login account gets its birth date — it is
+    // created without one (googleLogin). Required here, so finishing onboarding
+    // without an age is impossible; an email signup already has one from
+    // `register` and simply passes the stored value through.
+    const stored = await db.query(
+      `SELECT to_char(date_of_birth, 'YYYY-MM-DD') AS dob FROM users WHERE id = $1`,
+      [req.userId]
+    );
+    const effectiveDob = (typeof date_of_birth === 'string' && date_of_birth.trim())
+      ? date_of_birth.trim().slice(0, 10)
+      : stored.rows[0]?.dob || null;
+    {
+      const bad = checkAdultDob(effectiveDob);
+      if (bad) return res.status(400).json(bad);
+    }
 
     // Mirror the validation surface of updateProfile so a malicious client
     // can't bypass it by going through onboarding first.
@@ -730,10 +766,17 @@ export const completeOnboarding = async (req, res) => {
            photos = CASE WHEN $5::jsonb = '[]'::jsonb THEN photos ELSE $5::jsonb END,
            avatar_url = COALESCE($6, avatar_url),
            favorite_song = $7,
+           -- Writes the birth date a social-login account arrives without.
+           -- effectiveDob is the stored value when the form did not send one,
+           -- so an email signup's date (set at register, and editable exactly
+           -- once afterwards) is written back unchanged rather than cleared.
+           -- Deliberately NOT setting date_of_birth_changed: this is the FIRST
+           -- time the value is set, not the one edit the user is entitled to.
+           date_of_birth = $9::date,
            onboarding_completed = TRUE,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $8`,
-      [gender, location, interestsStr, bio, photosStr, avatar_url, songStr, req.userId]
+      [gender, location, interestsStr, bio, photosStr, avatar_url, songStr, req.userId, effectiveDob]
     );
 
     // Return updated user
@@ -1502,7 +1545,11 @@ async function finishGoogleLogin({ email, name, picture, googleId }, res) {
     }
   } else {
     // New user — create account (no password, Google-only).
-    // date_of_birth is intentionally NULL; onboarding collects and validates it (18+ gate).
+    // date_of_birth is NULL here; completeOnboarding collects and 18+-validates
+    // it before it will mark onboarding done. That was NOT true until
+    // 2026-09-15 — onboarding never asked, so Google accounts stayed ageless
+    // and unchecked (Tina spotted one in the wild). If you change onboarding,
+    // keep that requirement or this comment becomes a lie again.
     const insert = await db.query(
       `INSERT INTO users (email, name, avatar_url, google_id, is_verified, auth_provider)
        VALUES ($1, $2, $3, $4, TRUE, 'google') RETURNING id`,

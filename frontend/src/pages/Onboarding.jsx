@@ -50,8 +50,23 @@ export const Onboarding = () => {
     bio: '',
     interests: [],
     photos: [],
-    avatar_url: null
+    avatar_url: null,
+    // Only social-login accounts reach onboarding without one: googleLogin
+    // creates the user with date_of_birth = NULL, and until 2026-09-15 nothing
+    // ever asked — so those accounts stayed ageless AND un-age-checked. An
+    // email signup already set it at registration, so the field below is
+    // hidden for them rather than asked twice.
+    date_of_birth: '',
   });
+
+  // Latest date that is still 18+ — the same rule the server enforces
+  // (checkAdultDob) and the register screen already uses.
+  const maxDOB = (() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 18);
+    return d.toISOString().slice(0, 10);
+  })();
+  const needsDob = !user?.date_of_birth;
 
   // Lets the empty photo tiles open ImageUpload's file picker — testers kept
   // tapping the tiles expecting them to add photos (they're the obvious target).
@@ -137,6 +152,13 @@ export const Onboarding = () => {
   };
 
   const handleComplete = async () => {
+    // Fail here rather than letting the server 400 after the user has filled
+    // in four steps. The server check (checkAdultDob) is still the one that
+    // counts — this is only the earlier, friendlier half.
+    if (needsDob && (!formData.date_of_birth || formData.date_of_birth > maxDOB)) {
+      setError(t(formData.date_of_birth ? 'auth.register.validation.ageMin' : 'auth.register.validation.dobRequired'));
+      return;
+    }
     setLoading(true);
     setError('');
     try {
@@ -249,6 +271,21 @@ export const Onboarding = () => {
                 </ul>
               )}
             </div>
+            {needsDob && (
+              <div className="onboarding-field">
+                <label>{t('onboarding.profile.dobLabel')}</label>
+                <input
+                  type="date"
+                  max={maxDOB}
+                  value={formData.date_of_birth}
+                  onChange={(e) => setFormData(prev => ({ ...prev, date_of_birth: e.target.value }))}
+                />
+                {formData.date_of_birth && formData.date_of_birth > maxDOB && (
+                  <p className="onboarding-field-error">{t('auth.register.validation.ageMin')}</p>
+                )}
+                <p className="onboarding-field-hint">{t('onboarding.profile.dobHint')}</p>
+              </div>
+            )}
             <div className="onboarding-field">
               <label>{t('onboarding.profile.bioLabel')}</label>
               <textarea

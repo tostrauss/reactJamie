@@ -185,6 +185,51 @@ suite('write endpoints against real Postgres', () => {
       name: 'Ann', bio: null, location: null, date_of_birth: '1995-03-03', gender: 'female',
       interests: ['Yoga'], avatar_url: avatar, photos: [], pinnwand: [], favorite_song: null } }));
   });
+  // Tina spotted a member with no age on 2026-09-15. Cause: googleLogin creates
+  // its user with date_of_birth = NULL and NOTHING ever asked — completeOnboarding
+  // did not accept the field and the form did not show it. Those accounts ended
+  // up fully onboarded, visible, ageless, and never 18+-checked.
+  it('completeOnboarding refuses to finish without a birth date, and enforces 18+', async () => {
+    const social = (await db.query(
+      `INSERT INTO users (email, name, avatar_url, auth_provider, is_verified)
+       VALUES ('smoke-google@x.com','Gina',$1,'google',TRUE) RETURNING id`,
+      [avatar])).rows[0].id;
+    // Exactly the state googleLogin leaves behind.
+    expect((await db.query('SELECT date_of_birth FROM users WHERE id=$1', [social])).rows[0].date_of_birth).toBe(null);
+
+    const noDob = await call(C.completeOnboarding, { userId: social, body: {
+      gender: 'female', location: 'Wien', interests: ['Yoga'] } });
+    expect(noDob.statusCode, JSON.stringify(noDob.body)).toBe(400);
+    expect(noDob.body.code).toBe('DOB_REQUIRED');
+    // ...and onboarding must NOT have been marked done.
+    expect((await db.query('SELECT onboarding_completed FROM users WHERE id=$1', [social])).rows[0].onboarding_completed).toBe(false);
+
+    const under18 = new Date();
+    under18.setFullYear(under18.getFullYear() - 15);
+    const minor = await call(C.completeOnboarding, { userId: social, body: {
+      gender: 'female', location: 'Wien', date_of_birth: under18.toISOString().slice(0, 10) } });
+    expect(minor.statusCode).toBe(400);
+    expect(minor.body.code).toBe('DOB_UNDERAGE');
+
+    ok(await call(C.completeOnboarding, { userId: social, body: {
+      gender: 'female', location: 'Wien', date_of_birth: '1995-04-04' } }));
+    const done = await db.query(
+      `SELECT to_char(date_of_birth,'YYYY-MM-DD') AS dob, onboarding_completed, date_of_birth_changed
+         FROM users WHERE id=$1`, [social]);
+    expect(done.rows[0].dob).toBe('1995-04-04');
+    expect(done.rows[0].onboarding_completed).toBe(true);
+    // Setting it the FIRST time is not the one edit the user is entitled to.
+    expect(done.rows[0].date_of_birth_changed).toBe(false);
+  });
+
+  it('an email signup keeps its registration birth date through onboarding', async () => {
+    const before = await db.query(`SELECT to_char(date_of_birth,'YYYY-MM-DD') AS dob FROM users WHERE id=$1`, [B]);
+    ok(await call(C.completeOnboarding, { userId: B, body: { gender: 'female', location: 'Wien' } }));
+    const after = await db.query(`SELECT to_char(date_of_birth,'YYYY-MM-DD') AS dob FROM users WHERE id=$1`, [B]);
+    expect(after.rows[0].dob).toBe(before.rows[0].dob);
+    expect(after.rows[0].dob).not.toBe(null);
+  });
+
   it('completeOnboarding saves', async () => {
     ok(await call(C.completeOnboarding, { userId: A, body: {
       gender: 'female', location: 'Graz', interests: ['Wandern'], bio: 'hallo', photos: [],

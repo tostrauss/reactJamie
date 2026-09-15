@@ -292,7 +292,9 @@
       "locationLabel": "📍 Location",
       "locationPlaceholder": "e.g. Vienna, Austria",
       "bioLabel": "✍️ Short bio (optional)",
-      "bioPlaceholder": "Tell us briefly who you are and what you're up for..."
+      "bioPlaceholder": "Tell us briefly who you are and what you're up for...",
+      "dobLabel": "Date of birth",
+      "dobHint": "JAMIE is 18+. Your age is shown on your profile, your date of birth is not."
     },
     "interests": {
       "titleLine1": "What are you",
@@ -2144,6 +2146,9 @@
     "CLUB_MEMBERS_ONLY": "This event belongs to a private club. Join the club first to take part.",
     "CLUB_GONE": "The club this event belongs to no longer exists.",
     "UPLOAD_BUSY": "A lot of uploads are in flight right now. Please wait a moment and try again.",
-    "VOICE_TOO_LARGE": "The voice message is too long."
+    "VOICE_TOO_LARGE": "The voice message is too long.",
+    "DOB_REQUIRED": "Please enter your date of birth.",
+    "DOB_INVALID": "Invalid date of birth.",
+    "DOB_UNDERAGE": "You must be at least 18 to use JAMIE."
   }
 }

@@ -692,7 +692,12 @@ export const Home = () => {
       {/* ── Scrollable content ─────────────────────────────────────── */}
       <div className={`home-content${activeTab === 'karte' ? ' home-content--map' : ''}`}>
 
-        {user && user.onboarding_completed === false && (
+        {/* Also fires on a MISSING BIRTH DATE, not just unfinished onboarding.
+            Google accounts created before 2026-09-15 could finish onboarding
+            without ever being asked for one — those users have
+            onboarding_completed = TRUE and no age, so the unfinished-onboarding
+            check alone would never reach them. Onboarding now asks. */}
+        {user && (user.onboarding_completed === false || !user.date_of_birth) && (
           <div className="profile-warning-banner">
             <div className="profile-warning-title">{t('home.profileBanner.title')}</div>
             <p className="profile-warning-text">
