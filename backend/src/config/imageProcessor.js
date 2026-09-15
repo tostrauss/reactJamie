@@ -54,6 +54,30 @@ export async function generateThumbnail(buffer, mimetype) {
   return { buffer: buf, mimetype: 'image/webp', extension: '.webp' };
 }
 
+/**
+ * Chat-photo variant: bounded bytes WITHOUT cropping.
+ *
+ * generateThumbnail above is `fit: 'cover'` into a 320x320 SQUARE — correct for
+ * card and list tiles, destructive for a chat photo. A portrait phone photo
+ * lost ~25% of its height to that crop and a 9:16 screenshot lost ~58%, before
+ * the bubble's own CSS cropped it a second time; text at the top and bottom of
+ * a shared screenshot simply was not there. A chat photo is content, not a
+ * tile, so nothing may be cut off.
+ *
+ * 900px/q78 keeps a thread of photos cheap (~40-90 KB each vs ~80-200 KB for
+ * the stored original) while staying sharp on a 3x phone screen at bubble
+ * width.
+ */
+export async function generateChatVariant(buffer, mimetype) {
+  if (PASSTHROUGH_MIMES.has(mimetype)) return null;
+  const buf = await sharp(buffer, { failOn: 'truncated' })
+    .rotate()
+    .resize({ width: 900, height: 900, fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: 78, effort: 4 })
+    .toBuffer();
+  return { buffer: buf, mimetype: 'image/webp', extension: '.webp' };
+}
+
 // Minimum Shannon entropy (bits) an avatar must have. Measured on this sharp
 // build: a solid colour block = 0.0, a two/three-tone fill ≈ 1.0, and even a
 // dark/minimalist real photo ≈ 4.2 — so an entropy floor of 1.8 kills the

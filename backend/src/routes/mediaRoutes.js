@@ -1,6 +1,6 @@
 import express from 'express';
 import { getObjectFromCloud, putObjectToCloud, isCloudStorageEnabled } from '../config/storage.js';
-import { generateThumbnail } from '../config/imageProcessor.js';
+import { generateThumbnail, generateChatVariant } from '../config/imageProcessor.js';
 import { createSemaphore, QUEUE_FULL } from '../utils/semaphore.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -93,28 +93,47 @@ const bufferBody = async (body) => {
   return Buffer.concat(chunks);
 };
 
-// Generate (or join the in-flight generation of) the thumb for `file`.
-// Resolves null when the original shouldn't be thumbed (GIF, too big) —
+// Derived variants of an uploaded image, addressed by ?size=<name> off the
+// main URL — no second id to persist anywhere.
+//
+//   thumb — 320x320 CROPPED square, for card/list tiles (audit 2026-08-10).
+//   chat  — 900px longest edge, NOT cropped, for chat bubbles. A chat photo is
+//           content rather than a tile: the square crop cut ~25% off a portrait
+//           and ~58% off a 9:16 screenshot, which is most of what people paste
+//           into a group chat.
+const VARIANTS = {
+  thumb: { prefix: 'uploads/thumbs/', generate: generateThumbnail },
+  chat:  { prefix: 'uploads/chat/',   generate: generateChatVariant },
+};
+
+// Generate (or join the in-flight generation of) one variant of `file`.
+// Resolves null when the original shouldn't be re-encoded (GIF, too big) —
 // the caller then serves the full object. Writes the variant back to R2
 // fire-and-forget so the next request hits the derived key directly.
-const getOrCreateThumb = (file, thumbKey) => {
-  let p = thumbInFlight.get(file);
+const getOrCreateVariant = (file, name) => {
+  // Keyed by VARIANT AND file: two different variants of the same image are
+  // two different generations, and sharing one in-flight promise between them
+  // would hand a ?size=chat request the 320px square crop.
+  const inflightKey = `${name}:${file}`;
+  let p = thumbInFlight.get(inflightKey);
   if (p) return p;
   p = thumbSlots.run(async () => {
-    return generateOne(file, thumbKey);
+    return generateOne(file, name);
   }).catch((err) => {
     // Queue saturated → null → the route serves the full object this once;
-    // the thumb self-heals on a later, calmer request. Real generation
+    // the variant self-heals on a later, calmer request. Real generation
     // errors keep propagating to the route's 404/502 handling.
     if (err?.code === QUEUE_FULL) return null;
     throw err;
   });
-  thumbInFlight.set(file, p);
-  p.finally(() => thumbInFlight.delete(file));
+  thumbInFlight.set(inflightKey, p);
+  p.finally(() => thumbInFlight.delete(inflightKey));
   return p;
 };
 
-const generateOne = async (file, thumbKey) => {
+const generateOne = async (file, name) => {
+  const variant = VARIANTS[name];
+  if (!variant) return null;
   const orig = await getObjectFromCloud(`uploads/${file}`);
   if (
     (orig.ContentLength ?? 0) > THUMB_SOURCE_MAX_BYTES ||
@@ -124,12 +143,12 @@ const generateOne = async (file, thumbKey) => {
     return null;
   }
   const buf = await bufferBody(orig.Body);
-  const thumb = await generateThumbnail(buf, orig.ContentType || 'image/webp');
-  if (!thumb) return null;
-  putObjectToCloud(thumbKey, thumb.buffer, thumb.mimetype).catch((err) => {
-    console.error('[media] thumb write-back failed:', err?.message);
+  const made = await variant.generate(buf, orig.ContentType || 'image/webp');
+  if (!made) return null;
+  putObjectToCloud(`${variant.prefix}${file}`, made.buffer, made.mimetype).catch((err) => {
+    console.error(`[media] ${name} write-back failed:`, err?.message);
   });
-  return { buffer: thumb.buffer, mimetype: thumb.mimetype };
+  return { buffer: made.buffer, mimetype: made.mimetype };
 };
 
 router.get('/uploads/:file', async (req, res) => {
@@ -142,25 +161,28 @@ router.get('/uploads/:file', async (req, res) => {
     return res.status(404).end();
   }
 
-  // Audio is never thumbnailed — handing an Opus stream to sharp would throw,
-  // and ?size=thumb on a voice URL is nonsense a client should not be able to
-  // turn into a 502.
-  const wantThumb = req.query.size === 'thumb' && !AUDIO_FILE.test(file);
+  // Audio is never re-encoded — handing an Opus stream to sharp would throw,
+  // and ?size= on a voice URL is nonsense a client should not be able to turn
+  // into a 502. An unknown ?size= value serves the original rather than 400:
+  // a stale client asking for a variant we removed must still see the image.
+  const wantVariant = AUDIO_FILE.test(file) ? null
+    : (Object.prototype.hasOwnProperty.call(VARIANTS, req.query.size) ? req.query.size : null);
 
   try {
-    if (wantThumb) {
+    if (wantVariant) {
+      const { prefix } = VARIANTS[wantVariant];
       try {
-        return streamObject(res, await getObjectFromCloud(`uploads/thumbs/${file}`));
+        return streamObject(res, await getObjectFromCloud(`${prefix}${file}`));
       } catch (err) {
         if (!isMissing(err)) throw err; // original missing too → 404 below
-        const thumb = await getOrCreateThumb(file, `uploads/thumbs/${file}`);
-        if (thumb) {
-          res.setHeader('Content-Type', thumb.mimetype);
-          res.setHeader('Content-Length', thumb.buffer.length);
+        const made = await getOrCreateVariant(file, wantVariant);
+        if (made) {
+          res.setHeader('Content-Type', made.mimetype);
+          res.setHeader('Content-Length', made.buffer.length);
           res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-          return res.end(thumb.buffer);
+          return res.end(made.buffer);
         }
-        // Not thumbable (GIF/oversized) → fall through to the full object.
+        // Not re-encodable (GIF/oversized) → fall through to the full object.
       }
     }
 

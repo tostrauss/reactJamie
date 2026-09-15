@@ -198,18 +198,49 @@ export const messageLimiter = rateLimit({
   message: { error: 'Du sendest zu schnell. Bitte warte einen Moment.' }
 });
 
-// Image upload: 30 uploads/hour per user. Each upload spawns sharp + R2 PUT,
-// so unthrottled it's an easy way to burn through Cloudflare egress and CPU.
+// Image upload: 60 uploads/hour per user. Each upload spawns sharp + a
+// Sightengine call + an R2 PUT, so unthrottled it's an easy way to burn through
+// Cloudflare egress and CPU.
+//
+// Was 30, sized for avatars, banners and event photos — one-off actions. Chat
+// photos (2026-09-15) put a conversational feature on the same counter, where
+// one message equals one upload, so the ceiling had to move. Concurrency is
+// still bounded by the admission queue in uploadRoutes, which is what actually
+// protects the box; this counter is the per-user abuse ceiling.
 export const uploadLimiter = rateLimit({
   ...SHARED,
   windowMs: 60 * 60 * 1000,
-  max: disabled ? 10000 : 30,
+  max: disabled ? 10000 : 60,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => `upload:${req.userId}`,
   validate: { keyGeneratorIpFallback: false },
   store: makeStore('rl:upload:'),
   message: { error: 'Zu viele Uploads. Bitte versuche es in einer Stunde erneut.' }
+});
+
+// Voice notes: 120/hour per user, on their OWN counter.
+//
+// They were on uploadLimiter's 30/hour avatar budget, which two friends
+// trading voice notes exhaust in well under an hour of talking — the cap is 2
+// minutes per note, so 30 notes is not heavy use, it is a normal evening. Worse,
+// it was one SHARED counter: running out of voice notes also blocked changing
+// your avatar, adding an event photo or creating a group with an image, with a
+// message telling you to come back in an hour.
+//
+// Higher than the image budget because a voice note is much cheaper: no sharp
+// pipeline and no Sightengine call (recorded speech can't be text-moderated —
+// voice relies on the reactive report path).
+export const voiceUploadLimiter = rateLimit({
+  ...SHARED,
+  windowMs: 60 * 60 * 1000,
+  max: disabled ? 10000 : 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `voice:${req.userId}`,
+  validate: { keyGeneratorIpFallback: false },
+  store: makeStore('rl:voice:'),
+  message: { error: 'Zu viele Sprachnachrichten. Bitte versuche es später erneut.' }
 });
 
 // Report submission: 10/hour per user. Without this, a malicious user can flood

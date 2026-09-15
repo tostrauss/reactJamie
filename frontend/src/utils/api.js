@@ -651,8 +651,15 @@ export const directMessages = {
     axiosInstance.put(`/dm/${userId}/archive`, { archived }),
   
   // Mark as read
-  markRead: (userId) => 
-    axiosInstance.post(`/dm/${userId}/read`)
+  markRead: (userId) =>
+    axiosInstance.post(`/dm/${userId}/read`),
+
+  // Admin takedown of a single DM (platform admins only, 403 otherwise).
+  // Used by the moderation queue — a 'dm' report has no other enforcement
+  // path, and must never be routed through messages.delete, which addresses
+  // the unrelated GROUP-chat table.
+  deleteMessage: (id) =>
+    axiosInstance.delete(`/dm/message/${id}`)
 };
 
 // ==========================================

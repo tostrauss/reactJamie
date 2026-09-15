@@ -812,7 +812,8 @@
         "delete": "Eliminar mensaje",
         "cancel": "Cancelar",
         "confirmDelete": "¿Seguro que quieres eliminar este mensaje? Desaparecerá para todos en el chat.",
-        "deleteError": "No se pudo eliminar el mensaje."
+        "deleteError": "No se pudo eliminar el mensaje.",
+        "discardFailed": "No enviado: descartar"
       }
     },
     "dm": {
@@ -1285,7 +1286,8 @@
     "type": {
       "user": "Usuario",
       "group": "Grupo/Club",
-      "message": "Mensaje"
+      "message": "Mensaje",
+      "dm": "Mensaje directo"
     },
     "titleFmt": "Denunciar {{type}}",
     "reasonLabel": "Motivo *",
@@ -2108,7 +2110,8 @@
       "confirmFreeze": "¿Bloquear la cuenta de {{name}}? Se cerrará su sesión de inmediato y no podrá iniciar sesión. Se puede deshacer en cualquier momento.",
       "deleteGroup": "Eliminar grupo",
       "deleteClub": "Eliminar club",
-      "confirmDeleteGroup": "¿Eliminar \"{{name}}\"? Desaparecerá para todos los miembros. El chat y el historial se conservan como prueba."
+      "confirmDeleteGroup": "¿Eliminar \"{{name}}\"? Desaparecerá para todos los miembros. El chat y el historial se conservan como prueba.",
+      "toReceiver": "a {{name}}"
     }
   },
   "imageUpload": {

@@ -16,6 +16,20 @@ export const thumbUrl = (url) =>
     : url;
 
 /**
+ * Chat-bubble variant of an uploaded image: 900px longest edge, NOT cropped.
+ *
+ * Deliberately not `thumbUrl`. That serves the 320x320 `fit: cover` square
+ * built for card and list tiles — on a chat photo it cut roughly a quarter off
+ * a portrait and well over half off a 9:16 screenshot, which is the commonest
+ * thing people paste into a group chat. Cheap like a thumb, complete like the
+ * original.
+ */
+export const chatImageUrl = (url) =>
+  typeof url === 'string' && url.includes('/media/uploads/') && !url.includes('?')
+    ? `${url}?size=chat`
+    : url;
+
+/**
  * Downscale an image File in the browser before uploading it.
  *
  * Camera-roll photos off a modern phone are 5-10 MB; the server downsizes them

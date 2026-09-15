@@ -4,7 +4,12 @@ import { sendPushToAdmins } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 import { resolveReportTargets, loadReportContext, describeTarget } from '../utils/reportContext.js';
 
-const VALID_TYPES   = ['user', 'group', 'message'];
+// 'message' = a GROUP-chat message (table `messages`). 'dm' = a direct message
+// (table `direct_messages`). Two separate SERIAL id spaces that both start at
+// 1: filing a DM under 'message' resolves to a real, unrelated group message,
+// which is what an admin would then read as evidence and delete. Never merge
+// these two values.
+const VALID_TYPES   = ['user', 'group', 'message', 'dm'];
 const VALID_REASONS = ['spam', 'inappropriate', 'harassment', 'fake', 'other'];
 
 // POST /api/reports

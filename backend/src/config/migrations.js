@@ -579,7 +579,7 @@ const runStartupMigrations = async () => {
     CREATE TABLE IF NOT EXISTS reports (
       id              SERIAL PRIMARY KEY,
       reporter_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      reported_type   VARCHAR(20) NOT NULL CHECK (reported_type IN ('user', 'group', 'message')),
+      reported_type   VARCHAR(20) NOT NULL CHECK (reported_type IN ('user', 'group', 'message', 'dm')),
       reported_id     INTEGER NOT NULL,
       reason          VARCHAR(50) NOT NULL CHECK (reason IN ('spam', 'inappropriate', 'harassment', 'fake', 'other')),
       details         TEXT,
@@ -606,6 +606,22 @@ const runStartupMigrations = async () => {
     await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_open_unique
       ON reports (reporter_id, reported_type, reported_id)
       WHERE status = 'pending'`);
+  });
+  // 'dm' as a reportable type (2026-09-15). The app-level VALID_TYPES list and
+  // this CHECK have to move together: reporting a direct message otherwise
+  // passes validation and then dies on
+  // "reports_reported_type_check" as a 500 the reporter sees as
+  // "Meldung konnte nicht gespeichert werden" -- i.e. harassment reports from
+  // DMs would silently never be filed. Caught by the real-Postgres smoke suite;
+  // a mocked db.query cannot see a CHECK constraint at all (same lesson as the
+  // 42P08 and 42P10 incidents).
+  //
+  // Constraint names differ between a schema.sql-seeded database and one built
+  // by this file, so drop by the generated name AND re-add unconditionally.
+  await migrate('reports allow dm type (2026-09-15)', async () => {
+    await db.query(`ALTER TABLE reports DROP CONSTRAINT IF EXISTS reports_reported_type_check`);
+    await db.query(`ALTER TABLE reports ADD CONSTRAINT reports_reported_type_check
+      CHECK (reported_type IN ('user', 'group', 'message', 'dm'))`);
   });
   await migrate('idx_reports', async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_reports_status   ON reports(status, created_at DESC)`);
@@ -1010,6 +1026,49 @@ const runStartupMigrations = async () => {
     await db.query(`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS reply_to_id INTEGER REFERENCES direct_messages(id) ON DELETE SET NULL`);
     await db.query(`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS duration_ms INTEGER`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_reply_to ON direct_messages(reply_to_id) WHERE reply_to_id IS NOT NULL`);
+  });
+
+  // media_url separates the machine payload from the human-readable text.
+  //
+  // Voice and photo messages originally put the storage URL straight into
+  // `content` and relied on the client switching on `message_type`. That is
+  // fine for clients that ship WITH the feature and broken for every client
+  // that predates it — and the iOS app bundles the web build inside the binary
+  // (capacitor.config.json has webDir "dist" and no server.url), so every
+  // iPhone stays on the App Store build's renderer until a new binary ships.
+  // 1.4.1 renders `<div className="message-content">{msg.content}</div>`
+  // unconditionally, so a voice note sent from web or Android showed up on
+  // roughly 70% of the user base as a raw
+  // "https://app.jamie-app.com/media/uploads/….webm" text bubble — in the
+  // thread AND in the chat-list preview.
+  //
+  // So: `content` is ALWAYS something a human can read, `media_url` carries the
+  // payload. Old clients degrade to "🎤 Sprachnachricht"; new clients ignore
+  // `content` for media types and render the localised label themselves. The
+  // stored German string is therefore only ever seen by stale clients.
+  await migrate('messages + dm media_url', async () => {
+    await db.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_url TEXT`);
+    await db.query(`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS media_url TEXT`);
+    // Backfill the rows written during the few hours the URL-in-content shape
+    // was live. Idempotent (guarded on media_url IS NULL) and safe to re-run.
+    for (const table of ['messages', 'direct_messages']) {
+      await db.query(
+        `UPDATE ${table}
+            SET media_url = content
+          WHERE message_type IN ('voice', 'image')
+            AND media_url IS NULL
+            AND content IS NOT NULL`
+      );
+      await db.query(
+        `UPDATE ${table}
+            SET content = CASE WHEN message_type = 'voice'
+                               THEN '🎤 Sprachnachricht'
+                               ELSE '📷 Foto' END
+          WHERE message_type IN ('voice', 'image')
+            AND media_url IS NOT NULL
+            AND content = media_url`
+      );
+    }
   });
 
   // ── One-shot 2026-09-15: retire events orphaned by a dead parent club ────

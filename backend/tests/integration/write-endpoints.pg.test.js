@@ -163,7 +163,8 @@ suite('write endpoints against real Postgres', () => {
       createReport: rp.createReport, getReports: rp.getReports,
       updateReportStatus: rp.updateReportStatus,
       setUserActive: ad.setUserActive, rejectClub: ad.rejectClub,
-      deleteClub: c.deleteClub,
+      deleteClub: c.deleteClub, deleteClubEvent: c.deleteClubEvent,
+      deleteDM: dm.deleteDM,
       joinGroup: g.joinGroup, handleJoinRequest: g.handleJoinRequest, kickMember: g.kickMember,
       getGroups: g.getGroups,
       getDiscoverEvents: c.getDiscoverEvents, getMapPins: mp.getMapPins,
@@ -1511,4 +1512,172 @@ suite('write endpoints against real Postgres', () => {
       expect(await notifId(B, 'group_deleted', gid)).toBeTruthy();
     });
   });
+
+  // -- 'dm' is its own report target (2026-09-15) ---------------------------
+  // Reporting a DM shipped filing reported_type='message'. `messages` and
+  // `direct_messages` are both plain SERIALs starting at 1, so that id landed
+  // on a real, unrelated GROUP message: the admin card showed a stranger's
+  // text as the evidence, the admin e-mail and push quoted it, and the
+  // "Nachricht loeschen" button soft-deleted it -- while the reported DM
+  // stayed untouched. These cases force the collision instead of hoping for it.
+  describe('DM reports resolve against direct_messages, never messages', () => {
+    let collidingId;
+
+    it('seed: a group message and a DM that share the SAME id', async () => {
+      const m = await db.query(
+        `INSERT INTO messages (group_id, user_id, content) VALUES ($1,$2,$3) RETURNING id`,
+        [groupId, B, 'UNRELATED innocent group message']
+      );
+      collidingId = m.rows[0].id;
+      // Force direct_messages to mint exactly that id.
+      await db.query(
+        `SELECT setval(pg_get_serial_sequence('direct_messages','id'), $1::bigint - 1, true)`,
+        [collidingId]
+      );
+      const d = await db.query(
+        `INSERT INTO direct_messages (sender_id, receiver_id, content)
+         VALUES ($1,$2,$3) RETURNING id`,
+        [A, B, 'THE ACTUAL harassing DM']
+      );
+      expect(d.rows[0].id).toBe(collidingId);
+    });
+
+    it("a 'dm' report resolves the DM, not the group message with the same id", async () => {
+      const { resolveReportTargets } = await import('../../src/utils/reportContext.js');
+      const map = await resolveReportTargets([{ reported_type: 'dm', reported_id: collidingId }]);
+      const tg = map.get(`dm:${collidingId}`);
+      expect(tg.kind).toBe('dm');
+      expect(tg.content).toBe('THE ACTUAL harassing DM');
+      expect(tg.content).not.toContain('innocent');
+      expect(tg.sender.id).toBe(A);
+      expect(tg.receiver.id).toBe(B);
+      // No admin route into a private two-party thread.
+      expect(tg.path).toBe(null);
+    });
+
+    it("a 'message' report with the same id still resolves the GROUP message", async () => {
+      const { resolveReportTargets } = await import('../../src/utils/reportContext.js');
+      const map = await resolveReportTargets([{ reported_type: 'message', reported_id: collidingId }]);
+      const tg = map.get(`message:${collidingId}`);
+      expect(tg.kind).toBe('message');
+      expect(tg.content).toBe('UNRELATED innocent group message');
+    });
+
+    it("createReport accepts reported_type='dm' and getReports renders it", async () => {
+      ok(await call(C.createReport, { userId: B, body: {
+        reported_type: 'dm', reported_id: collidingId, reason: 'harassment', details: 'Belaestigung per DM' } }));
+      const res = await call(C.getReports, { userId: A, query: { status: 'pending', limit: '100' } });
+      ok(res);
+      const row = res.body.reports.find(r => r.reported_type === 'dm');
+      expect(row?.target?.kind).toBe('dm');
+      expect(row?.target?.content).toBe('THE ACTUAL harassing DM');
+    });
+
+    it('deleteDM: a non-admin gets 403 and the row survives', async () => {
+      const res = await call(C.deleteDM, { userId: B, params: { id: String(collidingId) } });
+      expect(res.statusCode).toBe(403);
+      const r = await db.query(
+        'SELECT is_deleted_sender FROM direct_messages WHERE id=$1', [collidingId]);
+      expect(r.rows[0].is_deleted_sender).toBe(false);
+    });
+
+    it('deleteDM: an admin takes it down (both sides); the group message is untouched', async () => {
+      ok(await call(C.deleteDM, { userId: A, params: { id: String(collidingId) } }));
+      const d = await db.query(
+        'SELECT is_deleted_sender, is_deleted_receiver, content FROM direct_messages WHERE id=$1', [collidingId]);
+      expect(d.rows[0].is_deleted_sender).toBe(true);
+      expect(d.rows[0].is_deleted_receiver).toBe(true);
+      // Content kept as evidence for the report the admin just acted on.
+      expect(d.rows[0].content).toBe('THE ACTUAL harassing DM');
+      // The whole point: the collision victim is still there.
+      const m = await db.query('SELECT is_deleted FROM messages WHERE id=$1', [collidingId]);
+      expect(m.rows[0].is_deleted).toBe(false);
+    });
+
+    it('a taken-down DM is gone from the conversation for BOTH sides on reload', async () => {
+      // The socket drop is not enough: getConversation selected both hide flags
+      // and applied NEITHER, so the message came straight back on the next
+      // load. Harmless while nothing set them, wrong the moment the admin
+      // takedown did.
+      for (const uid of [A, B]) {
+        const res = await call(C.getConversation, {
+          userId: uid, params: { userId: String(uid === A ? B : A) }, query: { limit: '100' } });
+        ok(res);
+        const ids = (res.body || []).map(m => m.id);
+        expect(ids).not.toContain(collidingId);
+      }
+    });
+
+    it('a DM one side hid is still visible to the OTHER side', async () => {
+      const d = await db.query(
+        `INSERT INTO direct_messages (sender_id, receiver_id, content, is_deleted_sender)
+         VALUES ($1,$2,$3,TRUE) RETURNING id`,
+        [A, B, 'hidden by its sender only']
+      );
+      const hidden = d.rows[0].id;
+      const forSender = await call(C.getConversation, {
+        userId: A, params: { userId: String(B) }, query: { limit: '100' } });
+      const forReceiver = await call(C.getConversation, {
+        userId: B, params: { userId: String(A) }, query: { limit: '100' } });
+      expect((forSender.body || []).map(m => m.id)).not.toContain(hidden);
+      expect((forReceiver.body || []).map(m => m.id)).toContain(hidden);
+    });
+
+    it('deleteDM: an unparsable id is a 400, not a 22P02 crash', async () => {
+      const res = await call(C.deleteDM, { userId: A, params: { id: 'temp-1758' } });
+      expect(res.statusCode).toBe(400);
+    });
+  });
+
+  // -- media_url: content stays human-readable (2026-09-15) -----------------
+  // Voice/photo messages put the storage URL straight into `content`, which
+  // every client that predates the feature renders verbatim -- and the iOS app
+  // bundles the web build, so every iPhone showed a raw
+  // "https://.../media/uploads/....webm" text bubble.
+  describe('voice + photo messages keep content readable', () => {
+    it('sendMessage stores the URL in media_url and a label in content', async () => {
+      const url = 'https://app.jamie-app.com/media/uploads/smoke-voice.webm';
+      const res = await call(C.sendMessage, { userId: A, body: {
+        groupId, content: url, message_type: 'voice', duration_ms: 4200 } });
+      ok(res);
+      const row = await db.query(
+        'SELECT content, media_url, duration_ms FROM messages WHERE id=$1', [res.body.id]);
+      expect(row.rows[0].media_url).toBe(url);
+      expect(row.rows[0].content).not.toContain('http');
+      expect(row.rows[0].duration_ms).toBe(4200);
+      // ...and the API echoes both back, so a current client still plays it.
+      expect(res.body.media_url).toBe(url);
+    });
+
+    it('a chat photo may not be an arbitrary Google-CDN URL (Sightengine bypass)', async () => {
+      const res = await call(C.sendMessage, { userId: A, body: {
+        groupId,
+        content: 'https://lh3.googleusercontent.com/a/ACg8ocK-attacker=s9999',
+        message_type: 'image' } });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('a photo minted by our own upload route is accepted', async () => {
+      const url = 'https://app.jamie-app.com/media/uploads/smoke-photo.webp';
+      const res = await call(C.sendMessage, { userId: A, body: {
+        groupId, content: url, message_type: 'image' } });
+      ok(res);
+      const row = await db.query('SELECT content, media_url FROM messages WHERE id=$1', [res.body.id]);
+      expect(row.rows[0].media_url).toBe(url);
+      expect(row.rows[0].content).not.toContain('http');
+    });
+
+    it('sendDM does the same split', async () => {
+      const url = 'https://app.jamie-app.com/media/uploads/smoke-dm-voice.m4a';
+      const res = await call(C.sendDM, { userId: A, body: {
+        receiverId: B, content: url, message_type: 'voice', duration_ms: 1500 } });
+      ok(res);
+      const row = await db.query(
+        `SELECT content, media_url FROM direct_messages
+          WHERE sender_id=$1 AND receiver_id=$2 ORDER BY id DESC LIMIT 1`, [A, B]);
+      expect(row.rows[0].media_url).toBe(url);
+      expect(row.rows[0].content).not.toContain('http');
+    });
+  });
+
 });

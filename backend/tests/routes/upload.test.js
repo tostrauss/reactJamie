@@ -10,10 +10,13 @@ process.env.NODE_ENV = 'test';
 // when a `req.destroyed` guard silently broke 100% of uploads (2026-09-15).
 vi.mock('../../src/config/redis.js', () => ({ redisClient: null, redisSubscriber: null }));
 vi.mock('../../src/config/database.js', () => ({ default: { query: vi.fn(async () => ({ rows: [] })) } }));
-// The per-user 30/hour cap is real and correct; it just answers 429 long
-// before these cases finish, and it is not what this file is testing.
+// The per-user hourly caps are real and correct; they just answer 429 long
+// before these cases finish, and they are not what this file is testing.
+// Voice has its OWN counter since 2026-09-15 — sharing the image budget meant
+// 30 voice notes also locked you out of changing your avatar.
 vi.mock('../../src/middleware/rateLimiter.js', () => ({
   uploadLimiter: (_req, _res, next) => next(),
+  voiceUploadLimiter: (_req, _res, next) => next(),
 }));
 vi.mock('../../src/middleware/auth.js', () => ({
   authenticate: (req, _res, next) => { req.userId = 1; next(); },

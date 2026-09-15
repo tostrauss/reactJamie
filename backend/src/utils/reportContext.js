@@ -32,6 +32,7 @@ export const TYPE_LABELS = {
   user: 'Nutzer',
   group: 'Gruppe',
   message: 'Nachricht',
+  dm: 'Direktnachricht',
 };
 
 /** Trim reported content to something that fits an email and a push. */
@@ -66,6 +67,13 @@ export const resolveReportTargets = async (rows) => {
   const userIds = idsOf('user');
   const groupIds = idsOf('group');
   const messageIds = idsOf('message');
+  // 'dm' is a SEPARATE id space from 'message', never a subtype of it.
+  // `messages` and `direct_messages` are both plain SERIALs starting at 1, so
+  // a direct_messages id resolved against `messages` silently names a real,
+  // unrelated group message — an admin would then read a stranger's text as
+  // the evidence and delete it. Reporting a DM shipped on 2026-09-15 filing
+  // reported_type='message'; that is exactly the collision this split closes.
+  const dmIds = idsOf('dm');
 
   const queries = [];
 
@@ -145,6 +153,7 @@ export const resolveReportTargets = async (rows) => {
     queries.push(
       db.query(
         `SELECT m.id, m.content, m.created_at, m.is_deleted, m.message_type,
+                m.media_url,
                 m.user_id, a.name AS author_name,
                 m.group_id, gr.name AS group_name, gr.type AS group_type,
                 (SELECT COUNT(*) FROM reports r2
@@ -166,6 +175,10 @@ export const resolveReportTargets = async (rows) => {
             // admin needs to judge a report filed before the deletion.
             content: clip(m.content, MESSAGE_CLIP),
             message_type: m.message_type,
+            // `content` is only a label for a voice/photo message, so the
+            // payload has to travel too or a reported photo becomes
+            // unreviewable — the admin would see "📷 Foto" and nothing else.
+            media_url: m.media_url,
             created_at: m.created_at,
             deleted: !!m.is_deleted,
             author: m.user_id ? { id: m.user_id, name: m.author_name } : null,
@@ -176,6 +189,48 @@ export const resolveReportTargets = async (rows) => {
             // Deep link into the chat, not the message — the app has no
             // single-message route. The group id is what an admin can act on.
             path: m.group_id ? `/chat/${m.group_id}` : null,
+          });
+        }
+      }),
+    );
+  }
+
+  if (dmIds.length) {
+    queries.push(
+      db.query(
+        `SELECT dm.id, dm.content, dm.created_at, dm.message_type, dm.media_url,
+                dm.is_deleted_sender, dm.is_deleted_receiver,
+                dm.sender_id, s.name AS sender_name,
+                dm.receiver_id, rc.name AS receiver_name,
+                (SELECT COUNT(*) FROM reports r2
+                  WHERE r2.reported_type = 'dm' AND r2.reported_id = dm.id)::int
+                  AS report_count
+           FROM direct_messages dm
+           LEFT JOIN users s  ON s.id = dm.sender_id
+           LEFT JOIN users rc ON rc.id = dm.receiver_id
+          WHERE dm.id = ANY($1)`,
+        [dmIds],
+      ).then(({ rows: found }) => {
+        for (const m of found) {
+          out.set(`dm:${m.id}`, {
+            kind: 'dm',
+            id: m.id,
+            missing: false,
+            content: clip(m.content, MESSAGE_CLIP),
+            message_type: m.message_type,
+            media_url: m.media_url,
+            created_at: m.created_at,
+            // A DM has no single deleted flag — each side hides its own copy.
+            // Gone for BOTH is what an admin takedown produces, and the only
+            // state worth calling "deleted" on the moderation card.
+            deleted: !!m.is_deleted_sender && !!m.is_deleted_receiver,
+            sender: m.sender_id ? { id: m.sender_id, name: m.sender_name } : null,
+            receiver: m.receiver_id ? { id: m.receiver_id, name: m.receiver_name } : null,
+            report_count: m.report_count,
+            // No admin-reachable route: a DM is a private two-party thread and
+            // the app has no admin view of one. The snapshot above IS the
+            // evidence — which is why it is snapshotted rather than linked.
+            path: null,
           });
         }
       }),
@@ -259,6 +314,11 @@ export const describeTarget = (target) => {
   if (target.kind === 'message') {
     const who = target.author?.name ? ` von ${target.author.name}` : '';
     return `„${clip(target.content, 60)}“${who}`;
+  }
+  if (target.kind === 'dm') {
+    const who = target.sender?.name ? ` von ${target.sender.name}` : '';
+    const to = target.receiver?.name ? ` an ${target.receiver.name}` : '';
+    return `„${clip(target.content, 60)}“${who}${to}`;
   }
   return `#${target.id}`;
 };

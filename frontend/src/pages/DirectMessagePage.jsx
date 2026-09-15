@@ -9,6 +9,7 @@ import { VoiceMessage } from '../components/VoiceMessage';
 import { ImageMessage } from '../components/ImageMessage';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { MessageQuote } from '../components/MessageQuote';
+import { mediaUrl } from '../utils/chatMedia';
 import { ReportModal } from '../components/ReportModal';
 import { serverErrorMessage } from '../utils/apiError';
 import { downscaleImageFile } from '../utils/images';
@@ -95,8 +96,20 @@ export const DirectMessagePage = () => {
       catchUpDm();
     };
 
+    // An admin took this message down (DELETE /api/dm/message/:id) — drop it
+    // live, and null out any quote of it, or the removed text stays on screen
+    // inside every reply's quote bar until the page unmounts.
+    const handleDmDeleted = ({ id }) => {
+      setMessagesList(prev => prev
+        .filter(m => String(m.id) !== String(id))
+        .map(m => (m.reply_to && String(m.reply_to.id) === String(id)
+          ? { ...m, reply_to: null }
+          : m)));
+    };
+
     // Listen for incoming messages
     socket.on('receive_dm', handleReceiveDM);
+    socket.on('dm_deleted', handleDmDeleted);
     socket.on('dm_user_typing', () => setIsTyping(true));
     socket.on('dm_user_stop_typing', () => setIsTyping(false));
     socket.on('connect', handleReconnect);
@@ -104,6 +117,7 @@ export const DirectMessagePage = () => {
     return () => {
       socket.emit('leave_dm_room', { userId: user.id, otherUserId: parseInt(otherUserId) });
       socket.off('receive_dm', handleReceiveDM);
+      socket.off('dm_deleted', handleDmDeleted);
       socket.off('dm_user_typing');
       socket.off('dm_user_stop_typing');
       socket.off('connect', handleReconnect);
@@ -207,6 +221,8 @@ export const DirectMessagePage = () => {
       sender_id: user.id,
       receiver_id: receiverIdInt,
       content,
+      // Match the server row shape — see ChatPage.
+      media_url: media ? content : null,
       message_type: voice ? 'voice' : photo ? 'image' : 'text',
       duration_ms: voice ? voice.durationMs : null,
       reply_to: replyTo
@@ -446,9 +462,9 @@ export const DirectMessagePage = () => {
                   <MessageQuote quote={msg.reply_to} onJump={() => jumpToMessage(msg.reply_to.id)} />
                 )}
                 {msg.message_type === 'voice' ? (
-                  <VoiceMessage url={msg.content} durationMs={msg.duration_ms} mine={msg.sender_id === user.id} />
+                  <VoiceMessage url={mediaUrl(msg)} durationMs={msg.duration_ms} mine={msg.sender_id === user.id} />
                 ) : msg.message_type === 'image' ? (
-                  <ImageMessage url={msg.content} mine={msg.sender_id === user.id} onOpen={setLightbox} />
+                  <ImageMessage url={mediaUrl(msg)} mine={msg.sender_id === user.id} onOpen={setLightbox} />
                 ) : (
                   <div className="message-content">{msg.content}</div>
                 )}
@@ -491,16 +507,33 @@ export const DirectMessagePage = () => {
                 : actionMsg.message_type === 'image' ? t('chat.photo.label')
                 : actionMsg.content}
             </div>
-            <button className="msg-sheet-btn" onClick={() => { setReplyTo(actionMsg); setActionMsg(null); }}>
-              {t('chat.reply.action')}
-            </button>
-            {actionMsg.sender_id !== user?.id && (
+            {/* A failed send carries a client-side `temp-…` id — see ChatPage.
+                Replying to it would post a reply_to_id the backend drops, so
+                clearing it locally is the only action that does what it says. */}
+            {actionMsg._failed ? (
               <button
                 className="msg-sheet-btn msg-sheet-btn--danger"
-                onClick={() => { setReportMsg(actionMsg); setActionMsg(null); }}
+                onClick={() => {
+                  setMessagesList(prev => prev.filter(m => m.id !== actionMsg.id));
+                  setActionMsg(null);
+                }}
               >
-                {t('chat.page.message.report')}
+                {t('chat.page.message.discardFailed')}
               </button>
+            ) : (
+              <>
+                <button className="msg-sheet-btn" onClick={() => { setReplyTo(actionMsg); setActionMsg(null); }}>
+                  {t('chat.reply.action')}
+                </button>
+                {actionMsg.sender_id !== user?.id && (
+                  <button
+                    className="msg-sheet-btn msg-sheet-btn--danger"
+                    onClick={() => { setReportMsg(actionMsg); setActionMsg(null); }}
+                  >
+                    {t('chat.page.message.report')}
+                  </button>
+                )}
+              </>
             )}
             <button className="msg-sheet-btn" onClick={() => setActionMsg(null)}>
               {t('chat.page.message.cancel')}
@@ -515,7 +548,9 @@ export const DirectMessagePage = () => {
 
       {reportMsg && (
         <ReportModal
-          type="message"
+          // "dm", NOT "message": this id comes from `direct_messages`, whose
+          // ids collide with `messages` ids one-for-one.
+          type="dm"
           id={reportMsg.id}
           name={reportMsg.sender_name}
           onClose={() => setReportMsg(null)}

@@ -1916,12 +1916,21 @@
   display: block;
   width: 100%;
   height: auto;
-  max-height: 300px;
-  object-fit: cover;
-  /* Reserves space before the image decodes, so the thread does not jump
-     under the reader's thumb as photos arrive. */
-  aspect-ratio: 4 / 3;
+  max-height: 320px;
+  /* `contain`, never `cover`. The served ?size=chat variant is already
+     uncropped; a `cover` here would put the crop straight back, and together
+     with the old 4/3 box it cut a second ~25% off every portrait photo on top
+     of what the square thumbnail had already removed. */
+  object-fit: contain;
   background: rgba(0, 0, 0, 0.2);
+}
+
+/* Reserve space ONLY while the photo is still loading, so the thread does not
+   jump under the reader's thumb as photos arrive. Once loaded the box is
+   released and the photo keeps its own proportions — a fixed ratio here is
+   what cropped it before. */
+.img-msg:not(.img-msg--loaded) img {
+  aspect-ratio: 4 / 3;
 }
 
 .img-msg-failed {

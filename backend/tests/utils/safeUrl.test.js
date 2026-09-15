@@ -5,7 +5,7 @@ process.env.STORAGE_PUBLIC_URL = 'https://cdn.jamie-app.com';
 process.env.OLD_STORAGE_PUBLIC_URL = 'https://old-r2.example.com';
 process.env.FRONTEND_URL = 'https://app.jamie-app.com,https://www.jamie-app.com';
 
-const { isSafeImageUrl, isSafeVoiceUrl, checkImageField, allowedImageOrigins, _resetImageOrigins } =
+const { isSafeImageUrl, isSafeVoiceUrl, isSafeChatImageUrl, checkImageField, allowedImageOrigins, _resetImageOrigins } =
   await import('../../src/utils/safeUrl.js');
 
 beforeAll(() => { _resetImageOrigins(); });
@@ -163,5 +163,54 @@ describe('production env shape (STORAGE_PUBLIC_URL is the app origin)', () => {
       process.env.FRONTEND_URL = saved.f;
       _resetImageOrigins();
     }
+  });
+});
+
+describe('isSafeChatImageUrl (chat photos, 2026-09-15)', () => {
+  // The photo feature's central safety claim is "a chat photo is a URL our own
+  // upload route minted, and that route is where Sightengine runs, so a photo
+  // is moderated before it can ever be sent." It was gated with isSafeImageUrl,
+  // which is the AVATAR validator: for an absolute URL it checks the ORIGIN
+  // ONLY and applies no path constraint, and the allowlist contains Google's
+  // avatar CDN. That made the claim false.
+  it('accepts the shapes POST /api/upload actually mints', () => {
+    expect(isSafeChatImageUrl('/media/uploads/a.webp')).toBe(true);
+    expect(isSafeChatImageUrl('/media/uploads/a.gif')).toBe(true);
+    expect(isSafeChatImageUrl('/uploads/image-123-abc.webp')).toBe(true);
+    expect(isSafeChatImageUrl('https://app.jamie-app.com/media/uploads/x.webp')).toBe(true);
+    expect(isSafeChatImageUrl('https://cdn.jamie-app.com/uploads/x.webp')).toBe(true);
+  });
+
+  it('REJECTS any lh3.googleusercontent.com URL, which the avatar gate accepts', () => {
+    const shots = [
+      'https://lh3.googleusercontent.com/a/ACg8ocK-attacker=s9999',
+      'https://lh3.googleusercontent.com/anything/at/all.jpg',
+      // Not even a path shaped like ours: that origin serves arbitrary
+      // user-controlled images, so it can never be a chat source.
+      'https://lh3.googleusercontent.com/media/uploads/x.webp',
+    ];
+    for (const u of shots) {
+      expect(isSafeChatImageUrl(u), u).toBe(false);
+      // …and this is precisely the gap: the avatar validator says yes.
+      expect(isSafeImageUrl(u), u).toBe(true);
+    }
+  });
+
+  it('REJECTS an arbitrary path on an otherwise allowed origin', () => {
+    expect(isSafeChatImageUrl('https://app.jamie-app.com/literally/any/path')).toBe(false);
+    expect(isSafeChatImageUrl('https://app.jamie-app.com/media/uploads/../../etc/passwd')).toBe(false);
+    expect(isSafeChatImageUrl('https://app.jamie-app.com/media/uploads/sub/dir/x.webp')).toBe(false);
+  });
+
+  it('REJECTS foreign hosts, protocol-relative and non-http(s) forms', () => {
+    expect(isSafeChatImageUrl('https://attacker.tld/media/uploads/a.webp')).toBe(false);
+    expect(isSafeChatImageUrl('//lh3.googleusercontent.com/a.webp')).toBe(false);
+    expect(isSafeChatImageUrl('javascript:alert(1)')).toBe(false);
+    expect(isSafeChatImageUrl('data:image/png;base64,AAAA')).toBe(false);
+    expect(isSafeChatImageUrl(null)).toBe(false);
+  });
+
+  it('REJECTS an audio extension — a voice URL is not a photo', () => {
+    expect(isSafeChatImageUrl('/media/uploads/a.webm')).toBe(false);
   });
 });

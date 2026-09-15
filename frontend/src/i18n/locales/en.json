@@ -812,7 +812,8 @@
         "delete": "Delete message",
         "cancel": "Cancel",
         "confirmDelete": "Really delete this message? It disappears for everyone in the chat.",
-        "deleteError": "Could not delete the message."
+        "deleteError": "Could not delete the message.",
+        "discardFailed": "Not sent – discard"
       }
     },
     "dm": {
@@ -1285,7 +1286,8 @@
     "type": {
       "user": "User",
       "group": "Group/Club",
-      "message": "Message"
+      "message": "Message",
+      "dm": "Direct message"
     },
     "titleFmt": "Report {{type}}",
     "reasonLabel": "Reason *",
@@ -2108,7 +2110,8 @@
       "confirmFreeze": "Freeze {{name}}’s account? They are logged out immediately and cannot sign in again. This can be undone at any time.",
       "deleteGroup": "Remove group",
       "deleteClub": "Remove club",
-      "confirmDeleteGroup": "Remove \"{{name}}\"? It disappears for every member. Chat and history are kept as evidence."
+      "confirmDeleteGroup": "Remove \"{{name}}\"? It disappears for every member. Chat and history are kept as evidence.",
+      "toReceiver": "to {{name}}"
     }
   },
   "imageUpload": {

@@ -1,6 +1,6 @@
 import db from '../config/database.js';
 import { checkTextSafety } from '../config/moderation.js';
-import { isSafeVoiceUrl, isSafeImageUrl } from '../utils/safeUrl.js';
+import { isSafeVoiceUrl, isSafeChatImageUrl } from '../utils/safeUrl.js';
 import { deleteCached } from '../utils/cache.js';
 import { sendPushToUsers } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
@@ -42,6 +42,22 @@ export const computePushRecipients = (memberRows, activeUserIds, cooldownMap, gr
   }
   return recipients;
 };
+
+/**
+ * What `content` holds for a media message.
+ *
+ * The storage URL lives in `media_url`; `content` is ALWAYS human-readable, so
+ * a client that does not know `message_type` still renders something sensible
+ * instead of a raw "https://…/media/uploads/….webm". That client is not
+ * hypothetical: the iOS app bundles the web build inside its binary, so every
+ * iPhone runs the App Store build's renderer until a new binary ships.
+ *
+ * German on purpose and not translated: new clients ignore this string
+ * entirely and render their own localised label off `message_type`, so it only
+ * ever surfaces on stale clients — and it stays accurate forever, which
+ * "App-Update erforderlich" would not.
+ */
+export const MEDIA_LABEL = { voice: '🎤 Sprachnachricht', image: '📷 Foto' };
 
 // The quoted message, reshaped from the flat reply_* columns the queries
 // select into one nested object the client can render directly. Kept in one
@@ -104,7 +120,11 @@ export const sendMessage = async (req, res) => {
       // so it must be a URL our own upload route minted. That route is also
       // where Sightengine runs — the real difference between photos and voice
       // notes here is that a photo IS moderated before it can ever be sent.
-      if (!isSafeImageUrl(content.trim())) {
+      //
+      // isSafeChatImageUrl, NOT isSafeImageUrl: the latter gates avatar fields
+      // and checks the ORIGIN ONLY, so it accepted any lh3.googleusercontent
+      // URL and made the sentence above false. See utils/safeUrl.js.
+      if (!isSafeChatImageUrl(content.trim())) {
         return res.status(400).json({ error: 'Ungültiges Bild' });
       }
     } else {
@@ -166,13 +186,20 @@ export const sendMessage = async (req, res) => {
       ? Math.min(Math.max(rawDuration, 0), 120_000)
       : null;
 
+    // Split the payload from the prose — see MEDIA_LABEL. The URL has already
+    // been validated above; `content` from here on is what a human reads.
+    const mediaUrl = (isVoice || isImage) ? content.trim() : null;
+    const storedContent = isVoice ? MEDIA_LABEL.voice
+      : isImage ? MEDIA_LABEL.image
+      : content;
+
     // INSERT + fetch sender info + the quoted message in one CTE — still a
     // single round trip, and the client needs the quote to render the bubble
     // immediately rather than after a second fetch.
     const result = await db.query(
       `WITH inserted AS (
-         INSERT INTO messages (group_id, user_id, content, message_type, reply_to_id, duration_ms)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *
+         INSERT INTO messages (group_id, user_id, content, message_type, reply_to_id, duration_ms, media_url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
        )
        SELECT i.*, u.name AS user_name, u.avatar_url,
               r.id AS reply_id, r.content AS reply_content,
@@ -181,7 +208,8 @@ export const sendMessage = async (req, res) => {
        JOIN users u ON u.id = i.user_id
        LEFT JOIN messages r ON r.id = i.reply_to_id
        LEFT JOIN users ru ON ru.id = r.user_id`,
-      [groupId, req.userId, content, isVoice ? 'voice' : isImage ? 'image' : 'text', replyToId, durationMs]
+      [groupId, req.userId, storedContent, isVoice ? 'voice' : isImage ? 'image' : 'text',
+       replyToId, durationMs, mediaUrl]
     );
 
     // Respond FIRST: everything below is delivery-side bookkeeping (emits,
@@ -338,7 +366,7 @@ export const getMessages = async (req, res) => {
 
     const result = await db.query(
       `SELECT m.id, m.group_id, m.user_id, m.content, m.message_type, m.created_at,
-              m.duration_ms, m.reply_to_id,
+              m.duration_ms, m.reply_to_id, m.media_url,
               u.name AS user_name, u.avatar_url,
               -- The quoted message, joined in rather than fetched per bubble.
               -- Two LEFT JOINs on an indexed FK for the whole page beats N+1

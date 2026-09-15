@@ -144,6 +144,43 @@ export const isSafeImageUrl = (u) => {
 // and no extra path segments.
 const AUDIO_PATH = /^\/(?:media\/uploads|uploads)\/[^/\\]+\.(?:webm|m4a|ogg)$/i;
 
+// A CHAT PHOTO url we are willing to store and re-serve.
+//
+// Deliberately NOT isSafeImageUrl. That one gates stored avatar/banner fields,
+// where the value can legitimately be a Google profile picture, so for an
+// absolute URL it checks the ORIGIN ONLY and applies no path constraint at
+// all. Reusing it for chat made the photo feature's central safety claim false:
+// a chat photo is supposed to be a URL our own upload route minted, because
+// that route is where Sightengine runs, so a photo is moderated BEFORE it can
+// be sent. With the origin-only check, anyone could POST
+// message_type='image' with any https://lh3.googleusercontent.com/... URL —
+// their own Google profile picture, or any Google-hosted image — and it was
+// stored and broadcast to the room without a single byte passing detectMime,
+// processImage or checkImageSafety.
+//
+// So: same shape as isSafeVoiceUrl. Anchored path, no unconfigured() fallback
+// (a chat photo is always minted by POST /api/upload seconds earlier — there
+// is no legitimate external case), and lh3 rejected outright.
+// Extensions: processImage emits .webp, or .gif passed through; the others are
+// defensive breadth. The security property is the anchored path plus the
+// origin allowlist, not the extension list.
+const IMAGE_PATH = /^\/(?:media\/uploads|uploads)\/[^/\\]+\.(?:webp|gif|jpe?g|png)$/i;
+
+export const isSafeChatImageUrl = (u) => {
+  if (typeof u !== 'string' || u.length > 1024) return false;
+  if (IMAGE_PATH.test(u)) return true;
+  try {
+    const url = new URL(u);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+    // Google's avatar CDN is an allowed origin for AVATARS only. It serves
+    // arbitrary user-controlled images, so it can never be a chat source.
+    if (url.origin === 'https://lh3.googleusercontent.com') return false;
+    return imageOrigins().has(url.origin) && IMAGE_PATH.test(url.pathname);
+  } catch {
+    return false;
+  }
+};
+
 export const isSafeVoiceUrl = (u) => {
   if (typeof u !== 'string' || u.length > 1024) return false;
   if (AUDIO_PATH.test(u)) return true;

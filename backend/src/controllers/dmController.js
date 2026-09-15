@@ -1,8 +1,8 @@
 import db from '../config/database.js';
 import { checkTextSafety } from '../config/moderation.js';
-import { isSafeVoiceUrl, isSafeImageUrl } from '../utils/safeUrl.js';
+import { isSafeVoiceUrl, isSafeChatImageUrl } from '../utils/safeUrl.js';
 // One reply shape for group chat and DMs alike — see messageController.
-import { withReply } from './messageController.js';
+import { withReply, MEDIA_LABEL } from './messageController.js';
 import { sendPushToUser } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 
@@ -131,7 +131,11 @@ export const sendDM = async (req, res) => {
       // so it must be a URL our own upload route minted. That route is also
       // where Sightengine runs — the real difference between photos and voice
       // notes here is that a photo IS moderated before it can ever be sent.
-      if (!isSafeImageUrl(content.trim())) {
+      //
+      // isSafeChatImageUrl, NOT isSafeImageUrl: the latter gates avatar fields
+      // and checks the ORIGIN ONLY, so it accepted any lh3.googleusercontent
+      // URL and made the sentence above false. See utils/safeUrl.js.
+      if (!isSafeChatImageUrl(content.trim())) {
         return res.status(400).json({ error: 'Ungültiges Bild' });
       }
     } else {
@@ -184,15 +188,24 @@ export const sendDM = async (req, res) => {
       ? Math.min(Math.max(rawDuration, 0), 120_000)
       : null;
 
+    // Payload in media_url, prose in content — see MEDIA_LABEL in
+    // messageController. Mirrors sendMessage exactly; a DM reaches the same
+    // stale iOS renderer.
+    const mediaUrl = (isVoice || isImage) ? content.trim() : null;
+    const storedContent = isVoice ? MEDIA_LABEL.voice
+      : isImage ? MEDIA_LABEL.image
+      : content;
+
     let insertResult;
     for (let attempt = 0; attempt < 2; attempt++) {
       const client = await db.pool.connect();
       try {
         await client.query('BEGIN');
         insertResult = await client.query(
-          `INSERT INTO direct_messages (sender_id, receiver_id, content, message_type, reply_to_id, duration_ms)
-           VALUES ($1::int, $2::int, $3, $4::varchar, $5::int, $6::int) RETURNING *`,
-          [req.userId, receiverId, content, isVoice ? 'voice' : isImage ? 'image' : 'text', replyToId, durationMs]
+          `INSERT INTO direct_messages (sender_id, receiver_id, content, message_type, reply_to_id, duration_ms, media_url)
+           VALUES ($1::int, $2::int, $3, $4::varchar, $5::int, $6::int, $7) RETURNING *`,
+          [req.userId, receiverId, storedContent, isVoice ? 'voice' : isImage ? 'image' : 'text',
+           replyToId, durationMs, mediaUrl]
         );
         const msgId = insertResult.rows[0].id;
         await client.query(
@@ -383,7 +396,7 @@ export const getConversation = async (req, res) => {
     }
 
     const querySql = `
-      SELECT dm.id, dm.sender_id, dm.receiver_id, dm.content, dm.message_type,
+      SELECT dm.id, dm.sender_id, dm.receiver_id, dm.content, dm.message_type, dm.media_url,
              dm.is_read, dm.is_deleted_sender, dm.is_deleted_receiver, dm.created_at,
              dm.duration_ms, dm.reply_to_id,
              s.name as sender_name, s.avatar_url as sender_avatar,
@@ -394,9 +407,21 @@ export const getConversation = async (req, res) => {
       LEFT JOIN users s ON dm.sender_id = s.id
       LEFT JOIN users r ON dm.receiver_id = r.id
       LEFT JOIN direct_messages q ON q.id = dm.reply_to_id
+        -- A quoted message the CALLER has hidden (or an admin took down for
+        -- both sides) must not come back as a quote bar carrying its text.
+        -- Mirrors the "AND r.is_deleted = FALSE" join in getMessages.
+        AND NOT (q.sender_id   = $1::int AND COALESCE(q.is_deleted_sender,   FALSE))
+        AND NOT (q.receiver_id = $1::int AND COALESCE(q.is_deleted_receiver, FALSE))
       LEFT JOIN users qu ON qu.id = q.sender_id
       WHERE LEAST(dm.sender_id, dm.receiver_id)    = LEAST($1::int, $2::int)
         AND GREATEST(dm.sender_id, dm.receiver_id) = GREATEST($1::int, $2::int)
+        -- Per-side hiding, which this read path ignored entirely: both flags
+        -- were selected and neither was applied, so nothing could ever be
+        -- removed from a conversation. Harmless while no code set them —
+        -- and immediately wrong once the admin DM takedown did, since the
+        -- message vanished over the socket and reappeared on the next reload.
+        AND NOT (dm.sender_id   = $1::int AND COALESCE(dm.is_deleted_sender,   FALSE))
+        AND NOT (dm.receiver_id = $1::int AND COALESCE(dm.is_deleted_receiver, FALSE))
         ${hasBefore ? 'AND dm.id < $4' : ''}
       ORDER BY dm.created_at DESC
       LIMIT $3 ${hasBefore ? '' : 'OFFSET $4'}
@@ -541,5 +566,64 @@ export const setConversationArchived = async (req, res) => {
   } catch (error) {
     console.error('Error archiving conversation:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+// DELETE /api/dm/message/:id — platform-admin takedown of a single DM.
+//
+// Added 2026-09-15 alongside the 'dm' report type. Reporting a DM shipped
+// earlier the same day, and the moderation queue's only enforcement lever was
+// DELETE /api/messages/:id — the GROUP-chat table. Since both tables are plain
+// SERIALs, that button acted on a real, unrelated group message while the
+// reported DM stayed untouched. An admin could see a DM report and had no
+// correct way to act on it at all.
+//
+// Admin-only on purpose: the product has no user-facing DM delete (the DM
+// action sheet offers reply and report, nothing else), and inventing one here
+// would be a product change smuggled in under a moderation fix.
+export const deleteDM = async (req, res) => {
+  const messageId = parseInt(req.params.id, 10);
+  // Guard BEFORE the query: an unparsable id reaches Postgres as a literal and
+  // raises 22P02, which the catch below would turn into an opaque 500.
+  if (!Number.isInteger(messageId)) {
+    return res.status(400).json({ error: 'Ungültige ID' });
+  }
+
+  try {
+    const result = await db.query(
+      `SELECT dm.sender_id, dm.receiver_id,
+              (SELECT is_admin FROM users WHERE id = $2) AS caller_is_admin
+         FROM direct_messages dm
+        WHERE dm.id = $1`,
+      [messageId, req.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Nachricht nicht gefunden' });
+    }
+
+    const { sender_id, receiver_id, caller_is_admin } = result.rows[0];
+    if (!caller_is_admin) {
+      return res.status(403).json({ error: 'Keine Berechtigung' });
+    }
+
+    // A DM has no single is_deleted column — each side hides its own copy.
+    // Setting BOTH is the takedown, and it is what reportContext reads back as
+    // `deleted: true`. The content stays in the row as evidence for the report
+    // the admin is acting on, exactly as the group-chat soft delete does.
+    await db.query(
+      `UPDATE direct_messages
+          SET is_deleted_sender = TRUE, is_deleted_receiver = TRUE
+        WHERE id = $1`,
+      [messageId]
+    );
+
+    try {
+      const roomName = `dm_${Math.min(sender_id, receiver_id)}_${Math.max(sender_id, receiver_id)}`;
+      req.app?.get('io')?.to(roomName).emit('dm_deleted', { id: messageId });
+    } catch { /* delivery is best-effort; the DB write is what counts */ }
+
+    res.json({ message: 'Nachricht gelöscht' });
+  } catch (error) {
+    console.error('Error deleting DM:', error);
+    res.status(500).json({ error: 'Nachricht konnte nicht gelöscht werden' });
   }
 };

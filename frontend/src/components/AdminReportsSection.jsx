@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { reports as reportsApi, admin, messages as messagesApi, groups as groupsApi, clubs as clubsApi } from '../utils/api';
+import { reports as reportsApi, admin, messages as messagesApi, groups as groupsApi, clubs as clubsApi, directMessages as dmApi } from '../utils/api';
 
 /**
  * Moderation queue (reports → GET /api/reports).
@@ -87,7 +87,7 @@ export const AdminReportsSection = () => {
   // evidence) and the freeze is a plain is_active flip.
   const enforce = async (report, kind) => {
     const tg = report.target;
-    const confirmMsg = kind === 'deleteMessage'
+    const confirmMsg = (kind === 'deleteMessage' || kind === 'deleteDm')
       ? t('admin.reports.confirmDeleteMessage')
       : kind === 'deleteGroup'
         ? t('admin.reports.confirmDeleteGroup', { name: tg?.name || `#${tg?.id}` })
@@ -95,7 +95,14 @@ export const AdminReportsSection = () => {
     if (!window.confirm(confirmMsg)) return;
     setBusyId(report.id);
     try {
-      if (kind === 'deleteMessage') {
+      if (kind === 'deleteDm') {
+        // NEVER messagesApi.delete here: a dm id addresses `direct_messages`,
+        // and messages.delete would soft-delete whichever unrelated GROUP
+        // message happens to carry the same SERIAL.
+        await dmApi.deleteMessage(tg.id);
+        setRows(prev => prev.map(r => (r.id === report.id
+          ? { ...r, target: { ...r.target, deleted: true } } : r)));
+      } else if (kind === 'deleteMessage') {
         await messagesApi.delete(tg.id);
         // Reflect it on the card immediately: the evidence row is kept, so the
         // admin should see "gelöscht" rather than the message vanishing.
@@ -191,15 +198,25 @@ export const AdminReportsSection = () => {
       );
     }
 
-    // message — the content IS the evidence, so it is the most prominent thing
-    // on the card. It comes snapshotted from the server precisely so a report
-    // stays judgeable after the message is deleted.
+    // message / dm — the content IS the evidence, so it is the most prominent
+    // thing on the card. It comes snapshotted from the server precisely so a
+    // report stays judgeable after the message is deleted.
+    //
+    // The two differ only in the byline: a group message names its author and
+    // chat, a DM names sender → receiver (there is no chat to open — it is a
+    // private two-party thread, and admins have no route into one).
+    const isDm = tg.kind === 'dm';
     return (
       <div>
         <div style={{ fontSize: 13, color: MUTED, marginBottom: 6, wordBreak: 'break-word' }}>
-          {[tg.author ? t('admin.reports.byAuthor', { name: tg.author.name, id: tg.author.id }) : t('admin.reports.authorGone'),
-            tg.group && t('admin.reports.inChat', { name: tg.group.name }),
-            fmtDate(tg.created_at)].filter(Boolean).join(' · ')}
+          {(isDm
+            ? [tg.sender ? t('admin.reports.byAuthor', { name: tg.sender.name, id: tg.sender.id }) : t('admin.reports.authorGone'),
+               tg.receiver && t('admin.reports.toReceiver', { name: tg.receiver.name }),
+               fmtDate(tg.created_at)]
+            : [tg.author ? t('admin.reports.byAuthor', { name: tg.author.name, id: tg.author.id }) : t('admin.reports.authorGone'),
+               tg.group && t('admin.reports.inChat', { name: tg.group.name }),
+               fmtDate(tg.created_at)]
+          ).filter(Boolean).join(' · ')}
         </div>
         <div style={{
           fontSize: 14, color: '#fff', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
@@ -207,6 +224,20 @@ export const AdminReportsSection = () => {
           borderRadius: 8, padding: '10px 12px',
         }}>
           {tg.content}
+          {/* For a voice note or a photo, `content` is only the label — the
+              thing being judged is the media itself, so play/show it here.
+              Without this a reported photo is unreviewable: the card would
+              read "📷 Foto" and offer nothing to look at. */}
+          {tg.media_url && tg.message_type === 'image' && (
+            <img
+              src={tg.media_url}
+              alt=""
+              style={{ display: 'block', marginTop: 8, maxWidth: '100%', maxHeight: 320, borderRadius: 6 }}
+            />
+          )}
+          {tg.media_url && tg.message_type === 'voice' && (
+            <audio src={tg.media_url} controls preload="none" style={{ display: 'block', marginTop: 8, width: '100%' }} />
+          )}
         </div>
         {tg.deleted && <div style={{ fontSize: 12, color: '#e0a86a', marginTop: 6 }}>{t('admin.reports.messageDeleted')}</div>}
       </div>
@@ -329,6 +360,15 @@ export const AdminReportsSection = () => {
                     above, because these change the world rather than the
                     queue. Only shown where there is something to act on. */}
                 <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                  {tg?.kind === 'dm' && !tg.missing && !tg.deleted && (
+                    <button
+                      onClick={() => enforce(r, 'deleteDm')}
+                      disabled={busy}
+                      style={{ ...BTN, background: 'rgba(255,107,107,0.14)', color: '#ff6b6b', opacity: busy ? 0.5 : 1 }}
+                    >
+                      {busy ? '…' : t('admin.reports.deleteMessage')}
+                    </button>
+                  )}
                   {tg?.kind === 'message' && !tg.missing && !tg.deleted && (
                     <button
                       onClick={() => enforce(r, 'deleteMessage')}

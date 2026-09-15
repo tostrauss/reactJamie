@@ -7,7 +7,9 @@ const REASON_KEYS = ['spam', 'inappropriate', 'harassment', 'fake', 'other'];
 
 /**
  * ReportModal
- * @param {'user'|'group'|'message'} type  - What is being reported
+ * @param {'user'|'group'|'message'|'dm'} type  - What is being reported.
+ *   'message' is a GROUP-chat message, 'dm' a direct message — separate tables
+ *   whose ids collide, so the two must never be conflated.
  * @param {number} id                       - ID of the reported entity
  * @param {string} name                     - Display name (shown in the title)
  * @param {function} onClose                - Called when the modal should close
@@ -19,7 +21,10 @@ export const ReportModal = ({ type, id, name, onClose }) => {
   const [details, setDetails] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const typeLabel = type === 'user' ? t('report.type.user') : type === 'group' ? t('report.type.group') : t('report.type.message');
+  const typeLabel = type === 'user' ? t('report.type.user')
+    : type === 'group' ? t('report.type.group')
+    : type === 'dm' ? t('report.type.dm')
+    : t('report.type.message');
 
   const handleSubmit = async (e) => {
     e.preventDefault();

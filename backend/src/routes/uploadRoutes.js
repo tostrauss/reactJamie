@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { writeFile, mkdir } from 'fs/promises';
 import crypto from 'crypto';
 import { authenticate } from '../middleware/auth.js';
-import { uploadLimiter } from '../middleware/rateLimiter.js';
+import { uploadLimiter, voiceUploadLimiter } from '../middleware/rateLimiter.js';
 import { uploadToCloud, putObjectToCloud, isCloudStorageEnabled } from '../config/storage.js';
 import { checkImageSafety } from '../config/moderation.js';
 import { processImage, generateThumbnail, checkImageQuality } from '../config/imageProcessor.js';
@@ -330,7 +330,7 @@ const voiceUpload = multer({
   },
 }).single('audio');
 
-router.post('/voice', authenticate, uploadLimiter, admitUpload, (req, res, next) => {
+router.post('/voice', authenticate, voiceUploadLimiter, admitUpload, (req, res, next) => {
   voiceUpload(req, res, (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {

@@ -812,7 +812,8 @@
         "delete": "Supprimer le message",
         "cancel": "Annuler",
         "confirmDelete": "Vraiment supprimer ce message ? Il disparaîtra pour tout le monde dans le chat.",
-        "deleteError": "Impossible de supprimer le message."
+        "deleteError": "Impossible de supprimer le message.",
+        "discardFailed": "Non envoyé – supprimer"
       }
     },
     "dm": {
@@ -1285,7 +1286,8 @@
     "type": {
       "user": "Utilisateur",
       "group": "Groupe/Club",
-      "message": "Message"
+      "message": "Message",
+      "dm": "Message privé"
     },
     "titleFmt": "Signaler : {{type}}",
     "reasonLabel": "Motif *",
@@ -2108,7 +2110,8 @@
       "confirmFreeze": "Bloquer le compte de {{name}} ? La personne est déconnectée immédiatement et ne peut plus se connecter. Réversible à tout moment.",
       "deleteGroup": "Retirer le groupe",
       "deleteClub": "Retirer le club",
-      "confirmDeleteGroup": "Retirer « {{name}} » ? Il disparaît pour tous les membres. Le chat et l’historique sont conservés comme preuve."
+      "confirmDeleteGroup": "Retirer « {{name}} » ? Il disparaît pour tous les membres. Le chat et l’historique sont conservés comme preuve.",
+      "toReceiver": "à {{name}}"
     }
   },
   "imageUpload": {

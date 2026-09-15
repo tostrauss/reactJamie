@@ -12,6 +12,7 @@ import { VoiceMessage } from '../components/VoiceMessage';
 import { ImageMessage } from '../components/ImageMessage';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { MessageQuote } from '../components/MessageQuote';
+import { mediaUrl } from '../utils/chatMedia';
 import { serverErrorMessage } from '../utils/apiError';
 import { downscaleImageFile } from '../utils/images';
 import { useChatViewport } from '../hooks/useChatViewport';
@@ -256,7 +257,20 @@ export const ChatPage = () => {
     // A moderator (or the author) removed a message — drop it live instead of
     // leaving it on screen until the next reload.
     const handleMessageDeleted = ({ id }) => {
-      setMessageList(prev => prev.filter(m => m.id !== id));
+      setMessageList(prev => prev
+        .filter(m => m.id !== id)
+        // Dropping the bubble is not enough: every reply that quoted it still
+        // carries up to 160 characters of the removed text in its own
+        // `reply_to`, and renders them in the quote bar. An admin takedown
+        // otherwise left the harassing message on screen, inside each reply,
+        // for everyone with the chat open. catchUpMessages cannot heal it
+        // either — it only APPENDS rows it does not already know, never
+        // rewrites one, so a reconnect or foreground return changes nothing.
+        // getMessages already nulls these server-side (the reply LEFT JOIN is
+        // gated on is_deleted = FALSE); this is the live path catching up.
+        .map(m => (m.reply_to && String(m.reply_to.id) === String(id)
+          ? { ...m, reply_to: null }
+          : m)));
     };
     socket.on('message_deleted', handleMessageDeleted);
     socket.on('receive_message', handleReceiveMessage);
@@ -339,6 +353,9 @@ export const ChatPage = () => {
       user_name: user.name,
       avatar_url: user.avatar_url,
       content: sentContent,
+      // Match the server row shape: the payload lives in media_url, so the
+      // bubble reads the same field before and after the 201 swaps it in.
+      media_url: media ? sentContent : null,
       message_type: voice ? 'voice' : photo ? 'image' : 'text',
       duration_ms: voice ? voice.durationMs : null,
       reply_to: quoted
@@ -541,13 +558,13 @@ export const ChatPage = () => {
                   )}
                   {msg.message_type === 'voice' ? (
                     <VoiceMessage
-                      url={msg.content}
+                      url={mediaUrl(msg)}
                       durationMs={msg.duration_ms}
                       mine={msg.user_id === user?.id}
                     />
                   ) : msg.message_type === 'image' ? (
                     <ImageMessage
-                      url={msg.content}
+                      url={mediaUrl(msg)}
                       mine={msg.user_id === user?.id}
                       onOpen={setLightbox}
                     />
@@ -595,27 +612,48 @@ export const ChatPage = () => {
                 : actionMsg.message_type === 'image' ? t('chat.photo.label')
                 : actionMsg.content}
             </div>
-            <button
-              className="msg-sheet-btn"
-              onClick={() => { setReplyTo(actionMsg); setActionMsg(null); }}
-            >
-              {t('chat.reply.action')}
-            </button>
-            {actionMsg.user_id !== user?.id && (
+            {/* A message that never persisted has a client-side `temp-…` id, so
+                every server action on it is broken: replying posts
+                reply_to_id="temp-…", which parseInt turns into NaN and the
+                backend silently drops — the composer shows a quote bar and the
+                message sends with no quote — and deleting raises Postgres
+                22P02 and comes back as a 500. The only honest action on a
+                failed bubble is to clear it locally. */}
+            {actionMsg._failed ? (
               <button
                 className="msg-sheet-btn msg-sheet-btn--danger"
-                onClick={() => { setReportMsg(actionMsg); setActionMsg(null); }}
+                onClick={() => {
+                  setMessageList(prev => prev.filter(m => m.id !== actionMsg.id));
+                  setActionMsg(null);
+                }}
               >
-                {t('chat.page.message.report')}
+                {t('chat.page.message.discardFailed')}
               </button>
-            )}
-            {(actionMsg.user_id === user?.id || group?.owner_id === user?.id || user?.is_admin) && (
-              <button
-                className="msg-sheet-btn msg-sheet-btn--danger"
-                onClick={() => handleDeleteMessage(actionMsg)}
-              >
-                {t('chat.page.message.delete')}
-              </button>
+            ) : (
+              <>
+                <button
+                  className="msg-sheet-btn"
+                  onClick={() => { setReplyTo(actionMsg); setActionMsg(null); }}
+                >
+                  {t('chat.reply.action')}
+                </button>
+                {actionMsg.user_id !== user?.id && (
+                  <button
+                    className="msg-sheet-btn msg-sheet-btn--danger"
+                    onClick={() => { setReportMsg(actionMsg); setActionMsg(null); }}
+                  >
+                    {t('chat.page.message.report')}
+                  </button>
+                )}
+                {(actionMsg.user_id === user?.id || group?.owner_id === user?.id || user?.is_admin) && (
+                  <button
+                    className="msg-sheet-btn msg-sheet-btn--danger"
+                    onClick={() => handleDeleteMessage(actionMsg)}
+                  >
+                    {t('chat.page.message.delete')}
+                  </button>
+                )}
+              </>
             )}
             <button className="msg-sheet-btn" onClick={() => setActionMsg(null)}>
               {t('chat.page.message.cancel')}

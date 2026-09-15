@@ -812,7 +812,8 @@
         "delete": "Nachricht löschen",
         "cancel": "Abbrechen",
         "confirmDelete": "Diese Nachricht wirklich löschen? Sie verschwindet für alle im Chat.",
-        "deleteError": "Nachricht konnte nicht gelöscht werden."
+        "deleteError": "Nachricht konnte nicht gelöscht werden.",
+        "discardFailed": "Nicht gesendet – entfernen"
       }
     },
     "dm": {
@@ -1285,7 +1286,8 @@
     "type": {
       "user": "Nutzer",
       "group": "Gruppe/Club",
-      "message": "Nachricht"
+      "message": "Nachricht",
+      "dm": "Direktnachricht"
     },
     "titleFmt": "{{type}} melden",
     "reasonLabel": "Grund *",
@@ -2108,7 +2110,8 @@
       "confirmFreeze": "Konto von {{name}} sperren? Die Person wird sofort ausgeloggt und kann sich nicht mehr anmelden. Das ist jederzeit rückgängig zu machen.",
       "deleteGroup": "Gruppe entfernen",
       "deleteClub": "Club entfernen",
-      "confirmDeleteGroup": "„{{name}}\" entfernen? Sie verschwindet für alle Mitglieder. Chat und Historie bleiben als Beleg erhalten."
+      "confirmDeleteGroup": "„{{name}}\" entfernen? Sie verschwindet für alle Mitglieder. Chat und Historie bleiben als Beleg erhalten.",
+      "toReceiver": "an {{name}}"
     }
   },
   "imageUpload": {

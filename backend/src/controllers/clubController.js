@@ -1621,7 +1621,7 @@ export const createClubEvent = async (req, res) => {
 };
 
 // ==========================================
-// DELETE CLUB EVENT (club owner or event owner)
+// DELETE CLUB EVENT (club owner / co-manager, event owner, or platform admin)
 // ==========================================
 export const deleteClubEvent = async (req, res) => {
   try {
@@ -1633,12 +1633,27 @@ export const deleteClubEvent = async (req, res) => {
     );
     if (event.rows.length === 0) return res.status(404).json({ error: 'Veranstaltung nicht gefunden' });
 
-    const club = await db.query('SELECT owner_id FROM groups WHERE id = $1', [id]);
+    const club = await db.query(
+      `SELECT g.owner_id,
+              (SELECT is_admin FROM users WHERE id = $2) AS caller_is_admin
+         FROM groups g WHERE g.id = $1`,
+      [id, req.userId]
+    );
     const isEventOwner = Number(event.rows[0].owner_id) === Number(req.userId);
     // Club owner / co-manager (role='admin'), or the member who created the event.
     const canManage = await userManagesClub(id, club.rows[0]?.owner_id, req.userId);
+    // Platform admins may take down any club event — same rule as deleteClub
+    // and deleteGroup. Without this the "Als Admin löschen" button on a club
+    // EVENT 403s for every admin who is not the club owner, which is every
+    // admin in practice: GroupDetail routes type='event' + parent_club_id
+    // here, so the takedown looked available and never worked.
+    //
+    // `users.is_admin` is the PLATFORM flag, deliberately not
+    // group_members.role='admin' (a club CO-MANAGER — a different thing
+    // wearing the same word); userManagesClub already covers that case.
+    const callerIsAdmin = !!club.rows[0]?.caller_is_admin;
 
-    if (!canManage && !isEventOwner) {
+    if (!canManage && !isEventOwner && !callerIsAdmin) {
       return res.status(403).json({ error: 'Keine Berechtigung' });
     }
 
