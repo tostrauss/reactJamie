@@ -163,6 +163,7 @@ import { runDbBackup, isBackupConfigured, missingBackupEnv, getBackupConfig } fr
 import { runMediaBackupSync } from './jobs/mediaBackupSync.js';
 import { runEventReminders } from './jobs/eventReminders.js';
 import { runAnalyticsPurge } from './jobs/analyticsPurge.js';
+import { PERMISSIONS_POLICY } from './config/securityHeaders.js';
 import { stripeWebhook as boostStripeWebhook } from './controllers/boostController.js';
 import { appleServerNotification } from './controllers/iapController.js';
 import { sendPushToUser, sendPushToUsers } from './controllers/pushController.js';
@@ -400,9 +401,25 @@ app.use('/api', (req, res, next) => {
   return generalLimiter(req, res, next);
 });
 
-// Permissions-Policy: restrict browser features this app doesn't use
+// Permissions-Policy: restrict browser features this app doesn't use.
+//
+// `microphone=(self)` — NOT `microphone=()`. An EMPTY allowlist disables the
+// feature for every origin INCLUDING our own, so getUserMedia({audio}) is
+// refused outright. That silently broke voice messages the moment they shipped
+// (2026-09-15), and in the most confusing possible way: this middleware is
+// registered AFTER the static block that serves `/`, so opening the app at the
+// root and navigating client-side to a chat worked — while landing on
+// /chat/:id directly (a push-notification deep link, a shared link, or just
+// reloading inside a chat) served the document WITH the header and killed the
+// microphone for that whole session. Found by curling the live deploy; no test
+// can see an HTTP header interacting with a browser API.
+//
+// camera stays fully disabled: photo messages use <input type="file">, which
+// goes through the OS picker out-of-process and needs no camera permission.
+// Turning it on would be a deliberate decision for in-app capture, not a
+// side effect of shipping photo upload.
 app.use((_req, res, next) => {
-  res.setHeader('Permissions-Policy', 'microphone=(), camera=(), display-capture=(), usb=(), serial=(), battery=()');
+  res.setHeader('Permissions-Policy', PERMISSIONS_POLICY);
   next();
 });
 
