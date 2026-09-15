@@ -204,7 +204,12 @@ export const SettingsPage = () => {
     setUser(u => ({ ...u, [key]: next }));
     setPrefBusy(key);
     try {
-      const res = await pushApi.updatePreferences({ [key]: next });
+      // read_receipts is a PRIVACY preference, not a push one, and lives behind
+      // its own route — a route whose name lies is how the next reader ends up
+      // merging the two back together.
+      const res = key === 'read_receipts'
+        ? await auth.updatePrivacy({ [key]: next })
+        : await pushApi.updatePreferences({ [key]: next });
       // Functional updater: refreshProfile() from mount may resolve mid-flight;
       // merging onto the LATEST user keeps server truth without clobbering it.
       setUser(u => ({ ...u, ...res.data }));
@@ -876,6 +881,32 @@ export const SettingsPage = () => {
               type="checkbox"
               checked={prefOn('push_friends')}
               onChange={() => handlePrefToggle('push_friends')}
+              disabled={!!prefBusy}
+            />
+            <span className="settings-toggle-slider" />
+          </label>
+        </div>
+
+        {/* ── Privatsphäre ──────────────────────────────────────────────
+            Deliberately OUTSIDE the pushSupported guard below: that guard is
+            false in the native iOS WebView, and a read receipt has nothing to
+            do with whether web push works. */}
+        <div className="settings-row">
+          <div className="settings-row-left">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="20 6 9 17 4 12" />
+              <polyline points="23 6 12 17 11 16" />
+            </svg>
+            <div className="settings-row-stacked">
+              <span>{t('settings.privacy.readReceipts')}</span>
+              <span className="settings-row-detail">{t('settings.privacy.readReceiptsHint')}</span>
+            </div>
+          </div>
+          <label className="settings-toggle" style={{ opacity: prefBusy ? 0.5 : 1 }}>
+            <input
+              type="checkbox"
+              checked={prefOn('read_receipts')}
+              onChange={() => handlePrefToggle('read_receipts')}
               disabled={!!prefBusy}
             />
             <span className="settings-toggle-slider" />

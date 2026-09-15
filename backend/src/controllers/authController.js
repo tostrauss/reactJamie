@@ -146,7 +146,7 @@ const SAFE_USER_COLS = `
   pinterest_url, spotify_token_expiry, spotify_connected, onboarding_completed,
   onboarding_step, profile_completion, is_verified, is_active, last_seen,
   is_admin, created_at, updated_at, is_pioneer, is_trusted_user, trusted_count,
-  push_reminders, push_friends, push_recommendations
+  push_reminders, push_friends, push_recommendations, read_receipts
 `;
 
 // ==========================================
@@ -1768,4 +1768,40 @@ export const appleLogin = async (req, res) => {
 export const logout = (_req, res) => {
   clearAuthCookie(res);
   res.json({ message: 'Logged out successfully' });
+};
+
+
+// ==========================================
+// PRIVACY PREFERENCES (Settings → Privatsphäre)
+// ==========================================
+// Its own route rather than a fourth key on /api/push/preferences: a read
+// receipt is not a push preference, and a route whose name lies is how the
+// next reader ends up "fixing" one of them into the other.
+//
+// Same shape as updatePushPreferences deliberately — column names come from
+// this allowlist, never from the body, and only REAL booleans are written so a
+// one-key PUT cannot reset anything else.
+const PRIVACY_PREF_KEYS = ['read_receipts'];
+export const updatePrivacyPreferences = async (req, res) => {
+  if (req.isGuest || !req.userId) {
+    return res.status(403).json({ error: 'Gäste haben keine Einstellungen' });
+  }
+  const keys = PRIVACY_PREF_KEYS.filter(k => typeof req.body?.[k] === 'boolean');
+  if (!keys.length) {
+    return res.status(400).json({ error: 'Keine gültige Einstellung übergeben' });
+  }
+  try {
+    const sets = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
+    const { rows } = await db.query(
+      `UPDATE users SET ${sets}, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+    RETURNING read_receipts`,
+      [req.userId, ...keys.map(k => req.body[k])]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Error updating privacy preferences:', err);
+    res.status(500).json({ error: 'Einstellung konnte nicht gespeichert werden' });
+  }
 };

@@ -186,6 +186,7 @@ CREATE TABLE direct_messages (
     content         TEXT NOT NULL,
     message_type    VARCHAR(20) DEFAULT 'text',            -- 'text', 'image'
     is_read         BOOLEAN DEFAULT FALSE,
+    delivered_at    TIMESTAMP,                             -- Lesebestaetigung: reached the recipient client
     is_deleted_sender   BOOLEAN DEFAULT FALSE,             -- Soft delete per side
     is_deleted_receiver BOOLEAN DEFAULT FALSE,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP

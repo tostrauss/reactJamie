@@ -6,6 +6,11 @@ process.env.NODE_ENV = 'test';
 const query = vi.fn();
 vi.mock('../src/config/database.js', () => ({ default: { query: (...a) => query(...a) } }));
 vi.mock('../src/config/redis.js', () => ({ redisClient: null, redisSubscriber: null }));
+// The connect handler stamps read-receipt delivery (utils/readReceipts.js), which
+// is two UPDATEs on a throttle. That is deliberate and covered by the real-Postgres
+// smoke suite; here it would just be noise in the "did the JOIN touch the DB"
+// assertions this file exists for.
+vi.mock('../src/utils/readReceipts.js', () => ({ stampDelivered: vi.fn(async () => {}) }));
 
 const socketHandler = (await import('../src/socket.js')).default;
 

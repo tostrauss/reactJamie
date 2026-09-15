@@ -1,5 +1,6 @@
 import express from 'express';
-import { register, login, logout, getProfile, updateProfile, completeOnboarding, changePassword, deleteAccount, exportData, forgotPassword, resetPassword, sendVerification, verifyEmail, sendEmailCode, verifyEmailCode, googleLogin, googleLoginCode, appleLogin, refreshToken } from '../controllers/authController.js';
+import { register, login, logout, getProfile, updateProfile, completeOnboarding, changePassword, deleteAccount, exportData, forgotPassword, resetPassword, sendVerification, verifyEmail, sendEmailCode, verifyEmailCode, googleLogin, googleLoginCode, appleLogin, refreshToken, updatePrivacyPreferences
+} from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
 import { strictLimiter, passwordResetLimiter, registrationLimiter } from '../middleware/rateLimiter.js';
 import { geofenceRegistration } from '../middleware/geofence.js';
@@ -24,6 +25,9 @@ router.post('/apple',  appleLogin);
 router.post('/refresh', authenticate, refreshToken);
 router.get('/profile', authenticate, getProfile);
 router.put('/profile', authenticate, updateProfile);
+// Settings -> Privatsphaere. Own route, not /api/push/preferences: a read
+// receipt is not a push preference.
+router.put('/privacy', authenticate, updatePrivacyPreferences);
 router.put('/onboarding', authenticate, completeOnboarding);
 router.put('/password', authenticate, strictLimiter, changePassword);
 router.delete('/account', authenticate, strictLimiter, deleteAccount);

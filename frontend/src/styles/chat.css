@@ -1081,6 +1081,30 @@
   opacity: 0.7;
   margin-top: 4px;
   text-align: right;
+  /* The ticks sit on the time line, as in every messenger. inline-flex so the
+     glyph baseline-aligns with the digits instead of riding above them. */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+/* ══ Lesebestaetigungen: Haken auf der eigenen Nachricht ══════════════════ */
+.msg-ticks {
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+  /* The read tick sets its own colour; the rest inherit the time row so they
+     stay quiet. Full opacity because .message-time already dims the row and
+     dimming twice made the glyph disappear on the coral bubble. */
+  opacity: 1;
+  flex: 0 0 auto;
+}
+
+.msg-ticks--read {
+  /* Overrides the inherited dim so "gelesen" is the one state that reads at a
+     glance - that is the whole point of the blue tick. */
+  opacity: 1;
 }
 
 /* Optimistic-send states. Pending is visually almost identical so the
@@ -1938,3 +1962,28 @@
   opacity: 0.7;
   padding: 6px 2px;
 }
+
+/* ══ Nachrichteninfo: wer hat gelesen, wer hat nur empfangen ══════════════ */
+.msg-info-group { margin: 4px 0 10px; }
+
+.msg-info-head {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  opacity: 0.55;
+  margin: 8px 0 6px;
+}
+
+.msg-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 2px;
+  font-size: 14px;
+}
+
+.msg-info-at { opacity: 0.5; font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.msg-info-empty { font-size: 13px; opacity: 0.45; padding: 6px 2px; }
+

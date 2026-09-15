@@ -13,6 +13,7 @@ import { ImageMessage } from '../components/ImageMessage';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { MessageQuote } from '../components/MessageQuote';
 import { mediaUrl } from '../utils/chatMedia';
+import { MessageTicks, tickState } from '../components/MessageTicks';
 import { serverErrorMessage } from '../utils/apiError';
 import { downscaleImageFile } from '../utils/images';
 import { useChatViewport } from '../hooks/useChatViewport';
@@ -98,6 +99,20 @@ export const ChatPage = () => {
     }
   };
 
+  const openMessageInfo = async (msg) => {
+    setActionMsg(null);
+    setInfoMsg(msg);
+    setInfo({ loading: true });
+    try {
+      const res = await messages.getReceipts(msg.id);
+      setInfo(res.data);
+    } catch (err) {
+      setInfo(null);
+      setInfoMsg(null);
+      toast.error(serverErrorMessage(err, t, 'chat.receipts.loadError'));
+    }
+  };
+
   const handleDeleteMessage = async (msg) => {
     if (!window.confirm(t('chat.page.message.confirmDelete'))) return;
     setActionMsg(null);
@@ -174,6 +189,8 @@ export const ChatPage = () => {
         if (cancelled) return;
         const data = response.data;
         const msgs = Array.isArray(data) ? data : (data?.messages ?? []);
+        // Two timestamps, not a flag per bubble - see MessageTicks.tickState.
+        if (data?.receipts) setReceipts(data.receipts);
         safeSetMessageList(msgs);
         setHasMore(Array.isArray(data) ? false : (data?.has_more ?? false));
       } catch (error) {
@@ -208,6 +225,10 @@ export const ChatPage = () => {
       const response = await messages.get(groupId);
       const data = response.data;
       const msgs = Array.isArray(data) ? data : (data?.messages ?? []);
+      // Refresh the watermarks even when no NEW message arrived - a read
+      // receipt is exactly the case where the list is unchanged but the ticks
+      // must move.
+      if (data?.receipts) setReceipts(data.receipts);
       if (!msgs.length) return;
       setMessageList(prev => {
         if (!prev.length) return msgs;
@@ -319,6 +340,17 @@ export const ChatPage = () => {
       setLoadingMore(false);
     }
   };
+
+  // Group receipt watermarks: "everything up to here has been delivered to /
+  // read by EVERY other member". MIN over members, like WhatsApp's group ticks —
+  // so ✓✓ blue means the last person has read it, not the first.
+  const [receipts, setReceipts] = useState({ delivered_through: null, read_through: null });
+  // „Nachrichteninfo" sheet: null = closed, otherwise { loading } or the
+  // resolved { read, delivered, opted_out }. Loaded on demand — the watermarks
+  // above answer the bubble tick, this answers "who exactly", and nobody needs
+  // the second question until they ask it.
+  const [infoMsg, setInfoMsg] = useState(null);
+  const [info, setInfo] = useState(null);
 
   const isSendingRef = useRef(false);
 
@@ -575,6 +607,11 @@ export const ChatPage = () => {
                     {msg._failed
                       ? t('chat.dm.notSent')
                       : new Date(msg.created_at).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}
+                    <MessageTicks state={tickState(msg, {
+                      mine: msg.user_id === user?.id,
+                      deliveredThrough: receipts.delivered_through,
+                      readThrough: receipts.read_through,
+                    })} />
                   </div>
                 </div>
               </Fragment>
@@ -645,6 +682,14 @@ export const ChatPage = () => {
                     {t('chat.page.message.report')}
                   </button>
                 )}
+                {actionMsg.user_id === user?.id && (
+                  <button
+                    className="msg-sheet-btn"
+                    onClick={() => openMessageInfo(actionMsg)}
+                  >
+                    {t('chat.receipts.info')}
+                  </button>
+                )}
                 {(actionMsg.user_id === user?.id || group?.owner_id === user?.id || user?.is_admin) && (
                   <button
                     className="msg-sheet-btn msg-sheet-btn--danger"
@@ -656,6 +701,59 @@ export const ChatPage = () => {
               </>
             )}
             <button className="msg-sheet-btn" onClick={() => setActionMsg(null)}>
+              {t('chat.page.message.cancel')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {infoMsg && (
+        <div className="msg-sheet-backdrop" onClick={() => { setInfoMsg(null); setInfo(null); }} role="presentation">
+          <div className="msg-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="msg-sheet-preview">{t('chat.receipts.infoTitle')}</div>
+            {info?.loading ? (
+              <div className="msg-info-empty">…</div>
+            ) : (
+              <>
+                {/* Without this the sheet would say "Gelesen von: Noch niemand"
+                    to someone who simply switched receipts off - blaming the
+                    other people for a choice the reader made. */}
+                {info?.self_opted_out && (
+                  <div className="msg-info-empty">{t('chat.receipts.selfOptedOut')}</div>
+                )}
+                {!info?.self_opted_out && (
+                <div className="msg-info-group">
+                  <div className="msg-info-head">{t('chat.receipts.readBy')}</div>
+                  {info?.read?.length
+                    ? info.read.map(p => (
+                        <div className="msg-info-row" key={`r-${p.id}`}>
+                          <span>{p.name}</span>
+                          <span className="msg-info-at">
+                            {new Date(p.at).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      ))
+                    : <div className="msg-info-empty">{t('chat.receipts.nobodyYet')}</div>}
+                </div>
+                )}
+                <div className="msg-info-group">
+                  <div className="msg-info-head">{t('chat.receipts.deliveredTo')}</div>
+                  {info?.delivered?.length
+                    ? info.delivered.map(p => (
+                        <div className="msg-info-row" key={`d-${p.id}`}><span>{p.name}</span></div>
+                      ))
+                    : <div className="msg-info-empty">{t('chat.receipts.nobodyYet')}</div>}
+                </div>
+                {/* Named honestly rather than quietly folded into "delivered":
+                    those people may well have read it, we simply are not told. */}
+                {info?.opted_out > 0 && (
+                  <div className="msg-info-empty">
+                    {t('chat.receipts.optedOutFmt', { count: info.opted_out })}
+                  </div>
+                )}
+              </>
+            )}
+            <button className="msg-sheet-btn" onClick={() => { setInfoMsg(null); setInfo(null); }}>
               {t('chat.page.message.cancel')}
             </button>
           </div>

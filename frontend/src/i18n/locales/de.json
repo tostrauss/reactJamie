@@ -860,6 +860,22 @@
       "open": "Foto öffnen",
       "unavailable": "Foto nicht verfügbar",
       "uploadFailed": "Foto konnte nicht gesendet werden."
+    },
+    "receipts": {
+      "state": {
+        "pending": "wird gesendet",
+        "sent": "gesendet",
+        "delivered": "zugestellt",
+        "read": "gelesen"
+      },
+      "infoTitle": "Nachrichteninfo",
+      "readBy": "Gelesen von",
+      "deliveredTo": "Zugestellt an",
+      "nobodyYet": "Noch niemand",
+      "optedOutFmt": "{{count}} ohne Lesebestätigungen",
+      "info": "Info",
+      "loadError": "Infos konnten nicht geladen werden.",
+      "selfOptedOut": "Du hast Lesebestätigungen ausgeschaltet — deshalb siehst du auch nicht, wer gelesen hat."
     }
   },
   "profile": {
@@ -1164,6 +1180,11 @@
       "passwordRequired": "Passwort erforderlich",
       "deleteError": "Fehler beim Löschen",
       "prefSaveError": "Einstellung konnte nicht gespeichert werden"
+    },
+    "privacy": {
+      "title": "Privatsphäre",
+      "readReceipts": "Lesebestätigungen",
+      "readReceiptsHint": "Wenn du das ausschaltest, sieht niemand, ob du Nachrichten gelesen hast — und du siehst es bei anderen auch nicht. Die Zugestellt-Haken bleiben."
     }
   },
   "blockedUsers": {

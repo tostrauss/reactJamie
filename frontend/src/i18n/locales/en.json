@@ -860,6 +860,22 @@
       "open": "Open photo",
       "unavailable": "Photo unavailable",
       "uploadFailed": "Could not send the photo."
+    },
+    "receipts": {
+      "state": {
+        "pending": "sending",
+        "sent": "sent",
+        "delivered": "delivered",
+        "read": "read"
+      },
+      "infoTitle": "Message info",
+      "readBy": "Read by",
+      "deliveredTo": "Delivered to",
+      "nobodyYet": "Nobody yet",
+      "optedOutFmt": "{{count}} with read receipts off",
+      "info": "Info",
+      "loadError": "Could not load the details.",
+      "selfOptedOut": "You turned read receipts off — so you do not see who has read this either."
     }
   },
   "profile": {
@@ -1164,6 +1180,11 @@
       "passwordRequired": "Password required",
       "deleteError": "Could not delete account",
       "prefSaveError": "Could not save setting"
+    },
+    "privacy": {
+      "title": "Privacy",
+      "readReceipts": "Read receipts",
+      "readReceiptsHint": "If you turn this off, nobody can see whether you have read their messages — and you will not see it for other people either. Delivered ticks stay."
     }
   },
   "blockedUsers": {

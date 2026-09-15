@@ -252,6 +252,11 @@ export const auth = {
   
   updateProfile: (data) => 
     axiosInstance.put('/auth/profile', data),
+
+  // Privacy preferences (currently just read_receipts). Own route on purpose:
+  // a read receipt is not a push preference.
+  updatePrivacy: (data) =>
+    axiosInstance.put('/auth/privacy', data),
   
   completeOnboarding: (data) =>
     axiosInstance.put('/auth/onboarding', data),
@@ -589,6 +594,11 @@ export const clubs = {
 // ==========================================
 
 export const messages = {
+  // "Nachrichteninfo": who has read this group message, who has merely
+  // received it. Author-only; the server 403s anyone else.
+  getReceipts: (messageId) =>
+    axiosInstance.get(`/messages/receipts/${messageId}`),
+
   // Send message to group chat.
   // opts: { replyToId } to quote an earlier message in the same group;
   //       { messageType: 'voice', durationMs } for a voice note, where

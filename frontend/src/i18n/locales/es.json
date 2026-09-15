@@ -860,6 +860,22 @@
       "open": "Abrir foto",
       "unavailable": "Foto no disponible",
       "uploadFailed": "No se pudo enviar la foto."
+    },
+    "receipts": {
+      "state": {
+        "pending": "enviando",
+        "sent": "enviado",
+        "delivered": "entregado",
+        "read": "leído"
+      },
+      "infoTitle": "Info del mensaje",
+      "readBy": "Leído por",
+      "deliveredTo": "Entregado a",
+      "nobodyYet": "Todavía nadie",
+      "optedOutFmt": "{{count}} sin confirmaciones de lectura",
+      "info": "Info",
+      "loadError": "No se pudieron cargar los detalles.",
+      "selfOptedOut": "Has desactivado las confirmaciones de lectura — por eso tampoco ves quién lo ha leído."
     }
   },
   "profile": {
@@ -1164,6 +1180,11 @@
       "passwordRequired": "Contraseña requerida",
       "deleteError": "Error al eliminar",
       "prefSaveError": "No se pudo guardar el ajuste"
+    },
+    "privacy": {
+      "title": "Privacidad",
+      "readReceipts": "Confirmaciones de lectura",
+      "readReceiptsHint": "Si lo desactivas, nadie verá si has leído sus mensajes — y tú tampoco lo verás en los demás. Las marcas de entrega se mantienen."
     }
   },
   "blockedUsers": {

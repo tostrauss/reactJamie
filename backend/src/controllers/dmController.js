@@ -3,6 +3,7 @@ import { checkTextSafety } from '../config/moderation.js';
 import { isSafeVoiceUrl, isSafeChatImageUrl } from '../utils/safeUrl.js';
 // One reply shape for group chat and DMs alike — see messageController.
 import { withReply, MEDIA_LABEL } from './messageController.js';
+import { stampDelivered } from '../utils/readReceipts.js';
 import { sendPushToUser } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 
@@ -28,6 +29,14 @@ const ensureDmTables = async () => {
   await db.query(`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS is_read             BOOLEAN DEFAULT FALSE`);
   await db.query(`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS is_deleted_sender   BOOLEAN DEFAULT FALSE`);
   await db.query(`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS is_deleted_receiver BOOLEAN DEFAULT FALSE`);
+  // Kept in step with migrations.js. This self-heal path had drifted three
+  // columns behind (reply_to_id, duration_ms, media_url) — and because
+  // isSchemaError swallows 42703, a healed-but-stale table turned every
+  // conversation into a silent empty array instead of an error anyone saw.
+  await db.query(`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS reply_to_id         INTEGER REFERENCES direct_messages(id) ON DELETE SET NULL`);
+  await db.query(`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS duration_ms         INTEGER`);
+  await db.query(`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS media_url           TEXT`);
+  await db.query(`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS delivered_at        TIMESTAMP`);
 
   await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_sender ON direct_messages(sender_id)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_receiver ON direct_messages(receiver_id)`);
@@ -397,7 +406,14 @@ export const getConversation = async (req, res) => {
 
     const querySql = `
       SELECT dm.id, dm.sender_id, dm.receiver_id, dm.content, dm.message_type, dm.media_url,
-             dm.is_read, dm.is_deleted_sender, dm.is_deleted_receiver, dm.created_at,
+             dm.is_deleted_sender, dm.is_deleted_receiver, dm.created_at,
+             dm.delivered_at,
+             -- Reciprocal, exactly like WhatsApp: the read state is visible
+             -- only when BOTH sides have receipts on. s and r are the sender
+             -- and receiver joins that already exist below, i.e. me and the
+             -- other person in some order.
+             CASE WHEN s.read_receipts AND r.read_receipts THEN dm.is_read
+                  ELSE NULL END AS is_read,
              dm.duration_ms, dm.reply_to_id,
              s.name as sender_name, s.avatar_url as sender_avatar,
              r.name as receiver_name, r.avatar_url as receiver_avatar,
@@ -460,6 +476,11 @@ export const getConversation = async (req, res) => {
 // GET ALL CONVERSATIONS LIST
 // ==========================================
 export const getConversations = async (req, res) => {
+  // The chat list is polled by every client that exists, including the bundled
+  // iOS 1.4.1 renderer — which is exactly why the delivery signal is derived
+  // here instead of from an ack only new clients could send. Detached and
+  // throttled; a receipt must never delay or fail the list.
+  stampDelivered(req.userId).catch(() => {});
   try {
     const sql = `
       SELECT dc.*, u.name as other_user_name, u.avatar_url as other_user_avatar,
@@ -509,18 +530,77 @@ export const markDMRead = async (req, res) => {
       return res.status(400).json({ error: 'Ungültige Nutzer-ID' });
     }
 
+    // Authorization gates the RECEIPT, never the unread counter.
+    //
+    // A blanket 403 here was a real regression: clearing your own unread badge
+    // is not a privilege, and after an unfriend or a block the pair fails
+    // dmAllowed forever — so the badge would have been permanently stuck at
+    // "1 ungelesen" with no way to clear it, silently, on the bundled iOS 1.4.1
+    // renderer most of all. So: counter always, receipt only when the two are
+    // still allowed to talk.
+    const mayReceipt = await dmAllowed(req.userId, userId);
+
     try {
-      await Promise.all([
+      // Both sides' settings, once. Reciprocal like everywhere else: the read
+      // flag is only written — and only announced — when BOTH have receipts on,
+      // which is exactly the predicate getConversation applies when reading it
+      // back. Without the sender half, an opted-out sender watched their own
+      // ticks turn blue live and then drop back to grey on the next reload.
+      const optIn = await db.query(
+        `SELECT
+           COALESCE((SELECT read_receipts FROM users WHERE id = $1::int), FALSE) AS sender,
+           COALESCE((SELECT read_receipts FROM users WHERE id = $2::int), FALSE) AS reader`,
+        [userId, req.userId]
+      );
+      const writeReceipt = mayReceipt && optIn.rows[0].sender && optIn.rows[0].reader;
+
+      // Opening a chat proves delivery regardless of the setting; the read flag
+      // is suppressed AT WRITE TIME, so an opted-out reader generates no read
+      // data at all and no later query can leak it by forgetting a filter.
+      //
+      // `$3` is also in the WHERE, not only in the SET. With the flag only in a
+      // CASE, the WHERE kept matching `is_read = FALSE` on every row of the
+      // thread forever — so every inbound message made an opted-out reader
+      // rewrite the ENTIRE conversation, growing with its length, on precisely
+      // the population that chose the quieter setting.
+      const [, readUpd] = await Promise.all([
         db.query(
           `UPDATE dm_conversations SET unread_count = 0 WHERE user_id = $1::int AND other_user_id = $2::int`,
           [req.userId, userId]
         ),
         db.query(
-          `UPDATE direct_messages SET is_read = TRUE
-           WHERE sender_id = $1::int AND receiver_id = $2::int AND is_read = FALSE`,
-          [userId, req.userId]
+          `UPDATE direct_messages
+              SET is_read      = ($3::bool OR is_read),
+                  delivered_at = COALESCE(delivered_at, NOW())
+            WHERE sender_id = $1::int AND receiver_id = $2::int
+              AND (($3::bool AND is_read = FALSE) OR delivered_at IS NULL)
+        RETURNING id, is_read`,
+          [userId, req.userId, writeReceipt]
         ),
       ]);
+
+      // Tell the SENDER live, or their open thread would keep showing a grey
+      // tick until their next reconnect or foreground refetch — the thing that
+      // makes a read receipt feel instant rather than eventually-correct.
+      // Nothing is emitted when the reader has receipts off, because nothing
+      // was written.
+      // Gated on what THIS call actually did, not on the rows' current state:
+      // `rows.some(is_read)` was true for rows a previous call had already
+      // marked, so an opted-out reader still fired the event.
+      if (writeReceipt && readUpd.rowCount > 0) {
+        try {
+          const room = `dm_${Math.min(req.userId, userId)}_${Math.max(req.userId, userId)}`;
+          req.app?.get('io')?.to(room).emit('dm_read', {
+            readerId: Number(req.userId),
+            senderId: Number(userId),
+            // A watermark, not a list of ids: both chat pages merge refetches by
+            // APPENDING unknown rows and never rewrite one already on screen, so
+            // a per-message flag would go stale on the first reconnect. A single
+            // timestamp re-derives every bubble.
+            readThrough: new Date().toISOString(),
+          });
+        } catch { /* delivery is best-effort; the write is what counts */ }
+      }
     } catch (err) {
       if (isMissingRelationError(err)) {
         await ensureDmTables();

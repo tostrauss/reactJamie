@@ -4,14 +4,31 @@ import { isSafeVoiceUrl, isSafeChatImageUrl } from '../utils/safeUrl.js';
 import { deleteCached } from '../utils/cache.js';
 import { sendPushToUsers } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
+import { groupReceiptWatermarks, messageReceiptDetail } from '../utils/readReceipts.js';
 
 // Stamp the caller's read marker for a group chat and drop their cached
 // joined-groups list (it embeds unread_count, TTL 15s — without the
 // invalidation the nav badge could show stale counts right after reading).
-const stampChatRead = (groupId, userId) =>
+// `receipt` = "this really was a human looking at the newest messages".
+//
+// It is a SEPARATE column from last_read_at, which drives the unread badge.
+// Paging back through history with ?before= legitimately re-stamps the badge
+// marker but must never claim the person read anything new, and a receipt is a
+// claim about a person that we show to someone else — so the two markers are
+// allowed to disagree instead of one being bent to fit the other.
+//
+// The opt-out is applied HERE, at write time: a user with receipts off
+// generates no read data at all, so no future query can leak it by forgetting
+// a filter.
+const stampChatRead = (groupId, userId, { receipt = true } = {}) =>
   db.query(
-    'UPDATE group_members SET last_read_at = NOW() WHERE group_id = $1 AND user_id = $2',
-    [groupId, userId]
+    `UPDATE group_members
+        SET last_read_at = NOW(),
+            receipt_read_at = CASE
+              WHEN $3::bool AND (SELECT read_receipts FROM users WHERE id = $2)
+              THEN NOW() ELSE receipt_read_at END
+      WHERE group_id = $1 AND user_id = $2`,
+    [groupId, userId, receipt]
   ).then(() => deleteCached(`user_groups:${userId}`));
 
 // ── Push discipline for the chat hot path (audit 2026-09-02, risk #8) ──────
@@ -388,11 +405,18 @@ export const getMessages = async (req, res) => {
     if (hasMore) rows.pop(); // remove the extra sentinel row
 
     // Opening the chat reads it — fire-and-forget so the response isn't
-    // delayed. ("Load earlier" pagination re-stamps too; harmless.)
-    stampChatRead(groupId, req.userId).catch(() => {});
+    // delayed. Paging back through history (?before=) still moves the unread
+    // marker, but must NOT count as a read receipt: scrolling up through old
+    // messages is not the same claim as "I have seen your newest message".
+    stampChatRead(groupId, req.userId, { receipt: !before }).catch(() => {});
 
     // Return in chronological order so the UI renders oldest→newest
-    res.json({ messages: rows.reverse(), has_more: hasMore });
+    // Two timestamps re-derive the tick on every bubble. Deliberately NOT a
+    // per-message flag: both chat pages merge refetches by appending unknown
+    // ids and never rewrite a row already on screen, so a per-message flag
+    // would freeze at its first value after any reconnect.
+    const receipts = await groupReceiptWatermarks(groupId, req.userId).catch(() => null);
+    res.json({ messages: rows.reverse(), has_more: hasMore, receipts });
   } catch (error) {
     console.error('Error fetching messages:', error);
     res.status(500).json({ error: 'Nachrichten konnten nicht geladen werden' });
@@ -474,5 +498,55 @@ export const deleteMessage = async (req, res) => {
   } catch (error) {
     console.error('Error deleting message:', error);
     res.status(500).json({ error: 'Nachricht konnte nicht gelöscht werden' });
+  }
+};
+
+
+// ==========================================
+// MESSAGE INFO — who read it, who merely received it („Nachrichteninfo")
+// ==========================================
+// Author-only: this is a list of who has and has not looked at your message.
+//
+// Computed on demand from the per-member watermarks rather than stored, which
+// is what keeps the whole feature free of a row-per-(message × member) table —
+// in a 30-person club chat that would be 30 rows for every message sent.
+export const getMessageReceipts = async (req, res) => {
+  try {
+    const messageId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(messageId)) {
+      return res.status(400).json({ error: 'Ungültige ID' });
+    }
+
+    const msg = await db.query(
+      `SELECT m.id, m.user_id, m.group_id, m.created_at
+         FROM messages m
+        WHERE m.id = $1 AND m.is_deleted = FALSE`,
+      [messageId]
+    );
+    if (msg.rows.length === 0) {
+      return res.status(404).json({ error: 'Nachricht nicht gefunden' });
+    }
+    const row = msg.rows[0];
+    if (Number(row.user_id) !== Number(req.userId)) {
+      return res.status(403).json({ error: 'Keine Berechtigung' });
+    }
+    // Authorship alone is NOT enough. A kicked member still holds the ids of
+    // messages they wrote, and without this the endpoint hands them the current
+    // roster — names, avatars and per-person timestamps — with none of the
+    // gates getGroupMembers enforces (private-club membership, the block
+    // filter, the non-member preview cap).
+    const stillIn = await db.query(
+      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [row.group_id, req.userId]
+    );
+    if (stillIn.rows.length === 0) {
+      return res.status(403).json({ error: 'Keine Berechtigung' });
+    }
+
+    const detail = await messageReceiptDetail(row.group_id, row.created_at, req.userId);
+    res.json(detail);
+  } catch (error) {
+    console.error('Error loading message receipts:', error);
+    res.status(500).json({ error: 'Infos konnten nicht geladen werden' });
   }
 };

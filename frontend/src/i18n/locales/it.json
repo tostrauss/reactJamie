@@ -860,6 +860,22 @@
       "open": "Apri foto",
       "unavailable": "Foto non disponibile",
       "uploadFailed": "Impossibile inviare la foto."
+    },
+    "receipts": {
+      "state": {
+        "pending": "in invio",
+        "sent": "inviato",
+        "delivered": "consegnato",
+        "read": "letto"
+      },
+      "infoTitle": "Info messaggio",
+      "readBy": "Letto da",
+      "deliveredTo": "Consegnato a",
+      "nobodyYet": "Ancora nessuno",
+      "optedOutFmt": "{{count}} senza conferme di lettura",
+      "info": "Info",
+      "loadError": "Impossibile caricare i dettagli.",
+      "selfOptedOut": "Hai disattivato le conferme di lettura — quindi non vedi nemmeno chi ha letto."
     }
   },
   "profile": {
@@ -1164,6 +1180,11 @@
       "passwordRequired": "Password obbligatoria",
       "deleteError": "Errore durante l'eliminazione",
       "prefSaveError": "Impossibile salvare l'impostazione"
+    },
+    "privacy": {
+      "title": "Privacy",
+      "readReceipts": "Conferme di lettura",
+      "readReceiptsHint": "Se disattivi questa opzione, nessuno vedrà se hai letto i messaggi — e non lo vedrai nemmeno tu per gli altri. Le spunte di consegna restano."
     }
   },
   "blockedUsers": {

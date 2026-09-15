@@ -158,7 +158,9 @@ suite('write endpoints against real Postgres', () => {
       sendDM: dm.sendDM, submitReview: rv.submitReview, getPendingReviews: rv.getPendingReviews,
       createDeal: dl.createDeal, redeemDeal: dl.redeemDeal, applyBoost: bo.applyBoost,
       sendMessage: ms.sendMessage, getMessages: ms.getMessages,
-      getConversation: dm.getConversation,
+      getConversation: dm.getConversation, markDMRead: dm.markDMRead,
+      getMessageReceipts: ms.getMessageReceipts,
+      updatePrivacyPreferences: a.updatePrivacyPreferences,
       markChatRead: ms.markChatRead, deleteMessage: ms.deleteMessage,
       createReport: rp.createReport, getReports: rp.getReports,
       updateReportStatus: rp.updateReportStatus,
@@ -1888,6 +1890,231 @@ suite('write endpoints against real Postgres', () => {
       // would have barred every member who ever left or was kicked.
       ok(res);
       expect((await reqRow()).status).toBe('pending');
+    });
+  });
+
+
+  // -- Lesebestaetigungen (Tobi 2026-09-15) ---------------------------------
+  // All of this is SQL: a CASE that hides the read flag unless BOTH sides have
+  // receipts on, two watermark columns, and a MIN() aggregate. A mocked
+  // db.query evaluates none of it.
+  describe('read receipts', () => {
+    let reader, writer, gid;
+
+    it('seed: two users and a group they are both in', async () => {
+      const mk = async (email, name) => (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ($1,$2,'1995-03-03','female',$3,TRUE,'email') RETURNING id`,
+        [email, name, avatar])).rows[0].id;
+      writer = await mk('smoke-rr-writer@x.com', 'Writer');
+      reader = await mk('smoke-rr-reader@x.com', 'Reader');
+      // Friends, so DMs are allowed in both directions.
+      await db.query(
+        `INSERT INTO friendships (requester_id, addressee_id, status) VALUES ($1,$2,'accepted')`,
+        [writer, reader]);
+      gid = (await db.query(
+        `INSERT INTO groups (name, type, date, owner_id, category, location, max_members)
+         VALUES ('Receipts Smoke','group', NOW() + INTERVAL '7 days', $1, 'Sport', 'Wien', 10) RETURNING id`,
+        [writer])).rows[0].id;
+      for (const [u, role] of [[writer, 'owner'], [reader, 'member']]) {
+        await db.query(
+          `INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`,
+          [gid, u, role]);
+      }
+      // Everyone defaults to receipts ON.
+      const d = await db.query('SELECT read_receipts FROM users WHERE id = ANY($1)', [[writer, reader]]);
+      expect(d.rows.every(r => r.read_receipts === true)).toBe(true);
+    });
+
+    it('a DM starts undelivered and unread', async () => {
+      const res = await call(C.sendDM, { userId: writer, body: { receiverId: reader, content: 'hallo' } });
+      ok(res);
+      const row = await db.query(
+        'SELECT is_read, delivered_at FROM direct_messages WHERE id=$1', [res.body.id]);
+      expect(row.rows[0].is_read).toBe(false);
+      expect(row.rows[0].delivered_at).toBe(null);
+    });
+
+    it('markDMRead sets read AND backfills delivered', async () => {
+      ok(await call(C.markDMRead, { userId: reader, params: { userId: String(writer) } }));
+      const row = await db.query(
+        `SELECT is_read, delivered_at FROM direct_messages
+          WHERE sender_id=$1 AND receiver_id=$2 ORDER BY id DESC LIMIT 1`, [writer, reader]);
+      expect(row.rows[0].is_read).toBe(true);
+      // Read can never precede delivered - a receipt that claims otherwise is
+      // a visibly wrong tick.
+      expect(row.rows[0].delivered_at).not.toBe(null);
+    });
+
+    it('markDMRead always lets you clear your OWN badge, but writes no receipt for a stranger', async () => {
+      // A blanket 403 here was a regression: clearing your own unread badge is
+      // not a privilege, and after an unfriend or block the pair fails
+      // dmAllowed forever — the badge would have been stuck at "1 ungelesen"
+      // with no way to clear it.
+      const before = await db.query(
+        `SELECT COUNT(*)::int c FROM direct_messages
+          WHERE sender_id=$1 AND receiver_id=$2 AND is_read = TRUE`, [writer, D]);
+      ok(await call(C.markDMRead, { userId: D, params: { userId: String(writer) } }));
+      const after = await db.query(
+        `SELECT COUNT(*)::int c FROM direct_messages
+          WHERE sender_id=$1 AND receiver_id=$2 AND is_read = TRUE`, [writer, D]);
+      expect(after.rows[0].c).toBe(before.rows[0].c);
+    });
+
+    it('the SENDER opting out suppresses the receipt too — reciprocity is not one-way', async () => {
+      ok(await call(C.updatePrivacyPreferences, { userId: writer, body: { read_receipts: false } }));
+      const sent = await call(C.sendDM, { userId: writer, body: { receiverId: reader, content: 'stumm' } });
+      ok(sent);
+      ok(await call(C.markDMRead, { userId: reader, params: { userId: String(writer) } }));
+      const row = await db.query('SELECT is_read, delivered_at FROM direct_messages WHERE id=$1', [sent.body.id]);
+      // Nothing written at all — an opted-out sender must not be able to watch
+      // their own ticks turn blue live and then revert on the next reload.
+      expect(row.rows[0].is_read).toBe(false);
+      // Delivered is never opt-outable.
+      expect(row.rows[0].delivered_at).not.toBe(null);
+      ok(await call(C.updatePrivacyPreferences, { userId: writer, body: { read_receipts: true } }));
+    });
+
+    it('the read flag is reciprocal: reader turns receipts off, writer stops seeing it', async () => {
+      ok(await call(C.updatePrivacyPreferences, { userId: reader, body: { read_receipts: false } }));
+      const conv = await call(C.getConversation, {
+        userId: writer, params: { userId: String(reader) }, query: { limit: '50' } });
+      ok(conv);
+      const mine = (conv.body || []).filter(m => m.sender_id === writer);
+      expect(mine.length).toBeGreaterThan(0);
+      // Not false - NULL. "I am not telling you" is a different answer from
+      // "they have not read it", and the tick must fall back to delivered.
+      expect(mine.every(m => m.is_read === null)).toBe(true);
+      // Delivered is NOT opt-outable, exactly as in WhatsApp.
+      expect(mine.every(m => m.delivered_at !== null)).toBe(true);
+    });
+
+    it('...and the opted-out reader loses sight of the OTHER side too', async () => {
+      // Reciprocity: turning it off is not a one-way mirror.
+      const res = await call(C.sendDM, { userId: reader, body: { receiverId: writer, content: 'und?' } });
+      ok(res);
+      ok(await call(C.markDMRead, { userId: writer, params: { userId: String(reader) } }));
+      const conv = await call(C.getConversation, {
+        userId: reader, params: { userId: String(writer) }, query: { limit: '50' } });
+      const theirs = (conv.body || []).filter(m => m.sender_id === reader);
+      expect(theirs.every(m => m.is_read === null)).toBe(true);
+    });
+
+    it('turning receipts back on restores it', async () => {
+      ok(await call(C.updatePrivacyPreferences, { userId: reader, body: { read_receipts: true } }));
+      const conv = await call(C.getConversation, {
+        userId: writer, params: { userId: String(reader) }, query: { limit: '50' } });
+      const mine = (conv.body || []).filter(m => m.sender_id === writer);
+      expect(mine.some(m => m.is_read === true)).toBe(true);
+    });
+
+    it('getConversation still returns a BARE ARRAY', async () => {
+      // The bundled iOS 1.4.1 renderer does `res.data || []` then `.filter`.
+      // Wrapping this in an object to carry receipt metadata would white-screen
+      // every iPhone in the field - the single most expensive mistake available
+      // in this feature.
+      const conv = await call(C.getConversation, {
+        userId: writer, params: { userId: String(reader) }, query: { limit: '5' } });
+      expect(Array.isArray(conv.body)).toBe(true);
+    });
+
+    it('group getMessages carries the two watermarks', async () => {
+      ok(await call(C.sendMessage, { userId: writer, body: { groupId: gid, content: 'gruppe hallo' } }));
+      const res = await call(C.getMessages, { userId: writer, params: { groupId: String(gid) }, query: {} });
+      ok(res);
+      expect(res.body).toHaveProperty('receipts');
+      expect(res.body.receipts).toHaveProperty('delivered_through');
+      expect(res.body.receipts).toHaveProperty('read_through');
+    });
+
+    it('paging back through history does NOT count as reading', async () => {
+      const before = (await db.query(
+        'SELECT receipt_read_at FROM group_members WHERE group_id=$1 AND user_id=$2', [gid, reader])).rows[0];
+      await call(C.getMessages, {
+        userId: reader, params: { groupId: String(gid) }, query: { before: '999999' } });
+      await new Promise(r => setTimeout(r, 150)); // the stamp is fire-and-forget
+      const after = (await db.query(
+        'SELECT receipt_read_at, last_read_at FROM group_members WHERE group_id=$1 AND user_id=$2',
+        [gid, reader])).rows[0];
+      // Scrolling up through old messages moves the unread marker but must not
+      // claim "I have seen your newest message".
+      expect(String(after.receipt_read_at)).toBe(String(before.receipt_read_at));
+      expect(after.last_read_at).not.toBe(null);
+    });
+
+    it('opening the chat DOES count, and the author sees who read it', async () => {
+      await call(C.getMessages, { userId: reader, params: { groupId: String(gid) }, query: {} });
+      await new Promise(r => setTimeout(r, 150));
+      const msg = (await db.query(
+        'SELECT id FROM messages WHERE group_id=$1 AND user_id=$2 ORDER BY id DESC LIMIT 1',
+        [gid, writer])).rows[0];
+      const res = await call(C.getMessageReceipts, { userId: writer, params: { id: String(msg.id) } });
+      ok(res);
+      expect(res.body.read.map(p => p.id)).toContain(reader);
+    });
+
+    it('only the author may open the Nachrichteninfo', async () => {
+      const msg = (await db.query(
+        'SELECT id FROM messages WHERE group_id=$1 AND user_id=$2 ORDER BY id DESC LIMIT 1',
+        [gid, writer])).rows[0];
+      const res = await call(C.getMessageReceipts, { userId: reader, params: { id: String(msg.id) } });
+      expect(res.statusCode).toBe(403);
+    });
+
+
+    it('a member who never opened the chat keeps the group ticks grey', async () => {
+      // COALESCE(receipt_read_at, joined_at) — the expression the unread badge
+      // uses — would have turned every older message blue the moment somebody
+      // joined, while the Nachrichteninfo sheet still said "Noch niemand".
+      const newbie = (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ('smoke-rr-newbie@x.com','Newbie','1995-03-03','male',$1,TRUE,'email') RETURNING id`,
+        [avatar])).rows[0].id;
+      await db.query(
+        `INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'member')`,
+        [gid, newbie]);
+      const res = await call(C.getMessages, { userId: writer, params: { groupId: String(gid) }, query: {} });
+      ok(res);
+      expect(res.body.receipts.read_through).toBe(null);
+      // …and delivery is unaffected: they can see the history, so it reached them.
+      expect(res.body.receipts.delivered_through).not.toBe(null);
+      await db.query('DELETE FROM group_members WHERE group_id=$1 AND user_id=$2', [gid, newbie]);
+    });
+
+    it('group receipts are reciprocal: an opted-out viewer gets no read watermark', async () => {
+      await db.query('UPDATE users SET read_receipts = FALSE WHERE id = $1', [writer]);
+      const res = await call(C.getMessages, { userId: writer, params: { groupId: String(gid) }, query: {} });
+      ok(res);
+      expect(res.body.receipts.read_through).toBe(null);
+      expect(res.body.receipts.delivered_through).not.toBe(null);
+      await db.query('UPDATE users SET read_receipts = TRUE WHERE id = $1', [writer]);
+    });
+
+    it('a kicked author can no longer read the roster through Nachrichteninfo', async () => {
+      const msg = (await db.query(
+        'SELECT id FROM messages WHERE group_id=$1 AND user_id=$2 ORDER BY id DESC LIMIT 1',
+        [gid, writer])).rows[0];
+      await db.query('DELETE FROM group_members WHERE group_id=$1 AND user_id=$2', [gid, writer]);
+      // Authorship alone used to be enough — so an ex-member still holding one
+      // of their own message ids got names, avatars and per-person timestamps
+      // for the CURRENT roster, with none of getGroupMembers' gates.
+      const res = await call(C.getMessageReceipts, { userId: writer, params: { id: String(msg.id) } });
+      expect(res.statusCode).toBe(403);
+      await db.query(
+        `INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner') ON CONFLICT DO NOTHING`,
+        [gid, writer]);
+    });
+
+    it('an opted-out member is counted, never silently listed as unread', async () => {
+      await db.query('UPDATE users SET read_receipts = FALSE WHERE id = $1', [reader]);
+      const msg = (await db.query(
+        'SELECT id FROM messages WHERE group_id=$1 AND user_id=$2 ORDER BY id DESC LIMIT 1',
+        [gid, writer])).rows[0];
+      const res = await call(C.getMessageReceipts, { userId: writer, params: { id: String(msg.id) } });
+      ok(res);
+      expect(res.body.read.map(p => p.id)).not.toContain(reader);
+      expect(res.body.opted_out).toBe(1);
+      await db.query('UPDATE users SET read_receipts = TRUE WHERE id = $1', [reader]);
     });
   });
 

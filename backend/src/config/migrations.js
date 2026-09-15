@@ -39,6 +39,8 @@ const CRITICAL_SCHEMA_PROBES = [
   ['push_subscriptions (push delivery)', 'SELECT id FROM push_subscriptions LIMIT 1'],
   // In SAFE_USER_COLS → a silently failed ALTER would 500 EVERY profile load.
   ['users.push_* (Settings toggles, read by every profile SELECT)', 'SELECT push_reminders, push_friends, push_recommendations FROM users LIMIT 1'],
+  ['users.read_receipts (Lesebestaetigungen opt-out)', 'SELECT read_receipts FROM users LIMIT 1'],
+  ['group_members receipt watermarks', 'SELECT last_delivered_at, receipt_read_at FROM group_members LIMIT 1'],
 ];
 
 const runStartupMigrations = async () => {
@@ -1091,6 +1093,44 @@ const runStartupMigrations = async () => {
     await db.query(`ALTER TABLE group_join_requests
       ADD CONSTRAINT group_join_requests_reviewed_by_fkey
       FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL`);
+  });
+
+  // ── Lesebestätigungen (Tobi 2026-09-15) ──────────────────────────────────
+  //
+  // Two watermarks per membership plus one per DM. NO receipt table: a row per
+  // (message × member) would be ~30 rows per message in a club chat, and the
+  // per-member watermark the unread badge already uses answers the same
+  // question for free — "read by X" is just `X.receipt_read_at >= msg.created_at`.
+  //
+  // receipt_read_at is SEPARATE from last_read_at on purpose. last_read_at
+  // drives the unread badge, the app's most-complained-about number, and it is
+  // stamped in places that must NOT count as "the human read this" (paging back
+  // through history with ?before=). Reusing it would have forced the badge to
+  // change behaviour to keep the tick honest. Two columns, 8 bytes each, and
+  // both stay exactly as truthful as they need to be.
+  //
+  // last_delivered_at gets DEFAULT NOW() at ALTER time: every existing member
+  // has demonstrably received everything written so far, so backfilling "now"
+  // is the truthful answer and it stops old history from rendering as
+  // undelivered. receipt_read_at deliberately gets NO default — claiming
+  // someone READ something is a claim we must never fabricate.
+  await migrate('read receipts (Lesebestaetigungen)', async () => {
+    await db.query(`ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS read_receipts BOOLEAN NOT NULL DEFAULT TRUE`);
+    await db.query(`ALTER TABLE group_members
+      ADD COLUMN IF NOT EXISTS last_delivered_at TIMESTAMP DEFAULT NOW()`);
+    await db.query(`ALTER TABLE group_members
+      ADD COLUMN IF NOT EXISTS receipt_read_at TIMESTAMP`);
+    await db.query(`ALTER TABLE direct_messages
+      ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP`);
+    // Anything already read was obviously delivered first. Without this the
+    // whole DM history would render as a single tick after the deploy.
+    await db.query(`UPDATE direct_messages
+                       SET delivered_at = created_at
+                     WHERE delivered_at IS NULL AND is_read = TRUE`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_undelivered
+      ON direct_messages(receiver_id, created_at)
+      WHERE delivered_at IS NULL`);
   });
 
   // Join-request attempt budget (Arno 2026-09-15: "Es gibt Leute die fragen das

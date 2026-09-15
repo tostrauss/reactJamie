@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import db from './config/database.js';
 import { JWT_VERIFY_OPTS, sessionAccepted, invalidateSessionCache } from './middleware/auth.js';
+import { stampDelivered } from './utils/readReceipts.js';
 
 // io reference captured at boot (socketHandler) so revocation works from ANY
 // context — HTTP handlers, crons, scripts — not only where a `req` exists.
@@ -131,6 +132,12 @@ const socketHandler = (io) => {
     // Auto-join the authenticated user's personal notification room
     if (socket.userId) {
       socket.join(`user_${socket.userId}`);
+      // Lesebestaetigungen: a live socket IS the delivery signal. Deriving it
+      // here rather than from a client ack is the whole reason the feature
+      // works on the bundled iOS 1.4.1 renderer, which will never send an ack.
+      // Throttled per user and fully detached — a receipt must never be able to
+      // fail a handshake.
+      stampDelivered(socket.userId).catch(() => {});
     }
 
     // ── Per-socket budget for the DB-touching events ────────────────────

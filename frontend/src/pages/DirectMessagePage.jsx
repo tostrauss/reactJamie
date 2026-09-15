@@ -10,6 +10,7 @@ import { ImageMessage } from '../components/ImageMessage';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { MessageQuote } from '../components/MessageQuote';
 import { mediaUrl } from '../utils/chatMedia';
+import { MessageTicks, tickState } from '../components/MessageTicks';
 import { ReportModal } from '../components/ReportModal';
 import { serverErrorMessage } from '../utils/apiError';
 import { downscaleImageFile } from '../utils/images';
@@ -43,6 +44,11 @@ export const DirectMessagePage = () => {
   const [reportMsg, setReportMsg] = useState(null);
   const [replyTo, setReplyTo] = useState(null);
   const [lightbox, setLightbox] = useState(null);
+  // Read watermark from the live `dm_read` event. Per-message `is_read` already
+  // arrives with the rows; this heals bubbles the append-only catch-up merge
+  // can never rewrite, and makes the tick flip instantly instead of on the next
+  // refetch.
+  const [readThrough, setReadThrough] = useState(null);
   const longPressTimer = useRef(null);
   const lastTypingEmitRef = useRef(0);
   const messagesEndRef = useRef(null);
@@ -69,9 +75,21 @@ export const DirectMessagePage = () => {
         if (!prev.length) return msgs;
         const known = new Set(prev.map(m => m.id));
         const fresh = msgs.filter(m => !known.has(m.id));
-        if (!fresh.length) return prev;
         const overlap = msgs.some(m => known.has(m.id));
-        return overlap ? [...prev, ...fresh] : [...msgs, ...prev.filter(m => m._pending)];
+        if (!overlap && fresh.length) return [...msgs, ...prev.filter(m => m._pending)];
+        // Patch the receipt fields of rows we ALREADY hold before appending.
+        // The merge used to append unknown ids and return early when there were
+        // none — so a refetch whose only news was "this has now been delivered"
+        // threw that news away, and the zugestellt tick could never appear while
+        // the thread stayed open.
+        const byId = new Map(msgs.map(m => [m.id, m]));
+        const patched = prev.map(m => {
+          const s = byId.get(m.id);
+          if (!s) return m;
+          if (s.is_read === m.is_read && s.delivered_at === m.delivered_at) return m;
+          return { ...m, is_read: s.is_read, delivered_at: s.delivered_at };
+        });
+        return fresh.length ? [...patched, ...fresh] : patched;
       });
       markAsRead();
     } catch { /* next tick retries */ }
@@ -107,8 +125,19 @@ export const DirectMessagePage = () => {
           : m)));
     };
 
+    // The other side opened the thread — flip our ticks to blue now.
+    const handleDmRead = (data) => {
+      if (Number(data?.senderId) !== Number(user.id)) return;   // not our messages
+      setReadThrough(prev => {
+        const next = data?.readThrough || null;
+        if (!next) return prev;
+        return !prev || new Date(next) > new Date(prev) ? next : prev;
+      });
+    };
+
     // Listen for incoming messages
     socket.on('receive_dm', handleReceiveDM);
+    socket.on('dm_read', handleDmRead);
     socket.on('dm_deleted', handleDmDeleted);
     socket.on('dm_user_typing', () => setIsTyping(true));
     socket.on('dm_user_stop_typing', () => setIsTyping(false));
@@ -117,6 +146,7 @@ export const DirectMessagePage = () => {
     return () => {
       socket.emit('leave_dm_room', { userId: user.id, otherUserId: parseInt(otherUserId) });
       socket.off('receive_dm', handleReceiveDM);
+      socket.off('dm_read', handleDmRead);
       socket.off('dm_deleted', handleDmDeleted);
       socket.off('dm_user_typing');
       socket.off('dm_user_stop_typing');
@@ -475,6 +505,10 @@ export const DirectMessagePage = () => {
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
+                  <MessageTicks state={tickState(msg, {
+                    mine: msg.sender_id === user.id,
+                    readThrough,
+                  })} />
                 </div>
               </div>
             </Fragment>

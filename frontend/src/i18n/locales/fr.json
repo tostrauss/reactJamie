@@ -860,6 +860,22 @@
       "open": "Ouvrir la photo",
       "unavailable": "Photo indisponible",
       "uploadFailed": "Impossible d’envoyer la photo."
+    },
+    "receipts": {
+      "state": {
+        "pending": "envoi en cours",
+        "sent": "envoyé",
+        "delivered": "distribué",
+        "read": "lu"
+      },
+      "infoTitle": "Infos du message",
+      "readBy": "Lu par",
+      "deliveredTo": "Distribué à",
+      "nobodyYet": "Personne pour le moment",
+      "optedOutFmt": "{{count}} sans confirmation de lecture",
+      "info": "Infos",
+      "loadError": "Impossible de charger les détails.",
+      "selfOptedOut": "Tu as désactivé les confirmations de lecture — tu ne vois donc pas non plus qui a lu."
     }
   },
   "profile": {
@@ -1164,6 +1180,11 @@
       "passwordRequired": "Mot de passe requis",
       "deleteError": "Erreur lors de la suppression",
       "prefSaveError": "Impossible d'enregistrer le réglage"
+    },
+    "privacy": {
+      "title": "Confidentialité",
+      "readReceipts": "Confirmations de lecture",
+      "readReceiptsHint": "Si tu désactives cette option, personne ne verra si tu as lu ses messages — et tu ne le verras pas non plus pour les autres. Les coches de distribution restent."
     }
   },
   "blockedUsers": {

@@ -15,6 +15,7 @@ import { notifyFriendsOfActivity } from '../utils/friendActivity.js';
 import {
   MAX_JOIN_ATTEMPTS, joinAttemptsExhausted, joinBlockedBody, loadJoinAttempt,
 } from '../utils/joinAttempts.js';
+import { stampDelivered } from '../utils/readReceipts.js';
 
 const GROUPS_TTL  = 30_000;  // 30 s — acceptable staleness for list views
 
@@ -1766,6 +1767,10 @@ export const getGroupMembers = async (req, res) => {
 // GET USER'S JOINED GROUPS
 // ==========================================
 export const getUserGroups = async (req, res) => {
+  // Second delivery signal, alongside the socket connect. Both are things every
+  // existing client already does — including the bundled iOS 1.4.1 renderer,
+  // which will never send an ack. Detached and throttled per user.
+  stampDelivered(req.userId).catch(() => {});
   try {
     const cacheKey = `user_groups:${req.userId}`;
     // ?fresh=1 — used by the nav unread badge, which must reflect read
