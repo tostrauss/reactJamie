@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { clubAliveSql } from '../utils/clubGate.js';
 import { geocodeLocation, resolveCreateLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
@@ -203,23 +204,48 @@ export const createClub = async (req, res) => {
   }
 };
 
+// A club owner must keep seeing their own club while it waits for approval —
+// that used to be the reason getClubs keyed its cache per user, at the cost of
+// one full cached page per caller (finding 2). Fetching those few rows
+// separately is cheap (indexed on owner_id) and uncached, so the big page can
+// be shared by everyone.
+//
+// Prepended rather than spliced into the page: a pending club is the caller's
+// own and belongs at the top, and appending inside a LIMIT-ed page would have
+// pushed a legitimately-ranked club off the end.
+async function withOwnPendingClubs(rows, callerId, callerIsAdmin) {
+  if (!callerId || callerIsAdmin) return rows;   // admins already see everything
+  try {
+    const { rows: mine } = await db.query(
+      `SELECT g.*, u.name AS owner_name, u.avatar_url AS owner_avatar,
+              EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS owner_age,
+              '[]'::json AS member_previews, FALSE AS is_boosted
+         FROM groups g
+         LEFT JOIN users u ON u.id = g.owner_id
+        WHERE g.owner_id = $1
+          AND g.type = 'club'
+          AND g.is_active = TRUE
+          AND g.approval_status <> 'approved'
+        ORDER BY g.created_at DESC
+        LIMIT 20`,
+      [callerId]
+    );
+    if (!mine.length) return rows;
+    const seen = new Set(rows.map((r) => r.id));
+    return [...mine.filter((m) => !seen.has(m.id)), ...rows];
+  } catch (err) {
+    // Never fail the listing over the owner's own extra rows.
+    console.error('withOwnPendingClubs failed:', err.message);
+    return rows;
+  }
+}
+
 // ==========================================
 // GET ALL CLUBS (with filters)
 // ==========================================
 export const getClubs = async (req, res) => {
   try {
     const { search, category, location, featured, limit, offset } = req.query;
-
-    // Cache key now includes caller identity so users only see their own pending
-    // clubs in their cached row; admins get the full set.
-    const cacheCallerKey = req.userId || 'anon';
-    const cacheKey = !search && !location
-      ? `clubs:${category || ''}:${featured || ''}:${limit || ''}:${offset || ''}:${cacheCallerKey}`
-      : null;
-    if (cacheKey) {
-      const cached = getCached(cacheKey);
-      if (cached) return res.json(cached);
-    }
 
     // Approval gate: non-admin callers only see approved clubs (or their own).
     // A separate /api/admin/clubs/pending lists everything pending for the
@@ -228,6 +254,31 @@ export const getClubs = async (req, res) => {
     const callerIsAdmin = await db.query('SELECT is_admin FROM users WHERE id = $1', [callerId])
       .then(r => !!r.rows[0]?.is_admin)
       .catch(() => false);
+
+    // Clamp BEFORE building the cache key (audit 2026-09-15, finding 2): the
+    // key used the RAW query strings, so `?limit=20`, `?limit=20x`, `?limit=2e1`
+    // and `?limit=20%20` were four separate cache entries holding the identical
+    // result — 2000 requests/15min per user of free cache-filling.
+    const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+    const safeOffset = Math.max(parseInt(offset, 10) || 0, 0);
+
+    // The key no longer carries the caller's id. It used to, which meant ONE
+    // CACHE ENTRY PER USER per filter combination — each up to 100 rows of
+    // `SELECT g.*` plus an 8-person member_previews blob, in a Map with no size
+    // cap swept only every 5 minutes. 30k people opening the Clubs tab after a
+    // TV spot parked well over a gigabyte that nothing could reclaim in time.
+    //
+    // Only TWO row sets exist: what an admin sees, and the approved-only set
+    // everyone else sees. A caller's own not-yet-approved clubs are merged in
+    // separately below, so they are not what forced per-user keying — and they
+    // must NOT be cached, because they differ per caller.
+    const cacheKey = !search && !location
+      ? `clubs:${category || ''}:${featured || ''}:${safeLimit}:${safeOffset}:adm${callerIsAdmin ? 1 : 0}`
+      : null;
+    if (cacheKey) {
+      const cached = getCached(cacheKey);
+      if (cached) return res.json(await withOwnPendingClubs(cached, callerId, callerIsAdmin));
+    }
 
     let query = `
       SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar,
@@ -253,14 +304,10 @@ export const getClubs = async (req, res) => {
       LEFT JOIN users u ON g.owner_id = u.id
       WHERE g.is_active = TRUE
         AND g.type = $1
-        AND (g.approval_status = 'approved'${callerIsAdmin ? '' : ' OR g.owner_id = $2'})
+        ${callerIsAdmin ? '' : "AND g.approval_status = 'approved'"}
     `;
     const params = [CLUB_TYPE];
     let paramIndex = 2;
-    if (!callerIsAdmin) {
-      params.push(parseInt(callerId, 10) || 0);
-      paramIndex = 3;
-    }
 
     if (search) {
       query += ` AND (g.name ILIKE $${paramIndex} OR g.description ILIKE $${paramIndex})`;
@@ -285,18 +332,18 @@ export const getClubs = async (req, res) => {
     // Boosted clubs first (paid 24h "Top-Platzierung"), then newest.
     query += ` ORDER BY is_boosted DESC, g.created_at DESC`;
 
-    const safeLimit = Math.min(parseInt(limit, 10) || 20, 100);
     query += ` LIMIT $${paramIndex++}`;
     params.push(safeLimit);
-    if (offset) {
-      const safeOffset = Math.max(parseInt(offset, 10) || 0, 0);
+    if (safeOffset > 0) {
       query += ` OFFSET $${paramIndex++}`;
       params.push(safeOffset);
     }
 
     const result = await db.query(query, params);
+    // Cache the SHARED set, then merge the caller's own pending clubs on top.
+    // Merging after the cache write is what keeps the entry caller-independent.
     if (cacheKey) setCached(cacheKey, result.rows, CLUBS_TTL);
-    res.json(result.rows);
+    res.json(await withOwnPendingClubs(result.rows, callerId, callerIsAdmin));
   } catch (err) {
     console.error('Error fetching clubs:', err);
     res.status(500).json({ error: 'Clubs konnten nicht geladen werden' });
@@ -524,12 +571,29 @@ export const deleteClub = async (req, res) => {
   try {
     const { id } = req.params;
 
+    // Platform admins may delete any club, exactly like deleteGroup — the
+    // admin takedown button on the report card and the club page both route
+    // here, and without this they would 403 for everyone but the owner.
+    //
+    // `users.is_admin` is the PLATFORM flag. Deliberately not
+    // `group_members.role = 'admin'`, which is a club CO-MANAGER — a different
+    // thing wearing the same word. A co-manager may edit and create events;
+    // deleting the club stays with its owner and the platform team.
     const club = await db.query(
-      'SELECT owner_id, name FROM groups WHERE id = $1 AND type = $2 AND deleted_at IS NULL',
-      [id, CLUB_TYPE]
+      `SELECT g.owner_id, g.name,
+              (SELECT is_admin FROM users WHERE id = $3) AS caller_is_admin
+         FROM groups g WHERE g.id = $1 AND g.type = $2 AND g.deleted_at IS NULL`,
+      [id, CLUB_TYPE, req.userId]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
-    if (Number(club.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
+    {
+      const isOwner = Number(club.rows[0].owner_id) === Number(req.userId);
+      const isAdmin = !!club.rows[0].caller_is_admin;
+      if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Keine Berechtigung' });
+      if (isAdmin && !isOwner) {
+        console.log(`[admin] user ${req.userId} deleted club ${id} ("${club.rows[0].name}")`);
+      }
+    }
 
     // Members to notify (except the owner), read before the soft-delete.
     const members = await db.query(
@@ -1398,11 +1462,24 @@ export const getDiscoverEvents = async (req, res) => {
          AND e.is_active = TRUE
          AND e.deleted_at IS NULL
          AND (e.date IS NULL OR e.date >= CURRENT_DATE)
-         AND c.type = $1
-         AND c.deleted_at IS NULL
+         -- Gate on the LIVE parent club, not on the event row's own columns:
+         -- those are a creation-time snapshot (approval_status inherits the
+         -- 'approved' column default). Without this, an event created under a
+         -- still-pending club was served — name, image and address — to every
+         -- visitor of the public Events page within 60 s, while the club
+         -- itself sat correctly invisible in the moderation queue; and a
+         -- REJECTED club's events stayed public forever. Cancelled clubs
+         -- (is_active = FALSE, deleted_at untouched) likewise, which finally
+         -- makes cancelClub's own "drop its events from discovery" comment
+         -- true. Audit 2026-09-15, findings 3 + 10.
+         --
+         -- NOT gated on is_private: Robert 2026-06-17 deliberately shows
+         -- private clubs' events here, and the row returns c.is_private for
+         -- the badge. The map does gate on it — see utils/clubGate.js.
+         AND ${clubAliveSql('c')}
        ORDER BY e.date ASC NULLS LAST
        LIMIT 200`,
-      [CLUB_TYPE]
+      []
     );
     setCached(DISCOVER_EVENTS_KEY, result.rows, DISCOVER_EVENTS_TTL);
     res.json(result.rows);

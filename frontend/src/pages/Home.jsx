@@ -11,7 +11,7 @@ import { JamieWordmark } from "../components/JamieWordmark";
 import { AuthContext } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { CATEGORY_HIERARCHY } from "../utils/categories";
-import { nextOccurrence } from "../utils/recurrence";
+import { nextOccurrence, isHappeningSoon, viennaTodayUTC } from "../utils/recurrence";
 import useOnPullRefresh from "../hooks/useOnPullRefresh";
 import "../styles/home.css";
 
@@ -91,6 +91,15 @@ const AgeRangeSlider = ({ value, onChange }) => {
 
 export const Home = () => {
   const [groupList, setGroupList] = useState([]);
+  // Paging for the Gruppen feed (audit 2026-09-15, finding 21). The server
+  // clamps a page at 100 rows and EVERY filter below runs client-side over
+  // whatever arrived — so once one country's corpus of upcoming, age-matching
+  // groups passes 100, picking "Sport" searched only the newest 100 and the
+  // feed simply ended at group 100 with no way to continue. Invisible at ~1300
+  // users, a wall the moment it is not.
+  const GROUPS_PAGE = 100;
+  const [groupsHasMore, setGroupsHasMore] = useState(false);
+  const [groupsLoadingMore, setGroupsLoadingMore] = useState(false);
   const [clubList, setClubList] = useState([]);
   const [dealList, setDealList] = useState([]);
   const [myClubs, setMyClubs] = useState([]);
@@ -169,7 +178,7 @@ export const Home = () => {
           // but only those of PUBLIC clubs (Tobi 2026-09-04). The server decides
           // that against the live parent club; nothing is filtered here, so a
           // private club's events never reach the client at all.
-          api.get("/groups", { params: { type: "group", upcoming: "true", include_club_events: "true" } }),
+          api.get("/groups", { params: { type: "group", upcoming: "true", include_club_events: "true", limit: GROUPS_PAGE, offset: 0 } }),
           groups.getFavorites().catch(() => ({ data: [] })),
           groups.getJoined().catch(() => ({ data: [] })),
           clubs.getJoined().catch(() => ({ data: [] })),
@@ -177,6 +186,10 @@ export const Home = () => {
         ]);
         if (isStale()) return;
         setGroupList(groupsRes.data || []);
+        // A full page means there is probably another one. The server's ORDER
+        // BY carries an explicit `g.id DESC` tie-breaker added specifically so
+        // LIMIT/OFFSET paging cannot repeat or skip a row across boundaries.
+        setGroupsHasMore((groupsRes.data || []).length >= GROUPS_PAGE);
         setDealList(dealsRes.data || []);
         setFavorites(new Set((favGroupsRes.data || []).map(g => g.id)));
         setJoined(new Set([
@@ -222,44 +235,47 @@ export const Home = () => {
     // in the past but whose card badge reads "Heute"/"Morgen") are matched by
     // the date filters instead of silently dropped.
     const d = nextOccurrence(item) || new Date(item.date);
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // `d` is UTC-TAGGED wall-clock (see the contract note in utils/recurrence).
+    // Every boundary below must therefore be built with UTC arithmetic: the old
+    // local-getter version put an event at 22:00 Vienna on the NEXT calendar
+    // day, so the "Heute" filter hid exactly the events happening tonight while
+    // the card next to it was badged "Heute". The 'ganztags' branch below has
+    // used getUTC* since it was written — this is the rest of the function
+    // catching up to it.
+    const today = new Date(viennaTodayUTC());
+    const plusDays = (base, n) => {
+      const x = new Date(base);
+      x.setUTCDate(x.getUTCDate() + n);
+      return x;
+    };
 
     if (zeitFilter === 'zeitraum') {
       if (zeitFrom) {
+        // <input type="date"> values parse as UTC midnight already.
         const from = new Date(zeitFrom);
         if (d < from) return false;
       }
       if (zeitTo) {
         const to = new Date(zeitTo);
-        to.setHours(23, 59, 59, 999);
+        to.setUTCHours(23, 59, 59, 999);
         if (d > to) return false;
       }
       return true;
     }
     if (zeitFilter === 'heute') {
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      return d >= today && d < tomorrow;
+      return d >= today && d < plusDays(today, 1);
     }
     if (zeitFilter === 'woche') {
-      const weekEnd = new Date(today);
-      weekEnd.setDate(weekEnd.getDate() + 7);
-      return d >= today && d < weekEnd;
+      return d >= today && d < plusDays(today, 7);
     }
     if (zeitFilter === 'wochenende') {
-      const day = today.getDay();
-      let sat;
-      if (day === 6) sat = today;
-      else if (day === 0) { sat = new Date(today); sat.setDate(today.getDate() - 1); }
-      else { sat = new Date(today); sat.setDate(today.getDate() + (6 - day)); }
-      const monAfter = new Date(sat);
-      monAfter.setDate(sat.getDate() + 2);
-      return d >= sat && d < monAfter;
+      const day = today.getUTCDay();
+      const sat = day === 6 ? today : day === 0 ? plusDays(today, -1) : plusDays(today, 6 - day);
+      return d >= sat && d < plusDays(sat, 2);
     }
     if (zeitFilter === 'monat') {
       const monthEnd = new Date(today);
-      monthEnd.setMonth(monthEnd.getMonth() + 1);
+      monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
       return d >= today && d < monthEnd;
     }
     if (zeitFilter === 'ganztags') {
@@ -329,6 +345,64 @@ export const Home = () => {
     matchesZeit(g) && matchesAlter(g) && matchesSicht(g) && matchesKategorie(g)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [groupList, searchQuery, zeitFilter, zeitFrom, zeitTo, alterFilter, sichtFilter, kategorieFilter]);
+
+  // Append the next page. Respects loadSeqRef so a tab switch mid-flight can
+  // never append a stale page onto a list that has since been replaced.
+  //
+  // Deliberately NOT forwarding `search` to the server: loadData does not
+  // re-run on searchQuery (the client predicate filters instantly, with no
+  // skeleton flash), so a search param here would describe a different query
+  // than the one the existing rows came from, and page 2 would not belong with
+  // page 1. Server-side search needs its own debounced refetch path — worth
+  // doing, but it is a change to how the search box behaves, not to paging.
+  const loadMoreGroups = async () => {
+    if (groupsLoadingMore || !groupsHasMore) return;
+    const seq = loadSeqRef.current;
+    setGroupsLoadingMore(true);
+    try {
+      const res = await api.get("/groups", { params: {
+        type: "group", upcoming: "true", include_club_events: "true",
+        limit: GROUPS_PAGE, offset: groupList.length,
+      } });
+      if (seq !== loadSeqRef.current) return;
+      const page = res.data || [];
+      // De-duplicate defensively: a group created between the two requests
+      // shifts the offset window by one.
+      setGroupList(prev => {
+        const seen = new Set(prev.map(g => g.id));
+        return [...prev, ...page.filter(g => !seen.has(g.id))];
+      });
+      setGroupsHasMore(page.length >= GROUPS_PAGE);
+    } catch {
+      // Keep what we have; the button stays available for another try.
+    } finally {
+      // Unconditionally — the earlier `if (seq === loadSeqRef.current)` guard
+      // meant a tab switch mid-request left this stuck true forever, and the
+      // "Mehr laden" button then stayed disabled for the rest of the session.
+      // The guard belongs on the STATE WRITES above (appending a stale page),
+      // never on releasing a loading flag.
+      setGroupsLoadingMore(false);
+    }
+  };
+
+  // ── "Heute & Morgen" zuerst ──────────────────────────────────────────────
+  // Tobi 2026-09-15: the feed leads with what is actually about to happen.
+  // The SERVER already returns the rows in this order (groupController
+  // IS_IMMINENT_SQL) — that is the part that matters, because the feed is
+  // LIMIT-ed and a re-sort here could never surface a group the LIMIT cut off.
+  // This split only draws the two headers, using the same rule that paints the
+  // card badge, so the block and the badges can never disagree.
+  //
+  // `.filter` preserves the server order, so within each block the cards stay
+  // exactly as the backend ranked them (soonest first, then newest-first).
+  const imminentGroups = useMemo(
+    () => filteredGroups.filter(isHappeningSoon),
+    [filteredGroups],
+  );
+  const laterGroups = useMemo(
+    () => filteredGroups.filter((g) => !isHappeningSoon(g)),
+    [filteredGroups],
+  );
 
   // Clubs are MULTI-category: normalizeCategories stores up to 3 in
   // groups.categories (text[]) and `category` is only categories[0]. Reading
@@ -417,6 +491,42 @@ export const Home = () => {
       ))}
     </div>
   );
+
+  // Renders one block of the Gruppen feed. `indexOffset` continues the
+  // sponsored-deal cadence across the two blocks so splitting the feed into
+  // "Heute & Morgen" + "Weitere Gruppen" doesn't reset the counter and double
+  // up deal slots (Robert's spec: every 8th card, over the whole feed).
+  const renderGroupCards = (list, indexOffset = 0) =>
+    list.map((group, i) => {
+      const idx = indexOffset + i;
+      // Deals only inject into the unfiltered browse feed — when the user
+      // searches/filters we skip the sponsored slots so they don't pollute
+      // targeted results.
+      const isPlainBrowse = !searchQuery.trim() && activeFilterCount === 0;
+      const showDealAfter =
+        isPlainBrowse &&
+        dealList.length > 0 &&
+        (idx + 1) % DEAL_INTERVAL_HOME === 0;
+      const dealIdx = Math.floor((idx + 1) / DEAL_INTERVAL_HOME) - 1;
+      const deal = showDealAfter ? dealList[dealIdx % dealList.length] : null;
+      return (
+        <React.Fragment key={group.id}>
+          <GroupCard
+            group={group}
+            isFavorite={favorites.has(group.id)}
+            isJoined={joined.has(group.id)}
+            onFavorite={handleFavorite}
+            onJoin={handleJoin}
+            onChat={handleChat}
+            onWaitlist={handleWaitlist}
+            onClick={() => handleCardClick(group.id, group.type)}
+          />
+          {deal && (
+            <DealCard key={`deal-home-${idx}-${deal.id}`} deal={deal} variant="home" />
+          )}
+        </React.Fragment>
+      );
+    });
 
   // ── Event handlers ───────────────────────────────────────────────
   const handleFavorite = async (groupId) => {
@@ -598,38 +708,47 @@ export const Home = () => {
         {activeTab === 'gruppen' && (
           <div className="groups-feed">
             {loading ? renderFeedSkeleton(6) : filteredGroups.length > 0 ? (
-              <div className="groups-grid">
-                {filteredGroups.map((group, idx) => {
-                  // Deals only inject into the unfiltered browse feed — when
-                  // the user searches/filters we skip the sponsored slots so
-                  // they don't pollute targeted results.
-                  const isPlainBrowse =
-                    !searchQuery.trim() && activeFilterCount === 0;
-                  const showDealAfter =
-                    isPlainBrowse &&
-                    dealList.length > 0 &&
-                    (idx + 1) % DEAL_INTERVAL_HOME === 0;
-                  const dealIdx = Math.floor((idx + 1) / DEAL_INTERVAL_HOME) - 1;
-                  const deal = showDealAfter ? dealList[dealIdx % dealList.length] : null;
-                  return (
-                    <React.Fragment key={group.id}>
-                      <GroupCard
-                        group={group}
-                        isFavorite={favorites.has(group.id)}
-                        isJoined={joined.has(group.id)}
-                        onFavorite={handleFavorite}
-                        onJoin={handleJoin}
-                        onChat={handleChat}
-                        onWaitlist={handleWaitlist}
-                        onClick={() => handleCardClick(group.id, group.type)}
-                      />
-                      {deal && (
-                        <DealCard key={`deal-home-${idx}-${deal.id}`} deal={deal} variant="home" />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </div>
+              <>
+                {/* Headers only appear when there IS something imminent —
+                    otherwise the feed looks exactly as it always did instead
+                    of carrying a lonely "Weitere Gruppen" label. */}
+                {imminentGroups.length > 0 && (
+                  <>
+                    <div className="section-header">
+                      <h2 className="section-heading">{t('home.sections.imminent')}</h2>
+                      <span className="section-count">{imminentGroups.length}</span>
+                    </div>
+                    <div className="groups-grid">
+                      {renderGroupCards(imminentGroups, 0)}
+                    </div>
+                  </>
+                )}
+                {laterGroups.length > 0 && (
+                  <>
+                    {imminentGroups.length > 0 && (
+                      <div className="section-header groups-section-header--later">
+                        <h2 className="section-heading">{t('home.sections.laterGroups')}</h2>
+                        <span className="section-count">{laterGroups.length}</span>
+                      </div>
+                    )}
+                    <div className="groups-grid">
+                      {renderGroupCards(laterGroups, imminentGroups.length)}
+                    </div>
+                  </>
+                )}
+                {/* The feed used to simply stop at row 100 with no way on.
+                    Appended pages re-split into the two blocks above, because
+                    a later page can contain something happening tomorrow. */}
+                {groupsHasMore && (
+                  <button
+                    className="groups-load-more"
+                    onClick={loadMoreGroups}
+                    disabled={groupsLoadingMore}
+                  >
+                    {groupsLoadingMore ? t('home.loadMoreLoading') : t('home.loadMore')}
+                  </button>
+                )}
+              </>
             ) : (
               <div className="empty-state">
                 <div className="empty-icon">🔍</div>

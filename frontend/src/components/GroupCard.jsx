@@ -2,7 +2,7 @@ import { memo, useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
-import { nextOccurrence } from '../utils/recurrence';
+import { nextOccurrence, parseDateDescriptor } from '../utils/recurrence';
 import { isNativeIOS, purchasesEnabled } from '../utils/platform';
 import { thumbUrl } from '../utils/images';
 
@@ -38,33 +38,6 @@ const AvatarImage = memo(({ src, alt, fallbackChar, placeholderStyle }) => {
     />
   );
 });
-
-// Parse a date string into a locale-agnostic descriptor. Returns one of:
-//   { kind: 'today'|'tomorrow'|'yesterday', time }
-//   { kind: 'date', date, time }
-// Locale-specific text composition happens in the component using t().
-function parseDateDescriptor(dateInput, locale) {
-  if (!dateInput) return null;
-  try {
-    const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
-    if (isNaN(d.getTime())) return null;
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const day   = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    const diff  = Math.round((day - today) / 86400000);
-    const time  = d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
-    if (diff === 0)  return { kind: 'today',     time };
-    if (diff === 1)  return { kind: 'tomorrow',  time };
-    if (diff === -1) return { kind: 'yesterday', time };
-    return {
-      kind: 'date',
-      date: d.toLocaleDateString(locale, { day: '2-digit', month: 'short' }),
-      time,
-    };
-  } catch {
-    return null;
-  }
-}
 
 export const GroupCard = memo(({
   group,

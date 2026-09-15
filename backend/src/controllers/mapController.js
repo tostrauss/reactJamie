@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { parentClubGateSql } from '../utils/clubGate.js';
 import { getCached, setCached } from '../utils/cache.js';
 import { geocodeAllowedRegion } from '../utils/geocode.js';
 
@@ -92,6 +93,17 @@ export const getMapPins = async (req, res) => {
         -- Don't expose private groups' exact coordinates on the public,
         -- unauthenticated map (mirrors suggestionController's filter).
         AND g.is_private IS NOT TRUE
+        -- ...and the same for a club EVENT whose parent club is not live.
+        -- The map had no parent-club join at all: it judged an event by the
+        -- event row's own approval_status (which inherits the 'approved'
+        -- column default) and its own is_private (a copy taken when the event
+        -- was created). So a pending club's events were on the public,
+        -- unauthenticated map with their exact address; a rejected club's
+        -- stayed; and flipping a club to private left its existing events'
+        -- coordinates exposed — defeating the filter directly above this one.
+        -- Audit 2026-09-15, finding 10. requirePublic belongs here (unlike the
+        -- Discover feed) precisely because of that coordinate invariant.
+        AND ${parentClubGateSql('g', { requirePublic: true })}
         -- Hide PAST dated entries always (even on "Alle"): groups + club events
         -- have a date, so once it's in the past the pin is stale. Clubs have no
         -- date (NULL) → always shown as ongoing venues. Future events appear.

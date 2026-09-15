@@ -123,7 +123,11 @@ export const ChatList = () => {
             // Sender + text separat, damit der Absender im Preview leicht
             // fetter gerendert werden kann (Tobi 2026-08-05).
             lastSender: g.last_message ? (g.last_message_sender || '') : '',
-            lastText: g.last_message || '',
+            // A voice message stores a URL in content — show a label, never
+            // "/media/uploads/abc.webm", as the chat-list preview.
+            lastText: g.last_message_type === 'voice' ? t('chat.voice.label')
+              : g.last_message_type === 'image' ? t('chat.photo.label')
+              : (g.last_message || ''),
             // ts = raw last-activity epoch for the merged sort across kinds.
             ts: g.last_message_time ? new Date(g.last_message_time).getTime() : 0,
             time: g.last_message_time ? formatTime(g.last_message_time) : '',
@@ -143,7 +147,9 @@ export const ChatList = () => {
         id: dm.other_user_id,
         name: dm.other_user_name,
         lastSender: '', // 1:1-Chat — Absender ist klar, kein Prefix
-        lastText: dm.last_message_text || '',
+        lastText: dm.last_message_type === 'voice' ? t('chat.voice.label')
+          : dm.last_message_type === 'image' ? t('chat.photo.label')
+          : (dm.last_message_text || ''),
         ts: dm.last_message_at ? new Date(dm.last_message_at).getTime() : 0,
         time: dm.last_message_at ? formatTime(dm.last_message_at) : '',
         unread: dm.unread_count || 0,
@@ -198,7 +204,9 @@ export const ChatList = () => {
       if (!row) return prev;
       return bumpToTop(prev, id, {
         lastSender: data.user_name || '',
-        lastText: data.content || '',
+        lastText: data.message_type === 'voice' ? t('chat.voice.label')
+          : data.message_type === 'image' ? t('chat.photo.label')
+          : (data.content || ''),
         time: formatTime(new Date().toISOString()),
         unread: (row.unread || 0) + 1,
       });
@@ -211,7 +219,9 @@ export const ChatList = () => {
       if (!row) return prev;
       return bumpToTop(prev, data.group_id, {
         lastSender: data.user_name || '',
-        lastText: data.content || '',
+        lastText: data.message_type === 'voice' ? t('chat.voice.label')
+          : data.message_type === 'image' ? t('chat.photo.label')
+          : (data.content || ''),
         time: formatTime(new Date().toISOString()),
         unread: (row.unread || 0) + 1,
       });
@@ -219,9 +229,9 @@ export const ChatList = () => {
   };
 
   const handleNewDM = (data) => {
-    const preview = typeof data.message === 'string'
-      ? data.message
-      : (data.message?.content || '');
+    const preview = data.message_type === 'voice' ? t('chat.voice.label')
+      : data.message_type === 'image' ? t('chat.photo.label')
+      : (typeof data.message === 'string' ? data.message : (data.message?.content || ''));
     setPrivateChats(prev => {
       const row = prev.find(c => c.id === data.senderId);
       // First-ever DM from a new friend has no row yet — refetch (silently,
@@ -423,6 +433,14 @@ export const ChatList = () => {
   const visibleChats  = filteredChats.filter(c => !c.archived);
   const hiddenChats   = filteredChats.filter(c => c.archived);
 
+  // When the visible list is empty but hidden chats exist, open the section
+  // rather than making the user also discover a collapsed toggle to get back
+  // to the conversations they just tidied away. Runs on the transition only,
+  // so a deliberate collapse afterwards sticks.
+  useEffect(() => {
+    if (visibleChats.length === 0 && hiddenChats.length > 0) setShowHidden(true);
+  }, [visibleChats.length, hiddenChats.length]);
+
   const searchQuery     = search.trim().toLowerCase();
   const filteredVisible = searchQuery
     ? visibleChats.filter(c => (c.name || '').toLowerCase().includes(searchQuery))
@@ -443,6 +461,12 @@ export const ChatList = () => {
   const ownedEntities = groupChats.filter(c => c.isOwner);
 
   const emptyStateForFilter = () => {
+    // "Noch keine Chats" directly above three hidden ones is a contradiction —
+    // say what is actually true and drop the CTA, since the fix is the
+    // "Einblenden" button rendered right below rather than joining a group.
+    if (hiddenChats.length > 0) {
+      return { icon: '🙈', text: t('chat.list.empty.allHidden'), cta: null };
+    }
     if (filter === 'gruppen')   return { icon: '💬', text: t('chat.list.empty.noGroupChats'), cta: t('chat.list.empty.joinGroupHint'), to: '/home' };
     if (filter === 'clubs')     return { icon: '🏆', text: t('chat.list.empty.noClubChats'), cta: t('chat.list.empty.discoverClubsHint'), to: '/home' };
     if (filter === 'freunde')   return { icon: '💬', text: t('chat.list.empty.noChats'), cta: t('chat.list.empty.toFriends'), to: '/friends' };
@@ -611,27 +635,38 @@ export const ChatList = () => {
               </div>
             )}
 
-            {loading ? renderSkeletonRows() : visibleChats.length === 0 ? (
-              (() => {
-                const es = emptyStateForFilter();
-                return (
-                  <div className="empty-state">
-                    <div className="empty-icon">{es.icon}</div>
-                    <p>{es.text}</p>
-                    {es.cta && (
-                      <button className="empty-hint" onClick={() => navigate(es.to)}>{es.cta}</button>
-                    )}
-                  </div>
-                );
-              })()
-            ) : (
+            {/* renderHiddenSection sits OUTSIDE the empty/non-empty branch
+                (audit 2026-09-15, finding 19). It used to live in the else,
+                so hiding the last visible chat of a filter took the whole
+                "Ausgeblendete Chats" section with it — and with it the only
+                "Einblenden" button in the app. Archiving is a one-tap
+                long-press with no confirmation, so that state was easy to
+                reach and impossible to leave from this screen. */}
+            {loading ? renderSkeletonRows() : (
               <>
-                {searchQuery && filteredVisible.length === 0 && (
-                  <p className="chat-search-empty">{t('chat.list.noResults')}</p>
+                {visibleChats.length === 0 ? (
+                  (() => {
+                    const es = emptyStateForFilter();
+                    return (
+                      <div className="empty-state">
+                        <div className="empty-icon">{es.icon}</div>
+                        <p>{es.text}</p>
+                        {es.cta && (
+                          <button className="empty-hint" onClick={() => navigate(es.to)}>{es.cta}</button>
+                        )}
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <>
+                    {searchQuery && filteredVisible.length === 0 && (
+                      <p className="chat-search-empty">{t('chat.list.noResults')}</p>
+                    )}
+                    <div className="chat-list">
+                      {filteredVisible.map(renderChatRow)}
+                    </div>
+                  </>
                 )}
-                <div className="chat-list">
-                  {filteredVisible.map(renderChatRow)}
-                </div>
                 {renderHiddenSection()}
               </>
             )}

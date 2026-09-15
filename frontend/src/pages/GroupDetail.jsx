@@ -1,6 +1,7 @@
 import { useState, useEffect, useContext, Suspense } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { serverErrorMessage } from '../utils/apiError';
 import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
 import { MapErrorBoundary } from '../components/MapErrorBoundary';
 import { groups, clubs, reviews } from '../utils/api';
@@ -12,7 +13,7 @@ import { UserName } from '../components/UserName';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { EventReviewModal } from '../components/EventReviewModal';
 import AvatarGateModal from '../components/AvatarGateModal';
-import { nextOccurrence } from '../utils/recurrence';
+import { nextOccurrence, utcDayStart, viennaTodayUTC } from '../utils/recurrence';
 import { shareLink } from '../utils/share';
 import { openCalendar } from '../utils/calendarExport';
 import { isNativeIOS } from '../utils/platform';
@@ -100,11 +101,13 @@ function GroupMiniMap({ lat, lng }) {
 // "Heute"/"Morgen" instead of the literal date when the event is that close
 // (Tina, 2026-06-12) — same behavior the Home cards already have. Reuses the
 // groups.card.* keys so card and detail page always say the same word.
+// UTC on both sides — `d` is a Vienna wall-clock value tagged UTC, exactly as
+// formatEventDate below already assumes. Reading it with the local getters put
+// a 22:00 event on the next calendar day, so this header said "Morgen" while
+// the info row four lines down said "15. Sep, 22:00" — two contradictory days
+// on one screen (finding 18).
 const relativeDayLabel = (d, t) => {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const diff = Math.round((day - today) / 86400000);
+  const diff = Math.round((utcDayStart(d) - viennaTodayUTC()) / 86400000);
   if (diff === 0) return t('groups.card.dateHeute');
   if (diff === 1) return t('groups.card.dateMorgen');
   return null;
@@ -116,9 +119,9 @@ const formatHeaderDate = (dateStr, locale, t) => {
   if (isNaN(d)) return null;
   const rel = relativeDayLabel(d, t);
   if (rel) return rel;
-  const weekday = d.toLocaleDateString(locale, { weekday: 'long' });
-  const day = d.getDate();
-  const month = d.getMonth() + 1;
+  const weekday = d.toLocaleDateString(locale, { weekday: 'long', timeZone: 'UTC' });
+  const day = d.getUTCDate();
+  const month = d.getUTCMonth() + 1;
   return `${weekday} - ${day}.${month}.`;
 };
 
@@ -128,7 +131,7 @@ const formatShortDate = (dateStr, t) => {
   if (isNaN(d)) return null;
   const rel = relativeDayLabel(d, t);
   if (rel) return rel;
-  return `${d.getDate()}.${d.getMonth() + 1}.`;
+  return `${d.getUTCDate()}.${d.getUTCMonth() + 1}.`;
 };
 
 const formatEventDate = (dateStr, locale) => {
@@ -171,6 +174,7 @@ export const GroupDetail = () => {
   const [loading, setLoading] = useState(true);
   const [isJoined, setIsJoined] = useState(false);
   const [joinRequestStatus, setJoinRequestStatus] = useState(null);
+  const [joinBusy, setJoinBusy] = useState(false);
   const [waitlistStatus, setWaitlistStatus] = useState(null);
   const [waitlistPosition, setWaitlistPosition] = useState(null);
   const [waitlistLoading, setWaitlistLoading] = useState(false);
@@ -297,6 +301,25 @@ export const GroupDetail = () => {
   const handleJoinToggle = async () => {
     // Join gate: no profile photo → prompt to upload first (Tina 2026-08-02).
     if (!isJoined && !user?.avatar_url) { setShowAvatarGate(true); return; }
+    if (joinBusy) return;   // the round trip below is 3-4 requests long
+    // Leaving confirms, like every other destructive action in the app
+    // (delete group, delete event, delete club, remove member, remove friend).
+    // It was the one outlier, on a button that sits right under the map where
+    // a thumb brushes it while scrolling — and it is not a quiet local toggle:
+    // the server posts a permanent "… hat die Gruppe verlassen 👋" system
+    // message into the chat everyone reads and hands the freed seat to the
+    // waitlist immediately. On a full group that cannot be undone, because
+    // re-joining then answers "Group is full". The wording names the real cost,
+    // which is the rejoin cap rather than the chat message.
+    // Placed in the handler, not on the button, so all call sites are covered.
+    if (isJoined) {
+      const isClubEntity = group?.type === 'club';
+      const msg = isClubEntity
+        ? t('clubDetail.confirmLeave')
+        : t('groups.detail.delete.confirmLeave');
+      if (!window.confirm(msg)) return;
+    }
+    setJoinBusy(true);
     try {
       const isClub = group?.type === 'club';
       if (isJoined) {
@@ -325,7 +348,9 @@ export const GroupDetail = () => {
       // miss a stale `user` (avatar removed on another device) — the backend
       // 403s with requiresAvatar, route that into the same prompt.
       if (error.response?.data?.requiresAvatar) { setShowAvatarGate(true); return; }
-      toast.error(error.response?.data?.error || t('groups.detail.toast.joinLeaveError'));
+      toast.error(serverErrorMessage(error, t, 'groups.detail.toast.joinLeaveError'));
+    } finally {
+      setJoinBusy(false);
     }
   };
 
@@ -359,6 +384,23 @@ export const GroupDetail = () => {
       toast.error(err.response?.data?.error || t('groups.detail.toast.waitlistLeaveError'));
     } finally {
       setWaitlistLoading(false);
+    }
+  };
+
+  // Admin takedown. Separate from handleDelete on purpose: different confirm
+  // wording (this removes something that is NOT yours, for everyone), and it
+  // must not be reachable through the owner path's club/event branching.
+  const handleAdminDelete = async () => {
+    const label = group?.type === 'club' ? t('groups.detail.report.club') : group?.name;
+    if (!window.confirm(t('groups.detail.adminDelete.confirm', { name: label }))) return;
+    try {
+      if (group?.type === 'club') await clubs.delete(id);
+      else if (group?.type === 'event' && group?.parent_club_id) await clubs.deleteEvent(group.parent_club_id, id);
+      else await groups.delete(id);
+      toast.success(t('groups.detail.adminDelete.done'));
+      navigate('/home');
+    } catch (error) {
+      toast.error(serverErrorMessage(error, t, 'groups.detail.delete.errorGroup'));
     }
   };
 
@@ -402,13 +444,14 @@ export const GroupDetail = () => {
         ));
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || t('groups.detail.events.joinError'));
+      toast.error(serverErrorMessage(err, t, 'groups.detail.events.joinError'));
     } finally {
       setJoiningEventId(null);
     }
   };
 
   const handleLeaveEvent = async (eventId) => {
+    if (!window.confirm(t('groups.detail.events.confirmLeave'))) return;
     setJoiningEventId(eventId);
     try {
       await groups.leave(eventId);
@@ -605,6 +648,20 @@ export const GroupDetail = () => {
                 </button>
                 <button className="gd-anfragen-btn joined" onClick={() => navigate(`/group/${group.id}/edit`)}>
                   {t('groups.detail.actions.editEvent')}
+                </button>
+              </div>
+            );
+          }
+          // The event's club was deleted, rejected or cancelled. Members keep
+          // the page and the chat (the soft delete exists to preserve that),
+          // but nobody new can join — the server refuses with CLUB_GONE, and a
+          // button that always errors is worse than none. Checked before
+          // isJoined so a member still sees their chat button below.
+          if (group.parent_club_gone && !isJoined) {
+            return (
+              <div className="gd-anfragen-row">
+                <button className="gd-anfragen-btn" disabled style={{ opacity: 0.6, cursor: 'default' }}>
+                  {t('groups.detail.actions.clubGone')}
                 </button>
               </div>
             );
@@ -847,6 +904,18 @@ export const GroupDetail = () => {
             <button className="gd-report-btn" onClick={() => setShowReportModal(true)}>
               {isClub ? t('groups.detail.report.club') : t('groups.detail.report.group')}
             </button>
+
+            {/* Platform-admin moderation. Deliberately OUTSIDE the owner-actions
+                block above, which only renders for members — an admin acting on
+                a report is almost never a member of the thing they are removing,
+                so that button could never reach them. Visually separated and
+                explicitly labelled as an admin action, so it can't be mistaken
+                for the owner's own delete. */}
+            {user?.is_admin && !isOwner && (
+              <button className="gd-admin-delete" onClick={handleAdminDelete}>
+                {t('groups.detail.adminDelete.action')}
+              </button>
+            )}
           </div>
 
           {/* ── Club Events Section ─────────────────────────────────── */}

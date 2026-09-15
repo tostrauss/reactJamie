@@ -42,7 +42,13 @@ const router = express.Router();
 // UUID-ish basename + known image extension. Rejects path traversal, nested
 // paths, dotfiles, query tricks — the only thing this route will ever fetch
 // is a flat key directly under uploads/.
-const SAFE_FILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(webp|jpe?g|png|gif)$/i;
+const SAFE_FILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(webp|jpe?g|png|gif|webm|m4a|ogg)$/i;
+
+// Voice messages (2026-09-15) live in the same uploads/ keyspace and are served
+// through the same proxy — for the same reason images are: the r2.dev domain is
+// on content-blocker lists, and a Samsung Internet user hearing nothing would be
+// the audio version of the 2026-07-29 incident. They are never thumbnailed.
+const AUDIO_FILE = /\.(webm|m4a|ogg)$/i;
 
 // Don't buffer originals beyond this for thumbnailing (animated GIFs pass
 // through anyway; processed uploads are ≤ ~400 KB).
@@ -136,7 +142,10 @@ router.get('/uploads/:file', async (req, res) => {
     return res.status(404).end();
   }
 
-  const wantThumb = req.query.size === 'thumb';
+  // Audio is never thumbnailed — handing an Opus stream to sharp would throw,
+  // and ?size=thumb on a voice URL is nonsense a client should not be able to
+  // turn into a 502.
+  const wantThumb = req.query.size === 'thumb' && !AUDIO_FILE.test(file);
 
   try {
     if (wantThumb) {
@@ -155,7 +164,12 @@ router.get('/uploads/:file', async (req, res) => {
       }
     }
 
-    streamObject(res, await getObjectFromCloud(`uploads/${file}`));
+    const obj = await getObjectFromCloud(`uploads/${file}`);
+    // Range support matters for audio: a seek in the player issues a ranged
+    // request, and a server that ignores Range makes the scrubber jump back.
+    // We do not implement ranges here, so say so rather than implying support.
+    if (AUDIO_FILE.test(file)) res.setHeader('Accept-Ranges', 'none');
+    streamObject(res, obj);
   } catch (err) {
     if (isMissing(err)) return res.status(404).end();
     console.error('[media] proxy error:', err?.name || '', err?.message);

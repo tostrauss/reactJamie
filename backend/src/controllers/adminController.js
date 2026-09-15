@@ -316,7 +316,16 @@ export const getGrowth = async (req, res) => {
               groups_created, events_created, clubs_created,
               joins, messages, dms, friendships, photos
        FROM analytics_daily
-       WHERE day >= (CURRENT_DATE - $1::int)
+       -- "day < CURRENT_DATE" excludes TODAY's row (audit 2026-09-15, finding
+       -- 26). The rollup runs at 02:30 and writes a row for the day that has
+       -- barely started, so that row records a near-zero DAU and is not
+       -- recomputed until 02:30 the next night. The frontend reads the last
+       -- element as "now", so on a broadcast evening the DAU tile showed a few
+       -- dozen, stickiness ~1 %, and the chart ended in a cliff. Fixing it
+       -- here covers the tiles, the line chart and the CSV export at once —
+       -- and unlike skipping i=0 in the rollup it also covers backfillIfEmpty,
+       -- which writes today's row on a mid-day first boot.
+       WHERE day >= (CURRENT_DATE - $1::int) AND day < CURRENT_DATE
        ORDER BY day ASC`,
       [days]
     );
@@ -398,10 +407,15 @@ export const approveClub = async (req, res) => {
       return res.status(404).json({ error: 'Pending club not found' });
     }
     // Bust caches so the club appears in public listings immediately.
+    // 'discover_events' and 'groups:' added 2026-09-15: now that both gate on
+    // the live parent club, a freshly approved club's events would otherwise
+    // stay MISSING from the Events feed and the Gruppen feed for a full TTL.
     try {
       const { invalidatePrefix } = await import('../utils/cache.js');
       invalidatePrefix('clubs:');
       invalidatePrefix('map:');
+      invalidatePrefix('discover_events');
+      invalidatePrefix('groups:');
     } catch { /* non-fatal */ }
     // Batch 3: tell the owner their club is live (was silent — they only found
     // out when it surfaced in listings).
@@ -417,21 +431,61 @@ export const approveClub = async (req, res) => {
 export const rejectClub = async (req, res) => {
   try {
     const { id } = req.params;
+    // `approval_status = 'pending'` used to be part of this WHERE, which meant
+    // an APPROVED club could never be taken down again by any route in the
+    // product — the moderation queue had no answer for a club that turned bad
+    // after approval (finding 11). Any non-rejected club can now be pulled;
+    // re-rejecting an already-rejected one is a no-op 404, as before.
+    // Read the prior status BEFORE the write: RETURNING reports the row as it
+    // is AFTER the UPDATE, so it can never tell a pending club apart from a
+    // live one being taken down — and those two deserve different messaging.
+    const prior = await db.query(
+      `SELECT approval_status FROM groups WHERE id = $1 AND type = 'club'`, [id]
+    );
+    const wasPending = prior.rows[0]?.approval_status === 'pending';
+
     const result = await db.query(
       `UPDATE groups
        SET approval_status = 'rejected', is_active = FALSE, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1 AND type = 'club' AND approval_status = 'pending'
+       WHERE id = $1 AND type = 'club' AND approval_status <> 'rejected'
        RETURNING id, name, owner_id`,
       [id]
     );
     if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Pending club not found' });
+      return res.status(404).json({ error: 'Club nicht gefunden oder bereits abgelehnt' });
     }
+    // Take the club's events down WITH it. The query gates added 2026-09-15
+    // hide them from every feed going forward, but the rows themselves stayed
+    // is_active=TRUE — so a direct /group/:id link from a share or a push kept
+    // working, and the event stayed joinable, chat-live and reminder-pushing
+    // for a club a moderator just rejected. A rejection has to actually reject.
+    await db.query(
+      `UPDATE groups SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+        WHERE parent_club_id = $1 AND type = 'event'`,
+      [id]
+    ).catch((e) => console.error('rejectClub: deactivating child events failed:', e.message));
+
+    // rejectClub busted NOTHING before this — a rejected club stayed visible in
+    // every cached surface for a full TTL.
+    try {
+      const { invalidatePrefix } = await import('../utils/cache.js');
+      invalidatePrefix('clubs:');
+      invalidatePrefix('map:');
+      invalidatePrefix('discover_events');
+      invalidatePrefix('groups:');
+    } catch { /* non-fatal */ }
+
     // Batch 3: tell the owner the decision (deep-link to /notifications — the
     // rejected club is is_active=FALSE and not in any listing).
+    // Only for a club that was still IN the queue: "Club nicht freigegeben" is
+    // the right sentence for a pending club and the wrong one for a live club
+    // being taken down after the fact. A takedown is a conversation the team
+    // has with the owner directly, not a push notification.
     const c = result.rows[0];
-    if (c.owner_id) sendPushToUser(c.owner_id, pushTexts('clubRejected', { groupName: c.name || '' }), null, '/notifications');
-    res.json({ success: true, club: result.rows[0] });
+    if (wasPending && c.owner_id) {
+      sendPushToUser(c.owner_id, pushTexts('clubRejected', { groupName: c.name || '' }), null, '/notifications');
+    }
+    res.json({ success: true, club: c, wasPending });
   } catch (err) {
     console.error('rejectClub error:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -439,10 +493,77 @@ export const rejectClub = async (req, res) => {
 };
 
 // ==========================================
+// FREEZE / UNFREEZE USER (admin only)
+// ==========================================
+// PATCH /api/admin/users/:id/active  { active: boolean }
+//
+// The reversible sanction the moderation queue was missing entirely (audit
+// 2026-09-15, finding 11). Before this, the only thing an admin could do to an
+// account was hard-delete it: irreversible, cascading, and — because
+// messages.user_id is ON DELETE SET NULL — it did not even remove the content
+// that was reported. So in practice nothing happened to anyone.
+//
+// No new column needed: `users.is_active` already gates every request
+// (middleware/auth.js reads it on each session check) and revokeUserSessions
+// already exists to drop live sockets and bust the session cache. This just
+// wires the two together behind a route.
+export const setUserActive = async (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id, 10);
+    const { active } = req.body;
+    if (!Number.isFinite(targetId) || targetId <= 0) {
+      return res.status(400).json({ error: 'Ungültige Nutzer-ID' });
+    }
+    if (typeof active !== 'boolean') {
+      return res.status(400).json({ error: 'active muss true oder false sein' });
+    }
+    // Same two footguns the delete path guards: never lock yourself out, and
+    // never let one admin freeze another.
+    if (targetId === req.userId) {
+      return res.status(400).json({ error: 'Du kannst dich nicht selbst sperren' });
+    }
+    const target = await db.query('SELECT is_admin FROM users WHERE id = $1', [targetId]);
+    if (target.rows.length === 0) return res.status(404).json({ error: 'Nutzer nicht gefunden' });
+    if (target.rows[0].is_admin && !active) {
+      return res.status(403).json({ error: 'Admins können hier nicht gesperrt werden' });
+    }
+
+    const upd = await db.query(
+      `UPDATE users SET is_active = $1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2 RETURNING id, name, email, is_active`,
+      [active, targetId]
+    );
+
+    // Freezing must take effect NOW, not at the next token expiry: drop the
+    // session cache entry and disconnect the account's live sockets.
+    if (!active) {
+      try {
+        revokeUserSessions(targetId);
+      } catch (err) {
+        console.error('setUserActive: revoking sessions failed:', err.message);
+      }
+    }
+
+    console.log(`[admin] user ${targetId} ${active ? 'unfrozen' : 'FROZEN'} by admin ${req.userId}`);
+    res.json({ success: true, user: upd.rows[0] });
+  } catch (err) {
+    console.error('setUserActive error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
 // DELETE USER (admin only)
 // ==========================================
-// Hard-deletes a user row; ON DELETE CASCADE FKs on group_members, messages,
+// Hard-deletes a user row; ON DELETE CASCADE FKs on group_members,
 // direct_messages, friendships, push_subscriptions, etc. clean up the rest.
+//
+// NOT messages: `messages.user_id` is ON DELETE SET NULL (schema.sql), so a
+// deleted account's chat messages STAY in every group, merely anonymised. An
+// admin reaching for this as a content-takedown lever was removing the person
+// and leaving the content (audit 2026-09-15, finding 11). To take a message
+// down, use DELETE /api/messages/:messageId — admins may now do that. To stop
+// an account without destroying anything, use the reversible freeze below.
 // Admins cannot delete themselves (prevents accidental self-lockout) or
 // other admins (a deliberate footgun safeguard — flip is_admin off via DB
 // first if you really need to remove an admin).

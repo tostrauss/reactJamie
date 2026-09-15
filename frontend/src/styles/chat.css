@@ -1527,3 +1527,405 @@
 .chat-last-sender {
   font-weight: 600;
 }
+
+/* ── Message action sheet (long-press) ─────────────────────────────────────
+   Reporting a chat message became possible in the app on 2026-09-15; this is
+   its entry point, shared with delete-for-moderators. A bottom sheet rather
+   than a hover menu because the chat is a phone surface with no hover, and an
+   always-visible icon on every bubble would be noise on every single message. */
+.msg-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1000;
+  animation: msg-sheet-fade 0.15s ease-out;
+}
+
+.msg-sheet {
+  width: 100%;
+  max-width: 480px;
+  background: var(--bg-card, #1e2235);
+  border-radius: 20px 20px 0 0;
+  /* Same reasoning as .composer: this sheet only ever opens on a chat screen,
+     which is fullscreen without the bottom nav. */
+  padding: 16px 16px max(16px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: msg-sheet-up 0.18s ease-out;
+}
+
+.msg-sheet-preview {
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  /* The reported text can be long — cap it rather than pushing the buttons
+     off-screen, which would make the sheet unusable on exactly the abusive
+     wall-of-text messages people most want to report. */
+  max-height: 25vh;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.msg-sheet-btn {
+  /* 44px minimum touch target, like every other action in the app. */
+  min-height: 48px;
+  border: none;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.msg-sheet-btn--danger { color: var(--accent-coral, #FD7666); }
+
+@keyframes msg-sheet-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes msg-sheet-up   { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .msg-sheet-backdrop, .msg-sheet { animation: none; }
+}
+
+/* ══ Composer (shared by group chat and DMs) ══════════════════════════════
+   Replaces the two near-identical .message-input-container blocks. */
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 20px;
+  /* Carried over VERBATIM from .message-input-container, which this replaces —
+     bare env() on purpose, NOT --nav-safe-bottom. The chat is fullscreen
+     WITHOUT the bottom nav (same class as .lightbox-counter), so: Android
+     keeps exactly 12px, iPhones get the real inset when the keyboard is
+     closed, and iOS collapses the inset to ~0 while the keyboard is up so the
+     composer still sits snug above it. Using the nav variable here would push
+     the input up by a nav's worth of padding that is not there.
+     (Original reasoning: audit 2026-08-10.) */
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  background: var(--bg-secondary);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.composer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.composer-input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 18px;
+  background: var(--bg-card);
+  border: none;
+  border-radius: 22px;
+  color: var(--text-white);
+  /* 16px prevents iOS zooming the page on focus — do not shrink this. */
+  font-size: 16px;
+  font-family: inherit;
+  line-height: 1.35;
+  outline: none;
+  -webkit-appearance: none;
+  resize: none;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.composer-input::placeholder { color: var(--text-muted); }
+.composer-input:disabled { opacity: 0.5; }
+
+.composer-send,
+.composer-icon-btn {
+  /* 48px, matching the .send-button it replaces — comfortably over the 44px
+     minimum the app holds everywhere. */
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: var(--accent-coral);
+  color: #fff;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: all var(--transition-fast);
+}
+
+.composer-send:hover:not(:disabled) { background: var(--accent-coral-dark); }
+
+.composer-send:disabled { opacity: 0.4; cursor: default; }
+
+/* The mic is a quieter affordance than send: it is the default state of the
+   button, not the action the user just typed towards. */
+.composer-send--mic {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.composer-icon-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.composer-icon-btn--cancel { color: #ff8a80; }
+
+/* ── Recording state ─────────────────────────────────────────────────── */
+.composer-row--recording { align-items: center; }
+
+.composer-recording {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 18px;
+  border-radius: 24px;
+  background: var(--bg-card);
+}
+
+.composer-rec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff5a5a;
+  flex: none;
+  animation: rec-pulse 1.4s ease-in-out infinite;
+}
+
+.composer-rec-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.composer-rec-left {
+  margin-left: auto;
+  font-size: 12px;
+  color: #ffb74d;
+}
+
+@keyframes rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+/* ── Reply quote in the composer ─────────────────────────────────────── */
+.composer-reply {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border-left: 3px solid var(--accent-coral, #FD7666);
+}
+
+.composer-reply-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.composer-reply-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-coral, #FD7666);
+}
+
+/* One line, clipped — the quote is a reference, not the message. */
+.composer-reply-text {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.composer-reply-cancel {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.composer-hint {
+  font-size: 13px;
+  color: #ffb74d;
+  padding: 2px 4px;
+}
+
+/* ══ Quote inside a message bubble ════════════════════════════════════════ */
+.msg-quote {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-left: 3px solid currentColor;
+  border-radius: 8px;
+  padding: 6px 9px;
+  margin-bottom: 6px;
+  background: rgba(0, 0, 0, 0.18);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.message.sent .msg-quote { background: rgba(0, 0, 0, 0.16); }
+
+.msg-quote-name {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.msg-quote-text {
+  font-size: 13px;
+  opacity: 0.7;
+  /* Two lines max: enough to recognise the message, never enough to bury the
+     reply underneath it. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* Flash the original when a quote is tapped, so the jump is visible. */
+.message--flash { animation: msg-flash 1.2s ease-out; }
+@keyframes msg-flash {
+  0%, 30% { background-color: rgba(253, 118, 102, 0.28); }
+  100%    { background-color: transparent; }
+}
+
+/* ══ Voice message ═══════════════════════════════════════════════════════ */
+.voice-msg {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 190px;
+  max-width: 260px;
+  padding: 2px 0;
+}
+
+.voice-msg-play {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.message.sent .voice-msg-play { background: rgba(0, 0, 0, 0.2); }
+
+.voice-msg-track {
+  flex: 1;
+  position: relative;
+  height: 26px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.voice-msg-bars {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+}
+
+.voice-msg-bars span {
+  flex: 1;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.35;
+  min-height: 3px;
+}
+
+/* Sits on top of the bars and grows with playback. pointer-events:none so the
+   click always reaches the track underneath for seeking. */
+.voice-msg-progress {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: currentColor;
+  opacity: 0.35;
+  border-radius: 3px;
+  pointer-events: none;
+  transition: width 0.1s linear;
+}
+
+.voice-msg-time {
+  flex: none;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.voice-msg--failed {
+  font-size: 13px;
+  opacity: 0.7;
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-rec-dot, .message--flash { animation: none; }
+  .voice-msg-progress { transition: none; }
+}
+
+/* ══ Photo in a chat bubble ══════════════════════════════════════════════ */
+.img-msg {
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  line-height: 0;
+  max-width: 240px;
+}
+
+.img-msg img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 300px;
+  object-fit: cover;
+  /* Reserves space before the image decodes, so the thread does not jump
+     under the reader's thumb as photos arrive. */
+  aspect-ratio: 4 / 3;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.img-msg-failed {
+  font-size: 13px;
+  opacity: 0.7;
+  padding: 6px 2px;
+}

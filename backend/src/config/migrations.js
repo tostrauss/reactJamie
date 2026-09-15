@@ -118,8 +118,23 @@ const runStartupMigrations = async () => {
   // Pin name length at the DB layer too — the base schema declared
   // VARCHAR with no limit (unbounded), so a single user could push
   // a megabyte-long name through that bypassed app-layer validation.
-  await migrate('users name length cap', () =>
-    db.query(`ALTER TABLE users ALTER COLUMN name TYPE VARCHAR(100)`).catch(() => null));
+  //
+  // Probed first: this ALTER takes an ACCESS EXCLUSIVE lock on `users` and
+  // rebuilds every index on the column (including the trgm GIN index created
+  // just above), and it ran on EVERY boot — every deploy, restart, replica and
+  // crash-loop iteration — while server.listen() has already started accepting
+  // traffic. At 60k users, two replicas booting after a deploy would block each
+  // other while every authenticated request queued behind the lock. The schema
+  // itself records whether this ran, so no marker table is needed.
+  // Audit 2026-09-15, finding 25.
+  await migrate('users name length cap', async () => {
+    const { rows } = await db.query(
+      `SELECT character_maximum_length AS len FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'name'`
+    );
+    if (rows.length && rows[0].len === 100) return;   // already applied
+    await db.query(`ALTER TABLE users ALTER COLUMN name TYPE VARCHAR(100)`).catch(() => null);
+  });
 
   // CHECK constraint on groups.type so the enum can't be bypassed.
   await migrate('chk_groups_type', () => db.query(`
@@ -574,6 +589,24 @@ const runStartupMigrations = async () => {
       created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(reporter_id, reported_type, reported_id)
     )`));
+  // Dedupe only OPEN reports (audit 2026-09-15, finding 12). The table-level
+  // UNIQUE was status-INDEPENDENT, so once a report had been resolved or
+  // dismissed the same reporter could never report that target again: no row,
+  // no admin mail, no admin push, nothing in the queue — while the app still
+  // showed them "Meldung erfolgreich gesendet. Danke!". The resolve/dismiss
+  // buttons added the same day turn that from rare into routine.
+  //
+  // The constraint must be DROPPED, not merely supplemented: a partial unique
+  // index does not override a table-level UNIQUE. Postgres names it
+  // <table>_<cols>_key; IF EXISTS covers databases created from schema.sql
+  // where it may not exist under that name.
+  await migrate('reports open-only dedupe (2026-09-15)', async () => {
+    await db.query(`ALTER TABLE reports
+      DROP CONSTRAINT IF EXISTS reports_reporter_id_reported_type_reported_id_key`);
+    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_reports_open_unique
+      ON reports (reporter_id, reported_type, reported_id)
+      WHERE status = 'pending'`);
+  });
   await migrate('idx_reports', async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_reports_status   ON reports(status, created_at DESC)`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_reports_reported ON reports(reported_type, reported_id)`);
@@ -643,13 +676,20 @@ const runStartupMigrations = async () => {
   // symmetric race (A→B and B→A at once) could create two rows for one pair.
   // Dedupe any existing unordered-pair duplicates (keep the earliest id), then
   // add a normalized unique index so the reverse direction collides at the DB.
+  // The DELETE is a full expression self-join over `friendships` and ran on
+  // every boot. Its purpose is permanently satisfied the moment the unique
+  // index below exists — the index IS the proof, so probe for it rather than
+  // re-deduping a table that can no longer contain duplicates (finding 25).
   await migrate('uniq_friend_pair', async () => {
-    await db.query(`
-      DELETE FROM friendships f
-      USING friendships f2
-      WHERE f.id > f2.id
-        AND LEAST(f.requester_id, f.addressee_id)    = LEAST(f2.requester_id, f2.addressee_id)
-        AND GREATEST(f.requester_id, f.addressee_id) = GREATEST(f2.requester_id, f2.addressee_id)`);
+    const { rows } = await db.query(`SELECT to_regclass('uniq_friend_pair') AS idx`);
+    if (!rows[0]?.idx) {
+      await db.query(`
+        DELETE FROM friendships f
+        USING friendships f2
+        WHERE f.id > f2.id
+          AND LEAST(f.requester_id, f.addressee_id)    = LEAST(f2.requester_id, f2.addressee_id)
+          AND GREATEST(f.requester_id, f.addressee_id) = GREATEST(f2.requester_id, f2.addressee_id)`);
+    }
     await db.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS uniq_friend_pair
       ON friendships (LEAST(requester_id, addressee_id), GREATEST(requester_id, addressee_id))`);
@@ -901,7 +941,22 @@ const runStartupMigrations = async () => {
       END;
       $$ LANGUAGE plpgsql`);
     // Recompute every existing row under the new formula (fires the trigger).
-    await db.query(`UPDATE users SET updated_at = NOW() WHERE profile_completion <> 100`);
+    //
+    // This has no schema fingerprint to probe, so it uses the marker table the
+    // users.country repair above already established. Unguarded it rewrote the
+    // large majority of `users` on EVERY boot — two triggers, a new row version
+    // and a dead tuple each — while the instance was already serving traffic,
+    // with both replicas serialising on the same row locks after a deploy
+    // (finding 25). CREATE OR REPLACE FUNCTION above stays unconditional: it is
+    // catalog-only and must track schema.sql.
+    const claimed = await db.query(
+      `INSERT INTO one_shot_migrations (name) VALUES ('2026-08_profile_completion_recompute')
+       ON CONFLICT (name) DO NOTHING RETURNING name`
+    );
+    if (claimed.rowCount > 0) {
+      const r = await db.query(`UPDATE users SET updated_at = NOW() WHERE profile_completion <> 100`);
+      console.log(`   [profile-completion] recomputed ${r.rowCount} rows`);
+    }
   });
 
   // ── Website contact form (jamie-app.com footer) ──────────────────────────
@@ -933,6 +988,66 @@ const runStartupMigrations = async () => {
     )`));
   await migrate('idx_app_feedback_created', () =>
     db.query(`CREATE INDEX IF NOT EXISTS idx_app_feedback_created ON app_feedback(created_at DESC)`));
+
+  // ── Reply-to + voice messages (2026-09-15) ───────────────────────────────
+  // Quote-reply, like WhatsApp: a message may point at an earlier one in the
+  // same conversation. ON DELETE SET NULL, not CASCADE — deleting the quoted
+  // message must never take the replies with it; the quote just loses its
+  // source and the UI says so. Group chat soft-deletes now (moderation), but a
+  // DM hard-deletes, so the SET NULL matters on both.
+  //
+  // duration_ms is the recorded length. Stored rather than probed on read: the
+  // player needs it to size its progress bar BEFORE the audio is fetched, and
+  // asking the server to decode every voice file on every chat open would be
+  // absurd. Written from the client's own MediaRecorder timing and clamped
+  // server-side — it is display metadata, never a security boundary.
+  await migrate('messages reply + voice', async () => {
+    await db.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id INTEGER REFERENCES messages(id) ON DELETE SET NULL`);
+    await db.query(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS duration_ms INTEGER`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_messages_reply_to ON messages(reply_to_id) WHERE reply_to_id IS NOT NULL`);
+  });
+  await migrate('direct_messages reply + voice', async () => {
+    await db.query(`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS reply_to_id INTEGER REFERENCES direct_messages(id) ON DELETE SET NULL`);
+    await db.query(`ALTER TABLE direct_messages ADD COLUMN IF NOT EXISTS duration_ms INTEGER`);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_reply_to ON direct_messages(reply_to_id) WHERE reply_to_id IS NOT NULL`);
+  });
+
+  // ── One-shot 2026-09-15: retire events orphaned by a dead parent club ────
+  // Until today no query gated a club EVENT on its parent club's approval or
+  // liveness (utils/clubGate.js now does). The gates hide such rows from every
+  // feed going forward, but the rows themselves are still is_active=TRUE, so a
+  // direct /group/:id link keeps them openable, joinable and reminder-pushing.
+  // Retire the ones whose club is rejected, deleted or cancelled. Marker-guarded
+  // — it must not fight an admin who deliberately reactivates something later.
+  await migrate('retire orphaned club events (2026-09-15)', async () => {
+    const claimed = await db.query(
+      `INSERT INTO one_shot_migrations (name) VALUES ('2026-09-15_retire_orphaned_club_events')
+       ON CONFLICT (name) DO NOTHING RETURNING name`
+    );
+    if (claimed.rowCount === 0) return;
+    const r = await db.query(`
+      UPDATE groups e SET is_active = FALSE, updated_at = NOW()
+       WHERE e.type = 'event'
+         AND e.is_active = TRUE
+         AND e.parent_club_id IS NOT NULL
+         AND EXISTS (
+           SELECT 1 FROM groups c
+            WHERE c.id = e.parent_club_id
+              -- 'rejected', NOT "<> approved". A PENDING club is the normal
+              -- transient state of every non-admin club and the exact state
+              -- the moderation queue exists to serve — and its owner may
+              -- already have scheduled events (createClubEvent never checks
+              -- approval). Retiring those would have been permanent: nothing
+              -- reactivates a child event, approveClub touches only the club
+              -- row, and the one_shot marker means this never re-evaluates.
+              -- Tina approving a club would have found its events silently
+              -- gone. utils/clubGate.js already hides a pending club's events
+              -- from every feed; they reappear on their own once it is
+              -- approved and the caches are busted.
+              AND (c.approval_status = 'rejected' OR c.is_active = FALSE OR c.deleted_at IS NOT NULL)
+         )`);
+    console.log(`   [club-events] retired ${r.rowCount} event(s) of dead clubs`);
+  });
 
   // ── One-time storage-domain rewrite (pub-*.r2.dev → custom domain) ──────
   // 2026-07-29: production images were served from Cloudflare's pub-*.r2.dev

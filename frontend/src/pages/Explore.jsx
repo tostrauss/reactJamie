@@ -42,7 +42,6 @@ const formatCameraDate = (dateStr) => {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
-const isPast = (dateStr) => !!dateStr && new Date(dateStr) < new Date();
 
 const seedColor = (id, offset = 0) =>
   `hsl(${((id + offset) * 137) % 360}, 55%, 52%)`;
@@ -250,27 +249,24 @@ export const Explore = () => {
   // loading state — the top spinner is the feedback there).
   const loadData = useCallback(async () => {
     const isAuthed = user && !user.isGuest;
-    const [allRes, dealsRes, likesRes] = await Promise.all([
-      groups.getAll({ limit: 50 }).catch(() => ({ data: [] })),
+    const [hallRes, dealsRes, likesRes] = await Promise.all([
+      // Server-side query (finding 22). The old shape — "the 50 newest groups,
+      // then keep the past ones" — is an intersection that shrinks as creation
+      // rate rises: at 10-50x volume the newest 50 span hours and are all
+      // future-dated, so the wall renders its empty state for everyone and the
+      // "Teile deinen JAMIE Moment" push lands on a page with nothing to act
+      // on. The server also excludes weekly-recurring groups, whose stored
+      // date is their first occurrence and therefore permanently "past".
+      groups.getHallOfFame({ limit: 30 }).catch(() => ({ data: [] })),
       dealsApi.getAll().catch(() => ({ data: [] })),
       isAuthed ? groups.getMyLikes().catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
     ]);
-    const all = allRes.data || [];
-    // Hall of Fame only showcases past events whose creator actually added a
-    // photo (Tina 2026-09-03) — a photoless card is just a colored placeholder
-    // and cheapens the wall. moment_photo_url (an uploaded "moment") or the
-    // group's own image_url both count as "a photo was added".
-    //
-    // EXCEPT for the owner's own events: this card is the ONLY entry point for
-    // uploading a moment (showMomentPrompt below), and the 15-min server cron
-    // pushes "Teile deinen JAMIE Moment → /explore" to exactly the owners of
-    // photoless past events. Hiding them here would make that push a dead end
-    // and the upload flow unreachable. Owners keep seeing their own.
-    const myId = user?.id;
-    setHallItems(all.filter(g =>
-      isPast(g.date) &&
-      (g.moment_photo_url || g.image_url || (myId && Number(g.owner_id) === Number(myId)))
-    ));
+    // The same rule the server now applies (see getHallOfFame): past events
+    // whose creator added a photo — moment_photo_url or the group's own
+    // image_url — plus the caller's OWN photoless past events, because this
+    // card is the ONLY entry point for uploading a moment (showMomentPrompt
+    // below) and the 15-min cron pushes owners here for exactly that.
+    setHallItems(hallRes.data || []);
     setDealList(dealsRes.data || []);
     // getMyLikes returns a bare array of group ids the caller has liked.
     setLikedIds(new Set(likesRes.data || []));

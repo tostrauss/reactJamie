@@ -874,3 +874,20 @@
   -webkit-tap-highlight-color: transparent;
 }
 .gd-report-btn:active { color: #f87171; }
+
+/* Platform-admin takedown on the group/club page. Sits under "melden" and is
+   deliberately loud: it removes something that is not yours, for everyone, and
+   must never be confused with the owner's own delete button. */
+.gd-admin-delete {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  margin-top: 12px;
+  border: 1.5px solid rgba(255, 107, 107, 0.5);
+  border-radius: 14px;
+  background: rgba(255, 107, 107, 0.12);
+  color: #ff6b6b;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}

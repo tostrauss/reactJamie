@@ -11,6 +11,8 @@ import { createSemaphore } from './semaphore.js';
 
 const _cache = new Map(); // key → { result, expiresAt }
 const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+// Negative results (a real no-match, never a lookup failure) expire quickly.
+const NEG_TTL_MS = 10 * 60 * 1000;
 
 // Evict expired entries hourly — entries had a TTL but nothing ever removed
 // them (every unique free-text city grew the Map forever). unref(): never
@@ -47,7 +49,10 @@ export async function geocodeLocation(location) {
   if (_inflight.has(key)) return _inflight.get(key);
 
   const promise = _fetchNominatim(location.trim()).then((result) => {
-    _cache.set(key, { result, expiresAt: Date.now() + TTL_MS });
+    // A genuine "no such place" is cached far more briefly than a hit: it can
+    // become a hit as soon as OSM gains the entry, and a 24 h negative entry
+    // was the other half of what made a throttle window feel permanent.
+    _cache.set(key, { result, expiresAt: Date.now() + (result ? TTL_MS : NEG_TTL_MS) });
     _inflight.delete(key);
     return result;
   }).catch(() => {
@@ -87,7 +92,7 @@ export async function geocodeAllowedRegion(location) {
   if (_inflight.has(key)) return _inflight.get(key);
 
   const promise = _fetchNominatim(location.trim(), codes).then((result) => {
-    _cache.set(key, { result, expiresAt: Date.now() + TTL_MS });
+    _cache.set(key, { result, expiresAt: Date.now() + (result ? TTL_MS : NEG_TTL_MS) });
     _inflight.delete(key);
     return result;
   }).catch(() => {
@@ -115,7 +120,20 @@ async function _fetchNominatim(location, countrycodes = null) {
       signal: controller.signal,
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      // THROW, don't return null (audit 2026-09-15, finding 16). The callers
+      // cache whatever this resolves to for 24 h on their success path, and
+      // only a rejection skips that cache — so a 403/429 from Nominatim (which
+      // is exactly what it returns when it throttles a burst) was stored as
+      // "this place does not exist" for a full day, under the very strings
+      // people type most: Wien, Graz, Berlin. Every group created there got no
+      // coordinates and never appeared on the Map tab, and the manual create
+      // path refused with a misleading "outside the available regions" — all
+      // completely silently.
+      const err = new Error(`nominatim ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
 
     const data = await res.json();
     if (!data || data.length === 0) return null;
@@ -130,8 +148,14 @@ async function _fetchNominatim(location, countrycodes = null) {
       // that only read lat/lng/label are unaffected.
       countryCode: (address?.country_code || '').toLowerCase() || null,
     };
-  } catch {
-    return null;
+  } catch (err) {
+    // Rethrow so the caller's `.catch` skips the cache. This also covers the
+    // 5 s AbortController timeout, which used to be swallowed here and cached
+    // as a negative result exactly like an HTTP error. `data.length === 0`
+    // above is the ONLY genuine "no such place", and it is the only path that
+    // still returns null (finding 16).
+    console.warn('[geocode] lookup failed:', err.status || err.name || err.message);
+    throw err;
   } finally {
     // In a finally so an aborted/thrown fetch can't leak a live 5s timer.
     clearTimeout(timeout);

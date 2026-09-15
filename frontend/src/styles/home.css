@@ -811,6 +811,14 @@
   border-radius: var(--radius-full);
 }
 
+/* Gruppen feed is split into "Heute & Morgen" + "Weitere Gruppen". The second
+   header needs breathing room from the grid above it, otherwise the two blocks
+   read as one list with a stray label in the middle. The first header inherits
+   the plain .section-header spacing — it sits right under the filter bar. */
+.groups-section-header--later {
+  padding-top: 22px;
+}
+
 /* ========================================
    CLUBS VIEW - Meine Clubs
    ======================================== */
@@ -2956,3 +2964,20 @@ input:checked + .slider:before {
   aspect-ratio: 16 / 10;
   border-radius: var(--radius-lg);
 }
+
+/* "Mehr laden" under the Gruppen feed. The feed is server-paged at 100 rows;
+   before this it just ended there with no way to continue (audit finding 21). */
+.groups-load-more {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 16px;
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--text-light, rgba(255, 255, 255, 0.75));
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.groups-load-more:disabled { opacity: 0.5; cursor: default; }

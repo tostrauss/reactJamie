@@ -19,6 +19,7 @@ import {
   getUserDetail,
   getIpDiagnostics,
   getBackupStatus,
+  setUserActive,
 } from '../controllers/adminController.js';
 import { getFeedbackAdmin } from '../controllers/feedbackController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
@@ -44,6 +45,9 @@ router.get('/stats',       getStats);
 router.get('/users',       getRecentUsers);
 router.get('/users/:id/detail', getUserDetail);
 router.patch('/users/:id/role', updateUserRole);
+// Reversible freeze — the sanction that lets an admin act on a report without
+// reaching for the irreversible hard delete (audit 2026-09-15, finding 11).
+router.patch('/users/:id/active', setUserActive);
 router.delete('/users/:id', deleteUser);
 router.get('/screen-time', getScreenTime);
 router.get('/top-clubs',   getTopClubs);

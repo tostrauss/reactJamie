@@ -162,6 +162,7 @@ import { runDailyRollup, backfillIfEmpty } from './jobs/analyticsRollup.js';
 import { runDbBackup, isBackupConfigured, missingBackupEnv, getBackupConfig } from './jobs/backup.js';
 import { runMediaBackupSync } from './jobs/mediaBackupSync.js';
 import { runEventReminders } from './jobs/eventReminders.js';
+import { runAnalyticsPurge } from './jobs/analyticsPurge.js';
 import { stripeWebhook as boostStripeWebhook } from './controllers/boostController.js';
 import { appleServerNotification } from './controllers/iapController.js';
 import { sendPushToUser, sendPushToUsers } from './controllers/pushController.js';
@@ -237,7 +238,12 @@ app.use(helmet({
         'https://i.scdn.co',
         'https://images.unsplash.com',
         'https://*.tile.openstreetmap.org',
-        'https://lh3.googleusercontent.com', // Google profile pictures
+        // Google profile pictures. This host and the two storage origins below
+        // are also what utils/safeUrl.js accepts as STORED image URLs — the
+        // two lists must agree, since a URL the server stores but the CSP
+        // blocks renders as a broken image (and one the CSP allows but the
+        // server rejects cannot be saved at all).
+        'https://lh3.googleusercontent.com',
         // Map tiles + raster panes come from sharded subdomains
         // (khms*.googleapis.com, mts*.googleapis.com, etc.) — wildcard required.
         'https://*.googleapis.com',
@@ -655,13 +661,14 @@ cron.schedule('30 2 * * *', () => {
   runDailyRollup().catch(err => console.error('[cron] analytics rollup failed:', err.message));
 });
 
-// Analytics retention: purge events older than 90 days, runs every day at 03:00
+// Analytics retention: purge events older than 90 days, runs every day at 03:00.
+// Chunked + advisory-locked in jobs/analyticsPurge.js — the single unbounded
+// DELETE that used to live here died on the 30 s statement_timeout as soon as a
+// night's backlog got large, rolled back completely, and then never caught up
+// (audit 2026-09-15, finding 7).
 cron.schedule('0 3 * * *', async () => {
   try {
-    const result = await db.query(
-      `DELETE FROM analytics_events WHERE created_at < NOW() - INTERVAL '90 days'`
-    );
-    console.log(`[cron] analytics_events purged: ${result.rowCount} rows deleted`);
+    await runAnalyticsPurge();
   } catch (err) {
     console.error('[cron] analytics purge failed:', err.message);
   }

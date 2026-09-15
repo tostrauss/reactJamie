@@ -213,6 +213,39 @@ export const findBlockedTerm = (text) => {
   return match ? match[0] : null;
 };
 
+// ── Attested personal names that are also blocked terms ───────────────────
+// The whole-word rule was designed to protect words that CONTAIN a blocked
+// substring (see the "Sexten"/"Sussex" note above). It cannot help a name that
+// IS the blocked token — and several are real given names and surnames in
+// markets JAMIE is live in:
+//
+//   kike     — the standard Spanish diminutive of Enrique. ES is a launch market.
+//   fick     — a German/Austrian surname. AT is the core market.
+//   cock, bastard — attested English surnames.
+//
+// Those users could not sign up, and an existing user with such a name could
+// never save ANY profile change, because updateProfile re-moderates the name on
+// every save. Audit 2026-09-15, finding 14.
+//
+// Deliberately a SECOND, narrower list rather than a weakening of the rule:
+// dropping these from BLOCKED_TERMS entirely would let a group called
+// "Fick Party" through, which is the case the main list exists for. Person
+// names get the reduced list; group, club, event and chat text keep the full one.
+const PERSON_NAME_ALLOWED = new Set(['kike', 'fick', 'cock', 'bastard']);
+
+const PERSON_NAME_TERMS = BLOCKED_TERMS.filter((t) => !PERSON_NAME_ALLOWED.has(t));
+const PERSON_NAME_REGEX = new RegExp(`\\b(?:${PERSON_NAME_TERMS.map(escapeRegex).join('|')})\\b`);
+
+/**
+ * Blocklist check for a PERSON's display name. Same matcher as
+ * findBlockedTerm minus the handful of attested anthroponyms above.
+ */
+export const findBlockedTermInPersonName = (text) => {
+  if (!text) return null;
+  const match = normalizeForMatch(text).match(PERSON_NAME_REGEX);
+  return match ? match[0] : null;
+};
+
 const BLOCKED_WORD_MESSAGE = 'Dieser Text enthält ein nicht erlaubtes Wort und kann nicht verwendet werden.';
 
 /**
@@ -221,12 +254,18 @@ const BLOCKED_WORD_MESSAGE = 'Dieser Text enthält ein nicht erlaubtes Wort und 
  * @param {string} text - The text to check (chat message, group name, description…)
  * @returns {Promise<{ safe: boolean, reason: string|null }>}
  */
-export const checkTextSafety = async (text) => {
+export const checkTextSafety = async (text, { isPersonName = false } = {}) => {
   if (!text || !text.trim()) return { safe: true, reason: null };
 
   // Deterministic blocklist first — always on, even without an OpenAI key.
-  if (findBlockedTerm(text)) {
-    return { safe: false, reason: BLOCKED_WORD_MESSAGE };
+  // `isPersonName` swaps in the narrower list (see findBlockedTermInPersonName).
+  const hit = isPersonName ? findBlockedTermInPersonName(text) : findBlockedTerm(text);
+  if (hit) {
+    // The matched term is returned so the CALLER can log it. Without it a
+    // support ticket ("I can't save my profile") was unresolvable — the
+    // user-facing message stays deliberately generic so it does not teach an
+    // evader which word tripped.
+    return { safe: false, reason: BLOCKED_WORD_MESSAGE, term: hit };
   }
 
   if (!isTextModerationEnabled()) return { safe: true, reason: null };

@@ -69,6 +69,11 @@ ensure_string () {
 ensure_string NSCameraUsageDescription        "JAMIE braucht die Kamera, um Profil- und Gruppenfotos aufzunehmen."
 ensure_string NSPhotoLibraryUsageDescription  "JAMIE braucht Zugriff auf deine Fotos, um Bilder hochzuladen."
 ensure_string NSLocationWhenInUseUsageDescription "JAMIE nutzt deinen Standort, um Aktivitäten in der Nähe zu zeigen."
+# Voice messages (2026-09-15). getUserMedia works in WKWebView from iOS 14.3,
+# but ONLY when this key is present — without it the call rejects immediately
+# and the mic button would be permanently broken in the app while working fine
+# on the web. Needs an iOS rebuild to take effect.
+ensure_string NSMicrophoneUsageDescription    "JAMIE braucht das Mikrofon, um Sprachnachrichten aufzunehmen."
 
 echo "🔔  4/4 Push Notifications entitlement (aps-environment)..."
 ENT_SRC="ios/App.entitlements"

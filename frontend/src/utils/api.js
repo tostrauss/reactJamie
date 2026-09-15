@@ -60,11 +60,57 @@ axiosInstance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Retry logic with exponential backoff
-const MAX_RETRIES = 3;
+// Retry logic with exponential backoff.
+//
+// ONE retry, not three (audit 2026-09-15, finding 9). A single retry recovers
+// the mobile blip this exists for; a third and fourth attempt only adds load.
+// At MAX_RETRIES=3 one logical GET became FOUR requests, and Home fires five
+// parallel GETs per feed load — so 10 000 viewers arriving at once generated
+// 200 000 requests instead of 50 000, precisely while the backend was already
+// over capacity. The file already argues this exact hazard for 429 below; the
+// guard was on the least likely spike signal, while the dominant ones under
+// load (request timeouts and 5xx) got the full amplification.
+const MAX_RETRIES = 1;
 const RETRY_DELAY = 1000;
+// Total wall-clock a single logical request may spend retrying. Without it the
+// user stared at a skeleton for up to ~47 s before any error surfaced, which
+// reads as a hang rather than an outage.
+const RETRY_DEADLINE_MS = 15_000;
 
 const SAFE_METHODS = new Set(['get', 'head', 'options']);
+
+// ── Circuit breaker ────────────────────────────────────────────────────────
+// The backpressure the 429 comment below argues for, applied to the branch
+// that actually fires under overload. Once enough retry-eligible failures land
+// in a short window, stop retrying entirely for a cool-off: every component
+// surfaces its error immediately instead of each client independently
+// hammering a struggling backend. The first success closes it again.
+const BREAKER_THRESHOLD = 5;
+const BREAKER_WINDOW_MS = 10_000;
+const BREAKER_COOLDOWN_MS = 30_000;
+let _breakerFailures = [];
+let _breakerOpenUntil = 0;
+
+const breakerIsOpen = () => Date.now() < _breakerOpenUntil;
+
+const breakerRecordFailure = () => {
+  const now = Date.now();
+  _breakerFailures = _breakerFailures.filter((t) => now - t < BREAKER_WINDOW_MS);
+  _breakerFailures.push(now);
+  if (_breakerFailures.length >= BREAKER_THRESHOLD) {
+    _breakerOpenUntil = now + BREAKER_COOLDOWN_MS;
+    _breakerFailures = [];
+    console.warn('[api] too many failures — pausing retries for 30s');
+  }
+};
+
+const breakerRecordSuccess = () => {
+  _breakerFailures = [];
+  _breakerOpenUntil = 0;
+};
+
+/** Test hook. */
+export const _resetApiBreaker = () => { _breakerFailures = []; _breakerOpenUntil = 0; };
 
 const shouldRetry = (error) => {
   // A CANCELED request (aborted by the caller — e.g. the debounced Friends
@@ -104,15 +150,39 @@ const refreshRequestOnce = () => {
 
 // Response Interceptor - Handle errors + retry
 axiosInstance.interceptors.response.use(
-  (response) => response,
+  (response) => { breakerRecordSuccess(); return response; },
   async (error) => {
     const config = error.config;
 
-    if (shouldRetry(error) && config && !config._retryCount) {
-      config._retryCount = 0;
+    // A server-set Retry-After wins over our own exponential schedule, so
+    // this is checked BEFORE the generic retry below (503 is also a 5xx and
+    // would otherwise be paced by us instead of by the server that is
+    // shedding load). 429 is never generically retried at all — see
+    // shouldRetry. The pacing is the server's, applied once: the
+    // pacing is the server's, applied once. The upload admission gate answers
+    // this way when it is shedding load, and a client that ignored it would
+    // retry straight back into the queue it was just turned away from.
+    const retryAfterSec = Number(error.response?.headers?.['retry-after']);
+    if ((error.response?.status === 429 || error.response?.status === 503) && config && !config._retried429
+        && SAFE_METHODS.has((config.method || '').toLowerCase())
+        && Number.isFinite(retryAfterSec) && retryAfterSec >= 0 && retryAfterSec <= 5) {
+      config._retried429 = true;
+      await sleep(retryAfterSec * 1000 + Math.random() * 250);
+      return axiosInstance(config);
     }
 
-    if (shouldRetry(error) && config && config._retryCount < MAX_RETRIES) {
+    if (shouldRetry(error) && config) {
+      breakerRecordFailure();
+      if (!config._retryCount) config._retryCount = 0;
+      // Stamp the budget on the FIRST failure, so the ceiling covers the whole
+      // chain rather than each attempt separately.
+      if (!config._retryDeadline) config._retryDeadline = Date.now() + RETRY_DEADLINE_MS;
+    }
+
+    if (shouldRetry(error) && config
+        && config._retryCount < MAX_RETRIES
+        && !breakerIsOpen()
+        && Date.now() < config._retryDeadline) {
       config._retryCount += 1;
       const delay = RETRY_DELAY * Math.pow(2, config._retryCount - 1) + Math.random() * 500;
       await sleep(delay);
@@ -124,15 +194,6 @@ axiosInstance.interceptors.response.use(
     // ≤ 5s, GETs only), keeps a cold-launch parallel burst from surfacing
     // errors while still never amplifying a struggling backend: the pacing
     // is the server's, applied once.
-    const retryAfterSec = Number(error.response?.headers?.['retry-after']);
-    if (error.response?.status === 429 && config && !config._retried429
-        && SAFE_METHODS.has((config.method || '').toLowerCase())
-        && Number.isFinite(retryAfterSec) && retryAfterSec >= 0 && retryAfterSec <= 5) {
-      config._retried429 = true;
-      await sleep(retryAfterSec * 1000 + Math.random() * 250);
-      return axiosInstance(config);
-    }
-
     // 401 handling — clear in-memory token and redirect to login.
     // IMPORTANT: a 401 from an auth attempt (wrong password, etc.) is an
     // EXPECTED response, NOT an expired session. Skip the redirect/token-clear
@@ -333,6 +394,12 @@ export const groups = {
     axiosInstance.post(`/groups/${id}/favorite`),
   
   // Get user's favorites
+  // Explore's Hall of Fame — a dedicated server query. The page used to pull
+  // the 50 newest groups and filter for PAST ones client-side, an intersection
+  // that empties out as creation volume rises (finding 22).
+  getHallOfFame: ({ limit = 30, offset = 0 } = {}) =>
+    axiosInstance.get('/groups/hall-of-fame', { params: { limit, offset } }),
+
   getFavorites: () =>
     axiosInstance.get('/groups/user/favorites'),
 
@@ -522,9 +589,18 @@ export const clubs = {
 // ==========================================
 
 export const messages = {
-  // Send message to group chat
-  send: (groupId, content) =>
-    axiosInstance.post('/messages', { groupId, content }),
+  // Send message to group chat.
+  // opts: { replyToId } to quote an earlier message in the same group;
+  //       { messageType: 'voice', durationMs } for a voice note, where
+  //       `content` is the URL that upload.voice() just returned.
+  send: (groupId, content, opts = {}) =>
+    axiosInstance.post('/messages', {
+      groupId,
+      content,
+      ...(opts.replyToId ? { reply_to_id: opts.replyToId } : {}),
+      ...(opts.messageType ? { message_type: opts.messageType } : {}),
+      ...(opts.durationMs != null ? { duration_ms: opts.durationMs } : {}),
+    }),
 
   // Stamp the chat as read (ChatPage unmount — covers messages that arrived
   // while the chat was open; opening it already stamps via GET)
@@ -545,9 +621,15 @@ export const messages = {
 // ==========================================
 
 export const directMessages = {
-  // Send DM
-  send: (receiverId, content) => 
-    axiosInstance.post('/dm', { receiverId, content }),
+  // Send DM. Same opts as messages.send — see there.
+  send: (receiverId, content, opts = {}) =>
+    axiosInstance.post('/dm', {
+      receiverId,
+      content,
+      ...(opts.replyToId ? { reply_to_id: opts.replyToId } : {}),
+      ...(opts.messageType ? { message_type: opts.messageType } : {}),
+      ...(opts.durationMs != null ? { duration_ms: opts.durationMs } : {}),
+    }),
   
   // Get conversation with user. Prefer { before: <oldest message id> } for
   // paging — OFFSET drifts when new messages arrive between pages (backend
@@ -661,6 +743,15 @@ export const spotify = {
 export const reports = {
   create: (reported_type, reported_id, reason, details) =>
     axiosInstance.post('/reports', { reported_type, reported_id, reason, details }),
+
+  // Admin moderation queue. Returns { reports, total, counts } where every
+  // report carries a resolved `target` (the actual reported user/group/message,
+  // not just its id) — see backend utils/reportContext.js.
+  list: ({ status = 'pending', limit = 50, offset = 0 } = {}) =>
+    axiosInstance.get('/reports', { params: { status, limit, offset } }),
+
+  // pending | reviewed | resolved | dismissed
+  setStatus: (id, status) => axiosInstance.patch(`/reports/${id}`, { status }),
 };
 
 // ==========================================
@@ -752,6 +843,11 @@ export const admin = {
   // Live presence: users with an active Socket.IO connection right now.
   getOnlineUsers: () => axiosInstance.get('/admin/online-users'),
   // Per-club / per-group view rankings (analytics_events.subject_id ⨯ groups)
+  // Reversible account freeze — the sanction that lets an admin act on a
+  // report without reaching for the irreversible hard delete.
+  setUserActive: (id, active) =>
+    axiosInstance.patch(`/admin/users/${id}/active`, { active }),
+
   getTopClubs: (days = 30, limit = 20) =>
     axiosInstance.get('/admin/top-clubs', { params: { days, limit } }),
   // Permanent daily growth rollup (DAU/MAU, retention cohorts, engagement).
@@ -818,6 +914,22 @@ export const upload = {
   // solid-colour/near-blank quality gate. Left unset for group/club/event
   // banners, which may legitimately be a flat colour. Appended BEFORE the file
   // so it lands in req.body reliably.
+  // Voice message. Its own endpoint, not a `purpose` on image: the audio path
+  // runs no sharp, no WebP re-encode and no Sightengine call (that scores
+  // images). The longer timeout is for a 2-minute recording on a mobile uplink
+  // — the default 10 s would abort a perfectly good upload.
+  voice: (blob, durationMs, mimeType) => {
+    const ext = /mp4|m4a|aac/i.test(mimeType || '') ? 'm4a'
+      : /ogg/i.test(mimeType || '') ? 'ogg' : 'webm';
+    const formData = new FormData();
+    formData.append('duration_ms', String(Math.round(durationMs || 0)));
+    formData.append('audio', blob, `voice.${ext}`);
+    return axiosInstance.post('/upload/voice', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60_000,
+    });
+  },
+
   image: (file, purpose) => {
     const formData = new FormData();
     if (purpose) formData.append('purpose', purpose);

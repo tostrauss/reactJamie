@@ -133,6 +133,59 @@ const socketHandler = (io) => {
       socket.join(`user_${socket.userId}`);
     }
 
+    // ── Per-socket budget for the DB-touching events ────────────────────
+    // Every HTTP route is throttled (generalLimiter 2000/15min, messageLimiter
+    // 60/min, dmSendLimiter 10/min) — the socket path had NOTHING, while four
+    // of its handlers hit Postgres on every emit. One authenticated client
+    // emitting join_room in a loop (~40-byte frames) could hold every slot of
+    // the 50-connection pool indefinitely, queueing login and every other API
+    // call behind it until connectionTimeoutMillis, while the id-keyed caches
+    // grew unbounded between their 60 s sweeps. Full API outage from one
+    // socket, with no counter anywhere to show what happened.
+    // Audit 2026-09-15, finding 6.
+    //
+    // TWO buckets, split by cost — one shared counter was wrong.
+    //
+    // `dm_typing` fires on EVERY KEYSTROKE (DirectMessagePage's textarea
+    // onChange), so ~3 characters per second already exceeds 30 events per
+    // 10 s. With a single bucket and a disconnect on three over-budget
+    // windows, typing a normal DM at 40 WPM for half a minute force-closed
+    // the socket of a perfectly legitimate user, mid-conversation, every
+    // ~30 seconds. The original comment assumed the areFriends cache absorbed
+    // typing — it does not, because the budget is charged BEFORE the await.
+    //
+    // join_room / join_dm_room are the handlers finding 6 was actually about:
+    // uncached, pool-consuming, and the ones a flood can turn into an outage.
+    // They keep the strike-and-disconnect path.
+    const mkBucket = () => ({ n: 0, windowStart: Date.now(), strikes: 0 });
+    const roll = (bucket, limit) => {
+      const now = Date.now();
+      if (now - bucket.windowStart > 10_000) {
+        if (bucket.n <= limit) bucket.strikes = 0;
+        bucket.n = 0;
+        bucket.windowStart = now;
+      }
+      return ++bucket.n <= limit;
+    };
+
+    // DB-touching room joins: 30 / 10 s, then strikes, then disconnect.
+    const joinBucket = mkBucket();
+    const withinBudget = () => {
+      if (roll(joinBucket, 30)) return true;
+      // Three consecutive over-budget windows is not a buggy client.
+      if (joinBucket.n === 31 && ++joinBucket.strikes >= 3) {
+        console.warn(`[socket] disconnecting user ${socket.userId} — sustained event flood`);
+        socket.disconnect(true);
+      }
+      return false;
+    };
+
+    // Typing indicators: generous, and DROP-ONLY. Past the 10 s areFriends
+    // cache these are pure in-memory room emits, so shedding one costs
+    // nothing — and disconnecting somebody for typing can never be correct.
+    const typingBucket = mkBucket();
+    const withinTypingBudget = () => roll(typingBucket, 120);
+
     // join_user is kept for compatibility but enforces the authenticated userId
     socket.on('join_user', () => {
       if (socket.userId) socket.join(`user_${socket.userId}`);
@@ -140,19 +193,36 @@ const socketHandler = (io) => {
 
     // Join a specific chat room — verify membership (cached for 1 min)
     socket.on('join_room', async (groupId) => {
-      if (!groupId) return;
+      // Parse first: checkMembership only caches on SUCCESS, so a non-numeric
+      // id made Postgres raise 22P02, the catch below swallowed it, and nothing
+      // was cached — meaning emit('join_room','x') cost a full pool round trip
+      // EVERY time, forever. The DM handlers already guard this way.
+      const gid = Number.parseInt(groupId, 10);
+      if (!Number.isInteger(gid) || gid <= 0) return;
+      // Budget consumed BEFORE the await, or thousands of emits are already in
+      // flight against the pool before the first one returns.
+      if (!withinBudget()) return;
       try {
-        if (await checkMembership(groupId, socket.userId)) {
-          socket.join(groupId);
+        if (await checkMembership(gid, socket.userId)) {
+          // String(gid) deliberately: the `typing` handler gates on
+          // socket.rooms.has(String(data.groupId)), so the room name has to
+          // stay the string form or the typing gate silently stops matching.
+          socket.join(String(gid));
         }
       } catch {
         // Non-critical — don't crash the socket on a DB error
       }
     });
 
-    // Leave a room
+    // Leave a room. Normalised the same way join_room now is, so the two
+    // always name the same room — and so a client that sends a number can
+    // still leave the string-named room the server puts it in. No budget
+    // here: it touches no database and refusing it would strand a socket
+    // in a room it asked to leave.
     socket.on('leave_room', (groupId) => {
-      socket.leave(groupId);
+      const gid = Number.parseInt(groupId, 10);
+      if (!Number.isInteger(gid) || gid <= 0) return;
+      socket.leave(String(gid));
     });
 
     // send_message is retained as a NO-OP for older clients still emitting it.
@@ -197,6 +267,7 @@ const socketHandler = (io) => {
     socket.on('join_dm_room', async (data) => {
       const other = parseInt(data?.otherUserId, 10);
       if (!other || other <= 0 || other === socket.userId) return;
+      if (!withinBudget()) return;
       if (!(await areFriends(socket.userId, other))) return;
       const roomName = `dm_${Math.min(socket.userId, other)}_${Math.max(socket.userId, other)}`;
       socket.join(roomName);
@@ -221,6 +292,7 @@ const socketHandler = (io) => {
     socket.on('dm_typing', async (data) => {
       const recv = parseInt(data?.receiverId, 10);
       if (!recv || recv <= 0 || recv === socket.userId) return;
+      if (!withinTypingBudget()) return;
       if (!(await areFriends(socket.userId, recv))) return;
       const roomName = `dm_${Math.min(socket.userId, recv)}_${Math.max(socket.userId, recv)}`;
       socket.to(roomName).emit('dm_user_typing', { userId: socket.userId });
@@ -229,6 +301,7 @@ const socketHandler = (io) => {
     socket.on('dm_stop_typing', async (data) => {
       const recv = parseInt(data?.receiverId, 10);
       if (!recv || recv <= 0 || recv === socket.userId) return;
+      if (!withinTypingBudget()) return;
       if (!(await areFriends(socket.userId, recv))) return;
       const roomName = `dm_${Math.min(socket.userId, recv)}_${Math.max(socket.userId, recv)}`;
       socket.to(roomName).emit('dm_user_stop_typing', { userId: socket.userId });

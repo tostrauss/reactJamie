@@ -27,6 +27,12 @@ const SMOKE_URL = process.env.SMOKE_DATABASE_URL;
 if (SMOKE_URL) {
   process.env.DATABASE_URL = SMOKE_URL;
   process.env.NODE_ENV = 'test'; // ssl off; no moderation keys → fail-open blocklist only
+  // Declare the image-origin allowlist this suite's fixtures assume
+  // (utils/safeUrl.js), instead of inheriting whatever the developer's local
+  // .env happens to hold — which points at localhost and would reject the
+  // production-shaped avatar URL below.
+  process.env.FRONTEND_URL = 'https://app.jamie-app.com';
+  process.env.STORAGE_PUBLIC_URL = 'https://app.jamie-app.com/media';
 }
 
 // Mock external geocoding so the create/update paths never hit the network.
@@ -136,6 +142,8 @@ suite('write endpoints against real Postgres', () => {
     const bo = await import('../../src/controllers/boostController.js');
     const ms = await import('../../src/controllers/messageController.js');
     const rp = await import('../../src/controllers/reportController.js');
+    const mp = await import('../../src/controllers/mapController.js');
+    const ad = await import('../../src/controllers/adminController.js');
     const pu = await import('../../src/controllers/pushController.js');
     const er = await import('../../src/jobs/eventReminders.js');
     const fa = await import('../../src/utils/friendActivity.js');
@@ -150,10 +158,16 @@ suite('write endpoints against real Postgres', () => {
       sendDM: dm.sendDM, submitReview: rv.submitReview, getPendingReviews: rv.getPendingReviews,
       createDeal: dl.createDeal, redeemDeal: dl.redeemDeal, applyBoost: bo.applyBoost,
       sendMessage: ms.sendMessage, getMessages: ms.getMessages,
+      getConversation: dm.getConversation,
       markChatRead: ms.markChatRead, deleteMessage: ms.deleteMessage,
       createReport: rp.createReport, getReports: rp.getReports,
+      updateReportStatus: rp.updateReportStatus,
+      setUserActive: ad.setUserActive, rejectClub: ad.rejectClub,
+      deleteClub: c.deleteClub,
       joinGroup: g.joinGroup, handleJoinRequest: g.handleJoinRequest, kickMember: g.kickMember,
       getGroups: g.getGroups,
+      getDiscoverEvents: c.getDiscoverEvents, getMapPins: mp.getMapPins,
+      getGroupById: g.getGroupById,
       cancelGroup: g.cancelGroup, deleteGroup: g.deleteGroup,
     };
   }, 90000);
@@ -308,20 +322,483 @@ suite('write endpoints against real Postgres', () => {
     ok(await call(C.deleteMessage, { userId: A, params: { messageId: String(msgId) } }));
   });
 
+  // ── Reply-to + voice messages (2026-09-15) ──────────────────────────────
+  // Both add columns and JOINs to the app's hottest read/write paths, and the
+  // reply target is scoped by a WHERE that decides whether private content can
+  // leak into a quote — exactly the kind of SQL a mocked db.query cannot judge.
+  describe('reply + voice messages', () => {
+    let firstId, replyId, voiceId;
+
+    it('a reply carries the quoted message back on send AND on read', async () => {
+      const base = await call(C.sendMessage, { userId: A, body: {
+        groupId, content: 'Wann treffen wir uns?' }, app: fakeApp });
+      ok(base);
+      firstId = base.body.id;
+      expect(base.body.reply_to).toBe(null);
+
+      const res = await call(C.sendMessage, { userId: B, body: {
+        groupId, content: 'Um 19:00!', reply_to_id: firstId } });
+      ok(res);
+      replyId = res.body.id;
+      expect(res.body.reply_to).toMatchObject({
+        id: firstId, content: 'Wann treffen wir uns?', user_name: 'Ann', message_type: 'text',
+      });
+
+      const list = await call(C.getMessages, { userId: A, params: { groupId: String(groupId) }, query: {} });
+      ok(list);
+      const rows = list.body.messages || list.body;
+      const fromRead = rows.find(m => m.id === replyId);
+      expect(fromRead.reply_to).toMatchObject({ id: firstId, user_name: 'Ann' });
+      // A plain message must not sprout an empty quote object.
+      expect(rows.find(m => m.id === firstId).reply_to).toBe(null);
+    });
+
+    it('a quote of a message in ANOTHER group is silently dropped, not leaked', async () => {
+      const other = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members)
+         VALUES ('Smoke Other Chat','group',$1,'Sport','Wien',10) RETURNING id`, [A])).rows[0].id;
+      const secret = (await db.query(
+        `INSERT INTO messages (group_id, user_id, content) VALUES ($1,$2,'geheim') RETURNING id`,
+        [other, A])).rows[0].id;
+
+      const res = await call(C.sendMessage, { userId: B, body: {
+        groupId, content: 'versuch', reply_to_id: secret } });
+      ok(res);                                   // the message still sends...
+      expect(res.body.reply_to).toBe(null);      // ...without the foreign quote
+      expect(res.body.reply_to_id).toBe(null);
+    });
+
+    it('stores a voice message and rejects a non-upload URL as one', async () => {
+      const res = await call(C.sendMessage, { userId: A, body: {
+        groupId, message_type: 'voice',
+        content: '/media/uploads/abc123.webm', duration_ms: 4200 } });
+      ok(res);
+      voiceId = res.body.id;
+      expect(res.body.message_type).toBe('voice');
+      expect(res.body.duration_ms).toBe(4200);
+
+      // `content` is rendered by an <audio> element, so it must be a URL our
+      // own upload route minted — never an arbitrary host, and never text.
+      for (const bad of ['https://attacker.tld/evil.webm', 'nur text', '/media/uploads/x.exe']) {
+        const r = await call(C.sendMessage, { userId: A, body: {
+          groupId, message_type: 'voice', content: bad } });
+        expect(r.statusCode, `${bad}: ${JSON.stringify(r.body)}`).toBe(400);
+      }
+    });
+
+    it('clamps an absurd client-reported duration and rejects an unknown type', async () => {
+      const res = await call(C.sendMessage, { userId: A, body: {
+        groupId, message_type: 'voice',
+        content: '/media/uploads/def456.m4a', duration_ms: 999999999 } });
+      ok(res);
+      expect(res.body.duration_ms).toBe(120000);
+      expect((await call(C.sendMessage, { userId: A, body: {
+        groupId, message_type: 'sticker', content: 'x' } })).statusCode).toBe(400);
+    });
+
+    it('a text message never carries a duration', async () => {
+      const res = await call(C.sendMessage, { userId: A, body: {
+        groupId, content: 'normal', duration_ms: 5000 } });
+      ok(res);
+      expect(res.body.duration_ms).toBe(null);
+      expect(res.body.message_type).toBe('text');
+    });
+
+    it('deleting the quoted message leaves the reply standing (ON DELETE SET NULL)', async () => {
+      ok(await call(C.deleteMessage, { userId: A, params: { messageId: String(firstId) } }));
+      const list = await call(C.getMessages, { userId: A, params: { groupId: String(groupId) }, query: {} });
+      const rows = list.body.messages || list.body;
+      const reply = rows.find(m => m.id === replyId);
+      expect(reply).toBeTruthy();          // the reply survives...
+      expect(reply.reply_to).toBe(null);   // ...the quote just loses its source
+      expect(rows.map(m => m.id)).not.toContain(firstId);
+      expect(voiceId).toBeTruthy();
+    });
+
+    it('stores a photo message and rejects a foreign image URL', async () => {
+      const res = await call(C.sendMessage, { userId: A, body: {
+        groupId, message_type: 'image', content: '/media/uploads/photo1.webp' } });
+      ok(res);
+      expect(res.body.message_type).toBe('image');
+      // `content` is fed to an <img>, so it must be a URL our own upload route
+      // minted — which is also where Sightengine ran on it.
+      for (const bad of ['https://attacker.tld/porn.jpg', 'nur text']) {
+        const r = await call(C.sendMessage, { userId: A, body: {
+          groupId, message_type: 'image', content: bad } });
+        expect(r.statusCode, `${bad}: ${JSON.stringify(r.body)}`).toBe(400);
+      }
+    });
+
+    it('a photo can be quoted, and the quote carries no URL', async () => {
+      const photo = await call(C.sendMessage, { userId: A, body: {
+        groupId, message_type: 'image', content: '/media/uploads/photo2.webp' } });
+      ok(photo);
+      const reply = await call(C.sendMessage, { userId: B, body: {
+        groupId, content: 'schoenes Foto!', reply_to_id: photo.body.id } });
+      ok(reply);
+      expect(reply.body.reply_to).toMatchObject({ id: photo.body.id, message_type: 'image' });
+      // The client renders a label off the type; the storage path never travels.
+      expect(reply.body.reply_to.content).toBe(null);
+    });
+
+    it('DMs support both too, scoped to the conversation', async () => {
+      const first = await call(C.sendDM, { userId: A, body: { receiverId: B, content: 'hi' } });
+      ok(first);
+      const reply = await call(C.sendDM, { userId: B, body: {
+        receiverId: A, content: 'hallo!', reply_to_id: first.body.id } });
+      ok(reply);
+      expect(reply.body.reply_to).toMatchObject({ id: first.body.id, content: 'hi', user_name: 'Ann' });
+
+      const voice = await call(C.sendDM, { userId: A, body: {
+        receiverId: B, message_type: 'voice', content: '/media/uploads/dm1.webm', duration_ms: 3000 } });
+      ok(voice);
+      expect(voice.body).toMatchObject({ message_type: 'voice', duration_ms: 3000 });
+
+      const photo = await call(C.sendDM, { userId: A, body: {
+        receiverId: B, message_type: 'image', content: '/media/uploads/dm2.webp' } });
+      ok(photo);
+      expect(photo.body.message_type).toBe('image');
+      expect((await call(C.sendDM, { userId: A, body: {
+        receiverId: B, message_type: 'image', content: 'https://attacker.tld/x.jpg' } })).statusCode).toBe(400);
+
+      const convo = await call(C.getConversation, { userId: A, params: { userId: String(B) }, query: {} });
+      ok(convo);
+      const got = convo.body.find(m => m.id === reply.body.id);
+      expect(got.reply_to).toMatchObject({ id: first.body.id, user_name: 'Ann' });
+    });
+  });
+
   // ── reports (reportController — window query + ON CONFLICT dedup) ────────
-  it('createReport inserts, and an identical re-report dedups (ON CONFLICT)', async () => {
+  it('createReport inserts; an IDENTICAL re-report is a silent no-op', async () => {
     ok(await call(C.createReport, { userId: B, body: {
       reported_type: 'user', reported_id: D, reason: 'spam', details: 'smoke' } }));
-    noServerError(await call(C.createReport, { userId: B, body: {
-      reported_type: 'user', reported_id: D, reason: 'spam', details: 'smoke again' } }));
+    const again = await call(C.createReport, { userId: B, body: {
+      reported_type: 'user', reported_id: D, reason: 'spam', details: 'smoke' } });
+    ok(again);
+    expect(again.body.alreadyOpen).toBe(true);   // the client stops claiming success
     const r = await db.query(
       "SELECT COUNT(*)::int AS n FROM reports WHERE reporter_id=$1 AND reported_type='user' AND reported_id=$2",
       [B, D]);
     expect(r.rows[0].n).toBe(1);
   });
+
+  it('re-reporting with NEW details updates the open report instead of dropping it', async () => {
+    const res = await call(C.createReport, { userId: B, body: {
+      reported_type: 'user', reported_id: D, reason: 'harassment', details: 'es wird schlimmer' } });
+    ok(res);
+    expect(res.body.alreadyOpen).toBeUndefined();   // treated as new evidence
+    const r = await db.query(
+      "SELECT reason, details FROM reports WHERE reporter_id=$1 AND reported_type='user' AND reported_id=$2",
+      [B, D]);
+    expect(r.rows.length).toBe(1);
+    expect(r.rows[0]).toMatchObject({ reason: 'harassment', details: 'es wird schlimmer' });
+  });
+
+  // Finding 12: the old UNIQUE was status-independent, so a resolved report
+  // blocked that reporter from ever reporting that target again — silently,
+  // while the app said "Meldung erfolgreich gesendet. Danke!".
+  it('a RESOLVED report no longer blocks the same reporter from reporting again', async () => {
+    const open = await db.query(
+      "SELECT id FROM reports WHERE reporter_id=$1 AND reported_type='user' AND reported_id=$2", [B, D]);
+    ok(await call(C.updateReportStatus, {
+      userId: A, params: { id: String(open.rows[0].id) }, body: { status: 'resolved' } }));
+
+    const res = await call(C.createReport, { userId: B, body: {
+      reported_type: 'user', reported_id: D, reason: 'harassment', details: 'zweiter Vorfall Monate spaeter' } });
+    ok(res);
+    expect(res.body.alreadyOpen).toBeUndefined();
+
+    const rows = await db.query(
+      `SELECT status, details FROM reports
+        WHERE reporter_id=$1 AND reported_type='user' AND reported_id=$2
+        ORDER BY created_at`, [B, D]);
+    expect(rows.rows.length).toBe(2);                      // the old one is kept as history
+    expect(rows.rows.map(r => r.status).sort()).toEqual(['pending', 'resolved']);
+    expect(rows.rows.some(r => r.details === 'zweiter Vorfall Monate spaeter')).toBe(true);
+  });
+
+  it('two DIFFERENT reporters can both have an open report on the same target', async () => {
+    ok(await call(C.createReport, { userId: A, body: {
+      reported_type: 'user', reported_id: D, reason: 'spam', details: 'auch mir aufgefallen' } }));
+    const n = await db.query(
+      `SELECT COUNT(*)::int AS n FROM reports
+        WHERE reported_type='user' AND reported_id=$1 AND status='pending'`, [D]);
+    expect(n.rows[0].n).toBe(2);
+  });
   it('getReports serves the admin list (COUNT(*) OVER() window SQL)', async () => {
     const res = await call(C.getReports, { userId: A, query: { status: 'pending', limit: '10', offset: '0' } });
     ok(res);
+  });
+
+  // ── report context resolution (2026-09-15) ──────────────────────────────
+  // The report row is a polymorphic pointer with no FK, so resolving it is
+  // three hand-written `= ANY($1)` queries against three different tables —
+  // precisely the SQL a mocked db.query cannot judge. This is what turns the
+  // admin alert from "user #984" into a name, an e-mail and a message body.
+  it('getReports resolves each report target (user / group / message) with content', async () => {
+    // A reported MESSAGE: the content has to survive into the admin list,
+    // because the message is usually gone by the time anyone looks.
+    const m = await db.query(
+      `INSERT INTO messages (group_id, user_id, content) VALUES ($1,$2,$3) RETURNING id`,
+      [groupId, B, 'Smoke: reported message body']
+    );
+    ok(await call(C.createReport, { userId: D, body: {
+      reported_type: 'message', reported_id: m.rows[0].id, reason: 'harassment', details: 'Beleidigung im Chat' } }));
+    ok(await call(C.createReport, { userId: D, body: {
+      reported_type: 'group', reported_id: groupId, reason: 'inappropriate' } }));
+
+    const res = await call(C.getReports, { userId: A, query: { status: 'pending', limit: '50' } });
+    ok(res);
+    const byType = Object.fromEntries(res.body.reports.map(r => [r.reported_type, r]));
+
+    // user report (filed by B against D earlier in this file)
+    expect(byType.user?.target?.name).toBe('Dee');
+    expect(byType.user?.target?.email).toBe('smoke-d@x.com');
+    expect(byType.user?.target?.missing).toBe(false);
+
+    // message report — content, author and chat all resolved
+    expect(byType.message?.target?.content).toBe('Smoke: reported message body');
+    expect(byType.message?.target?.author?.name).toBe('Bea');
+    expect(byType.message?.target?.group?.id).toBe(groupId);
+    expect(byType.message?.target?.path).toBe(`/chat/${groupId}`);
+    // the reporter's own words must reach the admin — they were dropped
+    // from the alert entirely before this change
+    expect(byType.message?.details).toBe('Beleidigung im Chat');
+    expect(byType.message?.reporter_name).toBe('Dee');
+
+    // group report
+    expect(byType.group?.target?.kind).toBe('group');
+    expect(byType.group?.target?.owner?.name).toBe('Ann');
+
+    // per-status queue sizes for the admin filter tabs. Every status key is
+    // always present (zero-filled) so the UI can label all four tabs without
+    // four extra round trips.
+    expect(Object.keys(res.body.counts).sort())
+      .toEqual(['dismissed', 'pending', 'resolved', 'reviewed']);
+    expect(res.body.counts.pending).toBeGreaterThanOrEqual(3);
+    expect(res.body.counts.pending).toBe(res.body.total);
+  });
+
+  it('a hard-deleted target resolves to missing instead of vanishing', async () => {
+    // Moderation-relevant: "already gone" must be distinguishable from a hole
+    // in the list. reports has no FK to messages, so the row outlives it.
+    const m = await db.query(
+      `INSERT INTO messages (group_id, user_id, content) VALUES ($1,$2,'to be deleted') RETURNING id`,
+      [groupId, B]
+    );
+    const goneId = m.rows[0].id;
+    ok(await call(C.createReport, { userId: B, body: {
+      reported_type: 'message', reported_id: goneId, reason: 'spam' } }));
+    await db.query('DELETE FROM messages WHERE id = $1', [goneId]);
+
+    const res = await call(C.getReports, { userId: A, query: { status: 'pending', limit: '50' } });
+    const row = res.body.reports.find(r => r.reported_type === 'message' && r.reported_id === goneId);
+    expect(row?.target?.missing).toBe(true);
+    expect(row?.target?.path).toBe(null);
+  });
+
+  // ── Enforcement (audit 2026-09-15, finding 11) ─────────────────────────
+  // The moderation queue could label a report but not act on it: the only
+  // lever was an irreversible account hard-delete that did not even remove
+  // the reported message.
+  describe('moderation enforcement', () => {
+    let modMsgId;
+
+    it('an admin can remove any message; it soft-deletes and leaves the chat', async () => {
+      const m = await db.query(
+        `INSERT INTO messages (group_id, user_id, content) VALUES ($1,$2,$3) RETURNING id`,
+        [groupId, B, 'Smoke: to be moderated']
+      );
+      modMsgId = m.rows[0].id;
+
+      // A is an admin but neither the author (B) nor necessarily the owner.
+      ok(await call(C.deleteMessage, { userId: A, params: { messageId: String(modMsgId) } }));
+
+      // Soft: the row survives as evidence for any report filed against it...
+      const row = await db.query('SELECT content, is_deleted FROM messages WHERE id=$1', [modMsgId]);
+      expect(row.rows.length).toBe(1);
+      expect(row.rows[0].is_deleted).toBe(true);
+      expect(row.rows[0].content).toBe('Smoke: to be moderated');
+
+      // ...but it is gone from the chat.
+      const list = await call(C.getMessages, { userId: A, params: { groupId: String(groupId) }, query: {} });
+      ok(list);
+      const shown = Array.isArray(list.body) ? list.body : (list.body.messages || []);
+      expect(shown.map(x => x.id)).not.toContain(modMsgId);
+    });
+
+    it('a soft-deleted message is still resolvable as report evidence', async () => {
+      ok(await call(C.createReport, { userId: D, body: {
+        reported_type: 'message', reported_id: modMsgId, reason: 'harassment' } }));
+      const res = await call(C.getReports, { userId: A, query: { status: 'pending', limit: '50' } });
+      const row = res.body.reports.find(r => r.reported_type === 'message' && r.reported_id === modMsgId);
+      expect(row?.target?.deleted).toBe(true);
+      expect(row?.target?.content).toBe('Smoke: to be moderated');
+    });
+
+    it('deleting an already-deleted message 404s instead of double-acting', async () => {
+      expect((await call(C.deleteMessage, { userId: A, params: { messageId: String(modMsgId) } })).statusCode).toBe(404);
+    });
+
+    it('a non-author non-owner non-admin still cannot delete', async () => {
+      const m = await db.query(
+        `INSERT INTO messages (group_id, user_id, content) VALUES ($1,$2,'mine') RETURNING id`,
+        [groupId, A]);
+      expect((await call(C.deleteMessage, { userId: B, params: { messageId: String(m.rows[0].id) } })).statusCode).toBe(403);
+    });
+
+    it('freezing an account is reversible and blocks nobody else', async () => {
+      ok(await call(C.setUserActive, { userId: A, params: { id: String(D) }, body: { active: false } }));
+      expect((await db.query('SELECT is_active FROM users WHERE id=$1', [D])).rows[0].is_active).toBe(false);
+      // The report card must show the CURRENT state on load, not only after
+      // the admin flips it in this session.
+      const listed = await call(C.getReports, { userId: A, query: { status: 'pending', limit: '50' } });
+      const userRow = listed.body.reports.find(r => r.reported_type === 'user' && r.reported_id === D);
+      expect(userRow?.target?.frozen).toBe(true);
+      ok(await call(C.setUserActive, { userId: A, params: { id: String(D) }, body: { active: true } }));
+      expect((await db.query('SELECT is_active FROM users WHERE id=$1', [D])).rows[0].is_active).toBe(true);
+    });
+
+    it('freeze refuses self-lockout, other admins and a non-boolean', async () => {
+      expect((await call(C.setUserActive, { userId: A, params: { id: String(A) }, body: { active: false } })).statusCode).toBe(400);
+      expect((await call(C.setUserActive, { userId: A, params: { id: String(D) }, body: { active: 'no' } })).statusCode).toBe(400);
+      expect((await call(C.setUserActive, { userId: A, params: { id: '99999999' }, body: { active: false } })).statusCode).toBe(404);
+    });
+
+    // Hit for real on 2026-09-15: an admin looking at a reported group could
+    // not remove it. deleteGroup was owner-only with no override, so the only
+    // lever was hard-deleting the OWNER's account — irreversible, cascading,
+    // and it does not even remove the group when it has other members.
+    it('an admin can delete a group they do not own', async () => {
+      const g = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, date)
+         VALUES ('Smoke Reported Group','group',$1,'Yoga','Wien',20, NOW() + INTERVAL '5 days') RETURNING id`,
+        [B])).rows[0].id;
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner')`, [g, B]);
+
+      // A is an admin and NOT a member — the realistic moderation position.
+      ok(await call(C.deleteGroup, { userId: A, params: { id: String(g) } }));
+      const row = await db.query('SELECT deleted_at FROM groups WHERE id=$1', [g]);
+      expect(row.rows[0].deleted_at).not.toBe(null);
+      // Soft: chat and member history survive as evidence.
+      const m = await db.query('SELECT 1 FROM group_members WHERE group_id=$1', [g]);
+      expect(m.rows.length).toBeGreaterThan(0);
+    });
+
+    // The question a normal member will ask: can I delete the group I am in?
+    // Only the owner and a PLATFORM admin may — "is_admin" on users, never
+    // group_members.role, which is a club CO-MANAGER wearing the same word.
+    it('a plain MEMBER cannot delete or cancel the group they are in', async () => {
+      const g = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, date)
+         VALUES ('Smoke Member Perms','group',$1,'Yoga','Wien',20, NOW() + INTERVAL '5 days') RETURNING id`,
+        [B])).rows[0].id;
+      await db.query(
+        `INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner'),($1,$3,'member')`,
+        [g, B, D]);
+
+      // D is a member, not the owner, not a platform admin.
+      expect((await db.query('SELECT is_admin FROM users WHERE id=$1', [D])).rows[0].is_admin).toBe(false);
+      expect((await call(C.deleteGroup, { userId: D, params: { id: String(g) } })).statusCode).toBe(403);
+      expect((await call(C.cancelGroup, { userId: D, params: { id: String(g) }, body: { reason: 'weil' } })).statusCode).toBe(403);
+      const row = await db.query('SELECT deleted_at, is_active FROM groups WHERE id=$1', [g]);
+      expect(row.rows[0].deleted_at).toBe(null);
+      expect(row.rows[0].is_active).toBe(true);
+
+      // ...and role='admin' in group_members (a club CO-MANAGER) is NOT the
+      // platform admin flag — this is the confusable one.
+      await db.query(`UPDATE group_members SET role = 'admin' WHERE group_id=$1 AND user_id=$2`, [g, D]);
+      expect((await call(C.deleteGroup, { userId: D, params: { id: String(g) } })).statusCode).toBe(403);
+      expect((await db.query('SELECT deleted_at FROM groups WHERE id=$1', [g])).rows[0].deleted_at).toBe(null);
+
+      // The owner still can.
+      ok(await call(C.deleteGroup, { userId: B, params: { id: String(g) } }));
+    });
+
+    it('a member cannot delete a CLUB either, but an admin can', async () => {
+      const c = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, approval_status)
+         VALUES ('Smoke Club Perms','club',$1,'Sport','Wien',50,'approved') RETURNING id`,
+        [B])).rows[0].id;
+      await db.query(
+        `INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner'),($1,$3,'admin')`,
+        [c, B, D]);
+
+      // Co-manager: may edit and create events, may NOT delete the club.
+      expect((await call(C.deleteClub, { userId: D, params: { id: String(c) } })).statusCode).toBe(403);
+      // A is a platform admin and not a member — the takedown path.
+      ok(await call(C.deleteClub, { userId: A, params: { id: String(c) } }));
+      expect((await db.query('SELECT deleted_at FROM groups WHERE id=$1', [c])).rows[0].deleted_at).not.toBe(null);
+    });
+
+    it('a NON-admin still cannot delete someone else’s group', async () => {
+      const g = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, date)
+         VALUES ('Smoke Someone Elses','group',$1,'Yoga','Wien',20, NOW() + INTERVAL '5 days') RETURNING id`,
+        [A])).rows[0].id;
+      expect((await call(C.deleteGroup, { userId: D, params: { id: String(g) } })).statusCode).toBe(403);
+      expect((await db.query('SELECT deleted_at FROM groups WHERE id=$1', [g])).rows[0].deleted_at).toBe(null);
+    });
+
+    it('an APPROVED club can be taken down, not just a pending one', async () => {
+      const club = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, approval_status)
+         VALUES ('Smoke Live Club','club',$1,'Sport','Wien',50,'approved') RETURNING id`, [B])).rows[0].id;
+      const ev = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, date, parent_club_id)
+         VALUES ('Smoke Live Club Event','event',$1,'Sport','Wien',20, NOW() + INTERVAL '2 days', $2) RETURNING id`,
+        [B, club])).rows[0].id;
+
+      const res = await call(C.rejectClub, { userId: A, params: { id: String(club) } });
+      ok(res);
+      expect(res.body.wasPending).toBe(false);   // it was live, not queued
+      const after = await db.query('SELECT approval_status, is_active FROM groups WHERE id=$1', [club]);
+      expect(after.rows[0]).toMatchObject({ approval_status: 'rejected', is_active: false });
+      // ...and its events go down with it, not just out of the feeds.
+      expect((await db.query('SELECT is_active FROM groups WHERE id=$1', [ev])).rows[0].is_active).toBe(false);
+    });
+  });
+
+  it('updateReportStatus moves a report out of pending and back again', async () => {
+    const first = await call(C.getReports, { userId: A, query: { status: 'pending', limit: '1' } });
+    const id = first.body.reports[0].id;
+
+    ok(await call(C.updateReportStatus, { userId: A, params: { id: String(id) }, body: { status: 'resolved' } }));
+    const row = await db.query('SELECT status, reviewed_by, reviewed_at FROM reports WHERE id=$1', [id]);
+    expect(row.rows[0].status).toBe('resolved');
+    expect(row.rows[0].reviewed_by).toBe(A);
+    expect(row.rows[0].reviewed_at).not.toBe(null);
+
+    // Re-opening clears the reviewer stamp — otherwise a pending report would
+    // still read as "Ann already handled this".
+    ok(await call(C.updateReportStatus, { userId: A, params: { id: String(id) }, body: { status: 'pending' } }));
+    const back = await db.query('SELECT status, reviewed_by, reviewed_at FROM reports WHERE id=$1', [id]);
+    expect(back.rows[0].status).toBe('pending');
+    expect(back.rows[0].reviewed_by).toBe(null);
+    expect(back.rows[0].reviewed_at).toBe(null);
+
+    expect((await call(C.updateReportStatus, { userId: A, params: { id: String(id) }, body: { status: 'nope' } })).statusCode).toBe(400);
+
+    // Re-opening an old report when the SAME reporter already has a newer
+    // pending one against the same target collides with the partial unique
+    // index. That must be a clear 409, not an opaque 500 that leaves the
+    // moderation queue stuck.
+    const dup = await db.query(
+      `SELECT reporter_id, reported_type, reported_id FROM reports WHERE id = $1`, [id]);
+    const { reporter_id, reported_type, reported_id } = dup.rows[0];
+    ok(await call(C.updateReportStatus, { userId: A, params: { id: String(id) }, body: { status: 'resolved' } }));
+    const newer = await db.query(
+      `INSERT INTO reports (reporter_id, reported_type, reported_id, reason, status)
+       VALUES ($1,$2,$3,'spam','pending') RETURNING id`,
+      [reporter_id, reported_type, reported_id]);
+    const clash = await call(C.updateReportStatus, {
+      userId: A, params: { id: String(id) }, body: { status: 'pending' } });
+    expect(clash.statusCode, JSON.stringify(clash.body)).toBe(409);
+    expect(clash.body.code).toBe('REPORT_ALREADY_OPEN');
+    await db.query('DELETE FROM reports WHERE id = $1', [newer.rows[0].id]);
+    // With the collision gone, re-opening works again.
+    ok(await call(C.updateReportStatus, { userId: A, params: { id: String(id) }, body: { status: 'pending' } }));
+    expect((await call(C.updateReportStatus, { userId: A, params: { id: '99999999' }, body: { status: 'resolved' } })).statusCode).toBe(404);
   });
 
   // ── join / accept / kick (the FOR-UPDATE transaction cores) ──────────────
@@ -421,6 +898,205 @@ suite('write endpoints against real Postgres', () => {
     invalidatePrefix('groups:');
     const afterFlip = await idsOf({ type: 'group', upcoming: 'true', include_club_events: 'true' });
     expect(afterFlip).not.toContain(publicEvent);
+  });
+
+  // ── Club-Gate: approval/liveness is judged on the LIVE parent club ──────
+  // (audit 2026-09-15, findings 1/3/4/10). All four are pure SQL predicates or
+  // a request-body guard — exactly what a mocked db.query cannot judge.
+  describe('club approval gate', () => {
+    // A dedicated owner, NOT A: A is near the 10-groups-per-24h create cap by
+    // this point in the suite, and the friend-feed cases further down assert
+    // that B is A's ONLY accepted friend — an invite fixture hung off A would
+    // break both.
+    let gateOwner, pendingClub, pendingEvent, privClub, privEvent, outsider;
+
+    it('seed: a PENDING club with an event, and a PRIVATE approved club with an event', async () => {
+      const mkUser = async (email, name) => (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ($1,$2,'1994-01-01','male',$3, TRUE, 'email') RETURNING id`,
+        [email, name, avatar])).rows[0].id;
+      gateOwner = await mkUser('smoke-gate@x.com', 'Gustav');
+
+      const mk = async (name, approval, isPrivate) => (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, is_private, approval_status, lat, lng)
+         VALUES ($1,'club',$2,'Sport','Wien',100,$3,$4,48.2,16.37) RETURNING id`,
+        [name, gateOwner, isPrivate, approval])).rows[0].id;
+      const mkEv = async (name, clubId, isPrivate) => (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, date, parent_club_id, is_private, lat, lng)
+         VALUES ($1,'event',$2,'Sport','Wien',20, NOW() + INTERVAL '3 days', $3, $4, 48.2, 16.37) RETURNING id`,
+        [name, gateOwner, clubId, isPrivate])).rows[0].id;
+
+      pendingClub = await mk('Gate Pending Club', 'pending', false);
+      pendingEvent = await mkEv('Gate Pending Event', pendingClub, false);
+      privClub  = await mk('Gate Private Club', 'approved', true);
+      privEvent = await mkEv('Gate Private Event', privClub, true);
+
+      outsider = await mkUser('smoke-out@x.com', 'Otto');
+      // gateOwner owns the club and is therefore a member of it; outsider must
+      // be their friend so the invite reaches the CLUB gate rather than
+      // stopping at the friendship check before it.
+      await db.query(
+        `INSERT INTO friendships (requester_id, addressee_id, status) VALUES ($1,$2,'accepted')`,
+        [gateOwner, outsider]);
+      // The club owner is a member of the club, but createClub's membership row
+      // is not created by a raw INSERT — add it so the private-club gate sees
+      // gateOwner as a member and the "member can be invited" case is real.
+      await db.query(
+        `INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner') ON CONFLICT DO NOTHING`,
+        [privClub, gateOwner]);
+    });
+
+    it('createGroup refuses type:"club" and type:"event" (finding 1)', async () => {
+      const before = await db.query(`SELECT COUNT(*)::int n FROM groups WHERE type='club'`);
+      for (const t of ['club', 'event']) {
+        const res = await call(C.createGroup, { userId: gateOwner, body: {
+          name: `Sneaky ${t}`, description: 'x', type: t, category: 'Sport',
+          location: 'Wien', max_members: 20 } });
+        expect(res.statusCode, JSON.stringify(res.body)).toBe(400);
+      }
+      const after = await db.query(`SELECT COUNT(*)::int n FROM groups WHERE type='club'`);
+      expect(after.rows[0].n).toBe(before.rows[0].n);
+    });
+
+    it('a genuine group still writes approval_status explicitly', async () => {
+      const future = new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10);
+      const res = await call(C.createGroup, { userId: gateOwner, body: {
+        name: 'Gate Normal Group', description: 'x', type: 'group', category: 'Sport',
+        date: future, time: '18:00', location: 'Wien', max_members: 8 } });
+      expect(res.statusCode).toBe(201);
+      const r = await db.query('SELECT type, approval_status FROM groups WHERE id=$1', [res.body.id]);
+      expect(r.rows[0]).toMatchObject({ type: 'group', approval_status: 'approved' });
+    });
+
+    it('Discover-Events hides a pending club event, keeps a private club event (finding 3)', async () => {
+      const { invalidatePrefix } = await import('../../src/utils/cache.js');
+      invalidatePrefix('discover_events');
+      const res = await call(C.getDiscoverEvents, { userId: B, query: {} });
+      ok(res);
+      const ids = res.body.map(e => e.id);
+      expect(ids).not.toContain(pendingEvent);
+      // Robert 2026-06-17: private clubs' events DO belong in this feed.
+      expect(ids).toContain(privEvent);
+    });
+
+    it('the public map hides both (finding 10 — requirePublic)', async () => {
+      const { invalidatePrefix } = await import('../../src/utils/cache.js');
+      invalidatePrefix('map:');
+      const res = await call(C.getMapPins, { userId: B, query: {} });
+      ok(res);
+      const pins = Array.isArray(res.body) ? res.body : (res.body.pins || []);
+      const ids = pins.map(p => p.id);
+      expect(ids).not.toContain(pendingEvent);
+      expect(ids).not.toContain(privEvent);
+    });
+
+    it('inviteMember cannot walk a non-member into a private club event (finding 4)', async () => {
+      const res = await call(C.inviteMember, {
+        userId: gateOwner, params: { id: String(privEvent), friendId: String(outsider) } });
+      expect(res.statusCode, JSON.stringify(res.body)).toBe(403);
+      expect(res.body.code).toBe('CLUB_MEMBERS_ONLY');
+      const m = await db.query('SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2', [privEvent, outsider]);
+      expect(m.rows.length).toBe(0);
+    });
+
+    it('an event whose club was deleted is no longer joinable (finding 24)', async () => {
+      // The app never hard-deletes, so the ON DELETE CASCADE on parent_club_id
+      // never fires: the event row survives its club and used to stay joinable
+      // by anyone holding an old share link.
+      const liveClub = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, is_private, approval_status)
+         VALUES ('Gate Doomed Club','club',$1,'Sport','Wien',100,FALSE,'approved') RETURNING id`,
+        [gateOwner])).rows[0].id;
+      const ev = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, date, parent_club_id, is_private)
+         VALUES ('Gate Doomed Event','event',$1,'Sport','Wien',20, NOW() + INTERVAL '2 days', $2, FALSE) RETURNING id`,
+        [gateOwner, liveClub])).rows[0].id;
+
+      // Public club, public event: joinable while the club lives.
+      ok(await call(C.joinGroup, { userId: outsider, params: { id: String(ev) }, body: {} }));
+      await db.query('DELETE FROM group_members WHERE group_id=$1 AND user_id=$2', [ev, outsider]);
+
+      // deleteClub's actual effect: a soft delete on the CLUB row only.
+      await db.query('UPDATE groups SET deleted_at = NOW(), is_active = FALSE WHERE id = $1', [liveClub]);
+
+      const res = await call(C.joinGroup, { userId: outsider, params: { id: String(ev) }, body: {} });
+      expect(res.statusCode, JSON.stringify(res.body)).toBe(403);
+      expect(res.body.code).toBe('CLUB_GONE');
+
+      // ...and the detail page says so instead of 404ing members out of their chat.
+      const detail = await call(C.getGroupById, { userId: outsider, params: { id: String(ev) } });
+      ok(detail);
+      expect(detail.body.parent_club_gone).toBe(true);
+
+      // ...and the reminder cron stops pushing for it. Claim window is the
+      // evening before; assert the event is simply not among the candidates.
+      const claimed = await C.runEventReminders({
+        now: new Date(Date.now() + 24 * 3600e3), limit: 200 });
+      expect(claimed).toBeTruthy();
+      const marker = await db.query('SELECT reminder_day_sent_for FROM groups WHERE id=$1', [ev]);
+      expect(marker.rows[0].reminder_day_sent_for).toBe(null);
+    });
+
+    it('...but a club MEMBER can still be invited to the same event', async () => {
+      await db.query(
+        `INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'member') ON CONFLICT DO NOTHING`,
+        [privClub, outsider]);
+      ok(await call(C.inviteMember, {
+        userId: gateOwner, params: { id: String(privEvent), friendId: String(outsider) } }));
+      const m = await db.query('SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2', [privEvent, outsider]);
+      expect(m.rows.length).toBe(1);
+    });
+  });
+
+  // ── Gruppen feed: "Heute & Morgen" first (Tobi 2026-09-15) ───────────────
+  // The bucket is Vienna-local date arithmetic over a naive TIMESTAMP, plus a
+  // week-rollforward for recurring groups — SQL a mocked db.query would
+  // happily accept while Postgres rejected or mis-ordered it. It also has to
+  // stay a SERVER-side sort: the feed is LIMIT-ed, so an imminent group that
+  // ranks below `created_at DESC` never reaches the client to be re-sorted.
+  it('orders groups happening today/tomorrow above everything else', async () => {
+    const mk = async (name, dateSql, recurring = false) => {
+      const r = await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, date, is_recurring_weekly)
+         VALUES ($1,'group',$2,'Sport','Wien',20, ${dateSql}, $3) RETURNING id`,
+        [name, A, recurring]
+      );
+      return r.rows[0].id;
+    };
+    // Vienna-local "now", so the fixtures land on the same calendar day the
+    // SQL bucket computes — not the container's UTC day.
+    const vienna = `(NOW() AT TIME ZONE 'Europe/Vienna')`;
+    // Created LAST but happening far out: under the old pure created_at order
+    // this sat on top of everything.
+    const farFuture = await mk('Smoke Far Future', `${vienna} + INTERVAL '30 days'`);
+    const tomorrow  = await mk('Smoke Tomorrow',   `date_trunc('day', ${vienna}) + INTERVAL '1 day 19 hours'`);
+    const today     = await mk('Smoke Today',      `date_trunc('day', ${vienna}) + INTERVAL '20 hours'`);
+    // Weekly recurring whose STORED date is 3 weeks in the past but whose next
+    // occurrence is today — the card badges it "Heute", so the feed must too.
+    const weekly    = await mk('Smoke Weekly Today', `date_trunc('day', ${vienna}) - INTERVAL '21 days' + INTERVAL '20 hours'`, true);
+    const undated   = await mk('Smoke Undated', 'NULL');
+
+    const { invalidatePrefix } = await import('../../src/utils/cache.js');
+    invalidatePrefix('groups:');
+    const res = await call(C.getGroups, { userId: B, query: { type: 'group', upcoming: 'true' } });
+    ok(res);
+    const ids = res.body.map(r => r.id);
+    const at = (id) => ids.indexOf(id);
+
+    // All five are in the feed (an undated group is ongoing, not past).
+    for (const id of [farFuture, tomorrow, today, weekly, undated]) expect(at(id)).toBeGreaterThanOrEqual(0);
+
+    // The imminent block leads, and sorts soonest-first inside itself.
+    expect(at(today)).toBeLessThan(at(tomorrow));
+    expect(at(tomorrow)).toBeLessThan(at(farFuture));
+    // …and it beats a NEWER group that is not imminent — the whole point.
+    expect(at(tomorrow)).toBeLessThan(at(undated));
+    // Recurring group rolled forward to today counts as imminent.
+    expect(at(weekly)).toBeLessThan(at(farFuture));
+    expect(res.body.find(r => r.id === weekly).is_imminent).toBe(1);
+    // An undated group is explicitly NOT pinned to the top.
+    expect(res.body.find(r => r.id === undated).is_imminent).toBe(0);
+    expect(res.body.find(r => r.id === farFuture).is_imminent).toBe(0);
   });
 
   // ── Batch 1 (2026-09-06): push preferences, event reminders, friend feed ──

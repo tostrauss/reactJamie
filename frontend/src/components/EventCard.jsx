@@ -1,11 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { nextOccurrence } from '../utils/recurrence';
+import { nextOccurrence, utcDayStart, viennaTodayUTC } from '../utils/recurrence';
 
-const isSameDay = (a, b) =>
-  a.getFullYear() === b.getFullYear() &&
-  a.getMonth() === b.getMonth() &&
-  a.getDate() === b.getDate();
 
 // Map the i18n language to a full BCP-47 locale for date formatting.
 const DATE_LOCALES = { de: 'de-DE', en: 'en-GB', es: 'es-ES', fr: 'fr-FR', it: 'it-IT' };
@@ -22,7 +18,11 @@ export function EventCard({ event }) {
   const { t, i18n } = useTranslation();
 
   const occ = nextOccurrence(event);
-  const isToday = occ ? isSameDay(occ, new Date()) : false;
+  // UTC on both sides — the local-getter version contradicted dateLabel below,
+  // which this very file's comment says must always be formatted in UTC: a
+  // 22:00 event printed "Mo, 15. Sep, 22:00" but got no "Heute" badge, and the
+  // Events page's own "Heute" filter dropped it (finding 18).
+  const isToday = occ ? utcDayStart(occ) === viennaTodayUTC() : false;
   const image = event.image_url || event.club_image;
 
   // Date + location on the card — so people can judge an event at a glance

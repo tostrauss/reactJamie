@@ -1,7 +1,7 @@
 import express from 'express';
 import { register, login, logout, getProfile, updateProfile, completeOnboarding, changePassword, deleteAccount, exportData, forgotPassword, resetPassword, sendVerification, verifyEmail, sendEmailCode, verifyEmailCode, googleLogin, googleLoginCode, appleLogin, refreshToken } from '../controllers/authController.js';
 import { authenticate } from '../middleware/auth.js';
-import { strictLimiter, registrationLimiter } from '../middleware/rateLimiter.js';
+import { strictLimiter, passwordResetLimiter, registrationLimiter } from '../middleware/rateLimiter.js';
 import { geofenceRegistration } from '../middleware/geofence.js';
 
 const router = express.Router();
@@ -29,9 +29,12 @@ router.put('/password', authenticate, strictLimiter, changePassword);
 router.delete('/account', authenticate, strictLimiter, deleteAccount);
 router.get('/export', authenticate, strictLimiter, exportData);
 
-// Password reset (public - no auth needed)
-router.post('/forgot-password', strictLimiter, forgotPassword);
-router.post('/reset-password', strictLimiter, resetPassword);
+// Password reset (public - no auth needed). Own limiter with its own store
+// prefix: sharing the 5/h strict bucket with /password + /account + /export +
+// /verify-email meant one reset (2 calls) plus a verification click (1) used up
+// an entire NAT's hourly budget — see rateLimiter.js, finding 5.
+router.post('/forgot-password', passwordResetLimiter, forgotPassword);
+router.post('/reset-password', passwordResetLimiter, resetPassword);
 
 // Registration OTP (public - no auth needed)
 router.post('/send-email-code', registrationLimiter, sendEmailCode);
@@ -39,6 +42,9 @@ router.post('/verify-email-code', registrationLimiter, verifyEmailCode);
 
 // Email verification (requires auth)
 router.post('/send-verification', authenticate, sendVerification);
-router.post('/verify-email', strictLimiter, verifyEmail);
+// A one-click confirmation link is not a credential operation — it belongs on
+// the registration limiter, not on the 5/h sensitive-ops bucket it used to
+// silently drain.
+router.post('/verify-email', registrationLimiter, verifyEmail);
 
 export default router;

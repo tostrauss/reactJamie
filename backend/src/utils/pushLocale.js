@@ -37,6 +37,82 @@ const GOING = {
   es: (n) => (n === 1 ? '1 apuntado' : `${n} apuntados`),
 };
 const dots = (...parts) => parts.filter(Boolean).join(' · ');
+
+// Voice-message label, per locale. A voice message stores a URL in `content`,
+// so every surface that would show the text shows this instead.
+const VOICE_LABEL = {
+  de: '🎤 Sprachnachricht', en: '🎤 Voice message', it: '🎤 Messaggio vocale',
+  fr: '🎤 Message vocal',   es: '🎤 Mensaje de voz',
+};
+const IMAGE_LABEL = {
+  de: '📷 Foto', en: '📷 Photo', it: '📷 Foto', fr: '📷 Photo', es: '📷 Foto',
+};
+const mediaLabel = (p, l) => (p.isVoice ? VOICE_LABEL[l] : p.isImage ? IMAGE_LABEL[l] : null);
+const groupLine = (p, l) => {
+  const media = mediaLabel(p, l);
+  return media ? `${p.sender}: ${media}` : (p.line || p.sender || '');
+};
+
+// DM push. A voice note shows its label; otherwise the pre-existing two shapes
+// are untouched — preview present → sender as title, preview as body; preview
+// withheld → generic title naming the sender in the body.
+const DM_GENERIC = {
+  de: (n) => ({ title: 'Neue Nachricht', body: `${n} hat dir eine Nachricht geschickt` }),
+  en: (n) => ({ title: 'New message', body: `${n} sent you a message` }),
+  it: (n) => ({ title: 'Nuovo messaggio', body: `${n} ti ha inviato un messaggio` }),
+  fr: (n) => ({ title: 'Nouveau message', body: `${n} t'a envoyé un message` }),
+  es: (n) => ({ title: 'Nuevo mensaje', body: `${n} te ha enviado un mensaje` }),
+};
+const dmTexts = (p, l) => {
+  const media = mediaLabel(p, l);
+  if (media) return { title: p.name, body: media };
+  if (p.preview) return { title: p.name, body: p.preview };
+  return DM_GENERIC[l](p.name);
+};
+
+// Report reason / entity labels for the admin moderation push. The German
+// copies of these also exist in utils/reportContext.js, which is the source
+// for the e-mail and the admin list; both render from the same DB enums
+// (reports.reason, reports.reported_type) so they cannot describe different
+// things — only the translation lives here, where every other push text does.
+const REPORT_REASON = {
+  de: { spam: 'Spam', inappropriate: 'Unangemessener Inhalt', harassment: 'Belästigung', fake: 'Fake-Profil', other: 'Sonstiges' },
+  en: { spam: 'Spam', inappropriate: 'Inappropriate content', harassment: 'Harassment', fake: 'Fake profile', other: 'Other' },
+  it: { spam: 'Spam', inappropriate: 'Contenuto inappropriato', harassment: 'Molestie', fake: 'Profilo falso', other: 'Altro' },
+  fr: { spam: 'Spam', inappropriate: 'Contenu inapproprié', harassment: 'Harcèlement', fake: 'Faux profil', other: 'Autre' },
+  es: { spam: 'Spam', inappropriate: 'Contenido inapropiado', harassment: 'Acoso', fake: 'Perfil falso', other: 'Otro' },
+};
+const REPORT_TYPE = {
+  de: { user: 'Nutzer', group: 'Gruppe', message: 'Nachricht' },
+  en: { user: 'User', group: 'Group', message: 'Message' },
+  it: { user: 'Utente', group: 'Gruppo', message: 'Messaggio' },
+  fr: { user: 'Utilisateur', group: 'Groupe', message: 'Message' },
+  es: { user: 'Usuario', group: 'Grupo', message: 'Mensaje' },
+};
+// Headline + the pre-2026-09-15 generic fallback, per locale.
+const REPORT_HEAD = {
+  de: { lead: 'Meldung', fallbackTitle: 'Neue Meldung', fallbackBody: 'Eine neue Meldung ist eingegangen' },
+  en: { lead: 'Report', fallbackTitle: 'New report', fallbackBody: 'A new report came in' },
+  it: { lead: 'Segnalazione', fallbackTitle: 'Nuova segnalazione', fallbackBody: 'È arrivata una nuova segnalazione' },
+  fr: { lead: 'Signalement :', fallbackTitle: 'Nouveau signalement', fallbackBody: 'Un nouveau signalement est arrivé' },
+  es: { lead: 'Denuncia', fallbackTitle: 'Nueva denuncia', fallbackBody: 'Ha llegado una nueva denuncia' },
+};
+// One builder shape for all five locales — the only thing that varies is the
+// label table, so spelling the body out five times would just be five chances
+// to let them drift.
+const reportAdminTexts = () => Object.fromEntries(
+  Object.keys(REPORT_HEAD).map((l) => [l, (p = {}) => {
+    const reason = REPORT_REASON[l][p.reason];
+    if (!reason || !p.target) {
+      return { title: REPORT_HEAD[l].fallbackTitle, body: REPORT_HEAD[l].fallbackBody };
+    }
+    const lead = REPORT_HEAD[l].lead;
+    return {
+      title: `${lead}${lead.endsWith(':') ? '' : ':'} ${reason}`,
+      body: `${REPORT_TYPE[l][p.type] || ''} ${p.target}`.trim(),
+    };
+  }]),
+);
 // "19:00 · 6 dabei · Prater" — time and location only when present.
 const reminderBody = (p, l) => dots(p.time, GOING[l](p.count), p.location);
 
@@ -119,20 +195,30 @@ const PUSH_TEXTS = {
   // below); the DM call site simply never passed the text. Recipients who don't
   // want text on the lock screen use iOS/Android "Show Previews", exactly as
   // for every other messenger. Without a preview the old generic line stays.
+  // `isVoice` instead of a pre-rendered preview string: the recipient's locale
+  // is resolved per subscription, AFTER the caller built its params — so a
+  // label chosen at the call site would be German for every market.
+  //
+  // The no-preview shape (title "Neue Nachricht", body naming the sender) is
+  // deliberate and unchanged — it is what a push looks like when the preview
+  // is withheld, and the tests pin it.
   newDm: {
-    de: (p) => p.preview ? { title: p.name, body: p.preview } : { title: 'Neue Nachricht', body: `${p.name} hat dir eine Nachricht geschickt` },
-    en: (p) => p.preview ? { title: p.name, body: p.preview } : { title: 'New message', body: `${p.name} sent you a message` },
-    it: (p) => p.preview ? { title: p.name, body: p.preview } : { title: 'Nuovo messaggio', body: `${p.name} ti ha inviato un messaggio` },
-    fr: (p) => p.preview ? { title: p.name, body: p.preview } : { title: 'Nouveau message', body: `${p.name} t'a envoyé un message` },
-    es: (p) => p.preview ? { title: p.name, body: p.preview } : { title: 'Nuevo mensaje', body: `${p.name} te ha enviado un mensaje` },
+    de: (p) => dmTexts(p, 'de'),
+    en: (p) => dmTexts(p, 'en'),
+    it: (p) => dmTexts(p, 'it'),
+    fr: (p) => dmTexts(p, 'fr'),
+    es: (p) => dmTexts(p, 'es'),
   },
   // Group chat: title = group name (data), only the no-name fallback needs i18n.
+  // `sender` + isVoice rather than a pre-joined `line`, for the same reason as
+  // newDm: only the per-recipient builder knows which language to label in.
+  // `line` is still honoured so nothing breaks mid-migration.
   groupMessage: {
-    de: (p) => ({ title: p.groupName || 'Neue Nachricht', body: p.line }),
-    en: (p) => ({ title: p.groupName || 'New message', body: p.line }),
-    it: (p) => ({ title: p.groupName || 'Nuovo messaggio', body: p.line }),
-    fr: (p) => ({ title: p.groupName || 'Nouveau message', body: p.line }),
-    es: (p) => ({ title: p.groupName || 'Nuevo mensaje', body: p.line }),
+    de: (p) => ({ title: p.groupName || 'Neue Nachricht', body: groupLine(p, 'de') }),
+    en: (p) => ({ title: p.groupName || 'New message', body: groupLine(p, 'en') }),
+    it: (p) => ({ title: p.groupName || 'Nuovo messaggio', body: groupLine(p, 'it') }),
+    fr: (p) => ({ title: p.groupName || 'Nouveau message', body: groupLine(p, 'fr') }),
+    es: (p) => ({ title: p.groupName || 'Nuevo mensaje', body: groupLine(p, 'es') }),
   },
 
   // ── Batch 1 (2026-09-06): event reminders, owner nudge, friend feed ──────
@@ -241,13 +327,23 @@ const PUSH_TEXTS = {
     es: (p) => ({ title: 'Nuevo club pendiente', body: `"${p.groupName}" espera aprobación` }),
   },
   // To ADMINS: a new report came in.
-  reportAdmin: {
-    de: () => ({ title: 'Neue Meldung', body: 'Eine neue Meldung ist eingegangen' }),
-    en: () => ({ title: 'New report', body: 'A new report came in' }),
-    it: () => ({ title: 'Nuova segnalazione', body: 'È arrivata una nuova segnalazione' }),
-    fr: () => ({ title: 'Nouveau signalement', body: 'Un nouveau signalement est arrivé' }),
-    es: () => ({ title: 'Nueva denuncia', body: 'Ha llegado una nueva denuncia' }),
-  },
+  //
+  // The body used to be the constant "Eine neue Meldung ist eingegangen" — it
+  // told an admin that something happened but never what, so the push could
+  // only ever mean "go open the database". It now names the reason and the
+  // target, which is enough to decide whether this needs attention right now.
+  //
+  // `p.target` is pre-rendered by describeTarget() (utils/reportContext.js):
+  // a target name is user content and is NOT translatable. The reason and the
+  // entity type ARE, so they travel as the raw enum values and get their label
+  // here — passing the server's German labels straight through would have
+  // handed an en/fr/es admin a half-German push.
+  //
+  // Degrades to the old generic wording when a param is missing rather than
+  // pushing "Meldung: undefined": the notification is best-effort (its context
+  // lookup can fail after the report row is already committed), and a vague
+  // alert is still actionable while a broken one is not.
+  reportAdmin: reportAdminTexts(),
   // Positive only — a demotion is deliberately NOT pushed (see removeClubManager).
   managerAdded: {
     de: (p) => ({ title: 'Du bist jetzt Manager 🎉', body: `Du kannst "${p.groupName}" jetzt mitverwalten` }),

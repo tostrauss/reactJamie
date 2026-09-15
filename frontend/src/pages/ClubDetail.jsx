@@ -183,6 +183,9 @@ export const ClubDetail = () => {
   const handleJoinToggle = async () => {
     // Join gate: no profile photo → prompt to upload first (Tina 2026-08-02).
     if (!isJoined && !user?.avatar_url) { setShowAvatarGate(true); return; }
+    // Same confirm as GroupDetail (2026-09-15). leaveClub posts no system
+    // message, so the club wording drops that half and keeps the rejoin cap.
+    if (isJoined && !window.confirm(t('clubDetail.confirmLeave'))) return;
     try {
       if (isJoined) {
         await clubs.leave(id);
@@ -256,6 +259,7 @@ export const ClubDetail = () => {
   };
 
   const handleLeaveEvent = async (eventId) => {
+    if (!window.confirm(t('clubDetail.events.confirmLeave'))) return;
     setJoiningEventId(eventId);
     try {
       const { groups } = await import('../utils/api');

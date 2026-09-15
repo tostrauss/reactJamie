@@ -1,6 +1,7 @@
 import { useState, useContext, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { serverErrorMessage } from '../utils/apiError';
 import { AuthContext } from '../context/AuthContext';
 import { JamieWordmark } from '../components/JamieWordmark';
 import { PasswordInput } from '../components/PasswordInput';
@@ -62,7 +63,7 @@ export const Login = () => {
       await login(email, password);
       navigate('/home');
     } catch (err) {
-      setError(err.response?.data?.error || t('auth.login.errorGeneric'));
+      setError(serverErrorMessage(err, t, 'auth.login.errorGeneric'));
     }
   };
 

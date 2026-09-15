@@ -1,11 +1,19 @@
 import { useState, useEffect, useContext, useRef, useCallback, Fragment } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { groups, messages } from '../utils/api';
+import { groups, messages, upload } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { SocketContext } from '../context/SocketContext';
 import { useToast } from '../context/ToastContext';
 import { dayKey, daySeparatorLabel } from '../utils/chatDate';
+import { ReportModal } from '../components/ReportModal';
+import { ChatComposer } from '../components/ChatComposer';
+import { VoiceMessage } from '../components/VoiceMessage';
+import { ImageMessage } from '../components/ImageMessage';
+import { PhotoLightbox } from '../components/PhotoLightbox';
+import { MessageQuote } from '../components/MessageQuote';
+import { serverErrorMessage } from '../utils/apiError';
+import { downscaleImageFile } from '../utils/images';
 import { useChatViewport } from '../hooks/useChatViewport';
 import useSwipeBack from '../hooks/useSwipeBack';
 import '../styles/chat.css';
@@ -25,6 +33,82 @@ export const ChatPage = () => {
   // Per-group push mute (chat-header bell). Seeded from the group payload.
   const [muted, setMuted] = useState(false);
   const [muteBusy, setMuteBusy] = useState(false);
+  // Long-press (or right-click) on a message opens its action sheet. Reporting
+  // a chat message was impossible in the app until 2026-09-15: ReportModal was
+  // only ever opened from a profile, a group or a club, so `type="message"`
+  // was unreachable product surface — even though the DB constraint, the
+  // backend validation and the admin queue all supported it. Harassment
+  // happens in chat, not on profiles, so this was the report that mattered
+  // most and the one nobody could file.
+  const [actionMsg, setActionMsg] = useState(null);
+  const [reportMsg, setReportMsg] = useState(null);
+  const [replyTo, setReplyTo] = useState(null);
+  const [lightbox, setLightbox] = useState(null);
+  const longPressTimer = useRef(null);
+
+  // Long-press opens the sheet; a real press-and-hold, not a tap. Cancelled on
+  // move/end so scrolling the chat never triggers it.
+  const pressHandlers = (msg) => ({
+    onContextMenu: (e) => { e.preventDefault(); setActionMsg(msg); },
+    onPointerDown: () => {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = setTimeout(() => setActionMsg(msg), 500);
+    },
+    onPointerUp:    () => clearTimeout(longPressTimer.current),
+    onPointerLeave: () => clearTimeout(longPressTimer.current),
+    onPointerMove:  () => clearTimeout(longPressTimer.current),
+  });
+
+  // Upload first, then send the row that points at it. Two steps rather than a
+  // multipart message endpoint: the upload is the slow, retryable part, and a
+  // failure there must not look like a failed message.
+  const handleSendVoice = async ({ blob, mimeType, durationMs }) => {
+    if (!canSendMessages) return;
+    try {
+      const res = await upload.voice(blob, durationMs, mimeType);
+      await handleSendMessage(null, { url: res.data.url, durationMs: res.data.duration_ms ?? durationMs });
+    } catch (err) {
+      toast.error(serverErrorMessage(err, t, 'chat.voice.uploadFailed'));
+    }
+  };
+
+  // Scroll to the quoted original and flash it. Best-effort by design: if the
+  // message is older than the loaded page it simply is not in the DOM, and
+  // silently doing nothing beats either jumping somewhere arbitrary or firing
+  // a fetch the user never asked for.
+  const jumpToMessage = (id) => {
+    const el = document.getElementById(`msg-${id}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('message--flash');
+    setTimeout(() => el.classList.remove('message--flash'), 1200);
+  };
+
+  // Shrink client-side first (utils/images), then upload, then send the row
+  // that points at it. The upload route is where Sightengine runs, so a photo
+  // is moderated BEFORE it can ever reach the chat — unlike a voice note,
+  // which can only be moderated reactively.
+  const handleSendPhoto = async (file) => {
+    try {
+      const res = await upload.image(await downscaleImageFile(file));
+      await handleSendMessage(null, null, { url: res.data.url });
+    } catch (err) {
+      toast.error(serverErrorMessage(err, t, 'chat.photo.uploadFailed'));
+    }
+  };
+
+  const handleDeleteMessage = async (msg) => {
+    if (!window.confirm(t('chat.page.message.confirmDelete'))) return;
+    setActionMsg(null);
+    try {
+      await messages.delete(msg.id);
+      // The socket event removes it for everyone else; do it locally too so
+      // the sender does not wait on a round trip they triggered.
+      setMessageList(prev => prev.filter(m => m.id !== msg.id));
+    } catch (err) {
+      toast.error(err?.response?.data?.error || t('chat.page.message.deleteError'));
+    }
+  };
 
   const { user } = useContext(AuthContext);
   const { socket, isConnected } = useContext(SocketContext);
@@ -32,7 +116,6 @@ export const ChatPage = () => {
   const { t, i18n } = useTranslation();
   const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : ((i18n.resolvedLanguage || i18n.language || 'de').startsWith('fr') ? 'fr-FR' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('es') ? 'es-ES' : 'de-DE');
   const messagesEndRef = useRef(null);
-  const inputRef = useRef(null);
   const chatPageRef = useRef(null);
   // active only once the real chat surface (which carries the ref) is mounted —
   // during loading/not-found the ref is null and the hook must wait.
@@ -43,13 +126,8 @@ export const ChatPage = () => {
   const goBackToList = () => navigate(group?.type === 'club' ? '/chats?filter=clubs' : '/chats');
   useSwipeBack(chatPageRef, goBackToList, !loading && !!group);
 
-  // Grow the composer with its content (up to a cap), then reset after send.
-  const autoGrow = () => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
-  };
+  // Composer auto-grow moved into components/ChatComposer.jsx along with the
+  // input itself, so the group chat and DMs cannot drift apart again.
   // Banner only appears after 3s of sustained disconnection — avoids
   // scary flashes during routine network blips that socket.io recovers from.
   const [showReconnectBanner, setShowReconnectBanner] = useState(false);
@@ -175,13 +253,20 @@ export const ChatPage = () => {
       navigate('/chats');
     };
 
+    // A moderator (or the author) removed a message — drop it live instead of
+    // leaving it on screen until the next reload.
+    const handleMessageDeleted = ({ id }) => {
+      setMessageList(prev => prev.filter(m => m.id !== id));
+    };
+    socket.on('message_deleted', handleMessageDeleted);
     socket.on('receive_message', handleReceiveMessage);
     socket.on('connect', handleReconnect);
     socket.on('removed_from_group', handleRemoved);
 
     return () => {
       socket.emit('leave_room', groupId);
-      socket.off('receive_message', handleReceiveMessage);
+      socket.off('message_deleted', handleMessageDeleted);
+    socket.off('receive_message', handleReceiveMessage);
       socket.off('connect', handleReconnect);
       socket.off('removed_from_group', handleRemoved);
     };
@@ -223,9 +308,13 @@ export const ChatPage = () => {
 
   const isSendingRef = useRef(false);
 
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    const sentContent = content.trim();
+  // One send path for text and voice. `voice` is { url, durationMs } when the
+  // composer finished a recording; the row then carries the URL as its content
+  // and message_type='voice', which is what the bubble switches on.
+  const handleSendMessage = async (e, voice = null, photo = null) => {
+    e?.preventDefault?.();
+    const media = voice || photo;
+    const sentContent = media ? media.url : content.trim();
     if (!sentContent || !canSendMessages || isSendingRef.current) return;
 
     // Optimistic send (mirrors DirectMessagePage): render the SENDER's own
@@ -237,8 +326,11 @@ export const ChatPage = () => {
     // live even when the message was about to be rejected. Sender keeps the
     // instant bubble; other members see it ~1 DB round-trip later, moderated.
     isSendingRef.current = true;
-    setContent('');
-    if (inputRef.current) inputRef.current.style.height = 'auto'; // collapse composer
+    if (!media) setContent('');
+    // The quote is consumed by this send; clearing it up front means a slow
+    // network cannot leave it attached to the NEXT message too.
+    const quoted = replyTo;
+    setReplyTo(null);
 
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const optimistic = {
@@ -247,6 +339,11 @@ export const ChatPage = () => {
       user_name: user.name,
       avatar_url: user.avatar_url,
       content: sentContent,
+      message_type: voice ? 'voice' : photo ? 'image' : 'text',
+      duration_ms: voice ? voice.durationMs : null,
+      reply_to: quoted
+        ? { id: quoted.id, content: quoted.content, message_type: quoted.message_type, user_name: quoted.user_name }
+        : null,
       created_at: new Date().toISOString(),
       _pending: true,
     };
@@ -254,7 +351,11 @@ export const ChatPage = () => {
     setMessageList(prev => [...prev, optimistic]);
 
     try {
-      const response = await messages.send(groupId, sentContent);
+      const response = await messages.send(groupId, sentContent, {
+        replyToId: quoted?.id,
+        ...(voice ? { messageType: 'voice', durationMs: voice.durationMs } : {}),
+        ...(photo ? { messageType: 'image' } : {}),
+      });
       const real = {
         ...response.data,
         user_name: user.name,
@@ -276,7 +377,7 @@ export const ChatPage = () => {
         setMessageList(prev => prev.filter(m => m.id !== tempId));
         setCanSendMessages(false);
         setPermissionMessage(t('chat.page.permissionOwnerOnly'));
-        setContent(sentContent);
+        if (!media) setContent(sentContent);
       } else {
         // Persist failed (rate limit, server error, moderation 422). Keep the
         // bubble visible but mark it failed. Other members never saw it (the
@@ -425,12 +526,34 @@ export const ChatPage = () => {
               <Fragment key={msg.id || index}>
                 {daySep}
                 <div
+                  id={`msg-${msg.id}`}
                   className={`message ${msg.user_id === user?.id ? 'sent' : 'received'}${msg._pending ? ' message--pending' : ''}${msg._failed ? ' message--failed' : ''}`}
+                  {...(msg.id && !msg._pending ? pressHandlers(msg) : {})}
                 >
                   {msg.user_id !== user?.id && (
                     <div className="message-sender">{msg.user_name}</div>
                   )}
-                  <div className="message-content">{msg.content}</div>
+                  {msg.reply_to && (
+                    <MessageQuote
+                      quote={msg.reply_to}
+                      onJump={() => jumpToMessage(msg.reply_to.id)}
+                    />
+                  )}
+                  {msg.message_type === 'voice' ? (
+                    <VoiceMessage
+                      url={msg.content}
+                      durationMs={msg.duration_ms}
+                      mine={msg.user_id === user?.id}
+                    />
+                  ) : msg.message_type === 'image' ? (
+                    <ImageMessage
+                      url={msg.content}
+                      mine={msg.user_id === user?.id}
+                      onOpen={setLightbox}
+                    />
+                  ) : (
+                    <div className="message-content">{msg.content}</div>
+                  )}
                   <div className="message-time">
                     {msg._failed
                       ? t('chat.dm.notSent')
@@ -444,24 +567,75 @@ export const ChatPage = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Message Input */}
-      <form className="message-input-container" onSubmit={handleSendMessage}>
-        <textarea
-          ref={inputRef}
-          rows={1}
-          placeholder={canSendMessages ? t('chat.page.input.placeholder') : t('chat.page.input.placeholderOwnerOnly')}
-          value={content}
-          onChange={(e) => { setContent(e.target.value); autoGrow(); }}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(e); } }}
-          className="message-input"
-          disabled={!canSendMessages}
+      {/* Message input — shared with DirectMessagePage (voice + reply quote). */}
+      <ChatComposer
+        value={content}
+        onChange={setContent}
+        onSend={handleSendMessage}
+        onSendVoice={handleSendVoice}
+        onSendPhoto={handleSendPhoto}
+        disabled={!canSendMessages}
+        placeholder={canSendMessages ? t('chat.page.input.placeholder') : t('chat.page.input.placeholderOwnerOnly')}
+        replyTo={replyTo}
+        onCancelReply={() => setReplyTo(null)}
+      />
+
+      {/* Message action sheet (long-press). Deliberately a plain sheet rather
+          than an inline hover menu: the chat is used on phones, where there is
+          no hover, and an always-visible icon on every bubble is noise. */}
+      {actionMsg && (
+        <div
+          className="msg-sheet-backdrop"
+          onClick={() => setActionMsg(null)}
+          role="presentation"
+        >
+          <div className="msg-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="msg-sheet-preview">
+              {actionMsg.message_type === 'voice' ? t('chat.voice.label')
+                : actionMsg.message_type === 'image' ? t('chat.photo.label')
+                : actionMsg.content}
+            </div>
+            <button
+              className="msg-sheet-btn"
+              onClick={() => { setReplyTo(actionMsg); setActionMsg(null); }}
+            >
+              {t('chat.reply.action')}
+            </button>
+            {actionMsg.user_id !== user?.id && (
+              <button
+                className="msg-sheet-btn msg-sheet-btn--danger"
+                onClick={() => { setReportMsg(actionMsg); setActionMsg(null); }}
+              >
+                {t('chat.page.message.report')}
+              </button>
+            )}
+            {(actionMsg.user_id === user?.id || group?.owner_id === user?.id || user?.is_admin) && (
+              <button
+                className="msg-sheet-btn msg-sheet-btn--danger"
+                onClick={() => handleDeleteMessage(actionMsg)}
+              >
+                {t('chat.page.message.delete')}
+              </button>
+            )}
+            <button className="msg-sheet-btn" onClick={() => setActionMsg(null)}>
+              {t('chat.page.message.cancel')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {lightbox && (
+        <PhotoLightbox photos={[lightbox]} index={0} onIndex={() => {}} onClose={() => setLightbox(null)} />
+      )}
+
+      {reportMsg && (
+        <ReportModal
+          type="message"
+          id={reportMsg.id}
+          name={reportMsg.user_name}
+          onClose={() => setReportMsg(null)}
         />
-        <button type="submit" className="send-button" disabled={!content.trim() || !canSendMessages}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
-          </svg>
-        </button>
-      </form>
+      )}
     </div>
   );
 };

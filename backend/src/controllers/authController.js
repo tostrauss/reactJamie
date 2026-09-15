@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { isSafeImageUrl } from '../utils/safeUrl.js';
 // @node-rs/bcrypt, NOT bcryptjs: the pure-JS implementation hashed on the
 // main thread (~310ms CPU per op at cost 12) and capped the whole instance at
 // ~3 auth ops/sec — the most likely way a TV-spike takes chat/sockets down
@@ -61,26 +62,9 @@ async function inspectStoredAvatarQuality(url) {
   }
 }
 
-// Validate that a user-supplied image field is an internal/https(s) URL, not a
-// javascript:/data: payload or an arbitrary external host. Mirrors the http(s)
-// enforcement dealController already applies to deal photos. Returns true if OK.
-const isSafeImageUrl = (u) => {
-  if (typeof u !== 'string' || u.length > 1024) return false;
-  // Same-origin, root-relative path to our OWN upload routes. These are URLs the
-  // app itself mints: production serves uploads through the same-origin "/media"
-  // proxy (STORAGE_PUBLIC_URL can be "/media"), and the dev fallback writes to
-  // "/uploads/…". A single leading slash only — "//host" / "/\host" are
-  // protocol-relative (→ external origin) and must NOT count as same-origin.
-  // Without this, a relative avatar/photo URL (which still renders fine) was
-  // rejected on save → profiles with a picture could not be saved at all.
-  if (/^\/(?:media|uploads)\/[^/\\]/.test(u)) return true;
-  try {
-    const proto = new URL(u).protocol;
-    return proto === 'http:' || proto === 'https:';
-  } catch {
-    return false;
-  }
-};
+// Image-URL validation lives in utils/safeUrl.js — this file carried a verbatim
+// copy, and the two would have drifted the moment one gained an origin
+// allowlist (audit 2026-09-15, finding 17). One definition, imported.
 
 // Persist the app language (X-App-Locale, set by the frontend axios
 // interceptor) for server-initiated push i18n. Fire-and-forget; the guarded
@@ -144,6 +128,18 @@ const DUMMY_BCRYPT_HASH = bcrypt.hashSync('jamie-dummy-password-not-used-anywher
 
 // Columns safe to send to the client — excludes password, tokens, lockout fields.
 // Used where we don't need sensitive fields (getProfile, post-register, post-Google-login).
+// ── Error `code` on user-facing failures ─────────────────────────────────
+// 578 of the ~582 error responses across backend/src carry a hardcoded GERMAN
+// sentence, and 64 frontend sites render `data.error` verbatim — so the one
+// line that matters is German for every Spanish, French, Italian and English
+// user, in an app whose locale plumbing already translates every push type
+// (audit 2026-09-15, finding 23).
+//
+// Not a mass refactor: a `code` is added only to the TERMINAL, user-facing 4xx
+// errors that actually block someone on a real path, starting with the auth
+// screens. The German string STAYS as the last-resort fallback, so nothing
+// regresses while the migration is partial — see serverErrorMessage() in
+// frontend/src/utils/apiError.js, which maps code → i18n key and falls back.
 const SAFE_USER_COLS = `
   id, email, auth_provider, auth_provider_id, name, username, gender,
   date_of_birth, date_of_birth_changed, bio, location, avatar_url, photos, pinnwand, interests, favorite_song,
@@ -171,8 +167,11 @@ export const register = async (req, res) => {
     // list, chat row, friend request) and reaches minors — moderate it like we
     // already moderate group/club names. The deterministic blocklist catches
     // slurs even if the OpenAI layer is unavailable (fail-open).
-    const nameCheck = await checkTextSafety(name);
+    const nameCheck = await checkTextSafety(name, { isPersonName: true });
     if (!nameCheck.safe) {
+      // Log the matched term: the user-facing message is deliberately generic
+      // (don't teach evaders), which left support with an unresolvable ticket.
+      console.warn(`[moderation] signup name rejected — term: ${nameCheck.term || 'ai'}`);
       return res.status(422).json({ error: nameCheck.reason || 'Name enthält unzulässige Inhalte' });
     }
 
@@ -216,7 +215,7 @@ export const register = async (req, res) => {
       [email]
     );
     if (userExists.rows.length > 0) {
-      return res.status(400).json({ error: 'Diese E-Mail-Adresse ist bereits registriert' });
+      return res.status(400).json({ error: 'Diese E-Mail-Adresse ist bereits registriert', code: 'EMAIL_TAKEN' });
     }
 
     // Bind the OTP step to /register. Skipped in dev because sendEmailCode auto-
@@ -337,7 +336,7 @@ export const register = async (req, res) => {
   } catch (error) {
     // Unique constraint violation — concurrent registration with the same email
     if (error.code === '23505' && error.constraint?.includes('email')) {
-      return res.status(400).json({ error: 'Diese E-Mail-Adresse ist bereits registriert' });
+      return res.status(400).json({ error: 'Diese E-Mail-Adresse ist bereits registriert', code: 'EMAIL_TAKEN' });
     }
     console.error('Register error:', error);
     res.status(500).json({ error: 'Registrierung fehlgeschlagen' });
@@ -358,7 +357,7 @@ export const login = async (req, res) => {
     if (password.length > MAX_PASSWORD_LENGTH) {
       // Match the generic auth-failure response. Status 401 keeps the
       // enumeration surface the same as wrong-password / missing-user.
-      return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
+      return res.status(401).json({ error: 'E-Mail oder Passwort falsch', code: 'BAD_CREDENTIALS' });
     }
 
     const result = await db.query(
@@ -370,7 +369,7 @@ export const login = async (req, res) => {
     // missing so request timing does not leak which emails exist.
     if (result.rows.length === 0) {
       await bcrypt.compare(password, DUMMY_BCRYPT_HASH).catch(() => false);
-      return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
+      return res.status(401).json({ error: 'E-Mail oder Passwort falsch', code: 'BAD_CREDENTIALS' });
     }
 
     const user = result.rows[0];
@@ -387,25 +386,32 @@ export const login = async (req, res) => {
       const minutesLeft = Math.ceil((new Date(user.locked_until) - Date.now()) / 60000);
       return res.status(429).json({
         locked: true,
-        error: `Account gesperrt. Versuche es in ${minutesLeft} Minute${minutesLeft !== 1 ? 'n' : ''} erneut.`
+        error: `Account gesperrt. Versuche es in ${minutesLeft} Minute${minutesLeft !== 1 ? 'n' : ''} erneut.`,
+        code: 'ACCOUNT_LOCKED', minutes: minutesLeft
       });
     }
 
     if (!user.password) {
       // Run dummy compare to keep timing constant vs. real password path
       await bcrypt.compare(password, DUMMY_BCRYPT_HASH).catch(() => false);
-      return res.status(401).json({ error: 'Dieses Konto verwendet Google-Anmeldung. Bitte melde dich mit Google an.' });
+      return res.status(401).json({ error: 'Dieses Konto verwendet Google-Anmeldung. Bitte melde dich mit Google an.', code: 'USE_GOOGLE' });
     }
 
     const validPassword = await bcrypt.compare(password, user.password).catch(() => false);
     if (!validPassword) {
-      const attempts = (user.login_attempts || 0) + 1;
+      // An expired lock is a served sentence: start the count over. Without
+      // this, login_attempts never decayed — it was only ever reset by a
+      // SUCCESSFUL login — so once a user crossed 5, every single subsequent
+      // typo (not five, one) re-armed a fresh 30-minute lock, forever.
+      const lockExpired = user.locked_until && new Date(user.locked_until) <= new Date();
+      const prior = lockExpired ? 0 : (user.login_attempts || 0);
+      const attempts = prior + 1;
       const lockUntil = attempts >= 5 ? new Date(Date.now() + 30 * 60 * 1000) : null;
       await db.query(
         'UPDATE users SET login_attempts = $1, locked_until = $2 WHERE id = $3',
         [attempts, lockUntil, user.id]
       );
-      return res.status(401).json({ error: 'E-Mail oder Passwort falsch' });
+      return res.status(401).json({ error: 'E-Mail oder Passwort falsch', code: 'BAD_CREDENTIALS' });
     }
 
     // Reset lockout on successful login
@@ -466,11 +472,40 @@ export const updateProfile = async (req, res) => {
       return res.status(400).json({ error: 'Bio darf maximal 500 Zeichen lang sein' });
     }
     // Moderate the visible free-text fields (name, bio) — same coverage the
-    // group/club create paths already have. Only checks fields actually present.
-    const toModerate = [name, bio].filter(v => typeof v === 'string' && v.trim());
-    for (const text of toModerate) {
-      const { safe, reason } = await checkTextSafety(text);
-      if (!safe) return res.status(422).json({ error: reason || 'Eingabe enthält unzulässige Inhalte' });
+    // group/club create paths already have.
+    //
+    // The NAME is only re-checked when it actually CHANGED (audit 2026-09-15,
+    // finding 14). ProfileEdit resends the name on every save, so a user whose
+    // legal name collides with the blocklist could not save anything at all —
+    // not their bio, not their interests, not a new photo — forever, and
+    // neither could support without a direct DB write. It also burned an
+    // OpenAI moderation round trip on an unchanged name on every single save,
+    // the very cost the 2.5 s-timeout comment in moderation.js exists to
+    // contain. The avatar-quality backstop 30 lines below already uses exactly
+    // this shape and explains the same reasoning.
+    let storedName = null;
+    if (typeof name === 'string' && name.trim()) {
+      const cur = await db.query('SELECT name FROM users WHERE id = $1', [req.userId]);
+      storedName = cur.rows[0]?.name ?? null;
+    }
+    const checks = [];
+    if (typeof name === 'string' && name.trim() && name.trim() !== (storedName || '').trim()) {
+      checks.push({ field: 'name', text: name, opts: { isPersonName: true } });
+    }
+    if (typeof bio === 'string' && bio.trim()) {
+      checks.push({ field: 'bio', text: bio, opts: {} });
+    }
+    for (const c of checks) {
+      const { safe, reason, term } = await checkTextSafety(c.text, c.opts);
+      if (!safe) {
+        console.warn(`[moderation] user ${req.userId} ${c.field} rejected — term: ${term || 'ai'}`);
+        // Name WHICH field failed: the loop returned the identical message for
+        // both, so the user could not tell whether to edit their name or bio.
+        return res.status(422).json({
+          error: reason || 'Eingabe enthält unzulässige Inhalte',
+          field: c.field,
+        });
+      }
     }
     if (location !== undefined && location !== null && (typeof location !== 'string' || location.length > 255)) {
       return res.status(400).json({ error: 'Ort darf maximal 255 Zeichen lang sein' });
@@ -765,7 +800,15 @@ export const changePassword = async (req, res) => {
     // so the user who just changed their password isn't logged out of the tab
     // they did it in.
     await db.query(
-      'UPDATE users SET password = $1, sessions_valid_after = NOW(), updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      `UPDATE users SET password = $1, sessions_valid_after = NOW(), updated_at = CURRENT_TIMESTAMP,
+              -- Proving your identity clears the lockout (finding 13). The
+              -- lock check in login() runs BEFORE the password is compared,
+              -- so without this a user who had just completed the documented
+              -- recovery path typed their brand-new, correct password and
+              -- still got 429 "Account gesperrt" — with nothing they could do
+              -- about it.
+              login_attempts = 0, locked_until = NULL
+        WHERE id = $2`,
       [hashed, req.userId]
     );
     // Evict cached session state + kill sockets carrying pre-change tokens
@@ -983,8 +1026,39 @@ export const forgotPassword = async (req, res) => {
 
     const user = result.rows[0];
 
-    // Delete any existing tokens for this user
-    await db.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user.id]);
+    // ── Per-ACCOUNT throttle: 60 s cooldown + 5 mails/hour ────────────────
+    // The real abuse brake, now that the per-IP cap is NAT-survivable (30/h,
+    // rateLimiter.passwordResetLimiter). An IP cap never protected the victim
+    // anyway — an attacker with a pool of addresses could mail-bomb one inbox
+    // regardless. Same shape and reasoning as sendEmailCode's per-EMAIL
+    // throttle: in-DB, so it holds across replicas and survives restarts.
+    // Fails OPEN on a query error: nobody is ever locked out of recovery.
+    const throttle = await db.query(
+      `SELECT MAX(created_at) AS last_sent,
+              COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 hour')::int AS hour_count
+         FROM password_reset_tokens WHERE user_id = $1`,
+      [user.id]
+    ).catch(() => ({ rows: [{}] }));
+    const { last_sent: lastSent, hour_count: hourCount } = throttle.rows[0] || {};
+    const sinceLast = lastSent ? Date.now() - new Date(lastSent).getTime() : Infinity;
+    if (sinceLast < 60_000 || (hourCount || 0) >= 5) {
+      // Silent: the response stays the same enumeration-proof success either
+      // way, so this is invisible to an attacker probing addresses.
+      console.warn(`[pwreset] throttled user ${user.id} (${hourCount} this hour)`);
+      return res.json(successMsg);
+    }
+
+    // Invalidate previous tokens WITHOUT deleting the rows. The old DELETE was
+    // what made a per-account throttle impossible: it erased the very history a
+    // rate check has to count, so any "N per hour" test could only ever see the
+    // single surviving row. `used = TRUE` is exactly what resetPassword's own
+    // WHERE clause tests, so one token stays live — same invariant, but the
+    // request history survives for the throttle above. Rows are pruned by the
+    // expiry cleanup like every other token table.
+    await db.query(
+      'UPDATE password_reset_tokens SET used = TRUE WHERE user_id = $1 AND used = FALSE',
+      [user.id]
+    );
 
     // Prefix ensures password-reset tokens cannot be used as email-verification tokens
     const token = 'pr_' + crypto.randomBytes(32).toString('hex');
@@ -1056,7 +1130,15 @@ export const resetPassword = async (req, res) => {
     // session (the attacker's included); the user then logs in fresh.
     const hashed = await bcrypt.hash(newPassword, 12);
     await db.query(
-      'UPDATE users SET password = $1, sessions_valid_after = NOW(), updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      `UPDATE users SET password = $1, sessions_valid_after = NOW(), updated_at = CURRENT_TIMESTAMP,
+              -- Proving your identity clears the lockout (finding 13). The
+              -- lock check in login() runs BEFORE the password is compared,
+              -- so without this a user who had just completed the documented
+              -- recovery path typed their brand-new, correct password and
+              -- still got 429 "Account gesperrt" — with nothing they could do
+              -- about it.
+              login_attempts = 0, locked_until = NULL
+        WHERE id = $2`,
       [hashed, resetToken.user_id]
     );
     // A reset usually means "someone else may have my password" — evict the
@@ -1155,7 +1237,7 @@ export const sendEmailCode = async (req, res) => {
     // the trade-off like most consumer apps do.
     const existing = await db.query('SELECT id FROM users WHERE LOWER(email) = $1', [email]);
     if (existing.rows.length > 0) {
-      return res.status(400).json({ error: 'Diese E-Mail ist bereits registriert' });
+      return res.status(400).json({ error: 'Diese E-Mail ist bereits registriert', code: 'EMAIL_TAKEN' });
     }
 
     // Ensure table exists (guards against the startup-migration race on cold

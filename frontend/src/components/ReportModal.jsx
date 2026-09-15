@@ -26,8 +26,12 @@ export const ReportModal = ({ type, id, name, onClose }) => {
     if (!reason) return;
     setLoading(true);
     try {
-      await api.reports.create(type, id, reason, details);
-      toast.success(t('report.success'));
+      const res = await api.reports.create(type, id, reason, details);
+      // The server answers `alreadyOpen` when an identical report from this
+      // user is still in the moderation queue. Saying "erfolgreich gesendet"
+      // there was a lie that mattered: nothing new reached an admin, and the
+      // reporter walked away believing moderation had been told again.
+      toast.success(res?.data?.alreadyOpen ? t('report.alreadyOpen') : t('report.success'));
       onClose();
     } catch {
       toast.error(t('report.error'));

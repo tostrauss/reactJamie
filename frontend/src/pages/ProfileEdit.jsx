@@ -8,6 +8,7 @@ import { isNativeIOS } from '../utils/platform';
 import { useToast } from '../context/ToastContext';
 import SpotifySongPicker from '../components/SpotifySongPicker';
 import { ImageCropModal } from '../components/ImageCropModal';
+import { downscaleImageFile } from '../utils/images';
 import '../styles/profile.css';
 
 const AVAILABLE_INTERESTS = [
@@ -315,7 +316,9 @@ export const ProfileEdit = () => {
     }
     setPinnwandUploading(true);
     try {
-      const res = await upload.image(file);
+      // Same client-side shrink as ImageUpload — the Pinnwand adder is the
+      // other path with no crop step (finding 8).
+      const res = await upload.image(await downscaleImageFile(file));
       setFormData(prev => ({ ...prev, pinnwand: [...(prev.pinnwand || []), res.data.url] }));
     } catch (err) {
       toast.error(err?.response?.data?.error || err?.message || t('profileEdit.toast.photoError'));

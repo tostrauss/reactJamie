@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation, Trans } from 'react-i18next';
+import { serverErrorMessage } from '../utils/apiError';
 import { AuthContext } from '../context/AuthContext';
 import { auth } from '../utils/api';
 import { safeStorage, safeSession } from '../utils/safeStorage';
@@ -100,7 +101,7 @@ export const Register = () => {
         setOtpResendTimer(OTP_RESEND_SECONDS);
       }
     } catch (err) {
-      setOtpError(err.response?.data?.error || t('auth.register.step3.errorSendFailed'));
+      setOtpError(serverErrorMessage(err, t, 'auth.register.step3.errorSendFailed'));
     } finally {
       setOtpLoading(false);
     }
@@ -114,7 +115,7 @@ export const Register = () => {
       await auth.verifyEmailCode(email, otpCode);
       setStep(4);
     } catch (err) {
-      setOtpError(err.response?.data?.error || t('auth.register.step3.errorInvalid'));
+      setOtpError(serverErrorMessage(err, t, 'auth.register.step3.errorInvalid'));
     } finally {
       setOtpLoading(false);
     }
@@ -133,7 +134,7 @@ export const Register = () => {
         setOtpResendTimer(OTP_RESEND_SECONDS);
       }
     } catch (err) {
-      setOtpError(err.response?.data?.error || t('auth.register.step3.errorSendFailed'));
+      setOtpError(serverErrorMessage(err, t, 'auth.register.step3.errorSendFailed'));
     } finally {
       setOtpLoading(false);
     }
@@ -196,7 +197,7 @@ export const Register = () => {
       // onboarding should not re-enter the (now consumed) signup form.
       navigate('/onboarding', { replace: true });
     } catch (err) {
-      setError(err.response?.data?.error || t('auth.register.validation.registerFailed'));
+      setError(serverErrorMessage(err, t, 'auth.register.validation.registerFailed'));
     }
   };
 

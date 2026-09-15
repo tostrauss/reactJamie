@@ -1,4 +1,8 @@
 import { Sentry } from '../config/sentry.js';
+import {
+  REASON_LABELS as REPORT_REASON_LABELS,
+  TYPE_LABELS as REPORT_TYPE_LABELS,
+} from './reportContext.js';
 
 const escapeHtml = (str) => String(str || '')
   .replace(/&/g, '&amp;')
@@ -137,19 +141,122 @@ export const sendVerificationEmail = async (email, token, userName) => {
   });
 };
 
-export const sendAdminReportEmail = async (reporterId, type, targetId, reason) => {
+// Moderation alert.
+//
+// Until 2026-09-15 this mail said only "Typ: user · ID: 984 · Grund:
+// inappropriate · Gemeldet von User #: 1375" — four numbers and a raw enum
+// value. An admin could not tell WHO was reported, BY whom, or WHAT they
+// actually did, and the reporter's free-text `details` — which the report
+// modal explicitly asks for — was dropped from the mail entirely. Every one of
+// those had to be looked up by hand in the database before anything could be
+// decided, so in practice nothing was.
+//
+// `ctx` comes from utils/reportContext.js: the same resolver the admin list
+// and the admin push use, so all three surfaces describe a report identically.
+const reportRow = (label, value) => value == null || value === ''
+  ? ''
+  : `<tr>
+       <td style="padding:6px 12px 6px 0;color:#888;white-space:nowrap;vertical-align:top;">${escapeHtml(label)}</td>
+       <td style="padding:6px 0;color:#222;">${value}</td>
+     </tr>`;
+
+export const sendAdminReportEmail = async ({ reportId, type, reason, details, ctx, isUpdate = false }) => {
   const adminEmail = process.env.ADMIN_EMAIL;
   if (!adminEmail) return;
+
+  const { reporter, target } = ctx || {};
+  const base = FRONTEND_URL();
+  const typeLabel = REPORT_TYPE_LABELS[type] || type;
+  const reasonLabel = REPORT_REASON_LABELS[reason] || reason;
+
+  // The subject carries the whole triage-relevant summary: an admin looking at
+  // a phone lock screen should not have to open the mail to know what it is.
+  const targetName = !target || target.missing
+    ? `#${target?.id ?? '?'} (gelöscht)`
+    : target.kind === 'message'
+      ? `Nachricht von ${target.author?.name || 'Unbekannt'}`
+      : (target.name || `#${target.id}`);
+  const subject = isUpdate
+    ? `[JAMIE] Meldung #${reportId} ergänzt: ${typeLabel} ${targetName} — ${reasonLabel}`
+    : `[JAMIE] Meldung #${reportId}: ${typeLabel} ${targetName} — ${reasonLabel}`;
+
+  // ── What was reported ────────────────────────────────────────────────────
+  let targetBlock = '';
+  if (!target || target.missing) {
+    targetBlock = reportRow('Gemeldet', `<em style="color:#b26a00;">${escapeHtml(typeLabel)} #${target?.id ?? '?'} existiert nicht mehr (gelöscht)</em>`);
+  } else if (target.kind === 'user') {
+    targetBlock =
+      reportRow('Gemeldeter Nutzer', `<strong>${escapeHtml(target.name)}</strong> (#${target.id})`) +
+      reportRow('E-Mail', target.email ? `<a href="mailto:${escapeHtml(target.email)}" style="color:#FD7666;">${escapeHtml(target.email)}</a>` : '') +
+      reportRow('Ort', escapeHtml(target.location)) +
+      reportRow('Dabei seit', target.joined_at ? escapeHtml(new Date(target.joined_at).toLocaleDateString('de-AT')) : '') +
+      reportRow('Bio', target.bio ? `<span style="color:#555;">${escapeHtml(target.bio)}</span>` : '');
+  } else if (target.kind === 'group') {
+    targetBlock =
+      reportRow(target.entity_type === 'club' ? 'Gemeldeter Club' : 'Gemeldete Gruppe',
+        `<strong>${escapeHtml(target.name)}</strong> (#${target.id})${target.deleted ? ' <em style="color:#b26a00;">— gelöscht</em>' : ''}`) +
+      reportRow('Erstellt von', target.owner ? `${escapeHtml(target.owner.name)} (#${target.owner.id})` : '') +
+      reportRow('Kategorie', escapeHtml(target.category)) +
+      reportRow('Ort', escapeHtml(target.location)) +
+      reportRow('Beschreibung', target.description ? `<span style="color:#555;">${escapeHtml(target.description)}</span>` : '');
+  } else if (target.kind === 'message') {
+    targetBlock =
+      reportRow('Autor', target.author ? `<strong>${escapeHtml(target.author.name)}</strong> (#${target.author.id})` : '<em>gelöschter Account</em>') +
+      reportRow('Im Chat', target.group ? `${escapeHtml(target.group.name)} (#${target.group.id})` : '') +
+      reportRow('Gesendet', target.created_at ? escapeHtml(new Date(target.created_at).toLocaleString('de-AT')) : '') +
+      (target.deleted ? reportRow('Status', '<em style="color:#b26a00;">Nachricht wurde inzwischen gelöscht</em>') : '') +
+      reportRow('Inhalt',
+        `<div style="background:#f4f4f4;border-left:3px solid #FD7666;border-radius:8px;padding:12px 14px;white-space:pre-wrap;word-break:break-word;color:#222;">${escapeHtml(target.content)}</div>`);
+  }
+
+  // ── Deep links: one click to the thing, one click to the queue ───────────
+  const openLabel = target?.kind === 'message' ? 'Chat öffnen' : `${typeLabel} öffnen`;
+  const buttons = [
+    target?.path
+      ? `<a href="${base}${target.path}" style="display:inline-block;background:#FD7666;color:#fff;padding:12px 24px;border-radius:12px;text-decoration:none;font-weight:600;margin:0 8px 8px 0;">${escapeHtml(openLabel)}</a>`
+      : '',
+    `<a href="${base}/admin#reports" style="display:inline-block;background:#2b2f44;color:#fff;padding:12px 24px;border-radius:12px;text-decoration:none;font-weight:600;margin:0 8px 8px 0;">Meldungen im Admin-Panel</a>`,
+  ].join('');
+
+  // Repeat-offender signal: the third report against the same target is a far
+  // stronger one than the first, and this is the only place it is visible
+  // without running a query by hand.
+  const repeatNote = target?.report_count > 1
+    ? `<p style="margin:16px 0 0;padding:10px 14px;background:#fff4e5;border-radius:10px;color:#8a5200;font-size:14px;">
+         ⚠️ Das ist bereits die <strong>${target.report_count}.</strong> Meldung gegen ${escapeHtml(typeLabel.toLowerCase())} #${target.id}.
+       </p>`
+    : '';
+
   return sendEmail({
     to: adminEmail,
-    subject: `[JAMIE] Neue Meldung: ${type} #${targetId}`,
-    html: `<p>Neue Meldung eingegangen.</p>
-           <ul>
-             <li><strong>Typ:</strong> ${escapeHtml(type)}</li>
-             <li><strong>ID:</strong> ${targetId}</li>
-             <li><strong>Grund:</strong> ${escapeHtml(reason)}</li>
-             <li><strong>Gemeldet von User #:</strong> ${reporterId}</li>
-           </ul>`,
+    subject,
+    html: `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:600px;margin:0 auto;padding:32px 20px;">
+        <h1 style="color:#FD7666;font-size:24px;margin:0 0 4px;">JAMIE</h1>
+        <h2 style="color:#222;font-size:19px;margin:0 0 4px;">${isUpdate ? `Meldung #${reportId} ergänzt` : `Neue Meldung #${reportId}`}</h2>
+        ${isUpdate ? '<p style="margin:0 0 12px;padding:8px 12px;background:#e8f0f7;border-radius:8px;color:#26506e;font-size:13px;">Der Melder hat seine noch offene Meldung mit neuen Angaben aktualisiert.</p>' : ''}
+        <p style="color:#888;font-size:14px;margin:0 0 20px;">${escapeHtml(typeLabel)} · ${escapeHtml(reasonLabel)}</p>
+
+        <table style="border-collapse:collapse;width:100%;font-size:14px;line-height:1.5;">
+          ${targetBlock}
+          <tr><td colspan="2" style="padding:8px 0;"><hr style="border:none;border-top:1px solid #eee;margin:0;"></td></tr>
+          ${reportRow('Gemeldet von', reporter?.name
+            ? `${escapeHtml(reporter.name)} (#${reporter.id})${reporter.email ? ` · <a href="mailto:${escapeHtml(reporter.email)}" style="color:#FD7666;">${escapeHtml(reporter.email)}</a>` : ''}`
+            : `#${reporter?.id ?? '?'}`)}
+          ${reportRow('Grund', `<strong>${escapeHtml(reasonLabel)}</strong>`)}
+          ${reportRow('Begründung', details
+            ? `<div style="background:#f4f4f4;border-radius:8px;padding:12px 14px;white-space:pre-wrap;word-break:break-word;color:#222;">${escapeHtml(details)}</div>`
+            : '<em style="color:#aaa;">keine Angabe</em>')}
+          ${reporter?.reports_filed > 5
+            ? reportRow('Hinweis', `<span style="color:#8a5200;">Dieser Nutzer hat bereits ${reporter.reports_filed} Meldungen abgesetzt.</span>`)
+            : ''}
+        </table>
+
+        ${repeatNote}
+
+        <div style="margin-top:24px;">${buttons}</div>
+      </div>
+    `,
   });
 };
 

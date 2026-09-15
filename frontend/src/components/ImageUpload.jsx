@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { upload } from '../utils/api';
+import { downscaleImageFile } from '../utils/images';
 import { useToast } from '../context/ToastContext';
 
 // triggerRef (optional): parent passes a ref and can then open the file
@@ -41,7 +42,12 @@ export const ImageUpload = ({ onUpload, label, triggerRef, purpose }) => {
 
     setUploading(true);
     try {
-      const res = await upload.image(file, purpose);
+      // Shrink before sending (finding 8). Onboarding uploads through here and
+      // had no crop step, so a 5-10 MB camera-roll photo went up whole — the
+      // server then discarded 95% of it. Fails open: on any error the original
+      // file is uploaded exactly as before.
+      const toSend = await downscaleImageFile(file);
+      const res = await upload.image(toSend, purpose);
       onUpload(res.data.url);
     } catch (err) {
       toast.error(err?.response?.data?.error || t('imageUpload.failed'));

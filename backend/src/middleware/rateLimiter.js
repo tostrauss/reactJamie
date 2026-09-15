@@ -109,15 +109,62 @@ export const authLimiter = rateLimit({
   message: { error: 'Zu viele Login-Versuche. Bitte versuche es in 15 Minuten erneut.' }
 });
 
-// Strict rate limit: 5 attempts/hour (password reset, account deletion, etc.)
+// ── The former one-size strictLimiter, split three ways ────────────────────
+//
+// It was ONE instance with no keyGenerator — so one 5/hour bucket per IP,
+// shared across /password, /account, /export, /forgot-password,
+// /reset-password, /verify-email, the Stripe withdrawal, the two IAP routes,
+// the public contact form and the waitlist. A single successful password reset
+// burned 2 of the 5 and the verification link a third, so on a carrier NAT the
+// third user to tap "Passwort vergessen" got a 429 on their FIRST attempt, for
+// an hour, on the one screen where a returning user has no alternative.
+//
+// This is exactly the diagnosis already written one file over (authRoutes.js:16
+// — "5/h shared across an entire NAT (CGNAT carriers, event WiFi) locked out
+// real users"); it was applied to social login and never carried across to
+// account recovery. Separate `store` prefixes are what stops the budgets
+// cross-contaminating. Audit 2026-09-15, finding 5.
+
+// Authenticated sensitive operations: password change, account deletion, GDPR
+// export, subscription withdrawal, IAP verify/restore. These all run AFTER
+// `authenticate`, so there is no reason to key them by IP at all — today one
+// user's GDPR export burns a NAT-mate's password change. Per user, fail-closed.
 export const strictLimiter = rateLimit({
-  ...SHARED_STRICT, // fail-closed: password reset / account deletion must stay capped even if Redis errors
+  ...SHARED_STRICT,
   windowMs: 60 * 60 * 1000,
   max: disabled ? 10000 : 5,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => `strict:${req.userId}`,
+  validate: { keyGeneratorIpFallback: false },
   store: makeStore('rl:strict:'),
   message: { error: 'Zu viele Versuche. Bitte versuche es in einer Stunde erneut.' }
+});
+
+// Password reset (public, pre-auth). NAT-survivable per-IP ceiling: this is the
+// mass-abuse brake only. The real protection is the per-EMAIL throttle inside
+// forgotPassword, which holds across replicas and protects the victim's inbox
+// no matter how many IPs an attacker has — something an IP cap never did.
+export const passwordResetLimiter = rateLimit({
+  ...SHARED_STRICT,
+  windowMs: 60 * 60 * 1000,
+  max: disabled ? 10000 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: makeStore('rl:pwreset:'),
+  message: { error: 'Zu viele Versuche. Bitte versuche es in einer Stunde erneut.' }
+});
+
+// Public marketing endpoints (website contact form, waitlist signup). Their own
+// bucket so a contact-form submission can never 429 somebody's password reset.
+export const publicFormLimiter = rateLimit({
+  ...SHARED,
+  windowMs: 60 * 60 * 1000,
+  max: disabled ? 10000 : 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  store: makeStore('rl:pubform:'),
+  message: { error: 'Zu viele Anfragen. Bitte versuche es später erneut.' }
 });
 
 // Registration flow: 600 attempts/hour per IP (raised from 200 for the 2M2M

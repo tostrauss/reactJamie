@@ -1,5 +1,8 @@
 import db from '../config/database.js';
 import { checkTextSafety } from '../config/moderation.js';
+import { isSafeVoiceUrl, isSafeImageUrl } from '../utils/safeUrl.js';
+// One reply shape for group chat and DMs alike — see messageController.
+import { withReply } from './messageController.js';
 import { sendPushToUser } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 
@@ -80,11 +83,30 @@ async function dmAllowed(userA, userB) {
 
 // ==========================================
 // SEND DIRECT MESSAGE
+// Per-PAIR push cooldown, mirroring messageController's per-member one — same
+// 30 s window, same replica-local best-effort (worst case one extra banner per
+// replica), same sweep so the map cannot grow unbounded.
+const DM_PUSH_COOLDOWN_MS = 30_000;
+const _dmPushCooldown = new Map(); // `${receiverId}:${senderId}` → last push ms
+setInterval(() => {
+  const cutoff = Date.now() - DM_PUSH_COOLDOWN_MS;
+  for (const [k, t] of _dmPushCooldown) if (t < cutoff) _dmPushCooldown.delete(k);
+}, 60_000).unref();
+
+/** True when this pair was pushed within the window; stamps it otherwise. */
+export const onDmCooldown = (receiverId, senderId, now = Date.now()) => {
+  const key = `${receiverId}:${senderId}`;
+  const last = _dmPushCooldown.get(key);
+  if (last && now - last < DM_PUSH_COOLDOWN_MS) return true;
+  _dmPushCooldown.set(key, now);
+  return false;
+};
+
 // ==========================================
 export const sendDM = async (req, res) => {
   try {
     const receiverId = parseInt(req.body.receiverId, 10);
-    const { content } = req.body;
+    const { content, message_type, reply_to_id, duration_ms } = req.body;
 
     if (isNaN(receiverId) || receiverId <= 0) {
       return res.status(400).json({ error: 'Ungültiger Empfänger' });
@@ -93,13 +115,33 @@ export const sendDM = async (req, res) => {
       return res.status(400).json({ error: 'Empfänger und Inhalt erforderlich' });
     }
 
-    if (content.length > 5000) {
-      return res.status(400).json({ error: 'Nachricht darf maximal 5.000 Zeichen lang sein' });
+    // Mirrors sendMessage — see the reasoning there.
+    const isVoice = message_type === 'voice';
+    const isImage = message_type === 'image';
+    if (message_type != null && message_type !== 'text' && !isVoice && !isImage) {
+      return res.status(400).json({ error: 'Ungültiger Nachrichtentyp' });
     }
 
-    const { safe, reason } = await checkTextSafety(content);
-    if (!safe) {
-      return res.status(422).json({ error: reason });
+    if (isVoice) {
+      if (!isSafeVoiceUrl(content.trim())) {
+        return res.status(400).json({ error: 'Ungültige Sprachnachricht' });
+      }
+    } else if (isImage) {
+      // Same boundary as a voice URL: `content` is fed straight to an <img>,
+      // so it must be a URL our own upload route minted. That route is also
+      // where Sightengine runs — the real difference between photos and voice
+      // notes here is that a photo IS moderated before it can ever be sent.
+      if (!isSafeImageUrl(content.trim())) {
+        return res.status(400).json({ error: 'Ungültiges Bild' });
+      }
+    } else {
+      if (content.length > 5000) {
+        return res.status(400).json({ error: 'Nachricht darf maximal 5.000 Zeichen lang sein' });
+      }
+      const { safe, reason } = await checkTextSafety(content);
+      if (!safe) {
+        return res.status(422).json({ error: reason });
+      }
     }
 
     // Accepted friends may DM each other; admins may DM anyone (and be replied
@@ -120,14 +162,37 @@ export const sendDM = async (req, res) => {
     // retried → duplicate. One transaction makes it all-or-nothing.
     // Self-heal wrapper: on a fresh DB the tables may be missing — create them
     // and retry once.
+    // Quote target, scoped to THIS conversation in both directions — a client
+    // must not be able to quote a DM from a different thread and have the
+    // snippet rendered to the other person.
+    let replyToId = null;
+    if (reply_to_id != null) {
+      const rid = parseInt(reply_to_id, 10);
+      if (Number.isInteger(rid) && rid > 0) {
+        const tgt = await db.query(
+          `SELECT 1 FROM direct_messages
+            WHERE id = $1
+              AND ((sender_id = $2 AND receiver_id = $3) OR (sender_id = $3 AND receiver_id = $2))`,
+          [rid, req.userId, receiverId]
+        );
+        if (tgt.rowCount > 0) replyToId = rid;
+      }
+    }
+
+    const rawDuration = parseInt(duration_ms, 10);
+    const durationMs = isVoice && Number.isFinite(rawDuration)
+      ? Math.min(Math.max(rawDuration, 0), 120_000)
+      : null;
+
     let insertResult;
     for (let attempt = 0; attempt < 2; attempt++) {
       const client = await db.pool.connect();
       try {
         await client.query('BEGIN');
         insertResult = await client.query(
-          'INSERT INTO direct_messages (sender_id, receiver_id, content) VALUES ($1::int, $2::int, $3) RETURNING *',
-          [req.userId, receiverId, content]
+          `INSERT INTO direct_messages (sender_id, receiver_id, content, message_type, reply_to_id, duration_ms)
+           VALUES ($1::int, $2::int, $3, $4::varchar, $5::int, $6::int) RETURNING *`,
+          [req.userId, receiverId, content, isVoice ? 'voice' : isImage ? 'image' : 'text', replyToId, durationMs]
         );
         const msgId = insertResult.rows[0].id;
         await client.query(
@@ -173,18 +238,45 @@ export const sendDM = async (req, res) => {
         const senderName = s.rows[0]?.name || 'Jemand';
         const senderAvatar = s.rows[0]?.avatar_url || null;
         const msgRow = insertResult.rows[0];
+
+        // The quoted message for the live payload. Only when this message
+        // actually is a reply — one extra indexed lookup on a rare path,
+        // inside the fire-and-forget block, so it costs the sender nothing.
+        // The 201 response body carries the same quote (added below).
+        let replyQuote = {};
+        if (msgRow.reply_to_id) {
+          const q = await db.query(
+            `SELECT q.id, q.content, q.message_type, u.name
+               FROM direct_messages q LEFT JOIN users u ON u.id = q.sender_id
+              WHERE q.id = $1`,
+            [msgRow.reply_to_id]
+          ).catch(() => ({ rows: [] }));
+          if (q.rows[0]) {
+            replyQuote = {
+              reply_id: q.rows[0].id,
+              reply_content: q.rows[0].content,
+              reply_message_type: q.rows[0].message_type,
+              reply_user_name: q.rows[0].name,
+            };
+          }
+        }
+
         const io = req.app.get('io');
         if (io) {
           const roomName = `dm_${Math.min(req.userId, receiverId)}_${Math.max(req.userId, receiverId)}`;
           io.to(roomName).emit('receive_dm', {
             senderId: req.userId,
             receiverId,
-            message: { ...msgRow, sender_name: senderName, sender_avatar: senderAvatar },
+            message: withReply({ ...msgRow, sender_name: senderName, sender_avatar: senderAvatar, ...replyQuote }),
             timestamp: msgRow.created_at,
           });
           io.to(`user_${receiverId}`).emit('new_dm_notification', {
             senderId: req.userId,
-            message: (msgRow.content || '').slice(0, 200),
+            // The TYPE travels, not a label — the recipient's client knows
+            // their locale, this server does not. `message` stays empty for a
+            // voice note rather than leaking the storage URL.
+            message_type: isVoice ? 'voice' : isImage ? 'image' : 'text',
+            message: (isVoice || isImage) ? '' : (msgRow.content || '').slice(0, 200),
             timestamp: msgRow.created_at,
           });
         }
@@ -193,16 +285,67 @@ export const sendDM = async (req, res) => {
         // 2026-09-06 only the socket payload above carried a preview; the push
         // said "X hat dir eine Nachricht geschickt" (Stefan: "warum gibts keine
         // vorschau?"). Content is already moderated (checkTextSafety above).
-        sendPushToUser(
-          receiverId,
-          pushTexts('newDm', { name: senderName, preview: (msgRow.content || '').slice(0, 120) }),
-          null,
-          `/dm/${req.userId}`
-        );
+        // ── Don't push a message the receiver is already reading ────────
+        // The group-chat path has done this since it was written (see
+        // computePushRecipients in messageController): skip anyone with a live
+        // socket IN the room, plus a 30 s per-recipient cooldown. The DM path
+        // had NEITHER, so a normal back-and-forth in an open thread produced
+        // one banner with vibration per message — 30 messages, 30 banners, for
+        // text already on screen. Users read that as the app being broken and
+        // turn notifications off entirely, which also kills the event
+        // reminders the 06.09. release was for. Audit 2026-09-15, finding 15.
+        //
+        // Reuses the room name computed above, and the same `socket.data.userId`
+        // mirroring the group path relies on. Best-effort: on any error we fall
+        // through and push, exactly like the group path does.
+        let receiverIsReading = false;
+        try {
+          if (io) {
+            const roomName = `dm_${Math.min(req.userId, receiverId)}_${Math.max(req.userId, receiverId)}`;
+            const sockets = await io.in(roomName).fetchSockets();
+            receiverIsReading = sockets.some(
+              (sock) => Number(sock.data?.userId ?? sock.userId) === Number(receiverId)
+            );
+          }
+        } catch { /* fall through and push */ }
+
+        if (!receiverIsReading && !onDmCooldown(receiverId, req.userId)) {
+          sendPushToUser(
+            receiverId,
+            pushTexts('newDm', {
+              name: senderName,
+              isVoice,
+              isImage,
+              preview: (isVoice || isImage) ? null : (msgRow.content || '').slice(0, 120),
+            }),
+            null,
+            `/dm/${req.userId}`
+          );
+        }
       } catch { /* non-critical */ }
     })();
 
-    res.status(201).json(insertResult.rows[0]);
+    // The sender needs the quote too — they render their own bubble from this
+    // response, not from the socket echo (which deliberately excludes them).
+    let created = withReply(insertResult.rows[0]);
+    if (created.reply_to_id && !created.reply_to) {
+      const q = await db.query(
+        `SELECT q.id, q.content, q.message_type, u.name
+           FROM direct_messages q LEFT JOIN users u ON u.id = q.sender_id
+          WHERE q.id = $1`,
+        [created.reply_to_id]
+      ).catch(() => ({ rows: [] }));
+      if (q.rows[0]) {
+        created = withReply({
+          ...insertResult.rows[0],
+          reply_id: q.rows[0].id,
+          reply_content: q.rows[0].content,
+          reply_message_type: q.rows[0].message_type,
+          reply_user_name: q.rows[0].name,
+        });
+      }
+    }
+    res.status(201).json(created);
   } catch (error) {
     console.error('Error sending DM:', error);
     res.status(500).json({
@@ -242,11 +385,16 @@ export const getConversation = async (req, res) => {
     const querySql = `
       SELECT dm.id, dm.sender_id, dm.receiver_id, dm.content, dm.message_type,
              dm.is_read, dm.is_deleted_sender, dm.is_deleted_receiver, dm.created_at,
+             dm.duration_ms, dm.reply_to_id,
              s.name as sender_name, s.avatar_url as sender_avatar,
-             r.name as receiver_name, r.avatar_url as receiver_avatar
+             r.name as receiver_name, r.avatar_url as receiver_avatar,
+             q.id AS reply_id, q.content AS reply_content,
+             q.message_type AS reply_message_type, qu.name AS reply_user_name
       FROM direct_messages dm
       LEFT JOIN users s ON dm.sender_id = s.id
       LEFT JOIN users r ON dm.receiver_id = r.id
+      LEFT JOIN direct_messages q ON q.id = dm.reply_to_id
+      LEFT JOIN users qu ON qu.id = q.sender_id
       WHERE LEAST(dm.sender_id, dm.receiver_id)    = LEAST($1::int, $2::int)
         AND GREATEST(dm.sender_id, dm.receiver_id) = GREATEST($1::int, $2::int)
         ${hasBefore ? 'AND dm.id < $4' : ''}
@@ -274,7 +422,7 @@ export const getConversation = async (req, res) => {
 
     // Reverse to chronological (oldest→newest) for the client; the query
     // fetched the newest page in DESC order.
-    res.json(result.rows.reverse());
+    res.json(result.rows.reverse().map(withReply));
   } catch (error) {
     console.error('Error fetching conversation:', error);
     res.status(500).json({
@@ -290,7 +438,10 @@ export const getConversations = async (req, res) => {
   try {
     const sql = `
       SELECT dc.*, u.name as other_user_name, u.avatar_url as other_user_avatar,
-             dm.content as last_message_text, dm.created_at as last_message_at
+             dm.content as last_message_text, dm.created_at as last_message_at,
+             -- A voice message stores a URL in content; the chat list renders
+             -- a label off this instead of showing the storage path.
+             dm.message_type as last_message_type
       FROM dm_conversations dc
       JOIN users u ON dc.other_user_id = u.id
       LEFT JOIN direct_messages dm ON dc.last_message_id = dm.id

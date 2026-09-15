@@ -254,10 +254,31 @@ describe('pushTexts', () => {
       expect(pushTexts('clubApproved', { groupName: 'Club X' })('en').body).toBe('"Club X" is now public');
       expect(pushTexts('clubRejected', { groupName: 'Club X' })('de').title).toBe('Club nicht freigegeben');
     });
-    it('clubPendingAdmin / reportAdmin are the admin ops texts (reportAdmin ignores params)', () => {
+    it('clubPendingAdmin is the admin ops text', () => {
       expect(pushTexts('clubPendingAdmin', { groupName: 'Club X' })('de').title).toBe('Neuer Club wartet auf Freigabe');
+    });
+
+    // reportAdmin used to be a constant ("Eine neue Meldung ist eingegangen"),
+    // which told an admin that something happened but never what. It now names
+    // the reason and the reported target.
+    it('reportAdmin names the reason and the target, per locale', () => {
+      const b = pushTexts('reportAdmin', { reason: 'harassment', type: 'user', target: '„Anna K.“ (#984)' });
+      expect(b('de')).toEqual({ title: 'Meldung: Belästigung', body: 'Nutzer „Anna K.“ (#984)' });
+      expect(b('en')).toEqual({ title: 'Report: Harassment', body: 'User „Anna K.“ (#984)' });
+      expect(b('es').title).toBe('Denuncia: Acoso');
+      // French puts a space before the colon and carries it in the lead itself
+      // — the builder must not then append a second one.
+      expect(b('fr').title).toBe('Signalement : Harcèlement');
+    });
+
+    it('reportAdmin falls back to the generic text when context is missing', () => {
+      // The context lookup is best-effort and runs AFTER the report row is
+      // committed, so it can legitimately fail. A vague push is still
+      // actionable; "Meldung: undefined" is not.
       expect(pushTexts('reportAdmin', {})('de')).toEqual({ title: 'Neue Meldung', body: 'Eine neue Meldung ist eingegangen' });
       expect(pushTexts('reportAdmin', {})('es').title).toBe('Nueva denuncia');
+      expect(pushTexts('reportAdmin', { reason: 'spam' })('de').title).toBe('Neue Meldung');
+      expect(pushTexts('reportAdmin', { target: 'x' })('de').title).toBe('Neue Meldung');
     });
     it('managerAdded is positive, per locale', () => {
       expect(pushTexts('managerAdded', { groupName: 'Club X' })('de').title).toBe('Du bist jetzt Manager 🎉');
@@ -267,5 +288,33 @@ describe('pushTexts', () => {
       expect(pushTexts('reviewNudge', { groupName: 'Bar Abend' })('de')).toEqual({ title: 'Wie war "Bar Abend"?', body: 'Bewerte, wer dabei war 🌟' });
       expect(pushTexts('reviewNudge', { groupName: 'Bar Abend' })('en').title).toBe('How was "Bar Abend"?');
     });
+  });
+});
+
+// Voice messages store a URL in `content`, so every push surface shows a label
+// instead — and it has to be the RECIPIENT's language. The first version put a
+// German label into the params at the call site, which is resolved long before
+// sendPushToUser knows who it is sending to (2026-09-15).
+describe('voice-message pushes are labelled per recipient locale', () => {
+  it('newDm labels a voice note in each language', () => {
+    const b = pushTexts('newDm', { name: 'Anna', isVoice: true });
+    expect(b('de')).toEqual({ title: 'Anna', body: '🎤 Sprachnachricht' });
+    expect(b('en')).toEqual({ title: 'Anna', body: '🎤 Voice message' });
+    expect(b('fr').body).toBe('🎤 Message vocal');
+    expect(b('es').body).toBe('🎤 Mensaje de voz');
+    expect(b('it').body).toBe('🎤 Messaggio vocale');
+  });
+
+  it('groupMessage prefixes the sender and labels per language', () => {
+    const b = pushTexts('groupMessage', { groupName: 'Tennis', sender: 'Anna', isVoice: true });
+    expect(b('de')).toEqual({ title: 'Tennis', body: 'Anna: 🎤 Sprachnachricht' });
+    expect(b('en').body).toBe('Anna: 🎤 Voice message');
+  });
+
+  it('a text message is untouched by the voice branch', () => {
+    const b = pushTexts('groupMessage', { groupName: 'Tennis', line: 'Anna: hallo' });
+    expect(b('de')).toEqual({ title: 'Tennis', body: 'Anna: hallo' });
+    const d = pushTexts('newDm', { name: 'Anna', preview: 'hallo' });
+    expect(d('de')).toEqual({ title: 'Anna', body: 'hallo' });
   });
 });

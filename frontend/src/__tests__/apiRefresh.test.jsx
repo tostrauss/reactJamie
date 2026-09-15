@@ -119,3 +119,77 @@ describe('401 session expiry (rescue removed — review 2026-09-02)', () => {
     expect(instanceRef.current.post).not.toHaveBeenCalled();
   });
 });
+
+// Audit 2026-09-15, finding 9: the 429 path above was the only branch with
+// amplification protection, while timeouts and 5xx — the modes that actually
+// dominate under load — were retried three extra times each.
+describe('GET retry budget + circuit breaker (finding 9)', () => {
+  beforeEach(() => {
+    api.clearMemToken();
+    api._resetApiBreaker();
+    instanceRef.current.mockClear();
+  });
+
+  const mkTimeout = (url = '/groups') => ({ config: { url, method: 'get' } }); // no .response
+  const mk500 = (url = '/groups') => ({ config: { url, method: 'get' }, response: { status: 500, headers: {} } });
+
+  it('retries a timed-out GET exactly once, then gives up', async () => {
+    const err = mkTimeout();
+    await errorHandler(err);
+    expect(instanceRef.current).toHaveBeenCalledTimes(1);
+    expect(err.config._retryCount).toBe(1);
+
+    // The same config coming back through after its retry also failed.
+    instanceRef.current.mockClear();
+    await expect(errorHandler(err)).rejects.toBeTruthy();
+    expect(instanceRef.current).not.toHaveBeenCalled();
+  });
+
+  it('retries a 500 once as well', async () => {
+    const err = mk500();
+    await errorHandler(err);
+    expect(instanceRef.current).toHaveBeenCalledTimes(1);
+  });
+
+  it('never retries a non-idempotent method', async () => {
+    await expect(errorHandler({ config: { url: '/groups', method: 'post' } })).rejects.toBeTruthy();
+    expect(instanceRef.current).not.toHaveBeenCalled();
+  });
+
+  // `_retryCount: MAX` skips the 1 s backoff sleep while still recording the
+  // failure — five real sleeps would blow the test timeout.
+  const failFast = (url) => ({ config: { url, method: 'get', _retryCount: 1 } });
+
+  it('opens the breaker after repeated failures and stops retrying entirely', async () => {
+    // Five distinct failing requests inside the window — the shape a fan-out
+    // page produces when the backend is saturated.
+    for (let i = 0; i < 5; i++) await expect(errorHandler(failFast(`/g${i}`))).rejects.toBeTruthy();
+    instanceRef.current.mockClear();
+    await expect(errorHandler(mkTimeout('/after'))).rejects.toBeTruthy();
+    expect(instanceRef.current).not.toHaveBeenCalled();
+  });
+
+  it('a success closes the breaker again', async () => {
+    const successHandler = instanceRef.current.interceptors.response.use.mock.calls[0][0];
+    for (let i = 0; i < 5; i++) await expect(errorHandler(failFast(`/h${i}`))).rejects.toBeTruthy();
+    successHandler({ data: 'ok' });
+    instanceRef.current.mockClear();
+    await errorHandler(mkTimeout('/again'));
+    expect(instanceRef.current).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops retrying once the per-request wall-clock budget is spent', async () => {
+    const err = mkTimeout();
+    err.config._retryDeadline = Date.now() - 1;   // budget already exhausted
+    await expect(errorHandler(err)).rejects.toBeTruthy();
+    expect(instanceRef.current).not.toHaveBeenCalled();
+  });
+
+  it('honours Retry-After on a 503 the same way it does on 429', async () => {
+    const err = { config: { url: '/upload', method: 'get' }, response: { status: 503, headers: { 'retry-after': '0' } } };
+    await errorHandler(err);
+    expect(instanceRef.current).toHaveBeenCalledWith(
+      expect.objectContaining({ url: '/upload', _retried429: true })
+    );
+  });
+});

@@ -46,7 +46,22 @@ const LIVE_EVENT = `
            AND x.is_active = TRUE
            AND x.deleted_at IS NULL
            AND x.did_not_take_place = FALSE
-           AND x.is_recurring_weekly IS NOT TRUE`;
+           AND x.is_recurring_weekly IS NOT TRUE
+           -- A club event outlives its club: the app never hard-deletes a
+           -- group row, so parent_club_id's ON DELETE CASCADE never fires and
+           -- deleteClub/cancelClub touch only the club itself. Without this,
+           -- members kept getting "Morgen: Clubabend · 19:00" the evening
+           -- before an event whose club was deleted a week earlier — the most
+           -- visible symptom of finding 24, because it actively pushes.
+           -- One indexed lookup per candidate (idx_groups_parent_club), and
+           -- the claim query is already row-limited.
+           AND (x.parent_club_id IS NULL OR EXISTS (
+                 SELECT 1 FROM groups pc
+                  WHERE pc.id = x.parent_club_id
+                    AND pc.is_active = TRUE
+                    AND pc.deleted_at IS NULL
+                    AND pc.approval_status = 'approved'
+               ))`;
 
 // $1 = now (timestamptz). Windows are half-open [from, to) in local wall-clock.
 // Day-before: the evening before, 18:00 → midnight. Strict end: after midnight

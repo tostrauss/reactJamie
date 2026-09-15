@@ -9,7 +9,7 @@ import { uploadLimiter } from '../middleware/rateLimiter.js';
 import { uploadToCloud, putObjectToCloud, isCloudStorageEnabled } from '../config/storage.js';
 import { checkImageSafety } from '../config/moderation.js';
 import { processImage, generateThumbnail, checkImageQuality } from '../config/imageProcessor.js';
-import { createSemaphore } from '../utils/semaphore.js';
+import { createSemaphore, QUEUE_FULL } from '../utils/semaphore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,12 +59,85 @@ const upload = multer({
 // multi-GB spike on a container that must also keep sockets alive. Excess
 // requests queue (FIFO) instead of OOM-ing the instance.
 const MAX_CONCURRENT_UPLOADS = 4;
-const uploadSlots = createSemaphore(MAX_CONCURRENT_UPLOADS);
+// maxQueue so this can never park more waiters than the admission gate below
+// admits. Without it the queue was Infinity — see semaphore.js.
+const uploadSlots = createSemaphore(MAX_CONCURRENT_UPLOADS, { maxQueue: 60 });
+
+// ── Admission gate: BYTES in flight, not CPU (finding 8) ──────────────────
+// The slot semaphore above is acquired inside the final handler, i.e. AFTER
+// multer has already buffered the entire body into memory. So it bounded the
+// sharp/moderation working set but not the base buffers at all — 300 people
+// uploading camera-roll photos in one signup-wave minute meant ~2 GB of
+// Buffers resident with four of them actually being processed, and the rest
+// parked in an unbounded FIFO still holding their buffers. That is the exact
+// failure the comment above says this design prevents.
+//
+// This gate sits BEFORE multer, so a rejected request never allocates.
+// Deliberately NOT the same semaphore moved earlier: with only 4 slots, a
+// slot would then be held across the whole network transfer, and a 5 MB body
+// on a mobile uplink occupies it for tens of seconds — during the very wave
+// this protects, nearly every user would time out. 24 concurrent transfers
+// × 10 MB ≈ 240 MB worst case is survivable; past the queue cap, say so.
+const MAX_UPLOADS_IN_FLIGHT = 24;
+const admission = createSemaphore(MAX_UPLOADS_IN_FLIGHT, { maxQueue: 50 });
+
+const admitUpload = async (req, res, next) => {
+  // Registered BEFORE awaiting a slot, deliberately. A client that gives up
+  // while its request is parked in the queue fires res 'close' before
+  // acquire() ever resolves — a handler attached afterwards would simply never
+  // run, and the slot it then took would be held for the lifetime of the
+  // process. Enough of those and every upload 503s with nothing running.
+  //
+  // `writableFinished` is what separates "the response was sent" from "the
+  // socket went away": it is true inside the 'finish' handler and false on an
+  // abort, which is also how the request handler learns the client is gone
+  // (req._clientGone). `req.destroyed` cannot be used for that — on an
+  // IncomingMessage it means "body fully read" and is already true by then.
+  let slotHeld = false;
+  let released = false;
+  let clientGone = false;
+  const done = () => {
+    if (!res.writableFinished) {
+      clientGone = true;
+      req._clientGone = true;
+    }
+    if (slotHeld && !released) {
+      released = true;
+      admission.release();
+    }
+  };
+  res.on('finish', done);
+  res.on('close', done);
+
+  try {
+    await admission.acquire();
+  } catch (err) {
+    if (err.code === QUEUE_FULL) {
+      // 503 + Retry-After so the client backs off instead of hammering.
+      res.set('Retry-After', '5');
+      return res.status(503).json({
+        error: 'Zu viele Uploads gerade. Bitte kurz warten und erneut versuchen.',
+        code: 'UPLOAD_BUSY',
+      });
+    }
+    return next(err);
+  }
+  slotHeld = true;
+
+  // The client went away while we were queued. Hand the slot straight back to
+  // the next waiter instead of spending it parsing a body nobody will read.
+  if (clientGone) {
+    released = true;
+    admission.release();
+    return;
+  }
+  next();
+};
 
 // Surface multer errors (file-too-large, wrong mimetype) as JSON so the
 // frontend can show a useful message instead of a generic "upload failed".
 const handleUpload = upload.single('image');
-router.post('/', authenticate, uploadLimiter, (req, res, next) => {
+router.post('/', authenticate, uploadLimiter, admitUpload, (req, res, next) => {
   handleUpload(req, res, (err) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
@@ -84,8 +157,36 @@ router.post('/', authenticate, uploadLimiter, (req, res, next) => {
     if (!req.file) {
       return res.status(400).json({ error: 'Kein Bild ausgewählt.' });
     }
-    await uploadSlots.acquire();
+    try {
+      await uploadSlots.acquire();
+    } catch (err) {
+      if (err.code === QUEUE_FULL) {
+        res.set('Retry-After', '5');
+        return res.status(503).json({
+          error: 'Zu viele Uploads gerade. Bitte kurz warten und erneut versuchen.',
+          code: 'UPLOAD_BUSY',
+        });
+      }
+      throw err;
+    }
     slotHeld = true;
+
+    // The client may have given up while this request sat in the queue. Doing
+    // sharp + moderation + a cloud PUT for a response nobody will read spends
+    // a slot that a waiting user needs — and an aborted-and-retried upload
+    // would otherwise cost two.
+    //
+    // NOT `req.destroyed`: on an http.IncomingMessage that is a "body fully
+    // read" signal, never a "client gave up" one. The stream is a Readable
+    // with autoDestroy, so it self-destructs the moment multer finishes
+    // consuming the multipart body — meaning `req.destroyed` is ALREADY true
+    // here on every healthy upload. Guarding on it returned from the handler
+    // without sending any response at all, so every single upload hung until
+    // the client's 10 s timeout. Verified against this repo's own express +
+    // multer: healthy request → req.destroyed=true, res.destroyed=false.
+    // `req._clientGone` is set by admitUpload's own close handler, which can
+    // tell an abort from a completed response via res.writableFinished.
+    if (req._clientGone || res.writableEnded) return;
 
     // Validate actual file bytes — reject if magic bytes don't match a known image format
     const detectedMime = detectMime(req.file.buffer);
@@ -163,6 +264,121 @@ router.post('/', authenticate, uploadLimiter, (req, res, next) => {
   } finally {
     if (slotHeld) uploadSlots.release();
   }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/upload/voice — voice messages (2026-09-15)
+//
+// A SEPARATE route rather than a `purpose` on the image one, because almost
+// nothing about that pipeline applies: no sharp, no WebP re-encode, no
+// thumbnail, and no Sightengine call (it scores images; handing it an audio
+// buffer would burn a request to learn nothing).
+//
+// Moderation posture, stated plainly: recorded speech cannot be scanned the way
+// text and images are. Voice messages are moderated REACTIVELY — they are
+// reportable like any other message (the long-press report shipped the same
+// day), the admin queue plays them back, and an admin can soft-delete. That is
+// the same posture every consumer chat app takes, and it only became a real
+// posture today, because before this there was no way to report a message and
+// no way for an admin to remove one.
+//
+// Format: the browser picks what it can record. Chrome/Android produce
+// audio/webm;codecs=opus, iOS WKWebView and Safari produce audio/mp4 (AAC).
+// Both are accepted and stored as-is; the /media proxy serves them back with
+// their own content type. We deliberately do NOT transcode — ffmpeg on the API
+// container during a signup wave is exactly the kind of CPU the upload
+// semaphore exists to avoid.
+const VOICE_MAGIC = {
+  // WebM/Matroska EBML header.
+  'audio/webm': [[0x1A, 0x45, 0xDF, 0xA3]],
+  // ISO-BMFF: 'ftyp' at byte offset 4. Checked separately below.
+  'audio/mp4': [],
+  // Ogg Opus, in case a browser prefers it.
+  'audio/ogg': [[0x4F, 0x67, 0x67, 0x53]],
+};
+const VOICE_EXT = { 'audio/webm': '.webm', 'audio/mp4': '.m4a', 'audio/ogg': '.ogg' };
+
+function detectVoiceMime(buffer) {
+  if (!buffer || buffer.length < 12) return null;
+  for (const [mime, sigs] of Object.entries(VOICE_MAGIC)) {
+    for (const sig of sigs) {
+      if (sig.every((byte, i) => buffer[i] === byte)) return mime;
+    }
+  }
+  // ISO base media file format: bytes 4-7 are 'ftyp'. Covers m4a/mp4/3gp,
+  // which is what iOS hands us.
+  if (buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70) {
+    return 'audio/mp4';
+  }
+  return null;
+}
+
+// 2 minutes of Opus voice is well under 1 MB; 8 MB is generous headroom for a
+// browser that records at a high bitrate, while still bounding what a client
+// can push. MAX_VOICE_MS is enforced on the client (the recorder auto-stops)
+// AND here, because the duration is client-reported.
+const MAX_VOICE_BYTES = 8 * 1024 * 1024;
+export const MAX_VOICE_MS = 120_000;
+
+const voiceUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_VOICE_BYTES },
+  fileFilter: (req, file, cb) => {
+    // The header is a hint only — detectVoiceMime re-checks the bytes below.
+    if (/^audio\//.test(file.mimetype)) cb(null, true);
+    else cb(new Error('Only audio files are allowed'), false);
+  },
+}).single('audio');
+
+router.post('/voice', authenticate, uploadLimiter, admitUpload, (req, res, next) => {
+  voiceUpload(req, res, (err) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'Sprachnachricht ist zu lang.', code: 'VOICE_TOO_LARGE' });
+      }
+      if (err.message === 'Only audio files are allowed') {
+        return res.status(400).json({ error: 'Nur Audio-Dateien werden unterstützt.' });
+      }
+      console.error('Voice multer error:', err);
+      return res.status(400).json({ error: 'Upload fehlgeschlagen.' });
+    }
+    next();
+  });
+}, async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Keine Aufnahme empfangen.' });
+
+    const mime = detectVoiceMime(req.file.buffer);
+    if (!mime) {
+      return res.status(400).json({ error: 'Ungültiges Audioformat.' });
+    }
+    const ext = VOICE_EXT[mime];
+
+    // Clamp the client-reported length. It is display metadata for the player's
+    // progress bar, so a wrong value is cosmetic — but an absurd one would
+    // render a broken control, and an unbounded one lands in the DB.
+    const rawMs = parseInt(req.body?.duration_ms, 10);
+    const durationMs = Number.isFinite(rawMs) ? Math.min(Math.max(rawMs, 0), MAX_VOICE_MS) : null;
+
+    let url;
+    if (isCloudStorageEnabled()) {
+      url = await uploadToCloud(req.file.buffer, mime, `voice${ext}`);
+    } else {
+      const uploadsDir = path.join(__dirname, '../../uploads');
+      await mkdir(uploadsDir, { recursive: true });
+      const filename = `voice-${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`;
+      await writeFile(path.join(uploadsDir, filename), req.file.buffer);
+      url = `/uploads/${filename}`;
+    }
+
+    res.json({ url, duration_ms: durationMs, mimetype: mime });
+  } catch (error) {
+    console.error('Voice upload error:', error);
+    res.status(500).json({ error: 'Upload failed' });
+  }
+  // No uploadSlots here: there is no sharp/moderation section to protect. The
+  // admission gate above still bounds bytes in flight, and releases on
+  // res 'finish'/'close'.
 });
 
 export default router;

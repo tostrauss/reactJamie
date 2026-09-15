@@ -27,7 +27,8 @@ import {
   getGroupMemberAvatars,
   inviteMember,
   setGroupChatArchived,
-  setGroupNotifications
+  setGroupNotifications,
+  getHallOfFame,
 } from '../controllers/groupController.js';
 import { authenticate, optionalAuth, requireCompleteProfile } from '../middleware/auth.js';
 import { generalLimiter } from '../middleware/rateLimiter.js';
@@ -39,6 +40,10 @@ const router = express.Router();
 // ==========================================
 router.get('/', optionalAuth, getGroups);
 router.get('/categories', generalLimiter, getCategories);
+// Explore's Hall of Fame. Must sit ABOVE any '/:id' route or Express would
+// match "hall-of-fame" as an id. optionalAuth so a guest sees the wall, and so
+// an owner's own photoless past events can be surfaced to them for upload.
+router.get('/hall-of-fame', optionalAuth, getHallOfFame);
 
 // ==========================================
 // USER-SPECIFIC ROUTES (require auth)

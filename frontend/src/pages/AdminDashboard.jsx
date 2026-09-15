@@ -6,6 +6,7 @@ import { AuthContext } from '../context/AuthContext';
 import { AdminDealsSection } from '../components/AdminDealsSection';
 import { AdminGrowthSection } from '../components/AdminGrowthSection';
 import { AdminFeedbackSection } from '../components/AdminFeedbackSection';
+import { AdminReportsSection } from '../components/AdminReportsSection';
 import { AdminUserModal } from '../components/AdminUserModal';
 import { UserName } from '../components/UserName';
 import { downloadCSV } from '../utils/csv';
@@ -149,6 +150,28 @@ export const AdminDashboard = () => {
     }
   };
 
+  // Deep-link targets: the moderation e-mail links to /admin#reports and the
+  // club-approval e-mail to /admin#clubs-pending. React Router does not scroll
+  // to a hash on its own, and this page is long enough that landing at the top
+  // reads as "the link didn't work". Runs after `loading` flips, because the
+  // anchors do not exist in the DOM until the dashboard body renders.
+  useEffect(() => {
+    if (loading || error) return;
+    const id = window.location.hash.slice(1);
+    if (!id) return;
+    // Sections below load their own data and grow after mount, so one frame is
+    // not enough — retry briefly until the anchor exists, then stop.
+    let tries = 0;
+    let h;
+    const tick = () => {
+      const el = document.getElementById(id);
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      if (++tries < 20) h = setTimeout(tick, 100);   // give up after ~2s
+    };
+    h = setTimeout(tick, 100);
+    return () => clearTimeout(h);
+  }, [loading, error]);
+
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -208,6 +231,13 @@ export const AdminDashboard = () => {
             {t('admin.refresh')}
           </button>
         </div>
+
+        {/* Moderation queue FIRST — above every KPI and CRUD block. A report
+            is the only thing on this page with a person waiting on the other
+            end of it, and both the admin push and the admin e-mail deep-link
+            to #reports. (Until 2026-09-15 reports had no UI here at all: the
+            endpoint existed and nothing called it.) */}
+        <AdminReportsSection />
 
         <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
           {t('admin.sections.users')}

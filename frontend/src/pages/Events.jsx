@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { clubs as clubsApi } from '../utils/api';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
+import { utcDayStart, viennaTodayUTC } from '../utils/recurrence';
 import { EventCard } from '../components/EventCard';
 import '../styles/home.css';
 
@@ -18,8 +19,12 @@ const CAT_EMOJI = (() => {
 })();
 const emojiFor = (cat) => CAT_EMOJI[(cat || '').toLowerCase()] || '🎉';
 
-const sameDay = (a, b) =>
-  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+// Event dates are Vienna wall-clock tagged UTC (see utils/recurrence.js), and
+// EventCard renders them with timeZone:'UTC'. These filters read them with the
+// local getters, so in CEST every event from 22:00 onward fell into the next
+// day: the "Heute" filter hid exactly tonight's events, and a Sunday-night
+// event dropped out of "Wochenende" (finding 18).
+const sameDayUTC = (a, b) => utcDayStart(a) === utcDayStart(b);
 
 /**
  * Standalone Events discovery page (/events). Reached from the "Club Events
@@ -67,24 +72,27 @@ export const Events = () => {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const now = new Date();
-    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7);
+    // Every boundary is built from Vienna's calendar day as a UTC day-start, so
+    // it compares directly against the UTC-tagged event dates.
+    const todayMs = viennaTodayUTC();
+    const dayStart = new Date(todayMs);
+    const plusDays = (n) => new Date(todayMs + n * 86400000);
+    const weekEnd = plusDays(7);
     // "This weekend" = the Sat+Sun of the current week. On Sun the Sat already
     // passed (offset -1); clamp the start to today since past events aren't in
     // the feed anyway. End is the Monday 00:00 after that Saturday (exclusive).
-    const dow = now.getDay(); // 0=Sun … 6=Sat
+    const dow = dayStart.getUTCDay(); // 0=Sun … 6=Sat
     const offsetToSat = dow === 0 ? -1 : (6 - dow);
-    const satStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offsetToSat);
+    const satStart = plusDays(offsetToSat);
     const weekendStart = satStart < dayStart ? dayStart : satStart;
-    const weekendEnd = new Date(satStart.getFullYear(), satStart.getMonth(), satStart.getDate() + 2);
+    const weekendEnd = new Date(satStart.getTime() + 2 * 86400000);
     return events.filter(e => {
       if (q && !((e.name || '').toLowerCase().includes(q) || (e.club_name || '').toLowerCase().includes(q))) return false;
       if (category && (e.category || '') !== category) return false;
       if (time !== 'all') {
         if (!e.date) return false; // undated events only show under "Alle"
         const d = new Date(e.date);
-        if (time === 'today' && !sameDay(d, now)) return false;
+        if (time === 'today' && !sameDayUTC(d, dayStart)) return false;
         if (time === 'weekend' && (d < weekendStart || d >= weekendEnd)) return false;
         if (time === 'week' && (d < dayStart || d >= weekEnd)) return false;
       }

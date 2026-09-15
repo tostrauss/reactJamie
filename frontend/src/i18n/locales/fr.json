@@ -355,7 +355,8 @@
         "waitlistPositionFmt": "Liste d'attente · Position {{position}}",
         "waitlistGeneric": "Liste d'attente",
         "joinWaitlist": "Rejoindre la liste d'attente",
-        "boost": "🚀 Booster"
+        "boost": "🚀 Booster",
+        "clubGone": "Le club n’existe plus"
       },
       "info": {
         "level": "Niveau : {{level}}",
@@ -382,7 +383,8 @@
         "deletedGroup": "Le groupe a été supprimé.",
         "deletedClub": "Le club a été supprimé.",
         "errorGroup": "Le groupe n'a pas pu être supprimé.",
-        "errorClub": "Le club n'a pas pu être supprimé."
+        "errorClub": "Le club n'a pas pu être supprimé.",
+        "confirmLeave": "Vraiment quitter ce groupe ? Ta place sera libérée et tu ne peux rejoindre ce groupe que trois fois au total."
       },
       "report": {
         "group": "Signaler le groupe",
@@ -426,7 +428,13 @@
         "delete": "Supprimer",
         "joined": "Inscrit·e",
         "join": "Participer",
-        "participants": "{{current}} / {{max}} participants"
+        "participants": "{{current}} / {{max}} participants",
+        "confirmLeave": "Vraiment quitter cet événement ? Ta place sera libérée."
+      },
+      "adminDelete": {
+        "action": "🛡 Supprimer en tant qu’admin",
+        "confirm": "Supprimer « {{name}} » en tant qu’admin ? Cela le retire pour tous les membres. Le chat et l’historique sont conservés en interne.",
+        "done": "Retiré."
       }
     },
     "ticketButton": "Acheter des billets"
@@ -586,8 +594,10 @@
       "ticketLinkPlaceholder": "https://ta-billetterie.fr/evenement",
       "ticketLinkHint": "Le lien apparaît comme bouton billetterie sur la page de l'événement. La vente se fait via ta propre boutique.",
       "errorTicketRequired": "Indique un lien de billetterie",
-      "errorProRequired": "Les événements payants sont une fonctionnalité JAMIE Pro."
-    }
+      "errorProRequired": "Les événements payants sont une fonctionnalité JAMIE Pro.",
+      "confirmLeave": "Vraiment quitter cet événement ? Ta place sera libérée."
+    },
+    "confirmLeave": "Vraiment quitter ce club ? Tu ne peux rejoindre ce club que deux fois au total."
   },
   "clubMembers": {
     "title": "Membres",
@@ -634,7 +644,9 @@
       "myClubs": "Mes clubs",
       "trending": "Tous les clubs",
       "eventsForYou": "Événements pour toi",
-      "seeAll": "Tout afficher"
+      "seeAll": "Tout afficher",
+      "imminent": "Aujourd'hui & demain",
+      "laterGroups": "Autres groupes"
     },
     "clubEventsDiscover": "Découvrir les événements",
     "filter": {
@@ -674,7 +686,9 @@
       "waitlistJoinedPos": "Sur la liste d'attente ! Position : {{position}}",
       "waitlistLeft": "Retiré·e de la liste d'attente",
       "waitlistError": "Erreur avec la liste d'attente"
-    }
+    },
+    "loadMore": "Charger plus de groupes",
+    "loadMoreLoading": "Chargement …"
   },
   "chat": {
     "shared": {
@@ -736,7 +750,8 @@
         "discoverClubsHint": "Découvre des clubs !",
         "noHidden": "Aucun chat masqué",
         "noChatsAll": "Pas encore de chats",
-        "noUnread": "Tout est lu !"
+        "noUnread": "Tout est lu !",
+        "allHidden": "Tous les chats sont masqués."
       },
       "ownerActions": {
         "requests": "Demandes",
@@ -789,6 +804,13 @@
       "input": {
         "placeholder": "Écrire un message...",
         "placeholderOwnerOnly": "Seul le fondateur peut écrire"
+      },
+      "message": {
+        "report": "Signaler le message",
+        "delete": "Supprimer le message",
+        "cancel": "Annuler",
+        "confirmDelete": "Vraiment supprimer ce message ? Il disparaîtra pour tout le monde dans le chat.",
+        "deleteError": "Impossible de supprimer le message."
       }
     },
     "dm": {
@@ -806,6 +828,33 @@
       "emptyHint": "Dis bonjour !",
       "typingFmt": "{{name}} écrit...",
       "inputPlaceholder": "Écrire un message..."
+    },
+    "send": "Envoyer",
+    "reply": {
+      "action": "Répondre",
+      "cancel": "Annuler la réponse",
+      "unknownAuthor": "Inconnu",
+      "deleted": "Message supprimé"
+    },
+    "voice": {
+      "label": "🎤 Message vocal",
+      "record": "Enregistrer un message vocal",
+      "send": "Envoyer le message vocal",
+      "discard": "Supprimer l’enregistrement",
+      "play": "Lire",
+      "pause": "Pause",
+      "secondsLeft": "{{seconds}} s restantes",
+      "denied": "Pas d’accès au micro. Autorise-le dans les réglages de ton appareil.",
+      "failed": "Enregistrement impossible. Réessaie.",
+      "uploadFailed": "Impossible d’envoyer le message vocal.",
+      "unavailable": "Message vocal indisponible"
+    },
+    "photo": {
+      "label": "📷 Photo",
+      "send": "Envoyer une photo",
+      "open": "Ouvrir la photo",
+      "unavailable": "Photo indisponible",
+      "uploadFailed": "Impossible d’envoyer la photo."
     }
   },
   "profile": {
@@ -1250,7 +1299,8 @@
     "submit": "Signaler",
     "sending": "Envoi en cours...",
     "success": "Signalement envoyé. Merci !",
-    "error": "Le signalement n'a pas pu être envoyé"
+    "error": "Le signalement n'a pas pu être envoyé",
+    "alreadyOpen": "Ce signalement est déjà en cours — nous l’examinons."
   },
   "eventReview": {
     "counterFmt": "Avis sur l'événement {{current}}/{{total}}",
@@ -1876,7 +1926,8 @@
       "csvExport": "Export CSV",
       "onlineNowFmt": "En ligne maintenant ({{count}})",
       "growth": "Croissance & cohortes",
-      "feedbackFmt": "Avis sur l'app ({{count}})"
+      "feedbackFmt": "Avis sur l'app ({{count}})",
+      "reportsFmt": "Signalements ({{count}} ouverts)"
     },
     "feedback": {
       "empty": "Aucun avis reçu pour l'instant.",
@@ -2002,6 +2053,60 @@
       "deleting": "Suppression…",
       "deleted": "Utilisateur supprimé",
       "cancel": "Annuler"
+    },
+    "reports": {
+      "loading": "Chargement des signalements …",
+      "empty": "Aucun signalement dans cette vue.",
+      "noDetails": "Aucune explication fournie",
+      "loadMore": "Charger plus",
+      "actionFailed": "Impossible de changer le statut. Réessaie.",
+      "markResolved": "Traité",
+      "dismiss": "Rejeter",
+      "reopen": "Rouvrir",
+      "openTarget": "Ouvrir",
+      "openChat": "Ouvrir le chat",
+      "deleted": "· supprimé",
+      "messageDeleted": "Ce message a été supprimé depuis.",
+      "authorGone": "Compte supprimé",
+      "targetGone": "{{type}} #{{id}} n’existe plus (supprimé)",
+      "memberSince": "membre depuis le {{date}}",
+      "createdBy": "par {{name}}",
+      "byAuthor": "par {{name}} (#{{id}})",
+      "inChat": "dans {{name}}",
+      "reportedBy": "Signalé par {{name}} (#{{id}})",
+      "reviewedBy": "Traité par {{name}} · {{date}}",
+      "repeatFmt": "{{count}}e signalement",
+      "status": {
+        "pending": "Ouverts",
+        "reviewed": "En cours",
+        "resolved": "Traités",
+        "dismissed": "Rejetés"
+      },
+      "type": {
+        "user": "Utilisateur",
+        "group": "Groupe",
+        "message": "Message"
+      },
+      "entity": {
+        "group": "Groupe",
+        "club": "Club",
+        "event": "Événement"
+      },
+      "reason": {
+        "spam": "Spam",
+        "inappropriate": "Contenu inapproprié",
+        "harassment": "Harcèlement",
+        "fake": "Faux profil",
+        "other": "Autre"
+      },
+      "deleteMessage": "Retirer le message",
+      "freezeUser": "Bloquer le compte",
+      "unfreezeUser": "Débloquer le compte",
+      "confirmDeleteMessage": "Retirer ce message ? Il disparaît du chat mais reste comme preuve pour ce signalement.",
+      "confirmFreeze": "Bloquer le compte de {{name}} ? La personne est déconnectée immédiatement et ne peut plus se connecter. Réversible à tout moment.",
+      "deleteGroup": "Retirer le groupe",
+      "deleteClub": "Retirer le club",
+      "confirmDeleteGroup": "Retirer « {{name}} » ? Il disparaît pour tous les membres. Le chat et l’historique sont conservés comme preuve."
     }
   },
   "imageUpload": {
@@ -2028,5 +2133,17 @@
     "text": "Tu rates des messages et des demandes d'adhésion. Réactive-les dans les Réglages.",
     "open": "Ouvrir les Réglages",
     "later": "Plus tard"
+  },
+  "errors": {
+    "generic": "Cela n’a pas fonctionné. Réessaie.",
+    "network": "Pas de connexion. Vérifie ton réseau et réessaie.",
+    "EMAIL_TAKEN": "Cette adresse e-mail est déjà enregistrée.",
+    "BAD_CREDENTIALS": "E-mail ou mot de passe incorrect.",
+    "USE_GOOGLE": "Ce compte utilise la connexion Google. Connecte-toi avec Google.",
+    "ACCOUNT_LOCKED": "Compte temporairement bloqué. Réessaie dans {{minutes}} minutes.",
+    "CLUB_MEMBERS_ONLY": "Cet événement appartient à un club privé. Rejoins d’abord le club pour participer.",
+    "CLUB_GONE": "Le club auquel appartient cet événement n’existe plus.",
+    "UPLOAD_BUSY": "Beaucoup d’envois sont en cours. Patiente un instant et réessaie.",
+    "VOICE_TOO_LARGE": "Le message vocal est trop long."
   }
 }

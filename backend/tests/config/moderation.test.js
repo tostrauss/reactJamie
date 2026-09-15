@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findBlockedTerm, checkTextSafety } from '../../src/config/moderation.js';
+import { findBlockedTerm, findBlockedTermInPersonName, checkTextSafety } from '../../src/config/moderation.js';
 
 describe('findBlockedTerm — deterministic word blocklist', () => {
   it('blocks a bare inappropriate group name', () => {
@@ -69,5 +69,39 @@ describe('checkTextSafety — blocklist integration', () => {
     const res = await checkTextSafety('Wandergruppe Wien');
     expect(res.safe).toBe(true);
     expect(res.reason).toBeNull();
+  });
+});
+
+// Audit 2026-09-15, finding 14: the whole-word rule protects words that
+// CONTAIN a blocked substring, but a name that IS the blocked token was matched
+// exactly — and several are real names in markets JAMIE is live in.
+describe('findBlockedTermInPersonName — the narrower person-name list', () => {
+  it('lets through attested given names and surnames', () => {
+    expect(findBlockedTermInPersonName('Kike Fernández')).toBe(null);   // Enrique, ES market
+    expect(findBlockedTermInPersonName('Michael Fick')).toBe(null);     // AT surname
+    expect(findBlockedTermInPersonName('James Cock')).toBe(null);
+    expect(findBlockedTermInPersonName('Anna Bastard')).toBe(null);
+  });
+
+  it('still blocks actual slurs in a name', () => {
+    expect(findBlockedTermInPersonName('Adolf Hitler')).toBeTruthy();
+    expect(findBlockedTermInPersonName('nazi')).toBeTruthy();
+    expect(findBlockedTermInPersonName('Porno Peter')).toBeTruthy();
+  });
+
+  it('does NOT weaken the full list — group/club/chat text is unchanged', () => {
+    // This is why the allowance is a second list rather than a deletion.
+    expect(findBlockedTerm('Kike')).toBeTruthy();
+    expect(findBlockedTerm('Fick Party Wien')).toBeTruthy();
+    expect(findBlockedTerm('Sex Party Wien')).toBeTruthy();
+  });
+
+  it('checkTextSafety routes to the right list and reports the matched term', async () => {
+    await expect(checkTextSafety('Kike Fernández', { isPersonName: true }))
+      .resolves.toMatchObject({ safe: true });
+    const asGroup = await checkTextSafety('Kike');
+    expect(asGroup.safe).toBe(false);
+    expect(asGroup.term).toBe('kike');   // logged server-side, never shown
+    expect(asGroup.reason).not.toContain('kike');
   });
 });

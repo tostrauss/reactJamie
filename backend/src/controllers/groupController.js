@@ -5,6 +5,7 @@ import { sendPushToUser, sendPushToUsers } from './pushController.js';
 import { expandMatchTerms } from '../utils/categoryFanout.js';
 import { normalizeLocale, categoryPushText, joinRequestText, pushTexts } from '../utils/pushLocale.js';
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
+import { parentClubGateSql } from '../utils/clubGate.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
 import { isUserPro } from './subscriptionController.js';
 import { normalizeCategories } from '../utils/normalizeCategories.js';
@@ -13,6 +14,46 @@ import { createEntityWithOwner, notifyCancellationFanout } from '../services/ent
 import { notifyFriendsOfActivity } from '../utils/friendActivity.js';
 
 const GROUPS_TTL  = 30_000;  // 30 s — acceptable staleness for list views
+
+// ── "Heute oder morgen" zuerst ────────────────────────────────────────────
+// Tobi 2026-09-15: the Gruppen feed must lead with what is actually about to
+// happen; everything else follows.
+//
+// This HAS to be a server-side sort key, not a client-side re-sort of the
+// page: the feed is LIMIT-ed (100 rows), so under a pure `created_at DESC`
+// order a group happening tomorrow that was created three months ago never
+// reaches the client at all — re-sorting what arrived cannot surface what was
+// cut off.
+//
+// NEXT_AT_SQL resolves a group's next occurrence as a naive Vienna wall-clock
+// timestamp. `groups.date` already stores Vienna wall-clock (the convention
+// jobs/eventReminders.js relies on), so the whole comparison stays in local
+// time and never needs a UTC round-trip.
+//
+// Weekly-recurring groups store only their FIRST occurrence, which is usually
+// in the past. This mirrors frontend/src/utils/recurrence.js exactly: roll the
+// start forward in whole weeks until it lands at or after now. GREATEST(…, 0)
+// keeps an already-future recurring start on its own date. Bucketing on the
+// ROLLED date is what guarantees the card badge ("Heute" / "Morgen") and this
+// ordering can never disagree.
+const NEXT_AT_SQL = `
+  CASE WHEN g.date IS NULL OR g.is_recurring_weekly IS NOT TRUE THEN g.date
+       ELSE g.date + (GREATEST(CEIL(EXTRACT(EPOCH FROM (
+              (NOW() AT TIME ZONE 'Europe/Vienna') - g.date
+            )) / 604800.0), 0) * INTERVAL '7 days')
+  END`;
+
+// Today/tomorrow test over an already-computed next_at. Cheap (two date
+// comparisons), so repeating it in the ORDER BY costs nothing — unlike
+// NEXT_AT_SQL above, which is evaluated exactly once per row.
+//
+// An undated group is deliberately NOT imminent: it is ongoing/open-ended
+// (see the `upcoming` filter, which keeps such groups forever), so it belongs
+// in the normal browse feed rather than pinned above tonight's events.
+const IS_IMMINENT_SQL = (col) => `
+  (${col} IS NOT NULL
+   AND ${col}::date >= (NOW() AT TIME ZONE 'Europe/Vienna')::date
+   AND ${col}::date <= (NOW() AT TIME ZONE 'Europe/Vienna')::date + 1)`;
 const AVATARS_TTL = 60_000;  // 60 s — avatars change only on join/leave
 
 // Per-country bounding boxes for the "same-country" group feed filter — mirrors
@@ -239,6 +280,21 @@ export const createGroup = async (req, res) => {
     const bad = checkImageField(image_url);
     if (bad) return res.status(400).json({ error: bad });
   }
+  // `type` came straight from the body while the INSERT below omits
+  // approval_status — whose column default is 'approved'. So POST /api/groups
+  // with type:"club" minted a FULLY APPROVED club: instantly live in the Clubs
+  // tab, the feed and the map, and invisible in /admin/clubs/pending, because
+  // that queue only lists pending rows. The human moderation queue was one
+  // request-body field away from being optional (audit 2026-09-15, finding 1).
+  //
+  // Clubs belong to POST /clubs (which stamps 'pending' and mails the admins)
+  // and club events to POST /clubs/:id/events. Every shipped client already
+  // sends 'group' here, so this rejects nothing legitimate — and it closes the
+  // type:'event' variant too, which produced parent-less orphan rows that no
+  // club gate can judge.
+  if (type && type !== 'group') {
+    return res.status(400).json({ error: 'Ungültiger Typ' });
+  }
   if (name.length > 100) return res.status(400).json({ error: 'Name darf maximal 100 Zeichen lang sein' });
   if (description && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
   if (location && location.length > 200) return res.status(400).json({ error: 'Ort darf maximal 200 Zeichen lang sein' });
@@ -346,8 +402,11 @@ export const createGroup = async (req, res) => {
     // Group row + owner membership in ONE transaction (audit risk #10) —
     // shared core in services/entityLifecycle.js.
     const newGroup = await createEntityWithOwner(
-      `INSERT INTO groups (name, description, type, category, categories, date, location, image_url, max_members, is_private, skill_level, owner_id, lat, lng, chat_only_owner, target_age_min, target_age_max, is_recurring_weekly)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      // approval_status is written EXPLICITLY, never left to the column
+      // default — the default is what silently auto-approved clubs created
+      // through this endpoint. Plain groups have no approval flow.
+      `INSERT INTO groups (name, description, type, category, categories, date, location, image_url, max_members, is_private, skill_level, owner_id, lat, lng, chat_only_owner, target_age_min, target_age_max, is_recurring_weekly, approval_status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, 'approved')
        RETURNING *`,
       [name, description, type || 'group', (catList[0] || category), (catList.length ? catList : null), dateTime, location, image_url, max_members || 10, is_private || false, skill_level, userId, coords?.lat ?? null, coords?.lng ?? null, chat_only_owner || false, ageMin, ageMax, recurringWeekly],
       userId
@@ -489,8 +548,16 @@ export const getGroups = async (req, res) => {
     // (those are low-frequency, high-variability and not worth the memory).
     // Pro flag + admin flag + caller age are part of the key so users with
     // different visibility never share a cache row.
+    // Clamped BEFORE the key (finding 2): it used the RAW query strings, which
+    // are only clamped further down — so `?limit=100`, `?limit=100x`,
+    // `?limit=1e2` and `?limit=100%20` were four distinct 30-second entries
+    // holding the identical 100-row payload, and a single authenticated client
+    // could park hundreds of megabytes inside its rate-limit window.
+    const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 100);
+    const safeOffset = Math.max(parseInt(offset, 10) || 0, 0);
+
     const cacheKey = !search && !location
-      ? `groups:${type || ''}:${category || ''}:${upcoming || ''}:${limit || ''}:${offset || ''}:p${callerIsPro ? 1 : 0}:adm${callerIsAdmin ? 1 : 0}:a${callerAge ?? 'x'}:c${callerCountry ?? 'x'}:ev${includeClubEvents ? 1 : 0}`
+      ? `groups:${type || ''}:${category || ''}:${upcoming || ''}:${safeLimit}:${safeOffset}:p${callerIsPro ? 1 : 0}:adm${callerIsAdmin ? 1 : 0}:a${callerAge ?? 'x'}:c${callerCountry ?? 'x'}:ev${includeClubEvents ? 1 : 0}`
       : null;
     if (cacheKey) {
       const cached = getCached(cacheKey);
@@ -513,15 +580,11 @@ export const getGroups = async (req, res) => {
     // club row, leaving its events is_active, so without this an orphaned
     // event would outlive its club here.
     if (includeClubEvents) {
-      where += ` AND (g.type <> 'event' OR EXISTS (
-                   SELECT 1 FROM groups c
-                   WHERE c.id = g.parent_club_id
-                     AND c.type = 'club'
-                     AND c.is_private IS NOT TRUE
-                     AND c.approval_status = 'approved'
-                     AND c.is_active = TRUE
-                     AND c.deleted_at IS NULL
-                 ))`;
+      // Extracted to utils/clubGate.js 2026-09-15 — the same predicate now also
+      // guards the Discover feed and the map, which were both missing it.
+      // Keyed on parent_club_id rather than type='event': a row with a parent
+      // club must be gated whatever its type column says.
+      where += ` AND ${parentClubGateSql('g', { requirePublic: true })}`;
     }
 
     // Clubs awaiting moderation must NOT surface in the public feed — getClubs
@@ -597,8 +660,6 @@ export const getGroups = async (req, res) => {
       where += ` AND (g.date IS NULL OR g.date >= CURRENT_DATE OR g.is_recurring_weekly = TRUE)`;
     }
 
-    const safeLimit = Math.min(parseInt(limit, 10) || 100, 100);
-    const safeOffset = Math.max(parseInt(offset, 10) || 0, 0);
     params.push(safeLimit);
     const limitParam = paramIndex++;
     let offsetClause = '';
@@ -626,7 +687,7 @@ export const getGroups = async (req, res) => {
     // unique, and without a stable tie-breaker LIMIT/OFFSET paging can repeat or
     // skip a row across page boundaries.
     const query = `
-      WITH page AS (
+      WITH candidates AS (
         SELECT g.id,
                CASE WHEN g.members_count >= g.max_members THEN 1 ELSE 0 END AS is_full,
                EXISTS (
@@ -634,10 +695,29 @@ export const getGroups = async (req, res) => {
                  WHERE b.target_id = g.id AND b.target_type = g.type
                    AND b.boosted_until > NOW()
                ) AS is_boosted,
+               ${NEXT_AT_SQL} AS next_at,
                g.created_at
         FROM groups g
         WHERE ${where}
-        ORDER BY is_boosted DESC, is_full ASC, g.created_at DESC, g.id DESC
+      ),
+      page AS (
+        SELECT c.id, c.is_full, c.is_boosted, c.created_at, c.next_at,
+               CASE WHEN ${IS_IMMINENT_SQL('c.next_at')} THEN 1 ELSE 0 END AS is_imminent
+        FROM candidates c
+        -- A boost is bought placement and keeps the very top of the feed;
+        -- everything below it now leads with what happens today or tomorrow,
+        -- soonest first. Outside that bucket the established newest-first
+        -- browse order is untouched. (Flip the first two terms if imminence
+        -- should ever outrank a paid boost.)
+        -- is_full keeps its original position relative to created_at, so the
+        -- "don't lead with something nobody can join" rule still holds INSIDE
+        -- the pinned block too. Within a bucket, imminent groups then sort
+        -- soonest-first; everything else keeps newest-first browse order.
+        ORDER BY c.is_boosted DESC,
+                 (CASE WHEN ${IS_IMMINENT_SQL('c.next_at')} THEN 1 ELSE 0 END) DESC,
+                 c.is_full ASC,
+                 (CASE WHEN ${IS_IMMINENT_SQL('c.next_at')} THEN c.next_at END) ASC NULLS LAST,
+                 c.created_at DESC, c.id DESC
         LIMIT $${limitParam}${offsetClause}
       )
       SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar,
@@ -658,6 +738,11 @@ export const getGroups = async (req, res) => {
              ages.age_min,
              ages.age_max,
              page.is_boosted,
+             -- Surfaced so the Gruppen feed can split the list into a
+             -- "Heute & Morgen" block and the rest WITHOUT re-deriving the
+             -- rule in JS — one definition, no chance of the header and the
+             -- server order disagreeing (Home.jsx).
+             page.is_imminent,
              (SELECT COUNT(*) FROM event_likes el WHERE el.group_id = g.id)::int AS like_count
       FROM page
       JOIN groups g ON g.id = page.id
@@ -670,7 +755,9 @@ export const getGroups = async (req, res) => {
         WHERE gmx.group_id = g.id AND uu.date_of_birth IS NOT NULL
       ) ages ON TRUE
       -- Re-stated: the JOIN above does not preserve the CTE's ordering.
-      ORDER BY page.is_boosted DESC, page.is_full ASC, g.created_at DESC, g.id DESC
+      ORDER BY page.is_boosted DESC, page.is_imminent DESC, page.is_full ASC,
+               (CASE WHEN page.is_imminent = 1 THEN page.next_at END) ASC NULLS LAST,
+               g.created_at DESC, g.id DESC
     `;
 
     const result = await db.query(query, params);
@@ -679,6 +766,67 @@ export const getGroups = async (req, res) => {
   } catch (err) {
     console.error('Error fetching groups:', err);
     res.status(500).json({ error: 'Gruppen konnten nicht geladen werden' });
+  }
+};
+
+// ==========================================
+// HALL OF FAME (Explore)
+// ==========================================
+// GET /api/groups/hall-of-fame?limit=&offset=
+//
+// The Explore wall used to be built client-side by fetching the 50 NEWEST
+// groups and then filtering for PAST ones — an intersection that shrinks as
+// creation rate rises (audit 2026-09-15, finding 22). Today the 50 newest span
+// weeks so a few past events survive; at 10-50x volume they span hours and are
+// all future-dated, so the wall would be permanently empty. Worse, the
+// 15-minute cron pushes "Teile deinen JAMIE Moment" to owners of photoless
+// past events and lands them on /explore — where the upload card lives. If
+// their event is outside that newest-50 window, the push is a guaranteed dead
+// end and the moment-upload feature becomes unreachable.
+//
+// So: ask the database the question the page actually asks.
+export const getHallOfFame = async (req, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 30, 1), 60);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const callerId = req.userId || 0;
+
+    const result = await db.query(
+      `SELECT g.id, g.name, g.category, g.date, g.location, g.image_url,
+              g.moment_photo_url, g.owner_id, g.members_count, g.type,
+              u.name AS owner_name, u.avatar_url AS owner_avatar,
+              (SELECT COUNT(*) FROM event_likes el WHERE el.group_id = g.id)::int AS like_count
+         FROM groups g
+         LEFT JOIN users u ON u.id = g.owner_id
+        WHERE g.is_active = TRUE
+          AND g.deleted_at IS NULL
+          AND g.type IN ('group', 'event')
+          AND g.date IS NOT NULL
+          AND g.date < NOW()
+          -- A weekly-recurring group's stored date is its FIRST occurrence and
+          -- stays permanently in the past, so the old client-side isPast()
+          -- treated a still-running weekly meetup as a finished event.
+          AND g.is_recurring_weekly IS NOT TRUE
+          AND g.did_not_take_place = FALSE
+          AND (
+            g.moment_photo_url IS NOT NULL
+            OR g.image_url IS NOT NULL
+            -- The caller's OWN past events, photo or not: this card is the only
+            -- place a moment can be uploaded, and the push that sends owners
+            -- here must always find something to act on. Covers the two cases
+            -- the imminent-first feed ordering does not — a late-evening event
+            -- pushed after midnight, and a full event.
+            OR ($1::int > 0 AND g.owner_id = $1::int)
+          )
+        ORDER BY (g.owner_id = $1::int AND g.moment_photo_url IS NULL) DESC,
+                 g.date DESC, g.id DESC
+        LIMIT $2 OFFSET $3`,
+      [callerId, limit, offset]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching hall of fame:', err);
+    res.status(500).json({ error: 'Hall of Fame konnte nicht geladen werden' });
   }
 };
 
@@ -730,6 +878,20 @@ export const getGroupById = async (req, res) => {
         ),
       ]);
       group.is_member = memberCheck.rows.length > 0;
+      // Deliberately NOT a 404 (finding 24): members must keep reaching the
+      // chat and the history a soft-delete exists to preserve. Instead the page
+      // is told the club is gone, so it can hide the join button and say so —
+      // joinGroup would refuse with CLUB_GONE anyway, and a button that always
+      // errors is worse than no button.
+      if (group.type === 'event' && group.parent_club_id) {
+        const live = await db.query(
+          `SELECT 1 FROM groups c
+            WHERE c.id = $1 AND c.is_active = TRUE AND c.deleted_at IS NULL
+              AND c.approval_status = 'approved' LIMIT 1`,
+          [group.parent_club_id]
+        );
+        group.parent_club_gone = live.rowCount === 0;
+      }
       // Per-group push mute state for the chat-header bell (null for non-members).
       group.is_muted = memberCheck.rows[0] ? !!memberCheck.rows[0].notifications_muted : false;
       // Co-manager (clubs): owner OR a member promoted to role='admin'. Lets the
@@ -982,16 +1144,34 @@ export const updateGroup = async (req, res) => {
 };
 
 // ==========================================
-// DELETE GROUP (owner only)
+// DELETE GROUP (owner — or a platform admin)
 // ==========================================
 export const deleteGroup = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Verify ownership (name feeds the Batch-2 deletion notice)
-    const group = await db.query('SELECT owner_id, name FROM groups WHERE id = $1 AND deleted_at IS NULL', [id]);
+    // Verify ownership (name feeds the Batch-2 deletion notice).
+    //
+    // Platform admins may delete ANY group (2026-09-15). This was the last
+    // hole in finding 11: the moderation queue could label a report about a
+    // group, but there was no way in the entire product to take that group
+    // down — deleteGroup was owner-only with no override, so an admin looking
+    // at inappropriate content could only hard-delete the OWNER's account,
+    // which is irreversible, cascades, and does not even remove the group if
+    // it has other members. Hit for real on 2026-09-15.
+    const group = await db.query(
+      `SELECT g.owner_id, g.name, g.type,
+              (SELECT is_admin FROM users WHERE id = $2) AS caller_is_admin
+         FROM groups g WHERE g.id = $1 AND g.deleted_at IS NULL`,
+      [id, req.userId]
+    );
     if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
-    if (Number(group.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
+    const isOwner = Number(group.rows[0].owner_id) === Number(req.userId);
+    const isAdmin = !!group.rows[0].caller_is_admin;
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Keine Berechtigung' });
+    if (isAdmin && !isOwner) {
+      console.log(`[admin] user ${req.userId} deleted ${group.rows[0].type} ${id} ("${group.rows[0].name}")`);
+    }
 
     // Members to notify (except the owner) — read BEFORE the soft-delete so the
     // roster is intact (soft-delete keeps group_members, but read it up front).
@@ -1003,6 +1183,8 @@ export const deleteGroup = async (req, res) => {
     await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [id]);
     invalidatePrefix('groups:');
     invalidatePrefix('map:');
+    invalidatePrefix('discover_events');
+    invalidatePrefix('clubs:');
     // Drop the per-member chat-list cache too, so the deleted group disappears
     // from every member's "Chats" immediately instead of lingering for the 15s
     // user_groups TTL (the query already filters deleted_at, this kills the lag).
@@ -1036,21 +1218,46 @@ export const deleteGroup = async (req, res) => {
   }
 };
 
-// A club event (parent_club_id set) that belongs to a PRIVATE club may only be
-// JOINED / waitlisted by members of that club — non-members can still SEE it on
-// the Discover-events feed but must join the club first. Returns true if the
-// caller must be blocked. A normal group (parentClubId NULL) is never blocked.
-async function isPrivateClubEventBlocked(parentClubId, userId) {
-  if (!parentClubId) return false;
+// May this user join / waitlist / be invited to this club event?
+//
+// Two independent reasons to say no, returned as a code so the caller can word
+// the refusal correctly (null = allowed; a normal group with parentClubId NULL
+// is never blocked):
+//
+//   CLUB_MEMBERS_ONLY — the parent club is PRIVATE and the user is not a
+//     member. Non-members may still SEE the event on the Discover feed but must
+//     join the club first (live incident 2026-08-03: a man joining an "only
+//     girls" club's private event).
+//
+//   CLUB_GONE — the parent club is deleted, rejected or cancelled. Added
+//     2026-09-15 (finding 24): the app NEVER hard-deletes a group row, so the
+//     ON DELETE CASCADE on parent_club_id never fires and no write path
+//     propagates a club's deletion to its events. Two feeds re-check the live
+//     club and hid the orphans, which is precisely what kept this invisible —
+//     but joinGroup only ever checked the EVENT row, so a deleted public club's
+//     events stayed joinable by anyone holding an old share link.
+async function clubEventBlockedReason(parentClubId, userId) {
+  if (!parentClubId) return null;
   const { rows } = await db.query(
-    `SELECT c.is_private, cm.user_id AS is_member
+    `SELECT c.is_private, c.is_active, c.deleted_at, c.approval_status,
+            cm.user_id AS is_member
      FROM groups c
      LEFT JOIN group_members cm ON cm.group_id = c.id AND cm.user_id = $2
      WHERE c.id = $1`,
     [parentClubId, userId]
   );
-  return !!(rows[0]?.is_private && !rows[0].is_member);
+  const c = rows[0];
+  // A parent_club_id pointing at nothing is an orphan too.
+  if (!c) return 'CLUB_GONE';
+  if (c.deleted_at || c.is_active === false || c.approval_status !== 'approved') return 'CLUB_GONE';
+  if (c.is_private && !c.is_member) return 'CLUB_MEMBERS_ONLY';
+  return null;
 }
+
+const CLUB_BLOCK_MESSAGE = {
+  CLUB_MEMBERS_ONLY: 'Dieses Event gehört zu einem privaten Club. Tritt zuerst dem Club bei, um teilzunehmen.',
+  CLUB_GONE: 'Der Club zu diesem Event existiert nicht mehr.',
+};
 
 // ==========================================
 // JOIN GROUP
@@ -1093,11 +1300,11 @@ export const joinGroup = async (req, res) => {
     // the club first — before this, joinGroup treated an event like any group
     // and a non-member (e.g. a man joining an "only girls" club's private event)
     // could join outright (reported live 2026-08-03).
-    if (await isPrivateClubEventBlocked(groupRes.rows[0].parent_club_id, req.userId)) {
-      return res.status(403).json({
-        error: 'Dieses Event gehört zu einem privaten Club. Tritt zuerst dem Club bei, um teilzunehmen.',
-        code: 'CLUB_MEMBERS_ONLY',
-      });
+    {
+      const blocked = await clubEventBlockedReason(groupRes.rows[0].parent_club_id, req.userId);
+      if (blocked) {
+        return res.status(403).json({ error: CLUB_BLOCK_MESSAGE[blocked], code: blocked });
+      }
     }
 
     // Anti-churn: a user may join any given group at most MAX_GROUP_JOINS times.
@@ -1533,7 +1740,10 @@ export const getUserGroups = async (req, res) => {
               g.max_members, g.members_count, g.location, g.date, g.deleted_at,
               g.chat_only_owner, g.parent_club_id,
               u.name as owner_name, gm.role, gm.archived,
+              -- A voice message stores a URL in content; the list shows a
+              -- label instead (the client switches on last_message_type).
               lm.content as last_message,
+              lm.message_type as last_message_type,
               lm.created_at as last_message_time,
               lm_user.name as last_message_sender,
               (SELECT COUNT(*)::int FROM messages m2
@@ -1541,6 +1751,13 @@ export const getUserGroups = async (req, res) => {
                   AND m2.created_at > COALESCE(gm.last_read_at, gm.joined_at)
                   AND m2.user_id IS DISTINCT FROM $1
                   AND m2.message_type IS DISTINCT FROM 'system'
+                  -- deleteMessage soft-deletes since 2026-09-15 (the row is
+                  -- kept as moderation evidence). Before that it was a real
+                  -- DELETE, so both this counter and the preview below were
+                  -- correct for free. Without the flag, a message an admin
+                  -- just removed still shows an unread badge nobody can clear
+                  -- by opening the chat — getMessages no longer returns it.
+                  AND m2.is_deleted = FALSE
               ) AS unread_count,
               -- Pending join requests to show a count badge on the owner's
               -- "Anfragen" button (Tobi 2026-07-28). 0 for groups you don't own.
@@ -1551,12 +1768,16 @@ export const getUserGroups = async (req, res) => {
        JOIN groups g ON gm.group_id = g.id
        LEFT JOIN users u ON g.owner_id = u.id
        LEFT JOIN LATERAL (
-         SELECT m.content, m.created_at, m.user_id
+         SELECT m.content, m.created_at, m.user_id, m.message_type
          FROM messages m
          WHERE m.group_id = g.id
            -- No joined_at cutoff: members see full pre-join history since
            -- 2026-08-04 (getMessages dropped its cutoff too), so the preview
            -- may show a message from before the member joined.
+           -- Soft-deleted messages are excluded: an admin acting on a
+           -- harassment report would otherwise remove it from the chat while
+           -- it stayed the chat-list preview for all 40 members.
+           AND m.is_deleted = FALSE
          ORDER BY m.created_at DESC
          LIMIT 1
        ) lm ON TRUE
@@ -2005,7 +2226,16 @@ export const cancelGroup = async (req, res) => {
       db.query('SELECT user_id FROM group_members WHERE group_id = $1 AND user_id != $2', [id, req.userId]),
     ]);
     if (groupRes.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
-    if (Number(groupRes.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
+    // Admins may cancel any group too — same reasoning as deleteGroup. Cancel
+    // is the softer moderation lever: members are notified with a reason and
+    // the history survives, which is often the better answer than deletion.
+    {
+      const isOwner = Number(groupRes.rows[0].owner_id) === Number(req.userId);
+      if (!isOwner) {
+        const adm = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);
+        if (!adm.rows[0]?.is_admin) return res.status(403).json({ error: 'Keine Berechtigung' });
+      }
+    }
 
     // Mark group as inactive (soft delete)
     await db.query(
@@ -2068,11 +2298,11 @@ export const joinWaitlist = async (req, res) => {
     }
     // Same private-club-event gate as joinGroup — otherwise a non-member could
     // waitlist a full private event and get auto-promoted into it.
-    if (await isPrivateClubEventBlocked(groupRes.rows[0].parent_club_id, req.userId)) {
-      return res.status(403).json({
-        error: 'Dieses Event gehört zu einem privaten Club. Tritt zuerst dem Club bei, um teilzunehmen.',
-        code: 'CLUB_MEMBERS_ONLY',
-      });
+    {
+      const blocked = await clubEventBlockedReason(groupRes.rows[0].parent_club_id, req.userId);
+      if (blocked) {
+        return res.status(403).json({ error: CLUB_BLOCK_MESSAGE[blocked], code: blocked });
+      }
     }
 
     const g = groupRes.rows[0];
@@ -2233,11 +2463,37 @@ export const inviteMember = async (req, res) => {
   try {
     const { id, friendId } = req.params;
 
-    const group = await db.query('SELECT owner_id, name, max_members FROM groups WHERE id = $1', [id]);
+    const group = await db.query('SELECT owner_id, name, max_members, parent_club_id FROM groups WHERE id = $1', [id]);
     if (group.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
     if (Number(group.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
 
     const g = group.rows[0];
+
+    // Private-club gate on the INVITEE (audit 2026-09-15, finding 4).
+    // joinGroup (line ~1162) and joinWaitlist both run this check; invite did
+    // not even SELECT parent_club_id, so it was the one entry that walked a
+    // non-member straight into a private club's event — with no accept step,
+    // so they landed in the roster, the attendee list and the full chat
+    // history immediately. Club events are created by any club member, not
+    // only the owner, so the inviter need not be privileged either. This is
+    // exactly the incident the gate was built for on 2026-08-03 ("a man
+    // joining an 'only girls' club's private event").
+    //
+    // The invitee is checked, not the inviter: the inviter is a member by
+    // definition, and it is the invitee's access that is in question. Wording
+    // is owner-facing because the owner is who reads it.
+    {
+      const blocked = await clubEventBlockedReason(g.parent_club_id, friendId);
+      if (blocked === 'CLUB_MEMBERS_ONLY') {
+        return res.status(403).json({
+          error: 'Dein Freund ist kein Mitglied dieses privaten Clubs und kann nicht zum Event eingeladen werden.',
+          code: 'CLUB_MEMBERS_ONLY',
+        });
+      }
+      if (blocked) {
+        return res.status(403).json({ error: CLUB_BLOCK_MESSAGE[blocked], code: blocked });
+      }
+    }
 
     // Friendship + existing-member check can race-safely run outside the txn —
     // friendship status doesn't change between checks, and the (group_id,user_id)

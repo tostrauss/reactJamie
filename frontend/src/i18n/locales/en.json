@@ -355,7 +355,8 @@
         "waitlistPositionFmt": "Waitlist · Position {{position}}",
         "waitlistGeneric": "Waitlist",
         "joinWaitlist": "Join waitlist",
-        "boost": "🚀 Boost"
+        "boost": "🚀 Boost",
+        "clubGone": "Club no longer exists"
       },
       "info": {
         "level": "Level: {{level}}",
@@ -382,7 +383,8 @@
         "deletedGroup": "Group deleted.",
         "deletedClub": "Club deleted.",
         "errorGroup": "Could not delete group.",
-        "errorClub": "Could not delete club."
+        "errorClub": "Could not delete club.",
+        "confirmLeave": "Really leave this group? Your spot is freed up, and you can only join this group three times in total."
       },
       "report": {
         "group": "Report group",
@@ -426,7 +428,13 @@
         "delete": "Delete",
         "joined": "Joined",
         "join": "Join",
-        "participants": "{{current}} / {{max}} participants"
+        "participants": "{{current}} / {{max}} participants",
+        "confirmLeave": "Really leave this event? Your spot is freed up."
+      },
+      "adminDelete": {
+        "action": "🛡 Delete as admin",
+        "confirm": "Delete \"{{name}}\" as an admin? This removes it for every member. Chat and history are kept internally.",
+        "done": "Removed."
       }
     },
     "ticketButton": "Buy tickets"
@@ -586,8 +594,10 @@
       "ticketLinkPlaceholder": "https://your-ticketshop.com/event",
       "ticketLinkHint": "The link appears as a ticket button on the event page. Sales run through your own shop.",
       "errorTicketRequired": "Please enter a ticket link",
-      "errorProRequired": "Paid events are a JAMIE Pro feature."
-    }
+      "errorProRequired": "Paid events are a JAMIE Pro feature.",
+      "confirmLeave": "Really leave this event? Your spot is freed up."
+    },
+    "confirmLeave": "Really leave this club? You can only join this club twice in total."
   },
   "clubMembers": {
     "title": "Members",
@@ -634,7 +644,9 @@
       "myClubs": "My clubs",
       "trending": "All clubs",
       "eventsForYou": "Events for you",
-      "seeAll": "See all"
+      "seeAll": "See all",
+      "imminent": "Today & Tomorrow",
+      "laterGroups": "More groups"
     },
     "clubEventsDiscover": "Discover events",
     "filter": {
@@ -674,7 +686,9 @@
       "waitlistJoinedPos": "On waitlist! Position: {{position}}",
       "waitlistLeft": "Removed from waitlist",
       "waitlistError": "Waitlist error"
-    }
+    },
+    "loadMore": "Load more groups",
+    "loadMoreLoading": "Loading …"
   },
   "chat": {
     "shared": {
@@ -736,7 +750,8 @@
         "discoverClubsHint": "Discover clubs!",
         "noHidden": "No hidden chats",
         "noChatsAll": "No chats yet",
-        "noUnread": "All caught up!"
+        "noUnread": "All caught up!",
+        "allHidden": "All chats are hidden."
       },
       "ownerActions": {
         "requests": "Requests",
@@ -789,6 +804,13 @@
       "input": {
         "placeholder": "Write a message...",
         "placeholderOwnerOnly": "Only the owner can write"
+      },
+      "message": {
+        "report": "Report message",
+        "delete": "Delete message",
+        "cancel": "Cancel",
+        "confirmDelete": "Really delete this message? It disappears for everyone in the chat.",
+        "deleteError": "Could not delete the message."
       }
     },
     "dm": {
@@ -806,6 +828,33 @@
       "emptyHint": "Say hi!",
       "typingFmt": "{{name}} is typing...",
       "inputPlaceholder": "Write a message..."
+    },
+    "send": "Send",
+    "reply": {
+      "action": "Reply",
+      "cancel": "Discard reply",
+      "unknownAuthor": "Unknown",
+      "deleted": "Message deleted"
+    },
+    "voice": {
+      "label": "🎤 Voice message",
+      "record": "Record voice message",
+      "send": "Send voice message",
+      "discard": "Discard recording",
+      "play": "Play",
+      "pause": "Pause",
+      "secondsLeft": "{{seconds}} s left",
+      "denied": "No microphone access. Allow it in your device settings.",
+      "failed": "Could not record. Please try again.",
+      "uploadFailed": "Could not send the voice message.",
+      "unavailable": "Voice message unavailable"
+    },
+    "photo": {
+      "label": "📷 Photo",
+      "send": "Send photo",
+      "open": "Open photo",
+      "unavailable": "Photo unavailable",
+      "uploadFailed": "Could not send the photo."
     }
   },
   "profile": {
@@ -1250,7 +1299,8 @@
     "submit": "Report",
     "sending": "Sending...",
     "success": "Report sent. Thanks!",
-    "error": "Report could not be sent"
+    "error": "Report could not be sent",
+    "alreadyOpen": "This report is already open — we are looking into it."
   },
   "eventReview": {
     "counterFmt": "Event feedback {{current}}/{{total}}",
@@ -1876,7 +1926,8 @@
       "csvExport": "CSV export",
       "onlineNowFmt": "Online now ({{count}})",
       "growth": "Growth & cohorts",
-      "feedbackFmt": "App feedback ({{count}})"
+      "feedbackFmt": "App feedback ({{count}})",
+      "reportsFmt": "Reports ({{count}} open)"
     },
     "feedback": {
       "empty": "No feedback yet.",
@@ -2002,6 +2053,60 @@
       "deleting": "Deleting…",
       "deleted": "User deleted",
       "cancel": "Cancel"
+    },
+    "reports": {
+      "loading": "Loading reports …",
+      "empty": "No reports in this view.",
+      "noDetails": "No explanation given",
+      "loadMore": "Load more",
+      "actionFailed": "Could not change the status. Please try again.",
+      "markResolved": "Resolve",
+      "dismiss": "Dismiss",
+      "reopen": "Reopen",
+      "openTarget": "Open",
+      "openChat": "Open chat",
+      "deleted": "· deleted",
+      "messageDeleted": "This message has since been deleted.",
+      "authorGone": "Deleted account",
+      "targetGone": "{{type}} #{{id}} no longer exists (deleted)",
+      "memberSince": "member since {{date}}",
+      "createdBy": "by {{name}}",
+      "byAuthor": "by {{name}} (#{{id}})",
+      "inChat": "in {{name}}",
+      "reportedBy": "Reported by {{name}} (#{{id}})",
+      "reviewedBy": "Handled by {{name}} · {{date}}",
+      "repeatFmt": "report #{{count}}",
+      "status": {
+        "pending": "Open",
+        "reviewed": "In review",
+        "resolved": "Resolved",
+        "dismissed": "Dismissed"
+      },
+      "type": {
+        "user": "User",
+        "group": "Group",
+        "message": "Message"
+      },
+      "entity": {
+        "group": "Group",
+        "club": "Club",
+        "event": "Event"
+      },
+      "reason": {
+        "spam": "Spam",
+        "inappropriate": "Inappropriate content",
+        "harassment": "Harassment",
+        "fake": "Fake profile",
+        "other": "Other"
+      },
+      "deleteMessage": "Remove message",
+      "freezeUser": "Freeze account",
+      "unfreezeUser": "Unfreeze account",
+      "confirmDeleteMessage": "Remove this message? It disappears from the chat but is kept as evidence for this report.",
+      "confirmFreeze": "Freeze {{name}}’s account? They are logged out immediately and cannot sign in again. This can be undone at any time.",
+      "deleteGroup": "Remove group",
+      "deleteClub": "Remove club",
+      "confirmDeleteGroup": "Remove \"{{name}}\"? It disappears for every member. Chat and history are kept as evidence."
     }
   },
   "imageUpload": {
@@ -2028,5 +2133,17 @@
     "text": "You're missing messages and join requests. Turn them back on in Settings.",
     "open": "Open Settings",
     "later": "Later"
+  },
+  "errors": {
+    "generic": "That did not work. Please try again.",
+    "network": "No connection. Check your internet and try again.",
+    "EMAIL_TAKEN": "This email address is already registered.",
+    "BAD_CREDENTIALS": "Wrong email or password.",
+    "USE_GOOGLE": "This account uses Google sign-in. Please sign in with Google.",
+    "ACCOUNT_LOCKED": "Account temporarily locked. Try again in {{minutes}} minutes.",
+    "CLUB_MEMBERS_ONLY": "This event belongs to a private club. Join the club first to take part.",
+    "CLUB_GONE": "The club this event belongs to no longer exists.",
+    "UPLOAD_BUSY": "A lot of uploads are in flight right now. Please wait a moment and try again.",
+    "VOICE_TOO_LARGE": "The voice message is too long."
   }
 }

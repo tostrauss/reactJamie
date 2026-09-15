@@ -3,7 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { SocketContext } from '../context/SocketContext';
-import { directMessages, users } from '../utils/api';
+import { directMessages, users, upload } from '../utils/api';
+import { ChatComposer } from '../components/ChatComposer';
+import { VoiceMessage } from '../components/VoiceMessage';
+import { ImageMessage } from '../components/ImageMessage';
+import { PhotoLightbox } from '../components/PhotoLightbox';
+import { MessageQuote } from '../components/MessageQuote';
+import { ReportModal } from '../components/ReportModal';
+import { serverErrorMessage } from '../utils/apiError';
+import { downscaleImageFile } from '../utils/images';
 import { useToast } from '../context/ToastContext';
 import { dayKey, daySeparatorLabel } from '../utils/chatDate';
 import { useChatViewport } from '../hooks/useChatViewport';
@@ -28,9 +36,16 @@ export const DirectMessagePage = () => {
   // string-matching the localized message (which would break in English).
   const [errorIsFriendship, setErrorIsFriendship] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  // Long-press → reply / report, same as the group chat. DMs had no message
+  // actions at all before 2026-09-15.
+  const [actionMsg, setActionMsg] = useState(null);
+  const [reportMsg, setReportMsg] = useState(null);
+  const [replyTo, setReplyTo] = useState(null);
+  const [lightbox, setLightbox] = useState(null);
+  const longPressTimer = useRef(null);
+  const lastTypingEmitRef = useRef(0);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
-  const inputRef = useRef(null);
   const chatPageRef = useRef(null);
   // active only once the real chat surface (which carries the ref) is mounted —
   // during loading/error the ref is null and the hook must wait.
@@ -39,14 +54,8 @@ export const DirectMessagePage = () => {
   // a friend chat). Was '/chats', which opened the default Gruppen tab.
   useSwipeBack(chatPageRef, () => navigate('/chats?filter=freunde'), !loading && !error);
 
-  // Grow the composer with its content (up to a cap).
-  const autoGrow = () => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
-  };
-
+  // Composer auto-grow moved into components/ChatComposer.jsx along with the
+  // input itself, so the group chat and DMs cannot drift apart again.
   // Catch-up: pull the conversation again and merge anything missing — after a
   // socket reconnect and on returning to the foreground, messages sent while
   // the WebView was frozen never arrive via receive_dm (same gap ChatPage had).
@@ -177,9 +186,10 @@ export const DirectMessagePage = () => {
     }
   };
 
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    const content = newMessage.trim();
+  const handleSendMessage = async (e, voice = null, photo = null) => {
+    e?.preventDefault?.();
+    const media = voice || photo;
+    const content = media ? media.url : newMessage.trim();
     if (!content) return;
 
     // Optimistic send: render the SENDER's own bubble immediately, but deliver
@@ -197,22 +207,34 @@ export const DirectMessagePage = () => {
       sender_id: user.id,
       receiver_id: receiverIdInt,
       content,
+      message_type: voice ? 'voice' : photo ? 'image' : 'text',
+      duration_ms: voice ? voice.durationMs : null,
+      reply_to: replyTo
+        ? { id: replyTo.id, content: replyTo.content, message_type: replyTo.message_type, user_name: replyTo.sender_name }
+        : null,
       created_at: new Date().toISOString(),
       sender_name: user.name,
       sender_avatar: user.avatar_url,
       _pending: true,
     };
 
+    // Consumed by THIS send — a slow network must not leave the quote attached
+    // to the next message too.
+    const quoted = replyTo;
+    setReplyTo(null);
     setMessagesList(prev => [...prev, optimistic]);
-    setNewMessage('');
-    if (inputRef.current) inputRef.current.style.height = 'auto'; // collapse composer
+    if (!media) setNewMessage('');
     stopTyping();
 
     // Persist FIRST, then deliver. Reconcile the sender's optimistic bubble
     // with the persisted row, and only THEN emit to the recipient — so the
     // recipient never receives a message that moderation rejected.
     try {
-      const res = await directMessages.send(receiverIdInt, content);
+      const res = await directMessages.send(receiverIdInt, content, {
+        replyToId: quoted?.id,
+        ...(voice ? { messageType: 'voice', durationMs: voice.durationMs } : {}),
+        ...(photo ? { messageType: 'image' } : {}),
+      });
       const real = {
         ...res.data,
         sender_name: user.name,
@@ -247,13 +269,66 @@ export const DirectMessagePage = () => {
     }
   };
 
+  const handleSendVoice = async ({ blob, mimeType, durationMs }) => {
+    try {
+      const res = await upload.voice(blob, durationMs, mimeType);
+      await handleSendMessage(null, { url: res.data.url, durationMs: res.data.duration_ms ?? durationMs });
+    } catch (err) {
+      toast.error(serverErrorMessage(err, t, 'chat.voice.uploadFailed'));
+    }
+  };
+
+  // Shrink client-side first (utils/images), then upload, then send the row
+  // that points at it. The upload route is where Sightengine runs, so a photo
+  // is moderated BEFORE it can ever reach the chat — unlike a voice note,
+  // which can only be moderated reactively.
+  const handleSendPhoto = async (file) => {
+    try {
+      const res = await upload.image(await downscaleImageFile(file));
+      await handleSendMessage(null, null, { url: res.data.url });
+    } catch (err) {
+      toast.error(serverErrorMessage(err, t, 'chat.photo.uploadFailed'));
+    }
+  };
+
+  // Long-press opens the action sheet; cancelled on move/end so scrolling the
+  // thread never triggers it.
+  const pressHandlers = (msg) => ({
+    onContextMenu: (e) => { e.preventDefault(); setActionMsg(msg); },
+    onPointerDown: () => {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = setTimeout(() => setActionMsg(msg), 500);
+    },
+    onPointerUp:    () => clearTimeout(longPressTimer.current),
+    onPointerLeave: () => clearTimeout(longPressTimer.current),
+    onPointerMove:  () => clearTimeout(longPressTimer.current),
+  });
+
+  const jumpToMessage = (id) => {
+    const el = document.getElementById(`dm-${id}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('message--flash');
+    setTimeout(() => el.classList.remove('message--flash'), 1200);
+  };
+
   const handleTyping = () => {
     if (!socket) return;
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
-    socket.emit('dm_typing', { senderId: user.id, receiverId: parseInt(otherUserId) });
+    // Throttled to one emit per 2 s. This fires from the textarea's onChange,
+    // i.e. once per KEYSTROKE — a fast typist produced ~35 socket events per
+    // 10 s, which is pure waste on a mobile connection and was enough to trip
+    // the server's per-socket event budget. The 3 s idle timer below is what
+    // actually ends the indicator, so a lower emit rate changes nothing the
+    // other person sees.
+    const now = Date.now();
+    if (now - lastTypingEmitRef.current > 2000) {
+      lastTypingEmitRef.current = now;
+      socket.emit('dm_typing', { senderId: user.id, receiverId: parseInt(otherUserId) });
+    }
 
     typingTimeoutRef.current = setTimeout(() => {
       stopTyping();
@@ -261,6 +336,7 @@ export const DirectMessagePage = () => {
   };
 
   const stopTyping = () => {
+    lastTypingEmitRef.current = 0;   // the next keystroke starts a fresh indicator
     if (!socket) return;
     socket.emit('dm_stop_typing', { senderId: user.id, receiverId: parseInt(otherUserId) });
     if (typingTimeoutRef.current) {
@@ -362,9 +438,20 @@ export const DirectMessagePage = () => {
             <Fragment key={msg.id}>
               {showDay && <div className="message-day-sep"><span>{daySeparatorLabel(msg.created_at, dateLocale, t)}</span></div>}
               <div
+                id={`dm-${msg.id}`}
                 className={`message ${msg.sender_id === user.id ? 'sent' : 'received'}${msg._pending ? ' message--pending' : ''}${msg._failed ? ' message--failed' : ''}`}
+                {...(msg.id && !msg._pending ? pressHandlers(msg) : {})}
               >
-                <div className="message-content">{msg.content}</div>
+                {msg.reply_to && (
+                  <MessageQuote quote={msg.reply_to} onJump={() => jumpToMessage(msg.reply_to.id)} />
+                )}
+                {msg.message_type === 'voice' ? (
+                  <VoiceMessage url={msg.content} durationMs={msg.duration_ms} mine={msg.sender_id === user.id} />
+                ) : msg.message_type === 'image' ? (
+                  <ImageMessage url={msg.content} mine={msg.sender_id === user.id} onOpen={setLightbox} />
+                ) : (
+                  <div className="message-content">{msg.content}</div>
+                )}
                 <div className="message-time">
                   {msg._failed
                     ? t('chat.dm.notSent')
@@ -385,36 +472,55 @@ export const DirectMessagePage = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="message-input-container">
-        <textarea
-          ref={inputRef}
-          rows={1}
-          value={newMessage}
-          onChange={(e) => {
-            setNewMessage(e.target.value);
-            handleTyping();
-            autoGrow();
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSendMessage(e);
-            }
-          }}
-          placeholder={t('chat.dm.inputPlaceholder')}
-          className="message-input"
+      <ChatComposer
+        value={newMessage}
+        onChange={(v) => { setNewMessage(v); handleTyping(); }}
+        onSend={handleSendMessage}
+        onSendVoice={handleSendVoice}
+        onSendPhoto={handleSendPhoto}
+        placeholder={t('chat.dm.inputPlaceholder')}
+        replyTo={replyTo && { ...replyTo, user_name: replyTo.sender_name }}
+        onCancelReply={() => setReplyTo(null)}
+      />
+
+      {actionMsg && (
+        <div className="msg-sheet-backdrop" onClick={() => setActionMsg(null)} role="presentation">
+          <div className="msg-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="msg-sheet-preview">
+              {actionMsg.message_type === 'voice' ? t('chat.voice.label')
+                : actionMsg.message_type === 'image' ? t('chat.photo.label')
+                : actionMsg.content}
+            </div>
+            <button className="msg-sheet-btn" onClick={() => { setReplyTo(actionMsg); setActionMsg(null); }}>
+              {t('chat.reply.action')}
+            </button>
+            {actionMsg.sender_id !== user?.id && (
+              <button
+                className="msg-sheet-btn msg-sheet-btn--danger"
+                onClick={() => { setReportMsg(actionMsg); setActionMsg(null); }}
+              >
+                {t('chat.page.message.report')}
+              </button>
+            )}
+            <button className="msg-sheet-btn" onClick={() => setActionMsg(null)}>
+              {t('chat.page.message.cancel')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {lightbox && (
+        <PhotoLightbox photos={[lightbox]} index={0} onIndex={() => {}} onClose={() => setLightbox(null)} />
+      )}
+
+      {reportMsg && (
+        <ReportModal
+          type="message"
+          id={reportMsg.id}
+          name={reportMsg.sender_name}
+          onClose={() => setReportMsg(null)}
         />
-        <button
-          className="send-button"
-          onClick={handleSendMessage}
-          disabled={!newMessage.trim()}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="22" y1="2" x2="11" y2="13"/>
-            <polygon points="22,2 15,22 11,13 2,9"/>
-          </svg>
-        </button>
-      </div>
+      )}
     </div>
   );
 };

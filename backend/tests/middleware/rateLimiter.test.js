@@ -12,7 +12,7 @@ vi.mock('../../src/config/redis.js', () => ({
 // rateLimiter now imports auth.js (JWT helpers) which imports the DB module.
 vi.mock('../../src/config/database.js', () => ({ default: { query: vi.fn() } }));
 
-const { generalLimiter, authLimiter, strictLimiter, verifiedUserId, authLimiterSkip } = await import('../../src/middleware/rateLimiter.js');
+const { generalLimiter, authLimiter, strictLimiter, passwordResetLimiter, publicFormLimiter, verifiedUserId, authLimiterSkip } = await import('../../src/middleware/rateLimiter.js');
 const { generateToken } = await import('../../src/middleware/auth.js');
 
 describe('rate limiters', () => {
@@ -26,6 +26,54 @@ describe('rate limiters', () => {
 
   it('exports strictLimiter as a function', () => {
     expect(typeof strictLimiter).toBe('function');
+  });
+
+  // Audit 2026-09-15, finding 5: strictLimiter used to be ONE no-keyGenerator
+  // instance shared by /password, /account, /export, /forgot-password,
+  // /reset-password, /verify-email, the contact form and the waitlist — one
+  // 5/hour bucket per IP across all of them, so a carrier NAT locked itself
+  // out of password recovery. These pin the split apart.
+  describe('strict-bucket split (finding 5)', () => {
+    // A blocked request never calls next() — it answers via res.json(). The
+    // harness has to settle on EITHER, or the first 429 hangs the test.
+    const run = (limiter, userId) => new Promise((resolve) => {
+      const req = { ip: '203.0.113.9', headers: {}, method: 'POST', url: '/x', path: '/x', query: {}, userId };
+      // express-rate-limit's default handler answers with res.send(), not
+      // res.json() — settle on any of them so a 429 cannot hang the test.
+      const blocked = () => resolve({ allowed: false, status: res._status });
+      const res = {
+        set: vi.fn(), setHeader: vi.fn(), getHeader: vi.fn(), end: vi.fn(),
+        status: vi.fn(function (c) { res._status = c; return res; }),
+        send: vi.fn(blocked), json: vi.fn(blocked),
+      };
+      limiter(req, res, () => resolve({ allowed: true }));
+    });
+
+    it('the reset and public-form limiters exist as their own instances', () => {
+      expect(typeof passwordResetLimiter).toBe('function');
+      expect(typeof publicFormLimiter).toBe('function');
+      expect(passwordResetLimiter).not.toBe(strictLimiter);
+      expect(publicFormLimiter).not.toBe(strictLimiter);
+    });
+
+    it('strictLimiter keys per USER, so two users on one IP do not share a budget', async () => {
+      // Every request below carries the SAME ip and differs only in userId.
+      // Under the old ip-keyed limiter, user 1 exhausting the 5/h budget would
+      // have 429'd user 2 — one NAT, one bucket.
+      const mine = [];
+      for (let i = 0; i < 6; i++) mine.push(await run(strictLimiter, 1));
+      expect(mine.filter((r) => r.allowed).length).toBe(5);   // cap is real
+      expect(mine[5]).toMatchObject({ allowed: false, status: 429 });
+
+      expect(await run(strictLimiter, 2)).toEqual({ allowed: true });
+    });
+
+    it('draining strictLimiter leaves the password-reset budget untouched', async () => {
+      for (let i = 0; i < 8; i++) await run(strictLimiter, 3);
+      expect((await run(strictLimiter, 3)).allowed).toBe(false);  // still capped
+      // ...but account recovery is a different bucket now, so it still works.
+      expect(await run(passwordResetLimiter, 3)).toEqual({ allowed: true });
+    });
   });
 
   it('falls back to in-memory store when Redis is absent', async () => {
