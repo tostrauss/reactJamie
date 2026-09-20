@@ -31,9 +31,9 @@ const APPLE_PRODUCTS = {
   boost_popular: { type: 'boost',        credits: 5  },
   boost_pro:     { type: 'boost',        credits: 15 },
   // Pro subscriptions
-  pro_weekly:    { type: 'subscription', plan: 'weekly'   },
   pro_monthly:   { type: 'subscription', plan: 'monthly'  },
   pro_sixmonth:  { type: 'subscription', plan: 'sixmonth' },
+  pro_yearly:    { type: 'subscription', plan: 'yearly'   },
 };
 
 let _appleClient = null;

@@ -623,7 +623,15 @@ export const messages = {
   
   // Delete message
   delete: (messageId) => 
-    axiosInstance.delete(`/messages/${messageId}`)
+    axiosInstance.delete(`/messages/${messageId}`),
+
+  // Set / replace / clear the caller's emoji reaction on a group message.
+  // `emoji: null` removes it. One PUT covers all three because there is only
+  // ever ONE reaction per person per message (server enforces it via the
+  // table's primary key). Responds with the full fresh summary, which is also
+  // what goes out over the socket as `message_reaction`.
+  react: (messageId, emoji) =>
+    axiosInstance.put(`/messages/${messageId}/reaction`, { emoji: emoji ?? null })
 };
 
 // ==========================================
@@ -669,7 +677,11 @@ export const directMessages = {
   // path, and must never be routed through messages.delete, which addresses
   // the unrelated GROUP-chat table.
   deleteMessage: (id) =>
-    axiosInstance.delete(`/dm/message/${id}`)
+    axiosInstance.delete(`/dm/message/${id}`),
+
+  // Emoji reaction on one DM — see messages.react.
+  react: (messageId, emoji) =>
+    axiosInstance.put(`/dm/message/${messageId}/reaction`, { emoji: emoji ?? null })
 };
 
 // ==========================================
@@ -895,7 +907,7 @@ export const feedback = {
 
 export const subscription = {
   getStatus: () => axiosInstance.get('/subscription/status'),
-  // plan: 'weekly' | 'monthly' | 'sixmonth' (server validates + falls back to monthly)
+  // plan: 'monthly' | 'sixmonth' | 'yearly' (server validates + falls back to monthly)
   create: (plan) => axiosInstance.post('/subscription/create', plan ? { plan } : {}),
   cancel: () => axiosInstance.post('/subscription/cancel'),
   // 14-day right of withdrawal (Widerruf) — immediate cancel + full refund.

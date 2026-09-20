@@ -259,7 +259,7 @@ export default function TermsOfService() {
 
       <Section title="11. Premium Features, Subscriptions and Boosts">
         <p>JAMIE may offer premium memberships, digital boosts and additional digital features.</p>
-        <p>Subscriptions may be offered on a weekly, monthly, six-month or annual basis. The available billing periods and prices are shown in the app at the time of purchase.</p>
+        <p>Subscriptions may be offered on a monthly, six-month or annual basis. The available billing periods and prices are shown in the app at the time of purchase.</p>
         <p>
           Subscriptions purchased through Apple App Store or Google Play Store are subject
           to the terms and billing rules of the respective platform provider.

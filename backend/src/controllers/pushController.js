@@ -2,6 +2,7 @@ import webpush from 'web-push';
 import db from '../config/database.js';
 import { createSemaphore } from '../utils/semaphore.js';
 import { Sentry } from '../config/sentry.js';
+import { isValidRadius, normalizeRadius } from '../utils/geoRadius.js';
 
 // Cap concurrent outbound push sends (audit 2026-09-02, risk #8): before this,
 // dispatch fired every FCM/APNs TLS request at once without awaiting — a
@@ -271,14 +272,32 @@ const PUSH_PREF_KEYS = ['push_reminders', 'push_friends', 'push_recommendations'
 export const updatePushPreferences = async (req, res) => {
   if (req.isGuest || !req.userId) return res.status(403).json({ error: 'Guests have no push preferences' });
   const keys = PUSH_PREF_KEYS.filter(k => typeof req.body?.[k] === 'boolean');
+
+  // Umkreis rides on the same endpoint as the boolean toggles — it is a
+  // notification preference and lives next to them in Settings. It is NOT a
+  // boolean, so it is collected separately rather than bent into PUSH_PREF_KEYS.
+  const values = keys.map(k => req.body[k]);
+  const hasRadius = 'notify_radius_km' in (req.body || {});
+  if (hasRadius && !isValidRadius(req.body.notify_radius_km)) {
+    // Rejected rather than clamped: the picker can only produce the offered
+    // values, so anything else is a crafted request — and silently accepting
+    // an arbitrary "1 km" would turn the push fan-out into a presence oracle
+    // for guessing where someone lives.
+    return res.status(400).json({ error: 'Ungültiger Umkreis' });
+  }
+  if (hasRadius) {
+    keys.push('notify_radius_km');
+    values.push(normalizeRadius(req.body.notify_radius_km));
+  }
+
   if (!keys.length) return res.status(400).json({ error: 'Keine gültige Einstellung übergeben' });
   try {
     const sets = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
     const { rows } = await db.query(
       `UPDATE users SET ${sets}, updated_at = CURRENT_TIMESTAMP
        WHERE id = $1
-       RETURNING push_reminders, push_friends, push_recommendations`,
-      [req.userId, ...keys.map(k => req.body[k])]
+       RETURNING push_reminders, push_friends, push_recommendations, notify_radius_km`,
+      [req.userId, ...values]
     );
     if (!rows.length) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
     res.json(rows[0]);

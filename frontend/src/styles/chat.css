@@ -1987,3 +1987,111 @@
 
 .msg-info-empty { font-size: 13px; opacity: 0.45; padding: 6px 2px; }
 
+
+/* ==========================================================================
+   EMOJI-REAKTIONEN
+   ========================================================================== */
+
+/* The chip strip sits UNDER the bubble, not inside it — the bubble is the
+   long-press target and a nested tap target inside it turned near-misses into
+   accidental reactions. `margin-top: -6px` pulls the strip up so it overlaps
+   the bubble's bottom edge slightly, the way WhatsApp attaches it, without
+   being a child of the bubble. */
+.msg-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: -6px;
+  margin-bottom: 6px;
+  max-width: 80%;   /* same cap as .message, so a wall of chips can't outgrow it */
+}
+.msg-reactions--sent     { align-self: flex-end;   justify-content: flex-end; }
+.msg-reactions--received { align-self: flex-start; }
+
+.msg-reaction-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  /* Not 44px: this is a secondary affordance next to a 44px bubble, and a
+     full-size target per chip would push three reactions into their own row on
+     a narrow phone. The picker in the sheet is the accessible path. */
+  min-height: 26px;
+  padding: 2px 8px;
+  border-radius: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--bg-card, #1e2235);
+  color: var(--text-light, #fff);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.msg-reaction-chip--active {
+  border-color: var(--accent-coral, #FD7666);
+  background: rgba(253, 118, 102, 0.16);
+}
+
+.msg-reaction-emoji { font-size: 14px; }
+.msg-reaction-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.72);
+}
+.msg-reaction-chip--active .msg-reaction-count { color: var(--accent-coral, #FD7666); }
+
+/* ── Picker inside the long-press sheet ─────────────────────────────────── */
+.reaction-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.reaction-picker-quick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+/* The expanded set. A fixed column count would either waste space on a wide
+   phone or crowd a narrow one, so it wraps on its own; capped in height with
+   its own scroll so the sheet's buttons never get pushed off-screen. */
+.reaction-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 4px;
+  max-height: 32vh;
+  overflow-y: auto;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.reaction-btn {
+  /* 44px, the app-wide minimum touch target — this IS the primary way to react. */
+  min-width: 44px;
+  height: 44px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  flex: 1;
+}
+
+.reaction-btn--active {
+  border-color: var(--accent-coral, #FD7666);
+  background: rgba(253, 118, 102, 0.18);
+}
+
+.reaction-btn--more {
+  font-size: 24px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .msg-reaction-chip { transition: none; }
+}

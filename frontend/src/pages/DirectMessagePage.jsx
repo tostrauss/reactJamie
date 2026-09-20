@@ -9,6 +9,9 @@ import { VoiceMessage } from '../components/VoiceMessage';
 import { ImageMessage } from '../components/ImageMessage';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { MessageQuote } from '../components/MessageQuote';
+import { MessageReactions } from '../components/MessageReactions';
+import { ReactionPicker } from '../components/ReactionPicker';
+import { myReaction, applyReactionLocally } from '../utils/reactions';
 import { mediaUrl } from '../utils/chatMedia';
 import { MessageTicks, tickState } from '../components/MessageTicks';
 import { ReportModal } from '../components/ReportModal';
@@ -86,8 +89,13 @@ export const DirectMessagePage = () => {
         const patched = prev.map(m => {
           const s = byId.get(m.id);
           if (!s) return m;
-          if (s.is_read === m.is_read && s.delivered_at === m.delivered_at) return m;
-          return { ...m, is_read: s.is_read, delivered_at: s.delivered_at };
+          // Reactions land on messages that are already on screen, so they
+          // belong in this patch for the same reason the receipt fields do:
+          // a refetch whose only news is 'someone reacted' must not be
+          // thrown away just because no NEW message arrived.
+          const rxChanged = JSON.stringify(s.reactions ?? []) !== JSON.stringify(m.reactions ?? []);
+          if (s.is_read === m.is_read && s.delivered_at === m.delivered_at && !rxChanged) return m;
+          return { ...m, is_read: s.is_read, delivered_at: s.delivered_at, reactions: s.reactions ?? [] };
         });
         return fresh.length ? [...patched, ...fresh] : patched;
       });
@@ -136,6 +144,13 @@ export const DirectMessagePage = () => {
     };
 
     // Listen for incoming messages
+    // Full summary per event, not a delta — see ChatPage.handleReaction.
+    const handleDmReaction = ({ messageId, reactions }) => {
+      setMessagesList(prev => prev.map(m =>
+        String(m.id) === String(messageId) ? { ...m, reactions: reactions ?? [] } : m));
+    };
+
+    socket.on('dm_reaction', handleDmReaction);
     socket.on('receive_dm', handleReceiveDM);
     socket.on('dm_read', handleDmRead);
     socket.on('dm_deleted', handleDmDeleted);
@@ -145,6 +160,7 @@ export const DirectMessagePage = () => {
 
     return () => {
       socket.emit('leave_dm_room', { userId: user.id, otherUserId: parseInt(otherUserId) });
+      socket.off('dm_reaction', handleDmReaction);
       socket.off('receive_dm', handleReceiveDM);
       socket.off('dm_read', handleDmRead);
       socket.off('dm_deleted', handleDmDeleted);
@@ -206,6 +222,26 @@ export const DirectMessagePage = () => {
         setErrorIsFriendship(false);
       }
       setLoading(false);
+    }
+  };
+
+  // Set / move / clear my emoji reaction — mirror of ChatPage.handleReact;
+  // see there for why it is optimistic and why the rollback restores the
+  // captured array instead of recomputing it.
+  const handleReact = async (msg, emoji) => {
+    setActionMsg(null);
+    const before = msg.reactions ?? [];
+    setMessagesList(prev => prev.map(m => m.id === msg.id
+      ? { ...m, reactions: applyReactionLocally(m.reactions, user?.id, emoji) }
+      : m));
+    try {
+      const res = await directMessages.react(msg.id, emoji);
+      setMessagesList(prev => prev.map(m => m.id === msg.id
+        ? { ...m, reactions: res.data?.reactions ?? [] }
+        : m));
+    } catch (err) {
+      setMessagesList(prev => prev.map(m => m.id === msg.id ? { ...m, reactions: before } : m));
+      toast.error(err?.response?.data?.error || t('chat.reactions.error'));
     }
   };
 
@@ -511,6 +547,13 @@ export const DirectMessagePage = () => {
                   })} />
                 </div>
               </div>
+              {/* Outside the bubble — see ChatPage. */}
+              <MessageReactions
+                reactions={msg.reactions}
+                mine={msg.sender_id === user.id}
+                myEmoji={myReaction(msg.reactions, user?.id)}
+                onToggle={(emoji) => handleReact(msg, emoji)}
+              />
             </Fragment>
           );
         })}
@@ -544,6 +587,13 @@ export const DirectMessagePage = () => {
             {/* A failed send carries a client-side `temp-…` id — see ChatPage.
                 Replying to it would post a reply_to_id the backend drops, so
                 clearing it locally is the only action that does what it says. */}
+            {/* Emoji row first — see ChatPage. */}
+            {!actionMsg._failed && (
+              <ReactionPicker
+                myEmoji={myReaction(actionMsg.reactions, user?.id)}
+                onPick={(emoji) => handleReact(actionMsg, emoji)}
+              />
+            )}
             {actionMsg._failed ? (
               <button
                 className="msg-sheet-btn msg-sheet-btn--danger"

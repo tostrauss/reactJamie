@@ -6,6 +6,7 @@ import { withReply, MEDIA_LABEL } from './messageController.js';
 import { stampDelivered } from '../utils/readReceipts.js';
 import { sendPushToUser } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
+import { isAllowedReaction, setReaction, attachReactions } from '../utils/reactions.js';
 
 // Self-heal: production databases bootstrapped without the seed schema.sql may
 // be missing the direct_messages / dm_conversations tables OR have them with an
@@ -463,7 +464,11 @@ export const getConversation = async (req, res) => {
 
     // Reverse to chronological (oldest→newest) for the client; the query
     // fetched the newest page in DESC order.
-    res.json(result.rows.reverse().map(withReply));
+    const rows = result.rows.reverse().map(withReply);
+    // Emoji reactions for this page, in one extra indexed query. Never
+    // throws — see utils/reactions.getReactionsFor.
+    await attachReactions(db, 'dm', rows);
+    res.json(rows);
   } catch (error) {
     console.error('Error fetching conversation:', error);
     res.status(500).json({
@@ -705,5 +710,76 @@ export const deleteDM = async (req, res) => {
   } catch (error) {
     console.error('Error deleting DM:', error);
     res.status(500).json({ error: 'Nachricht konnte nicht gelöscht werden' });
+  }
+};
+
+// ==========================================
+// EMOJI-REAKTION auf eine Direktnachricht setzen / entfernen
+// ==========================================
+// PUT /api/dm/message/:id/reaction  { emoji }  — `emoji: null` removes.
+// Mirror of messageController.setMessageReaction; see there for why this is one
+// endpoint and why the payload is a full summary rather than a delta.
+export const setDmReaction = async (req, res) => {
+  try {
+    const messageId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(messageId)) {
+      return res.status(400).json({ error: 'Ungültige ID' });
+    }
+
+    const raw = req.body?.emoji;
+    const removing = raw === null || raw === '' || raw === undefined;
+    if (!removing && !isAllowedReaction(raw)) {
+      return res.status(400).json({ error: 'Dieses Emoji ist nicht erlaubt' });
+    }
+
+    const result = await db.query(
+      `SELECT sender_id, receiver_id, is_deleted_sender, is_deleted_receiver
+         FROM direct_messages
+        WHERE id = $1`,
+      [messageId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Nachricht nicht gefunden' });
+    }
+    const { sender_id, receiver_id, is_deleted_sender, is_deleted_receiver } = result.rows[0];
+
+    const me = Number(req.userId);
+    const isSender   = Number(sender_id)   === me;
+    const isReceiver = Number(receiver_id) === me;
+    if (!isSender && !isReceiver) {
+      return res.status(403).json({ error: 'Keine Berechtigung' });
+    }
+
+    // A message this side has hidden (own delete, or an admin takedown which
+    // sets BOTH flags) is not on their screen — so a reaction on it could only
+    // come from a stale client or a crafted request. 404, the same answer the
+    // read path gives by filtering it out.
+    if ((isSender && is_deleted_sender) || (isReceiver && is_deleted_receiver)) {
+      return res.status(404).json({ error: 'Nachricht nicht gefunden' });
+    }
+
+    // Same gate as sending and as reading the thread: unfriending or blocking
+    // has to end reactions too, or it stays a live channel to someone who cut
+    // contact — one tap, straight onto their screen.
+    const other = isSender ? Number(receiver_id) : Number(sender_id);
+    if (!(await dmAllowed(me, other))) {
+      return res.status(403).json({
+        error: 'Ihr müsst befreundet sein, um zu reagieren',
+        requiresFriendship: true,
+      });
+    }
+
+    const reactions = await setReaction(db, 'dm', messageId, me, removing ? null : raw);
+
+    try {
+      const roomName = `dm_${Math.min(sender_id, receiver_id)}_${Math.max(sender_id, receiver_id)}`;
+      req.app?.get('io')?.to(roomName).emit('dm_reaction', { messageId, reactions });
+    } catch { /* delivery is best-effort; the DB write is what counts */ }
+
+    // No push — see messageController.setMessageReaction.
+    res.json({ messageId, reactions });
+  } catch (error) {
+    console.error('Error setting DM reaction:', error);
+    res.status(500).json({ error: 'Reaktion konnte nicht gespeichert werden' });
   }
 };

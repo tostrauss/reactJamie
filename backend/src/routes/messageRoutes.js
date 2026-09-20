@@ -1,7 +1,7 @@
 import express from 'express';
-import { sendMessage, getMessages, deleteMessage, markChatRead, getMessageReceipts } from '../controllers/messageController.js';
+import { sendMessage, getMessages, deleteMessage, markChatRead, getMessageReceipts, setMessageReaction } from '../controllers/messageController.js';
 import { authenticate } from '../middleware/auth.js';
-import { messageLimiter } from '../middleware/rateLimiter.js';
+import { messageLimiter, reactionLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
@@ -13,6 +13,9 @@ router.get('/:groupId', authenticate, getMessages);
 // Declared before DELETE /:messageId on purpose — distinct method, but keep
 // the read-marker route visually next to its GET sibling.
 router.post('/:groupId/read', authenticate, markChatRead);
+// Emoji reaction. PUT (not POST/DELETE): setting, replacing and clearing are
+// one state change — `{ emoji: null }` removes.
+router.put('/:messageId/reaction', authenticate, reactionLimiter, setMessageReaction);
 router.delete('/:messageId', authenticate, deleteMessage);
 
 export default router;

@@ -16,6 +16,7 @@
 // `vitest run` / CI without a database stays green.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, beforeAll, afterAll, expect, vi } from 'vitest';
+import { distanceKmSql, distanceKm } from '../../src/utils/geoRadius.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -162,6 +163,7 @@ suite('write endpoints against real Postgres', () => {
       getMessageReceipts: ms.getMessageReceipts,
       updatePrivacyPreferences: a.updatePrivacyPreferences,
       markChatRead: ms.markChatRead, deleteMessage: ms.deleteMessage,
+      setMessageReaction: ms.setMessageReaction, setDmReaction: dm.setDmReaction,
       createReport: rp.createReport, getReports: rp.getReports,
       updateReportStatus: rp.updateReportStatus,
       setUserActive: ad.setUserActive, rejectClub: ad.rejectClub,
@@ -515,6 +517,274 @@ suite('write endpoints against real Postgres', () => {
       ok(convo);
       const got = convo.body.find(m => m.id === reply.body.id);
       expect(got.reply_to).toMatchObject({ id: first.body.id, user_name: 'Ann' });
+    });
+  });
+
+  // ── Emoji-Reaktionen (2026-09-17) ───────────────────────────────────────
+  // The aggregate uses json_agg + array_agg with ORDER BY inside them, an
+  // ANY() array parameter and an ON CONFLICT upsert — none of which a mocked
+  // db.query can judge. One-reaction-per-person also lives in a PRIMARY KEY,
+  // so only a real Postgres proves it actually holds.
+  describe('emoji reactions', () => {
+    let rxMsgId, rxDmId;
+
+    it('a reaction comes back on the write AND on the next read', async () => {
+      const sent = await call(C.sendMessage, { userId: A, body: { groupId, content: 'Wer ist dabei?' } });
+      ok(sent);
+      rxMsgId = sent.body.id;
+
+      const res = await call(C.setMessageReaction, {
+        userId: B, params: { messageId: String(rxMsgId) }, body: { emoji: '👍' } });
+      ok(res);
+      expect(res.body.reactions).toEqual([{ emoji: '👍', count: 1, user_ids: [B] }]);
+
+      const list = await call(C.getMessages, { userId: A, params: { groupId: String(groupId) }, query: {} });
+      ok(list);
+      const rows = list.body.messages || list.body;
+      expect(rows.find(m => m.id === rxMsgId).reactions)
+        .toEqual([{ emoji: '👍', count: 1, user_ids: [B] }]);
+      // A message nobody reacted to carries an empty array, never undefined —
+      // the clients map over it without guarding.
+      expect(rows.every(m => Array.isArray(m.reactions))).toBe(true);
+    });
+
+    it('picking another emoji REPLACES it — one reaction per person', async () => {
+      const res = await call(C.setMessageReaction, {
+        userId: B, params: { messageId: String(rxMsgId) }, body: { emoji: '🎉' } });
+      ok(res);
+      // With a wrong primary key or a plain INSERT this would be two chips of
+      // one each — the exact bug the upsert exists to prevent.
+      expect(res.body.reactions).toEqual([{ emoji: '🎉', count: 1, user_ids: [B] }]);
+    });
+
+    it('aggregates two people on the same emoji', async () => {
+      ok(await call(C.setMessageReaction, {
+        userId: A, params: { messageId: String(rxMsgId) }, body: { emoji: '🎉' } }));
+      const res = await call(C.setMessageReaction, {
+        userId: B, params: { messageId: String(rxMsgId) }, body: { emoji: '🎉' } });
+      ok(res);
+      expect(res.body.reactions).toHaveLength(1);
+      expect(res.body.reactions[0].count).toBe(2);
+      expect([...res.body.reactions[0].user_ids].sort()).toEqual([A, B].sort());
+    });
+
+    it('orders chips by count, most-used first', async () => {
+      const res = await call(C.setMessageReaction, {
+        userId: A, params: { messageId: String(rxMsgId) }, body: { emoji: '🔥' } });
+      ok(res);
+      // B still on 🎉 (1), A now on 🔥 (1) — equal counts fall back to who
+      // reacted first, which is B.
+      expect(res.body.reactions.map(r => r.emoji)).toEqual(['🎉', '🔥']);
+      ok(await call(C.setMessageReaction, {
+        userId: B, params: { messageId: String(rxMsgId) }, body: { emoji: '🔥' } }));
+      const after = await call(C.setMessageReaction, {
+        userId: A, params: { messageId: String(rxMsgId) }, body: { emoji: '🔥' } });
+      expect(after.body.reactions.map(r => r.emoji)).toEqual(['🔥']);
+      expect(after.body.reactions[0].count).toBe(2);
+    });
+
+    it('emoji: null removes only my own', async () => {
+      const res = await call(C.setMessageReaction, {
+        userId: A, params: { messageId: String(rxMsgId) }, body: { emoji: null } });
+      ok(res);
+      expect(res.body.reactions).toEqual([{ emoji: '🔥', count: 1, user_ids: [B] }]);
+    });
+
+    it('rejects an emoji that is not on the allowlist', async () => {
+      for (const bad of ['🍆', 'hallo', '<b>x</b>', '👍👍']) {
+        const res = await call(C.setMessageReaction, {
+          userId: A, params: { messageId: String(rxMsgId) }, body: { emoji: bad } });
+        expect(res.statusCode, bad).toBe(400);
+      }
+    });
+
+    it('403s a non-member — membership is read off the message, not the request', async () => {
+      const res = await call(C.setMessageReaction, {
+        userId: D, params: { messageId: String(rxMsgId) }, body: { emoji: '👍' } });
+      expect(res.statusCode, JSON.stringify(res.body)).toBe(403);
+    });
+
+    it('404s on a deleted message and on one that never existed', async () => {
+      const gone = await call(C.sendMessage, { userId: A, body: { groupId, content: 'gleich weg' } });
+      ok(gone);
+      ok(await call(C.deleteMessage, { userId: A, params: { messageId: String(gone.body.id) } }));
+      expect((await call(C.setMessageReaction, {
+        userId: A, params: { messageId: String(gone.body.id) }, body: { emoji: '👍' } })).statusCode).toBe(404);
+      expect((await call(C.setMessageReaction, {
+        userId: A, params: { messageId: '99999999' }, body: { emoji: '👍' } })).statusCode).toBe(404);
+    });
+
+    it('400s on an unparsable id instead of letting Postgres raise 22P02', async () => {
+      // Optimistic bubbles carry `temp-…` ids and a mis-tap can send one.
+      const res = await call(C.setMessageReaction, {
+        userId: A, params: { messageId: 'temp-1726500000' }, body: { emoji: '👍' } });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('works on DMs and is scoped to the two participants', async () => {
+      const dmSent = await call(C.sendDM, { userId: A, body: { receiverId: B, content: 'Reaktions-Test' } });
+      ok(dmSent);
+      rxDmId = dmSent.body.id;
+
+      const res = await call(C.setDmReaction, {
+        userId: B, params: { id: String(rxDmId) }, body: { emoji: '😂' } });
+      ok(res);
+      expect(res.body.reactions).toEqual([{ emoji: '😂', count: 1, user_ids: [B] }]);
+
+      const convo = await call(C.getConversation, { userId: A, params: { userId: String(B) }, query: {} });
+      ok(convo);
+      expect(convo.body.find(m => m.id === rxDmId).reactions)
+        .toEqual([{ emoji: '😂', count: 1, user_ids: [B] }]);
+
+      // D is neither sender nor receiver of this message.
+      expect((await call(C.setDmReaction, {
+        userId: D, params: { id: String(rxDmId) }, body: { emoji: '👍' } })).statusCode).toBe(403);
+    });
+
+    it('deleting the message takes its reactions with it (ON DELETE CASCADE)', async () => {
+      const m = await call(C.sendMessage, { userId: A, body: { groupId, content: 'kurz da' } });
+      ok(m);
+      ok(await call(C.setMessageReaction, {
+        userId: A, params: { messageId: String(m.body.id) }, body: { emoji: '👍' } }));
+      await db.query('DELETE FROM messages WHERE id = $1', [m.body.id]);
+      const left = await db.query('SELECT 1 FROM message_reactions WHERE message_id = $1', [m.body.id]);
+      expect(left.rows).toHaveLength(0);
+    });
+
+    it('deleting a user takes their reactions with them and is not blocked by them', async () => {
+      // A foreign key to users(id) WITHOUT a cascade is exactly what broke
+      // account deletion once already (reports.reviewed_by) — a column nothing
+      // ever wrote, holding the delete hostage. Pin both cascades.
+      const r = await db.query(
+        "INSERT INTO users (email, name, date_of_birth, onboarding_completed, auth_provider)" +
+        " VALUES ('smoke-rx@x.com','Rex','1995-03-03', TRUE, 'email') RETURNING id"
+      );
+      const rex = r.rows[0].id;
+      await db.query("INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'member')", [groupId, rex]);
+      ok(await call(C.setMessageReaction, {
+        userId: rex, params: { messageId: String(rxMsgId) }, body: { emoji: '🙏' } }));
+      await db.query('DELETE FROM users WHERE id = $1', [rex]);
+      const left = await db.query('SELECT 1 FROM message_reactions WHERE user_id = $1', [rex]);
+      expect(left.rows).toHaveLength(0);
+    });
+  });
+
+  // ── Umkreis (2026-09-18) ────────────────────────────────────────────────
+  // Play review „Suzkapu" 02.09.2026. Two things only a real Postgres proves:
+  // that the acos/radians expression computes the same number as the JS
+  // helper the feed filter uses, and that the fail-open OR-chain in the push
+  // fan-out actually selects who it claims to.
+  describe('Umkreis / notification radius', () => {
+    const WIEN    = { lat: 48.2082, lng: 16.3738 };
+    const BADEN   = { lat: 47.9956, lng: 16.2318 };  // ~25 km from Wien
+    const BREGENZ = { lat: 47.5031, lng: 9.7471 };   // ~480 km — the review's case
+
+    it('Postgres and the JS helper agree on the distance', () => {
+      // If these drift, the feed filter and the push fan-out silently disagree
+      // about what "50 km" means and nobody notices until someone complains.
+      return db.query(
+        `SELECT ${distanceKmSql('$1::double precision', '$2::double precision',
+                                '$3::double precision', '$4::double precision')} AS km`,
+        [WIEN.lat, WIEN.lng, BREGENZ.lat, BREGENZ.lng]
+      ).then(({ rows }) => {
+        const fromJs = distanceKm(WIEN.lat, WIEN.lng, BREGENZ.lat, BREGENZ.lng);
+        expect(Math.abs(Number(rows[0].km) - fromJs)).toBeLessThan(1e-6);
+        expect(fromJs).toBeGreaterThan(450);
+      });
+    });
+
+    it('acos does not blow up on two identical points', async () => {
+      // Without LEAST(1, …) the inner term can exceed 1.0 by a rounding error
+      // and Postgres raises "input is out of range", 500ing the fan-out.
+      const { rows } = await db.query(
+        `SELECT ${distanceKmSql('$1::double precision', '$2::double precision',
+                                '$1::double precision', '$2::double precision')} AS km`,
+        [WIEN.lat, WIEN.lng]
+      );
+      expect(Number(rows[0].km)).toBeLessThan(0.001);
+    });
+
+    // The fan-out's WHERE clause, exercised directly: building a real group
+    // through createGroup would need a geocoder answer per case, and the thing
+    // under test is the SQL, not the controller plumbing around it.
+    const targeted = async (groupPoint) => {
+      const { rows } = await db.query(
+        `SELECT u.id FROM users u
+          WHERE u.id = ANY($1::int[])
+            AND (
+                 u.notify_radius_km IS NULL
+              OR $2::double precision IS NULL OR $3::double precision IS NULL
+              OR u.lat IS NULL OR u.lng IS NULL
+              OR ${distanceKmSql('u.lat', 'u.lng', '$2::double precision', '$3::double precision')}
+                 <= u.notify_radius_km
+            )`,
+        [[A, B, D], groupPoint?.lat ?? null, groupPoint?.lng ?? null]
+      );
+      return rows.map(r => r.id).sort();
+    };
+
+    it('drops a far-away group for a user with a radius, keeps a nearby one', async () => {
+      // A: 50 km around Wien. B: unlimited. D: a radius but no coordinates.
+      await db.query('UPDATE users SET lat=$2, lng=$3, notify_radius_km=50 WHERE id=$1', [A, WIEN.lat, WIEN.lng]);
+      await db.query('UPDATE users SET lat=$2, lng=$3, notify_radius_km=NULL WHERE id=$1', [B, WIEN.lat, WIEN.lng]);
+      await db.query('UPDATE users SET lat=NULL, lng=NULL, notify_radius_km=10 WHERE id=$1', [D]);
+
+      // Bregenz: A is out. B has no limit, D cannot be measured → both stay.
+      expect(await targeted(BREGENZ)).toEqual([B, D].sort());
+      // Baden is 25 km away — everyone is in.
+      expect(await targeted(BADEN)).toEqual([A, B, D].sort());
+    });
+
+    it('a group without a map pin still reaches everyone', async () => {
+      // Geocoding fails often enough (Nominatim throttling) that muting those
+      // groups would quietly cost real reach.
+      expect(await targeted(null)).toEqual([A, B, D].sort());
+    });
+
+    it('the smallest radius still keeps the coordinate-less user', async () => {
+      await db.query('UPDATE users SET notify_radius_km=10 WHERE id=$1', [A]);
+      expect(await targeted(BREGENZ)).toEqual([B, D].sort());
+      await db.query('UPDATE users SET notify_radius_km=NULL WHERE id=$1', [A]);
+    });
+
+    it('PUT /push/preferences stores a radius and rejects one off the list', async () => {
+      const ok1 = await call(C.updatePushPreferences, { userId: A, body: { notify_radius_km: 25 } });
+      ok(ok1);
+      expect(ok1.body.notify_radius_km).toBe(25);
+
+      // '' is how the picker says „Überall".
+      const ok2 = await call(C.updatePushPreferences, { userId: A, body: { notify_radius_km: '' } });
+      ok(ok2);
+      expect(ok2.body.notify_radius_km).toBeNull();
+
+      for (const bad of [7, 5000, -1, 'weit']) {
+        const res = await call(C.updatePushPreferences, { userId: A, body: { notify_radius_km: bad } });
+        expect(res.statusCode, String(bad)).toBe(400);
+      }
+      // A bad radius must not smuggle the boolean toggles through either.
+      const mixed = await call(C.updatePushPreferences, {
+        userId: A, body: { push_reminders: false, notify_radius_km: 3 } });
+      expect(mixed.statusCode).toBe(400);
+      const row = await db.query('SELECT push_reminders FROM users WHERE id=$1', [A]);
+      expect(row.rows[0].push_reminders).not.toBe(false);
+    });
+
+    it('changing the profile city clears the coordinates so they get re-geocoded', async () => {
+      // Otherwise someone who moves keeps having their Umkreis measured from
+      // the city they left.
+      await db.query('UPDATE users SET lat=$2, lng=$3 WHERE id=$1', [B, WIEN.lat, WIEN.lng]);
+      ok(await call(C.updateProfile, { userId: B, body: { location: 'Graz', avatar_url: avatar } }));
+      const after = await db.query('SELECT lat, lng, country FROM users WHERE id=$1', [B]);
+      expect(after.rows[0].lat).toBeNull();
+      expect(after.rows[0].lng).toBeNull();
+      expect(after.rows[0].country).toBeNull();
+    });
+
+    it('saving the profile WITHOUT touching the city keeps the coordinates', async () => {
+      await db.query('UPDATE users SET lat=$2, lng=$3 WHERE id=$1', [B, WIEN.lat, WIEN.lng]);
+      ok(await call(C.updateProfile, { userId: B, body: { bio: 'nur die Bio', avatar_url: avatar } }));
+      const after = await db.query('SELECT lat, lng FROM users WHERE id=$1', [B]);
+      expect(Number(after.rows[0].lat)).toBeCloseTo(WIEN.lat, 4);
     });
   });
 
@@ -1192,10 +1462,17 @@ suite('write endpoints against real Postgres', () => {
     const tick = (iso) => C.runEventReminders({ now: new Date(iso) });
 
     // ── A. updatePushPreferences (pushController) ────────────────────────────
-    it('updatePushPreferences writes only the boolean keys sent and returns all three', async () => {
+    it('updatePushPreferences writes only the keys sent and returns the whole set', async () => {
       const res = await call(C.updatePushPreferences, { userId: A, body: { push_reminders: false } });
       ok(res);
-      expect(res.body).toEqual({ push_reminders: false, push_friends: true, push_recommendations: false });
+      // notify_radius_km joined this payload with the Umkreis feature
+      // (2026-09-18). It rides the same endpoint because it IS a notification
+      // preference and sits next to these toggles in Settings — the response
+      // stays the full set so the client can merge one object onto `user`.
+      expect(res.body).toEqual({
+        push_reminders: false, push_friends: true, push_recommendations: false,
+        notify_radius_km: null,
+      });
     });
     it('getProfile carries the new columns (SAFE_USER_COLS)', async () => {
       const res = await call(C.getProfile, { userId: A });

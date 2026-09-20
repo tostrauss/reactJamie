@@ -2409,3 +2409,26 @@
   text-transform: uppercase;
   color: var(--accent-coral);
 }
+/* Umkreis-Auswahl in den Benachrichtigungs-Einstellungen. Sits in the right
+   slot of a .settings-row, where the other rows put a toggle — so it is sized
+   to that slot (auto width, not the full-width .settings-input) while keeping
+   the same surface, radius and the 16px font that stops iOS auto-zooming on
+   focus. 44px min-height is the app-wide touch-target floor. */
+.settings-select {
+  min-height: 44px;
+  padding: 8px 12px;
+  background: var(--bg-input);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  color: var(--text-white);
+  font-size: 16px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  /* Keep the native picker wheel on mobile — a custom dropdown here would be
+     a worse control than the one the OS already ships. */
+  transition: border-color var(--transition-fast);
+}
+
+.settings-select:focus { border-color: var(--accent-coral); }

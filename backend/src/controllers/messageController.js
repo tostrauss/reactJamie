@@ -5,6 +5,7 @@ import { deleteCached } from '../utils/cache.js';
 import { sendPushToUsers } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 import { groupReceiptWatermarks, messageReceiptDetail } from '../utils/readReceipts.js';
+import { isAllowedReaction, setReaction, attachReactions } from '../utils/reactions.js';
 
 // Stamp the caller's read marker for a group chat and drop their cached
 // joined-groups list (it embeds unread_count, TTL 15s — without the
@@ -404,6 +405,10 @@ export const getMessages = async (req, res) => {
     const hasMore = rows.length > limit;
     if (hasMore) rows.pop(); // remove the extra sentinel row
 
+    // Emoji reactions for this page, in one extra indexed query. Never
+    // throws — see utils/reactions.getReactionsFor.
+    await attachReactions(db, 'group', rows);
+
     // Opening the chat reads it — fire-and-forget so the response isn't
     // delayed. Paging back through history (?before=) still moves the unread
     // marker, but must NOT count as a read receipt: scrolling up through old
@@ -548,5 +553,84 @@ export const getMessageReceipts = async (req, res) => {
   } catch (error) {
     console.error('Error loading message receipts:', error);
     res.status(500).json({ error: 'Infos konnten nicht geladen werden' });
+  }
+};
+
+// ==========================================
+// EMOJI-REAKTION auf eine Gruppen-Nachricht setzen / entfernen
+// ==========================================
+// PUT /api/messages/:messageId/reaction  { emoji }  — `emoji: null` removes.
+//
+// One endpoint rather than a POST/DELETE pair: the client always knows its own
+// current reaction, so "set", "replace" and "clear" are the same intent with a
+// different payload, and both directions must broadcast the identical fresh
+// summary anyway. Two routes would have been two code paths for one state
+// change.
+//
+// The response and the socket event carry the FULL reaction summary, not a
+// delta. A dropped socket event then costs one stale render until the next
+// catch-up refetch, instead of permanently desynchronising a counter that
+// nothing would ever correct.
+export const setMessageReaction = async (req, res) => {
+  try {
+    const messageId = parseInt(req.params.messageId, 10);
+    if (!Number.isInteger(messageId)) {
+      return res.status(400).json({ error: 'Ungültige ID' });
+    }
+
+    // `undefined` (key absent) is NOT the same as an explicit null: only the
+    // latter means "remove". A typo'd body key must not silently clear the
+    // user's reaction, so anything that isn't null-ish has to pass the
+    // allowlist.
+    const raw = req.body?.emoji;
+    const removing = raw === null || raw === '' || raw === undefined;
+    if (!removing && !isAllowedReaction(raw)) {
+      return res.status(400).json({ error: 'Dieses Emoji ist nicht erlaubt' });
+    }
+
+    // Membership is the gate, and it is checked against the message's OWN
+    // group — never against a group id from the request. Taking the id from
+    // the row is what stops "react to a message in a private group I can name
+    // but am not in".
+    const msg = await db.query(
+      `SELECT m.group_id
+         FROM messages m
+        WHERE m.id = $1 AND m.is_deleted = FALSE AND m.message_type <> 'system'`,
+      [messageId]
+    );
+    if (msg.rows.length === 0) {
+      return res.status(404).json({ error: 'Nachricht nicht gefunden' });
+    }
+    const groupId = Number(msg.rows[0].group_id);
+
+    const member = await db.query(
+      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2 LIMIT 1',
+      [groupId, req.userId]
+    );
+    if (member.rows.length === 0) {
+      return res.status(403).json({ error: 'Keine Berechtigung' });
+    }
+
+    const reactions = await setReaction(db, 'group', messageId, req.userId, removing ? null : raw);
+
+    // Broadcast to the room INCLUDING the actor's other devices — someone with
+    // the chat open on phone and laptop should see their own tap on both. The
+    // acting tab already has the state from the 200 and dedupes by comparing
+    // the summary it renders, so the echo is harmless.
+    try {
+      req.app?.get('io')?.to(String(groupId)).emit('message_reaction', {
+        messageId, groupId, reactions,
+      });
+    } catch { /* delivery is best-effort; the DB write is what counts */ }
+
+    // Deliberately NO push notification. A reaction is a one-tap signal and the
+    // cheapest possible thing to send — pushing them would put the noisiest
+    // event in the product on the same channel as real messages, weeks after
+    // push finally started working. Revisit for DMs only if it's actually
+    // missed.
+    res.json({ messageId, reactions });
+  } catch (error) {
+    console.error('Error setting message reaction:', error);
+    res.status(500).json({ error: 'Reaktion konnte nicht gespeichert werden' });
   }
 };

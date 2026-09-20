@@ -12,6 +12,7 @@ import { AuthContext } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { CATEGORY_HIERARCHY } from "../utils/categories";
 import { nextOccurrence, isHappeningSoon, viennaTodayUTC } from "../utils/recurrence";
+import { RADIUS_OPTIONS_KM, withinRadius } from "../utils/geo";
 import useOnPullRefresh from "../hooks/useOnPullRefresh";
 import "../styles/home.css";
 
@@ -120,6 +121,9 @@ export const Home = () => {
   const [alterFilter, setAlterFilter] = useState([18, 70]);
   const [sichtFilter, setSichtFilter] = useState('alle');
   const [kategorieFilter, setKategorieFilter] = useState(() => new Set());
+  // Umkreis in km, null = kein Limit. Play review „Suzkapu" (02.09.2026):
+  // „Filter für Benachrichtigungen etc. bezüglich Umkreis wären wichtig."
+  const [umkreisFilter, setUmkreisFilter] = useState(null);
   // Clubs tab: inline single-select category bar (same UX as the Events page),
   // separate from the Gruppen filter sheet. null = "Alle Kategorien".
   const [clubCategory, setClubCategory] = useState(null);
@@ -133,6 +137,7 @@ export const Home = () => {
   const [stagedAlter, setStagedAlter] = useState([18, 70]);
   const [stagedSicht, setStagedSicht] = useState('alle');
   const [stagedKategorie, setStagedKategorie] = useState(() => new Set());
+  const [stagedUmkreis, setStagedUmkreis] = useState(null);
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const toast = useToast();
@@ -145,6 +150,7 @@ export const Home = () => {
     alterFilter[0] !== 18 || alterFilter[1] !== 70,
     sichtFilter !== 'alle',
     kategorieFilter.size > 0,
+    umkreisFilter != null,
   ].filter(Boolean).length;
 
   useEffect(() => {
@@ -330,6 +336,12 @@ export const Home = () => {
     return false;
   };
 
+  // Umkreis. FAIL-OPEN on unknowns (see utils/geo.withinRadius): a group
+  // without a map pin, or a user whose profile city never geocoded, is KEPT.
+  // A filter that empties the feed with no explanation reads as a broken app,
+  // not as a strict filter.
+  const matchesUmkreis = (item) => withinRadius(item, user, umkreisFilter);
+
   // Search matches both the user-entered name and the category (e.g.
   // "Beachvolleyball") because the visible card title comes from category for
   // non-Sonstiges groups — typing the visible word has to find the group.
@@ -342,9 +354,9 @@ export const Home = () => {
 
   const filteredGroups = useMemo(() => groupList.filter(g =>
     matchesSearch(g) &&
-    matchesZeit(g) && matchesAlter(g) && matchesSicht(g) && matchesKategorie(g)
+    matchesZeit(g) && matchesAlter(g) && matchesSicht(g) && matchesKategorie(g) && matchesUmkreis(g)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [groupList, searchQuery, zeitFilter, zeitFrom, zeitTo, alterFilter, sichtFilter, kategorieFilter]);
+  ), [groupList, searchQuery, zeitFilter, zeitFrom, zeitTo, alterFilter, sichtFilter, kategorieFilter, umkreisFilter, user?.lat, user?.lng]);
 
   // Append the next page. Respects loadSeqRef so a tab switch mid-flight can
   // never append a stale page onto a list that has since been replaced.
@@ -438,6 +450,7 @@ export const Home = () => {
     setStagedAlter(alterFilter);
     setStagedSicht(sichtFilter);
     setStagedKategorie(new Set(kategorieFilter));
+    setStagedUmkreis(umkreisFilter);
     setShowFilters(true);
   };
 
@@ -448,6 +461,7 @@ export const Home = () => {
     setAlterFilter(stagedAlter);
     setSichtFilter(stagedSicht);
     setKategorieFilter(new Set(stagedKategorie));
+    setUmkreisFilter(stagedUmkreis);
     setShowFilters(false);
   };
 
@@ -459,12 +473,14 @@ export const Home = () => {
     setAlterFilter([18, 70]);
     setSichtFilter('alle');
     setKategorieFilter(new Set());
+    setUmkreisFilter(null);
     setStagedZeit('alle');
     setStagedZeitFrom('');
     setStagedZeitTo('');
     setStagedAlter([18, 70]);
     setStagedSicht('alle');
     setStagedKategorie(new Set());
+    setStagedUmkreis(null);
     setShowFilters(false);
   };
 
@@ -966,6 +982,34 @@ export const Home = () => {
                 </div>
                 <AgeRangeSlider value={stagedAlter} onChange={setStagedAlter} />
               </div>
+
+              {/* Umkreis — Play review „Suzkapu" (02.09.2026).
+                  Only offered once the profile city has geocoded: without our
+                  own coordinates every option would be a no-op, and a filter
+                  that visibly does nothing is worse than no filter. The
+                  Settings row explains the same gap in words. */}
+              {user?.lat != null && user?.lng != null && (
+                <div className="filter-section">
+                  <h3 className="filter-section-title">{t('home.filter.radius.title')}</h3>
+                  <div className="filter-pills">
+                    <FilterPill
+                      value={null}
+                      label={t('home.filter.radius.all')}
+                      current={stagedUmkreis}
+                      onSelect={setStagedUmkreis}
+                    />
+                    {RADIUS_OPTIONS_KM.map(km => (
+                      <FilterPill
+                        key={km}
+                        value={km}
+                        label={t('home.filter.radius.km', { km })}
+                        current={stagedUmkreis}
+                        onSelect={setStagedUmkreis}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Sichtbarkeit */}
               <div className="filter-section">

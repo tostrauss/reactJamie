@@ -75,19 +75,31 @@ async function getProProductId(stripe) {
 // ==========================================
 // PRO PLAN CATALOG (server is authoritative on price)
 // ==========================================
-// Hinge-style tiered pricing (repriced 2026-08-03, prev. 2026-06-11 spec):
-//   • weekly  — 1,99 €/Woche, baseline (no discount)
-//   • monthly — 4,99 €/Monat → 1,15 €/Woche, "42% sparen", DEFAULT + "Beliebt"
-//   • sixmonth— 19,99 €/6 Monate → 0,77 €/Woche, "61% sparen", "Bestes Angebot"
-// Per-week headlines derived so they stay honest:
-//   weekly 1,99/1wk · monthly 4,99/4.33wk=1,15 · 6mo 19,99/26wk=0,77.
+// Hinge-style tiered pricing (repriced 2026-09-17, prev. 2026-08-03 spec):
+//   • monthly — 4,99 €/Monat, baseline (no discount)
+//   • sixmonth— 19,99 €/6 Monate → 3,33 €/Monat, "33% sparen", "Beliebt"
+//   • yearly  — 34,99 €/Jahr    → 2,92 €/Monat, "42% sparen", "Bestes Angebot"
+// Per-month headlines derived so they stay honest:
+//   monthly 4,99/1 · 6mo 19,99/6=3,33 · yearly 34,99/12=2,92.
+//
+// The weekly tier is GONE (Tina + Tobi, 16.09.2026): weekly billing means up to
+// 52 Rechnungen per subscription per year, which makes the bookkeeping side
+// disproportionate to the revenue. All terms are now whole months. Deleting the
+// key only affects NEW checkouts — a Stripe subscription already running on the
+// weekly price keeps its own stored price until it is cancelled.
+//
 // amount_cents is the ONLY price the client can't influence — the request
 // just names a plan key; we look up the amount here.
 export const PRO_PLANS = {
-  weekly:   { amount_cents: 199,  interval: 'week',  interval_count: 1, label: 'JAMIE Pro – Wöchentlich' },
-  monthly:  { amount_cents: 499,  interval: 'month', interval_count: 1, label: 'JAMIE Pro – Monatlich' },
+  monthly:  { amount_cents: 499,  interval: 'month', interval_count: 1, label: 'JAMIE Pro – 1 Monat' },
   sixmonth: { amount_cents: 1999, interval: 'month', interval_count: 6, label: 'JAMIE Pro – 6 Monate' },
+  yearly:   { amount_cents: 3499, interval: 'year',  interval_count: 1, label: 'JAMIE Pro – 1 Jahr' },
 };
+// Fallback for an unknown/missing plan key. Deliberately NOT the same as the
+// frontend's pre-selected tile (DEFAULT_PLAN_KEY = 'sixmonth' in
+// utils/proPlans.js): the UI pre-selects the tile we want people to pick, the
+// server falls back to the SMALLEST charge, so a malformed request can never
+// bill someone 34,99 € for a plan they never saw.
 const DEFAULT_PLAN = 'monthly';
 
 // 14-day right of withdrawal (Widerruf — FAGG § 11, Variante A). Used by

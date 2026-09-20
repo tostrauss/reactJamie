@@ -678,6 +678,11 @@
         "public": "Public",
         "private": "Private"
       },
+      "radius": {
+        "title": "Radius",
+        "all": "Anywhere",
+        "km": "{{km}} km"
+      },
       "reset": "Reset",
       "apply": "Apply",
       "close": "Close"
@@ -840,6 +845,11 @@
       "cancel": "Discard reply",
       "unknownAuthor": "Unknown",
       "deleted": "Message deleted"
+    },
+    "reactions": {
+      "more": "More emoji",
+      "chipAria": "Reaction {{emoji}}, {{count}}×",
+      "error": "Could not save your reaction"
     },
     "voice": {
       "label": "🎤 Voice message",
@@ -1138,6 +1148,11 @@
       "remindersHint": "Before your events and tips for your own groups",
       "friendActivity": "Friend activity",
       "friendActivityHint": "When friends join or create groups",
+      "radius": "Radius",
+      "radiusKm": "{{km}} km only",
+      "radiusAll": "Anywhere",
+      "radiusHint": "Only notify me about things near me (from {{city}})",
+      "radiusNoCity": "Add your city in your profile for this to work",
       "push": "Push notifications",
       "pushHint": "Notifications even when the app is closed"
     },
@@ -1344,7 +1359,7 @@
     "back": "← Back",
     "verifying": "Processing…",
     "ctaSubscribe": "👑 Start now",
-    "secure": "🔒 Secure via Stripe · Cancel monthly · No commitment",
+    "secure": "🔒 Secure via Stripe · Cancel any time, effective at the end of the term",
     "features": {
       "boostGroups": "Boost groups",
       "boostGroupsDesc": "Free & unlimited for your events",
@@ -1378,17 +1393,17 @@
     "paymentSub": "SSL-encrypted · Cancel any time",
     "subscriptionLabel": "Subscription",
     "plans": {
-      "perWeek": "per week",
-      "wkShort": "wk",
+      "perMonth": "per month",
+      "moShort": "mo",
       "savePct": "save {{pct}}%",
       "terms": {
-        "weekly": "Weekly",
-        "monthly": "Monthly",
-        "sixmonth": "6 months"
+        "monthly": "1 month",
+        "sixmonth": "6 months",
+        "yearly": "1 year"
       },
-      "billedWeekly": "€1.99 / week",
       "billedMonthly": "€4.99 / month",
       "billedSixmonth": "€19.99 every 6 months",
+      "billedYearly": "€34.99 per year",
       "badges": {
         "popular": "Popular",
         "bestValue": "Best value"

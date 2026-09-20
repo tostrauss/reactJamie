@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { subscription as subscriptionApi } from '../utils/api';
-import { PRO_PLANS, DEFAULT_PLAN_KEY, BASELINE_WEEKLY } from '../utils/proPlans';
+import { PRO_PLANS, DEFAULT_PLAN_KEY, BASELINE_MONTHLY } from '../utils/proPlans';
 import { isNativeIOS, IOS_IAP_ENABLED, purchasesEnabled, paymentsComingSoon } from '../utils/platform';
 import { subscribePro, restorePurchases } from '../utils/iap';
 import { useToast } from '../context/ToastContext';
@@ -193,7 +193,7 @@ function Confetto({ i }) {
 }
 
 // ── Plan tile ──────────────────────────────────────────────────────────────
-// One selectable row in the Hinge-style pricing grid. Per-week price is the
+// One selectable row in the Hinge-style pricing grid. Per-MONTH price is the
 // headline; the struck-through baseline + green "X% sparen" chip drive the
 // "Sparfaktor". Selected tile gets a coral border + check.
 // Palette (Tina, 2026-06-12): brand tones — purple base, coral accents,
@@ -263,7 +263,7 @@ function PlanTile({ plan, selected, onSelect, t }) {
         </div>
       </div>
 
-      {/* Right: per-week price + struck baseline + savings chip */}
+      {/* Right: per-MONTH price + struck baseline + savings chip */}
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', justifyContent: 'flex-end' }}>
           {plan.strikethrough && (
@@ -271,15 +271,15 @@ function PlanTile({ plan, selected, onSelect, t }) {
               color: 'rgba(255,255,255,0.35)', fontSize: '13px',
               textDecoration: 'line-through', textDecorationColor: 'rgba(255,120,120,0.8)',
             }}>
-              {BASELINE_WEEKLY} €
+              {BASELINE_MONTHLY} €
             </span>
           )}
           <span style={{ color: '#fff', fontWeight: '900', fontSize: '19px', lineHeight: 1 }}>
-            {plan.perWeek} €
+            {plan.perMonth} €
           </span>
         </div>
         <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '11px', marginTop: '3px' }}>
-          {t('pro.plans.perWeek')}
+          {t('pro.plans.perMonth')}
         </div>
         {plan.savings != null && (
           <span style={{
@@ -547,7 +547,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                 )}
               </div>
 
-              {/* Plan tiles — weekly first, monthly default ("Beliebt"), 6mo "Bestes Angebot".
+              {/* Plan tiles — 1 Monat (Anker), 6 Monate default ("Beliebt"), 1 Jahr "Bestes Angebot".
                   Nur zeigen, wenn Käufe möglich sind: im Coming-Soon-Zustand sind die
                   Preise nicht kaufbar (und machten das Sheet unnötig lang → unten
                   abgeschnitten). Stattdessen unten die "Bald verfügbar"-Box + Interesse-Button. */}
@@ -774,7 +774,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                       </div>
                     </div>
                     <div style={{ color:'#fff', fontWeight:'900', fontSize:'18px', whiteSpace:'nowrap' }}>
-                      {sel.perWeek} €<span style={{ fontSize:'11px', fontWeight:'600', color:'rgba(255,255,255,0.5)' }}>/{t('pro.plans.wkShort')}</span>
+                      {sel.perMonth} €<span style={{ fontSize:'11px', fontWeight:'600', color:'rgba(255,255,255,0.5)' }}>/{t('pro.plans.moShort')}</span>
                     </div>
                   </div>
                 );

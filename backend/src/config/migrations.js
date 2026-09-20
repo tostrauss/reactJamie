@@ -3,6 +3,7 @@
 // idempotent (CREATE/ALTER ... IF NOT EXISTS) and failure-isolated via migrate().
 import db from './database.js';
 import { Sentry } from './sentry.js';
+import { DEFAULT_NOTIFY_RADIUS_KM } from '../utils/geoRadius.js';
 
 // Failure ledger (audit 2026-09-02, operability): steps stay log-and-continue
 // (the fresh-DB bootstrap deliberately tolerates step errors — schema.sql runs
@@ -1319,6 +1320,82 @@ const runStartupMigrations = async () => {
       updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `));
+
+  // ── Emoji-Reaktionen auf Nachrichten (Gruppen-Chat + DMs) ────────────────
+  // Two tables rather than one polymorphic one: messages.id and
+  // direct_messages.id are separate sequences, so a shared table could not
+  // carry a real foreign key to either — it would need a nullable pair plus a
+  // discriminator, and the referential integrity that makes the CASCADEs below
+  // correct would be gone. The whole codebase already keeps the two chat worlds
+  // apart (separate controllers, separate socket rooms, separate delete paths);
+  // this follows that seam instead of cutting across it.
+  //
+  // PRIMARY KEY (message_id, user_id) is the product rule, not just an index:
+  // ONE reaction per person per message, WhatsApp-style. Picking a second emoji
+  // replaces the first (ON CONFLICT DO UPDATE in utils/reactions.js).
+  //
+  // Both FKs are ON DELETE CASCADE. The user_id one is not optional: a FK to
+  // users(id) WITHOUT it is exactly what broke account deletion once already
+  // (reports.reviewed_by) — a column nothing ever wrote, holding the delete
+  // hostage. A reaction has no evidentiary value the way a reported message
+  // does, so it can simply go with its author.
+  await migrate('message reactions', async () => {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS message_reactions (
+        message_id  INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+        user_id     INTEGER NOT NULL REFERENCES users(id)    ON DELETE CASCADE,
+        emoji       VARCHAR(16) NOT NULL,
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (message_id, user_id)
+      )
+    `);
+    // The PK already covers (message_id, user_id); this one serves the
+    // aggregate-by-message read that every chat page load runs.
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_message_reactions_msg ON message_reactions(message_id)`);
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS dm_reactions (
+        message_id  INTEGER NOT NULL REFERENCES direct_messages(id) ON DELETE CASCADE,
+        user_id     INTEGER NOT NULL REFERENCES users(id)           ON DELETE CASCADE,
+        emoji       VARCHAR(16) NOT NULL,
+        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (message_id, user_id)
+      )
+    `);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_reactions_msg ON dm_reactions(message_id)`);
+  });
+
+  // ── Umkreis: eigene Koordinaten + Benachrichtigungs-Radius ──────────────
+  // Play review „Suzkapu" 02.09.2026: „Filter für Benachrichtigungen etc.
+  // bezüglich Umkreis wären wichtig."
+  //
+  // users.lat/lng are the profile CITY's coordinates, not a device position —
+  // nothing here tracks anyone. They come from the same Nominatim lookup that
+  // already resolves users.country in the background (groupController's
+  // resolveCountryInBackground threw the coordinates away), so this adds no
+  // geocoding traffic.
+  //
+  // notify_radius_km: NULL means unlimited, which is exactly today's behaviour,
+  // so no existing user's notifications change under them. New rows default to
+  // 50 km — see utils/geoRadius.js for the one statement that switches
+  // everyone over if that turns out to be the better default.
+  await migrate('user coordinates + notify radius', async () => {
+    await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION`);
+    await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION`);
+    // Two steps, and the order is the whole point. `ADD COLUMN … DEFAULT 50`
+    // makes EXISTING rows read as 50 as well — which would have silently put
+    // every one of today's users on a 50 km leash, the exact opposite of
+    // "nothing changes under existing users". Add it empty, THEN declare the
+    // default, which from that moment applies only to rows inserted later.
+    await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_radius_km INTEGER`);
+    await db.query(`ALTER TABLE users ALTER COLUMN notify_radius_km SET DEFAULT ${Number(DEFAULT_NOTIFY_RADIUS_KM)}`);
+    // Partial index: the push fan-out only ever looks at users who HAVE
+    // coordinates, and on a fresh market most rows won't for a while.
+    await db.query(
+      `CREATE INDEX IF NOT EXISTS idx_users_lat_lng ON users(lat, lng)
+         WHERE lat IS NOT NULL AND lng IS NOT NULL`
+    );
+  });
 
   // ── Post-migration schema assertion ────────────────────────────────────
   // The server accepts traffic BEFORE migrations finish (listen → migrate),

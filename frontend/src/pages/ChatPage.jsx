@@ -12,6 +12,9 @@ import { VoiceMessage } from '../components/VoiceMessage';
 import { ImageMessage } from '../components/ImageMessage';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { MessageQuote } from '../components/MessageQuote';
+import { MessageReactions } from '../components/MessageReactions';
+import { ReactionPicker } from '../components/ReactionPicker';
+import { myReaction, applyReactionLocally } from '../utils/reactions';
 import { mediaUrl } from '../utils/chatMedia';
 import { MessageTicks, tickState } from '../components/MessageTicks';
 import { serverErrorMessage } from '../utils/apiError';
@@ -126,6 +129,34 @@ export const ChatPage = () => {
     }
   };
 
+  // Set / move / clear my emoji reaction. Optimistic: the chip has to move on
+  // the same tap, or on a phone with a slow connection it reads as a dead
+  // button and people tap again — which, with one-reaction-per-person, would
+  // toggle it right back off.
+  //
+  // Rollback on failure restores the exact previous array rather than
+  // re-deriving it, because between the tap and the error somebody else's
+  // reaction may have arrived over the socket, and recomputing would silently
+  // drop it.
+  const handleReact = async (msg, emoji) => {
+    setActionMsg(null);
+    const before = msg.reactions ?? [];
+    setMessageList(prev => prev.map(m => m.id === msg.id
+      ? { ...m, reactions: applyReactionLocally(m.reactions, user?.id, emoji) }
+      : m));
+    try {
+      const res = await messages.react(msg.id, emoji);
+      // The server summary is authoritative — it also carries reactions that
+      // landed while this request was in flight.
+      setMessageList(prev => prev.map(m => m.id === msg.id
+        ? { ...m, reactions: res.data?.reactions ?? [] }
+        : m));
+    } catch (err) {
+      setMessageList(prev => prev.map(m => m.id === msg.id ? { ...m, reactions: before } : m));
+      toast.error(err?.response?.data?.error || t('chat.reactions.error'));
+    }
+  };
+
   const { user } = useContext(AuthContext);
   const { socket, isConnected } = useContext(SocketContext);
   const toast = useToast();
@@ -234,12 +265,26 @@ export const ChatPage = () => {
         if (!prev.length) return msgs;
         const known = new Set(prev.map(m => m.id));
         const fresh = msgs.filter(m => !known.has(m.id));
-        if (!fresh.length) return prev;
+        // Patch reactions onto rows we ALREADY hold before deciding there is
+        // nothing to do. This merge only ever APPENDED unknown ids and
+        // returned early otherwise — which is precisely why a reconnect could
+        // not heal a stale `reply_to` (see handleMessageDeleted). Reactions
+        // change on messages that are already on screen, by definition, so
+        // without this every reaction added while the phone was in a pocket
+        // stayed invisible until the page was left and reopened.
+        const byId = new Map(msgs.map(m => [m.id, m]));
+        const patched = prev.map(m => {
+          const s = byId.get(m.id);
+          if (!s) return m;
+          if (JSON.stringify(s.reactions ?? []) === JSON.stringify(m.reactions ?? [])) return m;
+          return { ...m, reactions: s.reactions ?? [] };
+        });
+        if (!fresh.length) return patched;
         // No overlap → the gap exceeds the fetched window; the fetched page IS
         // the current tail. Replace (keeping any still-pending own bubble)
         // instead of appending across a hole in the history.
         const overlap = msgs.some(m => known.has(m.id));
-        return overlap ? [...prev, ...fresh] : [...msgs, ...prev.filter(m => m._pending)];
+        return overlap ? [...patched, ...fresh] : [...msgs, ...patched.filter(m => m._pending)];
       });
     } catch { /* next reconnect/visibility tick retries */ }
   }, [groupId]);
@@ -293,6 +338,15 @@ export const ChatPage = () => {
           ? { ...m, reply_to: null }
           : m)));
     };
+    // Someone reacted (or took their reaction back). The payload is the FULL
+    // summary for that message, not a delta — so a dropped event costs one
+    // stale render until the next catch-up, never a permanently wrong count.
+    const handleReaction = ({ messageId, reactions }) => {
+      setMessageList(prev => prev.map(m =>
+        String(m.id) === String(messageId) ? { ...m, reactions: reactions ?? [] } : m));
+    };
+
+    socket.on('message_reaction', handleReaction);
     socket.on('message_deleted', handleMessageDeleted);
     socket.on('receive_message', handleReceiveMessage);
     socket.on('connect', handleReconnect);
@@ -300,6 +354,7 @@ export const ChatPage = () => {
 
     return () => {
       socket.emit('leave_room', groupId);
+      socket.off('message_reaction', handleReaction);
       socket.off('message_deleted', handleMessageDeleted);
     socket.off('receive_message', handleReceiveMessage);
       socket.off('connect', handleReconnect);
@@ -614,6 +669,16 @@ export const ChatPage = () => {
                     })} />
                   </div>
                 </div>
+                {/* Outside the bubble on purpose: the bubble itself is the
+                    long-press target, and a nested tap target inside it made
+                    a slightly-off press toggle a reaction instead of opening
+                    the sheet. */}
+                <MessageReactions
+                  reactions={msg.reactions}
+                  mine={msg.user_id === user?.id}
+                  myEmoji={myReaction(msg.reactions, user?.id)}
+                  onToggle={(emoji) => handleReact(msg, emoji)}
+                />
               </Fragment>
             );
           });
@@ -656,6 +721,16 @@ export const ChatPage = () => {
                 message sends with no quote — and deleting raises Postgres
                 22P02 and comes back as a 500. The only honest action on a
                 failed bubble is to clear it locally. */}
+            {/* Emoji row first: reacting is the most frequent thing anyone
+                does with this sheet, and it is the only entry that is not a
+                destructive or bookkeeping action. A message that never
+                persisted has a temp id, so it gets no picker. */}
+            {!actionMsg._failed && (
+              <ReactionPicker
+                myEmoji={myReaction(actionMsg.reactions, user?.id)}
+                onPick={(emoji) => handleReact(actionMsg, emoji)}
+              />
+            )}
             {actionMsg._failed ? (
               <button
                 className="msg-sheet-btn msg-sheet-btn--danger"

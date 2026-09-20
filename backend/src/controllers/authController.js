@@ -146,7 +146,13 @@ const SAFE_USER_COLS = `
   pinterest_url, spotify_token_expiry, spotify_connected, onboarding_completed,
   onboarding_step, profile_completion, is_verified, is_active, last_seen,
   is_admin, created_at, updated_at, is_pioneer, is_trusted_user, trusted_count,
-  push_reminders, push_friends, push_recommendations, read_receipts
+  push_reminders, push_friends, push_recommendations, read_receipts,
+  -- Umkreis. lat/lng are the geocoded profile CITY, and this list only ever
+  -- serves the user their OWN row (userController.getUserById has its own,
+  -- narrower column list for viewing other people) — so nothing here exposes
+  -- one user's coordinates to another. The client needs them for the feed's
+  -- Umkreis filter, which runs client-side like every other feed filter.
+  lat, lng, notify_radius_km
 `;
 
 // ==========================================
@@ -622,6 +628,17 @@ export const updateProfile = async (req, res) => {
              // 500'd ("Profil konnte nicht gespeichert werden").
              ? 'CASE WHEN location IS DISTINCT FROM $2::varchar THEN NULL ELSE country END'
              : 'country'},
+           -- lat/lng are the geocoded profile CITY and must be invalidated by
+           -- exactly the same rule as country, or someone who moves from Wien
+           -- to Graz keeps getting their Umkreis measured from the old city
+           -- forever. Cleared here, refilled by the background resolver on the
+           -- next feed load (groupController.resolveCountryInBackground).
+           lat = ${hasLocation
+             ? 'CASE WHEN location IS DISTINCT FROM $2::varchar THEN NULL ELSE lat END'
+             : 'lat'},
+           lng = ${hasLocation
+             ? 'CASE WHEN location IS DISTINCT FROM $2::varchar THEN NULL ELSE lng END'
+             : 'lng'},
            bio = ${hasBio ? '$3' : 'COALESCE($3, bio)'},
            gender = COALESCE($4, gender),
            interests = COALESCE($5, interests),
@@ -761,6 +778,13 @@ export const completeOnboarding = async (req, res) => {
            country = CASE WHEN NULLIF($2, '') IS NOT NULL
                            AND location IS DISTINCT FROM NULLIF($2, '')
                           THEN NULL ELSE country END,
+           -- Same invalidation as country — see updateProfile.
+           lat = CASE WHEN NULLIF($2, '') IS NOT NULL
+                       AND location IS DISTINCT FROM NULLIF($2, '')
+                      THEN NULL ELSE lat END,
+           lng = CASE WHEN NULLIF($2, '') IS NOT NULL
+                       AND location IS DISTINCT FROM NULLIF($2, '')
+                      THEN NULL ELSE lng END,
            interests = $3,
            bio = $4,
            photos = CASE WHEN $5::jsonb = '[]'::jsonb THEN photos ELSE $5::jsonb END,

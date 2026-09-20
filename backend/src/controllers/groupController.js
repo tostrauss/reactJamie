@@ -10,6 +10,7 @@ import { postSystemMessage } from '../utils/systemMessage.js';
 import { isUserPro } from './subscriptionController.js';
 import { normalizeCategories } from '../utils/normalizeCategories.js';
 import { checkImageField } from '../utils/safeUrl.js';
+import { distanceKmSql } from '../utils/geoRadius.js';
 import { createEntityWithOwner, notifyCancellationFanout } from '../services/entityLifecycle.js';
 import { notifyFriendsOfActivity } from '../utils/friendActivity.js';
 import {
@@ -94,9 +95,29 @@ function resolveCountryInBackground(userId, location) {
   geocodeAllowedRegion(location)
     .then((geo) => {
       const cc = geo?.countryCode ? geo.countryCode.toUpperCase() : null;
-      if (cc) {
-        return db.query('UPDATE users SET country = $1 WHERE id = $2 AND country IS NULL', [cc, userId]);
-      }
+      // The SAME lookup that yields the country also yields coordinates, and
+      // they used to be thrown away here. Persisting them is what makes the
+      // Umkreis filter possible without a single extra Nominatim call — which
+      // matters, because Nominatim is rate-limited and is already on the list
+      // of things to get out of the request path before the TV spot.
+      //
+      // These are the profile CITY's coordinates, not a device position.
+      const lat = Number.isFinite(geo?.lat) ? geo.lat : null;
+      const lng = Number.isFinite(geo?.lng) ? geo.lng : null;
+      if (!cc && lat == null) return;
+      // Each column guards itself with IS NULL so a concurrent profile save
+      // that already filled one is never clobbered by this stale result — the
+      // same rule the country write has always had, now applied per column
+      // rather than to the row as a whole.
+      return db.query(
+        `UPDATE users
+            SET country = CASE WHEN country IS NULL THEN COALESCE($1, country) ELSE country END,
+                lat     = CASE WHEN lat     IS NULL THEN $2 ELSE lat END,
+                lng     = CASE WHEN lng     IS NULL THEN $3 ELSE lng END
+          WHERE id = $4
+            AND (country IS NULL OR lat IS NULL OR lng IS NULL)`,
+        [cc, lat, lng, userId]
+      );
     })
     .catch(() => {})
     .finally(() => countryResolveInFlight.delete(userId));
@@ -215,8 +236,26 @@ async function notifyCategoryMatches(group, catList, countryCode, creatorId) {
          SELECT 1 FROM jsonb_array_elements_text(u.interests) AS t(val)
          WHERE LOWER(TRIM(t.val)) = ANY($3::text[])
        )
+       -- Umkreis (Play review „Suzkapu", 02.09.2026). Country alone meant a
+       -- Viennese got pushed about a Feierabend-Bier in Bregenz, 600 km away.
+       --
+       -- FAIL-OPEN on every unknown, and the three OR arms say which:
+       --   • the user never set a radius (NULL = unbegrenzt, today's behaviour
+       --     and what every pre-existing account keeps),
+       --   • the group has no pin, so there is no distance to measure,
+       --   • the user's city never geocoded, so we don't know where they are.
+       -- Muting someone because a background geocode failed months ago would
+       -- be an invisible bug: no error, no log, the user just stops hearing
+       -- from the app. Too far away is the only reason to skip.
+       AND (
+            u.notify_radius_km IS NULL
+         OR $4::double precision IS NULL OR $5::double precision IS NULL
+         OR u.lat IS NULL OR u.lng IS NULL
+         OR ${distanceKmSql('u.lat', 'u.lng', '$4::double precision', '$5::double precision')}
+            <= u.notify_radius_km
+       )
      LIMIT 500`,
-    [creatorId, countryCode, terms]
+    [creatorId, countryCode, terms, group.lat ?? null, group.lng ?? null]
   );
   if (!matches.rows.length) return;
 
@@ -480,11 +519,15 @@ export const getGroups = async (req, res) => {
     let callerIsPro = false;
     let callerLocation = null;
     let callerCountry = null;
+    // Drives the background resolve below. Every user who signed up before the
+    // Umkreis feature HAS a country but no coordinates, so a trigger that only
+    // looked at the country would never backfill a single existing account.
+    let callerHasCoords = false;
     if (req.userId) {
       try {
         const r = await db.query(
           `SELECT EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age,
-                  is_admin, location, country,
+                  is_admin, location, country, lat, lng,
                   EXISTS(
                     SELECT 1 FROM subscriptions s
                     WHERE s.user_id = users.id
@@ -499,6 +542,7 @@ export const getGroups = async (req, res) => {
         callerIsPro = !!r.rows[0]?.is_pro;
         callerLocation = r.rows[0]?.location ?? null;
         callerCountry = r.rows[0]?.country ?? null;
+        callerHasCoords = r.rows[0]?.lat != null && r.rows[0]?.lng != null;
       } catch (err) {
         // subscriptions table not bootstrapped yet → no Pro; still need age/admin
         if (err.code === '42P01') {
@@ -534,7 +578,12 @@ export const getGroups = async (req, res) => {
     // the egress IP banned. Resolve in the background; THIS request serves
     // the unfiltered feed (the documented fallback for unresolved locations),
     // the next one reads the persisted users.country.
-    if (req.userId && !callerCountry && callerLocation) {
+    // Fires while EITHER the country or the coordinates are missing. The
+    // coordinate half is what backfills every account that existed before the
+    // Umkreis feature: those rows all have a country already, so the old
+    // `!callerCountry` condition would never have run for them again and their
+    // notification radius could never take effect. One lookup fills both.
+    if (req.userId && callerLocation && (!callerCountry || !callerHasCoords)) {
       resolveCountryInBackground(req.userId, callerLocation);
     }
     const regionBox = (callerCountry && COUNTRY_BOUNDS[callerCountry]) || null;

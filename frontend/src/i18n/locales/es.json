@@ -678,6 +678,11 @@
         "public": "Público",
         "private": "Privado"
       },
+      "radius": {
+        "title": "Radio",
+        "all": "En todas partes",
+        "km": "{{km}} km"
+      },
       "reset": "Restablecer",
       "apply": "Aplicar",
       "close": "Cerrar"
@@ -840,6 +845,11 @@
       "cancel": "Descartar respuesta",
       "unknownAuthor": "Desconocido",
       "deleted": "Mensaje eliminado"
+    },
+    "reactions": {
+      "more": "Más emojis",
+      "chipAria": "Reacción {{emoji}}, {{count}}×",
+      "error": "No se ha podido guardar la reacción"
     },
     "voice": {
       "label": "🎤 Mensaje de voz",
@@ -1138,6 +1148,11 @@
       "remindersHint": "Antes de tus eventos y consejos para tus propios grupos",
       "friendActivity": "Actividad de amigos",
       "friendActivityHint": "Cuando tus amigos se unen a grupos o los crean",
+      "radius": "Radio",
+      "radiusKm": "Solo {{km}} km",
+      "radiusAll": "En todas partes",
+      "radiusHint": "Solo notificaciones cerca de ti (desde {{city}})",
+      "radiusNoCity": "Añade tu ciudad en el perfil para que funcione",
       "push": "Notificaciones push",
       "pushHint": "Notificaciones también con la app cerrada"
     },
@@ -1344,7 +1359,7 @@
     "back": "← Atrás",
     "verifying": "Procesando…",
     "ctaSubscribe": "👑 Empezar ahora",
-    "secure": "🔒 Seguro vía Stripe · Cancelable cada mes · Sin permanencia",
+    "secure": "🔒 Seguro vía Stripe · Cancelable en cualquier momento, con efecto al final del periodo",
     "features": {
       "boostGroups": "Impulsar grupos",
       "boostGroupsDesc": "Gratis e ilimitado para tus eventos",
@@ -1378,17 +1393,17 @@
     "paymentSub": "Cifrado SSL · Cancelable en cualquier momento",
     "subscriptionLabel": "Suscripción",
     "plans": {
-      "perWeek": "por semana",
-      "wkShort": "sem",
+      "perMonth": "al mes",
+      "moShort": "mes",
       "savePct": "Ahorra un {{pct}}%",
       "terms": {
-        "weekly": "Semanal",
-        "monthly": "Mensual",
-        "sixmonth": "6 meses"
+        "monthly": "1 mes",
+        "sixmonth": "6 meses",
+        "yearly": "1 año"
       },
-      "billedWeekly": "1,99 € / semana",
       "billedMonthly": "4,99 € / mes",
       "billedSixmonth": "19,99 € cada 6 meses",
+      "billedYearly": "34,99 € al año",
       "badges": {
         "popular": "Popular",
         "bestValue": "Mejor oferta"

@@ -13,6 +13,7 @@ import {
   unsubscribeFromPush,
 } from '../utils/pushNotifications';
 import { isNativeIOS, IOS_IAP_ENABLED } from '../utils/platform';
+import { RADIUS_OPTIONS_KM } from '../utils/geo';
 import { restorePurchases } from '../utils/iap';
 import { PasswordInput } from '../components/PasswordInput';
 import { FeedbackModal } from '../components/FeedbackModal';
@@ -218,6 +219,29 @@ export const SettingsPage = () => {
       refreshProfile?.();
     } catch (err) {
       setUser(u => ({ ...u, [key]: prev }));
+      toast.error(err.response?.data?.error || t('settings.toast.prefSaveError'));
+    } finally {
+      setPrefBusy(null);
+    }
+  };
+
+  // Umkreis für Benachrichtigungen. Same optimistic-flip + rollback shape as
+  // handlePrefToggle, on the same endpoint — but the value is a number or
+  // null (= unbegrenzt), not a boolean, so it needs its own handler rather
+  // than a cast that would turn "10 km" into `true`.
+  const handleRadiusChange = async (raw) => {
+    if (prefBusy) return;
+    const next = raw === '' ? null : Number(raw);
+    const prev = user?.notify_radius_km ?? null;
+    if (next === prev) return;
+    setUser(u => ({ ...u, notify_radius_km: next }));
+    setPrefBusy('notify_radius_km');
+    try {
+      const res = await pushApi.updatePreferences({ notify_radius_km: next });
+      setUser(u => ({ ...u, ...res.data }));
+      refreshProfile?.();
+    } catch (err) {
+      setUser(u => ({ ...u, notify_radius_km: prev }));
       toast.error(err.response?.data?.error || t('settings.toast.prefSaveError'));
     } finally {
       setPrefBusy(null);
@@ -885,6 +909,45 @@ export const SettingsPage = () => {
             />
             <span className="settings-toggle-slider" />
           </label>
+        </div>
+
+        {/* Umkreis — Play review „Suzkapu" (02.09.2026): „Filter für
+            Benachrichtigungen etc. bezüglich Umkreis wären wichtig."
+            A select rather than a slider: five discrete values the server
+            validates against an allowlist, and a slider on a phone next to two
+            toggles would be the only drag target on the whole screen.
+            Also outside the pushSupported guard — it gates APNs too. */}
+        <div className="settings-row">
+          <div className="settings-row-left">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+              <circle cx="12" cy="10" r="3"/>
+            </svg>
+            <div className="settings-row-stacked">
+              <span>{t('settings.notifications.radius')}</span>
+              <span className="settings-row-detail">
+                {/* Without a geocoded profile city there is nothing to measure
+                    from, and the setting would silently do nothing — say so
+                    instead of showing a control that cannot work. */}
+                {user?.lat == null || user?.lng == null
+                  ? t('settings.notifications.radiusNoCity')
+                  : t('settings.notifications.radiusHint', { city: user?.location || '' })}
+              </span>
+            </div>
+          </div>
+          <select
+            className="settings-select"
+            value={user?.notify_radius_km ?? ''}
+            onChange={(e) => handleRadiusChange(e.target.value)}
+            disabled={!!prefBusy}
+            style={{ opacity: prefBusy === 'notify_radius_km' ? 0.5 : 1 }}
+            aria-label={t('settings.notifications.radius')}
+          >
+            {RADIUS_OPTIONS_KM.map(km => (
+              <option key={km} value={km}>{t('settings.notifications.radiusKm', { km })}</option>
+            ))}
+            <option value="">{t('settings.notifications.radiusAll')}</option>
+          </select>
         </div>
 
         {/* ── Privatsphäre ──────────────────────────────────────────────

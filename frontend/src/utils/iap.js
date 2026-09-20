@@ -22,9 +22,9 @@ export const IAP_PRODUCTS = {
   boost_starter: { type: 'consumable',    credits: 1 },
   boost_popular: { type: 'consumable',    credits: 5 },
   boost_pro:     { type: 'consumable',    credits: 15 },
-  pro_weekly:    { type: 'subscription',  plan: 'weekly'   },
   pro_monthly:   { type: 'subscription',  plan: 'monthly'  },
   pro_sixmonth:  { type: 'subscription',  plan: 'sixmonth' },
+  pro_yearly:    { type: 'subscription',  plan: 'yearly'   },
 };
 
 // Map the existing Stripe package ids → StoreKit product ids.
@@ -34,9 +34,9 @@ export const BOOST_PKG_TO_PRODUCT_ID = {
   pro:     'boost_pro',
 };
 export const PRO_PLAN_TO_PRODUCT_ID = {
-  weekly:   'pro_weekly',
   monthly:  'pro_monthly',
   sixmonth: 'pro_sixmonth',
+  yearly:   'pro_yearly',
 };
 
 class IapUnavailableError extends Error {

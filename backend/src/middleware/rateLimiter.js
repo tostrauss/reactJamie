@@ -198,6 +198,24 @@ export const messageLimiter = rateLimit({
   message: { error: 'Du sendest zu schnell. Bitte warte einen Moment.' }
 });
 
+// Emoji reactions: 120/min per user. Far looser than messageLimiter because a
+// reaction is a single tap on an existing bubble — scrolling a chat and
+// reacting to a handful of messages is normal behaviour, and tripping the
+// limiter there would feel broken. It is still a ceiling: without one, a
+// script can rewrite one row forever, and each write fans out a socket event
+// to every member of the room, which is the part that actually costs.
+export const reactionLimiter = rateLimit({
+  ...SHARED,
+  windowMs: 60 * 1000,
+  max: disabled ? 10000 : 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `react:${req.userId}`,
+  validate: { keyGeneratorIpFallback: false },
+  store: makeStore('rl:react:'),
+  message: { error: 'Zu viele Reaktionen. Bitte kurz warten.' }
+});
+
 // Image upload: 60 uploads/hour per user. Each upload spawns sharp + a
 // Sightengine call + an R2 PUT, so unthrottled it's an easy way to burn through
 // Cloudflare egress and CPU.
