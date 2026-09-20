@@ -47,13 +47,13 @@ The prices and credit counts above match the backend `boostController` `BOOST_PA
 
 Create one Subscription Group first ("JAMIE Pro"), then these three subscriptions inside it.
 
-| Product ID | Duration | Price | Per week | Note |
+| Product ID | Duration | Price | Per month | Note |
 |---|---|---|---|---|
-| `pro_weekly` | 1 Week | 4,99 € | 4,99 € | baseline |
-| `pro_monthly` | 1 Month | 14,99 € | 3,46 € | "31% sparen", default, badge "Beliebt" |
-| `pro_sixmonth` | 6 Months | 29,99 € | 1,15 € | "77% sparen", badge "Bestes Angebot" |
+| `pro_monthly` | 1 Month | 4,99 € | 4,99 € | baseline (anchor, struck through on the others) |
+| `pro_sixmonth` | 6 Months | 19,99 € | 3,33 € | "33% sparen", default, badge "Beliebt" |
+| `pro_yearly` | 1 Year | 34,99 € | 2,92 € | "42% sparen", badge "Bestes Angebot" |
 
-These match the backend `subscriptionController.js` `PRO_PLANS` (amount_cents 499 week/1, 1499 month/1, 2999 month/6) and the frontend `frontend/src/utils/proPlans.js`. (Repriced 2026-06-11 — previously 14,99 / 22,75 / 58,50.)
+These match the backend `subscriptionController.js` `PRO_PLANS` (amount_cents 499 month/1, 1999 month/6, 3499 year/1) and the frontend `frontend/src/utils/proPlans.js`. (Repriced 2026-09-17 — the weekly tier was dropped and a yearly one added, see proPlans.js for why. This table had been stale since the 2026-08-03 repricing and is now back in sync with the code.)
 
 > Apple price tiers are discrete — pick the closest tier to each target. If a tier cannot match the exact amount, change `PRO_PLANS` in `backend/src/controllers/subscriptionController.js` to match Apple's tier so web/iOS show the same price.
 
@@ -123,7 +123,7 @@ For the Pro subscriptions: create the Subscription Group "JAMIE Pro" first, then
 
 1. Subscription Group Localization (German + English group title).
 2. Subscription Localization per product.
-3. Subscription Level inside the group: `pro_weekly` = Level 1, `pro_monthly` = Level 2, `pro_sixmonth` = Level 3 (higher = upgrade).
+3. Subscription Level inside the group: `pro_monthly` = Level 1, `pro_sixmonth` = Level 2, `pro_yearly` = Level 3 (higher = upgrade).
 4. Subscription Terms link: `https://app.jamie-app.com/terms`
 5. Privacy Policy link: `https://app.jamie-app.com/privacy`
 6. Review Notes: "Auto-renewable Pro subscription unlocks the JAMIE Pro feature set."
