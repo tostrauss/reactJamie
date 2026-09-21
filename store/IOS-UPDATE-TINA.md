@@ -1,6 +1,7 @@
 # iOS-Update für Tina — Version 1.4.2 (Chat, Reaktionen, Benachrichtigungen)
 
-Stand: **20.09.2026** · Ziel: **Version 1.4.2** in den App Store bringen.
+Stand: **21.09.2026** · Ziel: **Version 1.4.2** in den App Store bringen.
+Code ist gepusht, Backend ist auf Railway live — du kannst sofort loslegen.
 
 **Warum überhaupt?** Push funktioniert seit 1.4.1 — das ist erledigt und bleibt
 so. Aber seit dem letzten iPhone-Build (05.09.) ist im Chat und bei den
@@ -35,24 +36,6 @@ Fixe Werte (nur zum Abgleichen, nichts ändern):
 
 ---
 
-## 0. Bevor du anfängst — WARTEN auf Tobis „grün"
-
-Diesmal ist der neue Code, anders als beim letzten Mal, **noch nicht auf dem
-Server**. Tobi muss zuerst seinen Teil machen, sonst baust du eine App, deren
-neue Funktionen (Reaktionen, Lesebestätigungen) ins Leere greifen.
-
-Tobi macht am Telefon, in dieser Reihenfolge:
-
-- [ ] Code committen + **pushen**
-- [ ] **Backend auf Railway deployen** (dabei laufen neue Datenbank-Migrationen
-      für Reaktionen, Lesebestätigungen und den Umkreis-Filter)
-- [ ] kurz prüfen, dass der Deploy durch ist
-
-**Erst wenn Tobi sagt „gepusht und Backend ist live" — und dir die erste
-Commit-Zeile durchgibt — legst du los.**
-
-> Neuester Commit (Tobi trägt ihn hier ein): `____________`
-
 ## 1. Neuesten Code holen
 
 Terminal öffnen (Programme → Dienstprogramme → Terminal), dann Zeile für Zeile,
@@ -68,9 +51,9 @@ git log --oneline -1
 - Zeigt `git status --short` **Dateien an** (z. B. `package-lock.json`), dann
   vor dem `git pull` einmal: `git checkout -- frontend/package-lock.json`
   (das ist eine automatisch erzeugte Datei, die darf weg).
-- Die letzte Zeile muss mit dem **Hash übereinstimmen, den Tobi dir gesagt hat**
-  (er ist von **heute**). Steht dort ein älterer Commit vom 15.09. oder früher,
-  hat der Pull nicht geklappt oder Tobi war noch nicht fertig → **STOPP, Tobi.**
+- Die letzte Zeile muss mit **`9d9f940`** beginnen (Commit vom 21.09.2026,
+  „feat(roster): …"). Steht dort ein älterer Commit, hat der Pull nicht
+  geklappt → **STOPP, Tobi.**
 
 ## 2. Bauen und ins iOS-Projekt übertragen
 
