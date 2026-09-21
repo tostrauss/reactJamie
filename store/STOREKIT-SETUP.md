@@ -31,15 +31,9 @@ The product IDs you create in App Store Connect must match the constants in `fro
 
 These six IDs are verified identical across the frontend, the backend, and this doc.
 
-### Boost credits — Consumable
+### Boost credits — GESTRICHEN (21.09.2026)
 
-| Product ID | Type | Credits granted | Price |
-|---|---|---|---|
-| `boost_starter` | Consumable | 1 | 1,99 € |
-| `boost_popular` | Consumable | 5 | 7,99 € |
-| `boost_pro` | Consumable | 15 | 19,99 € |
-
-The prices and credit counts above match the backend `boostController` `BOOST_PACKAGES` (1 credit / 199, 5 credits / 799, 15 credits / 1999) and the `IAP_PRODUCTS` credit counts (1 / 5 / 15).
+**Keine Consumables anlegen.** Entscheidung Tina + Tobi im Meeting 21.09.2026: „Boosts bleiben, nur keine Einzelkäufe" — Boosten ist ein Pro-Feature (Pro-Mitglieder boosten kostenlos, `applyBoost` zieht 0 Credits). Die früheren `boost_starter` / `boost_popular` / `boost_pro` sind aus `IAP_PRODUCTS`, `APPLE_PRODUCTS` und dem BoostModal entfernt; der Server antwortet auf Boost-Käufe mit 410 (`features.js` `BOOST_SINGLE_PURCHASES_ENABLED`). Die Boost-Zeilen in den Abschnitten unten (Consumable-Metadaten, Sandbox-Test „one boost consumable") entfallen entsprechend.
 
 > Price-mismatch flag: `store/STRIPE-MEETING-CHECKLIST.md` lists DIFFERENT values — boosts 1.99 / 4.99 / 9.99 € for 1 / 5 / 12 credits, and Pro 3.49 / 9.99 / 19.99 €. Those numbers are wrong. The code (`iap.js`, `iapController.js`, `boostController.js`) and this doc are internally consistent; STRIPE-MEETING-CHECKLIST is the outlier. Use the values in this doc. The third boost is 15 credits, not 12.
 

@@ -136,11 +136,10 @@ export const isPlayBillingActive = () =>
 export const purchasesEnabled = () =>
   PAYMENTS_ENABLED && (!isAppShell() || isPlayBillingActive());
 
-// Boost-EINZELKÄUFE gibt es nur über Stripe im Web-Browser. In der Play-App
-// wird kein Consumable verkauft (Boosts kommen mit Pro), also darf der
-// „Kaufen"-Tab dort nicht erscheinen, obwohl purchasesEnabled() für den
-// Pro-Kauf true ist — sonst liefe er in den Stripe-Pfad, den der Server 403t.
-export const boostPurchasesEnabled = () => purchasesEnabled() && !isTWA();
+// Boost-EINZELKÄUFE gibt es seit 21.09.2026 NIRGENDS mehr (Tina + Tobi:
+// „Boosts bleiben, nur keine Einzelkäufe") — Boosten ist ein Pro-Feature, das
+// BoostModal hat keinen Kauf-Tab mehr. Server: features.js
+// BOOST_SINGLE_PURCHASES_ENABLED (createStripeIntent → 410).
 
 // In den App-Hüllen (außer iOS) zeigen wir statt einer echten Zahlung einen
 // „Bald verfügbar"-Teaser mit Interesse-Button — kein Kauf, kein Verweis auf

@@ -170,6 +170,8 @@ const FEATURE_KEYS = [
 // this?" instead of making them hunt for it in the generic list.
 // Keyed by the `feature` in the jamie:open-pro-modal event detail.
 const CONTEXT_FEATURE = {
+  // BoostModal (owner without Pro/credits) — boosts are Pro-only since 21.09.2026.
+  boosts: { icon:'🚀', titleKey:'boostGroups', descKey:'boostGroupsDesc' },
   paidEvents: { icon:'🎟️', titleKey:'paidEvents', descKey:'paidEventsDesc' },
   reviewRequests: { icon:'🗂️', titleKey:'reviewRequests', descKey:'reviewRequestsDesc' },
 };
@@ -578,7 +580,10 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
 
               {/* Feature cards */}
               <div style={{ display:'flex', flexDirection:'column', gap:'10px', marginBottom:'22px' }}>
-                {[...(CONTEXT_FEATURE[feature] ? [CONTEXT_FEATURE[feature]] : []), ...FEATURE_KEYS].map((f, i) => (
+                {[...(CONTEXT_FEATURE[feature] ? [CONTEXT_FEATURE[feature]] : []),
+                  // A context row that is ALSO in the generic list (boosts) is
+                  // shown once, at the top — not twice.
+                  ...FEATURE_KEYS.filter(f => f.titleKey !== CONTEXT_FEATURE[feature]?.titleKey)].map((f, i) => (
                   <div key={i} style={{
                     display:'flex', alignItems:'center', gap:'14px',
                     background:'rgba(255,255,255,0.04)',

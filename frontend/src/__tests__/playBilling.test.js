@@ -81,18 +81,15 @@ describe('platform.js — Play Billing detection (real module)', () => {
       expect(p.isPlayBillingSupported()).toBe(true);
       expect(p.isPlayBillingActive()).toBe(false);   // PLAY_BILLING_ENABLED = false
       expect(p.purchasesEnabled()).toBe(false);      // never Stripe inside the Play app
-      expect(p.boostPurchasesEnabled()).toBe(false);
       expect(p.paymentsComingSoon()).toBe(true);     // teaser + InterestButton instead
     } finally {
       if (savedPR) window.PaymentRequest = savedPR; else delete window.PaymentRequest;
     }
   });
 
-  it('boostPurchasesEnabled is never true in a TWA, whatever purchasesEnabled says', async () => {
-    setReferrer('android-app://jamie.app');
+  it('no single-boost purchase helper exists any more (boosts are Pro-only since 21.09.2026)', async () => {
     const p = await loadPlatform();
-    expect(p.isTWA()).toBe(true);
-    expect(p.boostPurchasesEnabled()).toBe(false);
+    expect(p.boostPurchasesEnabled).toBeUndefined();
   });
 });
 

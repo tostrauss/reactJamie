@@ -18,21 +18,14 @@ import { isNativeIOS } from './platform';
 import { iap as iapApi } from './api';
 
 // ── Product catalogue (same IDs registered in App Store Connect) ─────────
+// Subscriptions only. The boost_* consumables were dropped on 21.09.2026
+// ("Boosts bleiben, nur keine Einzelkäufe") — boosting is a Pro feature.
 export const IAP_PRODUCTS = {
-  boost_starter: { type: 'consumable',    credits: 1 },
-  boost_popular: { type: 'consumable',    credits: 5 },
-  boost_pro:     { type: 'consumable',    credits: 15 },
   pro_monthly:   { type: 'subscription',  plan: 'monthly'  },
   pro_sixmonth:  { type: 'subscription',  plan: 'sixmonth' },
   pro_yearly:    { type: 'subscription',  plan: 'yearly'   },
 };
 
-// Map the existing Stripe package ids → StoreKit product ids.
-export const BOOST_PKG_TO_PRODUCT_ID = {
-  starter: 'boost_starter',
-  popular: 'boost_popular',
-  pro:     'boost_pro',
-};
 export const PRO_PLAN_TO_PRODUCT_ID = {
   monthly:  'pro_monthly',
   sixmonth: 'pro_sixmonth',
@@ -66,32 +59,8 @@ async function getPlugin() {
 export const isIapAvailable = () => isNativeIOS();
 
 /**
- * Purchase a boost package via StoreKit, then hand the JWS transaction
- * receipt to the backend for verification + credit grant.
- *
- * Returns the verified server payload `{ credits_added, new_total }`.
- */
-export async function purchaseBoost(packageId) {
-  const productId = BOOST_PKG_TO_PRODUCT_ID[packageId];
-  if (!productId) throw new Error('Unknown boost package: ' + packageId);
-
-  const Iap = await getPlugin();
-  const result = await Iap.purchaseProduct({ productId });
-  // result.transactionReceipt is the JWS-signed transaction on StoreKit 2.
-  if (!result?.transactionReceipt) throw new Error('No StoreKit receipt returned');
-
-  const verify = await iapApi.verifyApple({
-    product_type: 'boost',
-    product_id:   productId,
-    receipt:      result.transactionReceipt,
-    transaction_id: result.transactionId,
-  });
-  return verify.data;
-}
-
-/**
- * Subscribe to JAMIE Pro via StoreKit. Same flow as boost but the server
- * activates a recurring subscription instead of granting credits.
+ * Subscribe to JAMIE Pro via StoreKit; the server verifies the JWS receipt
+ * and activates the recurring subscription.
  */
 export async function subscribePro(planKey) {
   const productId = PRO_PLAN_TO_PRODUCT_ID[planKey];

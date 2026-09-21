@@ -25,12 +25,12 @@ import { paymentsEnabled } from '../config/features.js';
 
 // Mirror of the iOS app's product catalogue. Server is authoritative on
 // what each product gives you so a manipulated client can't fake amounts.
+// Subscriptions ONLY. The boost_* consumables were removed on 21.09.2026
+// ("Boosts bleiben, nur keine Einzelkäufe" — Tina/Tobi): boosting is a Pro
+// feature, so there is nothing to sell per piece. A receipt for a boost_*
+// product is therefore "Unknown product_id" (400) — never credited.
+// See features.js BOOST_SINGLE_PURCHASES_ENABLED.
 const APPLE_PRODUCTS = {
-  // Boost consumables
-  boost_starter: { type: 'boost',        credits: 1  },
-  boost_popular: { type: 'boost',        credits: 5  },
-  boost_pro:     { type: 'boost',        credits: 15 },
-  // Pro subscriptions
   pro_monthly:   { type: 'subscription', plan: 'monthly'  },
   pro_sixmonth:  { type: 'subscription', plan: 'sixmonth' },
   pro_yearly:    { type: 'subscription', plan: 'yearly'   },
@@ -165,25 +165,16 @@ export const verifyApple = async (req, res) => {
         ],
       );
 
-      if (product.type === 'boost') {
-        await grantBoostCredits(client, req.userId, product.credits);
-      } else {
-        await activateSubscription(client, req.userId, product.plan, originalTransactionId, expiresDate);
-      }
+      await activateSubscription(client, req.userId, product.plan, originalTransactionId, expiresDate);
     }
 
     await client.query('COMMIT');
 
-    // Read-after-write so the client always sees the current state.
-    const wallet = await db.query(
-      `SELECT credits FROM boost_credits WHERE user_id = $1`,
-      [req.userId],
-    );
     res.json({
       ok: true,
       already_credited: alreadyCredited,
-      credits_added: alreadyCredited ? 0 : (product.credits || 0),
-      new_total:     wallet.rows[0]?.credits || 0,
+      is_pro: true,
+      current_period_end: expiresDate ? new Date(expiresDate) : null,
     });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -193,17 +184,6 @@ export const verifyApple = async (req, res) => {
     client.release();
   }
 };
-
-async function grantBoostCredits(client, userId, credits) {
-  await client.query(
-    `INSERT INTO boost_credits (user_id, credits, total_earned)
-     VALUES ($1, $2, $2)
-     ON CONFLICT (user_id)
-     DO UPDATE SET credits = boost_credits.credits + EXCLUDED.credits,
-                   total_earned = boost_credits.total_earned + EXCLUDED.credits`,
-    [userId, credits],
-  );
-}
 
 async function activateSubscription(client, userId, plan, originalTxId, expiresMs) {
   // Without this, every receipt missing its originalTransactionId would key

@@ -25,9 +25,7 @@
     "comingSoon": {
       "title": "Coming soon",
       "proTitle": "Pro is coming soon",
-      "boostTitle": "Boosts are coming soon",
       "body": "JAMIE Pro launches shortly. Until then you can use JAMIE completely for free.",
-      "boostBody": "Buying boosts is coming soon.",
       "interestCta": "Notify me 🔔",
       "interestDone": "We'll let you know ✓",
       "interestThanks": "Great! We'll notify you as soon as it's ready. 🎉",
@@ -1423,17 +1421,16 @@
     "privacy": "Privacy",
     "contextCta": {
       "paidEvents": "Create your paid event now!",
-      "reviewRequests": "Manage your join requests like a pro!"
+      "reviewRequests": "Manage your join requests like a pro!",
+      "boosts": "Boost your group to the top now!"
     }
   },
   "boost": {
     "title": "🚀 Boost",
-    "withdrawalConsent": "I expressly agree that performance begins immediately and acknowledge that I thereby lose my 14-day right of withdrawal (§ 18 FAGG).",
     "creditsAvailable_one": "{{count}} credit available",
     "creditsAvailable_other": "{{count}} credits available",
     "tabs": {
       "apply": "Apply boost",
-      "buy": "Buy credits",
       "referral": "Invite friends"
     },
     "apply": {
@@ -1442,34 +1439,13 @@
       "creditsCount_one": "{{count}} boost credit",
       "creditsCount_other": "{{count}} boost credits",
       "creditEq": "1 credit = 24h boost",
-      "noCredits": "No credits. Buy some or invite friends!",
-      "buyBtn": "Buy credits",
+      "noCredits": "Boosts are part of JAMIE Pro.",
       "boosting": "Boosting...",
       "applyBtn": "🚀 Boost now (1 credit)",
       "boostedToast": "🚀 {{name}} is now boosted for 24h!",
       "boostError": "Boost failed",
-      "noCreditsToast": "Not enough credits — buy boost credits first!"
-    },
-    "buy": {
-      "packages": {
-        "1": "1 boost",
-        "5": "5 boosts",
-        "15": "15 boosts"
-      },
-      "creditsPerPackage": "{{count}} × 24h boost",
-      "popular": "POPULAR",
-      "choosePayment": "Choose payment method",
-      "applePay": "🍎 Apple Pay / Card",
-      "stripeError": "Could not start Stripe",
-      "creditsAddedToast_one": "+{{count}} boost credit added!",
-      "creditsAddedToast_other": "+{{count}} boost credits added!",
-      "paymentError": "Payment could not be completed"
-    },
-    "stripe": {
-      "back": "Back",
-      "processing": "Processing...",
-      "pay": "Pay now",
-      "unexpectedStatus": "Payment could not be completed. Please try again."
+      "noCreditsToast": "Boosts are part of JAMIE Pro.",
+      "applyBtnPro": "🚀 Boost now (included with Pro)"
     },
     "referral": {
       "title": "Invite friends",
@@ -1484,6 +1460,12 @@
       "redeemBtn": "Redeem",
       "redeemSuccess": "+1 boost credit for you and your friend!",
       "redeemError": "Code invalid"
+    },
+    "pro": {
+      "included": "Included with JAMIE Pro — as often as you like",
+      "title": "Boosts are part of JAMIE Pro",
+      "body": "Put your group or club at the very top for 24 hours — as a Pro member as often as you like, no credits needed.",
+      "cta": "See JAMIE Pro"
     }
   },
   "map": {

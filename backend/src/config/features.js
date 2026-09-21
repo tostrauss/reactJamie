@@ -8,6 +8,15 @@
 // Empfehlung wieder zu aktivieren.
 export const REFERRAL_CREDITS_ENABLED = false;
 
+// Boost-EINZELKÄUFE deaktiviert (Tina + Tobi, Meeting 21.09.2026): „Boosts
+// bleiben, nur keine Einzelkäufe" — Boosten ist ein Pro-Feature (applyBoost
+// kostet Pro-Nutzer 0 Credits). Gilt für ALLE Kanäle: Stripe (Web), Apple
+// Consumables, Play. createStripeIntent antwortet 410, verifyApple kennt keine
+// boost_*-Produkte mehr. Bereits gekaufte Credits bleiben einlösbar, der
+// Stripe-Webhook läuft weiter (Refunds/Widerruf alter Käufe). Auf true setzen
+// UND die Kauf-UI in BoostModal.jsx wiederherstellen, falls das kippt.
+export const BOOST_SINGLE_PURCHASES_ENABLED = false;
+
 // Master payments kill-switch — the SERVER-SIDE counterpart of the frontend's
 // PAYMENTS_ENABLED const (frontend/src/utils/platform.js). platform.js has
 // instructed setting `PAYMENTS_ENABLED=false` in Railway since 2026-08-05

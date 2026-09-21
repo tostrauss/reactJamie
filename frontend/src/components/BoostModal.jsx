@@ -1,116 +1,51 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { boost as boostApi } from '../utils/api';
-// boostPurchasesEnabled (not purchasesEnabled): boost EINZELKÄUFE exist only
-// via Stripe in the web browser. In the Play app purchasesEnabled() is true
-// for the Pro sheet (Play Billing) but no consumable is sold there, so the
-// "Kaufen" tab must stay hidden — otherwise it runs into the Stripe path.
-import { isNativeIOS, boostPurchasesEnabled, paymentsComingSoon } from '../utils/platform';
-import { purchaseBoost } from '../utils/iap';
+import { boost as boostApi, subscription as subscriptionApi } from '../utils/api';
+import { isNativeIOS, purchasesEnabled, paymentsComingSoon } from '../utils/platform';
+import { PRO_MODAL_EVENT } from './GroupCard';
 import { useToast } from '../context/ToastContext';
 import { InterestButton } from './InterestButton';
 
 // ==========================================
-// STRIPE PAYMENT FORM
+// BOOST MODAL — Boosten ist ein Pro-Feature
 // ==========================================
-function StripeForm({ clientSecret, onSuccess, onCancel }) {
-  const { t } = useTranslation();
-  const stripe = useStripe();
-  const elements = useElements();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!stripe || !elements) return;
-    setLoading(true);
-    setError('');
-
-    // redirect:'if_required' lets Stripe handle 3D Secure / SCA inline via
-    // its modal/iframe — covers the EU SCA mandate without a full redirect.
-    const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
-      elements,
-      confirmParams: { return_url: window.location.href },
-      redirect: 'if_required',
-    });
-
-    if (stripeError) {
-      setError(stripeError.message);
-      setLoading(false);
-      return;
-    }
-    // 'succeeded' = charged + credits granted on webhook. 'processing' is
-    // safe to optimistically close — the boost webhook will credit shortly.
-    // Any other status means we shouldn't claim success.
-    const status = paymentIntent?.status;
-    if (status === 'succeeded' || status === 'processing') {
-      onSuccess();
-      return;
-    }
-    setError(t('boost.stripe.unexpectedStatus', { defaultValue: 'Zahlung konnte nicht abgeschlossen werden. Bitte erneut versuchen.' }));
-    setLoading(false);
-  };
-
-  return (
-    <form onSubmit={handleSubmit} style={{ marginTop: '16px' }}>
-      <PaymentElement />
-      {error && <p style={{ color: '#ff6b6b', fontSize: '13px', marginTop: '8px' }}>{error}</p>}
-      <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
-        <button
-          type="button"
-          onClick={onCancel}
-          style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'var(--bg-input)', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: '600' }}
-        >
-          {t('boost.stripe.back')}
-        </button>
-        <button
-          type="submit"
-          disabled={loading || !stripe}
-          style={{ flex: 2, padding: '14px', borderRadius: '12px', background: '#6C63FF', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}
-        >
-          {loading ? t('boost.stripe.processing') : t('boost.stripe.pay')}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-// ==========================================
-// MAIN BOOST MODAL
-// ==========================================
-const PACKAGES = [
-  { id: 'starter', credits: 1,  price: '1,99 €', icon: '⚡', popular: false },
-  { id: 'popular', credits: 5,  price: '7,99 €', icon: '🔥', popular: true  },
-  { id: 'pro',     credits: 15, price: '19,99 €', icon: '💎', popular: false },
-];
+// Product decision (Tina + Tobi, Meeting 21.09.2026): „Boosts bleiben, nur
+// keine Einzelkäufe". The former „Credits kaufen"-Tab (Stripe Payment Element,
+// Apple-Consumables, Pakete 1/5/15) is GONE — on every platform. What is left:
+//   • Pro users boost for free (server: applyBoost charges 0 credits when Pro).
+//   • Non-Pro users with LEFTOVER credits from earlier purchases can still
+//     spend them (the wallet stays valid, nothing is taken away).
+//   • Non-Pro users without credits see „Boosts sind Teil von JAMIE Pro" and a
+//     button that opens the Pro sheet — or, while purchases are off, the
+//     Pro-coming-soon teaser. On iOS (no IAP yet) a neutral sentence, no CTA
+//     (App Review 3.1.1: no purchase hints without StoreKit).
+// Backend mirror: features.js BOOST_SINGLE_PURCHASES_ENABLED = false
+// (createStripeIntent → 410, verifyApple knows no boost_* products).
 
 export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
   const { t } = useTranslation();
   const toast = useToast();
-  const [tab, setTab] = useState('buy'); // 'buy' | 'apply'
   const [credits, setCredits] = useState(0);
-  const [selectedPkg, setSelectedPkg] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState(null); // 'stripe'
-  const [stripeClientSecret, setStripeClientSecret] = useState(null);
-  const [stripePromise, setStripePromise] = useState(null);
+  // null = unknown (loading) → the CTA shows the neutral spinner state, never
+  // a wrong „du brauchst Pro" for someone who IS Pro.
+  const [isPro, setIsPro] = useState(null);
   const [loading, setLoading] = useState(false);
-  // §18 FAGG: active consent to immediate performance + loss of withdrawal right.
-  const [consented, setConsented] = useState(false);
 
   useEffect(() => {
-    boostApi.getCredits().then(res => {
-      setCredits(res.data.credits);
-    }).catch(() => {});
+    let cancelled = false;
+    boostApi.getCredits()
+      .then(res => { if (!cancelled) setCredits(res.data.credits || 0); })
+      .catch(() => {});
+    subscriptionApi.getStatus()
+      .then(res => { if (!cancelled) setIsPro(!!res.data?.is_pro); })
+      .catch(() => { if (!cancelled) setIsPro(false); });
+    return () => { cancelled = true; };
   }, []);
 
+  const canBoost = isPro === true || credits > 0;
+
   const handleApplyBoost = async () => {
-    if (credits < 1) {
-      toast.error(t('boost.apply.noCreditsToast'));
-      setTab('buy');
-      return;
-    }
+    if (!canBoost) return;
     setLoading(true);
     try {
       await boostApi.apply(targetType, targetId);
@@ -123,54 +58,12 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
     }
   };
 
-  const handleSelectPackage = async (pkg) => {
-    setSelectedPkg(pkg);
-    setPaymentMethod(null);
-    setStripeClientSecret(null);
-  };
-
-  const handleStripeStart = async () => {
-    if (!selectedPkg) return;
-    setLoading(true);
-    try {
-      const res = await boostApi.createStripeIntent(selectedPkg.id);
-      const { client_secret, publishable_key } = res.data;
-      setStripeClientSecret(client_secret);
-      setStripePromise(loadStripe(publishable_key));
-      setPaymentMethod('stripe');
-    } catch {
-      toast.error(t('boost.buy.stripeError'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleStripeSuccess = () => {
-    toast.success(t('boost.buy.creditsAddedToast', { count: selectedPkg.credits }));
-    setCredits(c => c + selectedPkg.credits);
-    setPaymentMethod(null);
-    setSelectedPkg(null);
-    setTab('apply');
-  };
-
-  // iOS: route through Apple StoreKit instead of Stripe (App Review 3.1.1).
-  const handleIapPurchase = async () => {
-    if (!selectedPkg) return;
-    setLoading(true);
-    try {
-      const { new_total } = await purchaseBoost(selectedPkg.id);
-      toast.success(t('boost.buy.creditsAddedToast', { count: selectedPkg.credits }));
-      setCredits(typeof new_total === 'number' ? new_total : (c => c + selectedPkg.credits));
-      setSelectedPkg(null);
-      setTab('apply');
-    } catch (err) {
-      // User-cancelled is silent; everything else surfaces.
-      if (!/cancel/i.test(err?.message || '')) {
-        toast.error(err.response?.data?.error || err.message || t('boost.buy.stripeError'));
-      }
-    } finally {
-      setLoading(false);
-    }
+  // Same window event GroupCard / GroupRequests use, so the Pro sheet opens
+  // above this modal without threading a setter through context. App.jsx
+  // ignores the event on iOS (deliberately — no purchase path there).
+  const openPro = () => {
+    window.dispatchEvent(new CustomEvent(PRO_MODAL_EVENT, { detail: { feature: 'boosts' } }));
+    onClose();
   };
 
   return (
@@ -192,18 +85,12 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
           // BOTTOM = nav clearance, NOT the bare safe-area inset. .bottom-nav is
           // a flex child at the end of the dvh-bounded #root column (60px strip +
           // --nav-safe-bottom), so it owns the bottom of the screen — while this
-          // sheet is position:fixed and flush to the VIEWPORT bottom. Its last
-          // ~75px therefore land behind the nav. A previous pass trimmed this to
-          // "safe-area + 12px" reasoning the sheet's z-index puts it above the
-          // nav; that clipped the last control off every tall sheet (the
-          // "Benachrichtige mich" button, Tina 2026-09-03). Same invariant as
-          // .requests-modal-scroll in chat.css — keep the nav term.
-          padding: `18px 20px calc(60px + var(--nav-safe-bottom) + 16px)`,
-          // Cap to the space ABOVE the nav so a long sheet scrolls inside its own
-          // box instead of growing under it.
+          // fixed sheet is taken out of that flow and would otherwise sit under
+          // the nav. See project_nav_safe_bottom: every fixed element above the
+          // nav uses the same var.
+          padding: '18px 20px calc(60px + var(--nav-safe-bottom) + 16px)',
           maxHeight: 'calc(100dvh - env(safe-area-inset-top, 0px) - 12px)',
           overflowY: 'auto',
-          // Momentum scrolling + don't chain the scroll to the page behind.
           WebkitOverflowScrolling: 'touch',
           overscrollBehavior: 'contain',
         }}
@@ -213,172 +100,74 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
           <div>
             <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '800' }}>{t('boost.title')}</h2>
             <p style={{ margin: '2px 0 0', fontSize: '13px', color: 'var(--text-muted)' }}>
-              {t('boost.creditsAvailable', { count: credits })}
+              {isPro
+                ? t('boost.pro.included')
+                : t('boost.creditsAvailable', { count: credits })}
             </p>
           </div>
-          {/* .modal-close = the app-wide 32px circular close target — this was
-              the one modal whose ✕ had no hit area beyond the glyph's ink box. */}
+          {/* .modal-close = the app-wide 32px circular close target. */}
           <button onClick={onClose} className="modal-close">✕</button>
         </div>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', background: 'var(--bg-input, rgba(255,255,255,0.05))', borderRadius: '12px', padding: '4px', marginBottom: '20px' }}>
-          {[
-            { key: 'apply', tKey: 'apply' },
-            // "Kaufen"-Tab zeigen, wenn Käufe verfügbar sind ODER wir den
-            // "Bald verfügbar"-Teaser zeigen (Web/Android). Auf iOS ohne IAP weg.
-            ...((boostPurchasesEnabled() || paymentsComingSoon()) ? [{ key: 'buy', tKey: 'buy' }] : []),
-          ].map(({ key, tKey }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              style={{
-                flex: 1, padding: '10px 6px', borderRadius: '10px', border: 'none',
-                background: tab === key ? '#FD7666' : 'transparent',
-                color: tab === key ? '#fff' : 'var(--text-muted)',
-                fontWeight: '600', fontSize: '12px', cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
-            >
-              {t(`boost.tabs.${tKey}`)}
-            </button>
-          ))}
+        <div style={{ background: 'rgba(253,118,102,0.1)', border: '1px solid rgba(253,118,102,0.3)', borderRadius: '16px', padding: '16px', marginBottom: '20px' }}>
+          <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎯</div>
+          <h3 style={{ margin: '0 0 6px', fontSize: '18px' }}>{targetName || t('boost.apply.fallbackTarget')}</h3>
+          <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>
+            {t('boost.apply.desc')}
+          </p>
         </div>
 
-        {/* ---- APPLY TAB ---- */}
-        {tab === 'apply' && (
-          <div>
-            <div style={{ background: 'rgba(253,118,102,0.1)', border: '1px solid rgba(253,118,102,0.3)', borderRadius: '16px', padding: '16px', marginBottom: '20px' }}>
-              <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎯</div>
-              <h3 style={{ margin: '0 0 6px', fontSize: '18px' }}>{targetName || t('boost.apply.fallbackTarget')}</h3>
-              <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted)' }}>
-                {t('boost.apply.desc')}
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-input)', borderRadius: '12px', padding: '14px', marginBottom: '20px' }}>
-              <span style={{ fontSize: '28px' }}>⚡</span>
-              <div>
-                <div style={{ fontWeight: '700' }}>{t('boost.apply.creditsCount', { count: credits })}</div>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('boost.apply.creditEq')}</div>
+        {isPro === null ? (
+          <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px' }}>{t('common.loading')}</p>
+        ) : canBoost ? (
+          <>
+            {!isPro && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-input)', borderRadius: '12px', padding: '14px', marginBottom: '20px' }}>
+                <span style={{ fontSize: '28px' }}>⚡</span>
+                <div>
+                  <div style={{ fontWeight: '700' }}>{t('boost.apply.creditsCount', { count: credits })}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('boost.apply.creditEq')}</div>
+                </div>
               </div>
-            </div>
-
-            {credits < 1 ? (
-              <div style={{ textAlign: 'center', padding: '16px' }}>
-                <p style={{ color: 'var(--text-muted)', marginBottom: '12px' }}>{t('boost.apply.noCredits')}</p>
-                {/* Nur wenn ein Kauf-Tab existiert (Web/Android; iOS ohne IAP nicht).
-                    Empfehlungs-Credits wurden entfernt (keine Gratis-Boosts mehr). */}
-                {(boostPurchasesEnabled() || paymentsComingSoon()) && (
-                  <button onClick={() => setTab('buy')} style={{ padding: '12px 24px', borderRadius: '12px', background: '#FD7666', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer' }}>
-                    {t('boost.apply.buyBtn')}
-                  </button>
-                )}
-              </div>
-            ) : (
-              <button
-                onClick={handleApplyBoost}
-                disabled={loading}
-                style={{ width: '100%', padding: '16px', borderRadius: '14px', background: '#FD7666', border: 'none', color: '#fff', fontSize: '16px', fontWeight: '700', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}
-              >
-                {loading ? t('boost.apply.boosting') : t('boost.apply.applyBtn')}
-              </button>
             )}
-          </div>
-        )}
-
-        {/* ---- BUY TAB ---- */}
-        {tab === 'buy' && !boostPurchasesEnabled() && (
+            <button
+              onClick={handleApplyBoost}
+              disabled={loading}
+              style={{ width: '100%', padding: '16px', borderRadius: '14px', background: '#FD7666', border: 'none', color: '#fff', fontSize: '16px', fontWeight: '700', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}
+            >
+              {loading
+                ? t('boost.apply.boosting')
+                : isPro ? t('boost.apply.applyBtnPro') : t('boost.apply.applyBtn')}
+            </button>
+          </>
+        ) : (
+          /* Not Pro, no credits → Boosts are a Pro feature. */
           <div style={{
-            textAlign: 'center', padding: '28px 16px',
+            textAlign: 'center', padding: '24px 16px',
             background: 'rgba(253,118,102,0.08)', border: '1px solid rgba(253,118,102,0.25)',
             borderRadius: '16px',
           }}>
-            <div style={{ fontSize: '40px', marginBottom: '8px' }}>🚀</div>
+            <div style={{ fontSize: '40px', marginBottom: '8px' }}>👑</div>
             <div style={{ fontSize: '16px', fontWeight: '800', color: '#fff', marginBottom: '6px' }}>
-              {t('payments.comingSoon.boostTitle')}
+              {t('boost.pro.title')}
             </div>
             <p style={{ fontSize: '13px', lineHeight: 1.5, color: 'var(--text-muted)', margin: '0 0 14px' }}>
-              {t('payments.comingSoon.boostBody')}
+              {t('boost.pro.body')}
             </p>
-            <InterestButton feature="boosts" />
-          </div>
-        )}
-
-        {tab === 'buy' && boostPurchasesEnabled() && (
-          <div>
-            {/* Package selection */}
-            {!paymentMethod && (
+            {purchasesEnabled() ? (
+              <button onClick={openPro} style={{ padding: '12px 24px', borderRadius: '12px', background: '#FD7666', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer' }}>
+                {t('boost.pro.cta')}
+              </button>
+            ) : paymentsComingSoon() ? (
               <>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-                  {PACKAGES.map(pkg => (
-                    <button
-                      key={pkg.id}
-                      onClick={() => handleSelectPackage(pkg)}
-                      style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '16px', borderRadius: '14px',
-                        border: `2px solid ${selectedPkg?.id === pkg.id ? '#FD7666' : 'transparent'}`,
-                        background: pkg.popular ? 'rgba(253,118,102,0.1)' : 'var(--bg-input)',
-                        cursor: 'pointer', position: 'relative', textAlign: 'left',
-                        // Ohne explizite Farbe rendert iOS Safari Button-Text
-                        // im System-Blau (#007AFF) — Pakettitel wurden blau.
-                        color: '#fff',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span style={{ fontSize: '28px' }}>{pkg.icon}</span>
-                        <div>
-                          <div style={{ fontWeight: '700', fontSize: '16px' }}>{t(`boost.buy.packages.${pkg.credits}`)}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{t('boost.buy.creditsPerPackage', { count: pkg.credits })}</div>
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: '800', fontSize: '18px', color: '#FD7666' }}>{pkg.price}</div>
-                        {pkg.popular && <div style={{ fontSize: '10px', color: '#FD7666', fontWeight: '700' }}>{t('boost.buy.popular')}</div>}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-
-                {selectedPkg && (
-                  <div>
-                    <p style={{ textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>{t('boost.buy.choosePayment')}</p>
-                    {/* §18 FAGG consent — required before purchase */}
-                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', margin: '0 0 12px', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={consented}
-                        onChange={e => setConsented(e.target.checked)}
-                        style={{ marginTop: '2px', width: '18px', height: '18px', accentColor: '#FD7666', flexShrink: 0 }}
-                      />
-                      <span style={{ fontSize: '11.5px', lineHeight: 1.45, color: 'var(--text-muted)', textAlign: 'left' }}>
-                        {t('boost.withdrawalConsent')}
-                      </span>
-                    </label>
-                    <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
-                      <button
-                        onClick={isNativeIOS() ? handleIapPurchase : handleStripeStart}
-                        disabled={loading || !consented}
-                        style={{ flex: 1, padding: '14px', borderRadius: '14px', background: '#6C63FF', border: 'none', color: '#fff', fontWeight: '700', cursor: (loading || !consented) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: (loading || !consented) ? 0.5 : 1 }}
-                      >
-                        {t('boost.buy.applePay')}
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 10px' }}>
+                  {t('payments.comingSoon.body')}
+                </p>
+                <InterestButton feature="pro" />
               </>
-            )}
-
-            {/* Stripe Payment Element */}
-            {paymentMethod === 'stripe' && stripeClientSecret && stripePromise && (
-              <Elements stripe={stripePromise} options={{ clientSecret: stripeClientSecret, appearance: { theme: 'night' } }}>
-                <StripeForm
-                  clientSecret={stripeClientSecret}
-                  onSuccess={handleStripeSuccess}
-                  onCancel={() => setPaymentMethod(null)}
-                />
-              </Elements>
+            ) : (
+              /* iOS without IAP: neutral, no purchase hint (3.1.1). */
+              isNativeIOS() && null
             )}
           </div>
         )}
@@ -386,5 +175,3 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
     </div>
   );
 };
-
-export default BoostModal;

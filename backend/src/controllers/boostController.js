@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 import crypto from 'crypto';
 import { isUserPro, revokeSubscriptionForCharge } from './subscriptionController.js';
 import { invalidatePrefix } from '../utils/cache.js';
-import { REFERRAL_CREDITS_ENABLED, isAppShellRequest, paymentsEnabled } from '../config/features.js';
+import { REFERRAL_CREDITS_ENABLED, BOOST_SINGLE_PURCHASES_ENABLED, isAppShellRequest, paymentsEnabled } from '../config/features.js';
 import { checkSubscriptionCountry } from '../utils/paymentRegion.js';
 
 // Execute a function inside a real DB transaction on a single dedicated connection.
@@ -187,7 +187,7 @@ export const applyBoost = async (req, res) => {
     res.json({ success: true, boosted_until: boostedUntil, pro_boost: isPro });
   } catch (err) {
     if (err.message === 'INSUFFICIENT_CREDITS') {
-      return res.status(402).json({ error: 'Nicht genug Boost-Credits. Kaufe Credits oder werde JAMIE Pro für kostenlose Boosts.' });
+      return res.status(402).json({ error: 'Boosts sind Teil von JAMIE Pro.', code: 'PRO_REQUIRED' });
     }
     console.error('applyBoost error:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -208,6 +208,14 @@ export const createStripeIntent = async (req, res) => {
   // Store-policy backstop: no Stripe checkout from the Play/iOS app shells.
   if (isAppShellRequest(req)) {
     return res.status(403).json({ error: 'Boosts sind nur im Browser verfügbar.', code: 'PAYMENTS_WEB_ONLY' });
+  }
+  // Product decision 21.09.2026: no single boost purchases anywhere — boosting
+  // is a Pro feature. 410 Gone (not 403): the endpoint is retired, not gated.
+  if (!BOOST_SINGLE_PURCHASES_ENABLED) {
+    return res.status(410).json({
+      error: 'Boost-Credits gibt es nicht mehr einzeln — Boosts sind Teil von JAMIE Pro.',
+      code: 'BOOST_PURCHASES_DISABLED',
+    });
   }
   // Same tax-registration gate as Pro (AT+DE). Boosts are one-off
   // PaymentIntents, which Stripe Tax cannot itemize at all — so restricting
