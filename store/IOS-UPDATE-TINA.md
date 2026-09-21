@@ -17,6 +17,8 @@ Web-Version**. iPhone-Nutzer bekommen mit diesem Update:
   Schalter, die **nichts bewirken**.
 - **Gruppen:** Mitgliederliste und eine neue **Anfragen-Übersicht**.
 - **Melden & Moderation** im Chat plus viele kleine Verbesserungen.
+- **Boosts:** kein Kauf-Tab mehr — Boosten ist Teil von Pro (Meeting 21.09.).
+  Auf dem iPhone steht dort nur ein neutraler Hinweis, kein Kauf-Knopf.
 
 Android muss dafür **nichts** tun (läuft über den Web-Deploy, ist längst aktuell).
 
@@ -45,16 +47,16 @@ jede mit Enter:
 cd ~/reactJamie
 git status --short
 git pull
-git log --oneline -1
+git log --oneline -3
 ```
 
 - Zeigt `git status --short` **Dateien an** (z. B. `package-lock.json`), dann
   vor dem `git pull` einmal: `git checkout -- frontend/package-lock.json`
   (das ist eine automatisch erzeugte Datei, die darf weg).
-- Die letzte Zeile muss **`feat(billing): Google Play Billing`** enthalten
-  (Commit vom 21.09.2026, direkt nach dem Meeting — enthält auch die neuen
-  Preise 6,99 / 29,99 / 49,99). Steht dort etwas anderes, hat der Pull nicht
-  geklappt → **STOPP, Tobi.**
+- Unter den drei Zeilen muss **`feat(boost): keine Boost-Einzelkäufe mehr`**
+  stehen (Commit `461d57b` vom 21.09.2026 nach dem Meeting; die neuen Preise
+  6,99 / 29,99 / 49,99 und Play Billing sind ältere Commits darunter). Fehlt
+  die Zeile, hat der Pull nicht geklappt → **STOPP, Tobi.**
 
 ## 2. Bauen und ins iOS-Projekt übertragen
 
