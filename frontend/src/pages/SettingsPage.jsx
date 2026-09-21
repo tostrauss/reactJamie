@@ -12,7 +12,8 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
 } from '../utils/pushNotifications';
-import { isNativeIOS, IOS_IAP_ENABLED } from '../utils/platform';
+import { isNativeIOS, IOS_IAP_ENABLED, isPlayBillingActive } from '../utils/platform';
+import { restorePlayPurchases, PLAY_SUBSCRIPTIONS_URL } from '../utils/playBilling';
 import { RADIUS_OPTIONS_KM } from '../utils/geo';
 import { restorePurchases } from '../utils/iap';
 import { PasswordInput } from '../components/PasswordInput';
@@ -162,7 +163,11 @@ export const SettingsPage = () => {
   const handleRestorePurchases = async () => {
     setRestoreLoading(true);
     try {
-      const { restored } = await restorePurchases();
+      // Play app → Digital Goods listPurchases + /iap/google/restore; iOS →
+      // StoreKit. Same toast semantics either way.
+      const { restored } = isPlayBillingActive()
+        ? await restorePlayPurchases()
+        : await restorePurchases();
       if (restored > 0) {
         // Re-fetch sub status so the UI flips to "Pro active" immediately.
         const { data } = await subscriptionApi.getStatus();
@@ -595,7 +600,34 @@ export const SettingsPage = () => {
           {/* Web + Android Pro users: Stripe Billing Portal for self-service
               card update, invoices, plan switch, cancellation. iOS users
               manage via App Store → Subscriptions instead (Apple 3.1.1). */}
-          {!isNativeIOS() && (
+          {sub.managed_by === 'google' && (
+            // Google-Play-billed Pro (bought in the Play app): there is no Stripe
+            // customer — cancel, payment method and refunds live in Play → Abos.
+            // Plain link (target _blank): inside the TWA Android opens Play, in a
+            // browser the Play web page. Never the Stripe portal (server 400s).
+            <a
+              className="settings-row"
+              href={PLAY_SUBSCRIPTIONS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ textDecoration: 'none', color: 'inherit' }}
+            >
+              <div className="settings-row-left">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                <div className="settings-row-stacked">
+                  <span>{t('settings.subscription.manageGooglePlay', { defaultValue: 'Abo in Google Play verwalten' })}</span>
+                  <span className="settings-row-detail">
+                    {t('settings.subscription.managedByGoogleHint', { defaultValue: 'Dieses Abo läuft über Google Play. Kündigen, Zahlungsmethode und Rückerstattungen dort.' })}
+                  </span>
+                </div>
+              </div>
+              {chevron}
+            </a>
+          )}
+
+          {!isNativeIOS() && sub.managed_by !== 'google' && (
             <div className="settings-row" onClick={portalLoading ? undefined : handleOpenPortal}>
               <div className="settings-row-left">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -648,7 +680,7 @@ export const SettingsPage = () => {
             </div>
           )}
 
-          {sub.status !== 'canceling' && !showCancelConfirm && !showWithdrawConfirm && (
+          {sub.status !== 'canceling' && sub.managed_by !== 'google' && !showCancelConfirm && !showWithdrawConfirm && (
             <div className="settings-row" onClick={() => setShowCancelConfirm(true)}>
               <div className="settings-row-left">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-coral)" strokeWidth="2">
@@ -698,7 +730,7 @@ export const SettingsPage = () => {
             </div>
           )}
 
-          {isNativeIOS() && IOS_IAP_ENABLED && (
+          {((isNativeIOS() && IOS_IAP_ENABLED) || isPlayBillingActive()) && (
             <div className="settings-row" onClick={restoreLoading ? undefined : handleRestorePurchases}>
               <div className="settings-row-left">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -719,7 +751,7 @@ export const SettingsPage = () => {
           user is not currently Pro — that's the whole point of restore. Shown
           here as a standalone section ONLY in the native iOS build, and only
           once IAP actually ships (nothing to restore otherwise). */}
-      {isNativeIOS() && IOS_IAP_ENABLED && !sub?.is_pro && (
+      {((isNativeIOS() && IOS_IAP_ENABLED) || isPlayBillingActive()) && !sub?.is_pro && (
         <div className="settings-section">
           <h3 className="settings-section-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -735,7 +767,9 @@ export const SettingsPage = () => {
                   ? t('common.loading')
                   : t('settings.subscription.restoreBtn', { defaultValue: 'Käufe wiederherstellen' })}</span>
                 <span className="settings-row-detail">
-                  {t('settings.subscription.restoreHelper', { defaultValue: 'Auf neuem Gerät? Stellt aktive Abos und nicht eingelöste Käufe wieder her.' })}
+                  {isPlayBillingActive()
+                    ? t('settings.subscription.restoreGoogleHelper', { defaultValue: 'Neues Gerät oder Kauf nicht angekommen? Ordnet deine Google-Play-Käufe diesem Konto zu.' })
+                    : t('settings.subscription.restoreHelper', { defaultValue: 'Auf neuem Gerät? Stellt aktive Abos und nicht eingelöste Käufe wieder her.' })}
                 </span>
               </div>
             </div>

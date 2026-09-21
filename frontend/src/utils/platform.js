@@ -101,11 +101,46 @@ export const PAYMENTS_ENABLED = false;
 // getestet ist — die Kauf-Logik ist bereits plattformabhängig verdrahtet.
 export const IOS_IAP_ENABLED = false;
 
-// Echte Stripe-Käufe nur im echten Web-Browser. Jede installierte App-Hülle
+// ── Google Play Billing (Android-TWA) ───────────────────────────────────
+// Schalter für Play Billing in der Play-Store-App (utils/playBilling.js).
+// Gebaut 21.09.2026, AUS bis: (1) Play-Console-Produkte angelegt, (2) Railway
+// GOOGLE_PLAY_* gesetzt, (3) der TWA-Build mit dem billing-Extension
+// (twa/, versionCode ≥ 11) im Store ist, (4) ein Lizenztester-Kauf durch ist —
+// Runbook store/PLAY-BILLING-SETUP.md. Auf true stellen = Pro-Kauf in der
+// Play-App über den Play-Kaufbogen; Boosts bleiben dort OHNE Kauf-Tab (keine
+// Einzelkäufe, Tina 21.09.). ROLLBACK: hier false; der Server 403t zusätzlich
+// jeden Kauf, sobald Railway PAYMENTS_ENABLED=false ist.
+export const PLAY_BILLING_ENABLED = false;
+
+// Chrome stellt Digital-Goods- + Payment-Request-API nur in einer TWA bereit,
+// deren Android-Shell das billing-Extension mitbringt. Ein ALTER Play-Build
+// (versionCode ≤ 10) hat `getDigitalGoodsService` nicht → dort bleibt alles
+// beim „Bald verfügbar"-Teaser, statt in einen kaputten Kauf zu laufen.
+export const isPlayBillingSupported = () =>
+  typeof window !== 'undefined' &&
+  typeof window.getDigitalGoodsService === 'function' &&
+  typeof window.PaymentRequest === 'function';
+
+// Play Billing ist der aktive Kaufweg: in der TWA, freigeschaltet, und die
+// Shell kann es. Nur dann darf purchasesEnabled() in einer App-Hülle true sein.
+export const isPlayBillingActive = () =>
+  PLAY_BILLING_ENABLED && isTWA() && isPlayBillingSupported();
+
+// Echte Käufe: Stripe nur im echten Web-Browser. Jede installierte App-Hülle
 // (iOS/Android-Capacitor + Android-TWA) ist ausgenommen — dort ist Stripe für
-// digitale Güter laut Store-Richtlinien unzulässig, bis Play Billing/StoreKit
-// steht. (IOS_IAP_ENABLED bleibt der spätere Schalter für den iOS-IAP-Weg.)
-export const purchasesEnabled = () => PAYMENTS_ENABLED && !isAppShell();
+// digitale Güter laut Store-Richtlinien unzulässig. EINZIGE Ausnahme: die
+// Play-TWA mit aktivem Play Billing (Store-Billing, nicht Stripe). Der
+// ProModal-Kauf verzweigt dann auf purchasePlaySubscription() statt Stripe;
+// der Server-Backstop isAppShellRequest blockt Stripe aus der TWA weiterhin.
+// (IOS_IAP_ENABLED bleibt der spätere Schalter für den iOS-IAP-Weg.)
+export const purchasesEnabled = () =>
+  PAYMENTS_ENABLED && (!isAppShell() || isPlayBillingActive());
+
+// Boost-EINZELKÄUFE gibt es nur über Stripe im Web-Browser. In der Play-App
+// wird kein Consumable verkauft (Boosts kommen mit Pro), also darf der
+// „Kaufen"-Tab dort nicht erscheinen, obwohl purchasesEnabled() für den
+// Pro-Kauf true ist — sonst liefe er in den Stripe-Pfad, den der Server 403t.
+export const boostPurchasesEnabled = () => purchasesEnabled() && !isTWA();
 
 // In den App-Hüllen (außer iOS) zeigen wir statt einer echten Zahlung einen
 // „Bald verfügbar"-Teaser mit Interesse-Button — kein Kauf, kein Verweis auf

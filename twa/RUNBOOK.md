@@ -128,7 +128,7 @@ Bubblewrap fragt mehrere Dinge ab. Diese Antworten verwenden (decken sich mit `t
 | Key-Passwort | (gleich wie Keystore) |
 
 Hinweise zu den Manifest-Settings (schon gesetzt, nicht ändern):
-- `playBilling.enabled = false` — wir liefern kein Play-Billing über die TWA aus (Bezahlung läuft web/Stripe; siehe Schritt 7 zur Data-Safety-Deklaration).
+- `playBilling.enabled = true` (seit 21.09.2026, versionCode 11 / 1.2) — Pro-Abo in der Play-App über Play Billing (Digital Goods API). Die drei Bausteine sind VON HAND im Android-Projekt gepflegt, weil `bubblewrap update` targetSdk auf 35 zurücksetzt: `app/build.gradle` → `com.google.androidbrowserhelper:billing:1.2.0` (stable, Billing Library 8.3.0 — Bubblewrap würde 1.1.0 eintragen), `AndroidManifest.xml` → `PaymentActivity` + `PaymentService`, `DelegationService.java` → `DigitalGoodsRequestHandler`. Nach einem eventuellen `bubblewrap update` alle drei prüfen. Kompletter Ablauf inkl. Play Console, Service-Account, RTDN: `store/PLAY-BILLING-SETUP.md`.
 - `locationDelegation.enabled = false`.
 - 1 Shortcut: „Gruppe erstellen" → `/create-group`.
 - minSdk 21, targetSdk 36, compileSdk 36. (targetSdk 36 = Google Play requirement ab 31.08.2026; Bubblewrap 1.24.1 generiert per Template noch 35, daher ist der Wert in `app/build.gradle` manuell auf 36 gesetzt — beim Build NICHT „update project" bestätigen, sonst wird er auf 35 zurückgesetzt.)

@@ -4,8 +4,9 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { subscription as subscriptionApi } from '../utils/api';
 import { PRO_PLANS, DEFAULT_PLAN_KEY, BASELINE_MONTHLY } from '../utils/proPlans';
-import { isNativeIOS, IOS_IAP_ENABLED, purchasesEnabled, paymentsComingSoon } from '../utils/platform';
+import { isNativeIOS, IOS_IAP_ENABLED, isPlayBillingActive, purchasesEnabled, paymentsComingSoon } from '../utils/platform';
 import { subscribePro, restorePurchases } from '../utils/iap';
+import { purchasePlaySubscription, restorePlayPurchases } from '../utils/playBilling';
 import { useToast } from '../context/ToastContext';
 import { InterestButton } from './InterestButton';
 
@@ -347,6 +348,14 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
         setTimeout(() => { onSuccess?.(); onClose?.(); }, 3000);
         return;
       }
+      // Play-Store app (TWA) → Google Play Billing sheet, no Stripe (Play
+      // billing policy; the server 403s Stripe from the TWA anyway).
+      if (isPlayBillingActive()) {
+        await purchasePlaySubscription(selectedPlan);
+        setStep('success');
+        setTimeout(() => { onSuccess?.(); onClose?.(); }, 3000);
+        return;
+      }
       const res = await subscriptionApi.create(selectedPlan);
       const { client_secret, publishable_key, mode, trial_days } = res.data;
       setPaymentMode(mode || 'payment');
@@ -372,7 +381,9 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
   const handleRestore = async () => {
     setRestoreLoading(true);
     try {
-      const { restored } = await restorePurchases();
+      const { restored } = isPlayBillingActive()
+        ? await restorePlayPurchases()
+        : await restorePurchases();
       if (restored > 0) {
         setStep('success');
         setTimeout(() => { onSuccess?.(); onClose?.(); }, 3000);
@@ -678,7 +689,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
               {/* iOS-only: Apple Review 3.1.1 wants Restore Purchases visible
                   during the purchase flow itself, not buried in Settings.
                   Only relevant once IAP ships — nothing to restore otherwise. */}
-              {isNativeIOS() && IOS_IAP_ENABLED && (
+              {((isNativeIOS() && IOS_IAP_ENABLED) || isPlayBillingActive()) && (
                 <button
                   onClick={restoreLoading ? undefined : handleRestore}
                   disabled={restoreLoading || loading}
@@ -700,15 +711,18 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
               {/* Apple Guideline 3.1.2 (a): on iOS, the subscription terms —
                   length, auto-renewal, cancellation — must be visible at the
                   point of purchase. Only shown when IAP is actually live. */}
-              {isNativeIOS() && IOS_IAP_ENABLED && (
+              {((isNativeIOS() && IOS_IAP_ENABLED) || isPlayBillingActive()) && (
                 <p style={{
                   fontSize:'11px', lineHeight:1.45,
                   color:'rgba(255,255,255,0.4)',
                   margin:'0 0 10px', textAlign:'center',
                   padding:'0 4px',
                 }}>
-                  {t('pro.iosTerms', { defaultValue:
-                    'JAMIE Pro verlängert sich automatisch zum gewählten Preis am Ende jeder Laufzeit. Kündbar jederzeit über iOS-Einstellungen → Apple-ID → Abos, mindestens 24 Std. vor Ablauf.' })}
+                  {isPlayBillingActive()
+                    ? t('pro.playTerms', { defaultValue:
+                      'JAMIE Pro verlängert sich automatisch zum gewählten Preis am Ende jeder Laufzeit. Abrechnung über Google Play; kündbar jederzeit in Google Play → Abos.' })
+                    : t('pro.iosTerms', { defaultValue:
+                      'JAMIE Pro verlängert sich automatisch zum gewählten Preis am Ende jeder Laufzeit. Kündbar jederzeit über iOS-Einstellungen → Apple-ID → Abos, mindestens 24 Std. vor Ablauf.' })}
                   {' '}
                   <a href="/terms" target="_blank" rel="noopener" style={{ color:'#FD7666', textDecoration:'underline' }}>
                     {t('pro.terms', { defaultValue: 'AGB' })}

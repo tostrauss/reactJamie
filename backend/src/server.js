@@ -166,6 +166,7 @@ import { runAnalyticsPurge } from './jobs/analyticsPurge.js';
 import { PERMISSIONS_POLICY } from './config/securityHeaders.js';
 import { stripeWebhook as boostStripeWebhook } from './controllers/boostController.js';
 import { appleServerNotification } from './controllers/iapController.js';
+import { googleRtdn } from './controllers/googleIapController.js';
 import { sendPushToUser, sendPushToUsers } from './controllers/pushController.js';
 import { categoryDigestText } from './utils/pushLocale.js';
 import boostRoutes from './routes/boostRoutes.js';
@@ -382,6 +383,10 @@ app.post('/api/subscription/stripe/webhook', express.raw({ type: 'application/js
 app.post('/api/boost/stripe/webhook', express.raw({ type: 'application/json' }), boostStripeWebhook);
 // Apple Server Notifications V2 also need the raw body (the payload is itself a JWS).
 app.post('/api/iap/apple/notifications', express.raw({ type: 'application/json', limit: '1mb' }), appleServerNotification);
+// Google Play Real-time Developer Notifications (Pub/Sub push). Authenticated
+// inside the handler (OIDC token or URL secret, fail-closed) — see
+// utils/googlePlay.js verifyPubSubPush. Raw body like the other webhooks.
+app.post('/api/iap/google/notifications', express.raw({ type: '*/*', limit: '1mb' }), googleRtdn);
 
 // Body parsing — text/JSON only; image uploads use multipart (multer). 50 kB covers the largest
 // legitimate payload (full profile update with photo URLs + interests array = ~10 kB).

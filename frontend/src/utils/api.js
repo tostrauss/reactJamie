@@ -816,6 +816,10 @@ export const featureInterest = {
 export const iap = {
   verifyApple: (payload) => axiosInstance.post('/iap/apple/verify', payload),
   restoreApple: (payload) => axiosInstance.post('/iap/apple/restore', payload),
+  // Google Play Billing (Android-TWA, utils/playBilling.js):
+  // { product_id, purchase_token } / { purchases: [{ product_id, purchase_token }] }
+  verifyGoogle: (payload) => axiosInstance.post('/iap/google/verify', payload),
+  restoreGoogle: (payload) => axiosInstance.post('/iap/google/restore', payload),
 };
 
 // ==========================================

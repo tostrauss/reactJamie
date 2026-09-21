@@ -51,9 +51,10 @@ git log --oneline -1
 - Zeigt `git status --short` **Dateien an** (z. B. `package-lock.json`), dann
   vor dem `git pull` einmal: `git checkout -- frontend/package-lock.json`
   (das ist eine automatisch erzeugte Datei, die darf weg).
-- Die letzte Zeile muss **`feat(pricing): Pro-Abo 6,99 / 29,99 / 49,99`**
-  enthalten (Commit vom 21.09.2026 mit den neuen Preisen aus dem Meeting).
-  Steht dort etwas anderes, hat der Pull nicht geklappt → **STOPP, Tobi.**
+- Die letzte Zeile muss **`feat(billing): Google Play Billing`** enthalten
+  (Commit vom 21.09.2026, direkt nach dem Meeting — enthält auch die neuen
+  Preise 6,99 / 29,99 / 49,99). Steht dort etwas anderes, hat der Pull nicht
+  geklappt → **STOPP, Tobi.**
 
 ## 2. Bauen und ins iOS-Projekt übertragen
 
@@ -149,7 +150,9 @@ Chat** aufgehen.
 
 **c) Mitgliederliste + Anfragen.** In einer Gruppe, in der du **Mitglied** bist:
 auf die Avatar-Bubbles mit der Mitgliederzahl tippen → die **Mitgliederliste**
-muss aufgehen (alle Mitglieder, kein Pro-Hinweis). Für die **Anfragen-Übersicht**
+muss aufgehen (alle Mitglieder). Das klappt bei dir, weil du App-Admin bist —
+für normale Mitglieder ohne Pro ist die volle Liste seit 21.09. bewusst
+gesperrt (Entscheidung aus dem Meeting), das ist **kein Fehler**. Für die **Anfragen-Übersicht**
 brauchst du eine **private** Gruppe, die **dir gehört**, mit **mindestens einer
 offenen Beitrittsanfrage** → dann steht dort **„Anfragen ansehen (1)"**. Fehlt
 der Knopf, ist die Gruppe öffentlich oder es wartet keine Anfrage — **das ist so

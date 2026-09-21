@@ -3,7 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { boost as boostApi } from '../utils/api';
-import { isNativeIOS, purchasesEnabled, paymentsComingSoon } from '../utils/platform';
+// boostPurchasesEnabled (not purchasesEnabled): boost EINZELKÄUFE exist only
+// via Stripe in the web browser. In the Play app purchasesEnabled() is true
+// for the Pro sheet (Play Billing) but no consumable is sold there, so the
+// "Kaufen" tab must stay hidden — otherwise it runs into the Stripe path.
+import { isNativeIOS, boostPurchasesEnabled, paymentsComingSoon } from '../utils/platform';
 import { purchaseBoost } from '../utils/iap';
 import { useToast } from '../context/ToastContext';
 import { InterestButton } from './InterestButton';
@@ -223,7 +227,7 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
             { key: 'apply', tKey: 'apply' },
             // "Kaufen"-Tab zeigen, wenn Käufe verfügbar sind ODER wir den
             // "Bald verfügbar"-Teaser zeigen (Web/Android). Auf iOS ohne IAP weg.
-            ...((purchasesEnabled() || paymentsComingSoon()) ? [{ key: 'buy', tKey: 'buy' }] : []),
+            ...((boostPurchasesEnabled() || paymentsComingSoon()) ? [{ key: 'buy', tKey: 'buy' }] : []),
           ].map(({ key, tKey }) => (
             <button
               key={key}
@@ -265,7 +269,7 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
                 <p style={{ color: 'var(--text-muted)', marginBottom: '12px' }}>{t('boost.apply.noCredits')}</p>
                 {/* Nur wenn ein Kauf-Tab existiert (Web/Android; iOS ohne IAP nicht).
                     Empfehlungs-Credits wurden entfernt (keine Gratis-Boosts mehr). */}
-                {(purchasesEnabled() || paymentsComingSoon()) && (
+                {(boostPurchasesEnabled() || paymentsComingSoon()) && (
                   <button onClick={() => setTab('buy')} style={{ padding: '12px 24px', borderRadius: '12px', background: '#FD7666', border: 'none', color: '#fff', fontWeight: '700', cursor: 'pointer' }}>
                     {t('boost.apply.buyBtn')}
                   </button>
@@ -284,7 +288,7 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
         )}
 
         {/* ---- BUY TAB ---- */}
-        {tab === 'buy' && !purchasesEnabled() && (
+        {tab === 'buy' && !boostPurchasesEnabled() && (
           <div style={{
             textAlign: 'center', padding: '28px 16px',
             background: 'rgba(253,118,102,0.08)', border: '1px solid rgba(253,118,102,0.25)',
@@ -301,7 +305,7 @@ export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
           </div>
         )}
 
-        {tab === 'buy' && purchasesEnabled() && (
+        {tab === 'buy' && boostPurchasesEnabled() && (
           <div>
             {/* Package selection */}
             {!paymentMethod && (

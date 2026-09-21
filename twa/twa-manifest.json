@@ -21,8 +21,8 @@
     "path": "./keystore/jamie-release.jks",
     "alias": "jamie-key"
   },
-  "appVersionName": "1.1",
-  "appVersionCode": 10,
+  "appVersionName": "1.2",
+  "appVersionCode": 11,
   "shortcuts": [
     {
       "name": "Gruppe erstellen",
@@ -39,7 +39,7 @@
       "enabled": false
     },
     "playBilling": {
-      "enabled": false
+      "enabled": true
     }
   },
   "alphaDependencies": {
@@ -55,5 +55,5 @@
   "additionalTrustedOrigins": [],
   "retainedBundles": [],
   "displayOverride": [],
-  "appVersion": "1.1"
+  "appVersion": "1.2"
 }
