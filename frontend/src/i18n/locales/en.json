@@ -1109,13 +1109,16 @@
       "withdrawDoneNoRefundToast": "Withdrawal complete. For refund questions, contact office@jamie-app.com.",
       "withdrawError": "Withdrawal failed. Please try again or contact office@jamie-app.com.",
       "portalBtn": "Manage subscription (payment, invoices)",
+      "manageGooglePlay": "Manage subscription in Google Play",
+      "managedByGoogleHint": "This subscription is billed by Google Play. Cancel, change payment method and request refunds there.",
       "portalError": "Could not open portal. Please try again.",
       "restoreSuccess_one": "{{count}} purchase restored",
       "restoreSuccess_other": "{{count}} purchases restored",
       "restoreNone": "No purchases to restore",
       "restoreError": "Restore failed",
       "restoreBtn": "Restore purchases",
-      "restoreHelper": "New device? Restores active subscriptions and unredeemed purchases."
+      "restoreHelper": "New device? Restores active subscriptions and unredeemed purchases.",
+      "restoreGoogleHelper": "New device or a purchase that did not arrive? Links your Google Play purchases to this account."
     },
     "boostPurchases": {
       "title": "Boost purchases",
@@ -1401,9 +1404,9 @@
         "sixmonth": "6 months",
         "yearly": "1 year"
       },
-      "billedMonthly": "€4.99 / month",
-      "billedSixmonth": "€19.99 every 6 months",
-      "billedYearly": "€34.99 per year",
+      "billedMonthly": "€6.99 / month",
+      "billedSixmonth": "€29.99 every 6 months",
+      "billedYearly": "€49.99 per year",
       "badges": {
         "popular": "Popular",
         "bestValue": "Best value"
@@ -1415,6 +1418,7 @@
     "iosUnavailable": "JAMIE Pro is currently not available on iPhone.",
     "restoreBtn": "Restore purchases",
     "iosTerms": "JAMIE Pro renews automatically at the selected price at the end of each period. Cancel anytime in iOS Settings → Apple ID → Subscriptions, at least 24 hours before renewal.",
+    "playTerms": "JAMIE Pro renews automatically at the selected price at the end of each period. Billed by Google Play; cancel anytime in Google Play → Subscriptions.",
     "terms": "Terms",
     "privacy": "Privacy",
     "contextCta": {

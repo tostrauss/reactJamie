@@ -198,13 +198,13 @@ JAMIE sells **Pro subscriptions** and **Boost credits**. On web and Android, pay
 
 ### Pro subscription tiers (backend is authoritative — `subscriptionController.js`)
 
-| Key | Price | Per week | amount_cents | Interval | Badge |
+| Key | Price | Per month | amount_cents | Interval | Badge |
 |---|---|---|---|---|---|
-| `weekly` | 4,99 €/Woche | 4,99 € | 499 | week / 1 | baseline |
-| `monthly` | 14,99 €/Monat | 3,46 € | 1499 | month / 1 | "Beliebt" (default, "31% sparen") |
-| `sixmonth` | 29,99 €/6 Monate | 1,15 € | 2999 | month / 6 | "Bestes Angebot" ("77% sparen") |
+| `monthly` | 6,99 €/Monat | 6,99 € | 699 | month / 1 | baseline (anchor) |
+| `sixmonth` | 29,99 €/6 Monate | 5,00 € | 2999 | month / 6 | "Beliebt" (default, "28% sparen") |
+| `yearly` | 49,99 €/Jahr | 4,17 € | 4999 | year / 1 | "Bestes Angebot" ("40% sparen") |
 
-> Repriced 2026-06-11 (previously 14,99 / 22,75 / 58,50). Existing Stripe subscriptions keep their old amount; only new checkouts use the new prices. App Store Connect subscription prices must be updated manually to match.
+> Repriced 2026-09-21 (previously 4,99 / 19,99 / 34,99 since 2026-09-17; weekly tier dropped that day). Existing Stripe subscriptions keep their old amount; only new checkouts use the new prices. App Store Connect subscription prices must match — see `store/STOREKIT-SETUP.md`.
 
 ### Boost credit packages (`boostController.js` / `iap.js`)
 

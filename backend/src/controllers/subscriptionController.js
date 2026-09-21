@@ -10,8 +10,8 @@ import { checkSubscriptionCountry } from '../utils/paymentRegion.js';
 // payment kill switch or shipping a deploy. Off => byte-identical to the
 // pre-tax behaviour.
 //
-// Prices stay GROSS: 4,99 € is what the customer is charged either way, and
-// 'inclusive' makes Stripe carve the VAT out of it (4,158 + 0,832 @ 20% AT)
+// Prices stay GROSS: 6,99 € is what the customer is charged either way, and
+// 'inclusive' makes Stripe carve the VAT out of it (5,825 + 1,165 @ 20% AT)
 // instead of adding it on top. That is also why enabling this later cost no
 // customer anything — nobody is ever charged more than the advertised price.
 const stripeTaxEnabled = () => process.env.STRIPE_TAX_ENABLED === 'true';
@@ -75,12 +75,12 @@ async function getProProductId(stripe) {
 // ==========================================
 // PRO PLAN CATALOG (server is authoritative on price)
 // ==========================================
-// Hinge-style tiered pricing (repriced 2026-09-17, prev. 2026-08-03 spec):
-//   • monthly — 4,99 €/Monat, baseline (no discount)
-//   • sixmonth— 19,99 €/6 Monate → 3,33 €/Monat, "33% sparen", "Beliebt"
-//   • yearly  — 34,99 €/Jahr    → 2,92 €/Monat, "42% sparen", "Bestes Angebot"
+// Hinge-style tiered pricing (repriced 2026-09-21 — Meeting Tina/Tobi/Arno; prev. 2026-09-17, 2026-08-03):
+//   • monthly — 6,99 €/Monat, baseline (no discount)
+//   • sixmonth— 29,99 €/6 Monate → 5,00 €/Monat, "28% sparen", "Beliebt"
+//   • yearly  — 49,99 €/Jahr    → 4,17 €/Monat, "40% sparen", "Bestes Angebot"
 // Per-month headlines derived so they stay honest:
-//   monthly 4,99/1 · 6mo 19,99/6=3,33 · yearly 34,99/12=2,92.
+//   monthly 6,99/1 · 6mo 29,99/6=5,00 · yearly 49,99/12=4,17.
 //
 // The weekly tier is GONE (Tina + Tobi, 16.09.2026): weekly billing means up to
 // 52 Rechnungen per subscription per year, which makes the bookkeeping side
@@ -91,21 +91,40 @@ async function getProProductId(stripe) {
 // amount_cents is the ONLY price the client can't influence — the request
 // just names a plan key; we look up the amount here.
 export const PRO_PLANS = {
-  monthly:  { amount_cents: 499,  interval: 'month', interval_count: 1, label: 'JAMIE Pro – 1 Monat' },
-  sixmonth: { amount_cents: 1999, interval: 'month', interval_count: 6, label: 'JAMIE Pro – 6 Monate' },
-  yearly:   { amount_cents: 3499, interval: 'year',  interval_count: 1, label: 'JAMIE Pro – 1 Jahr' },
+  monthly:  { amount_cents: 699,  interval: 'month', interval_count: 1, label: 'JAMIE Pro – 1 Monat' },
+  sixmonth: { amount_cents: 2999, interval: 'month', interval_count: 6, label: 'JAMIE Pro – 6 Monate' },
+  yearly:   { amount_cents: 4999, interval: 'year',  interval_count: 1, label: 'JAMIE Pro – 1 Jahr' },
 };
 // Fallback for an unknown/missing plan key. Deliberately NOT the same as the
 // frontend's pre-selected tile (DEFAULT_PLAN_KEY = 'sixmonth' in
 // utils/proPlans.js): the UI pre-selects the tile we want people to pick, the
 // server falls back to the SMALLEST charge, so a malformed request can never
-// bill someone 34,99 € for a plan they never saw.
+// bill someone 49,99 € for a plan they never saw.
 const DEFAULT_PLAN = 'monthly';
 
 // 14-day right of withdrawal (Widerruf — FAGG § 11, Variante A). Used by
 // getStatus (button visibility) AND withdrawSubscription (server-side enforce).
 const WITHDRAWAL_WINDOW_DAYS = 14;
 const WITHDRAWAL_WINDOW_MS = WITHDRAWAL_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+// Store-billed subscriptions are keyed `apple:<userId>` / `google:<userId>` in
+// stripe_customer_id (iapController / googleIapController). They have no Stripe
+// customer: portal, cancel and Widerruf all happen in the store, so every
+// Stripe-touching endpoint below must bounce them with `managed_by` instead
+// of handing the fake id to Stripe (cancelSubscription used to do exactly
+// that and 500'd for Apple subscribers).
+const STORE_MESSAGES = {
+  apple:  'Apple-Abonnement — bitte in den App Store Einstellungen verwalten',
+  google: 'Google-Play-Abonnement — bitte in Google Play → Abos verwalten',
+};
+export const storeOf = (customerId) => {
+  const id = typeof customerId === 'string' ? customerId : '';
+  if (id.startsWith('apple:')) return 'apple';
+  if (id.startsWith('google:')) return 'google';
+  return null;
+};
+const rejectStoreManaged = (res, store) =>
+  res.status(400).json({ error: STORE_MESSAGES[store], managed_by: store });
 
 // ==========================================
 // GET SUBSCRIPTION STATUS
@@ -127,7 +146,7 @@ export const getStatus = async (req, res) => {
     // 14-day Widerruf eligibility (Variante A): within the window of the original
     // sign-up AND Stripe-billed (Apple IAP refunds go through the App Store).
     // The withdraw endpoint re-checks this — the flag only drives button visibility.
-    const isAppleManaged = !!sub?.stripe_customer_id?.startsWith?.('apple:');
+    const store = storeOf(sub?.stripe_customer_id);
     const withinWindow = !!sub?.created_at &&
       (Date.now() - new Date(sub.created_at).getTime()) <= WITHDRAWAL_WINDOW_MS;
 
@@ -152,8 +171,11 @@ export const getStatus = async (req, res) => {
       is_trial: sub?.status === 'trialing',
       status: sub?.status || 'none',
       current_period_end: sub?.current_period_end || null,
-      withdrawal_eligible: !!isActive && !isAppleManaged && withinWindow,
+      withdrawal_eligible: !!isActive && !store && withinWindow,
       trial_eligible: trialEligible,
+      // 'stripe' | 'apple' | 'google' | null — the UI routes "manage / cancel"
+      // to the Stripe portal or to the store's own subscription page.
+      managed_by: sub ? (store || 'stripe') : null,
     });
   } catch (err) {
     console.error('getStatus error:', err);
@@ -449,11 +471,10 @@ export const createPortalSession = async (req, res) => {
     );
     const sub = result.rows[0];
     if (!sub) return res.status(404).json({ error: 'Kein Abonnement gefunden' });
-    if (!sub.stripe_customer_id || sub.stripe_customer_id.startsWith('apple:')) {
-      return res.status(400).json({
-        error: 'Apple-Abonnement — bitte in den App Store Einstellungen verwalten',
-        managed_by: 'apple',
-      });
+    const store = storeOf(sub.stripe_customer_id);
+    if (store) return rejectStoreManaged(res, store);
+    if (!sub.stripe_customer_id) {
+      return res.status(400).json({ error: 'Kein Stripe-Kunde zu diesem Abonnement', managed_by: 'unknown' });
     }
 
     const returnUrl = process.env.FRONTEND_URL?.split(',')[0] || 'https://app.jamie-app.com';
@@ -485,7 +506,7 @@ export const cancelSubscription = async (req, res) => {
 
   try {
     const result = await db.query(
-      `SELECT stripe_subscription_id FROM subscriptions
+      `SELECT stripe_subscription_id, stripe_customer_id FROM subscriptions
        WHERE user_id = $1 AND (status = 'active' OR status = 'canceling')
        ORDER BY id DESC LIMIT 1`,
       [req.userId]
@@ -494,7 +515,11 @@ export const cancelSubscription = async (req, res) => {
       return res.status(404).json({ error: 'Kein aktives Abonnement gefunden' });
     }
 
-    const { stripe_subscription_id } = result.rows[0];
+    const { stripe_subscription_id, stripe_customer_id } = result.rows[0];
+    // Store subscriptions are cancelled in the store (App Store / Google Play
+    // → Abos); the RTDN / App Store notification then flips our row.
+    const store = storeOf(stripe_customer_id);
+    if (store) return rejectStoreManaged(res, store);
     try {
       await stripe.subscriptions.update(stripe_subscription_id, { cancel_at_period_end: true });
     } catch (e) {
@@ -549,13 +574,10 @@ export const withdrawSubscription = async (req, res) => {
     const sub = result.rows[0];
     if (!sub) return res.status(404).json({ error: 'Kein aktives Abonnement gefunden' });
 
-    // Apple IAP subscriptions can't be refunded via Stripe.
-    if (sub.stripe_customer_id?.startsWith?.('apple:')) {
-      return res.status(400).json({
-        error: 'Apple-Abonnement — Widerruf/Erstattung bitte über den App Store anfordern.',
-        managed_by: 'apple',
-      });
-    }
+    // Store-billed (Apple / Google Play) subscriptions can't be refunded via
+    // Stripe — the Widerruf goes through the store's own refund flow.
+    const store = storeOf(sub.stripe_customer_id);
+    if (store) return rejectStoreManaged(res, store);
 
     // Enforce the 14-day window server-side (never trust the client flag).
     if (Date.now() - new Date(sub.created_at).getTime() > WITHDRAWAL_WINDOW_MS) {

@@ -1109,13 +1109,16 @@
       "withdrawDoneNoRefundToast": "Widerruf erfolgreich. Bei Fragen zur Rückerstattung melde dich bitte unter office@jamie-app.com.",
       "withdrawError": "Widerruf fehlgeschlagen. Bitte erneut versuchen oder office@jamie-app.com kontaktieren.",
       "portalBtn": "Abo verwalten (Zahlung, Rechnungen)",
+      "manageGooglePlay": "Abo in Google Play verwalten",
+      "managedByGoogleHint": "Dieses Abo läuft über Google Play. Kündigen, Zahlungsmethode und Rückerstattungen dort.",
       "portalError": "Portal konnte nicht geöffnet werden. Bitte erneut versuchen.",
       "restoreSuccess_one": "{{count}} Kauf wiederhergestellt",
       "restoreSuccess_other": "{{count}} Käufe wiederhergestellt",
       "restoreNone": "Keine Käufe zum Wiederherstellen",
       "restoreError": "Wiederherstellung fehlgeschlagen",
       "restoreBtn": "Käufe wiederherstellen",
-      "restoreHelper": "Auf neuem Gerät? Stellt aktive Abos und nicht eingelöste Käufe wieder her."
+      "restoreHelper": "Auf neuem Gerät? Stellt aktive Abos und nicht eingelöste Käufe wieder her.",
+      "restoreGoogleHelper": "Neues Gerät oder Kauf nicht angekommen? Ordnet deine Google-Play-Käufe diesem Konto zu."
     },
     "boostPurchases": {
       "title": "Boost-Käufe",
@@ -1401,9 +1404,9 @@
         "sixmonth": "6 Monate",
         "yearly": "1 Jahr"
       },
-      "billedMonthly": "4,99 € / Monat",
-      "billedSixmonth": "19,99 € alle 6 Monate",
-      "billedYearly": "34,99 € pro Jahr",
+      "billedMonthly": "6,99 € / Monat",
+      "billedSixmonth": "29,99 € alle 6 Monate",
+      "billedYearly": "49,99 € pro Jahr",
       "badges": {
         "popular": "Beliebt",
         "bestValue": "Bestes Angebot"
@@ -1415,6 +1418,7 @@
     "iosUnavailable": "JAMIE Pro ist auf dem iPhone derzeit nicht verfügbar.",
     "restoreBtn": "Käufe wiederherstellen",
     "iosTerms": "JAMIE Pro verlängert sich automatisch zum gewählten Preis am Ende jeder Laufzeit. Kündbar jederzeit über iOS-Einstellungen → Apple-ID → Abos, mindestens 24 Std. vor Ablauf.",
+    "playTerms": "JAMIE Pro verlängert sich automatisch zum gewählten Preis am Ende jeder Laufzeit. Abrechnung über Google Play; kündbar jederzeit in Google Play → Abos.",
     "terms": "AGB",
     "privacy": "Datenschutz",
     "contextCta": {

@@ -41,7 +41,7 @@ describe('STRIPE_TAX_ENABLED gate', () => {
 // back: gross prices. Whatever the tax flag does, the customer is charged the
 // advertised amount — tax is carved out, never added on top.
 describe('gross-price invariant', () => {
-  const PLANS = { monthly: 499, sixmonth: 1999, yearly: 3499 };
+  const PLANS = { monthly: 699, sixmonth: 2999, yearly: 4999 };
   const AT_VAT = 0.20;
 
   it('charges the advertised amount regardless of the tax flag', () => {
@@ -52,11 +52,11 @@ describe('gross-price invariant', () => {
   });
 
   it('carves 20% AT VAT out of the gross price', () => {
-    // 4,99 € gross => 4,158 net + 0,832 VAT (Stripe rounds to the cent).
-    const gross = PLANS.monthly;                 // 499
-    const net = Math.round(gross / (1 + AT_VAT)); // 416
-    const vat = gross - net;                      // 83
+    // 6,99 € gross => 5,825 net + 1,165 VAT (Stripe rounds to the cent).
+    const gross = PLANS.monthly;                 // 699
+    const net = Math.round(gross / (1 + AT_VAT)); // 583
+    const vat = gross - net;                      // 116
     expect(net + vat).toBe(gross);
-    expect(vat).toBe(83);
+    expect(vat).toBe(116);
   });
 });

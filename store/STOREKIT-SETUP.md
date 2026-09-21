@@ -49,11 +49,11 @@ Create one Subscription Group first ("JAMIE Pro"), then these three subscription
 
 | Product ID | Duration | Price | Per month | Note |
 |---|---|---|---|---|
-| `pro_monthly` | 1 Month | 4,99 € | 4,99 € | baseline (anchor, struck through on the others) |
-| `pro_sixmonth` | 6 Months | 19,99 € | 3,33 € | "33% sparen", default, badge "Beliebt" |
-| `pro_yearly` | 1 Year | 34,99 € | 2,92 € | "42% sparen", badge "Bestes Angebot" |
+| `pro_monthly` | 1 Month | 6,99 € | 6,99 € | baseline (anchor, struck through on the others) |
+| `pro_sixmonth` | 6 Months | 29,99 € | 5,00 € | "28% sparen", default, badge "Beliebt" |
+| `pro_yearly` | 1 Year | 49,99 € | 4,17 € | "40% sparen", badge "Bestes Angebot" |
 
-These match the backend `subscriptionController.js` `PRO_PLANS` (amount_cents 499 month/1, 1999 month/6, 3499 year/1) and the frontend `frontend/src/utils/proPlans.js`. (Repriced 2026-09-17 — the weekly tier was dropped and a yearly one added, see proPlans.js for why. This table had been stale since the 2026-08-03 repricing and is now back in sync with the code.)
+These match the backend `subscriptionController.js` `PRO_PLANS` (amount_cents 699 month/1, 2999 month/6, 4999 year/1) and the frontend `frontend/src/utils/proPlans.js`. (Repriced 2026-09-21 to 6,99/29,99/49,99 — Meeting Tina/Tobi/Arno; on 2026-09-17 the weekly tier was dropped and a yearly one added, see proPlans.js for why. This table had been stale since the 2026-08-03 repricing and is now back in sync with the code.)
 
 > Apple price tiers are discrete — pick the closest tier to each target. If a tier cannot match the exact amount, change `PRO_PLANS` in `backend/src/controllers/subscriptionController.js` to match Apple's tier so web/iOS show the same price.
 

@@ -51,9 +51,9 @@ git log --oneline -1
 - Zeigt `git status --short` **Dateien an** (z. B. `package-lock.json`), dann
   vor dem `git pull` einmal: `git checkout -- frontend/package-lock.json`
   (das ist eine automatisch erzeugte Datei, die darf weg).
-- Die letzte Zeile muss mit **`9d9f940`** beginnen (Commit vom 21.09.2026,
-  „feat(roster): …"). Steht dort ein älterer Commit, hat der Pull nicht
-  geklappt → **STOPP, Tobi.**
+- Die letzte Zeile muss **`feat(pricing): Pro-Abo 6,99 / 29,99 / 49,99`**
+  enthalten (Commit vom 21.09.2026 mit den neuen Preisen aus dem Meeting).
+  Steht dort etwas anderes, hat der Pull nicht geklappt → **STOPP, Tobi.**
 
 ## 2. Bauen und ins iOS-Projekt übertragen
 

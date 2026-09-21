@@ -1109,13 +1109,16 @@
       "withdrawDoneNoRefundToast": "Rétractation réussie. Pour toute question sur le remboursement, écris à office@jamie-app.com.",
       "withdrawError": "Échec de la rétractation. Réessaie ou contacte office@jamie-app.com.",
       "portalBtn": "Gérer l'abonnement (paiement, factures)",
+      "manageGooglePlay": "Gérer l'abonnement dans Google Play",
+      "managedByGoogleHint": "Cet abonnement est facturé par Google Play. Résiliation, moyen de paiement et remboursements s'y font.",
       "portalError": "Le portail n'a pas pu être ouvert. Réessaie, s'il te plaît.",
       "restoreSuccess_one": "{{count}} achat restauré",
       "restoreSuccess_other": "{{count}} achats restaurés",
       "restoreNone": "Aucun achat à restaurer",
       "restoreError": "Échec de la restauration",
       "restoreBtn": "Restaurer les achats",
-      "restoreHelper": "Nouvel appareil ? Restaure les abonnements actifs et les achats non utilisés."
+      "restoreHelper": "Nouvel appareil ? Restaure les abonnements actifs et les achats non utilisés.",
+      "restoreGoogleHelper": "Nouvel appareil ou achat non arrivé ? Associe tes achats Google Play à ce compte."
     },
     "boostPurchases": {
       "title": "Achats de boosts",
@@ -1401,9 +1404,9 @@
         "sixmonth": "6 mois",
         "yearly": "1 an"
       },
-      "billedMonthly": "4,99 € / mois",
-      "billedSixmonth": "19,99 € tous les 6 mois",
-      "billedYearly": "34,99 € par an",
+      "billedMonthly": "6,99 € / mois",
+      "billedSixmonth": "29,99 € tous les 6 mois",
+      "billedYearly": "49,99 € par an",
       "badges": {
         "popular": "Populaire",
         "bestValue": "Meilleure offre"
@@ -1415,6 +1418,7 @@
     "iosUnavailable": "JAMIE Pro n'est pas disponible sur iPhone pour le moment.",
     "restoreBtn": "Restaurer les achats",
     "iosTerms": "JAMIE Pro se renouvelle automatiquement au prix choisi à la fin de chaque période. Résiliable à tout moment dans Réglages iOS → Identifiant Apple → Abonnements, au moins 24 h avant l'échéance.",
+    "playTerms": "JAMIE Pro se renouvelle automatiquement au prix choisi à la fin de chaque période. Facturé par Google Play ; résiliable à tout moment dans Google Play → Abonnements.",
     "terms": "CGV",
     "privacy": "Confidentialité",
     "contextCta": {

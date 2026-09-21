@@ -4,10 +4,15 @@
 // the savings %, and the badge so the ProModal can render the Hinge-style
 // pricing grid. Keys MUST match the backend plan keys.
 //
-// Pricing (repriced 2026-09-17, prev. 2026-08-03):
-//   monthly  4,99 €/Monat                            (baseline, struck through on others)
-//   sixmonth 19,99 €/6 Monate → 3,33 €/Monat · 33%   DEFAULT + "Beliebt"
-//   yearly   34,99 €/Jahr    → 2,92 €/Monat · 42%    "Bestes Angebot"
+// Pricing (repriced 2026-09-21, prev. 2026-09-17 / 2026-08-03):
+//   monthly  6,99 €/Monat                            (baseline, struck through on others)
+//   sixmonth 29,99 €/6 Monate → 5,00 €/Monat · 28%   DEFAULT + "Beliebt"
+//   yearly   49,99 €/Jahr    → 4,17 €/Monat · 40%    "Bestes Angebot"
+//
+// Why 6,99 and not 4,99 (Tina + Tobi + Arno, Meeting 21.09.2026): the gross
+// price has to carry 20 % USt AND the 30 % store commission on iOS — at 4,99 €
+// only ~2,91 € net were left per month. 6,99 / 29,99 / 49,99 are the amounts
+// the market apparently accepts and all three are valid Apple price points.
 //
 // Why no weekly tier any more (Tina + Tobi, 16.09.2026): weekly terms make the
 // invoicing/bookkeeping side a mess (up to 52 Rechnungen pro Abo im Jahr) and
@@ -17,38 +22,38 @@
 // einem Monat"). The 14-day free trial is untouched.
 //
 // Per-month headlines are derived so they stay honest:
-//   monthly 4,99/1 · 6mo 19,99/6=3,33 · yearly 34,99/12=2,92.
-// Savings vs. the 4,99 baseline: 6mo 1-3.33/4.99 = 33% · yearly 1-2.92/4.99 = 42%.
+//   monthly 6,99/1 · 6mo 29,99/6=5,00 · yearly 49,99/12=4,17.
+// Savings vs. the 6,99 baseline: 6mo 1-5.00/6.99 = 28% · yearly 1-4.17/6.99 = 40%.
 
-export const BASELINE_MONTHLY = '4,99';
+export const BASELINE_MONTHLY = '6,99';
 
 export const PRO_PLANS = [
   {
     key: 'monthly',
-    perMonth: '4,99',
+    perMonth: '6,99',
     // i18n key suffixes resolved in ProModal via t(`pro.plans.${...}`)
     termKey: 'monthly',
-    billedKey: 'billedMonthly',    // "4,99 € / Monat"
+    billedKey: 'billedMonthly',    // "6,99 € / Monat"
     savings: null,
     badgeKey: null,
     strikethrough: false,
   },
   {
     key: 'sixmonth',
-    perMonth: '3,33',
+    perMonth: '5,00',
     termKey: 'sixmonth',
-    billedKey: 'billedSixmonth',   // "19,99 € alle 6 Monate"
-    savings: 33,
+    billedKey: 'billedSixmonth',   // "29,99 € alle 6 Monate"
+    savings: 28,
     badgeKey: 'popular',           // "Beliebt"
     strikethrough: true,
     isDefault: true,
   },
   {
     key: 'yearly',
-    perMonth: '2,92',
+    perMonth: '4,17',
     termKey: 'yearly',
-    billedKey: 'billedYearly',     // "34,99 € pro Jahr"
-    savings: 42,
+    billedKey: 'billedYearly',     // "49,99 € pro Jahr"
+    savings: 40,
     badgeKey: 'bestValue',         // "Bestes Angebot"
     strikethrough: true,
   },
