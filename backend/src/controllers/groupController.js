@@ -1728,10 +1728,15 @@ export const getGroupMembers = async (req, res) => {
       return res.status(404).json({ error: 'Gruppe nicht gefunden' });
     }
 
-    const isCallerMember = (await db.query(
-      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+    // Membership row incl. role: role='admin' is a CO-MANAGER (clubs promote
+    // members to it) — they help run the entity, so they see the whole roster
+    // like the owner does.
+    const memberRow = (await db.query(
+      'SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2',
       [id, req.userId]
-    )).rows.length > 0;
+    )).rows[0];
+    const isCallerMember = !!memberRow;
+    const callerIsManager = memberRow?.role === 'admin';
 
     // CLUBS resolve through this route too (legacy /group/:id links — same
     // table). Their roster privacy is owned by getClubMembers, which 403s
@@ -1760,27 +1765,23 @@ export const getGroupMembers = async (req, res) => {
     );
     const total = fullList.rows.length;
 
-    // #1 Pro gate: seeing the FULL member roster is a Pro tease for people who
-    // are NOT in the group. MEMBERS (plus the owner and admins) always see the
-    // whole roster; a non-member non-Pro non-admin sees only the first 3 entries
-    // (the frontend renders the next slot as a blurred locked tile with a
-    // ProModal CTA). Product call 2026-09-07 (Tina): members must see everyone
-    // in a group they've joined. This REVERSES the 2026-07-02 "groups' roster is
-    // Pro-only even for members" rule and re-aligns groups with clubs, which
-    // already let members through (getClubMembers) — so the gate is now purely
-    // "are you inside?" for groups AND clubs alike. Non-members stay gated so the
-    // "Alle Mitglieder sehen" Pro perk keeps its upsell surface. (This endpoint
-    // serves clubs too; a private club already 403'd its non-members above.)
+    // #1 Pro gate: seeing the FULL member roster is a PRO FEATURE — for
+    // members and non-members alike. Product call 2026-09-21 (Tobi, ahead of
+    // the Pro/IAP launch): "Alle Mitglieder sehen" must be a real Pro perk, so
+    // a plain member without Pro gets the same 3-avatar preview + total_count +
+    // gated flag as an outsider (the frontend renders the next slot as a
+    // blurred locked tile with a ProModal CTA). This REVERSES the 2026-09-07
+    // "members always see everyone" rule and applies to groups AND clubs
+    // (getClubMembers mirrors it). Exceptions — never gated, Pro or not:
+    //   • the OWNER (must manage + remove no-shows — Lea, 2026-07-30),
+    //   • a CO-MANAGER (group_members.role='admin'),
+    //   • platform ADMINS (moderation).
+    // Membership still matters for PRIVACY (private clubs 403 non-members
+    // above); it just no longer lifts the Pro gate.
     const callerIsPro = req.userId ? await isUserPro(req.userId) : false;
-    // The owner always sees — and manages — their own full roster. The Pro gate
-    // is a tease for OTHER viewers, not a lock on the organiser's own group.
-    // Without this a non-Pro owner saw only 3 of their members and couldn't
-    // remove no-shows from the roster (Lea, 2026-07-30).
     const callerIsOwner = req.userId != null &&
       Number(groupRes.rows[0].owner_id) === Number(req.userId);
-    // Members are ungated (groups AND clubs); only non-member non-Pro non-admins
-    // hit the 3-preview gate.
-    const gateApplies = !callerIsPro && !callerIsOwner && !isCallerMember;
+    const gateApplies = !callerIsPro && !callerIsOwner && !callerIsManager;
     let callerIsAdmin = false;
     if (gateApplies && req.userId) {
       const adm = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);
@@ -1789,7 +1790,7 @@ export const getGroupMembers = async (req, res) => {
     if (gateApplies && !callerIsAdmin) {
       return res.json({
         // Same field set the Home feed previews expose (+ the trusted badge
-        // the grids render). bio/location/role/joined_at stay members-only.
+        // the grids render). bio/location/role/joined_at stay behind the Pro gate.
         members: fullList.rows.slice(0, 3).map(m => ({
           id: m.id,
           name: m.name,

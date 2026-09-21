@@ -11,8 +11,9 @@ import { thumbUrl } from '../utils/images';
 import '../styles/club-detail.css';
 
 // Serves BOTH /club/:id/members and /group/:id/members — the list UI is
-// identical. Groups differ in one way: their members endpoint applies the
-// Pro gate (non-members without Pro get only the first 3 + gated flag),
+// identical. Both endpoints apply the Pro gate ("Alle Mitglieder sehen" is a
+// Pro feature since 2026-09-21: everyone without Pro — members included,
+// except owner / co-manager / admin — gets only the first 3 + gated flag),
 // which we surface as a locked hint row that opens the ProModal.
 export const ClubMembers = () => {
   const { id } = useParams();

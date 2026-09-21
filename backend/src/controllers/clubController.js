@@ -935,7 +935,7 @@ export const getClubMembers = async (req, res) => {
 
     // Ensure this is a club AND read is_private together — saves a round trip.
     const club = await db.query(
-      'SELECT id, is_private FROM groups WHERE id = $1 AND type = $2 AND deleted_at IS NULL',
+      'SELECT id, is_private, owner_id FROM groups WHERE id = $1 AND type = $2 AND deleted_at IS NULL',
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) {
@@ -972,21 +972,26 @@ export const getClubMembers = async (req, res) => {
     const total = result.rows.length;
 
     // Pro gate — mirrors getGroupMembers so "alle Mitglieder sehen" is a
-    // uniform Pro perk across groups AND clubs. Members of the club already see
-    // the whole roster; non-member non-Pro non-admins get only the first 3 + a
-    // gated flag (the frontend renders the rest as a locked Pro upsell). The
-    // isCallerMember check was already computed above for private clubs.
-    const isCallerMember = (await db.query(
-      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+    // uniform PRO FEATURE across groups AND clubs (Tobi, 2026-09-21). Being a
+    // member no longer lifts it: a non-Pro member gets the first 3 + total +
+    // gated flag (the frontend renders the rest as a locked Pro upsell).
+    // Never gated: the club OWNER, CO-MANAGERS (role='admin') and platform
+    // admins. Privacy (private club → 403 for outsiders) was handled above.
+    const memberRow = (await db.query(
+      'SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2',
       [id, req.userId]
-    )).rows.length > 0;
+    )).rows[0];
+    const callerIsOwner = req.userId != null &&
+      Number(club.rows[0].owner_id) === Number(req.userId);
+    const callerIsManager = memberRow?.role === 'admin';
     const callerIsPro = req.userId ? await isUserPro(req.userId) : false;
+    const gateApplies = !callerIsPro && !callerIsOwner && !callerIsManager;
     let callerIsAdmin = false;
-    if (!isCallerMember && !callerIsPro && req.userId) {
+    if (gateApplies && req.userId) {
       const adm = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);
       callerIsAdmin = !!adm.rows[0]?.is_admin;
     }
-    if (!isCallerMember && !callerIsPro && !callerIsAdmin) {
+    if (gateApplies && !callerIsAdmin) {
       return res.json({
         members: result.rows.slice(0, 3).map(m => ({
           id: m.id,

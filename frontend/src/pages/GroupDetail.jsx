@@ -283,9 +283,9 @@ export const GroupDetail = () => {
   };
 
   // Re-fetch the roster and re-derive the Pro-gate state. Hand-patching the
-  // members array after join/leave left gated/total stale: an ex-member kept
-  // seeing the full ungated roster, and a fresh member saw a synthetic self
-  // entry without age/trusted fields instead of the real ungated list.
+  // members array after join/leave left gated/total stale. Note: since
+  // 2026-09-21 joining does NOT lift the gate (Pro feature) — the server's
+  // `gated` flag is the only truth here.
   const refreshMembers = async (isClub) => {
     try {
       const res = isClub ? await clubs.getMembers(id) : await groups.getMembers(id);

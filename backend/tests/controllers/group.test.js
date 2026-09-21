@@ -9,6 +9,7 @@ process.env.NODE_ENV = 'test';
 const scenario = {
   group: { type: 'group', is_private: false }, // row returned for the groups lookup
   isMember: false,
+  memberRole: 'member',   // group_members.role of the caller when isMember ('admin' = co-manager)
   isAdmin: false,
   roster: [],
 };
@@ -32,7 +33,7 @@ vi.mock('../../src/config/database.js', () => ({
         return { rows: scenario.group ? [scenario.group] : [] };
       }
       if (text.includes('FROM group_members WHERE group_id')) {
-        return { rows: scenario.isMember ? [{ '?column?': 1 }] : [] };
+        return { rows: scenario.isMember ? [{ role: scenario.memberRole }] : [] };
       }
       if (text.includes('JOIN users u ON gm.user_id = u.id')) {
         return { rows: scenario.roster };
@@ -64,6 +65,7 @@ const { getGroupMembers, formatEventWhen } = await import('../../src/controllers
 beforeEach(() => {
   scenario.group = { type: 'group', is_private: false };
   scenario.isMember = false;
+  scenario.memberRole = 'member';
   scenario.isAdmin = false;
   scenario.roster = [1, 2, 3, 4, 5].map(makeRosterRow);
   isUserProMock.mockReset();
@@ -114,11 +116,22 @@ describe('getGroupMembers — Pro gate matrix', () => {
     expect(payload.members[0]).not.toHaveProperty('joined_at');
   });
 
-  // 2026-09-07 (Tina): members of a GROUP see the FULL roster again — only
-  // non-members are gated. Re-aligns groups with clubs (reverses the 2026-07-02
-  // "roster is Pro-only even for members" rule).
-  it('lets a plain (non-Pro) GROUP member through to the full roster', async () => {
+  // 2026-09-21 (Tobi): "Alle Mitglieder sehen" is a PRO FEATURE — being a
+  // member no longer lifts the gate (reverses the 2026-09-07 rule). A plain
+  // member gets the same 3-preview slice as an outsider.
+  it('gates a plain (non-Pro) GROUP member to the 3-preview slice', async () => {
     scenario.isMember = true;
+    const res = await call();
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.gated).toBe(true);
+    expect(payload.total_count).toBe(5);
+    expect(payload.members).toHaveLength(3);
+    expect(payload.members[0]).not.toHaveProperty('bio');
+  });
+
+  it('returns the full ungated roster to a non-Pro CO-MANAGER (role=admin)', async () => {
+    scenario.isMember = true;
+    scenario.memberRole = 'admin';
     const res = await call();
     const payload = res.json.mock.calls[0][0];
     expect(payload.gated).toBe(false);
@@ -169,12 +182,14 @@ describe('getGroupMembers — Pro gate matrix', () => {
     expect(res.status).toHaveBeenCalledWith(403);
   });
 
-  it('lets members through to a private club roster', async () => {
+  it('lets members past the PRIVACY 403 of a private club, but a non-Pro member still hits the Pro gate', async () => {
     scenario.group = { type: 'club', is_private: true };
     scenario.isMember = true;
     const res = await call();
     expect(res.status).not.toHaveBeenCalledWith(403);
-    expect(res.json.mock.calls[0][0].gated).toBe(false);
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.gated).toBe(true);
+    expect(payload.members).toHaveLength(3);
   });
 
   it('404s for deleted/nonexistent groups before any member logic', async () => {
