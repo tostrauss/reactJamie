@@ -984,8 +984,21 @@
   background: var(--bg-hover);
 }
 
+/* min-width: 0 lets the info column shrink below its content width — without
+   it a long event location ("Europaplatz 1/6, 1150 Wien, Österreich") set the
+   flex item's minimum size, the ellipsis never kicked in, and the group
+   picture was pushed off the right edge. The side buttons + avatar never
+   shrink; the text truncates instead. */
 .chat-page-info {
   flex: 1;
+  min-width: 0;
+}
+
+.chat-page-name,
+.chat-page-status {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chat-page-name {
@@ -995,11 +1008,18 @@
 }
 
 .chat-page-status {
+  display: block; /* DM header renders it as a <span> */
   font-size: 13px;
   color: var(--text-muted);
 }
 
+.chat-page-header > .back-button,
+.chat-page-header > .chat-avatar-placeholder {
+  flex-shrink: 0;
+}
+
 .chat-page-avatar {
+  flex-shrink: 0;
   width: 44px;
   height: 44px;
   border-radius: 50%;
