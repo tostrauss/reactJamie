@@ -31,6 +31,19 @@ export const BOOST_SINGLE_PURCHASES_ENABLED = false;
 // and any existing (test) subscriber must still be able to cancel.
 export const paymentsEnabled = () => process.env.PAYMENTS_ENABLED === 'true';
 
+// Per-store switches, both UNDER the master switch and both fail-closed.
+// Served to the clients at runtime via GET /api/iap/config
+// (revenueCatController.getPaymentsConfig). Since 23.09.2026 the frontend has
+// no compiled-in payment consts any more: the iOS app bundles the web build,
+// so a const would freeze the decision until the next App Store release.
+//   IOS_IAP_ENABLED=true       → iPhone app sells Pro via RevenueCat/StoreKit
+//                                (also needs REVENUECAT_IOS_API_KEY +
+//                                REVENUECAT_SECRET_API_KEY)
+//   PLAY_BILLING_ENABLED=true  → Play-TWA sells Pro via Google Play Billing
+//                                (also needs GOOGLE_PLAY_SERVICE_ACCOUNT_JSON)
+export const iosIapEnabled = () => paymentsEnabled() && process.env.IOS_IAP_ENABLED === 'true';
+export const playBillingEnabled = () => paymentsEnabled() && process.env.PLAY_BILLING_ENABLED === 'true';
+
 // Stripe checkout must run in a real web browser, never inside the Play-Store
 // TWA or the iOS app shell — offering third-party billing for digital goods
 // inside a store app violates Google Play / Apple billing policy and risks app

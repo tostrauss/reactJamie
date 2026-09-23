@@ -1116,7 +1116,9 @@
       "restoreError": "Wiederherstellung fehlgeschlagen",
       "restoreBtn": "Käufe wiederherstellen",
       "restoreHelper": "Auf neuem Gerät? Stellt aktive Abos und nicht eingelöste Käufe wieder her.",
-      "restoreGoogleHelper": "Neues Gerät oder Kauf nicht angekommen? Ordnet deine Google-Play-Käufe diesem Konto zu."
+      "restoreGoogleHelper": "Neues Gerät oder Kauf nicht angekommen? Ordnet deine Google-Play-Käufe diesem Konto zu.",
+      "manageAppStore": "Abo im App Store verwalten",
+      "managedByAppleHint": "Dieses Abo läuft über Apple. Kündigen, Tarif wechseln und Rückerstattungen dort."
     },
     "boostPurchases": {
       "title": "Boost-Käufe",
@@ -1408,7 +1410,10 @@
       "badges": {
         "popular": "Beliebt",
         "bestValue": "Bestes Angebot"
-      }
+      },
+      "billedMonthlyStore": "{{price}} / Monat",
+      "billedSixmonthStore": "{{price}} alle 6 Monate",
+      "billedYearlyStore": "{{price}} pro Jahr"
     },
     "unexpectedStatus": "Das hat leider nicht geklappt. Bitte versuche es erneut.",
     "restoreNone": "Keine Käufe zum Wiederherstellen gefunden",
@@ -1423,7 +1428,14 @@
       "paidEvents": "Erstelle jetzt dein kostenpflichtiges Event!",
       "reviewRequests": "Verwalte deine Beitrittsanfragen wie ein Profi!",
       "boosts": "Booste deine Gruppe jetzt ganz nach oben!"
-    }
+    },
+    "trialHeadlineDays_one": "🎁 Starte mit {{count}} Tag kostenlos",
+    "trialHeadlineDays_other": "🎁 Starte mit {{count}} Tagen kostenlos",
+    "trialHeadlineGeneric": "🎁 Starte mit einer kostenlosen Testphase",
+    "ctaTrialStartDays_one": "🎁 {{count}} Tag kostenlos starten",
+    "ctaTrialStartDays_other": "🎁 {{count}} Tage kostenlos starten",
+    "ctaTrialStartGeneric": "🎁 Kostenlos testen",
+    "storeTrialTerms": "Nach der Testphase wird {{price}} abgebucht, außer du kündigst mindestens 24 Std. vor Ende."
   },
   "boost": {
     "title": "🚀 Boost",

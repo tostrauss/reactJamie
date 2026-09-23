@@ -131,9 +131,19 @@ const rejectStoreManaged = (res, store) =>
 // ==========================================
 export const getStatus = async (req, res) => {
   try {
+    // A user can have rows from several channels (Stripe on the web, Apple via
+    // RevenueCat, Google Play). The row that currently GRANTS Pro wins; only
+    // without one does the newest row decide. Plain "newest row" let an
+    // expired store row hide a live Stripe sub, so the UI said "no Pro" while
+    // isUserPro (any active row) said Pro.
     const result = await db.query(
       `SELECT status, current_period_end, created_at, stripe_subscription_id, stripe_customer_id
-       FROM subscriptions WHERE user_id = $1 ORDER BY id DESC LIMIT 1`,
+       FROM subscriptions WHERE user_id = $1
+       -- COALESCE: a NULL period end makes the expression NULL, and DESC
+       -- sorts NULLs FIRST in Postgres, which would put pending rows on top.
+       ORDER BY COALESCE(status IN ('active','canceling','trialing') AND current_period_end > NOW(), false) DESC,
+                id DESC
+       LIMIT 1`,
       [req.userId]
     );
     const sub = result.rows[0];

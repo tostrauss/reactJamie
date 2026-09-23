@@ -2,7 +2,7 @@
 
 Was das ist: Schritt-für-Schritt, um JAMIE Pro **in der Play-Store-App** über Google Play Billing zu verkaufen. Für Tobi (Code, Cloud, Railway) — die Play-Console-Schritte kann auch Tina machen, Zugriff auf `office@impibag.com` (Play-Developer-Konto) vorausgesetzt.
 
-Stand: 21.09.2026. Code ist **komplett gebaut**, Schalter `PLAY_BILLING_ENABLED = false` in `frontend/src/utils/platform.js`. Live-Schaltung erst nach dem Lizenztester-Kauf (Schritt 8).
+Stand: 23.09.2026. Code ist **komplett gebaut**. Der Schalter ist seit 23.09. die **Railway-Variable `PLAY_BILLING_ENABLED`** (vorher eine Konstante in `platform.js`). Die App liest ihn beim Start über `GET /api/iap/config`, es braucht also keinen Deploy. Live-Schaltung erst nach dem Lizenztester-Kauf (Schritt 8).
 
 **Nur Abos.** Boosts werden in der Play-App **nicht** einzeln verkauft („Boosts bleiben, nur keine Einzelkäufe", Tina 21.09.2026) — der Boost-„Kaufen"-Tab ist in der TWA ausgeblendet, es gibt kein Consumable und kein `consume()`.
 
@@ -149,12 +149,12 @@ Das `.aab` in den **Internen Test-Track** hochladen. Play muss den Build kennen,
 
 ## 7. Schalter
 
-Reihenfolge wie beim Stripe-Go-Live: **zuerst** Server (Railway `PAYMENTS_ENABLED=true` + Schritt 3), **dann** Frontend `PLAY_BILLING_ENABLED = true` in `frontend/src/utils/platform.js` deployen. Umgekehrt zeigt die App Kauf-UI, der Server 403t.
+Beides sind Railway-Variablen, kein Deploy nötig: `PAYMENTS_ENABLED=true` (Master) und `PLAY_BILLING_ENABLED=true`. Der Server meldet Play nur dann als aktiv, wenn zusätzlich der Service-Account aus Schritt 3 gesetzt ist, sonst bleibt die App beim „Bald verfügbar". Die Apps übernehmen den Schalter beim nächsten Start oder wenn sie in den Vordergrund kommen. Rollback: `PLAY_BILLING_ENABLED=false`.
 
 `purchasesEnabled()` wird in der TWA nur true, wenn zusätzlich `window.getDigitalGoodsService` existiert — auf **alten Play-Builds (≤ 10)** bleibt automatisch der „Bald verfügbar"-Teaser stehen. Niemand läuft in einen kaputten Kauf.
 
 - [ ] `PAYMENTS_ENABLED=true` in Railway
-- [ ] `PLAY_BILLING_ENABLED = true` deployed
+- [ ] `PLAY_BILLING_ENABLED=true` in Railway
 
 ## 8. Erster Testkauf
 
@@ -169,7 +169,7 @@ Auf einem Android-Gerät mit einem Lizenztester-Konto die App **aus dem internen
 7. Restore: App neu installieren oder Konto neu anmelden → Einstellungen → „Käufe wiederherstellen" → `restored: 1`.
 
 Wenn es hängt, in dieser Reihenfolge prüfen:
-- Kaufbogen erscheint nicht / Stripe erscheint → alter Build oder `PLAY_BILLING_ENABLED` false → `window.getDigitalGoodsService` in Chrome-DevTools (chrome://inspect) prüfen.
+- Kaufbogen erscheint nicht / Stripe erscheint → alter Build, Railway `PLAY_BILLING_ENABLED` nicht true oder Service-Account fehlt (prüfen: `https://app.jamie-app.com/api/iap/config` → `play_billing_enabled`) → `window.getDigitalGoodsService` in Chrome-DevTools (chrome://inspect) prüfen.
 - `503 PLAY_NOT_CONFIGURED` → Service-Account-JSON kaputt oder Play-Einladung noch nicht wirksam (bis 48 h).
 - `400 PURCHASE_INVALID` → Produkt-ID stimmt nicht mit Play überein, oder Build nicht im Track.
 - `409 TOKEN_OWNED_BY_OTHER` → dasselbe Play-Konto hat schon mit einem anderen JAMIE-Konto gekauft (gewollt).

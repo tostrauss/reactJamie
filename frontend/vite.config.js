@@ -47,11 +47,8 @@ export default defineConfig({
     target: ['chrome87', 'firefox78', 'safari14', 'edge88'],
     sourcemap: 'hidden', // generates maps for Sentry upload but does NOT embed URL in bundle
     rollupOptions: {
-      // iap.js dynamically imports this StoreKit plugin, but the package does
-      // not exist on npm yet (plugin choice pending — store/STOREKIT-SETUP.md).
-      // Externalize so Rollup skips resolution; the import only runs behind an
-      // isNativeIOS() guard and its .catch degrades to IapUnavailableError.
-      external: ['@capacitor-community/in-app-purchases'],
+      // iap.js imports @revenuecat/purchases-capacitor dynamically, so it
+      // lands in its own chunk and is only fetched inside the iOS app.
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],

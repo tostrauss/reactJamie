@@ -1,5 +1,7 @@
 # iOS In-App-Käufe — Ist-Zustand & Optionen
 
+> **Ersetzt am 23.09.2026:** iOS-Käufe laufen jetzt über **RevenueCat**, Runbook: [REVENUECAT-SETUP.md](REVENUECAT-SETUP.md). Die Schalter sind Railway-Variablen (`PAYMENTS_ENABLED`, `IOS_IAP_ENABLED`), keine Konstanten in `platform.js` mehr. Dieses Dokument ist nur noch Historie.
+
 **Frage:** Boosts & JAMIE Pro lassen sich auf dem iPhone nicht kaufen. Was tun
 vor dem iOS-Launch? Echtes IAP bauen oder die Bezahl-Features auf iOS ausblenden?
 

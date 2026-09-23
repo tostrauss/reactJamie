@@ -6,7 +6,8 @@ import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { UserName } from '../components/UserName';
 import VerifiedBadge from '../components/VerifiedBadge';
-import { isNativeIOS } from '../utils/platform';
+import { proUpsellAllowed } from '../utils/platform';
+import { usePaymentsConfig } from '../utils/paymentsConfig';
 import { thumbUrl } from '../utils/images';
 import '../styles/club-detail.css';
 
@@ -21,6 +22,7 @@ export const ClubMembers = () => {
   const location = useLocation();
   const toast = useToast();
   const { t } = useTranslation();
+  usePaymentsConfig(); // re-render when the runtime payments config arrives
   const { user } = useContext(AuthContext);
 
   const isGroup = location.pathname.startsWith('/group/');
@@ -205,9 +207,9 @@ export const ClubMembers = () => {
 
           {/* Pro gate (groups only): the API returned just the first 3 of
               total_count members. Locked row opens the global ProModal.
-              Nie auf nativem iOS — kein Pro-Upsell ohne Kaufweg (Apple 3.1.1);
+              Nicht in der iOS-App ohne Kaufweg — kein Pro-Upsell (Apple 3.1.1);
               dort endet die Liste einfach still nach den sichtbaren Einträgen. */}
-          {!loading && gated && totalCount > members.length && !isNativeIOS() && (
+          {!loading && gated && totalCount > members.length && proUpsellAllowed() && (
             <button
               className="cd-members-gated"
               onClick={() => window.dispatchEvent(new Event('jamie:open-pro-modal'))}

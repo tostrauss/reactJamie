@@ -1,7 +1,15 @@
-# iOS-Update für Tina — Version 1.4.2 (Chat, Reaktionen, Benachrichtigungen)
+# iOS-Update für Tina — Version 1.4.2 (Chat, Reaktionen, Benachrichtigungen, JAMIE Pro)
 
-Stand: **21.09.2026** · Ziel: **Version 1.4.2** in den App Store bringen.
-Code ist gepusht, Backend ist auf Railway live — du kannst sofort loslegen.
+Stand: **23.09.2026** · Ziel: **Version 1.4.2** in den App Store bringen,
+**mit den Pro-Abos**.
+
+**Reihenfolge:**
+1. Du richtest **App Store Connect + RevenueCat** ein, genau nach
+   [REVENUECAT-SETUP.md](REVENUECAT-SETUP.md), Teile A und B. Die drei
+   Schlüssel am Ende gehen an Tobi.
+2. Tobi pusht den Code und setzt die Schalter in Railway (Teil C dort).
+3. **Erst dann** diese Anleitung ab Schritt 1. Der Kauftest in Schritt 5
+   geht nur, wenn Tobi „Schalter sind an" gesagt hat.
 
 **Warum überhaupt?** Push funktioniert seit 1.4.1 — das ist erledigt und bleibt
 so. Aber seit dem letzten iPhone-Build (05.09.) ist im Chat und bei den
@@ -17,8 +25,9 @@ Web-Version**. iPhone-Nutzer bekommen mit diesem Update:
   Schalter, die **nichts bewirken**.
 - **Gruppen:** Mitgliederliste und eine neue **Anfragen-Übersicht**.
 - **Melden & Moderation** im Chat plus viele kleine Verbesserungen.
-- **Boosts:** kein Kauf-Tab mehr — Boosten ist Teil von Pro (Meeting 21.09.).
-  Auf dem iPhone steht dort nur ein neutraler Hinweis, kein Kauf-Knopf.
+- **JAMIE Pro (NEU):** zum ersten Mal auf dem iPhone kaufbar, als Abo über
+  Apple (1 Monat / 6 Monate / 1 Jahr). Boosten ist Teil von Pro, einzelne
+  Boosts gibt es nicht mehr zu kaufen (Meeting 21.09.).
 
 Android muss dafür **nichts** tun (läuft über den Web-Deploy, ist längst aktuell).
 
@@ -53,10 +62,9 @@ git log --oneline -3
 - Zeigt `git status --short` **Dateien an** (z. B. `package-lock.json`), dann
   vor dem `git pull` einmal: `git checkout -- frontend/package-lock.json`
   (das ist eine automatisch erzeugte Datei, die darf weg).
-- Unter den drei Zeilen muss **`feat(boost): keine Boost-Einzelkäufe mehr`**
-  stehen (Commit `461d57b` vom 21.09.2026 nach dem Meeting; die neuen Preise
-  6,99 / 29,99 / 49,99 und Play Billing sind ältere Commits darunter). Fehlt
-  die Zeile, hat der Pull nicht geklappt → **STOPP, Tobi.**
+- Unter den drei Zeilen muss **`feat(payments): iOS-Abos über RevenueCat`**
+  stehen (Commit vom 23.09.2026). Fehlt die Zeile, hat der Pull nicht
+  geklappt oder Tobi hat noch nicht gepusht → **STOPP, Tobi.**
 
 ## 2. Bauen und ins iOS-Projekt übertragen
 
@@ -81,6 +89,10 @@ bash ios/4-preflight.sh
   in diesem Build nicht funktionieren, das Archivieren wäre umsonst).
 - Der Hinweis „@capacitor/core … doesn't match @capacitor/ios" ist eine
   Warnung, kein Fehler — ignorieren.
+- **Neu in diesem Build:** `npx cap sync ios` installiert das
+  RevenueCat-Modul. In der Ausgabe taucht dabei
+  **`@revenuecat/purchases-capacitor`** auf. Fehlt es, war `npm install`
+  nicht erfolgreich → Screenshot an Tobi.
 - `pod: command not found` → einmalig `sudo gem install cocoapods`, dann
   `npx cap sync ios` wiederholen.
 
@@ -102,7 +114,9 @@ Xcode öffnet das Projekt. Dann:
 3. Reiter **Signing & Capabilities**: In der Liste muss **„Push Notifications"**
    stehen. Steht es da → gut. Fehlt es → **STOPP, Tobi** (dann nicht
    archivieren, der Build wäre umsonst).
-4. Steht bei Signing etwas Rotes: Häkchen „Automatically manage signing"
+4. **Neu:** Im selben Reiter **„+ Capability"** → **„In-App Purchase"**
+   hinzufügen (falls es nicht schon in der Liste steht).
+5. Steht bei Signing etwas Rotes: Häkchen „Automatically manage signing"
    einmal aus- und wieder einschalten. Bleibt es rot → Screenshot an Tobi.
 
 ## 4. Archivieren und hochladen
@@ -177,13 +191,35 @@ der eigenen Nachricht muss **zugestellt/gelesen** erscheinen. In
 **Einstellungen** den Schalter dafür **ausschalten** — dann verschwinden die
 Bestätigungen für beide Seiten. Danach nach Belieben wieder einschalten.
 
-Klappt a–f → weiter zu Schritt 7. Hakt etwas → Schritt 6.
+**g) JAMIE Pro kaufen (NEU — der wichtigste Test).** Vorher muss Tobi
+gesagt haben: „Schalter sind an". In TestFlight kostet der Kauf **nichts**
+(Apple bucht dort nie echt ab).
+
+1. **Profil** → Karte **„JAMIE Pro"** antippen. Es erscheinen drei Tarife mit
+   **Preisen in Euro** (z. B. 29,99 € alle 6 Monate) und darunter
+   **„Käufe wiederherstellen"** sowie der Hinweis zur automatischen
+   Verlängerung.
+2. 6 Monate wählen → Häkchen setzen → **Jetzt starten**. Der **Apple-Kaufbogen**
+   erscheint (mit „[Sandbox]" oder TestFlight-Hinweis) → bestätigen.
+3. Die App zeigt die Krone mit **Konfetti**. Danach
+   **Einstellungen**: oben steht **„JAMIE Pro · Aktiv"** und darunter
+   **„Abo im App Store verwalten"**. **Kein** „Abonnement kündigen"-Knopf von
+   JAMIE, das ist richtig so (Apple-Abos kündigt man bei Apple).
+4. **„Käufe wiederherstellen"** in den Einstellungen antippen → Meldung
+   „1 Kauf wiederhergestellt".
+
+Steht bei Schritt 1 **„JAMIE Pro ist auf dem iPhone derzeit nicht verfügbar"**:
+Apple liefert die Abos noch nicht aus (Paid-Apps-Vertrag oder Abos nicht
+„Bereit zur Einreichung", siehe REVENUECAT-SETUP.md A1/A2) → Tobi. Gibt es
+**gar keine** Pro-Karte im Profil: Schalter sind noch aus → Tobi.
+
+Klappt a–g → weiter zu Schritt 7. Hakt etwas → Schritt 6.
 
 ## 6. Wenn etwas nicht klappt
 
 Nicht rumprobieren. Schick Tobi:
 
-1. **Was** nicht ging (a–f) und die **Uhrzeit** auf die Minute.
+1. **Was** nicht ging (a–g) und die **Uhrzeit** auf die Minute.
 2. **Screenshot** der Seite, auf der es hakt.
 3. Nur bei Push-Problemen zusätzlich die Ausgabe von:
 
@@ -209,6 +245,7 @@ Auf https://appstoreconnect.apple.com → **Meine Apps → JAMIE → Vertrieb**:
    • Benachrichtigungen: Erinnerungen vor deinen Events und zwei Schalter, mit denen du selbst bestimmst, was ankommt
    • Gruppen: Mitgliederliste und eine neue Übersicht für Beitrittsanfragen (sortieren, filtern, alle annehmen)
    • Melden & Moderation im Chat sowie viele kleine Verbesserungen
+   • NEU: JAMIE Pro – boosten, volle Mitgliederlisten und mehr, jetzt auch auf dem iPhone
    ```
 
    **Englisch**:
@@ -219,6 +256,7 @@ Auf https://appstoreconnect.apple.com → **Meine Apps → JAMIE → Vertrieb**:
    • Notifications: reminders before your events and two switches so you decide what reaches you
    • Groups: member list and a new overview for join requests (sort, filter, accept all)
    • Report & moderation in chat, plus many small improvements
+   • NEW: JAMIE Pro – boosts, full member lists and more, now on iPhone
    ```
 
    **Italienisch** (falls das Feld da ist):
@@ -229,13 +267,18 @@ Auf https://appstoreconnect.apple.com → **Meine Apps → JAMIE → Vertrieb**:
    • Notifiche: promemoria prima dei tuoi eventi e due interruttori per decidere cosa ricevere
    • Gruppi: elenco dei membri e una nuova panoramica delle richieste di partecipazione (ordina, filtra, accetta tutte)
    • Segnalazione e moderazione in chat, più tante piccole migliorie
+   • NOVITÀ: JAMIE Pro – boost, elenchi membri completi e altro, ora anche su iPhone
    ```
 
    (Frankreich/Spanien: englischen Text einsetzen oder Tobi fragen.)
 3. Abschnitt **Build**: „+" → Build **11** auswählen.
+   **Neu:** Direkt darunter im Abschnitt **„In-App-Käufe und Abonnements"**
+   auf „+" → alle **drei** Abos (`pro_monthly`, `pro_sixmonth`, `pro_yearly`)
+   auswählen. Die ersten Abos einer App **müssen** zusammen mit einer Version
+   eingereicht werden, sonst prüft Apple sie nicht.
 4. **App-Review-Informationen**: Anmelden erforderlich = **Ja**, Demo-Account
    `playreview@jamie-app.com` + Passwort (Passwort-Manager). Notiz:
-   `Login via e-mail only on iOS. Voice messages need microphone permission (tap the mic icon in any chat).`
+   `Login via e-mail only on iOS. Voice messages need microphone permission (tap the mic icon in any chat). JAMIE Pro subscriptions: Profile tab → "JAMIE Pro" card, or Settings → "JAMIE Pro". "Restore Purchases" is in the same sheet and in Settings.`
 5. Oben rechts **„Zur Prüfung hinzufügen" / „Bei App-Review einreichen"**.
 
 Review dauert meist unter 24 h. Nach Freigabe wird automatisch veröffentlicht.
@@ -258,9 +301,11 @@ Review dauert meist unter 24 h. Nach Freigabe wird automatisch veröffentlicht.
 | Build taucht in TestFlight nicht auf | 45 Min. warten, Mail prüfen |
 | In den Einstellungen stehen noch die alten drei Schalter | Alter Stand gebaut → Schritt 1 und 2 nochmal |
 | Sprachnachricht: keine Mikrofon-Frage / App schließt sich | Mikrofon-Berechtigung fehlt → Tobi (Preflight prüfen) |
+| Pro-Fenster: „derzeit nicht verfügbar" | Paid-Apps-Vertrag / Abos nicht bereit (REVENUECAT-SETUP.md A1/A2) |
+| Kauf klappt, aber kein „Pro · Aktiv" | Entitlement `pro` in RevenueCat fehlt oder Produkt nicht angehängt (B2) → Tobi |
 | Apple-Review lehnt ab | Begründung als Screenshot an Tobi |
 
 **Was du NICHT anfassen musst:** Android (läuft über den Web-Deploy und ist
 automatisch aktuell — dort kommt **kein** Store-Update, das ist richtig so),
-Bezahlfunktionen (bewusst aus), Server/Railway (Tobi), der Apple-Push-Key im
+Server/Railway und die Kauf-Schalter (Tobi), der Apple-Push-Key im
 Developer-Portal (ist schon richtig eingetragen).

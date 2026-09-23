@@ -1116,7 +1116,9 @@
       "restoreError": "Ripristino non riuscito",
       "restoreBtn": "Ripristina acquisti",
       "restoreHelper": "Nuovo dispositivo? Ripristina abbonamenti attivi e acquisti non riscattati.",
-      "restoreGoogleHelper": "Nuovo dispositivo o acquisto non arrivato? Collega i tuoi acquisti Google Play a questo account."
+      "restoreGoogleHelper": "Nuovo dispositivo o acquisto non arrivato? Collega i tuoi acquisti Google Play a questo account.",
+      "manageAppStore": "Gestisci l’abbonamento nell’App Store",
+      "managedByAppleHint": "Questo abbonamento è gestito da Apple. Disdetta, cambio piano e rimborsi si fanno lì."
     },
     "boostPurchases": {
       "title": "Acquisti Boost",
@@ -1408,7 +1410,10 @@
       "badges": {
         "popular": "Popolare",
         "bestValue": "Migliore offerta"
-      }
+      },
+      "billedMonthlyStore": "{{price}} / mese",
+      "billedSixmonthStore": "{{price}} ogni 6 mesi",
+      "billedYearlyStore": "{{price}} all’anno"
     },
     "unexpectedStatus": "Non ha funzionato. Riprova.",
     "restoreNone": "Nessun acquisto da ripristinare trovato",
@@ -1423,7 +1428,14 @@
       "paidEvents": "Crea subito il tuo evento a pagamento!",
       "reviewRequests": "Gestisci le tue richieste come un professionista!",
       "boosts": "Boosta il tuo gruppo in cima adesso!"
-    }
+    },
+    "trialHeadlineDays_one": "🎁 Inizia con {{count}} giorno gratis",
+    "trialHeadlineDays_other": "🎁 Inizia con {{count}} giorni gratis",
+    "trialHeadlineGeneric": "🎁 Inizia con una prova gratuita",
+    "ctaTrialStartDays_one": "🎁 Inizia {{count}} giorno gratis",
+    "ctaTrialStartDays_other": "🎁 Inizia {{count}} giorni gratis",
+    "ctaTrialStartGeneric": "🎁 Prova gratis",
+    "storeTrialTerms": "Al termine della prova verrà addebitato {{price}}, salvo disdetta almeno 24 ore prima."
   },
   "boost": {
     "title": "🚀 Boost",

@@ -7,6 +7,7 @@ import { auth, subscription as subscriptionApi, groups as groupsApi, clubs as cl
 import SpotifySongPicker from '../components/SpotifySongPicker';
 import { ProModal } from '../components/ProModal';
 import { purchasesEnabled } from '../utils/platform';
+import { usePaymentsConfig } from '../utils/paymentsConfig';
 import { shareLink } from '../utils/share';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { ProfilePhotoCarousel } from '../components/ProfilePhotoCarousel';
@@ -46,6 +47,7 @@ export const Profile = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const { t, i18n } = useTranslation();
+  usePaymentsConfig(); // re-render when the runtime payments config arrives
   const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : ((i18n.resolvedLanguage || i18n.language || 'de').startsWith('fr') ? 'fr-FR' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('es') ? 'es-ES' : 'de-AT');
   // Tab held in the URL (?tab=halloffame) so opening a past event from Hall of
   // Fame and swiping back restores the tab. replace:true so tab clicks don't
@@ -235,7 +237,7 @@ export const Profile = () => {
             </div>
           )}
 
-          {/* Pro CTA — hidden on iOS until in-app purchases ship (no dead-end upsell). */}
+          {/* Pro CTA — only where a purchase is possible (purchasesEnabled: web, or the iOS/Play app with store billing live). No dead-end upsell. */}
           {!isPro && purchasesEnabled() && (
             <button className="pro-cta-card" onClick={() => setShowProModal(true)}>
               <div className="pro-card-icon">👑</div>

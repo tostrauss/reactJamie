@@ -1,5 +1,7 @@
 # Apple In-App Purchase (StoreKit) Setup
 
+> **Ersetzt am 23.09.2026:** iOS-Käufe laufen jetzt über **RevenueCat**, Runbook: [REVENUECAT-SETUP.md](REVENUECAT-SETUP.md). Die Schalter sind Railway-Variablen (`PAYMENTS_ENABLED`, `IOS_IAP_ENABLED`), keine Konstanten in `platform.js` mehr. Dieses Dokument ist nur noch Historie.
+
 What this is: the runbook for setting up Apple In-App Purchases for JAMIE. Who it's for: the person submitting the iOS app. Android (TWA) does not need any of this — it uses Stripe.
 
 Apple Guideline 3.1.1 requires StoreKit for all digital goods sold inside an iOS app. So on iOS, boosts and Pro subscriptions go through StoreKit. Stripe stays live on web and Android only. The iOS Stripe path must be completely hidden.

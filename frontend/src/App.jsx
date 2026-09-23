@@ -10,7 +10,9 @@ import { SocketContext, SocketProvider } from './context/SocketContext';
 import { ToastProvider } from './context/ToastContext';
 import { NetworkProvider } from './context/NetworkContext';
 import ErrorBoundary from './components/ErrorBoundary';
-import { isNative, isNativeIOS } from './utils/platform';
+import { isNative, isNativeIOS, proUpsellAllowed } from './utils/platform';
+import { usePaymentsConfig } from './utils/paymentsConfig';
+import { loadPaymentsConfig, identifyIapUser } from './utils/iap';
 import { REGION_BOUNDS } from './utils/regions';
 import { AppIntro, shouldShowIntro } from './pages/AppIntro';
 const ProModal = lazyWithReload(() => import('./components/ProModal').then(m => ({ default: m.ProModal })));
@@ -890,22 +892,39 @@ function AppRoutes() {
   // Global Pro-modal trigger — fired by GroupCard's Pro lock and any other
   // component that needs to surface the upgrade sheet from deep in the tree.
   // Plain window event keeps the contract loose; no provider/context plumbing.
-  // NATIVE iOS: never opens (Tobi 2026-08-05, vor dem iOS-1.3-Build). Apple
-  // 3.1.1 — die App darf keinen Kauf bewerben, den sie in-app nicht erfüllen
-  // kann (Stripe ist auf iOS aus, StoreKit-IAP nicht gebaut). Die sichtbaren
-  // Pro-Locks sind auf iOS ebenfalls ausgeblendet; das hier ist die harte
-  // Garantie für jeden künftigen Trigger.
+  // NATIVE iOS: opens only while the server has iOS sales on
+  // (proUpsellAllowed). Apple 3.1.1: the app must not advertise a purchase it
+  // can't fulfil in-app. Checked at EVENT time, not at mount, because the
+  // runtime payments config can arrive after this effect ran. This is the
+  // hard guarantee for every present and future trigger.
   useEffect(() => {
-    if (isNativeIOS()) return;
     // CustomEvent detail is optional — a plain Event (every existing caller)
     // just yields the generic pitch.
     const open = (e) => {
+      if (!proUpsellAllowed()) return;
       setProModalFeature(e?.detail?.feature ?? null);
       setShowProModal(true);
     };
     window.addEventListener('jamie:open-pro-modal', open);
     return () => window.removeEventListener('jamie:open-pro-modal', open);
   }, []);
+
+  // Runtime payments config (utils/paymentsConfig.js): fetched at start and
+  // again whenever the app returns to the foreground, so a Railway switch
+  // reaches running apps without a restart.
+  const paymentsCfg = usePaymentsConfig();
+  useEffect(() => {
+    loadPaymentsConfig();
+    const onVisible = () => { if (document.visibilityState === 'visible') loadPaymentsConfig(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+  // iOS: bind RevenueCat to the logged-in JAMIE user (App User ID = user id),
+  // so purchases and webhooks name our user. Re-runs once the config says
+  // iOS sales are on.
+  useEffect(() => {
+    if (user?.id && !user.isGuest) identifyIapUser(user.id);
+  }, [user?.id, user?.isGuest, paymentsCfg.ios_iap_enabled]);
 
   const [region, allowRegion] = useGeoFence();
 

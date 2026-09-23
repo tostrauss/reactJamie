@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { boost as boostApi, subscription as subscriptionApi } from '../utils/api';
 import { isNativeIOS, purchasesEnabled, paymentsComingSoon } from '../utils/platform';
+import { usePaymentsConfig } from '../utils/paymentsConfig';
 import { PRO_MODAL_EVENT } from './GroupCard';
 import { useToast } from '../context/ToastContext';
 import { InterestButton } from './InterestButton';
@@ -24,6 +25,7 @@ import { InterestButton } from './InterestButton';
 
 export const BoostModal = ({ targetType, targetId, targetName, onClose }) => {
   const { t } = useTranslation();
+  usePaymentsConfig(); // re-render when the runtime payments config arrives
   const toast = useToast();
   const [credits, setCredits] = useState(0);
   // null = unknown (loading) → the CTA shows the neutral spinner state, never

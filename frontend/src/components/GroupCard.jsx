@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { nextOccurrence, parseDateDescriptor } from '../utils/recurrence';
-import { isNativeIOS, purchasesEnabled } from '../utils/platform';
+import { purchasesEnabled } from '../utils/platform';
+import { usePaymentsConfig } from '../utils/paymentsConfig';
 import { thumbUrl } from '../utils/images';
 
 // Dispatched on every Pro-gate click (member-preview lock on group cards).
@@ -51,6 +52,7 @@ export const GroupCard = memo(({
 }) => {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
+  usePaymentsConfig(); // re-render when the runtime payments config arrives
   const { user, isPro } = useContext(AuthContext) || {};
   const isAdmin = !!user?.is_admin;
   const isClub = group.type === 'club';
@@ -72,7 +74,7 @@ export const GroupCard = memo(({
   // combined with the backend's old 3-preview cap, made an 11-member group look
   // like 3 members (Thomas 2026-08-27). Never on native iOS (Apple 3.1.1),
   // clubs, Pro/admins, or when nobody is hidden (≤3 members).
-  const showProGate = purchasesEnabled() && !isNativeIOS() && !isClub && !isPro && !isAdmin && count > 3;
+  const showProGate = purchasesEnabled() && !isClub && !isPro && !isAdmin && count > 3;
   // Big group without a gate: reserve the last tile for a "+N" counter (mirrors
   // the detail page) so the group reads as "3 faces + N more", not "3 members".
   const hasOverflow  = !isClub && !showProGate && count > GRID;

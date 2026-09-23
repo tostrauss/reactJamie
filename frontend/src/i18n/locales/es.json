@@ -1116,7 +1116,9 @@
       "restoreError": "Error al restaurar",
       "restoreBtn": "Restaurar compras",
       "restoreHelper": "¿Dispositivo nuevo? Restaura suscripciones activas y compras sin canjear.",
-      "restoreGoogleHelper": "¿Dispositivo nuevo o una compra que no llegó? Vincula tus compras de Google Play a esta cuenta."
+      "restoreGoogleHelper": "¿Dispositivo nuevo o una compra que no llegó? Vincula tus compras de Google Play a esta cuenta.",
+      "manageAppStore": "Gestionar la suscripción en el App Store",
+      "managedByAppleHint": "Esta suscripción la cobra Apple. Cancelación, cambio de plan y reembolsos se gestionan allí."
     },
     "boostPurchases": {
       "title": "Compras de boosts",
@@ -1408,7 +1410,10 @@
       "badges": {
         "popular": "Popular",
         "bestValue": "Mejor oferta"
-      }
+      },
+      "billedMonthlyStore": "{{price}} / mes",
+      "billedSixmonthStore": "{{price}} cada 6 meses",
+      "billedYearlyStore": "{{price}} al año"
     },
     "unexpectedStatus": "No ha funcionado. Inténtalo de nuevo.",
     "restoreNone": "No se han encontrado compras que restaurar",
@@ -1423,7 +1428,14 @@
       "paidEvents": "¡Crea ahora tu evento de pago!",
       "reviewRequests": "¡Gestiona tus solicitudes como un profesional!",
       "boosts": "¡Impulsa tu grupo a lo más alto ahora!"
-    }
+    },
+    "trialHeadlineDays_one": "🎁 Empieza con {{count}} día gratis",
+    "trialHeadlineDays_other": "🎁 Empieza con {{count}} días gratis",
+    "trialHeadlineGeneric": "🎁 Empieza con una prueba gratuita",
+    "ctaTrialStartDays_one": "🎁 Empezar {{count}} día gratis",
+    "ctaTrialStartDays_other": "🎁 Empezar {{count}} días gratis",
+    "ctaTrialStartGeneric": "🎁 Probar gratis",
+    "storeTrialTerms": "Al terminar la prueba se cobrará {{price}}, salvo que canceles al menos 24 h antes."
   },
   "boost": {
     "title": "🚀 Boost",

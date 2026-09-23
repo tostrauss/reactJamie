@@ -16,7 +16,8 @@ import AvatarGateModal from '../components/AvatarGateModal';
 import { nextOccurrence, utcDayStart, viennaTodayUTC } from '../utils/recurrence';
 import { shareLink } from '../utils/share';
 import { openCalendar } from '../utils/calendarExport';
-import { isNativeIOS } from '../utils/platform';
+import { proUpsellAllowed } from '../utils/platform';
+import { usePaymentsConfig } from '../utils/paymentsConfig';
 import '../styles/group-detail.css';
 
 // Lazy-load: pulls Stripe SDK only when the owner opens the modal.
@@ -163,6 +164,7 @@ export const GroupDetail = () => {
   const { user } = useContext(AuthContext);
   const toast = useToast();
   const { t, i18n } = useTranslation();
+  usePaymentsConfig(); // re-render when the runtime payments config arrives
   const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : ((i18n.resolvedLanguage || i18n.language || 'de').startsWith('fr') ? 'fr-FR' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('es') ? 'es-ES' : 'de-AT');
 
   const [group, setGroup] = useState(null);
@@ -531,9 +533,9 @@ export const GroupDetail = () => {
   const filledSlots = members.slice(0, maxSlots);
   // Locked tile in the next free slot when the roster is Pro-gated and more
   // members exist than were returned — same rule as the Home card's 4th tile.
-  // Nie auf nativem iOS: kein Pro-Werbe-Lock ohne Kaufweg (Apple 3.1.1).
+  // Nicht in der iOS-App ohne Kaufweg: kein Pro-Werbe-Lock (Apple 3.1.1).
   const showGateSlot =
-    !isNativeIOS() && membersGated && (membersTotal ?? 0) > filledSlots.length && filledSlots.length < maxSlots;
+    proUpsellAllowed() && membersGated && (membersTotal ?? 0) > filledSlots.length && filledSlots.length < maxSlots;
   const emptySlots = Math.max(0, maxSlots - filledSlots.length - (showGateSlot ? 1 : 0));
   // Recurring events show the *next* occurrence everywhere (header chip,
   // info row) so "Wann?" never reads as a date in the past.
@@ -776,9 +778,9 @@ export const GroupDetail = () => {
               type="button"
               className="gd-members-teaser"
               onClick={() =>
-                // iOS: immer zur (server-seitig limitierten) Mitgliederliste
-                // statt zum Pro-Modal (Apple 3.1.1).
-                membersGated && teaserExtra > 0 && !isNativeIOS()
+                // iOS ohne Kaufweg: immer zur (server-seitig limitierten)
+                // Mitgliederliste statt zum Pro-Modal (Apple 3.1.1).
+                membersGated && teaserExtra > 0 && proUpsellAllowed()
                   ? window.dispatchEvent(new Event('jamie:open-pro-modal'))
                   : navigate(`/group/${id}/members`)
               }

@@ -810,10 +810,14 @@ export const featureInterest = {
 };
 
 // ==========================================
-// IN-APP PURCHASE API (Apple StoreKit only)
+// IN-APP PURCHASE API (RevenueCat/StoreKit, Google Play, runtime config)
 // ==========================================
 
 export const iap = {
+  // Which purchase paths are live (utils/paymentsConfig.js). Public.
+  getConfig: () => axiosInstance.get('/iap/config'),
+  // After an iOS purchase / restore: server re-reads the RevenueCat entitlement.
+  syncRevenueCat: () => axiosInstance.post('/iap/revenuecat/sync'),
   verifyApple: (payload) => axiosInstance.post('/iap/apple/verify', payload),
   restoreApple: (payload) => axiosInstance.post('/iap/apple/restore', payload),
   // Google Play Billing (Android-TWA, utils/playBilling.js):

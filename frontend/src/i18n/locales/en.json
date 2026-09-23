@@ -1116,7 +1116,9 @@
       "restoreError": "Restore failed",
       "restoreBtn": "Restore purchases",
       "restoreHelper": "New device? Restores active subscriptions and unredeemed purchases.",
-      "restoreGoogleHelper": "New device or a purchase that did not arrive? Links your Google Play purchases to this account."
+      "restoreGoogleHelper": "New device or a purchase that did not arrive? Links your Google Play purchases to this account.",
+      "manageAppStore": "Manage subscription in the App Store",
+      "managedByAppleHint": "This subscription is billed by Apple. Cancel, change plan and refunds are handled there."
     },
     "boostPurchases": {
       "title": "Boost purchases",
@@ -1408,7 +1410,10 @@
       "badges": {
         "popular": "Popular",
         "bestValue": "Best value"
-      }
+      },
+      "billedMonthlyStore": "{{price}} / month",
+      "billedSixmonthStore": "{{price}} every 6 months",
+      "billedYearlyStore": "{{price}} per year"
     },
     "unexpectedStatus": "That didn't work. Please try again.",
     "restoreNone": "No purchases found to restore",
@@ -1423,7 +1428,14 @@
       "paidEvents": "Create your paid event now!",
       "reviewRequests": "Manage your join requests like a pro!",
       "boosts": "Boost your group to the top now!"
-    }
+    },
+    "trialHeadlineDays_one": "🎁 Start with {{count}} day free",
+    "trialHeadlineDays_other": "🎁 Start with {{count}} days free",
+    "trialHeadlineGeneric": "🎁 Start with a free trial",
+    "ctaTrialStartDays_one": "🎁 Start {{count}} day free",
+    "ctaTrialStartDays_other": "🎁 Start {{count}} days free",
+    "ctaTrialStartGeneric": "🎁 Try for free",
+    "storeTrialTerms": "After the trial, {{price}} is charged unless you cancel at least 24 hours before it ends."
   },
   "boost": {
     "title": "🚀 Boost",

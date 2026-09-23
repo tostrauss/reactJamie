@@ -12,7 +12,8 @@ import { serverErrorMessage } from '../utils/apiError';
 import { openCalendar } from '../utils/calendarExport';
 import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
 import { ALLOWED_COUNTRIES_LOWER } from '../utils/regions';
-import { isNativeIOS } from '../utils/platform';
+import { proUpsellAllowed } from '../utils/platform';
+import { usePaymentsConfig } from '../utils/paymentsConfig';
 import '../styles/club-detail.css';
 
 const BoostModal = lazy(() => import('../components/BoostModal').then(m => ({ default: m.BoostModal })));
@@ -47,6 +48,7 @@ export const ClubDetail = () => {
   const { user, isPro } = useContext(AuthContext);
   const toast = useToast();
   const { t, i18n } = useTranslation();
+  usePaymentsConfig(); // re-render when the runtime payments config arrives
   const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : ((i18n.resolvedLanguage || i18n.language || 'de').startsWith('fr') ? 'fr-FR' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('es') ? 'es-ES' : 'de-AT');
 
   const [club, setClub] = useState(null);
@@ -296,9 +298,10 @@ export const ClubDetail = () => {
     // they can't use yet is the wrong message — show them the offer instead.
     // The server re-checks (createClubEvent), this is only the UX path.
     if (eventForm.is_paid && !isPro) {
-      if (isNativeIOS()) {
-        // Apple 3.1.1: no purchase entry point on iOS, so the modal never
-        // opens there — without this the button would silently do nothing.
+      if (!proUpsellAllowed()) {
+        // Apple 3.1.1: no purchase entry point in the iOS app while iOS sales
+        // are off, so the modal never opens there — without this the button
+        // would silently do nothing.
         toast.error(t('clubDetail.events.errorProRequired'));
       } else {
         // detail.feature makes the modal lead with the "Kostenpflichtige
@@ -381,8 +384,8 @@ export const ClubDetail = () => {
   // yet again (Tina, 2026-07-22: "mache überall die Mitglieder liste wie bei
   // den Gruppen").
   const openMembers = () => {
-    // iOS: immer zur (limitierten) Liste statt zum Pro-Modal (Apple 3.1.1).
-    if (membersGated && !isNativeIOS()) window.dispatchEvent(new Event('jamie:open-pro-modal'));
+    // iOS ohne Kaufweg: immer zur (limitierten) Liste statt zum Pro-Modal (Apple 3.1.1).
+    if (membersGated && proUpsellAllowed()) window.dispatchEvent(new Event('jamie:open-pro-modal'));
     else navigate(`/club/${id}/members`);
   };
 

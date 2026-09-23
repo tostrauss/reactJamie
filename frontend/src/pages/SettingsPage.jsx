@@ -12,10 +12,11 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
 } from '../utils/pushNotifications';
-import { isNativeIOS, IOS_IAP_ENABLED, isPlayBillingActive } from '../utils/platform';
+import { isNativeIOS, isPlayBillingActive, isStoreBillingActive, proUpsellAllowed } from '../utils/platform';
+import { usePaymentsConfig } from '../utils/paymentsConfig';
 import { restorePlayPurchases, PLAY_SUBSCRIPTIONS_URL } from '../utils/playBilling';
 import { RADIUS_OPTIONS_KM } from '../utils/geo';
-import { restorePurchases } from '../utils/iap';
+import { restorePurchases, openAppleSubscriptions } from '../utils/iap';
 import { PasswordInput } from '../components/PasswordInput';
 import { FeedbackModal } from '../components/FeedbackModal';
 import '../styles/profile.css';
@@ -25,6 +26,8 @@ export const SettingsPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const { t, i18n } = useTranslation();
+  // Re-render when the runtime payments config arrives (Pro entry, restore).
+  usePaymentsConfig();
 
   // Pull fresh profile data whenever Settings opens. Server-side flags like
   // is_admin can change while the app is still running (admins are flipped on
@@ -454,11 +457,11 @@ export const SettingsPage = () => {
         {/* JAMIE Pro — first entry under Konto (Tina/Tobi 2026-09-03). Only an
             UPSELL: Pro users already get the full "Pro-Abonnement" management
             section further down, so showing it to them would be a dead end.
-            Hidden on native iOS because there is no purchase path there
-            (IAP isn't built) and Apple 3.1.1 forbids the entry point.
-            The modal itself renders the "bald verfügbar" teaser while
-            PAYMENTS_ENABLED is still false, so this is safe before the flip. */}
-        {!sub?.is_pro && !isNativeIOS() && (
+            Hidden in the iOS app while iOS sales are off (Apple 3.1.1
+            forbids an entry point without an in-app purchase path).
+            Elsewhere the modal shows the "bald verfügbar" teaser while
+            payments are off, so this is safe either way. */}
+        {!sub?.is_pro && proUpsellAllowed() && (
           <div
             className="settings-row"
             onClick={() => window.dispatchEvent(new Event('jamie:open-pro-modal'))}
@@ -627,7 +630,26 @@ export const SettingsPage = () => {
             </a>
           )}
 
-          {!isNativeIOS() && sub.managed_by !== 'google' && (
+          {sub.managed_by === 'apple' && (
+            // Bought in the iPhone app (RevenueCat/StoreKit): cancel, plan
+            // switch and refunds live in the App Store. Never the Stripe
+            // portal and never our cancel endpoint (both 400 for Apple subs).
+            <div className="settings-row" onClick={openAppleSubscriptions}>
+              <div className="settings-row-left">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="5" y="2" width="14" height="20" rx="2"/>
+                  <line x1="12" y1="18" x2="12.01" y2="18"/>
+                </svg>
+                <div className="settings-row-stacked">
+                  <span>{t('settings.subscription.manageAppStore')}</span>
+                  <span className="settings-row-detail">{t('settings.subscription.managedByAppleHint')}</span>
+                </div>
+              </div>
+              {chevron}
+            </div>
+          )}
+
+          {!isNativeIOS() && sub.managed_by === 'stripe' && (
             <div className="settings-row" onClick={portalLoading ? undefined : handleOpenPortal}>
               <div className="settings-row-left">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -680,7 +702,7 @@ export const SettingsPage = () => {
             </div>
           )}
 
-          {sub.status !== 'canceling' && sub.managed_by !== 'google' && !showCancelConfirm && !showWithdrawConfirm && (
+          {sub.status !== 'canceling' && sub.managed_by === 'stripe' && !showCancelConfirm && !showWithdrawConfirm && (
             <div className="settings-row" onClick={() => setShowCancelConfirm(true)}>
               <div className="settings-row-left">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-coral)" strokeWidth="2">
@@ -730,7 +752,7 @@ export const SettingsPage = () => {
             </div>
           )}
 
-          {((isNativeIOS() && IOS_IAP_ENABLED) || isPlayBillingActive()) && (
+          {isStoreBillingActive() && (
             <div className="settings-row" onClick={restoreLoading ? undefined : handleRestorePurchases}>
               <div className="settings-row-left">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -751,7 +773,7 @@ export const SettingsPage = () => {
           user is not currently Pro — that's the whole point of restore. Shown
           here as a standalone section ONLY in the native iOS build, and only
           once IAP actually ships (nothing to restore otherwise). */}
-      {((isNativeIOS() && IOS_IAP_ENABLED) || isPlayBillingActive()) && !sub?.is_pro && (
+      {isStoreBillingActive() && !sub?.is_pro && (
         <div className="settings-section">
           <h3 className="settings-section-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

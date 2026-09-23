@@ -5,7 +5,8 @@ import { groups } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import VerifiedBadge from '../components/VerifiedBadge';
-import { isNativeIOS } from '../utils/platform';
+import { proUpsellAllowed } from '../utils/platform';
+import { usePaymentsConfig } from '../utils/paymentsConfig';
 import '../styles/chat.css';
 
 // Per-group "Anfragen-Übersicht" (review-all overview). Product call 2026-09-07
@@ -33,6 +34,7 @@ export const GroupRequests = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const { t } = useTranslation();
+  usePaymentsConfig(); // re-render when the runtime payments config arrives
   const { user, isPro } = useContext(AuthContext);
   const isAdmin = !!user?.is_admin;
 
@@ -47,10 +49,10 @@ export const GroupRequests = () => {
   const [verifiedOnly, setVerifiedOnly] = useState(false);
 
   // Who may actually USE the Pro tools. Non-Pro non-admins get the locked
-  // upsell (web) or nothing (native iOS — Apple 3.1.1: no external-purchase
-  // teasing, same rule the roster gate follows).
+  // upsell, except in the iOS app while iOS sales are off (Apple 3.1.1: no
+  // purchase teasing without an in-app path, same rule as the roster gate).
   const canUseTools = isPro || isAdmin;
-  const showToolsBar = canUseTools || !isNativeIOS();
+  const showToolsBar = canUseTools || proUpsellAllowed();
 
   useEffect(() => {
     let cancelled = false;

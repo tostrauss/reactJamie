@@ -141,6 +141,24 @@ export const strictLimiter = rateLimit({
   message: { error: 'Zu viele Versuche. Bitte versuche es in einer Stunde erneut.' }
 });
 
+// RevenueCat sync (POST /api/iap/revenuecat/sync). NOT strictLimiter: that
+// 5/h bucket is shared with password change, export and withdrawal, and this
+// call runs right AFTER Apple has charged the user. A 429 there would show
+// "failed" to someone who just paid. One sync is one RevenueCat REST lookup,
+// and RevenueCat's own limits are far higher, so 20/h per user is plenty. The
+// webhook grants Pro anyway if the client never gets through.
+export const iapSyncLimiter = rateLimit({
+  ...SHARED_STRICT,
+  windowMs: 60 * 60 * 1000,
+  max: disabled ? 10000 : 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `iapsync:${req.userId}`,
+  validate: { keyGeneratorIpFallback: false },
+  store: makeStore('rl:iapsync:'),
+  message: { error: 'Zu viele Versuche. Bitte versuche es in einer Stunde erneut.' }
+});
+
 // Password reset (public, pre-auth). NAT-survivable per-IP ceiling: this is the
 // mass-abuse brake only. The real protection is the per-EMAIL throttle inside
 // forgotPassword, which holds across replicas and protects the victim's inbox

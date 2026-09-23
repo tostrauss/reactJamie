@@ -4,8 +4,9 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { subscription as subscriptionApi } from '../utils/api';
 import { PRO_PLANS, DEFAULT_PLAN_KEY, BASELINE_MONTHLY } from '../utils/proPlans';
-import { isNativeIOS, IOS_IAP_ENABLED, isPlayBillingActive, purchasesEnabled, paymentsComingSoon } from '../utils/platform';
-import { subscribePro, restorePurchases } from '../utils/iap';
+import { isIosIapActive, isPlayBillingActive, isStoreBillingActive, purchasesEnabled, paymentsComingSoon } from '../utils/platform';
+import { usePaymentsConfig } from '../utils/paymentsConfig';
+import { subscribePro, restorePurchases, getIosProducts } from '../utils/iap';
 import { purchasePlaySubscription, restorePlayPurchases } from '../utils/playBilling';
 import { useToast } from '../context/ToastContext';
 import { InterestButton } from './InterestButton';
@@ -204,6 +205,11 @@ function Confetto({ i }) {
 // the old all-gold look read as "Burger King".
 function PlanTile({ plan, selected, onSelect, t }) {
   const badge = plan.badgeKey ? t(`pro.plans.badges.${plan.badgeKey}`) : null;
+  // Store builds pass localized App Store labels (storePlans below); the web
+  // shows the fixed euro prices from proPlans.js.
+  const perMonthLabel = plan.perMonthLabel || `${plan.perMonth} €`;
+  const baselineLabel = plan.baselineLabel || `${BASELINE_MONTHLY} €`;
+  const billedLabel = plan.billedLabel || t(`pro.plans.${plan.billedKey}`);
   return (
     <button
       type="button"
@@ -261,7 +267,7 @@ function PlanTile({ plan, selected, onSelect, t }) {
             {t(`pro.plans.terms.${plan.termKey}`)}
           </div>
           <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginTop: '2px' }}>
-            {t(`pro.plans.${plan.billedKey}`)}
+            {billedLabel}
           </div>
         </div>
       </div>
@@ -274,11 +280,11 @@ function PlanTile({ plan, selected, onSelect, t }) {
               color: 'rgba(255,255,255,0.35)', fontSize: '13px',
               textDecoration: 'line-through', textDecorationColor: 'rgba(255,120,120,0.8)',
             }}>
-              {BASELINE_MONTHLY} €
+              {baselineLabel}
             </span>
           )}
           <span style={{ color: '#fff', fontWeight: '900', fontSize: '19px', lineHeight: 1 }}>
-            {plan.perMonth} €
+            {perMonthLabel}
           </span>
         </div>
         <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '11px', marginTop: '3px' }}>
@@ -332,9 +338,64 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
       .catch(() => { if (!cancelled) setTrialEligible(false); });
     return () => { cancelled = true; };
   }, []);
-  const showTrialOffer = trialEligible === true;
+  // iOS: localized App Store products (price in the user's storefront
+  // currency + Apple's free-trial eligibility). undefined = loading,
+  // null = could not load (then no purchase CTA, see below).
+  usePaymentsConfig();
+  const iosIap = isIosIapActive();
+  const [iosProducts, setIosProducts] = useState(undefined);
+  useEffect(() => {
+    if (!iosIap) return undefined;
+    let cancelled = false;
+    getIosProducts()
+      .then(p => { if (!cancelled) setIosProducts(Object.keys(p).length ? p : null); })
+      .catch(() => { if (!cancelled) setIosProducts(null); });
+    return () => { cancelled = true; };
+  }, [iosIap]);
 
-  const maxSavings = Math.max(...PRO_PLANS.map(p => p.savings || 0));
+  // Plan tiles. On iOS every number comes from StoreKit (Apple 3.1.2: the
+  // price shown must be the price charged, and a Swiss user pays CHF); the
+  // web keeps the fixed euro ladder from proPlans.js.
+  const plans = (() => {
+    if (!iosIap || !iosProducts) return PRO_PLANS;
+    const monthly = iosProducts.monthly;
+    const fmt = (amount, currency) => {
+      try { return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount); }
+      catch { return String(amount); }
+    };
+    return PRO_PLANS.filter(plan => iosProducts[plan.key]).map(plan => {
+      const sp = iosProducts[plan.key];
+      const perMonth = sp.pricePerMonth ?? sp.price;
+      const savings = monthly && plan.key !== 'monthly' && monthly.price > 0
+        ? Math.round((1 - perMonth / monthly.price) * 100)
+        : null;
+      return {
+        ...plan,
+        perMonthLabel: sp.pricePerMonthString || fmt(perMonth, sp.currencyCode),
+        baselineLabel: monthly?.priceString,
+        billedLabel: t(`pro.plans.${plan.billedKey}Store`, { price: sp.priceString }),
+        savings: savings > 0 ? savings : null,
+        strikethrough: plan.strikethrough && !!monthly && savings > 0,
+      };
+    });
+  })();
+
+  // Free trial. Web: the server's first-subscription rule (14 days via
+  // Stripe). iOS: whatever intro offer Tina sets in App Store Connect, and
+  // only if Apple says this Apple ID is still eligible.
+  const iosTrial = iosIap ? (iosProducts?.[selectedPlan]?.freeTrial || null) : null;
+  const trialDaysStore = iosTrial
+    ? (iosTrial.unit === 'DAY' ? iosTrial.count : iosTrial.unit === 'WEEK' ? iosTrial.count * 7 : null)
+    : null;
+  const showTrialOffer = iosIap ? !!iosTrial : trialEligible === true;
+  const trialHeadline = !iosIap ? t('pro.trialHeadline')
+    : trialDaysStore ? t('pro.trialHeadlineDays', { count: trialDaysStore }) : t('pro.trialHeadlineGeneric');
+  const trialCta = !iosIap ? t('pro.ctaTrialStart')
+    : trialDaysStore ? t('pro.ctaTrialStartDays', { count: trialDaysStore }) : t('pro.ctaTrialStartGeneric');
+  // iOS without loadable products → nothing to buy; show the neutral line.
+  const iosNotReady = iosIap && !iosProducts;
+
+  const maxSavings = Math.max(0, ...plans.map(p => p.savings || 0));
 
   const startPayment = async () => {
     // Safety net: iOS purchases are hidden until StoreKit IAP ships. The CTA
@@ -342,9 +403,9 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
     if (!purchasesEnabled()) return;
     setLoading(true);
     try {
-      // iOS native build → StoreKit subscription (App Review 3.1.1).
-      // Goes straight to success on Apple's approval; no Stripe sheet.
-      if (isNativeIOS()) {
+      // iOS app → StoreKit via RevenueCat (App Review 3.1.1). Success as soon
+      // as Apple approves; the server sync (or the webhook) grants Pro.
+      if (iosIap) {
         await subscribePro(selectedPlan);
         setStep('success');
         setTimeout(() => { onSuccess?.(); onClose?.(); }, 3000);
@@ -543,7 +604,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                 )}
                 {/* "NEU – Spare bis zu XX%" pill — nur wenn auch wirklich kaufbar.
                     Im "Bald verfügbar"-Zustand wäre ein Spar-Versprechen irreführend. */}
-                {purchasesEnabled() && (
+                {purchasesEnabled() && !iosNotReady && maxSavings > 0 && (
                   <div style={{ display:'inline-flex', alignItems:'center', gap:'6px',
                     background:'rgba(34,197,94,0.14)', border:'1px solid rgba(34,197,94,0.35)',
                     borderRadius:'24px', padding:'7px 16px',
@@ -555,7 +616,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                 )}
                 {purchasesEnabled() && showTrialOffer && (
                   <p style={{ margin:'12px 0 0', fontSize:'13.5px', fontWeight:'800', color:'#4ade80' }}>
-                    {t('pro.trialHeadline')}
+                    {trialHeadline}
                   </p>
                 )}
               </div>
@@ -564,9 +625,9 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                   Nur zeigen, wenn Käufe möglich sind: im Coming-Soon-Zustand sind die
                   Preise nicht kaufbar (und machten das Sheet unnötig lang → unten
                   abgeschnitten). Stattdessen unten die "Bald verfügbar"-Box + Interesse-Button. */}
-              {purchasesEnabled() && (
+              {purchasesEnabled() && !iosNotReady && (
                 <div style={{ display:'flex', flexDirection:'column', gap:'8px', marginBottom:'20px' }}>
-                  {PRO_PLANS.map(plan => (
+                  {plans.map(plan => (
                     <PlanTile
                       key={plan.key}
                       plan={plan}
@@ -626,7 +687,11 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
               {/* Kauf-Flow nur zeigen, wenn Käufe verfügbar sind. Auf iOS ohne
                   fertiges StoreKit-IAP zeigen wir stattdessen eine neutrale Info
                   (KEIN Hinweis auf Web/Android-Kauf — Apple-Anti-Steering 3.1.1). */}
-              {purchasesEnabled() ? (
+              {purchasesEnabled() && iosIap && iosProducts === undefined ? (
+                <div style={{ display:'flex', justifyContent:'center', padding:'18px 0', color:'rgba(255,255,255,0.6)' }}>
+                  <Spinner />
+                </div>
+              ) : purchasesEnabled() && !iosNotReady ? (
                 <>
                   {/* §18 FAGG consent — must be actively ticked before purchase */}
                   <label style={{
@@ -665,7 +730,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                   >
                     {loading
                       ? <><Spinner /> {t('pro.loading')}</>
-                      : showTrialOffer ? t('pro.ctaTrialStart') : t('pro.ctaSubscribe')}
+                      : showTrialOffer ? trialCta : t('pro.ctaSubscribe')}
                   </button>
                 </>
               ) : paymentsComingSoon() ? (
@@ -694,7 +759,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
               {/* iOS-only: Apple Review 3.1.1 wants Restore Purchases visible
                   during the purchase flow itself, not buried in Settings.
                   Only relevant once IAP ships — nothing to restore otherwise. */}
-              {((isNativeIOS() && IOS_IAP_ENABLED) || isPlayBillingActive()) && (
+              {isStoreBillingActive() && (
                 <button
                   onClick={restoreLoading ? undefined : handleRestore}
                   disabled={restoreLoading || loading}
@@ -716,7 +781,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
               {/* Apple Guideline 3.1.2 (a): on iOS, the subscription terms —
                   length, auto-renewal, cancellation — must be visible at the
                   point of purchase. Only shown when IAP is actually live. */}
-              {((isNativeIOS() && IOS_IAP_ENABLED) || isPlayBillingActive()) && (
+              {isStoreBillingActive() && (
                 <p style={{
                   fontSize:'11px', lineHeight:1.45,
                   color:'rgba(255,255,255,0.4)',
@@ -728,6 +793,9 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                       'JAMIE Pro verlängert sich automatisch zum gewählten Preis am Ende jeder Laufzeit. Abrechnung über Google Play; kündbar jederzeit in Google Play → Abos.' })
                     : t('pro.iosTerms', { defaultValue:
                       'JAMIE Pro verlängert sich automatisch zum gewählten Preis am Ende jeder Laufzeit. Kündbar jederzeit über iOS-Einstellungen → Apple-ID → Abos, mindestens 24 Std. vor Ablauf.' })}
+                  {iosTrial && iosProducts?.[selectedPlan] && (
+                    <>{' '}{t('pro.storeTrialTerms', { price: iosProducts[selectedPlan].priceString })}</>
+                  )}
                   {' '}
                   <a href="/terms" target="_blank" rel="noopener" style={{ color:'#FD7666', textDecoration:'underline' }}>
                     {t('pro.terms', { defaultValue: 'AGB' })}
