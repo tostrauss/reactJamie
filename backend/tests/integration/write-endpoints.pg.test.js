@@ -1442,10 +1442,15 @@ suite('write endpoints against real Postgres', () => {
     // row too, so members_count (schema.sql trigger) INCLUDES the owner.
     const mkGroup = async (name, { type = 'group', owner = A, date = null, members = [],
       isActive = true, recurring = false, isPrivate = false } = {}) => {
+      // created_at is PINNED before every simulated tick. With the DB default
+      // (real NOW()) the owner-nudge rule `created_at < now - 6h` compared the
+      // real clock against the injected 2026-09-23 tick: the suite went red for
+      // good once the real date passed that tick (23.09.2026). Tests that need
+      // a "too new" group set created_at themselves (see the 6-hour test).
       const r = await db.query(
         `INSERT INTO groups (name, type, owner_id, category, location, max_members, date,
-                             is_active, is_recurring_weekly, is_private)
-         VALUES ($1,$2,$3,'Sport','Wien',10,$4::timestamp,$5,$6,$7) RETURNING id`,
+                             is_active, is_recurring_weekly, is_private, created_at)
+         VALUES ($1,$2,$3,'Sport','Wien',10,$4::timestamp,$5,$6,$7,'2026-09-01 00:00:00') RETURNING id`,
         [name, type, owner, date, isActive, recurring, isPrivate]);
       const id = r.rows[0].id;
       await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner')`, [id, owner]);
