@@ -37,7 +37,7 @@ describe('isSafeImageUrl origin allowlist (audit 2026-09-15, finding 17)', () =>
     expect(isSafeImageUrl('javascript:alert(1)')).toBe(false);
     expect(isSafeImageUrl('data:image/png;base64,AAAA')).toBe(false);
     expect(isSafeImageUrl('//attacker.tld/x.jpg')).toBe(false);
-    expect(isSafeImageUrl('/\attacker.tld/x.jpg')).toBe(false);
+    expect(isSafeImageUrl('/\\attacker.tld/x.jpg')).toBe(false);
     expect(isSafeImageUrl('file:///etc/passwd')).toBe(false);
     expect(isSafeImageUrl('x'.repeat(1100))).toBe(false);
     expect(isSafeImageUrl(null)).toBe(false);
