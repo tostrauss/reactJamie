@@ -5,7 +5,7 @@ import { groups, map as mapApi, api as axiosInstance } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
-import { ALLOWED_COUNTRIES, ALLOWED_COUNTRIES_LOWER } from '../utils/regions';
+import { ALLOWED_COUNTRIES } from '../utils/regions';
 import { ImageCropModal } from '../components/ImageCropModal';
 import '../styles/create.css';
 
@@ -97,7 +97,9 @@ export const CreateGroup = () => {
       if (autocompleteRef.current) return;
       if (!locationRef.current) return;
       const ac = new window.google.maps.places.Autocomplete(locationRef.current, {
-        componentRestrictions: { country: ALLOWED_COUNTRIES_LOWER },
+        // No componentRestrictions: Places accepts at most 5 countries and we sell
+        // in 6 (utils/regions.js), so the 6-country list could break the whole
+        // dropdown. The country is checked when a place is PICKED instead.
         fields: ['formatted_address', 'name', 'address_components'],
       });
       ac.addListener('place_changed', () => {
@@ -108,8 +110,7 @@ export const CreateGroup = () => {
         if (val && ALLOWED_COUNTRIES.includes(country)) {
           setFormData(prev => ({ ...prev, location: val, locationCountry: country }));
         } else if (val) {
-          // componentRestrictions usually prevents this, but Place IDs can
-          // still resolve outside the restriction in edge cases — refuse them.
+          // Outside the launch markets (or no country in the result) → refuse.
           toast.error(t('createGroup.step2.locationNotATError'));
           setFormData(prev => ({ ...prev, location: '', locationCountry: '' }));
           if (locationRef.current) locationRef.current.value = '';

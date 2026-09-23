@@ -11,7 +11,7 @@ import { shareLink } from '../utils/share';
 import { serverErrorMessage } from '../utils/apiError';
 import { openCalendar } from '../utils/calendarExport';
 import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
-import { ALLOWED_COUNTRIES_LOWER } from '../utils/regions';
+import { ALLOWED_COUNTRIES } from '../utils/regions';
 import { proUpsellAllowed } from '../utils/platform';
 import { usePaymentsConfig } from '../utils/paymentsConfig';
 import '../styles/club-detail.css';
@@ -95,13 +95,22 @@ export const ClubDetail = () => {
       if (eventAutocompleteRef.current) return;
       if (!eventLocationRef.current) return;
       const ac = new window.google.maps.places.Autocomplete(eventLocationRef.current, {
-        componentRestrictions: { country: ALLOWED_COUNTRIES_LOWER },
-        fields: ['formatted_address', 'name'],
+        // No componentRestrictions: Places accepts at most 5 countries and we sell
+        // in 6 (utils/regions.js), so the 6-country list could break the whole
+        // dropdown. The country is checked when a place is PICKED instead.
+        fields: ['formatted_address', 'name', 'address_components'],
       });
       ac.addListener('place_changed', () => {
         const place = ac.getPlace();
         const val = place.formatted_address || place.name || '';
-        if (val) setEventForm(f => ({ ...f, location: val }));
+        const country = (place.address_components || []).find(c => c.types?.includes('country'))?.short_name || '';
+        if (val && ALLOWED_COUNTRIES.includes(country)) {
+          setEventForm(f => ({ ...f, location: val }));
+        } else if (val) {
+          toast.error(t('createGroup.step2.locationNotATError'));
+          setEventForm(f => ({ ...f, location: '' }));
+          if (eventLocationRef.current) eventLocationRef.current.value = '';
+        }
       });
       eventAutocompleteRef.current = ac;
     };

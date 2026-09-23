@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { deals as dealsApi, upload } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
-import { ALLOWED_COUNTRIES_LOWER } from '../utils/regions';
+import { ALLOWED_COUNTRIES } from '../utils/regions';
 
 /**
  * Admin CRUD for Kooperationen (sponsored deals). Embedded inside
@@ -83,13 +83,22 @@ export const AdminDealsSection = () => {
     const attach = () => {
       if (!window.google?.maps?.places || dealAcRef.current || !addressRef.current) return;
       const ac = new window.google.maps.places.Autocomplete(addressRef.current, {
-        componentRestrictions: { country: ALLOWED_COUNTRIES_LOWER },
-        fields: ['formatted_address', 'name'],
+        // No componentRestrictions: Places accepts at most 5 countries and we sell
+        // in 6 (utils/regions.js), so the 6-country list could break the whole
+        // dropdown. The country is checked when a place is PICKED instead.
+        fields: ['formatted_address', 'name', 'address_components'],
       });
       ac.addListener('place_changed', () => {
         const place = ac.getPlace();
         const val = place.formatted_address || place.name || addressRef.current?.value || '';
-        if (val) setForm(p => ({ ...p, address: val }));
+        const country = (place.address_components || []).find(c => c.types?.includes('country'))?.short_name || '';
+        if (val && ALLOWED_COUNTRIES.includes(country)) {
+          setForm(p => ({ ...p, address: val }));
+        } else if (val) {
+          toast.error(t('createGroup.step2.locationNotATError'));
+          setForm(p => ({ ...p, address: '' }));
+          if (addressRef.current) addressRef.current.value = '';
+        }
       });
       dealAcRef.current = ac;
     };
