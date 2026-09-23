@@ -56,13 +56,13 @@ jede mit Enter:
 cd ~/reactJamie
 git status --short
 git pull
-git log --oneline -3
+git log --oneline -5
 ```
 
 - Zeigt `git status --short` **Dateien an** (z. B. `package-lock.json`), dann
   vor dem `git pull` einmal: `git checkout -- frontend/package-lock.json`
   (das ist eine automatisch erzeugte Datei, die darf weg).
-- Unter den drei Zeilen muss **`feat(payments): iOS-Abos über RevenueCat`**
+- Unter den fünf Zeilen muss **`feat(payments): iOS-Abos über RevenueCat`**
   stehen (Commit vom 23.09.2026). Fehlt die Zeile, hat der Pull nicht
   geklappt oder Tobi hat noch nicht gepusht → **STOPP, Tobi.**
 
