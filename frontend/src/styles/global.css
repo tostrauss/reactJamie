@@ -928,6 +928,15 @@ select:focus {
   to   { transform: rotate(360deg); }
 }
 
+/* Avatar join gate (AvatarGateModal). This sheet always renders at the app
+   root, where the overlay (z-index 2000) covers the bottom nav — so the
+   generic .modal-content nav clearance (60px + nav inset + 16px) was just
+   empty space under the "Später" button (Tobi 23.09.2026: "zu viel Abstand
+   zum unteren Rand"). Only the home-indicator inset + breathing room here. */
+.modal-content.avatar-gate-sheet {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+}
+
 /* Avatar join gate (AvatarGateModal) */
 .avatar-gate-icon {
   font-size: 44px;

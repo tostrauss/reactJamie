@@ -18,7 +18,7 @@ const AvatarGateModal = ({ isOpen, onClose, soft = false }) => {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-content avatar-gate-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="modal-handle" />
         <div className="avatar-gate-icon" aria-hidden="true">📸</div>
         <h2 className="modal-title">{t(`${ns}.title`)}</h2>
