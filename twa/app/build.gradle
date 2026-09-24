@@ -55,7 +55,7 @@ android {
     namespace "jamie.app"
     defaultConfig {
         applicationId "jamie.app"
-        minSdkVersion 21
+        minSdkVersion 23   // Billing-Bibliothek 1.2.0 verlangt 23 (Android 6.0); 21 brach den Build 24.09.2026
         targetSdkVersion 36
         versionCode 11
         versionName "1.2"
