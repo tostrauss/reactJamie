@@ -80,11 +80,26 @@ Eintrag lehnt Apple Apps mit Abos gerne ab.
 
 ---
 
-## Teil B: RevenueCat (Tina)
+## Teil B: RevenueCat (Tina oder Tobi)
+
+Konto: `office@jamie-app.com`. Stand 24.09. morgens ist das Konto frisch, es
+gibt **noch kein Projekt**. Der Hinweis „Add your credit card … $2,500 MTR" ist
+**keine** Hürde: Eine Karte braucht RevenueCat erst ab 2.500 $ Monatsumsatz,
+für den Start reicht das kostenlose Konto. Der Bank-Termin für die Karte kann
+also warten.
+
+Zugang für Tobi: **Project settings → Collaborators → Invite** (seine
+E-Mail-Adresse), nicht das Passwort weitergeben. Wurde das Passwort schon
+einmal im Chat geteilt: danach ändern.
+
+### B0. Projekt anlegen
+
+Overview → **Create a project** → Name **`JAMIE`**. Alles Weitere passiert in
+diesem Projekt.
 
 ### B1. App anlegen
 
-RevenueCat → Projekt **JAMIE** → **Apps & providers** → **+ App Store**:
+Projekt **JAMIE** → **Apps & providers** → **+ App Store**:
 
 - Bundle ID `com.jamie-app.app`
 - **In-App Purchase Key**: die `.p8` aus A3 hochladen, Key ID + Issuer ID
