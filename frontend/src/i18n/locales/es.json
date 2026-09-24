@@ -1946,8 +1946,14 @@
         "deleted": "Colaboración eliminada",
         "deleteError": "Error al eliminar",
         "noRedemptions": "Aún no hay canjes para esta oferta",
-        "exportError": "Error en la exportación"
-      }
+        "exportError": "Error en la exportación",
+        "newRound": "Nueva ronda iniciada: todos pueden volver a canjear",
+        "newRoundError": "No se pudo iniciar una nueva ronda"
+      },
+      "newRoundBtn": "Nueva ronda",
+      "roundLabel": "Ronda {{round}}",
+      "roundCount": "esta ronda {{count}}",
+      "confirmNewRound": "¿Iniciar una nueva ronda para «{{name}}»? Todos podrán canjear la oferta una vez más. Los canjes anteriores se mantienen en las estadísticas."
     },
     "refresh": "Actualizar",
     "errorAccess": "Sin acceso de administrador. Inicia sesión con una cuenta de administrador.",

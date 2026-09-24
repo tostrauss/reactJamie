@@ -480,6 +480,14 @@ const runStartupMigrations = async () => {
   // disables the button + labels it on other days.
   await migrate('deals.redeem_days', () =>
     db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS redeem_days INTEGER[]`));
+  // "Neue Runde starten" (Tina 24.09.2026, Liberi-Deal): an admin can reopen a
+  // 'once' deal so everyone may redeem it again — without deleting the old
+  // redemptions (stats keep counting). The round is part of the period_key
+  // ('once' for round 0 = every existing row, 'once:N' afterwards), so the
+  // UNIQUE(deal_id, user_id, period_key) index does the per-round enforcement
+  // and the global cap counts the CURRENT round only.
+  await migrate('deals.redeem_round', () =>
+    db.query(`ALTER TABLE deals ADD COLUMN IF NOT EXISTS redeem_round INTEGER NOT NULL DEFAULT 0`));
 
   // ── Subscriptions table (Stripe Pro) ─────────────────────────────────────────
   await migrate('subscriptions', () => db.query(`

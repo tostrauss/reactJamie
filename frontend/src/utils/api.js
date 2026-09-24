@@ -992,6 +992,9 @@ export const deals = {
   // Admin — includes inactive + expired + redemption_count per row.
   getAllForAdmin:   () => axiosInstance.get('/deals/admin/list'),
   getRedemptions: (id) => axiosInstance.get(`/deals/admin/${id}/redemptions`),
+  // "Neue Runde starten": everyone may redeem a 'once' deal again; old
+  // redemptions stay in the stats.
+  newRound: (id)    => axiosInstance.post(`/deals/admin/${id}/new-round`),
   create: (data)    => axiosInstance.post('/deals', data),
   update: (id, data)=> axiosInstance.put(`/deals/${id}`, data),
   remove: (id)      => axiosInstance.delete(`/deals/${id}`),

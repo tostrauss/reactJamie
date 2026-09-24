@@ -234,6 +234,20 @@ export const AdminDealsSection = () => {
     }
   };
 
+  // "Neue Runde starten" (Tina 24.09.2026): reopen a 'once' deal for everyone
+  // without losing the old redemptions — they keep counting in the stats/CSV,
+  // only the per-user lock and the cap restart. Server refuses for daily/weekly.
+  const newRound = async (deal) => {
+    if (!window.confirm(t('admin.deals.confirmNewRound', { name: deal.name }))) return;
+    try {
+      await dealsApi.newRound(deal.id);
+      toast.success(t('admin.deals.toast.newRound'));
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.error || t('admin.deals.toast.newRoundError'));
+    }
+  };
+
   const remove = async (deal) => {
     if (!window.confirm(t('admin.deals.confirmDelete', { name: deal.name }))) return;
     try {
@@ -500,9 +514,12 @@ export const AdminDealsSection = () => {
           const expiry = deal.visible_until ? new Date(deal.visible_until).toLocaleDateString('de-DE') : null;
           const isExpired = deal.visible_until && new Date(deal.visible_until) < new Date();
           const isInactive = deal.is_active === false;
-          const redemptions = deal.redemption_count ?? 0;
+          const redemptions = deal.redemption_count ?? 0;           // all rounds — the stat
+          const roundRedemptions = deal.round_redemption_count ?? redemptions; // current round — what the cap sees
+          const round = deal.redeem_round ?? 0;
+          const isOnce = (deal.redeem_interval || 'once') === 'once';
           const cap = deal.max_redemptions ?? null; // null = unlimited
-          const capReached = cap != null && redemptions >= cap;
+          const capReached = isOnce && cap != null && roundRedemptions >= cap;
           const dimmed = isExpired || isInactive || capReached;
           return (
             <div key={deal.id} style={{ ...cardStyle, opacity: dimmed ? 0.55 : 1, flexWrap: 'wrap' }}>
@@ -529,7 +546,12 @@ export const AdminDealsSection = () => {
                       border: redemptions > 0 ? '1px solid rgba(253,118,102,0.3)' : '1px solid rgba(255,255,255,0.08)',
                     }}
                   >
-                    🎟 {cap != null ? `${redemptions} / ${cap}` : t('admin.deals.redemptionsCount', { count: redemptions })}
+                    {/* Total across all rounds is the stat; for capped 'once'
+                        deals the current round vs. cap is what takes it offline. */}
+                    🎟 {t('admin.deals.redemptionsCount', { count: redemptions })}
+                    {isOnce && cap != null && (round > 0
+                      ? ` · ${t('admin.deals.roundCount', { count: roundRedemptions })} / ${cap}`
+                      : ` · ${roundRedemptions} / ${cap}`)}
                   </span>
                 </div>
                 <div style={{ color: '#FD7666', fontSize: 12, fontWeight: 600 }}>
@@ -544,6 +566,11 @@ export const AdminDealsSection = () => {
                   {isInactive && (
                     <div style={{ color: '#ff7a7a', fontSize: 11, fontWeight: 600 }}>
                       {t('admin.deals.inactiveLabel')}
+                    </div>
+                  )}
+                  {round > 0 && (
+                    <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, fontWeight: 600 }}>
+                      {t('admin.deals.roundLabel', { round: round + 1 })}
                     </div>
                   )}
                   {capReached && (
@@ -564,6 +591,16 @@ export const AdminDealsSection = () => {
                 <button onClick={() => startEdit(deal)} style={{ ...btnGhost, padding: '8px 12px', fontSize: 12 }}>
                   {t('admin.deals.editBtn')}
                 </button>
+                {isOnce && !isInactive && (
+                  <button
+                    onClick={() => newRound(deal)}
+                    disabled={redemptions === 0}
+                    title={t('admin.deals.confirmNewRound', { name: deal.name })}
+                    style={{ ...btnGhost, padding: '8px 12px', fontSize: 12, opacity: redemptions === 0 ? 0.4 : 1 }}
+                  >
+                    ↻ {t('admin.deals.newRoundBtn')}
+                  </button>
+                )}
                 <button onClick={() => remove(deal)} style={{ ...btnGhost, padding: '8px 12px', fontSize: 12, color: '#ff7a7a' }}>
                   {t('admin.deals.deleteBtn')}
                 </button>

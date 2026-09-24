@@ -158,6 +158,8 @@ suite('write endpoints against real Postgres', () => {
       removeFriend: f.removeFriend, blockUser: f.blockUser, unblockUser: f.unblockUser,
       sendDM: dm.sendDM, submitReview: rv.submitReview, getPendingReviews: rv.getPendingReviews,
       createDeal: dl.createDeal, redeemDeal: dl.redeemDeal, applyBoost: bo.applyBoost,
+      startNewRound: dl.startNewRound, getDeals: dl.getDeals, getDealsForAdmin: dl.getDealsForAdmin,
+      getRedemptionStatus: dl.getRedemptionStatus,
       sendMessage: ms.sendMessage, getMessages: ms.getMessages,
       getConversation: dm.getConversation, markDMRead: dm.markDMRead,
       getMessageReceipts: ms.getMessageReceipts,
@@ -314,6 +316,55 @@ suite('write endpoints against real Postgres', () => {
   });
   it('redeemDeal by B', async () => {
     noServerError(await call(C.redeemDeal, { userId: B, params: { id: String(dealId) } }));
+  });
+
+  // ── "Neue Runde starten" (Tina 24.09.2026) ────────────────────────────────
+  // A 'once' deal that B already redeemed. Round 0 rows carry the bare
+  // period_key 'once' (pre-feature data), round 1 keys on 'once:1'.
+  it('a second redeem in the same round is a 409, not a new row', async () => {
+    const r = await call(C.redeemDeal, { userId: B, params: { id: String(dealId) } });
+    expect(r.statusCode).toBe(409);
+    const n = await db.query('SELECT COUNT(*)::int AS n FROM deal_redemptions WHERE deal_id=$1', [dealId]);
+    expect(n.rows[0].n).toBe(1);
+  });
+  it('cap reached in round 0 takes the deal offline for the feed', async () => {
+    await db.query('UPDATE deals SET max_redemptions = 1 WHERE id=$1', [dealId]);
+    const feed = await call(C.getDeals, { userId: B });
+    ok(feed);
+    expect((feed.body || []).some(d => d.id === dealId)).toBe(false);
+  });
+  it('startNewRound bumps the round, reopens the deal, keeps the old redemption', async () => {
+    const r = await call(C.startNewRound, { userId: A, params: { id: String(dealId) } });
+    ok(r);
+    expect(r.body.redeem_round).toBe(1);
+    // old row untouched (stats), status for B is "not redeemed" again
+    const old = await db.query("SELECT period_key FROM deal_redemptions WHERE deal_id=$1", [dealId]);
+    expect(old.rows.map(x => x.period_key)).toEqual(['once']);
+    const st = await call(C.getRedemptionStatus, { userId: B, params: { id: String(dealId) } });
+    ok(st);
+    expect(st.body.redeemed).toBe(false);
+    // cap counts the current round only → back in the feed
+    const feed = await call(C.getDeals, { userId: B });
+    expect((feed.body || []).some(d => d.id === dealId)).toBe(true);
+  });
+  it('B redeems again in round 1; admin list shows total 2, round 1', async () => {
+    const r = await call(C.redeemDeal, { userId: B, params: { id: String(dealId) } });
+    expect(r.statusCode).toBe(201);
+    const keys = await db.query("SELECT period_key FROM deal_redemptions WHERE deal_id=$1 ORDER BY id", [dealId]);
+    expect(keys.rows.map(x => x.period_key)).toEqual(['once', 'once:1']);
+    const adm = await call(C.getDealsForAdmin, { userId: A });
+    ok(adm);
+    const row = (adm.body || []).find(d => d.id === dealId);
+    expect(row.redemption_count).toBe(2);
+    expect(row.round_redemption_count).toBe(1);
+    expect(row.redeem_round).toBe(1);
+  });
+  it('startNewRound refuses weekly deals (409 NOT_ONCE)', async () => {
+    await db.query("UPDATE deals SET redeem_interval='weekly' WHERE id=$1", [dealId]);
+    const r = await call(C.startNewRound, { userId: A, params: { id: String(dealId) } });
+    expect(r.statusCode).toBe(409);
+    expect(r.body.code).toBe('NOT_ONCE');
+    await db.query("UPDATE deals SET redeem_interval='once', max_redemptions=NULL WHERE id=$1", [dealId]);
   });
 
   // ── boosts (A boosts own group, funded by credits) ───────────────────────

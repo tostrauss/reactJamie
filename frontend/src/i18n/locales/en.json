@@ -1946,8 +1946,14 @@
         "deleted": "Cooperation deleted",
         "deleteError": "Delete failed",
         "noRedemptions": "No redemptions for this deal yet",
-        "exportError": "Export failed"
-      }
+        "exportError": "Export failed",
+        "newRound": "New round started – everyone can redeem again",
+        "newRoundError": "Could not start a new round"
+      },
+      "newRoundBtn": "New round",
+      "roundLabel": "Round {{round}}",
+      "roundCount": "this round {{count}}",
+      "confirmNewRound": "Start a new round for “{{name}}”? Everyone can redeem the deal once more. Previous redemptions stay in the stats."
     },
     "refresh": "Refresh",
     "errorAccess": "No admin access. Please sign in with an admin account.",

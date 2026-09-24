@@ -1946,8 +1946,14 @@
         "deleted": "Collaborazione eliminata",
         "deleteError": "Eliminazione non riuscita",
         "noRedemptions": "Ancora nessun riscatto per questo deal",
-        "exportError": "Esportazione non riuscita"
-      }
+        "exportError": "Esportazione non riuscita",
+        "newRound": "Nuovo turno avviato: tutti possono riscattare di nuovo",
+        "newRoundError": "Impossibile avviare un nuovo turno"
+      },
+      "newRoundBtn": "Nuovo turno",
+      "roundLabel": "Turno {{round}}",
+      "roundCount": "questo turno {{count}}",
+      "confirmNewRound": "Avviare un nuovo turno per “{{name}}”? Tutti potranno riscattare di nuovo l’offerta. I riscatti precedenti restano nelle statistiche."
     },
     "refresh": "Aggiorna",
     "errorAccess": "Nessun accesso admin. Accedi con un account admin.",

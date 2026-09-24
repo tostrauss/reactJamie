@@ -1946,8 +1946,14 @@
         "deleted": "Partenariat supprimé",
         "deleteError": "Échec de la suppression",
         "noRedemptions": "Aucune utilisation pour cette offre pour l'instant",
-        "exportError": "Échec de l'export"
-      }
+        "exportError": "Échec de l'export",
+        "newRound": "Nouvelle série lancée : tout le monde peut à nouveau utiliser l’offre",
+        "newRoundError": "Impossible de lancer une nouvelle série"
+      },
+      "newRoundBtn": "Nouvelle série",
+      "roundLabel": "Série {{round}}",
+      "roundCount": "cette série {{count}}",
+      "confirmNewRound": "Lancer une nouvelle série pour « {{name}} » ? Tout le monde pourra à nouveau utiliser l’offre une fois. Les utilisations précédentes restent dans les statistiques."
     },
     "refresh": "Actualiser",
     "errorAccess": "Pas d'accès admin. Connecte-toi avec un compte admin.",

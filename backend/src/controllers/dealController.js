@@ -92,12 +92,15 @@ export const getDeals = async (req, res) => {
   try {
     const result = await db.query(
       `SELECT id, name, category, deal_label, description, address, lat, lng, photos, booking_url, visible_until, created_at
-       FROM deals
+       FROM deals d
        WHERE is_active = TRUE
          AND (visible_until IS NULL OR visible_until > NOW())
          -- Auto-offline once the global redemption cap is hit (NULL = unlimited).
+         -- Counts the CURRENT round only, so "Neue Runde starten" reopens a
+         -- capped deal (a 'once' deal's period_key IS its round).
          AND (max_redemptions IS NULL
-              OR (SELECT COUNT(*) FROM deal_redemptions dr WHERE dr.deal_id = deals.id) < max_redemptions)
+              OR (SELECT COUNT(*) FROM deal_redemptions dr
+                   WHERE dr.deal_id = d.id AND dr.period_key = (${PERIOD_KEY_SQL})) < max_redemptions)
        ORDER BY created_at DESC`
     );
     res.json(result.rows);
@@ -303,10 +306,15 @@ const MAX_REDEMPTIONS_PER_USER = 1;
 // calendar day / ISO week so a user may redeem again next period. Computed in
 // Postgres (handles ISO weeks correctly) and reused by status + redeem so both
 // always agree. No user input — safe to interpolate.
+// 'once' deals additionally carry the admin's redeem_round: round 0 stays the
+// bare 'once' every existing row was written with; "Neue Runde starten" bumps
+// it to 'once:1', 'once:2', … so the same users may redeem again while the old
+// rows stay in the stats. Defined with `const` BEFORE getDeals runs (module
+// scope, evaluated at import), so the template above may reference it.
 const PERIOD_KEY_SQL = `CASE d.redeem_interval
     WHEN 'daily'  THEN 'd:' || to_char(now(), 'YYYY-MM-DD')
     WHEN 'weekly' THEN 'w:' || to_char(now(), 'IYYY-IW')
-    ELSE 'once' END`;
+    ELSE CASE WHEN COALESCE(d.redeem_round, 0) = 0 THEN 'once' ELSE 'once:' || d.redeem_round END END`;
 
 // True when the deal has no weekday restriction OR today (ISO weekday 1=Mon …
 // 7=Sun, in the DB's timezone) is one of the allowed days. Reused by status +
@@ -402,7 +410,8 @@ export const redeemDeal = async (req, res) => {
        WHERE d.id = $1
          AND (
            d.redeem_interval <> 'once'
-           OR (SELECT COUNT(*) FROM deal_redemptions WHERE deal_id = d.id)
+           OR (SELECT COUNT(*) FROM deal_redemptions
+                WHERE deal_id = d.id AND period_key = (${PERIOD_KEY_SQL}))
                 < COALESCE(d.max_redemptions, 2147483647)
          )
        ON CONFLICT (deal_id, user_id, period_key) DO NOTHING
@@ -463,8 +472,12 @@ export const getDealsForAdmin = async (_req, res) => {
       `SELECT d.id, d.name, d.category, d.deal_label, d.description,
               d.address, d.lat, d.lng, d.photos, d.booking_url,
               d.visible_until, d.is_active, d.max_redemptions, d.created_at, d.updated_at,
+              d.redeem_interval, COALESCE(d.redeem_round, 0)::int AS redeem_round,
               COALESCE(r.cnt, 0)::int AS redemption_count,
-              r.last_redeemed_at
+              r.last_redeemed_at,
+              -- Current round only: this is what the cap compares against.
+              (SELECT COUNT(*)::int FROM deal_redemptions dr
+                WHERE dr.deal_id = d.id AND dr.period_key = (${PERIOD_KEY_SQL})) AS round_redemption_count
        FROM deals d
        LEFT JOIN (
          SELECT deal_id,
@@ -504,6 +517,35 @@ export const getDealRedemptions = async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('getDealRedemptions error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// ADMIN — NEW ROUND  ("Neue Runde starten")
+// ==========================================
+// Reopens a 'once' deal for everyone who already redeemed it, keeping every
+// old redemption for the stats/CSV. Only meaningful for 'once' deals — daily
+// and weekly ones roll over on their own, so we refuse instead of silently
+// doing nothing. The bump is atomic; the cap restarts because it counts the
+// current round only.
+export const startNewRound = async (req, res) => {
+  try {
+    const result = await db.query(
+      `UPDATE deals
+          SET redeem_round = COALESCE(redeem_round, 0) + 1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1 AND redeem_interval = 'once'
+        RETURNING id, redeem_round`,
+      [req.params.id]
+    );
+    if (!result.rows.length) {
+      const exists = await db.query('SELECT redeem_interval FROM deals WHERE id = $1', [req.params.id]);
+      if (!exists.rows.length) return res.status(404).json({ error: 'Deal not found' });
+      return res.status(409).json({ error: 'Nur einmalig einlösbare Deals haben Runden — wöchentliche/tägliche starten von selbst neu.', code: 'NOT_ONCE' });
+    }
+    res.json({ id: result.rows[0].id, redeem_round: result.rows[0].redeem_round });
+  } catch (err) {
+    console.error('startNewRound error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

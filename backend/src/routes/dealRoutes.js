@@ -2,7 +2,7 @@ import express from 'express';
 import {
   getDeals, getDeal, createDeal, updateDeal, deleteDeal,
   getRedemptionStatus, redeemDeal,
-  getDealsForAdmin, getDealRedemptions,
+  getDealsForAdmin, getDealRedemptions, startNewRound,
 } from '../controllers/dealController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 
@@ -12,6 +12,7 @@ const router = express.Router();
 // like `/admin/list` doesn't get swallowed as `:id = "admin"`.
 router.get('/admin/list',           authenticate, requireAdmin, getDealsForAdmin);
 router.get('/admin/:id/redemptions', authenticate, requireAdmin, getDealRedemptions);
+router.post('/admin/:id/new-round',  authenticate, requireAdmin, startNewRound);
 router.post('/',    authenticate, requireAdmin, createDeal);
 router.put('/:id',  authenticate, requireAdmin, updateDeal);
 router.delete('/:id', authenticate, requireAdmin, deleteDeal);

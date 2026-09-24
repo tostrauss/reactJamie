@@ -1946,8 +1946,14 @@
         "deleted": "Kooperation gelöscht",
         "deleteError": "Löschen fehlgeschlagen",
         "noRedemptions": "Noch keine Einlösungen für diesen Deal",
-        "exportError": "Export fehlgeschlagen"
-      }
+        "exportError": "Export fehlgeschlagen",
+        "newRound": "Neue Runde gestartet – alle können wieder einlösen",
+        "newRoundError": "Neue Runde konnte nicht gestartet werden"
+      },
+      "newRoundBtn": "Neue Runde",
+      "roundLabel": "Runde {{round}}",
+      "roundCount": "diese Runde {{count}}",
+      "confirmNewRound": "Neue Runde für „{{name}}“ starten? Alle können den Deal dann wieder einmal einlösen. Die bisherigen Einlösungen bleiben in der Statistik."
     },
     "refresh": "Aktualisieren",
     "errorAccess": "Kein Admin-Zugriff. Bitte melde dich mit einem Admin-Account an.",
