@@ -1922,6 +1922,21 @@ suite('write endpoints against real Postgres', () => {
       expect(tg.path).toBe(null);
     });
 
+    it("a 'group' report carries the creator's e-mail, join date, profile path and prior-report count", async () => {
+      const { resolveReportTargets } = await import('../../src/utils/reportContext.js');
+      // One earlier report against A as a PERSON → owner_report_count must see it.
+      await db.query(
+        `INSERT INTO reports (reporter_id, reported_type, reported_id, reason, status)
+         VALUES ($1, 'user', $2, 'fake', 'pending')`, [B, A]);
+      const map = await resolveReportTargets([{ reported_type: 'group', reported_id: groupId }]);
+      const tg = map.get(`group:${groupId}`);
+      expect(tg.owner.id).toBe(A);
+      expect(tg.owner.email).toBe('smoke-a@x.com');
+      expect(tg.owner.joined_at).toBeTruthy();
+      expect(tg.owner.path).toBe(`/user/${A}`);
+      expect(tg.owner.report_count).toBeGreaterThanOrEqual(1);
+    });
+
     it("a 'message' report with the same id still resolves the GROUP message", async () => {
       const { resolveReportTargets } = await import('../../src/utils/reportContext.js');
       const map = await resolveReportTargets([{ reported_type: 'message', reported_id: collidingId }]);

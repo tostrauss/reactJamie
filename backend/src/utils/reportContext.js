@@ -116,10 +116,20 @@ export const resolveReportTargets = async (rows) => {
       db.query(
         `SELECT g.id, g.name, g.type, g.category, g.location, g.date,
                 g.description, g.is_private, g.is_active, g.deleted_at,
-                g.owner_id, o.name AS owner_name,
+                g.owner_id, o.name AS owner_name, o.email AS owner_email,
+                o.created_at AS owner_joined_at,
                 (SELECT COUNT(*) FROM reports r2
                   WHERE r2.reported_type = 'group' AND r2.reported_id = g.id)::int
-                  AS report_count
+                  AS report_count,
+                -- Reports filed against the CREATOR as a person, plus against
+                -- any of their other groups: a "Fake-Profil" report on a group
+                -- is really about them, and the third group by the same account
+                -- being reported is the signal that matters.
+                (SELECT COUNT(*) FROM reports r3
+                  WHERE (r3.reported_type = 'user' AND r3.reported_id = g.owner_id)
+                     OR (r3.reported_type = 'group' AND r3.reported_id IN
+                          (SELECT id FROM groups WHERE owner_id = g.owner_id AND id <> g.id)))::int
+                  AS owner_report_count
            FROM groups g
            LEFT JOIN users o ON o.id = g.owner_id
           WHERE g.id = ANY($1)`,
@@ -140,7 +150,14 @@ export const resolveReportTargets = async (rows) => {
             description: clip(g.description, 300),
             is_private: g.is_private,
             deleted: !g.is_active || !!g.deleted_at,
-            owner: g.owner_id ? { id: g.owner_id, name: g.owner_name } : null,
+            owner: g.owner_id ? {
+              id: g.owner_id,
+              name: g.owner_name,
+              email: g.owner_email,
+              joined_at: g.owner_joined_at,
+              report_count: g.owner_report_count,
+              path: `/user/${g.owner_id}`,
+            } : null,
             report_count: g.report_count,
             path: g.type === 'club' ? `/club/${g.id}` : `/group/${g.id}`,
           });

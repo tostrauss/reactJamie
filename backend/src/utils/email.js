@@ -195,7 +195,16 @@ export const sendAdminReportEmail = async ({ reportId, type, reason, details, ct
     targetBlock =
       reportRow(target.entity_type === 'club' ? 'Gemeldeter Club' : 'Gemeldete Gruppe',
         `<strong>${escapeHtml(target.name)}</strong> (#${target.id})${target.deleted ? ' <em style="color:#b26a00;">— gelöscht</em>' : ''}`) +
-      reportRow('Erstellt von', target.owner ? `${escapeHtml(target.owner.name)} (#${target.owner.id})` : '') +
+      // The creator IS the person behind a "Fake-Profil" report on a group —
+      // show them like a reported user (mail, member since, prior reports),
+      // not just a name (Tobi 25.09.2026: "sollte man nicht sehen wer
+      // gemeldet wurde?").
+      reportRow('Erstellt von', target.owner
+        ? `<strong>${escapeHtml(target.owner.name)}</strong> (#${target.owner.id})`
+          + (target.owner.email ? ` · <a href="mailto:${escapeHtml(target.owner.email)}" style="color:#FD7666;">${escapeHtml(target.owner.email)}</a>` : '')
+          + (target.owner.joined_at ? `<br><span style="color:#888;">dabei seit ${escapeHtml(new Date(target.owner.joined_at).toLocaleDateString('de-AT'))}</span>` : '')
+          + (target.owner.report_count > 0 ? `<br><span style="color:#8a5200;">⚠️ ${target.owner.report_count} weitere Meldung${target.owner.report_count === 1 ? '' : 'en'} gegen diese Person / ihre anderen Gruppen</span>` : '')
+        : '<em>gelöschter Account</em>') +
       reportRow('Kategorie', escapeHtml(target.category)) +
       reportRow('Ort', escapeHtml(target.location)) +
       reportRow('Beschreibung', target.description ? `<span style="color:#555;">${escapeHtml(target.description)}</span>` : '');
@@ -214,6 +223,10 @@ export const sendAdminReportEmail = async ({ reportId, type, reason, details, ct
   const buttons = [
     target?.path
       ? `<a href="${base}${target.path}" style="display:inline-block;background:#FD7666;color:#fff;padding:12px 24px;border-radius:12px;text-decoration:none;font-weight:600;margin:0 8px 8px 0;">${escapeHtml(openLabel)}</a>`
+      : '',
+    // Group/club reports: one click to the creator's profile as well.
+    target?.kind === 'group' && target.owner?.path
+      ? `<a href="${base}${target.owner.path}" style="display:inline-block;background:#fff;color:#FD7666;border:2px solid #FD7666;padding:10px 22px;border-radius:12px;text-decoration:none;font-weight:600;margin:0 8px 8px 0;">Profil von ${escapeHtml(target.owner.name || 'Ersteller')} öffnen</a>`
       : '',
     `<a href="${base}/admin#reports" style="display:inline-block;background:#2b2f44;color:#fff;padding:12px 24px;border-radius:12px;text-decoration:none;font-weight:600;margin:0 8px 8px 0;">Meldungen im Admin-Panel</a>`,
   ].join('');
