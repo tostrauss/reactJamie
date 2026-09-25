@@ -72,8 +72,22 @@ export const searchUsers = async (req, res) => {
            FROM friendships
            WHERE status = 'blocked' AND (requester_id = $2 OR addressee_id = $2)
          )
-       LIMIT 20`,
-      [`%${q}%`, req.userId]
+       -- Ranking (support mail Lena, 23.09.2026: "finde Leute nicht, obwohl sie
+       -- in der Gruppe sind"): with 1,500+ users a common first name has more
+       -- than 20 matches, and without an ORDER BY the 20 returned were
+       -- arbitrary — the person you meant was simply cut off. Now: people who
+       -- share a group/club with the caller first, then prefix matches
+       -- ("Lena" before "Helena"), then alphabetically.
+       ORDER BY
+         EXISTS (
+           SELECT 1 FROM group_members gm_me
+           JOIN group_members gm_them ON gm_them.group_id = gm_me.group_id
+           WHERE gm_me.user_id = $2 AND gm_them.user_id = users.id
+         ) DESC,
+         (name ILIKE $3) DESC,
+         name ASC
+       LIMIT 30`,
+      [`%${q}%`, req.userId, `${q}%`]
     );
 
     res.json(result.rows);

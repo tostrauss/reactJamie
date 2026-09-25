@@ -146,11 +146,12 @@ suite('write endpoints against real Postgres', () => {
     const mp = await import('../../src/controllers/mapController.js');
     const ad = await import('../../src/controllers/adminController.js');
     const pu = await import('../../src/controllers/pushController.js');
+    const us = await import('../../src/controllers/userController.js');
     const er = await import('../../src/jobs/eventReminders.js');
     const fa = await import('../../src/utils/friendActivity.js');
     C = {
       updateProfile: a.updateProfile, completeOnboarding: a.completeOnboarding, getProfile: a.getProfile,
-      updatePushPreferences: pu.updatePushPreferences,
+      updatePushPreferences: pu.updatePushPreferences, searchUsers: us.searchUsers,
       runEventReminders: er.runEventReminders, notifyFriendsOfActivity: fa.notifyFriendsOfActivity,
       createGroup: g.createGroup, updateGroup: g.updateGroup, createClub: c.createClub,
       inviteMember: g.inviteMember,
@@ -365,6 +366,35 @@ suite('write endpoints against real Postgres', () => {
     expect(r.statusCode).toBe(409);
     expect(r.body.code).toBe('NOT_ONCE');
     await db.query("UPDATE deals SET redeem_interval='once', max_redemptions=NULL WHERE id=$1", [dealId]);
+  });
+
+  // ── user search ranking (support mail Lena 23.09.2026) ───────────────────
+  // 25 strangers named "Lena …" plus one "Lena Heider" who shares a group
+  // with the caller. Before: LIMIT 20 with no ORDER BY → the group-mate could
+  // be cut off. Now she is first, prefix matches beat infix ("Helena").
+  it('searchUsers ranks group-mates first, then prefix matches, and returns > 20', async () => {
+    const ids = [];
+    for (let i = 0; i < 25; i++) {
+      const r = await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, onboarding_completed, auth_provider)
+         VALUES ($1, $2, '1996-06-06', 'female', TRUE, 'email') RETURNING id`,
+        [`smoke-lena-${i}@x.com`, `Lena Stranger ${String(i).padStart(2, '0')}`]);
+      ids.push(r.rows[0].id);
+    }
+    const mate = (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, onboarding_completed, auth_provider)
+       VALUES ('smoke-lena-mate@x.com', 'Lena Heider', '1996-06-06', 'female', TRUE, 'email') RETURNING id`)).rows[0].id;
+    const helena = (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, onboarding_completed, auth_provider)
+       VALUES ('smoke-helena@x.com', 'Helena Aaa', '1996-06-06', 'female', TRUE, 'email') RETURNING id`)).rows[0].id;
+    await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING`, [groupId, mate]);
+
+    const res = await call(C.searchUsers, { userId: A, query: { q: 'lena' } });
+    ok(res);
+    const names = res.body.map(u => u.id);
+    expect(names[0]).toBe(mate);                       // shares groupId with A
+    expect(names.length).toBeGreaterThan(20);          // old LIMIT 20 would have cut
+    expect(names.indexOf(helena)).toBe(names.length - 1); // infix match sorts last
   });
 
   // ── boosts (A boosts own group, funded by credits) ───────────────────────
