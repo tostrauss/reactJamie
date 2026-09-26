@@ -994,7 +994,7 @@ export const deals = {
   getRedemptions: (id) => axiosInstance.get(`/deals/admin/${id}/redemptions`),
   // "Neue Runde starten": everyone may redeem a 'once' deal again; old
   // redemptions stay in the stats.
-  newRound: (id)    => axiosInstance.post(`/deals/admin/${id}/new-round`),
+  newRound: (id, body = {}) => axiosInstance.post(`/deals/admin/${id}/new-round`, body),
   create: (data)    => axiosInstance.post('/deals', data),
   update: (id, data)=> axiosInstance.put(`/deals/${id}`, data),
   remove: (id)      => axiosInstance.delete(`/deals/${id}`),

@@ -1953,7 +1953,11 @@
       "newRoundBtn": "Nuovo turno",
       "roundLabel": "Turno {{round}}",
       "roundCount": "questo turno {{count}}",
-      "confirmNewRound": "Avviare un nuovo turno per “{{name}}”? Tutti potranno riscattare di nuovo l’offerta. I riscatti precedenti restano nelle statistiche."
+      "confirmNewRound": "Avviare un nuovo turno per “{{name}}”? Tutti potranno riscattare di nuovo l’offerta. I riscatti precedenti restano nelle statistiche.",
+      "newRoundDateLabel": "Nuova data di fine",
+      "newRoundDateHint": "Vuoto = senza scadenza",
+      "newRoundHint": "{{count}} riscatti precedenti restano nelle statistiche.",
+      "newRoundStartBtn": "Avvia turno"
     },
     "refresh": "Aggiorna",
     "errorAccess": "Nessun accesso admin. Accedi con un account admin.",

@@ -1953,7 +1953,11 @@
       "newRoundBtn": "Nouvelle série",
       "roundLabel": "Série {{round}}",
       "roundCount": "cette série {{count}}",
-      "confirmNewRound": "Lancer une nouvelle série pour « {{name}} » ? Tout le monde pourra à nouveau utiliser l’offre une fois. Les utilisations précédentes restent dans les statistiques."
+      "confirmNewRound": "Lancer une nouvelle série pour « {{name}} » ? Tout le monde pourra à nouveau utiliser l’offre une fois. Les utilisations précédentes restent dans les statistiques.",
+      "newRoundDateLabel": "Nouvelle date de fin",
+      "newRoundDateHint": "Vide = sans expiration",
+      "newRoundHint": "{{count}} utilisations précédentes restent dans les statistiques.",
+      "newRoundStartBtn": "Lancer la série"
     },
     "refresh": "Actualiser",
     "errorAccess": "Pas d'accès admin. Connecte-toi avec un compte admin.",

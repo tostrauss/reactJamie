@@ -237,14 +237,29 @@ export const AdminDealsSection = () => {
   // "Neue Runde starten" (Tina 24.09.2026): reopen a 'once' deal for everyone
   // without losing the old redemptions — they keep counting in the stats/CSV,
   // only the per-user lock and the cap restart. Server refuses for daily/weekly.
-  const newRound = async (deal) => {
-    if (!window.confirm(t('admin.deals.confirmNewRound', { name: deal.name }))) return;
+  // Tina 26.09.2026: a deal is a library entry — reopening it usually means a
+  // new end date, so the button opens a one-field panel (date, prefilled with
+  // the current date if still valid, else +30 days) and sends both at once.
+  const [roundFor, setRoundFor] = useState(null);   // deal.id with the panel open
+  const [roundDate, setRoundDate] = useState('');   // YYYY-MM-DD, '' = no expiry
+  const [roundSaving, setRoundSaving] = useState(false);
+  const openNewRound = (deal) => {
+    const stillValid = deal.visible_until && new Date(deal.visible_until) > new Date();
+    const plus30 = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    setRoundDate(stillValid ? deal.visible_until.slice(0, 10) : plus30);
+    setRoundFor(deal.id);
+  };
+  const submitNewRound = async (deal) => {
+    setRoundSaving(true);
     try {
-      await dealsApi.newRound(deal.id);
+      await dealsApi.newRound(deal.id, { visible_until: roundDate || null });
       toast.success(t('admin.deals.toast.newRound'));
+      setRoundFor(null);
       load();
     } catch (err) {
       toast.error(err.response?.data?.error || t('admin.deals.toast.newRoundError'));
+    } finally {
+      setRoundSaving(false);
     }
   };
 
@@ -593,10 +608,10 @@ export const AdminDealsSection = () => {
                 </button>
                 {isOnce && !isInactive && (
                   <button
-                    onClick={() => newRound(deal)}
-                    disabled={redemptions === 0}
+                    onClick={() => (roundFor === deal.id ? setRoundFor(null) : openNewRound(deal))}
+                    disabled={redemptions === 0 && !isExpired}
                     title={t('admin.deals.confirmNewRound', { name: deal.name })}
-                    style={{ ...btnGhost, padding: '8px 12px', fontSize: 12, opacity: redemptions === 0 ? 0.4 : 1 }}
+                    style={{ ...btnGhost, padding: '8px 12px', fontSize: 12, opacity: redemptions === 0 && !isExpired ? 0.4 : 1 }}
                   >
                     ↻ {t('admin.deals.newRoundBtn')}
                   </button>
@@ -605,6 +620,31 @@ export const AdminDealsSection = () => {
                   {t('admin.deals.deleteBtn')}
                 </button>
               </div>
+              {roundFor === deal.id && (
+                <div style={{ flexBasis: '100%', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ flex: '1 1 160px' }}>
+                    <label style={labelStyle}>{t('admin.deals.newRoundDateLabel')}</label>
+                    <input
+                      type="date"
+                      min={todayIso()}
+                      value={roundDate}
+                      onChange={e => setRoundDate(e.target.value)}
+                      style={inputStyle}
+                    />
+                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4 }}>
+                      {t('admin.deals.newRoundDateHint')} · {t('admin.deals.newRoundHint', { count: redemptions })}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button type="button" onClick={() => setRoundFor(null)} style={{ ...btnGhost, padding: '8px 12px', fontSize: 12 }}>
+                      {t('common.cancel')}
+                    </button>
+                    <button type="button" onClick={() => submitNewRound(deal)} disabled={roundSaving} style={{ ...btnPrimary, padding: '8px 14px', fontSize: 12 }}>
+                      {roundSaving ? '…' : `↻ ${t('admin.deals.newRoundStartBtn')}`}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })

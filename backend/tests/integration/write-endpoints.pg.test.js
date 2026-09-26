@@ -367,6 +367,39 @@ suite('write endpoints against real Postgres', () => {
     expect(r.body.code).toBe('NOT_ONCE');
     await db.query("UPDATE deals SET redeem_interval='once', max_redemptions=NULL WHERE id=$1", [dealId]);
   });
+  // Tina 26.09.2026: "nur das Datum aktualisieren" — an expired library deal
+  // gets a new end date AND a new round in one call; the stats stay.
+  it('startNewRound with visible_until reopens an expired deal with the new date', async () => {
+    await db.query("UPDATE deals SET visible_until = '2026-01-01' WHERE id=$1", [dealId]);
+    const feedBefore = await call(C.getDeals, { userId: B });
+    expect((feedBefore.body || []).some(d => d.id === dealId)).toBe(false);
+    const r = await call(C.startNewRound, { userId: A, params: { id: String(dealId) }, body: { visible_until: '2099-12-31' } });
+    ok(r);
+    expect(r.body.redeem_round).toBe(2);
+    const row = await db.query("SELECT to_char(visible_until, 'YYYY-MM-DD') AS d FROM deals WHERE id=$1", [dealId]);
+    expect(row.rows[0].d).toBe('2099-12-31');
+    const feed = await call(C.getDeals, { userId: B });
+    expect((feed.body || []).some(d => d.id === dealId)).toBe(true);
+    const n = await db.query('SELECT COUNT(*)::int AS n FROM deal_redemptions WHERE deal_id=$1', [dealId]);
+    expect(n.rows[0].n).toBe(2); // old rounds untouched
+  });
+  it('startNewRound rejects a past visible_until (400) and keeps the round', async () => {
+    const r = await call(C.startNewRound, { userId: A, params: { id: String(dealId) }, body: { visible_until: '2020-01-01' } });
+    expect(r.statusCode).toBe(400);
+    const row = await db.query('SELECT redeem_round FROM deals WHERE id=$1', [dealId]);
+    expect(row.rows[0].redeem_round).toBe(2);
+  });
+  it('startNewRound without a body keeps the date; null clears it', async () => {
+    const keep = await call(C.startNewRound, { userId: A, params: { id: String(dealId) } });
+    ok(keep);
+    expect(keep.body.redeem_round).toBe(3);
+    let row = await db.query("SELECT to_char(visible_until, 'YYYY-MM-DD') AS d FROM deals WHERE id=$1", [dealId]);
+    expect(row.rows[0].d).toBe('2099-12-31');
+    const clear = await call(C.startNewRound, { userId: A, params: { id: String(dealId) }, body: { visible_until: null } });
+    ok(clear);
+    row = await db.query('SELECT visible_until FROM deals WHERE id=$1', [dealId]);
+    expect(row.rows[0].visible_until).toBeNull();
+  });
 
   // ── user search ranking (support mail Lena 23.09.2026) ───────────────────
   // 25 strangers named "Lena …" plus one "Lena Heider" who shares a group

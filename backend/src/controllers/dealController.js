@@ -529,21 +529,36 @@ export const getDealRedemptions = async (req, res) => {
 // and weekly ones roll over on their own, so we refuse instead of silently
 // doing nothing. The bump is atomic; the cap restarts because it counts the
 // current round only.
+//
+// Optional body.visible_until (Tina 26.09.2026, "nur das Datum aktualisieren"):
+// a deal is a library entry — reopening it usually means a new end date too,
+// so both happen in one call. Absent = keep the date, null/'' = no expiry.
 export const startNewRound = async (req, res) => {
+  const { visible_until } = req.body || {};
+  const setDate = visible_until !== undefined;
+  let visibleUntilParsed = null;
+  if (visible_until) {
+    const d = new Date(visible_until);
+    if (isNaN(d.getTime())) return res.status(400).json({ error: 'visible_until ist kein gültiges Datum' });
+    if (d.getTime() < Date.now() - 24 * 3600 * 1000) return res.status(400).json({ error: 'Das neue Ablaufdatum liegt in der Vergangenheit' });
+    visibleUntilParsed = d.toISOString();
+  }
   try {
     const result = await db.query(
       `UPDATE deals
-          SET redeem_round = COALESCE(redeem_round, 0) + 1, updated_at = CURRENT_TIMESTAMP
+          SET redeem_round = COALESCE(redeem_round, 0) + 1,
+              visible_until = CASE WHEN $2::boolean THEN $3::timestamp ELSE visible_until END,
+              updated_at = CURRENT_TIMESTAMP
         WHERE id = $1 AND redeem_interval = 'once'
-        RETURNING id, redeem_round`,
-      [req.params.id]
+        RETURNING id, redeem_round, visible_until`,
+      [req.params.id, setDate, visibleUntilParsed]
     );
     if (!result.rows.length) {
       const exists = await db.query('SELECT redeem_interval FROM deals WHERE id = $1', [req.params.id]);
       if (!exists.rows.length) return res.status(404).json({ error: 'Deal not found' });
       return res.status(409).json({ error: 'Nur einmalig einlösbare Deals haben Runden — wöchentliche/tägliche starten von selbst neu.', code: 'NOT_ONCE' });
     }
-    res.json({ id: result.rows[0].id, redeem_round: result.rows[0].redeem_round });
+    res.json({ id: result.rows[0].id, redeem_round: result.rows[0].redeem_round, visible_until: result.rows[0].visible_until });
   } catch (err) {
     console.error('startNewRound error:', err);
     res.status(500).json({ error: 'Internal server error' });

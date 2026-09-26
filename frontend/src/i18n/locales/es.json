@@ -1953,7 +1953,11 @@
       "newRoundBtn": "Nueva ronda",
       "roundLabel": "Ronda {{round}}",
       "roundCount": "esta ronda {{count}}",
-      "confirmNewRound": "¿Iniciar una nueva ronda para «{{name}}»? Todos podrán canjear la oferta una vez más. Los canjes anteriores se mantienen en las estadísticas."
+      "confirmNewRound": "¿Iniciar una nueva ronda para «{{name}}»? Todos podrán canjear la oferta una vez más. Los canjes anteriores se mantienen en las estadísticas.",
+      "newRoundDateLabel": "Nueva fecha de fin",
+      "newRoundDateHint": "Vacío = sin caducidad",
+      "newRoundHint": "{{count}} canjes anteriores se mantienen en las estadísticas.",
+      "newRoundStartBtn": "Iniciar ronda"
     },
     "refresh": "Actualizar",
     "errorAccess": "Sin acceso de administrador. Inicia sesión con una cuenta de administrador.",
