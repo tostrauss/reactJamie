@@ -176,6 +176,8 @@ export const GroupEdit = () => {
           max_members: formData.max_members,
           is_recurring_weekly: formData.is_recurring_weekly,
           image_url: formData.image_url || undefined,
+          // Sent only where the toggle exists (event of a public club).
+          is_private: group?.parent_club_private === false ? !!formData.is_private : undefined,
         });
       } else {
         // Strip empty strings for nullable backend fields. Postgres can't cast
@@ -627,9 +629,10 @@ export const GroupEdit = () => {
             </div>
 
             {/* Visibility (public ⇄ private) — editable after creation for
-                groups and clubs. A one-off event has no join flow, so hide it
-                there. Toggle ON = private (join by request only). */}
-            {group?.type !== 'event' && (
+                groups and clubs, and since 30.09.2026 (Tina) for events of a
+                PUBLIC club. A private club's events are private by rule, so no
+                toggle there. Toggle ON = private (join by request only). */}
+            {(group?.type !== 'event' || group?.parent_club_private === false) && (
               <>
                 <div className="ge-divider" />
                 <div className="ge-field ge-toggle-field">

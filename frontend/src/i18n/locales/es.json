@@ -597,9 +597,19 @@
       "ticketLinkHint": "El enlace aparece como botón de entradas en la página del evento. La venta se realiza en tu propia tienda.",
       "errorTicketRequired": "Introduce un enlace de entradas",
       "errorProRequired": "Los eventos de pago son una función de JAMIE Pro.",
-      "confirmLeave": "¿Seguro que quieres salir del evento? Tu plaza quedará libre."
+      "confirmLeave": "¿Seguro que quieres salir del evento? Tu plaza quedará libre.",
+      "privateLabel": "Evento privado",
+      "privateHint": "Solo con solicitud: tú decides quién participa"
     },
-    "confirmLeave": "¿Seguro que quieres salir del club? Solo puedes unirte a este club dos veces en total."
+    "confirmLeave": "¿Seguro que quieres salir del club? Solo puedes unirte a este club dos veces en total.",
+    "proInfo": {
+      "title": "Más alcance con JAMIE Pro",
+      "boostTitle": "Impulsar tu club",
+      "boostBody": "24 horas arriba del todo en Descubrir, tantas veces como quieras",
+      "ticketsTitle": "Promocionar entradas",
+      "ticketsBody": "Eventos de pago con botón de entradas a tu tienda",
+      "cta": "Ver JAMIE Pro"
+    }
   },
   "clubMembers": {
     "title": "Miembros",

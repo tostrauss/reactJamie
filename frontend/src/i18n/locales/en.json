@@ -597,9 +597,19 @@
       "ticketLinkHint": "The link appears as a ticket button on the event page. Sales run through your own shop.",
       "errorTicketRequired": "Please enter a ticket link",
       "errorProRequired": "Paid events are a JAMIE Pro feature.",
-      "confirmLeave": "Really leave this event? Your spot is freed up."
+      "confirmLeave": "Really leave this event? Your spot is freed up.",
+      "privateLabel": "Private event",
+      "privateHint": "Join by request only – you approve who comes"
     },
-    "confirmLeave": "Really leave this club? You can only join this club twice in total."
+    "confirmLeave": "Really leave this club? You can only join this club twice in total.",
+    "proInfo": {
+      "title": "More reach with JAMIE Pro",
+      "boostTitle": "Boost your club",
+      "boostBody": "24 hours at the top of Discover, as often as you like",
+      "ticketsTitle": "Promote tickets",
+      "ticketsBody": "Paid events with a ticket button to your shop",
+      "cta": "See JAMIE Pro"
+    }
   },
   "clubMembers": {
     "title": "Members",

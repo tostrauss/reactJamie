@@ -94,3 +94,16 @@ export async function downscaleImageFile(file, {
     if (url) URL.revokeObjectURL(url);
   }
 }
+
+/**
+ * Card variant of a 16:9 COVER photo (club banner): the uncropped 900px
+ * variant, NOT `thumbUrl`.
+ *
+ * Tina 30.09.2026: a club photo centred in the 16:9 crop sat right in "Meine
+ * Clubs" but slipped in the "Alle Clubs" list. The list card used `thumbUrl`,
+ * i.e. the 320x320 centre SQUARE of the banner, and the wide card then cut
+ * that square again top and bottom — two crops, so heads and signs vanished.
+ * The uncropped variant lets the card's own object-fit do the one crop the
+ * owner already framed.
+ */
+export const coverCardUrl = (url) => chatImageUrl(url);

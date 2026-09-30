@@ -682,7 +682,10 @@ export const GroupDetail = () => {
             // are actually waiting (Tobi 2026-09-07: hide it at 0). Only private
             // groups have join requests; events join directly, so exclude them.
             const pendingCount = group.pending_request_count || 0;
-            const showRequests = (isOwner || group.is_manager) && group.is_private && !isEvent && pendingCount > 0;
+            // Since 30.09.2026 also private events in a PUBLIC club (server flag
+            // joins_by_request; an older server doesn't send it → groups only).
+            const joinsByRequest = group.joins_by_request ?? (group.is_private && !isEvent);
+            const showRequests = (isOwner || group.is_manager) && joinsByRequest && pendingCount > 0;
             return (
               <div className="gd-anfragen-row" style={showRequests ? { gap: 10 } : undefined}>
                 <button className="gd-anfragen-btn joined" onClick={() => navigate(`/chat/${group.id}`)}>
@@ -759,7 +762,7 @@ export const GroupDetail = () => {
           return (
             <div className="gd-anfragen-row">
               <button className="gd-anfragen-btn cta-pulse" onClick={handleJoinToggle}>
-                {group.is_private ? t('groups.detail.actions.joinPrivate') : t('groups.detail.actions.joinPublic')}
+                {(group.joins_by_request ?? group.is_private) ? t('groups.detail.actions.joinPrivate') : t('groups.detail.actions.joinPublic')}
               </button>
             </div>
           );

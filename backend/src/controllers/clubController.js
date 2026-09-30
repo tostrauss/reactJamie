@@ -1556,7 +1556,7 @@ export const getDiscoverEvents = async (req, res) => {
 // ==========================================
 export const createClubEvent = async (req, res) => {
   const { id } = req.params;
-  const { name, description, date, time, location, max_members, is_recurring_weekly, ticket_url } = req.body;
+  const { name, description, date, time, location, max_members, is_recurring_weekly, ticket_url, is_private } = req.body;
   const userId = req.userId;
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
@@ -1623,7 +1623,11 @@ export const createClubEvent = async (req, res) => {
     // instant public join (a non-member of a private club must be let in, not
     // walk in). Previously this was hardcoded FALSE, which made every private
     // club's events publicly joinable and marked "Öffentlich".
-    const eventIsPrivate = !!club.rows[0].is_private;
+    //
+    // Tina 30.09.2026: in a PUBLIC club the creator may make a single event
+    // private (join by request, host approves — see usesJoinRequest in
+    // groupController). A private club's events are always private.
+    const eventIsPrivate = !!club.rows[0].is_private || is_private === true;
 
     // Event row + owner membership in ONE transaction (audit risk #10) —
     // shared core in services/entityLifecycle.js.
@@ -1769,11 +1773,14 @@ export const deleteClubEvent = async (req, res) => {
 // the discover feed, and the map all reflect the edit immediately.
 export const updateClubEvent = async (req, res) => {
   const { id, eventId } = req.params;
-  const { name, description, date, time, location, max_members, is_recurring_weekly, image_url, ticket_url } = req.body;
+  const { name, description, date, time, location, max_members, is_recurring_weekly, image_url, ticket_url, is_private } = req.body;
   const userId = req.userId;
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   if (name !== undefined && !String(name).trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
+  if (is_private !== undefined && typeof is_private !== 'boolean') {
+    return res.status(400).json({ error: 'is_private muss true oder false sein' });
+  }
   {
     const bad = checkImageField(image_url);
     if (bad) return res.status(400).json({ error: bad });
@@ -1801,7 +1808,7 @@ export const updateClubEvent = async (req, res) => {
     );
     if (event.rows.length === 0) return res.status(404).json({ error: 'Veranstaltung nicht gefunden' });
 
-    const club = await db.query('SELECT owner_id, location FROM groups WHERE id = $1', [id]);
+    const club = await db.query('SELECT owner_id, location, is_private FROM groups WHERE id = $1', [id]);
     const isEventOwner = Number(event.rows[0].owner_id) === Number(userId);
     const canManage = await userManagesClub(id, club.rows[0]?.owner_id, userId);
     if (!canManage && !isEventOwner) {
@@ -1837,10 +1844,17 @@ export const updateClubEvent = async (req, res) => {
              max_members         = COALESCE($5, max_members),
              is_recurring_weekly = COALESCE($6, is_recurring_weekly),
              image_url           = COALESCE($10, image_url),
+             is_private          = COALESCE($12::boolean, is_private),
              -- '' clears the link (free event again); NULL leaves it untouched.
-             ticket_url          = CASE WHEN $11 IS NULL THEN ticket_url
-                                        WHEN $11 = '' THEN NULL
-                                        ELSE $11 END,
+             -- ::text is load-bearing: $11 appears ONLY in this CASE, so a NULL
+             -- (every save that doesn't touch the link, i.e. every edit from
+             -- the edit page) left Postgres unable to infer its type and the
+             -- whole UPDATE 500'd ("could not determine data type of parameter
+             -- $11", since 0754107 / 03.09.). Found by the real-Postgres smoke
+             -- test 30.09.2026.
+             ticket_url          = CASE WHEN $11::text IS NULL THEN ticket_url
+                                        WHEN $11::text = '' THEN NULL
+                                        ELSE $11::text END,
              lat = CASE WHEN $4 IS NOT NULL THEN $7 ELSE lat END,
              lng = CASE WHEN $4 IS NOT NULL THEN $8 ELSE lng END,
              updated_at = CURRENT_TIMESTAMP
@@ -1858,6 +1872,8 @@ export const updateClubEvent = async (req, res) => {
         eventId,
         image_url !== undefined ? (image_url || null) : null,
         ticketUrl,
+        // Private club → its events stay private whatever the client sends.
+        is_private === undefined ? null : (club.rows[0]?.is_private ? true : is_private),
       ]
     );
 

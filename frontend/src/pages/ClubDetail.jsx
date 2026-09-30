@@ -71,7 +71,7 @@ export const ClubDetail = () => {
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsLocked, setEventsLocked] = useState(false);
   const [showCreateEvent, setShowCreateEvent] = useState(false);
-  const [eventForm, setEventForm] = useState({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20, is_recurring_weekly: false, is_paid: false, ticket_url: '' });
+  const [eventForm, setEventForm] = useState({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20, is_recurring_weekly: false, is_paid: false, ticket_url: '', is_private: false });
   const [eventSubmitting, setEventSubmitting] = useState(false);
   const [joiningEventId, setJoiningEventId] = useState(null);
   const eventLocationRef = useRef(null);
@@ -343,12 +343,14 @@ export const ClubDetail = () => {
         max_members: parseInt(eventForm.max_members, 10) || 20,
         is_recurring_weekly: eventForm.is_recurring_weekly,
         ticket_url: eventForm.is_paid ? eventForm.ticket_url.trim() : undefined,
+        // Only meaningful in a public club; a private club's events are private anyway.
+        is_private: club?.is_private ? undefined : eventForm.is_private,
       });
       const newEvent = res.data;
       newEvent.is_member = true;
       setEvents(prev => [newEvent, ...prev].sort((a, b) => new Date(a.date) - new Date(b.date)));
       setShowCreateEvent(false);
-      setEventForm({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20, is_recurring_weekly: false, is_paid: false, ticket_url: '' });
+      setEventForm({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20, is_recurring_weekly: false, is_paid: false, ticket_url: '', is_private: false });
       toast.success(t('clubDetail.events.createdToast'));
     } catch (err) {
       toast.error(err.response?.data?.error || t('clubDetail.events.createError'));
@@ -634,6 +636,23 @@ export const ClubDetail = () => {
                   </span>
                 </label>
 
+                {/* Privates Event (Tina 30.09.2026): only in a PUBLIC club — a
+                    private club's events are private anyway. Private = join by
+                    request, the host approves (server: usesJoinRequest). */}
+                {!club.is_private && (
+                  <label className="cd-event-recurring">
+                    <input
+                      type="checkbox"
+                      checked={eventForm.is_private}
+                      onChange={e => setEventForm(f => ({ ...f, is_private: e.target.checked }))}
+                    />
+                    <span className="cd-event-recurring-text">
+                      <span className="cd-event-recurring-title">{t('clubDetail.events.privateLabel')}</span>
+                      <span className="cd-event-recurring-hint">{t('clubDetail.events.privateHint')}</span>
+                    </span>
+                  </label>
+                )}
+
                 {/* Kostenfrei ⇄ kostenpflichtig (Tina/Tobi 2026-09-03). Checked
                     (default) = free; unchecking reveals the external ticket-link
                     field — JAMIE never takes the money, it only links out to the
@@ -808,9 +827,36 @@ export const ClubDetail = () => {
           {/* Owner actions */}
           {isOwner && (
             <div className="cd-owner-actions">
-              <button className="cd-boost-btn" onClick={() => setShowBoostModal(true)}>
-                🚀 {t('clubDetail.actions.boost')}
-              </button>
+              {/* Tina 30.09.2026: no bare "Boost" button for non-Pro owners —
+                  instead say what Pro gives a club and why: boosting + ticket
+                  promotion (paid events). Pro owners keep the boost itself,
+                  it's their feature. iOS without a purchase path shows
+                  neither pitch nor button (Apple 3.1.1). */}
+              {isPro ? (
+                <button className="cd-boost-btn" onClick={() => setShowBoostModal(true)}>
+                  🚀 {t('clubDetail.actions.boost')}
+                </button>
+              ) : proUpsellAllowed() && (
+                <div className="cd-pro-info">
+                  <div className="cd-pro-info-title">👑 {t('clubDetail.proInfo.title')}</div>
+                  <ul className="cd-pro-info-list">
+                    <li>
+                      <strong>🚀 {t('clubDetail.proInfo.boostTitle')}</strong>
+                      <span>{t('clubDetail.proInfo.boostBody')}</span>
+                    </li>
+                    <li>
+                      <strong>🎟️ {t('clubDetail.proInfo.ticketsTitle')}</strong>
+                      <span>{t('clubDetail.proInfo.ticketsBody')}</span>
+                    </li>
+                  </ul>
+                  <button
+                    className="cd-pro-info-btn"
+                    onClick={() => window.dispatchEvent(new CustomEvent('jamie:open-pro-modal', { detail: { feature: null } }))}
+                  >
+                    {t('clubDetail.proInfo.cta')}
+                  </button>
+                </div>
+              )}
               <button className="cd-btn cd-btn-danger" onClick={handleDelete}>
                 {t('clubDetail.actions.delete')}
               </button>

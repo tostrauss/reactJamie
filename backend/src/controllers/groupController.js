@@ -939,12 +939,15 @@ export const getGroupById = async (req, res) => {
       // errors is worse than no button.
       if (group.type === 'event' && group.parent_club_id) {
         const live = await db.query(
-          `SELECT 1 FROM groups c
+          `SELECT c.is_private FROM groups c
             WHERE c.id = $1 AND c.is_active = TRUE AND c.deleted_at IS NULL
               AND c.approval_status = 'approved' LIMIT 1`,
           [group.parent_club_id]
         );
         group.parent_club_gone = live.rowCount === 0;
+        // Edit page: only a PUBLIC club's event gets its own privacy toggle
+        // (Tina 30.09.2026) — a private club's events are private by rule.
+        group.parent_club_private = live.rows[0]?.is_private ?? null;
       }
       // Per-group push mute state for the chat-header bell (null for non-members).
       group.is_muted = memberCheck.rows[0] ? !!memberCheck.rows[0].notifications_muted : false;
@@ -975,7 +978,10 @@ export const getGroupById = async (req, res) => {
       // and a flag computed from the counter alone would keep rendering a
       // disabled button on a group anyone may now join, with nothing able to
       // clear it (the client only ever turns this flag ON).
-      group.join_request_blocked = !!group.is_private && !group.parent_club_id
+      // Tells the page whether "Beitreten" sends a request (private group, or a
+      // private event in a public club) or joins directly.
+      group.joins_by_request = await usesJoinRequest(group);
+      group.join_request_blocked = group.joins_by_request
         && joinAttemptsExhausted(requestCheck.rows[0]);
       group.waitlist_status = waitlistCheck.rows[0]?.status || null;
       group.waitlist_position = waitlistCheck.rows[0]?.position || null;
@@ -1324,6 +1330,24 @@ const CLUB_BLOCK_MESSAGE = {
   CLUB_GONE: 'Der Club zu diesem Event existiert nicht mehr.',
 };
 
+// Is this entity's door an owner-approved JOIN REQUEST (+ the attempt budget)?
+//
+//   - plain private group/club → yes (unchanged).
+//   - club EVENT → only when the EVENT is private AND its club is PUBLIC
+//     (Tina 30.09.2026: "Events auch privat möglich"). A private CLUB's events
+//     keep the 2026-08-03 rule: the club membership is the gate, members join
+//     directly, non-members were already refused by clubEventBlockedReason.
+//
+// The parent club is read live, never the event's own flag alone: events of a
+// private club carry is_private=TRUE by inheritance, and routing those through
+// requests would re-add the per-event approval the 08-03 fix removed.
+async function usesJoinRequest(g) {
+  if (!g?.is_private) return false;
+  if (!g.parent_club_id) return true;
+  const { rows } = await db.query('SELECT is_private FROM groups WHERE id = $1', [g.parent_club_id]);
+  return rows.length > 0 && rows[0].is_private === false;
+}
+
 // ==========================================
 // JOIN GROUP
 // ==========================================
@@ -1402,7 +1426,8 @@ export const joinGroup = async (req, res) => {
     // branch -- but it does mean the block is not describable as permanent.
     // Read ONCE and reuse below - the private branch used to re-select the same
     // row a few lines later.
-    const attempt = (g.is_private && !g.parent_club_id)
+    const viaRequest = await usesJoinRequest(g);
+    const attempt = viaRequest
       ? await loadJoinAttempt(db, id, req.userId)
       : null;
     if (attempt && joinAttemptsExhausted(attempt)) {
@@ -1415,11 +1440,10 @@ export const joinGroup = async (req, res) => {
     }
 
     // Private group → create join request (or reset a previous rejection to pending).
-    // Club EVENTS are excluded (parent_club_id set): they inherit the club's
-    // is_private, but their access is gated by CLUB membership above, not by a
-    // per-event join request — a club member who cleared that gate joins the
-    // event directly (below), a non-member was already 403'd.
-    if (g.is_private && !g.parent_club_id) {
+    // Club events only when the event itself is private in a PUBLIC club — see
+    // usesJoinRequest. A private club's events stay gated by CLUB membership
+    // above: a member who cleared that gate joins directly (below).
+    if (viaRequest) {
       if (attempt?.status === 'pending') {
         return res.status(400).json({ error: 'Beitrittsanfrage bereits ausstehend' });
       }
@@ -2479,7 +2503,7 @@ export const joinWaitlist = async (req, res) => {
     // only reads 'waiting'), so that opening is silently consumed and nobody
     // else is ever notified for it. One blocked user could sit at the head of
     // the queue and swallow every seat the group frees.
-    if (g.is_private && !g.parent_club_id) {
+    if (await usesJoinRequest(g)) {
       const attempt = await loadJoinAttempt(db, id, req.userId);
       if (joinAttemptsExhausted(attempt)) {
         return res.status(403).json(joinBlockedBody());

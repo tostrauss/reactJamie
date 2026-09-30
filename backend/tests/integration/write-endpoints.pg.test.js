@@ -171,6 +171,7 @@ suite('write endpoints against real Postgres', () => {
       updateReportStatus: rp.updateReportStatus,
       setUserActive: ad.setUserActive, rejectClub: ad.rejectClub,
       deleteClub: c.deleteClub, deleteClubEvent: c.deleteClubEvent,
+      createClubEvent: c.createClubEvent, updateClubEvent: c.updateClubEvent,
       deleteDM: dm.deleteDM,
       joinGroup: g.joinGroup, handleJoinRequest: g.handleJoinRequest, kickMember: g.kickMember,
       joinWaitlist: g.joinWaitlist, joinClub: c.joinClub,
@@ -1469,6 +1470,89 @@ suite('write endpoints against real Postgres', () => {
       expect(claimed).toBeTruthy();
       const marker = await db.query('SELECT reminder_day_sent_for FROM groups WHERE id=$1', [ev]);
       expect(marker.rows[0].reminder_day_sent_for).toBe(null);
+    });
+
+    // ── Private events in a PUBLIC club (Tina 30.09.2026) ──────────────────
+    // Private = join by request, the host approves. A private CLUB's events
+    // keep the 08-03 rule: club membership is the gate, members join directly.
+    it('public club: is_private event → join is a request, host accepts', async () => {
+      const pubClub = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, is_private, approval_status, lat, lng)
+         VALUES ('Priv-Ev Public Club','club',$1,'Sport','Wien',100,FALSE,'approved',48.2,16.37) RETURNING id`,
+        [gateOwner])).rows[0].id;
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner')`, [pubClub, gateOwner]);
+      const day = new Date(Date.now() + 4 * 864e5).toISOString().slice(0, 10);
+
+      const privRes = await call(C.createClubEvent, { userId: gateOwner, params: { id: String(pubClub) },
+        body: { name: 'Geheimer Spieleabend', date: day, time: '19:00', is_private: true } });
+      expect(privRes.statusCode, JSON.stringify(privRes.body)).toBe(201);
+      expect(privRes.body.is_private).toBe(true);
+      const privEv = privRes.body.id;
+
+      const pubRes = await call(C.createClubEvent, { userId: gateOwner, params: { id: String(pubClub) },
+        body: { name: 'Offener Spieleabend', date: day, time: '19:00' } });
+      expect(pubRes.statusCode).toBe(201);
+      expect(pubRes.body.is_private).toBe(false);
+
+      // Detail page tells the outsider the button sends a request.
+      const d = await call(C.getGroupById, { userId: outsider, params: { id: String(privEv) } });
+      ok(d);
+      expect(d.body.joins_by_request).toBe(true);
+      expect(d.body.parent_club_private).toBe(false);
+
+      const j = await call(C.joinGroup, { userId: outsider, params: { id: String(privEv) }, body: {} });
+      ok(j);
+      expect(j.body.status).toBe('pending');
+      const notYet = await db.query('SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2', [privEv, outsider]);
+      expect(notYet.rows.length).toBe(0);
+
+      const owner = await call(C.getGroupById, { userId: gateOwner, params: { id: String(privEv) } });
+      expect(owner.body.pending_request_count).toBe(1);
+      const req = await db.query('SELECT id FROM group_join_requests WHERE group_id=$1 AND user_id=$2', [privEv, outsider]);
+      ok(await call(C.handleJoinRequest, { userId: gateOwner,
+        params: { id: String(privEv), requestId: String(req.rows[0].id) }, body: { action: 'accept' } }));
+      const m = await db.query('SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2', [privEv, outsider]);
+      expect(m.rows.length).toBe(1);
+
+      // The public sibling still joins instantly.
+      const jp = await call(C.joinGroup, { userId: outsider, params: { id: String(pubRes.body.id) }, body: {} });
+      ok(jp);
+      expect(jp.body.status).not.toBe('pending');
+
+      // updateClubEvent flips it public → the next outsider walks straight in.
+      ok(await call(C.updateClubEvent, { userId: gateOwner,
+        params: { id: String(pubClub), eventId: String(privEv) }, body: { is_private: false } }));
+      const flipped = await db.query('SELECT is_private FROM groups WHERE id=$1', [privEv]);
+      expect(flipped.rows[0].is_private).toBe(false);
+      const bad = await call(C.updateClubEvent, { userId: gateOwner,
+        params: { id: String(pubClub), eventId: String(privEv) }, body: { is_private: 'yes' } });
+      expect(bad.statusCode).toBe(400);
+    });
+
+    it('private club: events stay private and members still join directly', async () => {
+      const day = new Date(Date.now() + 4 * 864e5).toISOString().slice(0, 10);
+      const res = await call(C.createClubEvent, { userId: gateOwner, params: { id: String(privClub) },
+        body: { name: 'Clubabend', date: day, time: '20:00', is_private: false } });
+      expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+      expect(res.body.is_private).toBe(true); // inherited, client can't opt out
+      ok(await call(C.updateClubEvent, { userId: gateOwner,
+        params: { id: String(privClub), eventId: String(res.body.id) }, body: { is_private: false } }));
+      const still = await db.query('SELECT is_private FROM groups WHERE id=$1', [res.body.id]);
+      expect(still.rows[0].is_private).toBe(true);
+
+      // A club member joins the event directly — no per-event request.
+      const member = (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ('smoke-privmember@x.com','Paula','1996-01-01','female',$1, TRUE, 'email') RETURNING id`,
+        [avatar])).rows[0].id;
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'member')`, [privClub, member]);
+      const d = await call(C.getGroupById, { userId: member, params: { id: String(res.body.id) } });
+      expect(d.body.joins_by_request).toBe(false);
+      const j = await call(C.joinGroup, { userId: member, params: { id: String(res.body.id) }, body: {} });
+      ok(j);
+      expect(j.body.status).not.toBe('pending');
+      const m = await db.query('SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2', [res.body.id, member]);
+      expect(m.rows.length).toBe(1);
     });
 
     it('...but a club MEMBER can still be invited to the same event', async () => {

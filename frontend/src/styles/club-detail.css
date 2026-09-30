@@ -958,6 +958,54 @@
   box-shadow: 0 6px 18px rgba(255, 215, 0, 0.3);
 }
 
+/* ── Pro info for non-Pro owners (replaces the boost button, Tina 30.09.2026) */
+.cd-pro-info {
+  padding: 16px;
+  border-radius: var(--radius-md);
+  background: rgba(253, 118, 102, 0.08);
+  border: 1px solid rgba(253, 118, 102, 0.28);
+}
+.cd-pro-info-title {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+.cd-pro-info-list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cd-pro-info-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cd-pro-info-list strong {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+.cd-pro-info-list span {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.cd-pro-info-btn {
+  width: 100%;
+  min-height: 44px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--accent-coral, #FD7666);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 /* ── Report link ──────────────────────────────────────── */
 .cd-report-link {
   align-self: center;

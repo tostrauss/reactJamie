@@ -597,9 +597,19 @@
       "ticketLinkHint": "Der Link erscheint als Ticket-Button auf der Event-Seite. Der Verkauf läuft über deinen eigenen Shop.",
       "errorTicketRequired": "Bitte gib einen Ticket-Link an",
       "errorProRequired": "Kostenpflichtige Events sind ein JAMIE Pro Feature.",
-      "confirmLeave": "Event wirklich verlassen? Dein Platz wird frei."
+      "confirmLeave": "Event wirklich verlassen? Dein Platz wird frei.",
+      "privateLabel": "Privates Event",
+      "privateHint": "Beitritt nur auf Anfrage – du bestätigst, wer dabei ist"
     },
-    "confirmLeave": "Club wirklich verlassen? Du kannst diesem Club insgesamt nur zweimal beitreten."
+    "confirmLeave": "Club wirklich verlassen? Du kannst diesem Club insgesamt nur zweimal beitreten.",
+    "proInfo": {
+      "title": "Mehr Reichweite mit JAMIE Pro",
+      "boostTitle": "Club boosten",
+      "boostBody": "24 Stunden ganz oben in Entdecken, so oft du willst",
+      "ticketsTitle": "Tickets promoten",
+      "ticketsBody": "Kostenpflichtige Events mit Ticket-Button zu deinem Shop",
+      "cta": "JAMIE Pro ansehen"
+    }
   },
   "clubMembers": {
     "title": "Mitglieder",

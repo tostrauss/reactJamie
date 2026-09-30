@@ -5,7 +5,7 @@ import { AuthContext } from '../context/AuthContext';
 import { nextOccurrence, parseDateDescriptor } from '../utils/recurrence';
 import { purchasesEnabled } from '../utils/platform';
 import { usePaymentsConfig } from '../utils/paymentsConfig';
-import { thumbUrl } from '../utils/images';
+import { thumbUrl, coverCardUrl } from '../utils/images';
 
 // Dispatched on every Pro-gate click (member-preview lock on group cards).
 // AppRoutes listens for this and opens <ProModal />. Using a window event
@@ -161,7 +161,7 @@ export const GroupCard = memo(({
         {isClub ? (
           <div className="avatar-slot card-club-full-image" style={{ gridColumn: '1 / -1', gridRow: '1 / -1', borderRadius: '9px' }}>
             <AvatarImage
-              src={thumbUrl(group.image_url)}
+              src={coverCardUrl(group.image_url)}
               alt={group.name || group.title || ''}
               fallbackChar={group.category || group.name || group.title}
               placeholderStyle={{ fontSize: 48, fontWeight: 700 }}
