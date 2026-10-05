@@ -868,8 +868,10 @@ export const admin = {
   // { is_admin: true } or { is_trusted_user: false }.
   setUserRole: (id, roles) => axiosInstance.patch(`/admin/users/${id}/role`, roles),
   getScreenTime: () => axiosInstance.get('/admin/screen-time'),
-  // Per-user memberships + activity for the manage modal.
+  // Per-user memberships + activity (+ registered push devices) for the manage modal.
   getUserDetail: (id) => axiosInstance.get(`/admin/users/${id}/detail`),
+  // One test push to every device of the user → { results: [{ id, platform, host, ok, status?, reason?, pruned? }] }
+  sendTestPush: (id) => axiosInstance.post(`/admin/users/${id}/push-test`),
   exportUsers: () => axiosInstance.get('/admin/export/users'),
   exportScreens: () => axiosInstance.get('/admin/export/screens'),
   exportSuggestions: () => axiosInstance.get('/admin/export/suggestions'),

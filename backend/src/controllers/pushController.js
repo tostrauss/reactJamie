@@ -13,6 +13,26 @@ import { isValidRadius, normalizeRadius } from '../utils/geoRadius.js';
 const bulkPushSlots = createSemaphore(6);
 const userPushSlots = createSemaphore(4);
 
+// Web subscriptions kept per user (see subscribe). One person rarely has more
+// than a handful of live browsers; the rest is history.
+const MAX_WEB_SUBSCRIPTIONS = 25;
+
+// A web-push request with no timeout could hang for as long as the socket
+// lived — and it held one of the semaphore slots above while it did, so a few
+// stalled FCM/Mozilla connections froze ALL push dispatch, iOS included, with
+// nothing in the logs.
+const WEB_PUSH_TIMEOUT_MS = 10_000;
+
+// Delivery options for pushes that announce a CONVERSATION (group chat, DM).
+//   urgency 'high' — without it the Web Push default is 'normal', which FCM
+//     maps to normal priority: Android in Doze holds those until the next
+//     maintenance window, so a chat push could arrive tens of minutes late,
+//     long after the conversation moved on. Read as "push doesn't work".
+//   ttl 24 h — web default is four weeks (a push about a chat from last week
+//     is noise); on APNs it raises the default 1 h expiry, after which a phone
+//     that was offline for an hour (flight mode, no signal) never got it.
+export const PUSH_CONVERSATION = Object.freeze({ urgency: 'high', ttl: 24 * 60 * 60 });
+
 // Configure VAPID once on first import
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   webpush.setVapidDetails(
@@ -104,14 +124,23 @@ export const subscribe = async (req, res) => {
   }
 
   try {
-    // Cap subscriptions per user — one device should never produce >10 active ones
-    const count = await db.query(
-      `SELECT COUNT(*)::int AS n FROM push_subscriptions WHERE user_id = $1 AND platform = 'web'`,
-      [req.userId]
+    // Cap web subscriptions per user by evicting the STALEST rows — never by
+    // refusing the device registering right now. This used to answer 429 once
+    // 25 rows existed, counting the endpoint being re-posted as well: a user
+    // who had collected that many (browsers, reinstalls, rotated endpoints that
+    // never failed a send and so were never pruned) could not register their
+    // CURRENT phone any more, and syncPushSubscription only console.warns — push
+    // was dead for them without a trace anywhere. created_at is refreshed on
+    // every re-post below, so "oldest" means "not seen alive for longest".
+    await db.query(
+      `DELETE FROM push_subscriptions WHERE id IN (
+         SELECT id FROM push_subscriptions
+          WHERE user_id = $1 AND platform = 'web' AND endpoint IS DISTINCT FROM $2
+          ORDER BY created_at DESC NULLS LAST, id DESC
+          OFFSET $3
+       )`,
+      [req.userId, endpoint, MAX_WEB_SUBSCRIPTIONS - 1]
     );
-    if ((count.rows[0]?.n ?? 0) >= 25) {
-      return res.status(429).json({ error: 'Zu viele Push-Subscriptions. Lösche alte zuerst.' });
-    }
     // One endpoint = one browser profile on one device. If it's still
     // registered under ANOTHER account (previous user of a shared device who
     // logged out without unsubscribing), that row must go — otherwise both
@@ -120,12 +149,17 @@ export const subscribe = async (req, res) => {
       `DELETE FROM push_subscriptions WHERE endpoint = $1 AND user_id <> $2`,
       [endpoint, req.userId]
     );
+    // created_at doubles as "last registered": the client re-posts its
+    // subscription on every app start (syncPushSubscription), so refreshing it
+    // here is what lets the eviction above tell a live device from a dead one.
+    // Nothing else reads the column.
     await db.query(
       `INSERT INTO push_subscriptions (user_id, platform, endpoint, p256dh, auth_key)
        VALUES ($1, 'web', $2, $3, $4)
        ON CONFLICT (user_id, endpoint) DO UPDATE
          SET p256dh = EXCLUDED.p256dh,
-             auth_key = EXCLUDED.auth_key`,
+             auth_key = EXCLUDED.auth_key,
+             created_at = CURRENT_TIMESTAMP`,
       [req.userId, endpoint, keys.p256dh, keys.auth]
     );
     res.json({ success: true });
@@ -310,27 +344,60 @@ export const updatePushPreferences = async (req, res) => {
 // ==========================================
 // INTERNAL: SEND PUSH TO USER (called from notificationController)
 // ==========================================
+// The push service's host only (fcm.googleapis.com, web.push.apple.com,
+// updates.push.services.mozilla.com …) — identifies the browser family in a
+// log line without writing the capability URL itself into the logs.
+const endpointHost = (endpoint) => {
+  try { return new URL(endpoint).host; } catch { return '-'; }
+};
+
 // Dispatch one already-fetched subscription row. RETURNS the send promise
 // (errors handled inside, never rejects) so callers can drive real
 // backpressure through the semaphore instead of fire-and-forget. The APNs
 // context comes from the promise-memoized getApnContext() — safe under
 // concurrent dispatch, no per-batch holder needed.
-async function dispatchToSubscription(sub, title, body, url) {
+//
+// The promise resolves to what happened to this one subscription — { id,
+// platform, host, ok, status?, reason?, pruned? }. Fan-out callers ignore the
+// value; the admin "Test-Push senden" shows it per device, which is the only
+// way to see from the outside whether a push actually left for a given phone.
+async function dispatchToSubscription(sub, title, body, url, opts = {}) {
   if (sub.platform === 'web' && sub.endpoint) {
-    if (!process.env.VAPID_PUBLIC_KEY) return;
+    const result = { id: sub.id, platform: 'web', host: endpointHost(sub.endpoint) };
+    if (!process.env.VAPID_PUBLIC_KEY) return { ...result, ok: false, reason: 'vapid-not-configured' };
     const pushSub = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } };
-    return webpush.sendNotification(pushSub, JSON.stringify({ title, body, url })).catch((err) => {
-      // 410 Gone = expired; FCM signals dead subscriptions with 404
-      // ("NotRegistered") — both are permanent, clean them up.
-      if (err.statusCode === 410 || err.statusCode === 404) {
-        db.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]).catch(() => {});
-      } else {
-        console.error('Push send error:', err.statusCode, err.message);
+    const options = { timeout: WEB_PUSH_TIMEOUT_MS };
+    if (opts.urgency) options.urgency = opts.urgency;
+    if (opts.ttl != null) options.TTL = opts.ttl;
+    return webpush.sendNotification(pushSub, JSON.stringify({ title, body, url }), options).then(
+      (res) => ({ ...result, ok: true, status: res?.statusCode ?? null }),
+      (err) => {
+        // 410 Gone = expired; FCM signals dead subscriptions with 404
+        // ("NotRegistered") — both are permanent, clean them up. Logged now:
+        // the prune used to be silent, so "this user's web push died" left no
+        // trace at all. user + host, never the endpoint (it is a credential).
+        const where = `sub=${sub.id} user=${sub.user_id ?? '-'} host=${result.host}`;
+        const status = err?.statusCode ?? null;
+        if (status === 410 || status === 404) {
+          console.warn(`[push] pruning dead web subscription ${where} status=${status}`);
+          db.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]).catch(() => {});
+          return { ...result, ok: false, status, pruned: true };
+        }
+        // 403 here almost always means a VAPID key mismatch (the subscription
+        // was created under a different key) — the client heals that on its
+        // next start via syncPushSubscription, so it is logged, not pruned.
+        // The body carries the push service's own reason — Apple's Web Push
+        // answers e.g. {"reason":"BadJwtToken"} where err.message only says
+        // "Received unexpected response code".
+        console.error(`[push] web send failed ${where} status=${status ?? '-'}: ${err?.message} ${String(err?.body ?? '').slice(0, 160)}`.trim());
+        return { ...result, ok: false, status, reason: err?.message || 'send-failed' };
       }
-    });
-  } else if (sub.platform === 'apns' && sub.device_token) {
+    );
+  }
+  if (sub.platform === 'apns' && sub.device_token) {
+    const result = { id: sub.id, platform: 'apns', host: 'apns' };
     const ctx = await getApnContext();
-    if (!ctx) return;
+    if (!ctx) return { ...result, ok: false, reason: 'apns-not-configured' };
     const { apn, provider } = ctx;
     const notification = new apn.Notification();
     notification.alert = { title, body };
@@ -343,33 +410,45 @@ async function dispatchToSubscription(sub, title, body, url) {
     // pushType is set. expiry lets APNs hold the push while the phone is
     // offline instead of discarding it (0 = deliver-now-or-never).
     notification.pushType = 'alert';
-    notification.expiry = Math.floor(Date.now() / 1000) + 3600;
-    return provider.send(notification, sub.device_token).then((result) => {
+    notification.expiry = Math.floor(Date.now() / 1000) + (opts.ttl ?? 3600);
+    return provider.send(notification, sub.device_token).then((sent) => {
       // Every outcome logs. node-apn 8 never rejects — it resolves
       // {sent, failed} — so an un-logged branch here is a push that
       // vanished without trace (2026-09-04 incident: three of them did).
-      if (result.sent?.length) console.log(`[APNs] sent sub=${sub.id}`);
-      for (const failure of (result.failed || [])) {
+      if (sent.sent?.length) {
+        console.log(`[APNs] sent sub=${sub.id} user=${sub.user_id ?? '-'}`);
+        return { ...result, ok: true };
+      }
+      let outcome = { ...result, ok: false, reason: 'no-result' };
+      for (const failure of (sent.failed || [])) {
         const reason = failure.response?.reason || '';
         const status = failure.status;
         // BadDeviceToken = token not valid for THIS gateway (sandbox token on
         // production, or garbage); Unregistered/410 = app uninstalled. All
         // permanent for this row — prune, but say so.
         if (reason === 'BadDeviceToken' || reason === 'Unregistered' || status === 410 || status === '410') {
-          console.warn(`[APNs] pruning dead token sub=${sub.id} reason=${reason || status}`);
+          console.warn(`[APNs] pruning dead token sub=${sub.id} user=${sub.user_id ?? '-'} reason=${reason || status}`);
           db.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]).catch(() => {});
+          outcome = { ...result, ok: false, status: status ?? null, reason: reason || String(status), pruned: true };
         } else if (reason) {
-          console.error(`[APNs] send failure: ${reason} status ${status} sub=${sub.id}`);
+          console.error(`[APNs] send failure: ${reason} status ${status} sub=${sub.id} user=${sub.user_id ?? '-'}`);
+          outcome = { ...result, ok: false, status: status ?? null, reason };
         } else if (failure.error) {
           // Transport-level: timeout, TLS/HTTP2, JWT signing, DNS — no APNs
           // JSON body, so `reason` is empty and this used to be silent.
-          console.error(`[APNs] transport failure: ${failure.error.message} status ${status ?? '-'} sub=${sub.id}`);
+          console.error(`[APNs] transport failure: ${failure.error.message} status ${status ?? '-'} sub=${sub.id} user=${sub.user_id ?? '-'}`);
+          outcome = { ...result, ok: false, status: status ?? null, reason: failure.error.message };
         } else {
           console.error('[APNs] send failure (unrecognised shape):', JSON.stringify(failure).slice(0, 300));
         }
       }
-    }).catch((err) => console.error('[APNs] send error:', err.message));
+      return outcome;
+    }).catch((err) => {
+      console.error('[APNs] send error:', err.message);
+      return { ...result, ok: false, reason: err.message };
+    });
   }
+  return { id: sub.id, platform: sub.platform, host: null, ok: false, reason: 'incomplete-subscription' };
 }
 
 // `title` may be a plain string (with `body`) OR a builder function
@@ -381,15 +460,17 @@ const resolveTexts = (titleOrBuilder, body, locale) =>
     ? titleOrBuilder(locale)
     : { title: titleOrBuilder, body };
 
-export const sendPushToUser = async (userId, title, body, url = '/notifications') => {
+// Resolves to one dispatch result per subscription ([] when there is nothing
+// to send to) — see dispatchToSubscription. Fan-out callers fire and forget.
+export const sendPushToUser = async (userId, title, body, url = '/notifications', opts = {}) => {
   // No web AND no APNs configured — nothing to send. (If only one is configured
   // we still proceed; sends to the other platform will silently no-op.)
-  if (!process.env.VAPID_PUBLIC_KEY && !process.env.APNS_KEY_ID) return;
+  if (!process.env.VAPID_PUBLIC_KEY && !process.env.APNS_KEY_ID) return [];
 
   let subs;
   try {
     const result = await db.query(
-      `SELECT ps.id, ps.platform, ps.endpoint, ps.p256dh, ps.auth_key, ps.device_token, u.locale
+      `SELECT ps.id, ps.user_id, ps.platform, ps.endpoint, ps.p256dh, ps.auth_key, ps.device_token, u.locale
        FROM push_subscriptions ps JOIN users u ON u.id = ps.user_id
        WHERE ps.user_id = $1`,
       [userId]
@@ -397,21 +478,41 @@ export const sendPushToUser = async (userId, title, body, url = '/notifications'
     subs = result.rows;
   } catch (err) {
     console.error('Push fetch error:', err);
-    return;
+    return [];
   }
-  if (!subs.length) return;
+  if (!subs.length) return [];
 
   const texts = resolveTexts(title, body, subs[0].locale);
-  await Promise.all(subs.map((sub) =>
-    userPushSlots.run(() => dispatchToSubscription(sub, texts.title, texts.body, url))
+  return Promise.all(subs.map((sub) =>
+    userPushSlots.run(() => dispatchToSubscription(sub, texts.title, texts.body, url, opts))
   ));
+};
+
+// The push devices registered for one user, as an admin may see them: platform,
+// the push service's host for web rows, and when the device last registered
+// (see subscribe — created_at is refreshed on every re-post). Never the
+// endpoint or the device token: both are credentials for that device's push
+// channel.
+export const listPushDevices = async (userId) => {
+  const { rows } = await db.query(
+    `SELECT id, platform, endpoint, created_at
+       FROM push_subscriptions WHERE user_id = $1
+      ORDER BY created_at DESC NULLS LAST, id DESC`,
+    [userId]
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    platform: r.platform,
+    host: r.platform === 'web' ? endpointHost(r.endpoint) : 'apns',
+    registered_at: r.created_at,
+  }));
 };
 
 // Bulk variant: ONE subscriptions SELECT for all recipients instead of N
 // (deal fan-out queried up to 500 users, then sendPushToUser ran its own
 // SELECT per user → up to 500 sequential round trips). Same per-sub dispatch;
 // builder texts are computed once per distinct locale, not per subscription.
-export const sendPushToUsers = async (userIds, title, body, url = '/notifications') => {
+export const sendPushToUsers = async (userIds, title, body, url = '/notifications', opts = {}) => {
   if (!process.env.VAPID_PUBLIC_KEY && !process.env.APNS_KEY_ID) return;
   const ids = [...new Set((userIds || []).map(Number).filter(Boolean))];
   if (!ids.length) return;
@@ -419,7 +520,7 @@ export const sendPushToUsers = async (userIds, title, body, url = '/notification
   let subs;
   try {
     const result = await db.query(
-      `SELECT ps.id, ps.platform, ps.endpoint, ps.p256dh, ps.auth_key, ps.device_token, u.locale
+      `SELECT ps.id, ps.user_id, ps.platform, ps.endpoint, ps.p256dh, ps.auth_key, ps.device_token, u.locale
        FROM push_subscriptions ps JOIN users u ON u.id = ps.user_id
        WHERE ps.user_id = ANY($1::int[])`,
       [ids]
@@ -438,7 +539,7 @@ export const sendPushToUsers = async (userIds, title, body, url = '/notification
     const key = sub.locale || 'de';
     let texts = textCache.get(key);
     if (!texts) { texts = resolveTexts(title, body, sub.locale); textCache.set(key, texts); }
-    return bulkPushSlots.run(() => dispatchToSubscription(sub, texts.title, texts.body, url));
+    return bulkPushSlots.run(() => dispatchToSubscription(sub, texts.title, texts.body, url, opts));
   }));
 };
 

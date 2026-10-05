@@ -1168,6 +1168,7 @@
       "radiusHint": "Seulement les notifications près de toi (depuis {{city}})",
       "radiusNoCity": "Indique ta ville dans ton profil pour que ça fonctionne",
       "push": "Notifications push",
+      "pushUnsupportedIos": "iOS ne peut pas envoyer de notifications à un onglet Safari. Télécharge l’app JAMIE sur l’App Store (ou ajoute JAMIE via Partager › Sur l’écran d’accueil).",
       "pushHint": "Notifications même quand l'app est fermée"
     },
     "app": {
@@ -1197,6 +1198,8 @@
     },
     "toast": {
       "pushBlocked": "Les notifications sont bloquées dans le navigateur. Autorise-les dans les paramètres du navigateur.",
+      "pushBlockedTwa": "Les notifications de JAMIE sont désactivées dans Android. Ouvre Paramètres › Applications › JAMIE › Notifications, active-les et rouvre JAMIE.",
+      "pushBlockedIos": "Les notifications de JAMIE sont bloquées. Ouvre Réglages iOS › Notifications › JAMIE et autorise les notifications.",
       "pushDisabled": "Notifications push désactivées",
       "pushEnabled": "Notifications push activées !",
       "pushPermissionDenied": "Autorisation refusée ou erreur lors de l'activation",
@@ -2098,6 +2101,26 @@
       "roleSaved": "Rôle mis à jour",
       "roleError": "Le rôle n'a pas pu être modifié",
       "messageBtn": "Écrire un message",
+      "push": {
+        "title": "Notifications push",
+        "none": "Aucun appareil enregistré – aucune notification ne peut atteindre cet utilisateur.",
+        "registered": "dernier enregistrement {{date}}",
+        "test": "Envoyer une notification de test",
+        "testing": "Envoi…",
+        "accepted": "acceptée",
+        "pruned": "appareil désinscrit – supprimé",
+        "failed": "refusée",
+        "hint": "« Acceptée » signifie que le service push a pris le message en charge. Si rien n’apparaît malgré tout, la cause est sur l’appareil (notifications de JAMIE désactivées, Concentration/Ne pas déranger, optimisation de la batterie).",
+        "error": "Impossible d’envoyer la notification de test",
+        "platform": {
+          "iphone": "App iPhone",
+          "android": "Android / Chrome",
+          "apple": "Safari / web app (Apple)",
+          "firefox": "Firefox",
+          "edge": "Edge / Windows",
+          "web": "Navigateur"
+        }
+      },
       "stats": {
         "groups": "Groupes",
         "clubs": "Clubs",

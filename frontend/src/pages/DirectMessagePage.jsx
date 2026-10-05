@@ -13,6 +13,7 @@ import { MessageReactions } from '../components/MessageReactions';
 import { ReactionPicker } from '../components/ReactionPicker';
 import { myReaction, applyReactionLocally } from '../utils/reactions';
 import { mediaUrl, repinIfNearBottom } from '../utils/chatMedia';
+import { bindRoomToVisibility, isPageHidden } from '../utils/roomPresence';
 import { MessageTicks, tickState } from '../components/MessageTicks';
 import { ReportModal } from '../components/ReportModal';
 import { serverErrorMessage } from '../utils/apiError';
@@ -115,13 +116,18 @@ export const DirectMessagePage = () => {
 
     if (!socket) return;
 
-    // Join DM room
-    socket.emit('join_dm_room', { userId: user.id, otherUserId: parseInt(otherUserId) });
+    // Join DM room — not while the app is in the background (a hidden thread
+    // must not count as "being read", see bindRoomToVisibility).
+    if (!isPageHidden()) {
+      socket.emit('join_dm_room', { userId: user.id, otherUserId: parseInt(otherUserId) });
+    }
 
     // Reconnects create a NEW server-side connection with no room memberships —
     // re-join and back-fill, or the conversation silently stops updating.
     const handleReconnect = () => {
-      socket.emit('join_dm_room', { userId: user.id, otherUserId: parseInt(otherUserId) });
+      if (!isPageHidden()) {
+        socket.emit('join_dm_room', { userId: user.id, otherUserId: parseInt(otherUserId) });
+      }
       catchUpDm();
     };
 
@@ -177,15 +183,15 @@ export const DirectMessagePage = () => {
     // message list, silently dropping an in-flight optimistic bubble.
   }, [user?.id, socket, otherUserId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Foreground return: refetch immediately — the socket may not have noticed
-  // the dead connection yet (ping timeout), but the user is looking NOW.
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') catchUpDm();
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [otherUserId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Background → leave the thread's room, so the receiver's push is not
+  // suppressed as "already reading it" while the app is not even on screen;
+  // foreground → re-join and refetch: the socket may not have noticed the dead
+  // connection yet (ping timeout), but the user is looking NOW (roomPresence).
+  useEffect(() => bindRoomToVisibility({
+    join: () => socket?.emit('join_dm_room', { userId: user?.id, otherUserId: parseInt(otherUserId) }),
+    leave: () => socket?.emit('leave_dm_room', { userId: user?.id, otherUserId: parseInt(otherUserId) }),
+    onReturn: catchUpDm,
+  }), [otherUserId, socket, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     scrollToBottom();

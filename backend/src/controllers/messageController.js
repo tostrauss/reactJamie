@@ -2,7 +2,7 @@ import db from '../config/database.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { isSafeVoiceUrl, isSafeChatImageUrl } from '../utils/safeUrl.js';
 import { deleteCached } from '../utils/cache.js';
-import { sendPushToUsers } from './pushController.js';
+import { sendPushToUsers, PUSH_CONVERSATION } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 import { groupReceiptWatermarks, messageReceiptDetail } from '../utils/readReceipts.js';
 import { isAllowedReaction, setReaction, attachReactions } from '../utils/reactions.js';
@@ -326,11 +326,15 @@ export const sendMessage = async (req, res) => {
             line: (isVoice || isImage) ? null : `${senderName}: ${preview}`,
           }),
           null,
-          `/chat/${groupId}`
+          `/chat/${groupId}`,
+          PUSH_CONVERSATION
         );
       }
-    } catch {
-      // Best-effort: unread truth lives in the DB, the next refetch catches up
+    } catch (err) {
+      // Best-effort: unread truth lives in the DB, the next refetch catches up.
+      // Logged, though: this block also carries the PUSH fan-out, and a silent
+      // catch here meant "nobody got a push for this message" left no trace.
+      console.error(`[push] group fan-out failed group=${groupId}:`, err?.message);
     }
   } catch (error) {
     console.error('Error sending message:', error);

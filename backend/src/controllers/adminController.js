@@ -1,6 +1,6 @@
 import db from '../config/database.js';
 import { revokeUserSessions } from '../socket.js';
-import { sendPushToUser } from './pushController.js';
+import { sendPushToUser, listPushDevices } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 import { getClientIp } from '../utils/clientIp.js';
 import geoip from 'geoip-lite';
@@ -289,14 +289,45 @@ export const getUserDetail = async (req, res) => {
       ),
     ]);
     const rows = memberships.rows;
+    // Push devices ride along for the support case "Push kommt bei mir nicht
+    // an" (tester 06.10.2026): whether ANY device is registered is the first
+    // question, and it was only answerable with a SQL console. Best-effort —
+    // the rest of the detail view must not fail on it.
+    const push = await listPushDevices(id).catch(() => null);
     res.json({
       groups: rows.filter(r => r.type === 'group'),
       clubs:  rows.filter(r => r.type === 'club'),
       owned:  owned.rows,
       counts: counts.rows[0],
+      push,
     });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// TEST PUSH — send one recognisable push to every device of a user
+// ==========================================
+// The support tool for "Die Push-Benachrichtigungen klappen bei mir nicht":
+// returns, per registered device, whether the push service ACCEPTED the push
+// (web: HTTP 201 from FCM/Mozilla/Apple; iPhone: APNs "sent"), or why not —
+// and a dead device is pruned on the spot exactly like in normal delivery.
+// "accepted" is as far as a server can see: if it was accepted and the phone
+// still shows nothing, the cause is on the device (notifications off for the
+// app, Focus/Do-not-disturb, battery optimisation), not in JAMIE.
+export const sendUserTestPush = async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id || id <= 0) return res.status(400).json({ error: 'Ungültige Nutzer-ID' });
+  try {
+    const exists = await db.query('SELECT 1 FROM users WHERE id = $1', [id]);
+    if (!exists.rowCount) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+    const results = await sendPushToUser(id, pushTexts('pushTest'), null, '/notifications');
+    console.log(`[push] admin test push user=${id} by=${req.userId} devices=${results.length} ok=${results.filter(r => r.ok).length}`);
+    res.json({ results });
+  } catch (err) {
+    console.error('sendUserTestPush error:', err.message);
+    res.status(500).json({ error: 'Test-Push konnte nicht gesendet werden' });
   }
 };
 

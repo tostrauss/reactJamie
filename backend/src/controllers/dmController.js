@@ -4,7 +4,7 @@ import { isSafeVoiceUrl, isSafeChatImageUrl } from '../utils/safeUrl.js';
 // One reply shape for group chat and DMs alike — see messageController.
 import { withReply, MEDIA_LABEL } from './messageController.js';
 import { stampDelivered } from '../utils/readReceipts.js';
-import { sendPushToUser } from './pushController.js';
+import { sendPushToUser, PUSH_CONVERSATION } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 import { isAllowedReaction, setReaction, attachReactions } from '../utils/reactions.js';
 
@@ -342,10 +342,15 @@ export const sendDM = async (req, res) => {
               preview: (isVoice || isImage) ? null : (msgRow.content || '').slice(0, 120),
             }),
             null,
-            `/dm/${req.userId}`
+            `/dm/${req.userId}`,
+            PUSH_CONVERSATION
           );
         }
-      } catch { /* non-critical */ }
+      } catch (err) {
+        // Non-critical for the sender, but this block carries the receiver's
+        // live update AND push — a silent catch hid every lost DM banner.
+        console.error(`[push] dm delivery failed receiver=${receiverId}:`, err?.message);
+      }
     })();
 
     // The sender needs the quote too — they render their own bubble from this

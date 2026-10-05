@@ -1168,6 +1168,7 @@
       "radiusHint": "Nur Benachrichtigungen aus deiner Nähe (ab {{city}})",
       "radiusNoCity": "Trag deine Stadt im Profil ein, damit das greift",
       "push": "Push-Benachrichtigungen",
+      "pushUnsupportedIos": "Im Safari-Tab kann iOS keine Benachrichtigungen zustellen. Hol dir die JAMIE-App aus dem App Store (oder füge JAMIE über Teilen › Zum Home-Bildschirm hinzu).",
       "pushHint": "Benachrichtigungen auch wenn App geschlossen"
     },
     "app": {
@@ -1197,6 +1198,8 @@
     },
     "toast": {
       "pushBlocked": "Benachrichtigungen sind im Browser blockiert. Bitte in den Browser-Einstellungen freigeben.",
+      "pushBlockedTwa": "Benachrichtigungen sind für JAMIE in Android ausgeschaltet. Öffne Einstellungen › Apps › JAMIE › Benachrichtigungen, schalte sie ein und öffne JAMIE neu.",
+      "pushBlockedIos": "Benachrichtigungen sind für JAMIE blockiert. Öffne iOS-Einstellungen › Mitteilungen › JAMIE und erlaube Mitteilungen.",
       "pushDisabled": "Push-Benachrichtigungen deaktiviert",
       "pushEnabled": "Push-Benachrichtigungen aktiviert!",
       "pushPermissionDenied": "Berechtigung verweigert oder Fehler beim Aktivieren",
@@ -2098,6 +2101,26 @@
       "roleSaved": "Rolle aktualisiert",
       "roleError": "Rolle konnte nicht geändert werden",
       "messageBtn": "Nachricht schreiben",
+      "push": {
+        "title": "Push-Benachrichtigungen",
+        "none": "Kein Gerät registriert – an diesen Nutzer kann kein Push gehen.",
+        "registered": "zuletzt registriert {{date}}",
+        "test": "Test-Push senden",
+        "testing": "Sende…",
+        "accepted": "angenommen",
+        "pruned": "Gerät abgemeldet – entfernt",
+        "failed": "abgelehnt",
+        "hint": "„Angenommen“ heißt: Der Push-Dienst hat die Nachricht übernommen. Kommt trotzdem nichts an, liegt es am Gerät (Mitteilungen für JAMIE aus, Fokus/Nicht stören, Akku-Optimierung).",
+        "error": "Test-Push konnte nicht gesendet werden",
+        "platform": {
+          "iphone": "iPhone-App",
+          "android": "Android / Chrome",
+          "apple": "Safari / Web-App (Apple)",
+          "firefox": "Firefox",
+          "edge": "Edge / Windows",
+          "web": "Browser"
+        }
+      },
       "stats": {
         "groups": "Gruppen",
         "clubs": "Clubs",

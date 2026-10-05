@@ -152,6 +152,7 @@ suite('write endpoints against real Postgres', () => {
     C = {
       updateProfile: a.updateProfile, completeOnboarding: a.completeOnboarding, getProfile: a.getProfile,
       updatePushPreferences: pu.updatePushPreferences, searchUsers: us.searchUsers,
+      subscribePush: pu.subscribe,
       runEventReminders: er.runEventReminders, notifyFriendsOfActivity: fa.notifyFriendsOfActivity,
       createGroup: g.createGroup, updateGroup: g.updateGroup, createClub: c.createClub,
       inviteMember: g.inviteMember,
@@ -170,6 +171,7 @@ suite('write endpoints against real Postgres', () => {
       createReport: rp.createReport, getReports: rp.getReports,
       updateReportStatus: rp.updateReportStatus,
       setUserActive: ad.setUserActive, rejectClub: ad.rejectClub,
+      getUserDetail: ad.getUserDetail, sendUserTestPush: ad.sendUserTestPush,
       deleteClub: c.deleteClub, deleteClubEvent: c.deleteClubEvent,
       createClubEvent: c.createClubEvent, updateClubEvent: c.updateClubEvent,
       deleteDM: dm.deleteDM,
@@ -2610,6 +2612,75 @@ suite('write endpoints against real Postgres', () => {
       expect(res.body.read.map(p => p.id)).not.toContain(reader);
       expect(res.body.opted_out).toBe(1);
       await db.query('UPDATE users SET read_receipts = TRUE WHERE id = $1', [reader]);
+    });
+  });
+
+  // ── Push subscribe cap (tester 06.10.2026, "Push klappt immer noch nicht") ──
+  // At 25 web rows the endpoint used to answer 429 — also for the CURRENT
+  // device re-posting its own endpoint — and the client only console.warns.
+  // Now the stalest rows are evicted instead. Real Postgres, because the
+  // eviction is a parameterised OFFSET inside a sub-select.
+  describe('web push subscribe cap evicts, never refuses', () => {
+    let P;
+    const ep = (n) => `https://fcm.googleapis.com/fcm/send/smoke-${n}`;
+    const keys = { p256dh: 'p'.repeat(20), auth: 'a'.repeat(8) };
+    const webRows = async () => (await db.query(
+      `SELECT endpoint, created_at FROM push_subscriptions WHERE user_id = $1 AND platform = 'web' ORDER BY created_at DESC`,
+      [P])).rows;
+
+    beforeAll(async () => {
+      P = (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ('smoke-push@x.com','Pia','1995-03-03','female',$1, TRUE, 'email') RETURNING id`,
+        [avatar])).rows[0].id;
+      // 25 rows, endpoint n registered n days ago → smoke-25 is the stalest.
+      for (let n = 1; n <= 25; n++) {
+        await db.query(
+          `INSERT INTO push_subscriptions (user_id, platform, endpoint, p256dh, auth_key, created_at)
+           VALUES ($1, 'web', $2, 'p', 'a', NOW() - ($3 || ' days')::interval)`,
+          [P, ep(n), String(n)]);
+      }
+    });
+
+    it('a NEW device at the cap is registered and the stalest row makes room', async () => {
+      ok(await call(C.subscribePush, { userId: P, body: { endpoint: ep('new'), keys } }));
+      const rows = await webRows();
+      expect(rows).toHaveLength(25);
+      expect(rows.map(r => r.endpoint)).toContain(ep('new'));
+      expect(rows.map(r => r.endpoint)).not.toContain(ep(25));
+    });
+
+    it('re-posting an existing endpoint at the cap is accepted and refreshes it', async () => {
+      const res = await call(C.subscribePush, { userId: P, body: { endpoint: ep(20), keys } });
+      ok(res);
+      const rows = await webRows();
+      expect(rows).toHaveLength(25);
+      // the re-posted device is now the freshest row, not a 20-day-old one
+      expect(rows[0].endpoint).toBe(ep(20));
+    });
+
+    it('admin user detail lists the push devices — host only, never the endpoint', async () => {
+      const res = await call(C.getUserDetail, { userId: A, params: { id: String(P) } });
+      ok(res);
+      expect(res.body.push).toHaveLength(25);
+      expect(res.body.push[0]).toMatchObject({ platform: 'web', host: 'fcm.googleapis.com' });
+      expect(JSON.stringify(res.body.push)).not.toContain('/fcm/send/');
+    });
+
+    it('admin test push answers with one result per device (none configured here → [])', async () => {
+      const res = await call(C.sendUserTestPush, { userId: A, params: { id: String(P) } });
+      ok(res);
+      expect(Array.isArray(res.body.results)).toBe(true);
+      expect((await call(C.sendUserTestPush, { userId: A, params: { id: '99999999' } })).statusCode).toBe(404);
+    });
+
+    it('an endpoint still registered under ANOTHER account moves to the current one', async () => {
+      await db.query(
+        `INSERT INTO push_subscriptions (user_id, platform, endpoint, p256dh, auth_key) VALUES ($1,'web',$2,'p','a')`,
+        [B, ep('shared')]);
+      ok(await call(C.subscribePush, { userId: P, body: { endpoint: ep('shared'), keys } }));
+      const owners = (await db.query('SELECT user_id FROM push_subscriptions WHERE endpoint = $1', [ep('shared')])).rows;
+      expect(owners).toEqual([{ user_id: P }]);
     });
   });
 

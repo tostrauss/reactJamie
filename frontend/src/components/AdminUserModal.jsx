@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '../context/ToastContext';
 import { admin } from '../utils/api';
 import { UserName } from './UserName';
+import { AdminPushSection } from './AdminPushSection';
 
 const MUTED = 'rgba(255,255,255,0.5)';
 
@@ -171,6 +172,8 @@ export const AdminUserModal = ({ user, currentUserId, onClose, onUpdated, onDele
           {detail?.clubs?.length > 0 && <ChipRow title={t('admin.userModal.stats.inClubs')} items={detail.clubs} onGo={goEntity} />}
           {detail?.owned?.length > 0 && <ChipRow title={t('admin.userModal.stats.created')} items={detail.owned} onGo={goEntity} />}
         </div>
+
+        <AdminPushSection userId={user.id} devices={detail?.push} />
 
         {/* Role toggles */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

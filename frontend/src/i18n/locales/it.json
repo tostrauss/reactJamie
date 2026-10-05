@@ -1168,6 +1168,7 @@
       "radiusHint": "Solo notifiche vicino a te (da {{city}})",
       "radiusNoCity": "Inserisci la tua città nel profilo perché funzioni",
       "push": "Notifiche push",
+      "pushUnsupportedIos": "iOS non può inviare notifiche a una scheda di Safari. Scarica l’app JAMIE dall’App Store (oppure aggiungi JAMIE con Condividi › Aggiungi alla schermata Home).",
       "pushHint": "Notifiche anche quando l'app è chiusa"
     },
     "app": {
@@ -1197,6 +1198,8 @@
     },
     "toast": {
       "pushBlocked": "Le notifiche sono bloccate nel browser. Autorizzale nelle impostazioni del browser.",
+      "pushBlockedTwa": "Le notifiche di JAMIE sono disattivate in Android. Apri Impostazioni › App › JAMIE › Notifiche, attivale e riapri JAMIE.",
+      "pushBlockedIos": "Le notifiche di JAMIE sono bloccate. Apri Impostazioni di iOS › Notifiche › JAMIE e consenti le notifiche.",
       "pushDisabled": "Notifiche push disattivate",
       "pushEnabled": "Notifiche push attivate!",
       "pushPermissionDenied": "Autorizzazione negata o errore durante l'attivazione",
@@ -2098,6 +2101,26 @@
       "roleSaved": "Ruolo aggiornato",
       "roleError": "Impossibile modificare il ruolo",
       "messageBtn": "Scrivi messaggio",
+      "push": {
+        "title": "Notifiche push",
+        "none": "Nessun dispositivo registrato – nessuna push può raggiungere questo utente.",
+        "registered": "ultima registrazione {{date}}",
+        "test": "Invia push di prova",
+        "testing": "Invio…",
+        "accepted": "accettata",
+        "pruned": "dispositivo disiscritto – rimosso",
+        "failed": "rifiutata",
+        "hint": "«Accettata» significa che il servizio push ha preso in carico il messaggio. Se comunque non arriva nulla, la causa è sul dispositivo (notifiche di JAMIE disattivate, Full immersion/Non disturbare, ottimizzazione batteria).",
+        "error": "Impossibile inviare la push di prova",
+        "platform": {
+          "iphone": "App iPhone",
+          "android": "Android / Chrome",
+          "apple": "Safari / web app (Apple)",
+          "firefox": "Firefox",
+          "edge": "Edge / Windows",
+          "web": "Browser"
+        }
+      },
       "stats": {
         "groups": "Gruppi",
         "clubs": "Club",

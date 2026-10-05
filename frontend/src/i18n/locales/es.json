@@ -1168,6 +1168,7 @@
       "radiusHint": "Solo notificaciones cerca de ti (desde {{city}})",
       "radiusNoCity": "Añade tu ciudad en el perfil para que funcione",
       "push": "Notificaciones push",
+      "pushUnsupportedIos": "iOS no puede enviar notificaciones a una pestaña de Safari. Descarga la app JAMIE en la App Store (o añade JAMIE con Compartir › Añadir a pantalla de inicio).",
       "pushHint": "Notificaciones también con la app cerrada"
     },
     "app": {
@@ -1197,6 +1198,8 @@
     },
     "toast": {
       "pushBlocked": "Las notificaciones están bloqueadas en el navegador. Permítelas en los ajustes del navegador.",
+      "pushBlockedTwa": "Las notificaciones de JAMIE están desactivadas en Android. Abre Ajustes › Aplicaciones › JAMIE › Notificaciones, actívalas y vuelve a abrir JAMIE.",
+      "pushBlockedIos": "Las notificaciones de JAMIE están bloqueadas. Abre Ajustes de iOS › Notificaciones › JAMIE y permite las notificaciones.",
       "pushDisabled": "Notificaciones push desactivadas",
       "pushEnabled": "¡Notificaciones push activadas!",
       "pushPermissionDenied": "Permiso denegado o error al activar",
@@ -2098,6 +2101,26 @@
       "roleSaved": "Rol actualizado",
       "roleError": "El rol no se pudo cambiar",
       "messageBtn": "Escribir mensaje",
+      "push": {
+        "title": "Notificaciones push",
+        "none": "Ningún dispositivo registrado: ninguna notificación puede llegar a este usuario.",
+        "registered": "último registro {{date}}",
+        "test": "Enviar push de prueba",
+        "testing": "Enviando…",
+        "accepted": "aceptada",
+        "pruned": "dispositivo dado de baja – eliminado",
+        "failed": "rechazada",
+        "hint": "«Aceptada» significa que el servicio push recibió el mensaje. Si aun así no aparece nada, la causa está en el dispositivo (notificaciones de JAMIE desactivadas, Concentración/No molestar, optimización de batería).",
+        "error": "No se pudo enviar la push de prueba",
+        "platform": {
+          "iphone": "App de iPhone",
+          "android": "Android / Chrome",
+          "apple": "Safari / web app (Apple)",
+          "firefox": "Firefox",
+          "edge": "Edge / Windows",
+          "web": "Navegador"
+        }
+      },
       "stats": {
         "groups": "Grupos",
         "clubs": "Clubes",

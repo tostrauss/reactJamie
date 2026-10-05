@@ -12,7 +12,7 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
 } from '../utils/pushNotifications';
-import { isNativeIOS, isPlayBillingActive, isStoreBillingActive, proUpsellAllowed } from '../utils/platform';
+import { isNativeIOS, isPlayBillingActive, isStoreBillingActive, proUpsellAllowed, isTWA, isIOSWeb, isIOSWebStandalone } from '../utils/platform';
 import { usePaymentsConfig } from '../utils/paymentsConfig';
 import { restorePlayPurchases, PLAY_SUBSCRIPTIONS_URL } from '../utils/playBilling';
 import { RADIUS_OPTIONS_KM } from '../utils/geo';
@@ -276,6 +276,18 @@ export const SettingsPage = () => {
   const [pushSupported] = useState(() => isPushSupported());
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
+  const [pushDenied, setPushDenied] = useState(() => isPushSupported() && getPushPermission() === 'denied');
+  // An iPhone in a plain Safari tab has no Web Push at all — the row used to
+  // just vanish, which reads as "push is on" (the reminder toggles stay).
+  const pushImpossibleHere = !pushSupported && isIOSWeb() && !isIOSWebStandalone();
+
+  // "Blocked" lives in a different place per shell, and the old text sent
+  // everyone to the BROWSER settings — in the Play app the switch is Android's
+  // per-app notification setting (the TWA delegates its permission to it), so
+  // TWA users looked in the wrong place and stayed without push for good.
+  const pushBlockedText = isTWA() ? t('settings.toast.pushBlockedTwa')
+    : isIOSWebStandalone() ? t('settings.toast.pushBlockedIos')
+    : t('settings.toast.pushBlocked');
 
   useEffect(() => {
     if (!pushSupported) return;
@@ -284,19 +296,23 @@ export const SettingsPage = () => {
 
   const handlePushToggle = async () => {
     if (getPushPermission() === 'denied') {
-      toast.error(t('settings.toast.pushBlocked'));
+      setPushDenied(true);
+      toast.error(pushBlockedText);
       return;
     }
     setPushLoading(true);
     try {
       if (pushEnabled) {
-        await unsubscribeFromPush();
+        // optOut: remembered, so the silent repair on the next app start
+        // does not switch push straight back on.
+        await unsubscribeFromPush({ optOut: true });
         setPushEnabled(false);
         toast.success(t('settings.toast.pushDisabled'));
       } else {
         const ok = await subscribeToPush();
         setPushEnabled(ok);
         if (ok) toast.success(t('settings.toast.pushEnabled'));
+        else if (getPushPermission() === 'denied') { setPushDenied(true); toast.error(pushBlockedText); }
         else toast.error(t('settings.toast.pushPermissionDenied'));
       }
     } finally {
@@ -1042,13 +1058,28 @@ export const SettingsPage = () => {
               </svg>
               <div className="settings-row-stacked">
                 <span>{t('settings.notifications.push')}</span>
-                <span className="settings-row-detail">{t('settings.notifications.pushHint')}</span>
+                <span className="settings-row-detail">{pushDenied ? pushBlockedText : t('settings.notifications.pushHint')}</span>
               </div>
             </div>
             <label className="settings-toggle" style={{ opacity: pushLoading ? 0.5 : 1 }}>
               <input type="checkbox" checked={pushEnabled} onChange={handlePushToggle} disabled={pushLoading} />
               <span className="settings-toggle-slider" />
             </label>
+          </div>
+        )}
+
+        {pushImpossibleHere && (
+          <div className="settings-row">
+            <div className="settings-row-left">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+              <div className="settings-row-stacked">
+                <span>{t('settings.notifications.push')}</span>
+                <span className="settings-row-detail">{t('settings.notifications.pushUnsupportedIos')}</span>
+              </div>
+            </div>
           </div>
         )}
       </div>

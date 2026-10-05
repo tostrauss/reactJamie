@@ -16,6 +16,7 @@ import { MessageReactions } from '../components/MessageReactions';
 import { ReactionPicker } from '../components/ReactionPicker';
 import { myReaction, applyReactionLocally } from '../utils/reactions';
 import { mediaUrl, repinIfNearBottom } from '../utils/chatMedia';
+import { bindRoomToVisibility, isPageHidden } from '../utils/roomPresence';
 import { MessageTicks, tickState } from '../components/MessageTicks';
 import { serverErrorMessage } from '../utils/apiError';
 import { downscaleImageFile } from '../utils/images';
@@ -296,7 +297,8 @@ export const ChatPage = () => {
   useEffect(() => {
     if (!socket) return;
 
-    socket.emit('join_room', groupId);
+    // Not while the app is in the background — see bindRoomToVisibility.
+    if (!isPageHidden()) socket.emit('join_room', groupId);
 
     const handleReceiveMessage = (data) => {
       // Dedup by id: the server broadcast is authoritative, but a catch-up
@@ -312,7 +314,7 @@ export const ChatPage = () => {
     // receives nothing ever again (the root of Lea's "aktualisiert sich
     // nicht"). Re-join first, then back-fill what was missed while offline.
     const handleReconnect = () => {
-      socket.emit('join_room', groupId);
+      if (!isPageHidden()) socket.emit('join_room', groupId);
       catchUpMessages();
     };
 
@@ -369,13 +371,13 @@ export const ChatPage = () => {
   // Foreground return with the socket still (apparently) alive: the WebView
   // may have been frozen with events dropped before the client notices the
   // dead connection — refetch immediately instead of waiting for ping timeout.
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') catchUpMessages();
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [catchUpMessages]);
+  // And background → leave the room, so this member's push is not suppressed
+  // as "reading it live" while the app is not even on screen (roomPresence).
+  useEffect(() => bindRoomToVisibility({
+    join: () => socket?.emit('join_room', groupId),
+    leave: () => socket?.emit('leave_room', groupId),
+    onReturn: catchUpMessages,
+  }), [catchUpMessages, socket, groupId]);
 
   useEffect(() => {
     if (skipAutoScrollRef.current) { skipAutoScrollRef.current = false; return; }

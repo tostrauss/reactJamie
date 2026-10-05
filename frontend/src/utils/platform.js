@@ -42,6 +42,24 @@ export const isTWA = () => {
   return _twaCached;
 };
 
+// iPhone/iPad running the WEB app (Safari tab or home-screen web app), not the
+// App Store build. iPadOS reports itself as a Mac — the touch check catches it.
+export const isIOSWeb = () => {
+  if (typeof navigator === 'undefined' || isNative()) return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent || '')
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+};
+
+// The web app added to the iOS home screen — the only iOS web context that can
+// receive Web Push at all (iOS 16.4+). A Safari tab cannot.
+export const isIOSWebStandalone = () => {
+  if (!isIOSWeb()) return false;
+  try {
+    return window.navigator.standalone === true
+      || window.matchMedia?.('(display-mode: standalone)')?.matches === true;
+  } catch { return false; }
+};
+
 // Any installed app wrapper (iOS/Android Capacitor OR the Android TWA) — i.e.
 // NOT a plain web browser. In-app digital purchases via Stripe are only
 // compliant in a real browser; every app shell must route through the store's

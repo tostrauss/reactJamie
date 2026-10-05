@@ -360,6 +360,15 @@ const PUSH_TEXTS = {
     fr: (p) => ({ title: `Comment était « ${p.groupName} » ?`, body: 'Note les participants 🌟' }),
     es: (p) => ({ title: `¿Qué tal "${p.groupName}"?`, body: 'Valora a quienes asistieron 🌟' }),
   },
+  // Admin → Nutzer → "Test-Push senden" (support tool, 06.10.2026). Says what it
+  // is, so a tester who receives it knows push reaches this device.
+  pushTest: {
+    de: () => ({ title: 'JAMIE Test-Benachrichtigung', body: 'Wenn du das siehst, kommen Benachrichtigungen auf diesem Gerät an. ✅' }),
+    en: () => ({ title: 'JAMIE test notification', body: 'If you can see this, notifications reach this device. ✅' }),
+    it: () => ({ title: 'Notifica di prova JAMIE', body: 'Se la vedi, le notifiche arrivano su questo dispositivo. ✅' }),
+    fr: () => ({ title: 'Notification de test JAMIE', body: 'Si tu la vois, les notifications arrivent sur cet appareil. ✅' }),
+    es: () => ({ title: 'Notificación de prueba de JAMIE', body: 'Si ves esto, las notificaciones llegan a este dispositivo. ✅' }),
+  },
 };
 
 /** Returns a BUILDER (locale) → { title, body } for pushController. */

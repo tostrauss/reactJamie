@@ -1168,6 +1168,7 @@
       "radiusHint": "Only notify me about things near me (from {{city}})",
       "radiusNoCity": "Add your city in your profile for this to work",
       "push": "Push notifications",
+      "pushUnsupportedIos": "iOS cannot deliver notifications to a Safari tab. Get the JAMIE app from the App Store (or add JAMIE via Share › Add to Home Screen).",
       "pushHint": "Notifications even when the app is closed"
     },
     "app": {
@@ -1197,6 +1198,8 @@
     },
     "toast": {
       "pushBlocked": "Notifications are blocked in your browser. Please allow them in browser settings.",
+      "pushBlockedTwa": "Notifications are switched off for JAMIE in Android. Open Settings › Apps › JAMIE › Notifications, turn them on and reopen JAMIE.",
+      "pushBlockedIos": "Notifications are blocked for JAMIE. Open iOS Settings › Notifications › JAMIE and allow notifications.",
       "pushDisabled": "Push notifications disabled",
       "pushEnabled": "Push notifications enabled!",
       "pushPermissionDenied": "Permission denied or failed to enable",
@@ -2098,6 +2101,26 @@
       "roleSaved": "Role updated",
       "roleError": "Could not change role",
       "messageBtn": "Send message",
+      "push": {
+        "title": "Push notifications",
+        "none": "No device registered – no push can reach this user.",
+        "registered": "last registered {{date}}",
+        "test": "Send test push",
+        "testing": "Sending…",
+        "accepted": "accepted",
+        "pruned": "device unsubscribed – removed",
+        "failed": "rejected",
+        "hint": "“Accepted” means the push service took the message. If nothing shows up anyway, the cause is on the device (notifications off for JAMIE, Focus/Do not disturb, battery optimisation).",
+        "error": "Could not send the test push",
+        "platform": {
+          "iphone": "iPhone app",
+          "android": "Android / Chrome",
+          "apple": "Safari / web app (Apple)",
+          "firefox": "Firefox",
+          "edge": "Edge / Windows",
+          "web": "Browser"
+        }
+      },
       "stats": {
         "groups": "Groups",
         "clubs": "Clubs",
