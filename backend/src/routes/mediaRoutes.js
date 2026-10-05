@@ -68,12 +68,19 @@ const thumbInFlight = new Map(); // file → Promise<{buffer, mimetype} | null>
 // null path) instead of hanging unboundedly behind a degraded R2.
 const thumbSlots = createSemaphore(4, { maxQueue: 30 });
 
-const streamObject = (res, obj) => {
+const IMMUTABLE = 'public, max-age=31536000, immutable';
+// For the full object served in place of a variant that FAILED transiently:
+// the URL still says ?size=…, and an immutable answer would pin the full-size
+// original to it in that browser for a year — so it could never pick up the
+// real variant once R2/sharp recovered.
+const SHORT_LIVED = 'public, max-age=300';
+
+const streamObject = (res, obj, cacheControl = IMMUTABLE) => {
   res.setHeader('Content-Type', obj.ContentType || 'application/octet-stream');
   if (obj.ContentLength != null) res.setHeader('Content-Length', obj.ContentLength);
   if (obj.ETag) res.setHeader('ETag', obj.ETag);
   // Objects are content-addressed by UUID and never overwritten → immutable.
-  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.setHeader('Cache-Control', cacheControl);
 
   obj.Body.on('error', (err) => {
     console.error('[media] stream error:', err.message);
@@ -127,7 +134,11 @@ const getOrCreateVariant = (file, name) => {
     throw err;
   });
   thumbInFlight.set(inflightKey, p);
-  p.finally(() => thumbInFlight.delete(inflightKey));
+  // The .catch only silences the DERIVED promise finally() returns: it rejects
+  // with the same error as `p`, and nobody awaits it, so every failed
+  // generation used to land in the process-wide unhandledRejection logger and
+  // in Sentry a second time. Callers still see the rejection through `p`.
+  p.finally(() => thumbInFlight.delete(inflightKey)).catch(() => {});
   return p;
 };
 
@@ -151,6 +162,46 @@ const generateOne = async (file, name) => {
   return { buffer: made.buffer, mimetype: made.mimetype };
 };
 
+// Outcomes of serveVariant.
+const SERVED = 'served';          // response is on its way
+const SERVE_FULL = 'full';        // not re-encodable (GIF/oversized/queue full): serve the original, cacheable
+const SERVE_FULL_BRIEFLY = 'full-briefly'; // variant FAILED: serve the original, short cache
+
+// Serve one derived variant, or tell the caller to serve the full object.
+//
+// A variant is an optimisation, never a precondition for seeing the photo.
+// This used to throw every non-404 failure — an R2 hiccup on the derived key,
+// a sharp error, a failed shared generation — straight into the route's 502,
+// and the chat bubble turned that one 502 into a permanent "Foto nicht
+// verfügbar" for whoever happened to open the chat at that moment (tester
+// report 06.10.2026: "einige konnten die Fotos nicht sehen"). Only a missing
+// ORIGINAL still propagates, so a deleted object keeps answering 404.
+const serveVariant = async (res, file, name) => {
+  const { prefix } = VARIANTS[name];
+  try {
+    streamObject(res, await getObjectFromCloud(`${prefix}${file}`));
+    return SERVED;
+  } catch (err) {
+    if (!isMissing(err)) {
+      console.error(`[media] ${name} variant read failed, serving original:`, err?.name || '', err?.message);
+      return SERVE_FULL_BRIEFLY;
+    }
+  }
+  try {
+    const made = await getOrCreateVariant(file, name);
+    if (!made) return SERVE_FULL;
+    res.setHeader('Content-Type', made.mimetype);
+    res.setHeader('Content-Length', made.buffer.length);
+    res.setHeader('Cache-Control', IMMUTABLE);
+    res.end(made.buffer);
+    return SERVED;
+  } catch (err) {
+    if (isMissing(err)) throw err; // the original itself is gone → 404
+    console.error(`[media] ${name} variant generation failed, serving original:`, err?.name || '', err?.message);
+    return SERVE_FULL_BRIEFLY;
+  }
+};
+
 router.get('/uploads/:file', async (req, res) => {
   const { file } = req.params;
   if (!SAFE_FILE.test(file) || file.includes('..')) {
@@ -169,21 +220,11 @@ router.get('/uploads/:file', async (req, res) => {
     : (Object.prototype.hasOwnProperty.call(VARIANTS, req.query.size) ? req.query.size : null);
 
   try {
+    let cacheControl = IMMUTABLE;
     if (wantVariant) {
-      const { prefix } = VARIANTS[wantVariant];
-      try {
-        return streamObject(res, await getObjectFromCloud(`${prefix}${file}`));
-      } catch (err) {
-        if (!isMissing(err)) throw err; // original missing too → 404 below
-        const made = await getOrCreateVariant(file, wantVariant);
-        if (made) {
-          res.setHeader('Content-Type', made.mimetype);
-          res.setHeader('Content-Length', made.buffer.length);
-          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-          return res.end(made.buffer);
-        }
-        // Not re-encodable (GIF/oversized) → fall through to the full object.
-      }
+      const outcome = await serveVariant(res, file, wantVariant);
+      if (outcome === SERVED) return;
+      if (outcome === SERVE_FULL_BRIEFLY) cacheControl = SHORT_LIVED;
     }
 
     const obj = await getObjectFromCloud(`uploads/${file}`);
@@ -191,7 +232,7 @@ router.get('/uploads/:file', async (req, res) => {
     // request, and a server that ignores Range makes the scrubber jump back.
     // We do not implement ranges here, so say so rather than implying support.
     if (AUDIO_FILE.test(file)) res.setHeader('Accept-Ranges', 'none');
-    streamObject(res, obj);
+    streamObject(res, obj, cacheControl);
   } catch (err) {
     if (isMissing(err)) return res.status(404).end();
     console.error('[media] proxy error:', err?.name || '', err?.message);

@@ -16,15 +16,59 @@ import { chatImageUrl } from '../utils/images';
  * The aspect-ratio box reserves space only while the image is loading, so the
  * chat does not jump under the reader's thumb as photos arrive; once loaded,
  * the photo sizes to its own proportions and nothing is cut off.
+ *
+ * Load failures degrade in steps instead of giving up (tester 06.10.2026:
+ * "einige konnten die Fotos nicht sehen"). One failed request used to flip the
+ * bubble to a permanent "Foto nicht verfügbar" for that viewer, for the whole
+ * chat session — whoever opened the chat during a proxy or R2 hiccup lost the
+ * photo while everybody else saw it. Now: variant → original (the variant can
+ * fail where the original is fine) → a tappable "reload" that starts over.
  */
-export function ImageMessage({ url, onOpen, mine = false }) {
+const VARIANT = 0;
+const ORIGINAL = 1;
+const FAILED = 2;
+
+export function ImageMessage({ url, onOpen, onLoad, mine = false }) {
   const { t } = useTranslation();
-  const [failed, setFailed] = useState(false);
+  const [stage, setStage] = useState(VARIANT);
   const [loaded, setLoaded] = useState(false);
 
-  if (failed) {
+  // A different photo in this slot starts over. Reset during render (React's
+  // "adjust state on prop change" pattern), not in an effect: an effect runs
+  // after paint, and a photo served from cache can fire `load` before it —
+  // the reset would then knock a finished image back into the 4:3 loading box.
+  const [seenUrl, setSeenUrl] = useState(url);
+  if (seenUrl !== url) {
+    setSeenUrl(url);
+    setStage(VARIANT);
+    setLoaded(false);
+  }
+
+  // No usable url at all (a malformed row) — nothing to load or retry.
+  if (!url) {
     return <div className={`img-msg-failed${mine ? ' img-msg-failed--mine' : ''}`}>{t('chat.photo.unavailable')}</div>;
   }
+
+  if (stage === FAILED) {
+    return (
+      <button
+        type="button"
+        className={`img-msg-failed img-msg-failed--retry${mine ? ' img-msg-failed--mine' : ''}`}
+        onClick={(e) => { e.stopPropagation(); setLoaded(false); setStage(VARIANT); }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onContextMenu={(e) => e.stopPropagation()}
+      >
+        <span>{t('chat.photo.unavailable')}</span>
+        <span className="img-msg-failed__retry">{t('chat.photo.retry')}</span>
+      </button>
+    );
+  }
+
+  const variantSrc = chatImageUrl(url);
+  // When there is no separate variant (local dev /uploads, external URL), the
+  // "original" step would just repeat the same request.
+  const src = stage === VARIANT ? variantSrc : url;
+  const next = stage === VARIANT && variantSrc !== url ? ORIGINAL : FAILED;
 
   return (
     <button
@@ -38,12 +82,15 @@ export function ImageMessage({ url, onOpen, mine = false }) {
       aria-label={t('chat.photo.open')}
     >
       <img
-        src={chatImageUrl(url)}
+        // A new element per stage, so the retry is a fresh request rather than
+        // React patching `src` on an element the browser already gave up on.
+        key={stage}
+        src={src}
         alt=""
         loading="lazy"
         decoding="async"
-        onLoad={() => setLoaded(true)}
-        onError={() => setFailed(true)}
+        onLoad={() => { setLoaded(true); onLoad?.(); }}
+        onError={() => setStage(next)}
       />
     </button>
   );

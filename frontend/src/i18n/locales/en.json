@@ -877,6 +877,7 @@
       "send": "Send photo",
       "open": "Open photo",
       "unavailable": "Photo unavailable",
+      "retry": "Tap to reload",
       "uploadFailed": "Could not send the photo."
     },
     "receipts": {

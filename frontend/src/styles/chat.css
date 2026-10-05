@@ -1972,7 +1972,20 @@
 /* Reserve space ONLY while the photo is still loading, so the thread does not
    jump under the reader's thumb as photos arrive. Once loaded the box is
    released and the photo keeps its own proportions — a fixed ratio here is
-   what cropped it before. */
+   what cropped it before.
+
+   The explicit width is what makes the reservation real. A <button> with
+   width:auto is fit-content even at display:block, and an image that has not
+   loaded has no intrinsic size — so the "4:3 box" was 0×0, the chat scrolled
+   to the bottom over nothing, and the photo then grew in BELOW the visible
+   area (tester 06.10.2026: "einige konnten die Fotos nicht sehen"). With a
+   definite width the box really is 240×180 until the bytes arrive; max-width
+   still lets it shrink inside a narrow bubble. */
+.img-msg:not(.img-msg--loaded) {
+  width: 240px;
+  max-width: 100%;
+}
+
 .img-msg:not(.img-msg--loaded) img {
   aspect-ratio: 4 / 3;
 }
@@ -1981,6 +1994,31 @@
   font-size: 13px;
   opacity: 0.7;
   padding: 6px 2px;
+}
+
+/* The failed state is a button (tap = load again), so it gets a real touch
+   target instead of a 13px line of text. */
+.img-msg-failed--retry {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 44px;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  padding: 6px 2px;
+}
+
+.img-msg-failed__retry {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ══ Nachrichteninfo: wer hat gelesen, wer hat nur empfangen ══════════════ */

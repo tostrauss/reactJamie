@@ -15,7 +15,7 @@ import { MessageQuote } from '../components/MessageQuote';
 import { MessageReactions } from '../components/MessageReactions';
 import { ReactionPicker } from '../components/ReactionPicker';
 import { myReaction, applyReactionLocally } from '../utils/reactions';
-import { mediaUrl } from '../utils/chatMedia';
+import { mediaUrl, repinIfNearBottom } from '../utils/chatMedia';
 import { MessageTicks, tickState } from '../components/MessageTicks';
 import { serverErrorMessage } from '../utils/apiError';
 import { downscaleImageFile } from '../utils/images';
@@ -187,6 +187,10 @@ export const ChatPage = () => {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  // Late-loading photos re-pin a reader who is at the bottom — see chatMedia.
+  const messagesContainerRef = useRef(null);
+  const handleMediaLoad = () => repinIfNearBottom(messagesContainerRef.current);
 
   // Set before a "load earlier" prepend so the [messageList] auto-scroll effect
   // skips once — otherwise loading older messages instantly yanks the user back
@@ -416,7 +420,12 @@ export const ChatPage = () => {
     e?.preventDefault?.();
     const media = voice || photo;
     const sentContent = media ? media.url : content.trim();
-    if (!sentContent || !canSendMessages || isSendingRef.current) return;
+    // The in-flight guard is for TEXT only: it stops a double tap from posting
+    // the typed text twice. A photo or voice note arrives here once, after its
+    // upload finished, with a URL of its own — guarding it too meant a photo
+    // whose upload completed while another send was still in flight was
+    // uploaded and then silently thrown away: no bubble, no error, nobody saw it.
+    if (!sentContent || !canSendMessages || (!media && isSendingRef.current)) return;
 
     // Optimistic send (mirrors DirectMessagePage): render the SENDER's own
     // bubble immediately, but broadcast to the rest of the room only AFTER the
@@ -426,8 +435,12 @@ export const ChatPage = () => {
     // parallel broadcast banned/unmoderated content to everyone in the room
     // live even when the message was about to be rejected. Sender keeps the
     // instant bubble; other members see it ~1 DB round-trip later, moderated.
-    isSendingRef.current = true;
-    if (!media) setContent('');
+    // Only text sends own the flag — a media send finishing in the middle of a
+    // text send must not clear the text's double-tap guard.
+    if (!media) {
+      isSendingRef.current = true;
+      setContent('');
+    }
     // The quote is consumed by this send; clearing it up front means a slow
     // network cannot leave it attached to the NEXT message too.
     const quoted = replyTo;
@@ -492,7 +505,7 @@ export const ChatPage = () => {
         toast.error(t('chat.page.toast.sendError'));
       }
     } finally {
-      isSendingRef.current = false;
+      if (!media) isSendingRef.current = false;
     }
   };
 
@@ -591,7 +604,7 @@ export const ChatPage = () => {
       )}
 
       {/* Messages */}
-      <div className="messages-container">
+      <div className="messages-container" ref={messagesContainerRef}>
         {hasMore && (
           <div style={{ textAlign: 'center', padding: '8px 0' }}>
             <button
@@ -654,6 +667,7 @@ export const ChatPage = () => {
                       url={mediaUrl(msg)}
                       mine={msg.user_id === user?.id}
                       onOpen={setLightbox}
+                      onLoad={handleMediaLoad}
                     />
                   ) : (
                     <div className="message-content">{msg.content}</div>

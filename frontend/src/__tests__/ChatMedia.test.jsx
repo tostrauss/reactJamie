@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent, act } from '@testing-library/react';
 import { ImageMessage } from '../components/ImageMessage';
-import { mediaUrl } from '../utils/chatMedia';
+import { mediaUrl, repinIfNearBottom } from '../utils/chatMedia';
 import { chatImageUrl, thumbUrl } from '../utils/images';
 
 vi.mock('react-i18next', () => ({
@@ -31,6 +31,92 @@ describe('mediaUrl (content stays human-readable, 2026-09-15)', () => {
   it('never returns undefined/null for a malformed row', () => {
     expect(mediaUrl(null)).toBe('');
     expect(mediaUrl({})).toBe('');
+  });
+
+  it('never hands the human-readable LABEL to the renderer as a url', () => {
+    // Since the split, `content` of a media row is "📷 Foto" — falling back to
+    // it whenever media_url was missing made a guaranteed-broken <img>.
+    expect(mediaUrl({ message_type: 'image', content: '📷 Foto' })).toBe('');
+    expect(mediaUrl({ message_type: 'voice', content: '🎤 Sprachnachricht' })).toBe('');
+    expect(mediaUrl({ content: 'https://app.jamie-app.com/media/uploads/a.webp' }))
+      .toBe('https://app.jamie-app.com/media/uploads/a.webp');
+  });
+});
+
+describe('ImageMessage load failures degrade instead of giving up (tester 06.10.2026)', () => {
+  const url = 'https://app.jamie-app.com/media/uploads/p.webp';
+  const img = (c) => c.querySelector('img');
+
+  it('falls back from the ?size=chat variant to the original', async () => {
+    const { container } = render(<ImageMessage url={url} onOpen={() => {}} />);
+    expect(img(container).getAttribute('src')).toBe(`${url}?size=chat`);
+    await act(async () => { fireEvent.error(img(container)); });
+    // One failed variant request used to mean "Foto nicht verfügbar" for the
+    // rest of the session — the original is often fine when the variant is not.
+    expect(img(container).getAttribute('src')).toBe(url);
+  });
+
+  it('offers a tap-to-reload after both fail, and the tap starts over', async () => {
+    const { container, getByText } = render(<ImageMessage url={url} onOpen={() => {}} />);
+    await act(async () => { fireEvent.error(img(container)); });
+    await act(async () => { fireEvent.error(img(container)); });
+    expect(img(container)).toBeNull();
+    expect(getByText('chat.photo.unavailable')).toBeTruthy();
+    const retry = getByText('chat.photo.retry').closest('button');
+    expect(retry).toBeTruthy();
+    await act(async () => { fireEvent.click(retry); });
+    expect(img(container).getAttribute('src')).toBe(`${url}?size=chat`);
+  });
+
+  it('a url without a separate variant does not request the same thing twice', async () => {
+    const external = 'https://x.tld/a.png';
+    const { container, getByText } = render(<ImageMessage url={external} onOpen={() => {}} />);
+    expect(img(container).getAttribute('src')).toBe(external);
+    await act(async () => { fireEvent.error(img(container)); });
+    expect(img(container)).toBeNull();
+    expect(getByText('chat.photo.retry')).toBeTruthy();
+  });
+
+  it('reports a successful load to the chat (late photos re-pin the scroll)', async () => {
+    const onLoad = vi.fn();
+    const { container } = render(<ImageMessage url={url} onOpen={() => {}} onLoad={onLoad} />);
+    await act(async () => { fireEvent.load(img(container)); });
+    expect(onLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the unavailable label without any request for an empty url', () => {
+    const { container, getByText } = render(<ImageMessage url="" onOpen={() => {}} />);
+    expect(img(container)).toBeNull();
+    expect(getByText('chat.photo.unavailable')).toBeTruthy();
+  });
+
+  it('opening the lightbox from the original-fallback stage still hands over the original url', async () => {
+    const onOpen = vi.fn();
+    const { container } = render(<ImageMessage url={url} onOpen={onOpen} />);
+    await act(async () => { fireEvent.error(img(container)); });
+    container.querySelector('button').click();
+    expect(onOpen).toHaveBeenCalledWith(url);
+  });
+});
+
+describe('repinIfNearBottom', () => {
+  const box = (scrollHeight, scrollTop, clientHeight) => ({ scrollHeight, scrollTop, clientHeight });
+
+  it('pulls a reader who is at the bottom down to the newly grown end', () => {
+    // 200px of photo just grew in below a reader who was at the bottom.
+    const el = box(2200, 1400, 600);
+    repinIfNearBottom(el);
+    expect(el.scrollTop).toBe(2200);
+  });
+
+  it('leaves a reader scrolled back into history alone', () => {
+    const el = box(5000, 1000, 600);
+    repinIfNearBottom(el);
+    expect(el.scrollTop).toBe(1000);
+  });
+
+  it('tolerates a missing element', () => {
+    expect(() => repinIfNearBottom(null)).not.toThrow();
   });
 });
 

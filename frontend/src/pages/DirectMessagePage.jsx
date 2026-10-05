@@ -12,7 +12,7 @@ import { MessageQuote } from '../components/MessageQuote';
 import { MessageReactions } from '../components/MessageReactions';
 import { ReactionPicker } from '../components/ReactionPicker';
 import { myReaction, applyReactionLocally } from '../utils/reactions';
-import { mediaUrl } from '../utils/chatMedia';
+import { mediaUrl, repinIfNearBottom } from '../utils/chatMedia';
 import { MessageTicks, tickState } from '../components/MessageTicks';
 import { ReportModal } from '../components/ReportModal';
 import { serverErrorMessage } from '../utils/apiError';
@@ -55,6 +55,9 @@ export const DirectMessagePage = () => {
   const longPressTimer = useRef(null);
   const lastTypingEmitRef = useRef(0);
   const messagesEndRef = useRef(null);
+  // Late-loading photos re-pin a reader who is at the bottom — see chatMedia.
+  const messagesContainerRef = useRef(null);
+  const handleMediaLoad = () => repinIfNearBottom(messagesContainerRef.current);
   const typingTimeoutRef = useRef(null);
   const chatPageRef = useRef(null);
   // active only once the real chat surface (which carries the ref) is mounted —
@@ -506,7 +509,7 @@ export const DirectMessagePage = () => {
         </div>
       )}
 
-      <div className="messages-container">
+      <div className="messages-container" ref={messagesContainerRef}>
         {messagesList.length === 0 && (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
             <p>{t('chat.dm.empty')}</p>
@@ -530,7 +533,7 @@ export const DirectMessagePage = () => {
                 {msg.message_type === 'voice' ? (
                   <VoiceMessage url={mediaUrl(msg)} durationMs={msg.duration_ms} mine={msg.sender_id === user.id} />
                 ) : msg.message_type === 'image' ? (
-                  <ImageMessage url={mediaUrl(msg)} mine={msg.sender_id === user.id} onOpen={setLightbox} />
+                  <ImageMessage url={mediaUrl(msg)} mine={msg.sender_id === user.id} onOpen={setLightbox} onLoad={handleMediaLoad} />
                 ) : (
                   <div className="message-content">{msg.content}</div>
                 )}

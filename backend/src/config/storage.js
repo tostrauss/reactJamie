@@ -6,6 +6,14 @@ import { randomUUID } from 'crypto';
 
 let _s3Client = null;
 
+// Without these the SDK waits on a stalled R2 socket indefinitely. Every
+// photo, avatar and voice note is read through the same-origin /media proxy,
+// so one stuck GET was a chat photo that stayed a grey box — no error, no
+// retry, nothing in the logs — and a stuck variant generation also held one
+// of the proxy's four sharp slots. requestTimeout is an IDLE timeout (no bytes
+// for that long), so a slow-but-flowing upload or stream is not cut off.
+export const STORAGE_TIMEOUTS = Object.freeze({ connectionTimeout: 5_000, requestTimeout: 20_000 });
+
 const getS3Client = () => {
   if (!_s3Client) {
     _s3Client = new S3Client({
@@ -15,6 +23,7 @@ const getS3Client = () => {
         accessKeyId: process.env.STORAGE_ACCESS_KEY,
         secretAccessKey: process.env.STORAGE_SECRET_KEY,
       },
+      requestHandler: { ...STORAGE_TIMEOUTS },
     });
   }
   return _s3Client;
