@@ -174,15 +174,19 @@ The backend does `.replace(/\\n/g, '\n')` on read, so the escaped form is correc
 
 - [ ] All 5 `APPLE_IAP_*` vars set in Railway
 
-## 5. Enable the In-App Purchase capability in Xcode
+## 5. No In-App Purchase capability in Xcode (not needed)
 
-Open `frontend/ios/App/App.xcworkspace`:
+In-app purchase is not gated by an entitlement: any app with an explicit App ID
+(ours: `com.jamie-app.app`) can sell through StoreKit. Apple DTS on the developer
+forums (09/2025, 01/2026) says to **remove** the Xcode "In-App Purchase"
+capability: Xcode writes a `com.apple.developer.storekit` entitlement for it,
+which is not a real entitlement and can break automatic signing. Never add
+"StoreKit External Purchases or Offers" either — that is the external-payment
+entitlement and needs Apple's approval.
 
-1. App target → **Signing & Capabilities**.
-2. **+ Capability** → **In-App Purchase**.
-3. Build and run on a physical iPhone (the simulator does not support Sandbox login).
+Test on a physical iPhone (the simulator does not support Sandbox login).
 
-- [ ] In-App Purchase capability added
+- [ ] No "In-App Purchase" / "StoreKit External …" capability in the target
 
 ## 6. Create a Sandbox tester
 

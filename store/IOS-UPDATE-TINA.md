@@ -149,14 +149,28 @@ Xcode öffnet das Projekt. Dann:
 
 1. Links im Dateibaum ganz oben das blaue **App**-Projekt anklicken →
    unter TARGETS **App** → Reiter **General** → Abschnitt **Identity**.
-2. **Version**: `1.4.3` eintragen. **Build**: `12` eintragen.
+2. **Version**: `1.4.3` eintragen. **Build**: `12` eintragen. (Dort steht
+   noch der alte Stand, z. B. `1.4.1` / `9` — einfach überschreiben.)
    ⚠️ **Nach dem Tippen einmal in ein anderes Feld klicken** (oder Tab).
    Sonst übernimmt Xcode den Wert nicht — dadurch wurde schon einmal ein
    alter Stand archiviert.
-3. Reiter **Signing & Capabilities**: In der Liste müssen **„Push Notifications"**
-   **und „In-App Purchase"** stehen. Fehlt eines → **STOPP, Tobi**
-   (außer „In-App Purchase": das darfst du mit **„+ Capability"** selbst
-   hinzufügen).
+   *Warum 1.4.3 und nicht 1.4.2?* Apple zählt nicht, was im Store erschienen
+   ist, sondern alles, was in App Store Connect je angelegt oder hochgeladen
+   wurde: Die Version muss höher sein als die zuletzt freigegebene (1.4.1), und
+   jede Build-Nummer darf es pro Version nur einmal geben. Ob dort irgendwo eine
+   1.4.2 hängt, wissen wir nicht sicher — 1.4.3 ist in jedem Fall frei. Eine
+   übersprungene Nummer ist erlaubt und fällt niemandem auf. Build 12 zählt nur
+   weiter, damit TestFlight sauber sortiert bleibt.
+3. Reiter **Signing & Capabilities**: In der Liste muss **„Push Notifications"**
+   stehen. Fehlt es → **STOPP, Tobi**.
+   **Sonst nichts hinzufügen.** „In-App Purchase" brauchst du **nicht**: Käufe
+   über Apple sind für jede App mit fester App-ID automatisch aktiv, und Apple
+   rät inzwischen selbst davon ab, die Capability hinzuzufügen. Fehlt sie unter
+   „+ Capability", ist das also egal. Steht sie schon in der Liste und Signing
+   ist nicht rot → so lassen. **Auf keinen Fall „StoreKit
+   External Purchases or Offers"** — das ist für Bezahlen *außerhalb* von Apple
+   und braucht eine Sondergenehmigung von Apple, die wir nicht haben.
+   Ob Kaufen funktioniert, zeigt Test h in TestFlight.
 4. Steht bei Signing etwas Rotes: Häkchen „Automatically manage signing"
    einmal aus- und wieder einschalten. Bleibt es rot → Screenshot an Tobi.
 
@@ -411,6 +425,8 @@ Review dauert meist unter 24 h. Nach Freigabe wird automatisch veröffentlicht.
 | Die `grep`-Zeile in Schritt 1 gibt weniger als fünf Zeilen aus | Pull hat nicht geklappt oder noch nicht gepusht → Tobi |
 | Preflight zeigt kein `NSMicrophoneUsageDescription` oder kein „4/4 … ✓" | Screenshot an Tobi, **nicht** archivieren |
 | Xcode: „Push Notifications" fehlt | Nicht archivieren — Tobi |
+| Xcode: kein „In-App Purchase" unter „+ Capability", nur „StoreKit External Purchases or Offers" | Richtig so — wird nicht gebraucht, einfach weiter. „StoreKit External …" **nicht** hinzufügen |
+| Signing rot, im Text steht `com.apple.developer.storekit` | Capability „In-App Purchase" entfernen (Maus drauf → ✕ links neben dem Namen) — sie ist unnötig |
 | Organizer zeigt falsche Version (nicht 1.4.3 mit deiner Build-Nummer) | Version/Build in General setzen, **Feld verlassen**, neu archivieren |
 | Upload: „build number already used" | Build eins höher (13, 14 …), neu archivieren (und im Organizer/Schritt 7 diese Nummer nehmen) |
 | Build taucht in TestFlight nicht auf | 45 Min. warten, Mail prüfen |
