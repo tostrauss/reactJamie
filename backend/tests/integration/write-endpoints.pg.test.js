@@ -3002,6 +3002,19 @@ suite('write endpoints against real Postgres', () => {
       expect((await statsOfT()).tier).toBe(1);
     });
 
+    it('the seal recompute never lowers: an admin-granted seal and a higher count survive the next review', async () => {
+      const S = await mkU('smoke-tier-seal@x.com', 'Sol');
+      const gid = await mkEvent(R3, { daysAgo: 3 });
+      await db.query(`INSERT INTO group_members (group_id, user_id, role, joined_at)
+                       VALUES ($1, $2, 'member', NOW() - INTERVAL '40 days')`, [gid, S]);
+      await db.query('UPDATE users SET is_trusted_user = TRUE, trusted_count = 7 WHERE id = $1', [S]);
+      const res = await call(C.submitReview, { userId: R2, body: {
+        group_id: gid, attendances: [{ user_id: S, was_present: true }] } });
+      expect(res.body).toEqual({ success: true, counted: true });
+      const seal = (await db.query('SELECT is_trusted_user, trusted_count FROM users WHERE id = $1', [S])).rows[0];
+      expect(seal).toEqual({ is_trusted_user: true, trusted_count: 7 }); // was: false / 1
+    });
+
     it("deleting a confirmer's account takes their ticks with it (FKs cascade, no 500)", async () => {
       const gone = await mkU('smoke-tier-gone@x.com', 'Gina');
       const gid = await mkEvent(R3);

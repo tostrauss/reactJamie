@@ -117,6 +117,15 @@ describe('submitReview write gate (non-countable events)', () => {
     expect(txnStatements.some((x) => x.text.includes('VALUES ($1, $2, $3, $4)'))).toBe(true);
   });
 
+  it('the seal recompute only ever raises (GREATEST / OR) — "trusted_count sinkt nie"', async () => {
+    scenario.countable = true;
+    memberSet.add(2);
+    await reviewMod.submitReview({ userId: 1, body: { group_id: 10, attendances: [{ user_id: 2, was_present: true }] } }, makeRes());
+    const upd = txnStatements.find((x) => x.text.includes('UPDATE users u')).text;
+    expect(upd).toContain('GREATEST(u.trusted_count, sub.c::int)');
+    expect(upd).toContain('(u.is_trusted_user OR sub.c >= $2)');
+  });
+
   it('the reviewer gate: a member by the end of the event day, round still open', async () => {
     scenario.countable = true;
     await reviewMod.submitReview({ userId: 1, body: { group_id: 10, attendances: [] } }, makeRes());

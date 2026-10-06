@@ -246,12 +246,16 @@ export const submitReview = async (req, res) => {
         insertParams
       );
 
-      // Bulk UPDATE trusted_count — one round trip for all reviewed users
+      // Bulk UPDATE trusted_count — one round trip for all reviewed users.
+      // Monotonic ("trusted_count sinkt nie"): the recompute only ever raises.
+      // Before, the next review overwrote a seal an admin had granted below
+      // the threshold, and a confirmer's account deletion (CASCADE) lowered
+      // the count — existing users lost the seal through no doing of theirs.
       const userIds = verified.map(a => a.user_id);
       await client.query(
         `UPDATE users u
-         SET trusted_count  = COALESCE(sub.c, 0),
-             is_trusted_user = COALESCE(sub.c, 0) >= $2
+         SET trusted_count  = GREATEST(u.trusted_count, sub.c::int),
+             is_trusted_user = (u.is_trusted_user OR sub.c >= $2)
          FROM (
            SELECT reviewed_user_id,
                   COUNT(DISTINCT reviewer_id) AS c
