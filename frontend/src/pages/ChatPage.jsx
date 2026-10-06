@@ -15,7 +15,7 @@ import { MessageQuote } from '../components/MessageQuote';
 import { MessageReactions } from '../components/MessageReactions';
 import { ReactionPicker } from '../components/ReactionPicker';
 import { myReaction, applyReactionLocally } from '../utils/reactions';
-import { mediaUrl, repinIfNearBottom } from '../utils/chatMedia';
+import { mediaUrl, repinIfNearBottom, tailIdOf } from '../utils/chatMedia';
 import { bindRoomToVisibility, isPageHidden } from '../utils/roomPresence';
 import { MessageTicks, tickState } from '../components/MessageTicks';
 import { serverErrorMessage } from '../utils/apiError';
@@ -23,6 +23,10 @@ import { downscaleImageFile } from '../utils/images';
 import { useChatViewport } from '../hooks/useChatViewport';
 import useSwipeBack from '../hooks/useSwipeBack';
 import { dropVanished, quoteIdOf } from '../utils/chatMerge';
+import { PollMessage } from '../components/PollMessage';
+import { PollComposerSheet } from '../components/PollComposerSheet';
+import { usePollVotes } from '../hooks/usePollVotes';
+import { isRenderablePoll, mergePoll } from '../utils/polls';
 import '../styles/chat.css';
 
 export const ChatPage = () => {
@@ -164,6 +168,22 @@ export const ChatPage = () => {
   const toast = useToast();
   const { t, i18n } = useTranslation();
   const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : ((i18n.resolvedLanguage || i18n.language || 'de').startsWith('fr') ? 'fr-FR' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('es') ? 'es-ES' : 'de-DE');
+  // Chat polls (B1): optimistic voting, merged by version — hooks/usePollVotes.
+  // The returned object is stable, so it can sit in effect deps.
+  const pollVotes = usePollVotes({
+    setMessageList,
+    onError: (err) => toast.error(serverErrorMessage(err, t, 'chat.poll.voteError')),
+  });
+  const [pollSheetOpen, setPollSheetOpen] = useState(false);
+  // The /chat/:groupId route is not keyed — ChatPage is REUSED when an in-app
+  // navigation (an iOS push banner tap) switches chats. Per-chat UI must not
+  // come along: an open poll draft would otherwise be sent into the NEW group,
+  // a reply quote or an action sheet would point at the old chat's message.
+  useEffect(() => {
+    setPollSheetOpen(false);
+    setReplyTo(null);
+    setActionMsg(null);
+  }, [groupId]);
   const messagesEndRef = useRef(null);
   const chatPageRef = useRef(null);
   // active only once the real chat surface (which carries the ref) is mounted —
@@ -267,6 +287,9 @@ export const ChatPage = () => {
       // must move.
       if (data?.receipts) setReceipts(data.receipts);
       if (!msgs.length) return;
+      // A poll with a vote in flight takes the fresh summary via the hook (it
+      // stashes it and applies it after the flight, if newer).
+      msgs.forEach((s) => { if (s?.poll && pollVotes.isBusy(s.id)) pollVotes.receive(s.id, s.poll); });
       setMessageList(current => {
         if (!current.length) return msgs;
         // Deleted while this page was hidden (out of the room, so the live
@@ -285,11 +308,21 @@ export const ChatPage = () => {
         const patched = prev.map(m => {
           const s = byId.get(m.id);
           if (!s) return m;
+          let next = m;
+          if (JSON.stringify(s.reactions ?? []) !== JSON.stringify(m.reactions ?? [])) {
+            next = { ...next, reactions: s.reactions ?? [] };
+          }
           // The server clears the quote of a reply whose original was deleted
           // (getMessages joins only live originals) — adopt that as well.
-          const quoteChanged = quoteIdOf(s) !== quoteIdOf(m);
-          if (!quoteChanged && JSON.stringify(s.reactions ?? []) === JSON.stringify(m.reactions ?? [])) return m;
-          return { ...m, reactions: s.reactions ?? [], ...(quoteChanged ? { reply_to: s.reply_to ?? null } : {}) };
+          if (quoteIdOf(s) !== quoteIdOf(m)) next = { ...next, reply_to: s.reply_to ?? null };
+          // Poll counts that moved while we were away, merged by version. A
+          // server row WITHOUT `poll` (its side query failed) never wipes the
+          // one on screen; a poll with a vote in flight is the hook's business.
+          if (s.poll && !pollVotes.isBusy(m.id)) {
+            const merged = mergePoll(m.poll, s.poll);
+            if (merged !== m.poll) next = { ...next, poll: merged };
+          }
+          return next;
         });
         if (!fresh.length) return patched;
         // No overlap → the gap exceeds the fetched window; the fetched page IS
@@ -305,7 +338,7 @@ export const ChatPage = () => {
       // switches it on; a superfluous tap loads nothing and hides it again.
       if (!Array.isArray(data) && data?.has_more) setHasMore(true);
     } catch { /* next reconnect/visibility tick retries */ }
-  }, [groupId]);
+  }, [groupId, pollVotes]);
 
   useEffect(() => {
     if (!socket) return;
@@ -341,7 +374,9 @@ export const ChatPage = () => {
 
     // A moderator (or the author) removed a message — drop it live instead of
     // leaving it on screen until the next reload.
-    const handleMessageDeleted = ({ id }) => {
+    const handleMessageDeleted = (data) => {
+      const id = data?.id;
+      if (id == null) return;
       setMessageList(prev => prev
         .filter(m => m.id !== id)
         // Dropping the bubble is not enough: every reply that quoted it still
@@ -360,12 +395,24 @@ export const ChatPage = () => {
     // Someone reacted (or took their reaction back). The payload is the FULL
     // summary for that message, not a delta — so a dropped event costs one
     // stale render until the next catch-up, never a permanently wrong count.
-    const handleReaction = ({ messageId, reactions }) => {
+    const handleReaction = (data) => {
+      const messageId = data?.messageId;
+      if (messageId == null) return;
       setMessageList(prev => prev.map(m =>
-        String(m.id) === String(messageId) ? { ...m, reactions: reactions ?? [] } : m));
+        String(m.id) === String(messageId) ? { ...m, reactions: data.reactions ?? [] } : m));
+    };
+    // Someone voted, or the poll was closed (B1): the FULL summary — the room
+    // copy without anyone's selection, our own devices' copy with ours —
+    // merged by version, so a late event never rolls the bubble back.
+    const handlePollUpdate = (data) => {
+      const id = Number(data?.messageId);
+      if (!Number.isInteger(id) || String(data?.groupId) !== String(groupId)) return;
+      if (!data?.poll || typeof data.poll !== 'object') return;
+      pollVotes.receive(id, data.poll);
     };
 
     socket.on('message_reaction', handleReaction);
+    socket.on('poll_update', handlePollUpdate);
     socket.on('message_deleted', handleMessageDeleted);
     socket.on('receive_message', handleReceiveMessage);
     socket.on('connect', handleReconnect);
@@ -374,12 +421,13 @@ export const ChatPage = () => {
     return () => {
       socket.emit('leave_room', groupId);
       socket.off('message_reaction', handleReaction);
+      socket.off('poll_update', handlePollUpdate);
       socket.off('message_deleted', handleMessageDeleted);
     socket.off('receive_message', handleReceiveMessage);
       socket.off('connect', handleReconnect);
       socket.off('removed_from_group', handleRemoved);
     };
-  }, [socket, groupId, catchUpMessages]);
+  }, [socket, groupId, catchUpMessages, pollVotes]);
 
   // Foreground return with the socket still (apparently) alive: the WebView
   // may have been frozen with events dropped before the client notices the
@@ -399,11 +447,21 @@ export const ChatPage = () => {
   // OLDEST of its 50 rows and the newest photo sat unseen below. The instant
   // jump also keeps a fast photo from loading mid-animation (more than 400 px
   // from the end), where its re-pin would skip it.
+  //
+  // After that, scroll only when the LAST message changed — a new one, the
+  // temp → real swap of our own. Every vote, reaction or catch-up patch on a
+  // message further up used to scroll too, yanking a reader who had scrolled
+  // up (B1: polls change constantly); those now only re-pin someone already
+  // sitting at the very bottom.
   const initialScrollDoneRef = useRef(false);
-  useEffect(() => { initialScrollDoneRef.current = false; }, [groupId]);
+  const lastTailRef = useRef(null);
+  useEffect(() => { initialScrollDoneRef.current = false; lastTailRef.current = null; }, [groupId]);
 
   useEffect(() => {
     if (loading) return;
+    const tail = tailIdOf(messageList);
+    const tailChanged = tail !== lastTailRef.current;
+    lastTailRef.current = tail;
     if (skipAutoScrollRef.current) { skipAutoScrollRef.current = false; return; }
     if (!initialScrollDoneRef.current) {
       if (!messageList.length) return;
@@ -411,7 +469,8 @@ export const ChatPage = () => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
       return;
     }
-    scrollToBottom();
+    if (tailChanged) scrollToBottom();
+    else repinIfNearBottom(messagesContainerRef.current, 80);
   }, [messageList, loading]);
 
   const loadEarlier = async () => {
@@ -559,6 +618,38 @@ export const ChatPage = () => {
     }
   };
 
+  // Chat polls (B1). Creating is not optimistic: the sheet shows "Wird
+  // gesendet…" through moderation and keeps the draft on a rejection.
+  const handleCreatePoll = async (draft) => {
+    try {
+      const res = await messages.createPoll(groupId, draft);
+      const real = res.data;
+      setMessageList(prev => (prev.some(m => m.id === real.id) ? prev : [...prev, real]));
+      setPollSheetOpen(false);
+    } catch (err) {
+      // The club went "nur der Gründer schreibt" meanwhile — same as sending.
+      if (err?.response?.data?.isOwnerOnly) {
+        setPollSheetOpen(false);
+        setCanSendMessages(false);
+        setPermissionMessage(t('chat.page.permissionOwnerOnly'));
+        return;
+      }
+      throw err; // PollComposerSheet shows why
+    }
+  };
+
+  const handleClosePoll = async (msg) => {
+    setActionMsg(null);
+    if (!window.confirm(t('chat.poll.confirmClose'))) return;
+    try {
+      const res = await messages.closePoll(msg.id);
+      pollVotes.receive(msg.id, res.data?.poll);
+      toast.info(t('chat.poll.closedToast'));
+    } catch (err) {
+      toast.error(serverErrorMessage(err, t, 'chat.poll.closeError'));
+    }
+  };
+
   if (loading) return <div className="chat-page"><div className="loading">{t('chat.page.loading')}</div></div>;
   if (!group) return <div className="chat-page"><div className="loading">{t('chat.page.notFound')}</div></div>;
 
@@ -671,12 +762,16 @@ export const ChatPage = () => {
                 </Fragment>
               );
             }
+            // A poll renders as one when its data is here; without it (old
+            // server instance, failed side query) the content line shows —
+            // exactly what an old app sees.
+            const showPoll = msg.message_type === 'poll' && isRenderablePoll(msg.poll);
             return (
               <Fragment key={msg.id || index}>
                 {daySep}
                 <div
                   id={`msg-${msg.id}`}
-                  className={`message ${msg.user_id === user?.id ? 'sent' : 'received'}${msg._pending ? ' message--pending' : ''}${msg._failed ? ' message--failed' : ''}`}
+                  className={`message ${msg.user_id === user?.id ? 'sent' : 'received'}${showPoll ? ' message--poll' : ''}${msg._pending ? ' message--pending' : ''}${msg._failed ? ' message--failed' : ''}`}
                   {...(msg.id && !msg._pending ? pressHandlers(msg) : {})}
                 >
                   {msg.user_id !== user?.id && (
@@ -700,6 +795,13 @@ export const ChatPage = () => {
                       mine={msg.user_id === user?.id}
                       onOpen={setLightbox}
                       onLoad={handleMediaLoad}
+                    />
+                  ) : showPoll ? (
+                    <PollMessage
+                      poll={msg.poll}
+                      memberCount={group?.members_count || 0}
+                      locale={dateLocale}
+                      onVote={(choices) => pollVotes.vote(msg, choices)}
                     />
                   ) : (
                     <div className="message-content">{msg.content}</div>
@@ -743,7 +845,18 @@ export const ChatPage = () => {
         placeholder={canSendMessages ? t('chat.page.input.placeholder') : t('chat.page.input.placeholderOwnerOnly')}
         replyTo={replyTo}
         onCancelReply={() => setReplyTo(null)}
+        onCreatePoll={canSendMessages ? () => setPollSheetOpen(true) : undefined}
       />
+
+      {/* Direct child of .chat-page: useChatViewport keeps it above the iOS
+          keyboard. Votes are never gated by canSendMessages. */}
+      {pollSheetOpen && (
+        <PollComposerSheet
+          locale={dateLocale}
+          onSubmit={handleCreatePoll}
+          onClose={() => setPollSheetOpen(false)}
+        />
+      )}
 
       {/* Message action sheet (long-press). Deliberately a plain sheet rather
           than an inline hover menu: the chat is used on phones, where there is
@@ -809,6 +922,16 @@ export const ChatPage = () => {
                     onClick={() => openMessageInfo(actionMsg)}
                   >
                     {t('chat.receipts.info')}
+                  </button>
+                )}
+                {/* Same people the server lets close: author, owner, a
+                    co-manager of THIS group (my_role — is_manager would also
+                    cover parent-club managers, who get 403), platform admin. */}
+                {actionMsg.message_type === 'poll' && actionMsg.poll && !actionMsg.poll.closed
+                  && (actionMsg.user_id === user?.id || group?.owner_id === user?.id
+                    || group?.my_role === 'admin' || user?.is_admin) && (
+                  <button className="msg-sheet-btn" onClick={() => handleClosePoll(actionMsg)}>
+                    {t('chat.poll.close')}
                   </button>
                 )}
                 {(actionMsg.user_id === user?.id || group?.owner_id === user?.id || user?.is_admin) && (

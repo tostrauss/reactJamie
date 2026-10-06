@@ -631,7 +631,18 @@ export const messages = {
   // table's primary key). Responds with the full fresh summary, which is also
   // what goes out over the socket as `message_reaction`.
   react: (messageId, emoji) =>
-    axiosInstance.put(`/messages/${messageId}/reaction`, { emoji: emoji ?? null })
+    axiosInstance.put(`/messages/${messageId}/reaction`, { emoji: emoji ?? null }),
+
+  // Chat polls (B1). POST/PUT are never auto-retried (SAFE_METHODS), so a
+  // poll cannot be created twice by a retry.
+  //   createPoll body: { kind: 'date'|'choice', question, multi, options }
+  //   votePoll: the COMPLETE desired selection — [] withdraws the vote
+  createPoll: (groupId, poll) =>
+    axiosInstance.post(`/messages/${groupId}/polls`, poll),
+  votePoll: (messageId, choices) =>
+    axiosInstance.put(`/messages/${messageId}/poll/vote`, { choices }),
+  closePoll: (messageId) =>
+    axiosInstance.post(`/messages/${messageId}/poll/close`),
 };
 
 // ==========================================

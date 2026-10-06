@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent, act } from '@testing-library/react';
 import { ImageMessage } from '../components/ImageMessage';
-import { mediaUrl, repinIfNearBottom } from '../utils/chatMedia';
+import { mediaUrl, repinIfNearBottom, tailIdOf } from '../utils/chatMedia';
 import { chatImageUrl, thumbUrl } from '../utils/images';
 
 vi.mock('react-i18next', () => ({
@@ -105,6 +105,26 @@ describe('ImageMessage load failures degrade instead of giving up (tester 06.10.
     await act(async () => { fireEvent.error(img(container)); });
     container.querySelector('button').click();
     expect(onOpen).toHaveBeenCalledWith(url);
+  });
+});
+
+describe('tailIdOf (B1: scroll only when the LAST message changes)', () => {
+  it('is the id of the last row, null for an empty or odd list', () => {
+    expect(tailIdOf([{ id: 1 }, { id: 'temp-2' }])).toBe('temp-2');
+    expect(tailIdOf([])).toBeNull();
+    expect(tailIdOf(null)).toBeNull();
+    expect(tailIdOf([{}])).toBeNull();
+  });
+});
+
+describe('repinIfNearBottom with a custom threshold', () => {
+  it('80px leaves a reader 300px above the end alone', () => {
+    const el = { scrollHeight: 2000, scrollTop: 1200, clientHeight: 500 }; // 300px from the end
+    repinIfNearBottom(el, 80);
+    expect(el.scrollTop).toBe(1200);
+    const near = { scrollHeight: 2000, scrollTop: 1450, clientHeight: 500 }; // 50px
+    repinIfNearBottom(near, 80);
+    expect(near.scrollTop).toBe(2000);
   });
 });
 

@@ -6,6 +6,7 @@ import { sendPushToUsers, PUSH_CONVERSATION } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 import { groupReceiptWatermarks, messageReceiptDetail } from '../utils/readReceipts.js';
 import { isAllowedReaction, setReaction, attachReactions } from '../utils/reactions.js';
+import { attachPolls, isPollSchemaMissing, POLL_SQL } from '../utils/polls.js';
 
 // Stamp the caller's read marker for a group chat and drop their cached
 // joined-groups list (it embeds unread_count, TTL 15s — without the
@@ -120,6 +121,9 @@ export const sendMessage = async (req, res) => {
     // arbitrary text as 'voice' and the player would try to fetch it.
     const isVoice = message_type === 'voice';
     const isImage = message_type === 'image';
+    // 'poll' is deliberately NOT accepted here: a poll row is only ever created
+    // by pollController together with its poll data (B1), so no client can
+    // forge a poll bubble without a poll behind it.
     if (message_type != null && message_type !== 'text' && !isVoice && !isImage) {
       return res.status(400).json({ error: 'Ungültiger Nachrichtentyp' });
     }
@@ -439,6 +443,10 @@ export const getMessages = async (req, res) => {
     // Emoji reactions for this page, in one extra indexed query. Never
     // throws — see utils/reactions.getReactionsFor.
     await attachReactions(db, 'group', rows);
+    // Poll rows get their summary (counts + the viewer's own selection). Zero
+    // queries when the page has none; never throws — without it a poll renders
+    // its content line, like on an old client.
+    await attachPolls(db, rows, req.userId);
 
     // Opening the chat reads it — fire-and-forget so the response isn't
     // delayed. Paging back through history (?before=) still moves the unread
@@ -487,7 +495,7 @@ export const deleteMessage = async (req, res) => {
     // Fetch message + group owner + whether the caller is a platform admin in
     // one query, so all three permissions are checked together.
     const result = await db.query(
-      `SELECT m.user_id AS author_id, m.group_id, g.owner_id AS group_owner_id,
+      `SELECT m.user_id AS author_id, m.group_id, g.owner_id AS group_owner_id, m.message_type,
               (SELECT is_admin FROM users WHERE id = $2) AS caller_is_admin
        FROM messages m
        JOIN groups g ON g.id = m.group_id
@@ -498,7 +506,7 @@ export const deleteMessage = async (req, res) => {
       return res.status(404).json({ error: 'Message not found' });
     }
 
-    const { author_id, group_owner_id, group_id, caller_is_admin } = result.rows[0];
+    const { author_id, group_owner_id, group_id, caller_is_admin, message_type } = result.rows[0];
     const isAuthor      = Number(author_id)      === Number(req.userId);
     const isGroupOwner  = Number(group_owner_id) === Number(req.userId);
 
@@ -529,6 +537,24 @@ export const deleteMessage = async (req, res) => {
         id: Number(messageId), groupId: Number(group_id),
       });
     } catch { /* delivery is best-effort; the DB write is what counts */ }
+
+    // A closed poll posted a result pill that repeats its question and winning
+    // options. System rows cannot be reported or deleted from any client, so
+    // the takedown of the poll — the author's, the owner's or an admin's acting
+    // on a report — takes the pill down with it. Side query: the poll tables
+    // are optional (boot window), so a missing table is silently fine.
+    if (message_type === 'poll') {
+      try {
+        const pills = await db.query(POLL_SQL.takedownResult, [Number(messageId)]);
+        for (const p of pills.rows || []) {
+          try {
+            req.app?.get('io')?.to(String(group_id)).emit('message_deleted', { id: Number(p.id), groupId: Number(group_id) });
+          } catch { /* best-effort */ }
+        }
+      } catch (err) {
+        if (!isPollSchemaMissing(err)) console.error('[polls] result takedown failed:', err?.message);
+      }
+    }
 
     res.json({ message: 'Message deleted' });
   } catch (error) {

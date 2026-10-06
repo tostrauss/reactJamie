@@ -48,7 +48,17 @@ const IMAGE_LABEL = {
   de: '📷 Foto', en: '📷 Photo', it: '📷 Foto', fr: '📷 Photo', es: '📷 Foto',
 };
 const mediaLabel = (p, l) => (p.isVoice ? VOICE_LABEL[l] : p.isImage ? IMAGE_LABEL[l] : null);
+// A new poll in a group chat (B1): per kind and per RECIPIENT locale — the
+// question is the creator's, the frame is the reader's.
+const POLL_LINE = {
+  de: { date: (s, q) => `📅 ${s} sucht einen Termin: ${q}`, choice: (s, q) => `📊 ${s} hat eine Abstimmung gestartet: ${q}` },
+  en: { date: (s, q) => `📅 ${s} is looking for a date: ${q}`, choice: (s, q) => `📊 ${s} started a poll: ${q}` },
+  it: { date: (s, q) => `📅 ${s} cerca una data: ${q}`, choice: (s, q) => `📊 ${s} ha avviato un sondaggio: ${q}` },
+  fr: { date: (s, q) => `📅 ${s} cherche une date : ${q}`, choice: (s, q) => `📊 ${s} a lancé un sondage : ${q}` },
+  es: { date: (s, q) => `📅 ${s} busca una fecha: ${q}`, choice: (s, q) => `📊 ${s} ha creado una encuesta: ${q}` },
+};
 const groupLine = (p, l) => {
+  if (p.isPoll) return (POLL_LINE[l] || POLL_LINE.de)[p.pollKind === 'date' ? 'date' : 'choice'](p.sender, p.question || '');
   const media = mediaLabel(p, l);
   return media ? `${p.sender}: ${media}` : (p.line || p.sender || '');
 };

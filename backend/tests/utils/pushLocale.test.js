@@ -318,3 +318,31 @@ describe('voice-message pushes are labelled per recipient locale', () => {
     expect(d('de')).toEqual({ title: 'Anna', body: 'hallo' });
   });
 });
+
+// Chat polls (B1): a new poll pushes like a message — the line names the kind,
+// in the RECIPIENT's language; the title stays the group name.
+describe('poll pushes', () => {
+  const date = pushTexts('groupMessage', { groupName: 'Wandern', sender: 'Tina', isPoll: true, pollKind: 'date', question: 'Wann passt es euch?' });
+  const choice = pushTexts('groupMessage', { groupName: 'Wandern', sender: 'Tina', isPoll: true, pollKind: 'choice', question: 'Was machen wir?' });
+
+  it('date polls, all five languages', () => {
+    expect(date('de')).toEqual({ title: 'Wandern', body: '📅 Tina sucht einen Termin: Wann passt es euch?' });
+    expect(date('en').body).toBe('📅 Tina is looking for a date: Wann passt es euch?');
+    expect(date('it').body).toBe('📅 Tina cerca una data: Wann passt es euch?');
+    expect(date('fr').body).toBe('📅 Tina cherche une date : Wann passt es euch?');
+    expect(date('es').body).toBe('📅 Tina busca una fecha: Wann passt es euch?');
+  });
+
+  it('choice polls, all five languages', () => {
+    expect(choice('de')).toEqual({ title: 'Wandern', body: '📊 Tina hat eine Abstimmung gestartet: Was machen wir?' });
+    expect(choice('en').body).toBe('📊 Tina started a poll: Was machen wir?');
+    expect(choice('it').body).toBe('📊 Tina ha avviato un sondaggio: Was machen wir?');
+    expect(choice('fr').body).toBe('📊 Tina a lancé un sondage : Was machen wir?');
+    expect(choice('es').body).toBe('📊 Tina ha creado una encuesta: Was machen wir?');
+  });
+
+  it('the media and text branches are untouched', () => {
+    expect(pushTexts('groupMessage', { groupName: 'X', sender: 'A', isImage: true })('de').body).toBe('A: 📷 Foto');
+    expect(pushTexts('groupMessage', { groupName: 'X', line: 'A: hi' })('de').body).toBe('A: hi');
+  });
+});

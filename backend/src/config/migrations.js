@@ -1386,6 +1386,81 @@ const runStartupMigrations = async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_dm_reactions_msg ON dm_reactions(message_id)`);
   });
 
+  // ── Abstimmungen im Chat (B1, 2026-10) ──────────────────────────────────
+  // Tester 06.10.2026: „Abstimmungsfunktion für Terminfindung oder
+  // Aktivitätsplanung". A poll is an ordinary messages row (message_type
+  // 'poll'; the column is VARCHAR(20) without a CHECK, so no DDL on the
+  // hottest table) plus these three side tables — see utils/polls.js.
+  //
+  // Optional by design: only migrations.js, never schema.sql, no
+  // CRITICAL_SCHEMA_PROBE, no backfill. Until the tables exist the chat still
+  // loads (polls render their content line) and the poll endpoints answer 503.
+  // One client transaction with lock_timeout: the FKs take SHARE ROW EXCLUSIVE
+  // on messages + users while the server is already serving (listen →
+  // migrate), so fail fast instead of queueing chat INSERTs behind the lock —
+  // all or nothing, the next boot retries.
+  //
+  // Delete rules: a hard-deleted message takes poll, options and votes with it
+  // (CASCADE); a soft delete keeps everything as report evidence; a deleted
+  // voter takes their ballot; a deleted closer leaves closed_by NULL.
+  await migrate('chat polls (2026-10)', async () => {
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS message_polls (
+          message_id  INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+          kind        VARCHAR(10) NOT NULL,
+          question    TEXT        NOT NULL,
+          multi       BOOLEAN     NOT NULL DEFAULT FALSE,
+          closed_at   TIMESTAMP,
+          closed_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          -- The "Ergebnis" system pill posted on close. It repeats user-typed
+          -- text, so taking the poll down (deleteMessage) takes it down too.
+          result_message_id INTEGER REFERENCES messages(id) ON DELETE SET NULL,
+          version     INTEGER     NOT NULL DEFAULT 0,
+          created_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          -- moves with POLL_KINDS (backend + frontend utils/polls.js)
+          CONSTRAINT message_polls_kind_check       CHECK (kind IN ('choice', 'date')),
+          CONSTRAINT message_polls_date_multi_check CHECK (kind <> 'date' OR multi)
+        )`);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS message_poll_options (
+          message_id  INTEGER  NOT NULL REFERENCES message_polls(message_id) ON DELETE CASCADE,
+          position    SMALLINT NOT NULL,
+          -- choice: the typed text; date: a server-built label in the creator's
+          -- language (content line, result pill, export)
+          label       TEXT     NOT NULL,
+          opt_date    DATE,    -- 'YYYY-MM-DD' strings end to end (OID 1082 parser pinned)
+          opt_time    TIME,    -- NULL = all day
+          PRIMARY KEY (message_id, position),
+          CONSTRAINT message_poll_options_position_check  CHECK (position BETWEEN 0 AND 9),
+          CONSTRAINT message_poll_options_time_needs_date CHECK (opt_time IS NULL OR opt_date IS NOT NULL)
+        )`);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS message_poll_votes (
+          message_id  INTEGER    NOT NULL REFERENCES message_polls(message_id) ON DELETE CASCADE,
+          user_id     INTEGER    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          choices     SMALLINT[] NOT NULL,
+          created_at  TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at  TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (message_id, user_id),
+          CONSTRAINT message_poll_votes_choices_check CHECK (
+            cardinality(choices) BETWEEN 1 AND 10 AND 0 <= ALL (choices) AND 9 >= ALL (choices))
+        )`);
+      // Account deletion and the GDPR export look ballots up by user.
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_message_poll_votes_user ON message_poll_votes(user_id)`);
+      await client.query(`CREATE INDEX IF NOT EXISTS idx_message_polls_closed_by ON message_polls(closed_by) WHERE closed_by IS NOT NULL`);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // migrate() records it; reads degrade to content, writes 503 until the next boot
+    } finally {
+      client.release();
+    }
+  });
+
   // ── Umkreis: eigene Koordinaten + Benachrichtigungs-Radius ──────────────
   // Play review „Suzkapu" 02.09.2026: „Filter für Benachrichtigungen etc.
   // bezüglich Umkreis wären wichtig."

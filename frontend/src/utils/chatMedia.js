@@ -37,11 +37,19 @@ export const NEAR_BOTTOM_PX = 400;
  * someone who is already there: photos are lazy-loaded, and a reader scrolling
  * back through history must not be yanked down whenever an older photo loads.
  */
-export const repinIfNearBottom = (el) => {
+export const repinIfNearBottom = (el, px = NEAR_BOTTOM_PX) => {
   if (!el) return;
-  if (el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX) {
+  if (el.scrollHeight - el.scrollTop - el.clientHeight < px) {
     el.scrollTop = el.scrollHeight;
   }
 };
+
+/**
+ * Id of the LAST message in a list (null when empty). The chat scrolls to the
+ * bottom only when this changes — a new message, the temp → real swap of the
+ * own one — and not on every list change: a vote, a reaction or a catch-up
+ * patch on a message above must not yank a reader who scrolled up (B1).
+ */
+export const tailIdOf = (list) => (Array.isArray(list) && list.length ? list[list.length - 1]?.id ?? null : null);
 
 export default mediaUrl;

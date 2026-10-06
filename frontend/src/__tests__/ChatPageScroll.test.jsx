@@ -78,6 +78,29 @@ describe('ChatPage — opens at the newest message', () => {
   });
 });
 
+// B1: the chat scrolls only when the LAST message changes. A reaction or a
+// poll vote on a message further up must not yank a reader who scrolled up.
+describe('ChatPage — scrolls only when the newest message changes', () => {
+  it('reactions and poll updates on older rows: no scroll; a new message: one smooth scroll', async () => {
+    vi.mocked(groups.getById).mockResolvedValueOnce(group);
+    const pollRow = { ...row(1), message_type: 'poll', content: '📊 q — A · B', poll: {
+      kind: 'choice', question: 'q', multi: false, closed: false, version: 1, voter_count: 0,
+      options: [{ pos: 0, label: 'A', votes: 0 }, { pos: 1, label: 'B', votes: 0 }], my_votes: [] } };
+    vi.mocked(messages.get).mockResolvedValueOnce({ data: { messages: [pollRow, row(2), row(3)], has_more: false } });
+    const socket = mkSocket();
+    renderChat(socket);
+    await act(async () => {});
+    expect(scrollCalls).toEqual([{ behavior: 'auto' }]);
+    scrollCalls.length = 0;
+    await act(async () => { socket.handlers.message_reaction({ messageId: 2, reactions: [{ emoji: '👍', count: 1, user_ids: [2] }] }); });
+    await act(async () => { socket.handlers.poll_update({ messageId: 1, groupId: 5, poll: { ...pollRow.poll, version: 2, voter_count: 1,
+      options: [{ pos: 0, label: 'A', votes: 1 }, { pos: 1, label: 'B', votes: 0 }] } }); });
+    expect(scrollCalls).toEqual([]);
+    await act(async () => { socket.handlers.receive_message(row(4)); });
+    expect(scrollCalls).toEqual([{ behavior: 'smooth' }]);
+  });
+});
+
 describe('ChatPage — catch-up after a long absence', () => {
   it('offers "Ältere laden" again when more than a page arrived meanwhile', async () => {
     vi.mocked(groups.getById).mockResolvedValueOnce(group);

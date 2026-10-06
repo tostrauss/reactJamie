@@ -18,6 +18,7 @@
  * "already gone" apart from "never existed".
  */
 import db from '../config/database.js';
+import { POLL_CONTENT_MAX } from './polls.js';
 
 /** Human-readable German labels — the raw enum values are what admins see today. */
 export const REASON_LABELS = {
@@ -190,7 +191,9 @@ export const resolveReportTargets = async (rows) => {
             // Snapshotted, not linked: see the module header. A soft-deleted
             // message still has its content row, which is exactly what an
             // admin needs to judge a report filed before the deletion.
-            content: clip(m.content, MESSAGE_CLIP),
+            // A poll's content line carries the question AND every option, so
+            // the moderation card, the mail and the push see all of them.
+            content: clip(m.content, m.message_type === 'poll' ? Math.max(MESSAGE_CLIP, POLL_CONTENT_MAX) : MESSAGE_CLIP),
             message_type: m.message_type,
             // `content` is only a label for a voice/photo message, so the
             // payload has to travel too or a reported photo becomes

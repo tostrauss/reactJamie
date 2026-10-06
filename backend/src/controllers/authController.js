@@ -22,6 +22,7 @@ import { getObjectFromCloud, isCloudStorageEnabled } from '../config/storage.js'
 import { readFile } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { POLL_SQL } from '../utils/polls.js';
 
 const __authDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -996,7 +997,7 @@ export const deleteAccount = async (req, res) => {
 // ==========================================
 export const exportData = async (req, res) => {
   try {
-    const [userRes, groupsRes, messagesRes, friendsRes] = await Promise.all([
+    const [userRes, groupsRes, messagesRes, friendsRes, pollVotesRes] = await Promise.all([
       db.query(
         `SELECT id, email, name, username, gender, date_of_birth, bio, location,
                 avatar_url, photos, interests, favorite_song, pinterest_url,
@@ -1030,6 +1031,9 @@ export const exportData = async (req, res) => {
            AND f.status = 'accepted'`,
         [req.userId]
       ),
+      // Own poll votes (B1). Its own catch: the poll tables are optional, and
+      // the export must not fail while they are missing.
+      db.query(POLL_SQL.export, [req.userId]).catch(() => ({ rows: [] })),
     ]);
 
     res.json({
@@ -1040,6 +1044,7 @@ export const exportData = async (req, res) => {
       groups: groupsRes.rows,
       messages: messagesRes.rows,
       friends: friendsRes.rows,
+      poll_votes: pollVotesRes.rows,
     });
   } catch (error) {
     console.error('exportData error:', error);

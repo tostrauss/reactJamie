@@ -187,6 +187,27 @@ describe('ChatComposer', () => {
     expect(screen.getByText('chat.voice.label')).toBeTruthy();
     expect(screen.queryByText('/media/uploads/a.webm')).toBeNull();
   });
+
+  // Chat polls (B1): the 📊 button lives in the group chat's composer only.
+  it('offers "Umfrage erstellen" only with onCreatePoll, an empty field, enabled, and not while replying', () => {
+    installMediaMocks();
+    const onCreatePoll = vi.fn();
+    const { rerender } = render(<ChatComposer {...baseProps} onCreatePoll={onCreatePoll} />);
+    fireEvent.click(screen.getByLabelText('chat.poll.create'));
+    expect(onCreatePoll).toHaveBeenCalledTimes(1);
+    rerender(<ChatComposer {...baseProps} onCreatePoll={onCreatePoll} value="hallo" />);
+    expect(screen.queryByLabelText('chat.poll.create')).toBeNull();
+    rerender(<ChatComposer {...baseProps} onCreatePoll={onCreatePoll} disabled />);
+    expect(screen.queryByLabelText('chat.poll.create')).toBeNull();
+    rerender(<ChatComposer {...baseProps} onCreatePoll={onCreatePoll} replyTo={{ id: 7, user_name: 'Tina', content: 'x' }} onCancelReply={vi.fn()} />);
+    expect(screen.queryByLabelText('chat.poll.create')).toBeNull();
+  });
+
+  it('has no poll button without the prop (DMs)', () => {
+    installMediaMocks();
+    render(<ChatComposer {...baseProps} />);
+    expect(screen.queryByLabelText('chat.poll.create')).toBeNull();
+  });
 });
 
 describe('VoiceMessage', () => {

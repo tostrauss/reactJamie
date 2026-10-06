@@ -178,6 +178,7 @@ suite('write endpoints against real Postgres', () => {
       setUserActive: ad.setUserActive, rejectClub: ad.rejectClub,
       getUserDetail: ad.getUserDetail, sendUserTestPush: ad.sendUserTestPush,
       getMyAttendance: rv.getMyAttendance, getReviewForGroup: rv.getReviewForGroup, getUserById: us.getUserById,
+      exportData: a.exportData,
       getGroupMembers: g.getGroupMembers, getJoinRequests: g.getJoinRequests,
       getAllJoinRequests: g.getAllJoinRequests,
       deleteClub: c.deleteClub, deleteClubEvent: c.deleteClubEvent,
@@ -3059,6 +3060,308 @@ suite('write endpoints against real Postgres', () => {
       const after = await statsOfT();
       expect(after.events).toBe(before.events);          // R3's tick alone is still a majority
       expect(after.confirmers).toBe(before.confirmers - 1);
+    });
+  });
+
+  // ── Abstimmungen im Chat (B1, tester 06.10.2026) ─────────────────────────
+  // Real Postgres, because the create path is ONE data-modifying CTE with
+  // unnest(text[], date[], time[]), votes are version-bumping CTEs that take
+  // the poll-row lock, and the summary counts only CURRENT members.
+  describe('chat polls (B1)', () => {
+    let O, M1, M2, M3, CM, OUT, grp, club, pl, choicePoll, datePoll;
+    const mk = async (email, name) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+       VALUES ($1,$2,'1995-03-03','female',$3, TRUE, 'email') RETURNING id`, [email, name, avatar])).rows[0].id;
+    // Dates relative to Vienna's calendar day, computed by Postgres — never
+    // hard-coded, so the suite cannot turn into a time bomb.
+    const viennaDay = async (offset) => (await db.query(
+      `SELECT to_char((NOW() AT TIME ZONE 'Europe/Vienna')::date + $1::int, 'YYYY-MM-DD') AS d`, [offset])).rows[0].d;
+    const messagesCount = async () => Number((await db.query('SELECT COUNT(*)::int AS n FROM messages')).rows[0].n);
+    const create = (userId, groupId, body) => call(pl.createPoll, { userId, params: { groupId: String(groupId) }, body });
+    const vote = (userId, messageId, choices) => call(pl.votePoll, { userId, params: { messageId: String(messageId) }, body: { choices } });
+    const close = (userId, messageId) => call(pl.closePoll, { userId, params: { messageId: String(messageId) } });
+
+    beforeAll(async () => {
+      pl = await import('../../src/controllers/pollController.js');
+      O = await mk('smoke-poll-owner@x.com', 'Olga');
+      M1 = await mk('smoke-poll-m1@x.com', 'Mia');
+      M2 = await mk('smoke-poll-m2@x.com', 'Max');
+      M3 = await mk('smoke-poll-m3@x.com', 'Mo');
+      CM = await mk('smoke-poll-cm@x.com', 'Cem');
+      OUT = await mk('smoke-poll-out@x.com', 'Otto');
+      grp = (await db.query(
+        `INSERT INTO groups (name, type, date, owner_id, category, location, max_members)
+         VALUES ('Poll-Gruppe','group', NOW() + INTERVAL '3 days', $1, 'Sport', 'Wien', 20) RETURNING id`, [O])).rows[0].id;
+      await db.query(
+        `INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner'),($1,$3,'member'),($1,$4,'member'),($1,$5,'member'),($1,$6,'member')`,
+        [grp, O, M1, M2, M3, CM]);
+      club = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, chat_only_owner)
+         VALUES ('Poll-Club','club', $1, 'Sport', 'Wien', 50, TRUE) RETURNING id`, [O])).rows[0].id;
+      await db.query(
+        `INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner'),($1,$3,'member'),($1,$4,'admin')`,
+        [club, O, M1, CM]);
+    });
+
+    it('the migration ran, all three tables exist, and every FK has its ON DELETE rule', async () => {
+      const { getMigrationHealth } = await import('../../src/config/migrations.js');
+      expect(getMigrationHealth().stepFailures.map(f => f.label || String(f)).filter(l => /chat polls/.test(l))).toEqual([]);
+      for (const t of ['message_polls', 'message_poll_options', 'message_poll_votes']) {
+        expect((await db.query('SELECT to_regclass($1) AS r', [t])).rows[0].r).not.toBeNull();
+      }
+      const fks = (await db.query(
+        `SELECT conrelid::regclass::text AS tbl, confrelid::regclass::text AS ref, confdeltype
+           FROM pg_constraint WHERE contype = 'f'
+            AND conrelid::regclass::text IN ('message_polls','message_poll_options','message_poll_votes')`)).rows;
+      const rule = (tbl, ref) => fks.filter(f => f.tbl === tbl && f.ref === ref).map(f => f.confdeltype).sort().join('');
+      expect(rule('message_polls', 'messages')).toBe('cn');      // the poll CASCADE, its result pill SET NULL
+      expect(rule('message_polls', 'users')).toBe('n');          // closed_by SET NULL
+      expect(rule('message_poll_options', 'message_polls')).toBe('c');
+      expect(rule('message_poll_votes', 'message_polls')).toBe('c');
+      expect(rule('message_poll_votes', 'users')).toBe('c');
+    });
+
+    it('a choice poll is a normal messages row with a readable one-line content', async () => {
+      const res = await create(M1, grp, { kind: 'choice', question: 'Was machen wir?', options: [{ label: 'Bowling' }, { label: 'Kino' }] });
+      ok(res);
+      expect(res.statusCode).toBe(201);
+      choicePoll = res.body.id;
+      expect(res.body.poll).toMatchObject({ kind: 'choice', version: 0, voter_count: 0, my_votes: [] });
+      const row = (await db.query('SELECT message_type, content FROM messages WHERE id = $1', [choicePoll])).rows[0];
+      expect(row).toEqual({ message_type: 'poll', content: '📊 Was machen wir? — Bowling · Kino' });
+      expect(row.content).not.toContain('\n');
+
+      const page = await call(C.getMessages, { userId: M2, params: { groupId: String(grp) }, query: {} });
+      ok(page);
+      const rows = Array.isArray(page.body) ? page.body : page.body.messages;
+      const p = rows.find(m => m.id === choicePoll);
+      expect(p.poll).toMatchObject({ version: 0, voter_count: 0, my_votes: [] });
+      for (const m of rows.filter(r => r.message_type !== 'poll')) expect(m).not.toHaveProperty('poll');
+    });
+
+    it('a date poll is stored sorted (all-day first), strings round-trip, multi forced, German labels by default', async () => {
+      const d2 = await viennaDay(2);
+      const d3 = await viennaDay(3);
+      const res = await create(M1, grp, { kind: 'date', question: 'Wann passt es euch?', multi: false, options: [
+        { date: d3, time: '18:00' }, { date: d2, time: null }, { date: d3, time: null },
+      ] });
+      ok(res);
+      datePoll = res.body.id;
+      expect(res.body.poll.multi).toBe(true);
+      expect(res.body.poll.options.map(o => [o.date, o.time])).toEqual([[d2, null], [d3, null], [d3, '18:00']]);
+      const opts = (await db.query(
+        `SELECT position, to_char(opt_date,'YYYY-MM-DD') AS d, to_char(opt_time,'HH24:MI') AS t, label
+           FROM message_poll_options WHERE message_id = $1 ORDER BY position`, [datePoll])).rows;
+      expect(opts.map(o => [o.d, o.t])).toEqual([[d2, null], [d3, null], [d3, '18:00']]);
+      expect(opts[2].label).toMatch(/^(Mo|Di|Mi|Do|Fr|Sa|So) \d\d\.\d\d\.(\d{4})? 18:00$/);
+    });
+
+    it('invalid input → 400 POLL_INVALID and not a single row written', async () => {
+      const before = await messagesCount();
+      const cases = [
+        { kind: 'choice', question: 'q', options: [{ label: 'nur eine' }] },
+        { kind: 'choice', question: 'q', options: [{ label: 'Kino' }, { label: ' kino' }] },
+        { kind: 'date', question: 'q', options: [{ date: await viennaDay(-2) }, { date: await viennaDay(2) }] },
+        { kind: 'date', question: 'q', options: [{ date: await viennaDay(400) }, { date: await viennaDay(2) }] },
+        { kind: 'date', question: 'q', options: [{ date: await viennaDay(2), time: '24:00' }, { date: await viennaDay(3) }] },
+        { kind: 'sticker', question: 'q', options: [] },
+      ];
+      for (const body of cases) {
+        const res = await create(M1, grp, body);
+        expect(res.statusCode, JSON.stringify(body)).toBe(400);
+        expect(res.body.code).toBe('POLL_INVALID');
+      }
+      expect(await messagesCount()).toBe(before);
+    });
+
+    it('moderation: a blocked word in an option → 422, nothing written', async () => {
+      const before = await messagesCount();
+      const res = await create(M1, grp, { kind: 'choice', question: 'Wer kommt?', options: [{ label: 'Hurensohn' }, { label: 'Kino' }] });
+      expect(res.statusCode).toBe(422);
+      expect(await messagesCount()).toBe(before);
+    });
+
+    it('permissions: outsider 403; owner-only club: member 403 isOwnerOnly, owner 201, members still vote', async () => {
+      expect((await create(OUT, grp, { kind: 'choice', question: 'q', options: [{ label: 'A' }, { label: 'B' }] })).statusCode).toBe(403);
+      const m = await create(M1, club, { kind: 'choice', question: 'q', options: [{ label: 'A' }, { label: 'B' }] });
+      expect(m.statusCode).toBe(403);
+      expect(m.body.isOwnerOnly).toBe(true);
+      const o = await create(O, club, { kind: 'choice', question: 'Clubabend?', options: [{ label: 'Ja' }, { label: 'Nein' }] });
+      expect(o.statusCode).toBe(201);
+      ok(await vote(M1, o.body.id, [0]));
+    });
+
+    it('POST /api/messages still refuses message_type "poll" (no forged poll bubbles)', async () => {
+      const res = await call(C.sendMessage, { userId: M1, body: { groupId: grp, content: 'x', message_type: 'poll' } });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('single choice: vote, change, retract — one ballot row, version climbs each time', async () => {
+      let r = await vote(M2, choicePoll, [1]);
+      ok(r);
+      expect(r.body.poll).toMatchObject({ voter_count: 1, my_votes: [1], version: 1 });
+      expect(r.body.poll.options.map(o => o.votes)).toEqual([0, 1]);
+      r = await vote(M2, choicePoll, [0]);
+      expect(r.body.poll.version).toBe(2);
+      expect((await db.query('SELECT COUNT(*)::int AS n FROM message_poll_votes WHERE message_id = $1', [choicePoll])).rows[0].n).toBe(1);
+      r = await vote(M2, choicePoll, []);
+      expect(r.body.poll).toMatchObject({ voter_count: 0, version: 3, my_votes: [] });
+      expect((await db.query('SELECT COUNT(*)::int AS n FROM message_poll_votes WHERE message_id = $1', [choicePoll])).rows[0].n).toBe(0);
+    });
+
+    it('multi (date) poll counts every chosen option once per voter', async () => {
+      const r = await vote(M2, datePoll, [0, 2]);
+      ok(r);
+      expect(r.body.poll.voter_count).toBe(1);
+      expect(r.body.poll.options.map(o => o.votes)).toEqual([1, 0, 1]);
+    });
+
+    it('vote errors: wrong shape 400, unknown/text/deleted message 404, outsider 403', async () => {
+      expect((await vote(M2, choicePoll, [0, 1])).statusCode).toBe(400);
+      expect((await vote(M2, choicePoll, [9])).statusCode).toBe(400);
+      expect((await vote(M2, choicePoll, ['x'])).statusCode).toBe(400);
+      expect((await call(pl.votePoll, { userId: M2, params: { messageId: 'temp-1726500000' }, body: { choices: [0] } })).statusCode).toBe(400);
+      expect((await vote(M2, 99999999, [0])).statusCode).toBe(404);
+      const text = await call(C.sendMessage, { userId: M2, body: { groupId: grp, content: 'nur Text' } });
+      expect((await vote(M2, text.body.id, [0])).statusCode).toBe(404);
+      expect((await vote(OUT, choicePoll, [0])).statusCode).toBe(403);
+      const tmp = await create(M1, grp, { kind: 'choice', question: 'Weg damit?', options: [{ label: 'A' }, { label: 'B' }] });
+      ok(await call(C.deleteMessage, { userId: M1, params: { messageId: String(tmp.body.id) } }));
+      expect((await vote(M2, tmp.body.id, [0])).statusCode).toBe(404);
+    });
+
+    it('concurrency: parallel voters all count; one user racing two choices leaves ONE ballot', async () => {
+      const before = (await vote(M3, choicePoll, [])).body.poll.version;
+      const rs = await Promise.all([M1, M2, M3, CM, O].map(u => vote(u, choicePoll, [0])));
+      rs.forEach(r => ok(r));
+      const after = (await readSummary(choicePoll)).version;
+      expect(after).toBe(before + 5);
+      const [a, b] = await Promise.all([vote(M1, choicePoll, [0]), vote(M1, choicePoll, [1])]);
+      ok(a); ok(b);
+      expect((await db.query('SELECT COUNT(*)::int AS n FROM message_poll_votes WHERE message_id = $1 AND user_id = $2', [choicePoll, M1])).rows[0].n).toBe(1);
+    });
+
+    // Reads the current summary like getMessages does (viewer = O).
+    const readSummary = async (id) => {
+      const { readPollSummaries } = await import('../../src/utils/polls.js');
+      return (await readPollSummaries(db, [id], O)).get(id);
+    };
+
+    // Review B1: recounting by membership showed, right after the named
+    // "X hat die Gruppe verlassen" line, exactly how X had voted.
+    it('a voter who leaves keeps their ballot counted, and can no longer change it', async () => {
+      const before = await readSummary(choicePoll);
+      await db.query('DELETE FROM group_members WHERE group_id = $1 AND user_id = $2', [grp, M3]);
+      const after = await readSummary(choicePoll);
+      expect(after.voter_count).toBe(before.voter_count);
+      expect(after.options.map(o => o.votes)).toEqual(before.options.map(o => o.votes));
+      expect((await vote(M3, choicePoll, [1])).statusCode).toBe(403);
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'member')`, [grp, M3]);
+      expect((await readSummary(choicePoll)).voter_count).toBe(before.voter_count);
+    });
+
+    it('close: member 403; author closes once with ONE result pill; votes afterwards 409; co-manager and non-member admin may close', async () => {
+      expect((await close(M2, choicePoll)).statusCode).toBe(403);
+      const pillsBefore = Number((await db.query(
+        `SELECT COUNT(*)::int AS n FROM messages WHERE group_id = $1 AND message_type = 'system' AND content LIKE '📊 Ergebnis%'`, [grp])).rows[0].n);
+      const c1 = await close(M1, choicePoll);
+      ok(c1);
+      expect(c1.body.poll.closed).toBe(true);
+      const late = await vote(M2, choicePoll, [1]);
+      expect(late.statusCode).toBe(409);
+      expect(late.body.code).toBe('POLL_CLOSED');
+      ok(await close(M1, choicePoll)); // idempotent
+      const pillsAfter = Number((await db.query(
+        `SELECT COUNT(*)::int AS n FROM messages WHERE group_id = $1 AND message_type = 'system' AND content LIKE '📊 Ergebnis%'`, [grp])).rows[0].n);
+      expect(pillsAfter).toBe(pillsBefore + 1);
+
+      const clubPoll = await create(O, club, { kind: 'choice', question: 'Termin?', options: [{ label: 'A' }, { label: 'B' }] });
+      ok(await close(CM, clubPoll.body.id));                 // co-manager (role = admin)
+      const p3 = await create(M1, grp, { kind: 'choice', question: 'Admin?', options: [{ label: 'A' }, { label: 'B' }] });
+      ok(await close(A, p3.body.id));                         // platform admin, not a member
+    });
+
+    it('taking a closed poll down takes its result pill down too (it repeats user text and cannot be reported)', async () => {
+      const p = await create(M2, grp, { kind: 'choice', question: 'Pille weg?', options: [{ label: 'A' }, { label: 'B' }] });
+      ok(await vote(M2, p.body.id, [0]));
+      ok(await close(M2, p.body.id));
+      const link = (await db.query('SELECT result_message_id FROM message_polls WHERE message_id = $1', [p.body.id])).rows[0];
+      expect(link.result_message_id).toBeTruthy();
+      ok(await call(C.deleteMessage, { userId: M2, params: { messageId: String(p.body.id) } }));
+      const pill = (await db.query('SELECT is_deleted, message_type FROM messages WHERE id = $1', [link.result_message_id])).rows[0];
+      expect(pill).toEqual({ is_deleted: true, message_type: 'system' });
+    });
+
+    it('a 10×60 poll is fully visible to admins in the report (clip > 500)', async () => {
+      const long = Array.from({ length: 10 }, (_, i) => ({ label: `${String(i).repeat(1)}${'x'.repeat(59)}` }));
+      const res = await create(M1, grp, { kind: 'choice', question: 'q'.repeat(140), options: long });
+      ok(res);
+      ok(await call(C.createReport, { userId: M2, body: { reported_type: 'message', reported_id: res.body.id, reason: 'spam' } }));
+      const reports = await call(C.getReports, { userId: A, query: {} });
+      ok(reports);
+      const list = reports.body.reports || reports.body;
+      const r = list.find(x => Number(x.reported_id) === Number(res.body.id));
+      expect(r.target.content.length).toBeGreaterThan(500);
+      expect(r.target.content).toContain(long[9].label);
+    });
+
+    it('a poll can be replied to (quote shows the 📊 line) and reacted to', async () => {
+      const reply = await call(C.sendMessage, { userId: M2, body: { groupId: grp, content: 'Ich bin für Kino', reply_to_id: datePoll } });
+      ok(reply);
+      expect(reply.body.reply_to).toMatchObject({ message_type: 'poll' });
+      expect(reply.body.reply_to.content.startsWith('📅 ')).toBe(true);
+      ok(await call(C.setMessageReaction, { userId: M2, params: { messageId: String(datePoll) }, body: { emoji: '👍' } }));
+    });
+
+    it('GDPR export lists the person\'s ballots', async () => {
+      const exp = await call(C.exportData, { userId: M2 });
+      ok(exp);
+      const votes = exp.body.poll_votes;
+      expect(Array.isArray(votes)).toBe(true);
+      expect(votes.find(v => v.message_id === datePoll)).toMatchObject({ question: 'Wann passt es euch?' });
+    });
+
+    it('cascades: deleting the poll message, a voter, the author and the closer never blocks and never orphans', async () => {
+      const p = await create(M2, grp, { kind: 'choice', question: 'Kaskade?', options: [{ label: 'A' }, { label: 'B' }] });
+      ok(await vote(M3, p.body.id, [1]));
+      await db.query('DELETE FROM messages WHERE id = $1', [p.body.id]);
+      for (const t of ['message_polls', 'message_poll_options', 'message_poll_votes']) {
+        expect((await db.query(`SELECT COUNT(*)::int AS n FROM ${t} WHERE message_id = $1`, [p.body.id])).rows[0].n).toBe(0);
+      }
+      // a voter's account
+      await db.query('DELETE FROM users WHERE id = $1', [M3]);
+      expect((await db.query('SELECT COUNT(*)::int AS n FROM message_poll_votes WHERE user_id = $1', [M3])).rows[0].n).toBe(0);
+      // the AUTHOR of datePoll (not the group owner)
+      await db.query('DELETE FROM users WHERE id = $1', [M1]);
+      const row = (await db.query('SELECT user_id FROM messages WHERE id = $1', [datePoll])).rows[0];
+      expect(row.user_id).toBeNull();
+      const page = await call(C.getMessages, { userId: M2, params: { groupId: String(grp) }, query: {} });
+      ok(page);
+      // the CLOSER (co-manager CM closed a club poll)
+      await db.query('DELETE FROM users WHERE id = $1', [CM]);
+      const closedBy = (await db.query(`SELECT COUNT(*)::int AS n FROM message_polls WHERE closed_at IS NOT NULL AND closed_by IS NULL`)).rows[0].n;
+      expect(closedBy).toBeGreaterThan(0);
+    });
+
+    it('boot window (LAST): without the poll tables chat still loads; writes answer 503', async () => {
+      try {
+        await db.query('ALTER TABLE message_polls RENAME TO message_polls_bootwin');
+        const page = await call(C.getMessages, { userId: M2, params: { groupId: String(grp) }, query: {} });
+        ok(page);
+        const rows = Array.isArray(page.body) ? page.body : page.body.messages;
+        const p = rows.find(m => m.id === datePoll);
+        expect(p.content.startsWith('📅 ')).toBe(true);
+        expect(p).not.toHaveProperty('poll');
+        const before = await messagesCount();
+        const c = await create(M2, grp, { kind: 'choice', question: 'Boot?', options: [{ label: 'A' }, { label: 'B' }] });
+        expect(c.statusCode).toBe(503);
+        expect(c.body.code).toBe('POLLS_UNAVAILABLE');
+        expect(await messagesCount()).toBe(before);
+        expect((await vote(M2, datePoll, [0])).statusCode).toBe(503);
+        expect((await close(O, datePoll)).statusCode).toBe(503);
+      } finally {
+        await db.query('ALTER TABLE IF EXISTS message_polls_bootwin RENAME TO message_polls');
+      }
     });
   });
 

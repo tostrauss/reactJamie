@@ -12,7 +12,10 @@ vi.mock('../../src/config/redis.js', () => ({
 // rateLimiter now imports auth.js (JWT helpers) which imports the DB module.
 vi.mock('../../src/config/database.js', () => ({ default: { query: vi.fn() } }));
 
-const { generalLimiter, authLimiter, strictLimiter, passwordResetLimiter, publicFormLimiter, verifiedUserId, authLimiterSkip } = await import('../../src/middleware/rateLimiter.js');
+const {
+  generalLimiter, authLimiter, strictLimiter, passwordResetLimiter, publicFormLimiter, verifiedUserId, authLimiterSkip,
+  pollCreateLimiter, pollVoteLimiter, reactionLimiter, messageLimiter,
+} = await import('../../src/middleware/rateLimiter.js');
 const { generateToken } = await import('../../src/middleware/auth.js');
 
 describe('rate limiters', () => {
@@ -66,6 +69,33 @@ describe('rate limiters', () => {
       expect(mine[5]).toMatchObject({ allowed: false, status: 429 });
 
       expect(await run(strictLimiter, 2)).toEqual({ allowed: true });
+    });
+
+    // Chat polls (B1): creating one pushes the whole group → 10 per hour on
+    // top of the chat bucket; votes/closes 60 per minute, their own bucket.
+    it('pollCreateLimiter: 10 per hour per user, another user unaffected', async () => {
+      const mine = [];
+      for (let i = 0; i < 11; i++) mine.push(await run(pollCreateLimiter, 41));
+      expect(mine.filter((r) => r.allowed).length).toBe(10);
+      expect(mine[10]).toMatchObject({ allowed: false, status: 429 });
+      expect(await run(pollCreateLimiter, 42)).toEqual({ allowed: true });
+    });
+
+    it('pollVoteLimiter: 60 per minute, and draining it leaves reactions and chatting alone', async () => {
+      const mine = [];
+      for (let i = 0; i < 61; i++) mine.push(await run(pollVoteLimiter, 43));
+      expect(mine.filter((r) => r.allowed).length).toBe(60);
+      expect(mine[60]).toMatchObject({ allowed: false, status: 429 });
+      expect(await run(reactionLimiter, 43)).toEqual({ allowed: true });
+      expect(await run(messageLimiter, 43)).toEqual({ allowed: true });
+    });
+
+    it('the poll limiters are their own instances', () => {
+      for (const l of [pollCreateLimiter, pollVoteLimiter]) {
+        expect(typeof l).toBe('function');
+        expect([reactionLimiter, messageLimiter, strictLimiter]).not.toContain(l);
+      }
+      expect(pollCreateLimiter).not.toBe(pollVoteLimiter);
     });
 
     it('draining strictLimiter leaves the password-reset budget untouched', async () => {

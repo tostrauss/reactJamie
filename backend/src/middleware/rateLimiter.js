@@ -234,6 +234,34 @@ export const reactionLimiter = rateLimit({
   message: { error: 'Zu viele Reaktionen. Bitte kurz warten.' }
 });
 
+// Chat polls (B1). Creating one pushes the whole group, so on top of the
+// shared 60/min chat bucket it gets its own 10 per HOUR. Votes and closes are
+// cheap single statements but each one emits to the room: 60/min, its own
+// bucket so voting never eats into chatting or reacting.
+export const pollCreateLimiter = rateLimit({
+  ...SHARED,
+  windowMs: 60 * 60 * 1000,
+  max: disabled ? 10000 : 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `pollnew:${req.userId}`,
+  validate: { keyGeneratorIpFallback: false },
+  store: makeStore('rl:pollnew:'),
+  message: { error: 'Zu viele Umfragen. Bitte versuche es später erneut.' }
+});
+
+export const pollVoteLimiter = rateLimit({
+  ...SHARED,
+  windowMs: 60 * 1000,
+  max: disabled ? 10000 : 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `pollvote:${req.userId}`,
+  validate: { keyGeneratorIpFallback: false },
+  store: makeStore('rl:pollvote:'),
+  message: { error: 'Zu viele Stimmen. Bitte kurz warten.' }
+});
+
 // Image upload: 60 uploads/hour per user. Each upload spawns sharp + a
 // Sightengine call + an R2 PUT, so unthrottled it's an easy way to burn through
 // Cloudflare egress and CPU.

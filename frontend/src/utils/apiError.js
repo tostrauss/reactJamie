@@ -35,6 +35,12 @@ export function serverErrorMessage(err, t, fallbackKey = 'errors.generic') {
     if (translated && translated !== key) return translated;
   }
 
+  // The API's generic "no such route" 404 (server.js) — e.g. a client newer
+  // than the server after a rollback. Its English text means nothing to the
+  // person; the caller's own message does. Endpoint 404s carry their own
+  // sentence ('Umfrage nicht gefunden') and keep it.
+  if (err?.response?.status === 404 && data?.error === 'Route not found') return t(fallbackKey);
+
   if (typeof data?.error === 'string' && data.error) return data.error;
 
   // No response at all (offline, timeout) — err.message is an untranslated

@@ -35,6 +35,8 @@ export function ChatComposer({
   replyTo,
   onCancelReply,
   voiceEnabled = true,
+  // Group chats only (B1): opens the "Neue Umfrage" sheet. DMs never pass it.
+  onCreatePoll,
 }) {
   const { t } = useTranslation();
   const inputRef = useRef(null);
@@ -171,6 +173,16 @@ export function ChatComposer({
                 </svg>
               </button>
             </>
+          )}
+          {/* Poll (B1): only while the field is empty — typing keeps the
+              textarea its full width on a 320px screen — and never as a
+              reply (a poll is not an answer to a message). */}
+          {onCreatePoll && !hasText && !disabled && !replyTo && (
+            <button type="button" className="composer-icon-btn" onClick={onCreatePoll} aria-label={t('chat.poll.create')}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M6 20V11M12 20V4M18 20v-6" />
+              </svg>
+            </button>
           )}
           <textarea
             ref={inputRef}
