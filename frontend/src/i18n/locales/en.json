@@ -1239,6 +1239,8 @@
     "deleteAccount": "Delete account",
     "deleteConfirm": {
       "warning": "This action cannot be undone. All your data will be permanently deleted.",
+      "storeSubApple": "Your JAMIE Pro subscription is billed by Apple and does not end when you delete your account. Cancel it first: iOS Settings → your name → Subscriptions.",
+      "storeSubGoogle": "Your JAMIE Pro subscription is billed by Google Play and does not end when you delete your account. Cancel it first in Google Play → Subscriptions.",
       "passwordPlaceholder": "Password to confirm",
       "confirm": "Delete permanently"
     },
@@ -1494,7 +1496,13 @@
       },
       "billedMonthlyStore": "{{price}} / month",
       "billedSixmonthStore": "{{price}} every 6 months",
-      "billedYearlyStore": "{{price}} per year"
+      "billedYearlyStore": "{{price}} per year",
+      "every": {
+        "monthly": "per month",
+        "sixmonth": "every 6 months",
+        "yearly": "per year"
+      },
+      "perMonthApprox": "≈ {{price}} per month"
     },
     "unexpectedStatus": "That didn't work. Please try again.",
     "restoreNone": "No purchases found to restore",
@@ -1516,7 +1524,11 @@
     "ctaTrialStartDays_one": "🎁 Start {{count}} day free",
     "ctaTrialStartDays_other": "🎁 Start {{count}} days free",
     "ctaTrialStartGeneric": "🎁 Try for free",
-    "storeTrialTerms": "After the trial, {{price}} is charged unless you cancel at least 24 hours before it ends."
+    "storeTrialTerms": "After the trial, {{price}} is charged unless you cancel at least 24 hours before it ends.",
+    "storeTrialThen": "Then {{price}} {{period}} – cancel anytime.",
+    "ctaOrderBinding": "Subscribe with obligation to pay",
+    "trialHeadlineMonths_one": "🎁 Start with {{count}} month free",
+    "trialHeadlineMonths_other": "🎁 Start with {{count}} months free"
   },
   "boost": {
     "title": "🚀 Boost",

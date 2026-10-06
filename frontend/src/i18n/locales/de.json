@@ -1239,6 +1239,8 @@
     "deleteAccount": "Account löschen",
     "deleteConfirm": {
       "warning": "Diese Aktion kann nicht rückgängig gemacht werden. Alle deine Daten werden unwiderruflich gelöscht.",
+      "storeSubApple": "Dein JAMIE Pro-Abo läuft über Apple und endet nicht mit dem Löschen. Kündige es vorher: iOS-Einstellungen → dein Name → Abonnements.",
+      "storeSubGoogle": "Dein JAMIE Pro-Abo läuft über Google Play und endet nicht mit dem Löschen. Kündige es vorher in Google Play → Abos.",
       "passwordPlaceholder": "Passwort zur Bestätigung",
       "confirm": "Endgültig löschen"
     },
@@ -1494,7 +1496,13 @@
       },
       "billedMonthlyStore": "{{price}} / Monat",
       "billedSixmonthStore": "{{price}} alle 6 Monate",
-      "billedYearlyStore": "{{price}} pro Jahr"
+      "billedYearlyStore": "{{price}} pro Jahr",
+      "every": {
+        "monthly": "pro Monat",
+        "sixmonth": "alle 6 Monate",
+        "yearly": "pro Jahr"
+      },
+      "perMonthApprox": "≈ {{price}} pro Monat"
     },
     "unexpectedStatus": "Das hat leider nicht geklappt. Bitte versuche es erneut.",
     "restoreNone": "Keine Käufe zum Wiederherstellen gefunden",
@@ -1516,7 +1524,11 @@
     "ctaTrialStartDays_one": "🎁 {{count}} Tag kostenlos starten",
     "ctaTrialStartDays_other": "🎁 {{count}} Tage kostenlos starten",
     "ctaTrialStartGeneric": "🎁 Kostenlos testen",
-    "storeTrialTerms": "Nach der Testphase wird {{price}} abgebucht, außer du kündigst mindestens 24 Std. vor Ende."
+    "storeTrialTerms": "Nach der Testphase wird {{price}} abgebucht, außer du kündigst mindestens 24 Std. vor Ende.",
+    "storeTrialThen": "Danach {{price}} {{period}} – jederzeit kündbar.",
+    "ctaOrderBinding": "Zahlungspflichtig abonnieren",
+    "trialHeadlineMonths_one": "🎁 Starte mit {{count}} Monat kostenlos",
+    "trialHeadlineMonths_other": "🎁 Starte mit {{count}} Monaten kostenlos"
   },
   "boost": {
     "title": "🚀 Boost",

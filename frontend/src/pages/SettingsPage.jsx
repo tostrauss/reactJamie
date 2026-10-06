@@ -1313,6 +1313,15 @@ export const SettingsPage = () => {
           <p className="delete-warning">
             {t('settings.deleteConfirm.warning')}
           </p>
+          {/* An App Store / Google Play subscription is billed by the store,
+              not by us — deleting the account cannot end it. Say so BEFORE the
+              deletion, with where to cancel (Apple asks for exactly this once
+              an app sells subscriptions). Not for one already cancelled. */}
+          {sub?.is_pro && (sub.managed_by === 'apple' || sub.managed_by === 'google') && sub.status !== 'canceling' && (
+            <p className="delete-warning">
+              {t(sub.managed_by === 'apple' ? 'settings.deleteConfirm.storeSubApple' : 'settings.deleteConfirm.storeSubGoogle')}
+            </p>
+          )}
           <form onSubmit={handleDeleteAccount} className="settings-form">
             <PasswordInput placeholder={t('settings.deleteConfirm.passwordPlaceholder')} value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} className="settings-input" autoComplete="current-password" />
             <div className="settings-form-actions">

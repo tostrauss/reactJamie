@@ -31,6 +31,7 @@ export const PRO_PLANS = [
   {
     key: 'monthly',
     perMonth: '6,99',
+    total: '6,99',                 // charged per term — the web payment step's headline
     // i18n key suffixes resolved in ProModal via t(`pro.plans.${...}`)
     termKey: 'monthly',
     billedKey: 'billedMonthly',    // "6,99 € / Monat"
@@ -41,6 +42,7 @@ export const PRO_PLANS = [
   {
     key: 'sixmonth',
     perMonth: '5,00',
+    total: '29,99',
     termKey: 'sixmonth',
     billedKey: 'billedSixmonth',   // "29,99 € alle 6 Monate"
     savings: 28,
@@ -51,6 +53,7 @@ export const PRO_PLANS = [
   {
     key: 'yearly',
     perMonth: '4,17',
+    total: '49,99',
     termKey: 'yearly',
     billedKey: 'billedYearly',     // "49,99 € pro Jahr"
     savings: 40,

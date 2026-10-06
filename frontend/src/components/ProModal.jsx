@@ -11,6 +11,9 @@ import { purchasePlaySubscription, restorePlayPurchases } from '../utils/playBil
 import { useToast } from '../context/ToastContext';
 import { InterestButton } from './InterestButton';
 
+// The public web app — where Terms and Privacy live for every client.
+const PUBLIC_WEB_ORIGIN = 'https://app.jamie-app.com';
+
 // ── Keyframes injected once ──────────────────────────────────────────────
 const STYLE = `
 @keyframes pm-slide-up {
@@ -134,7 +137,11 @@ function StripeSubscribeForm({ onSuccess, onCancel, mode = 'payment' }) {
             ? <span style={{ display:'inline-flex', gap:'6px', alignItems:'center' }}>
                 <Spinner /> {t('pro.verifying')}
               </span>
-            : (mode === 'setup' ? t('pro.ctaTrialStart') : t('pro.ctaSubscribe'))}
+            // The BINDING order button of a web purchase: in DE/AT its wording
+            // must say that ordering costs money (§ 312j BGB, § 8 FAGG) — a
+            // "Jetzt starten" or "kostenlos starten" button does not bind the
+            // consumer at all. The trial box above it explains the free days.
+            : t('pro.ctaOrderBinding')}
         </button>
       </div>
       <p style={{
@@ -200,6 +207,14 @@ function Confetto({ i }) {
 // One selectable row in the Hinge-style pricing grid. Per-MONTH price is the
 // headline; the struck-through baseline + green "X% sparen" chip drive the
 // "Sparfaktor". Selected tile gets a coral border + check.
+//
+// App Store builds (plan.storeLayout) turn that around: Apple 3.1.2 wants the
+// amount that is actually BILLED to be the clearest price on the screen, and
+// rejects paywalls where a derived per-month figure ("5,00 €") outshines the
+// charge ("29,99 € alle 6 Monate", 12 px grey). There the billed price is the
+// headline, the per-month figure a secondary "≈" line, and the struck-through
+// monthly baseline goes (6,99 € next to 29,99 € compares nothing). The web
+// keeps Tina's per-month headline (Meeting 21.09.2026).
 // Palette (Tina, 2026-06-12): brand tones — purple base, coral accents,
 // white headlines. Yellow only as a rare highlight (crown emoji, confetti);
 // the old all-gold look read as "Burger King".
@@ -210,6 +225,12 @@ function PlanTile({ plan, selected, onSelect, t }) {
   const perMonthLabel = plan.perMonthLabel || `${plan.perMonth} €`;
   const baselineLabel = plan.baselineLabel || `${BASELINE_MONTHLY} €`;
   const billedLabel = plan.billedLabel || t(`pro.plans.${plan.billedKey}`);
+  const store = !!plan.storeLayout;
+  // Store layout: under the term, the per-month equivalent — not for the
+  // monthly plan, where it would just repeat the billed price.
+  const secondaryLabel = store
+    ? (plan.key !== 'monthly' ? t('pro.plans.perMonthApprox', { price: perMonthLabel }) : null)
+    : billedLabel;
   return (
     <button
       type="button"
@@ -266,16 +287,19 @@ function PlanTile({ plan, selected, onSelect, t }) {
           <div style={{ color: '#fff', fontWeight: '700', fontSize: '15px', lineHeight: 1.2 }}>
             {t(`pro.plans.terms.${plan.termKey}`)}
           </div>
-          <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginTop: '2px' }}>
-            {billedLabel}
-          </div>
+          {secondaryLabel && (
+            <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', marginTop: '2px' }}>
+              {secondaryLabel}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Right: per-MONTH price + struck baseline + savings chip */}
+      {/* Right: per-MONTH price + struck baseline + savings chip (web);
+          the BILLED price + its period (App Store, see above) */}
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', justifyContent: 'flex-end' }}>
-          {plan.strikethrough && (
+          {!store && plan.strikethrough && (
             <span style={{
               color: 'rgba(255,255,255,0.35)', fontSize: '13px',
               textDecoration: 'line-through', textDecorationColor: 'rgba(255,120,120,0.8)',
@@ -284,11 +308,11 @@ function PlanTile({ plan, selected, onSelect, t }) {
             </span>
           )}
           <span style={{ color: '#fff', fontWeight: '900', fontSize: '19px', lineHeight: 1 }}>
-            {perMonthLabel}
+            {store ? plan.billedPrimary : perMonthLabel}
           </span>
         </div>
         <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '11px', marginTop: '3px' }}>
-          {t('pro.plans.perMonth')}
+          {store ? t(`pro.plans.every.${plan.termKey}`) : t('pro.plans.perMonth')}
         </div>
         {plan.savings != null && (
           <span style={{
@@ -371,11 +395,13 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
         : null;
       return {
         ...plan,
+        storeLayout: true,
+        billedPrimary: sp.priceString,
         perMonthLabel: sp.pricePerMonthString || fmt(perMonth, sp.currencyCode),
         baselineLabel: monthly?.priceString,
         billedLabel: t(`pro.plans.${plan.billedKey}Store`, { price: sp.priceString }),
         savings: savings > 0 ? savings : null,
-        strikethrough: plan.strikethrough && !!monthly && savings > 0,
+        strikethrough: false, // see PlanTile: no baseline next to a billed total
       };
     });
   })();
@@ -387,11 +413,20 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
   const trialDaysStore = iosTrial
     ? (iosTrial.unit === 'DAY' ? iosTrial.count : iosTrial.unit === 'WEEK' ? iosTrial.count * 7 : null)
     : null;
+  // Apple also offers trials of 1–6 months or a year — the length must still
+  // be stated (3.1.2), not a generic "kostenlose Testphase".
+  const trialMonthsStore = iosTrial && !trialDaysStore
+    ? (iosTrial.unit === 'MONTH' ? iosTrial.count : iosTrial.unit === 'YEAR' ? iosTrial.count * 12 : null)
+    : null;
   const showTrialOffer = iosIap ? !!iosTrial : trialEligible === true;
   const trialHeadline = !iosIap ? t('pro.trialHeadline')
-    : trialDaysStore ? t('pro.trialHeadlineDays', { count: trialDaysStore }) : t('pro.trialHeadlineGeneric');
-  const trialCta = !iosIap ? t('pro.ctaTrialStart')
-    : trialDaysStore ? t('pro.ctaTrialStartDays', { count: trialDaysStore }) : t('pro.ctaTrialStartGeneric');
+    : trialDaysStore ? t('pro.trialHeadlineDays', { count: trialDaysStore })
+    : trialMonthsStore ? t('pro.trialHeadlineMonths', { count: trialMonthsStore })
+    : t('pro.trialHeadlineGeneric');
+  // App Store: the button never sells the trial. Apple 3.1.2(c) rejects a
+  // "kostenlos starten" button that outshines the billed amount — the trial
+  // length and the price after it stand right above the button instead.
+  const trialCta = !iosIap ? t('pro.ctaTrialStart') : t('pro.ctaSubscribe');
   // iOS without loadable products → nothing to buy; show the neutral line.
   const iosNotReady = iosIap && !iosProducts;
 
@@ -604,7 +639,9 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                 )}
                 {/* "NEU – Spare bis zu XX%" pill — nur wenn auch wirklich kaufbar.
                     Im "Bald verfügbar"-Zustand wäre ein Spar-Versprechen irreführend. */}
-                {purchasesEnabled() && !iosNotReady && maxSavings > 0 && (
+                {/* Web only: on the App Store a savings claim must sit below
+                    the billed amounts (3.1.2), the per-tile chip does that. */}
+                {purchasesEnabled() && !iosNotReady && !iosIap && maxSavings > 0 && (
                   <div style={{ display:'inline-flex', alignItems:'center', gap:'6px',
                     background:'rgba(34,197,94,0.14)', border:'1px solid rgba(34,197,94,0.35)',
                     borderRadius:'24px', padding:'7px 16px',
@@ -614,7 +651,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                     </span>
                   </div>
                 )}
-                {purchasesEnabled() && showTrialOffer && (
+                {purchasesEnabled() && showTrialOffer && !iosIap && (
                   <p style={{ margin:'12px 0 0', fontSize:'13.5px', fontWeight:'800', color:'#4ade80' }}>
                     {trialHeadline}
                   </p>
@@ -709,6 +746,23 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                     </span>
                   </label>
 
+                  {/* App Store + free trial: what will be charged afterwards,
+                      right above the button that starts the trial — not only
+                      in the 11 px fine print below (Apple 3.1.2). */}
+                  {iosIap && showTrialOffer && iosProducts?.[selectedPlan] && (
+                    <div style={{ margin: '0 0 10px', textAlign: 'center', lineHeight: 1.35 }}>
+                      <div style={{ fontSize: '13px', fontWeight: '700', color: '#4ade80' }}>
+                        {trialHeadline}
+                      </div>
+                      <div style={{ fontSize: '17px', fontWeight: '900', color: '#fff', marginTop: '2px' }}>
+                        {t('pro.storeTrialThen', {
+                          price: iosProducts[selectedPlan].priceString,
+                          period: t(`pro.plans.every.${(plans.find(pl => pl.key === selectedPlan) || PRO_PLANS[0]).termKey}`),
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* CTA */}
                   <button
                     onClick={startPayment}
@@ -797,11 +851,15 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                     <>{' '}{t('pro.storeTrialTerms', { price: iosProducts[selectedPlan].priceString })}</>
                   )}
                   {' '}
-                  <a href="/terms" target="_blank" rel="noopener" style={{ color:'#FD7666', textDecoration:'underline' }}>
+                  {/* Absolute URLs: inside the iOS app a relative target=_blank
+                      link resolves to capacitor://…/terms, which nothing can
+                      open — the tap did nothing (3.1.2 wants working links).
+                      An https URL goes to Safari; web and TWA are unchanged. */}
+                  <a href={`${PUBLIC_WEB_ORIGIN}/terms`} target="_blank" rel="noopener noreferrer" style={{ color:'#FD7666', textDecoration:'underline' }}>
                     {t('pro.terms', { defaultValue: 'AGB' })}
                   </a>
                   {' · '}
-                  <a href="/privacy" target="_blank" rel="noopener" style={{ color:'#FD7666', textDecoration:'underline' }}>
+                  <a href={`${PUBLIC_WEB_ORIGIN}/privacy`} target="_blank" rel="noopener noreferrer" style={{ color:'#FD7666', textDecoration:'underline' }}>
                     {t('pro.privacy', { defaultValue: 'Datenschutz' })}
                   </a>
                 </p>
@@ -856,12 +914,19 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                           {t('pro.title')} · {t(`pro.plans.terms.${sel.termKey}`)}
                         </div>
                         <div style={{ color:'rgba(255,255,255,0.4)', fontSize:'12px' }}>
-                          {t(`pro.plans.${sel.billedKey}`)}
+                          {sel.key !== 'monthly'
+                            ? t('pro.plans.perMonthApprox', { price: `${sel.perMonth} €` })
+                            : t(`pro.plans.every.${sel.termKey}`)}
                         </div>
                       </div>
                     </div>
-                    <div style={{ color:'#fff', fontWeight:'900', fontSize:'18px', whiteSpace:'nowrap' }}>
-                      {sel.perMonth} €<span style={{ fontSize:'11px', fontWeight:'600', color:'rgba(255,255,255,0.5)' }}>/{t('pro.plans.moShort')}</span>
+                    {/* The total that is charged, as the headline right before
+                        the binding button (§ 312j (2) BGB) */}
+                    <div style={{ textAlign:'right', whiteSpace:'nowrap' }}>
+                      <div style={{ color:'#fff', fontWeight:'900', fontSize:'18px' }}>{sel.total} €</div>
+                      <div style={{ fontSize:'11px', fontWeight:'600', color:'rgba(255,255,255,0.5)' }}>
+                        {t(`pro.plans.every.${sel.termKey}`)}
+                      </div>
                     </div>
                   </div>
                 );

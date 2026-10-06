@@ -1239,6 +1239,8 @@
     "deleteAccount": "Elimina account",
     "deleteConfirm": {
       "warning": "Questa azione non può essere annullata. Tutti i tuoi dati verranno eliminati definitivamente.",
+      "storeSubApple": "Il tuo abbonamento JAMIE Pro è gestito da Apple e non termina eliminando l'account. Disdicilo prima: Impostazioni di iOS → il tuo nome → Abbonamenti.",
+      "storeSubGoogle": "Il tuo abbonamento JAMIE Pro è gestito da Google Play e non termina eliminando l'account. Disdicilo prima in Google Play → Abbonamenti.",
       "passwordPlaceholder": "Password per confermare",
       "confirm": "Elimina definitivamente"
     },
@@ -1494,7 +1496,13 @@
       },
       "billedMonthlyStore": "{{price}} / mese",
       "billedSixmonthStore": "{{price}} ogni 6 mesi",
-      "billedYearlyStore": "{{price}} all’anno"
+      "billedYearlyStore": "{{price}} all’anno",
+      "every": {
+        "monthly": "al mese",
+        "sixmonth": "ogni 6 mesi",
+        "yearly": "all’anno"
+      },
+      "perMonthApprox": "≈ {{price}} al mese"
     },
     "unexpectedStatus": "Non ha funzionato. Riprova.",
     "restoreNone": "Nessun acquisto da ripristinare trovato",
@@ -1516,7 +1524,11 @@
     "ctaTrialStartDays_one": "🎁 Inizia {{count}} giorno gratis",
     "ctaTrialStartDays_other": "🎁 Inizia {{count}} giorni gratis",
     "ctaTrialStartGeneric": "🎁 Prova gratis",
-    "storeTrialTerms": "Al termine della prova verrà addebitato {{price}}, salvo disdetta almeno 24 ore prima."
+    "storeTrialTerms": "Al termine della prova verrà addebitato {{price}}, salvo disdetta almeno 24 ore prima.",
+    "storeTrialThen": "Poi {{price}} {{period}} – disdici quando vuoi.",
+    "ctaOrderBinding": "Abbonati con obbligo di pagamento",
+    "trialHeadlineMonths_one": "🎁 Inizia con {{count}} mese gratis",
+    "trialHeadlineMonths_other": "🎁 Inizia con {{count}} mesi gratis"
   },
   "boost": {
     "title": "🚀 Boost",

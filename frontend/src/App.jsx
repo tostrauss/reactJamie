@@ -460,8 +460,15 @@ function isInRegion(lat, lng) {
   );
 }
 
+// Legal pages are public everywhere: the App Store listing and the in-app Pro
+// sheet link to /terms and /privacy, and Apple's reviewers open them in Safari
+// from outside the launch markets — a waitlist there reads as "EULA link not
+// functional" (3.1.2). They are neither gated nor do they trigger the
+// location prompt.
+const LEGAL_PATHS = ['/terms', '/privacy', '/impressum', '/widerruf', '/guidelines', '/child-safety'];
+
 // Returns 'allowed' | 'outside' | 'unknown'
-function useGeoFence() {
+function useGeoFence(skipPrompt = false) {
   const [region, setRegion] = useState(() => {
     // The native app NEVER geo-blocks: anyone who installed it from the App
     // Store / Play Store is a target user, and Apple/Google reviewers sit
@@ -496,6 +503,7 @@ function useGeoFence() {
 
   useEffect(() => {
     if (isNative()) return;            // native never geo-blocks (see above)
+    if (skipPrompt) return;            // a legal page: no prompt, no gate
     if (region !== 'unknown') return; // already checked
     if (!navigator.geolocation) { setRegion('unknown'); return; }
 
@@ -516,7 +524,7 @@ function useGeoFence() {
       },
       { timeout: 6000, maximumAge: 60000 }
     );
-  }, [region]);
+  }, [region, skipPrompt]);
 
   // "App öffnen" escape hatch (OutOfRegion footer): the visitor asserts they
   // ARE in a launch market. Force 'allowed' in app state (lifts the gate with
@@ -814,6 +822,8 @@ function useAppUrlOpen() {
 // Main App Routes
 function AppRoutes() {
   const { user } = useContext(AuthContext);
+  const { pathname } = useLocation();
+  const onLegalPage = LEGAL_PATHS.includes(pathname);
   const { t } = useTranslation();
   const nativePush = useNativePush(user);
   useAppUrlOpen();
@@ -926,12 +936,12 @@ function AppRoutes() {
     if (user?.id && !user.isGuest) identifyIapUser(user.id);
   }, [user?.id, user?.isGuest, paymentsCfg.ios_iap_enabled]);
 
-  const [region, allowRegion] = useGeoFence();
+  const [region, allowRegion] = useGeoFence(onLegalPage);
 
   if (showIntro) return <AppIntro onDone={() => setShowIntro(false)} />;
 
   // Block users outside DACH (only when we have a confirmed location)
-  if (region === 'outside') {
+  if (region === 'outside' && !onLegalPage) {
     return (
       <Suspense fallback={<PageLoader />}>
         <OutOfRegion onEnter={allowRegion} />
