@@ -1372,6 +1372,27 @@
     "done": "Listo",
     "next": "Continuar"
   },
+  "attendance": {
+    "pillFmt": "{{n}}+ asistencias",
+    "tierAriaFmt": "Insignia: asistencia confirmada en al menos {{n}} eventos",
+    "openAria": "Ver insignias",
+    "cardTitle": "Insignias",
+    "stepFmt": "desde {{n}}",
+    "stepDone": "conseguida",
+    "ownCount_one": "Asistencia confirmada en {{count}} evento.",
+    "ownCount_other": "Asistencia confirmada en {{count}} eventos.",
+    "ownNone": "Aún no hay asistencias confirmadas.",
+    "toNext_one": "Falta {{count}} para {{emoji}}",
+    "toNext_other": "Faltan {{count}} para {{emoji}}",
+    "needPeopleFmt": "Para {{emoji}} necesitas confirmaciones de al menos {{n}} personas distintas.",
+    "maxReached": "Nivel máximo alcanzado 🎆",
+    "otherFmt": "Asistencia confirmada en al menos {{n}} eventos.",
+    "how": "Solo cuenta si, después del evento, otros participantes confirman que estuviste. Apuntarse no basta, y los eventos cancelados o que no se celebraron nunca cuentan. Cada nivel necesita confirmaciones de varias personas distintas.",
+    "howOther": "Confirmado por otros participantes después del evento: apuntarse no basta.",
+    "delayFmt": "Un encuentro cuenta cuando se cierra la pregunta «¿Quién estuvo?», {{days}} días después del evento. Así nadie puede saber quién marcó qué.",
+    "progressAria": "Progreso hacia {{emoji}}",
+    "newTierToastFmt": "¡Nueva insignia {{emoji}}: {{n}}+ asistencias!"
+  },
   "pro": {
     "back": "← Atrás",
     "verifying": "Procesando…",

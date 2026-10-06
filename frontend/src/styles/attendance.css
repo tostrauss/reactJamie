@@ -1,0 +1,241 @@
+/* ══ ABZEICHEN-STUFEN ═══════════════════════════════════════════════════════
+   🏅 from 5 / 🏆 from 10 / 🎆 from 100 CONFIRMED meetups (tester 06.10.2026).
+   Flat, no gradients; coral only for what is reached or pressed. The host
+   placements live here as well, so chat.css, group-detail.css and
+   club-detail.css stay untouched. No fixed elements — the bottom-nav
+   safe-area invariant is not involved. */
+
+.attend-tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  max-width: 100%;
+  flex-shrink: 0;
+}
+
+.attend-tier-emoji {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.attend-tier-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Pill — the .pioneer-tag geometry, neutral colours. */
+.attend-tier--pill {
+  padding: 2px 9px 2px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-light);
+  font-size: 10px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+/* As a button: a ~20px pill with a 44px hit area. */
+button.attend-tier--pill {
+  position: relative;
+  cursor: pointer;
+  font-family: inherit;
+  touch-action: manipulation;
+}
+button.attend-tier--pill::after {
+  content: '';
+  position: absolute;
+  inset: -12px -6px;
+}
+button.attend-tier--pill:active,
+button.attend-tier--pill[aria-expanded='true'] {
+  border-color: var(--accent-coral);
+  background: rgba(253, 118, 102, 0.16);
+}
+
+/* Chip — roster rows, admin list. */
+.attend-tier--chip {
+  padding: 1px 7px 1px 5px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-light);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* Corner — on photo tiles; the tile tap passes through. */
+.attend-tier--corner {
+  width: 24px;
+  height: 24px;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(20, 16, 31, 0.72);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+  font-size: 14px;
+  pointer-events: none;
+}
+.attend-tier--corner .attend-tier-emoji { font-size: 14px; }
+
+/* ── Placements ─────────────────────────────────────────────────────────── */
+/* GroupDetail photo tile: the free top-right corner (the old .gd-photo-age
+   spot) — NOT the name row, which already overflows at 320px. */
+.gd-photo-tier {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+}
+
+/* ClubMembers row: owner tag + chip share one line; the seal stays its own
+   flex child so the name keeps its width. */
+.cd-member-row-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* RequestCard (Anfragen deck): bottom-left, opposite the seal; swipes pass. */
+.request-tier-badge {
+  position: absolute;
+  left: 12px;
+  bottom: 19px;
+  background: rgba(20, 16, 31, 0.72);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #fff;
+  pointer-events: none;
+}
+
+/* GroupRequests review-all list: under the name. */
+.reqov-tier {
+  display: flex;
+  width: fit-content;
+  margin-top: 6px;
+}
+
+/* Name columns of Profile / UserProfile (next to the pioneer tag). */
+.profile-name-col .attend-tier--pill,
+.up-name-col .attend-tier--pill {
+  align-self: flex-end;
+}
+
+.up-attend-wrap {
+  padding: 12px 20px 0;
+}
+
+/* Jump targets of the pill: the page runs full-bleed under the iOS status
+   bar (overlaysWebView / black-translucent), so scrollIntoView({block:'start'})
+   would park the heading behind the clock. */
+.profile-attend-wrap,
+.up-attend-wrap {
+  scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 12px);
+}
+
+/* Focus lands on the heading after the jump (tabIndex -1): no ring for a
+   programmatic focus, the usual one for keyboard users. */
+.attend-card-title:focus { outline: none; }
+.attend-card-title:focus-visible {
+  outline: 2px solid var(--coral, #FD7666);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── The Abzeichen card ─────────────────────────────────────────────────── */
+.attend-card {
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-lg);
+  padding: 14px 14px 12px;
+  margin-bottom: 12px;
+  color: var(--text-light);
+}
+
+.attend-card-title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-white);
+}
+
+.attend-ladder {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.attend-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px 8px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.attend-step-emoji {
+  font-size: 24px;
+  line-height: 1;
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+
+.attend-step--on {
+  background: rgba(253, 118, 102, 0.10);
+  border-color: rgba(253, 118, 102, 0.55);
+  color: var(--text-white);
+}
+.attend-step--on .attend-step-emoji {
+  filter: none;
+  opacity: 1;
+}
+
+.attend-status {
+  margin: 12px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-white);
+}
+
+.attend-next {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-light);
+}
+
+.attend-progress {
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.08);
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.attend-progress-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--accent-coral, #FD7666);
+  transition: width 0.3s ease;
+}
+
+.attend-how {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attend-progress-fill { transition: none; }
+}

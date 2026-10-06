@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { attachAttendanceTiers } from '../utils/attendanceTiers.js';
 
 // ==========================================
 // GET USER BY ID (public profile)
@@ -41,6 +42,10 @@ export const getUserById = async (req, res) => {
     } catch (e) {
       console.error('JSON Parse Error:', e);
     }
+
+    // Abzeichen-Stufe (0–3) — the level only, never the count (that is the
+    // person's own data: GET /api/reviews/attendance).
+    await attachAttendanceTiers(db, [user]);
 
     res.json(user);
   } catch (error) {

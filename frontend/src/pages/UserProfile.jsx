@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { users, friends } from '../utils/api';
@@ -7,6 +7,9 @@ import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
 import { UserName } from '../components/UserName';
 import VerifiedBadge from '../components/VerifiedBadge';
+import { AttendanceTierBadge } from '../components/AttendanceTierBadge';
+import { AttendanceTiersCard } from '../components/AttendanceTiersCard';
+import { normalizeTier } from '../utils/attendanceTiers';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { ProfilePhotoCarousel } from '../components/ProfilePhotoCarousel';
 import '../styles/user-profile.css';
@@ -30,6 +33,19 @@ export const UserProfile = () => {
     else sp.set('tab', tab);
     return sp;
   }, { replace: true });
+  // Abzeichen pill → Hall-of-Fame tab, scrolled to the badge card; focus
+  // follows to the card heading (see Profile.jsx).
+  const badgeCardRef = useRef(null);
+  const [scrollToBadges, setScrollToBadges] = useState(false);
+  const openBadges = () => { setActiveTab('halloffame'); setScrollToBadges(true); };
+  useEffect(() => {
+    if (!scrollToBadges || activeTab !== 'halloffame' || !badgeCardRef.current) return;
+    const el = badgeCardRef.current;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    el.scrollIntoView?.({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+    el.querySelector('.attend-card-title')?.focus?.({ preventScroll: true });
+    setScrollToBadges(false);
+  }, [scrollToBadges, activeTab]);
   const [friendshipStatus, setFriendshipStatus] = useState('none');
   const [friendshipId, setFriendshipId]     = useState(null);
   const [isRequester, setIsRequester]       = useState(false);
@@ -274,6 +290,8 @@ export const UserProfile = () => {
             <UserName className="up-name" name={profile.name?.toUpperCase()} age={age} />
           </div>
           {profile.is_pioneer && <span className="pioneer-tag">{t('common.pioneerBadge')}</span>}
+          {/* Abzeichen-Stufe — the level only; their counts stay theirs. */}
+          <AttendanceTierBadge tier={profile.attendance_tier} variant="pill" onClick={openBadges} />
         </div>
       </div>
 
@@ -334,9 +352,15 @@ export const UserProfile = () => {
       )}
 
       {activeTab === 'halloffame' && (
-        <div className="up-photo-grid">
-          <p className="up-empty-photos">{t('userProfile.emptyHof')}</p>
-        </div>
+        normalizeTier(profile.attendance_tier) > 0 ? (
+          <div className="up-attend-wrap" ref={badgeCardRef}>
+            <AttendanceTiersCard tier={profile.attendance_tier} />
+          </div>
+        ) : (
+          <div className="up-photo-grid">
+            <p className="up-empty-photos">{t('userProfile.emptyHof')}</p>
+          </div>
+        )
       )}
 
       {/* ── Favorite song ── */}

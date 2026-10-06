@@ -10,11 +10,16 @@ const scenario = {
   groupRow: null,     // row for the joinGroup groups lookup
   avatarUrl: null,    // users.avatar_url for the join avatar gate
   allRequests: [],    // rows for the aggregated user/requests endpoint
+  tierRows: [],       // rows of the Abzeichen-Stufen aggregate
 };
 
 vi.mock('../../src/config/database.js', () => ({
   default: {
     query: vi.fn(async (text) => {
+      // FIRST: the tier aggregate is routed on its marker (utils/attendanceTiers.js).
+      if (text.includes('attendance-tiers')) {
+        return { rows: scenario.tierRows };
+      }
       if (text.includes('LEFT JOIN group_members gm ON gm.group_id = g.id')) {
         return { rows: scenario.groupRow ? [scenario.groupRow] : [] };
       }
@@ -63,6 +68,7 @@ beforeEach(() => {
   scenario.groupRow = null;
   scenario.avatarUrl = null;
   scenario.allRequests = [];
+  scenario.tierRows = [];
   emitMock.mockClear();
   ioMock.to.mockClear();
 });
@@ -124,6 +130,23 @@ describe('getAllJoinRequests', () => {
     const rows = res.json.mock.calls[0][0];
     expect(rows).toHaveLength(2);
     expect(rows[0]).toEqual(expect.objectContaining({ user_name: 'Anna', group_type: 'group' }));
+  });
+
+  // Abzeichen-Stufen (B2, 06.10.2026): the deck shows the asker's step, with
+  // the user_ prefix the request payload already uses for user_trusted.
+  it('carries the asker\'s Abzeichen-Stufe as user_attendance_tier', async () => {
+    scenario.allRequests = [
+      { id: 11, group_id: 1, user_id: 2, user_name: 'Anna', group_name: 'Yoga', group_type: 'group' },
+      { id: 12, group_id: 3, user_id: 4, user_name: 'Ben', group_name: 'Läufer', group_type: 'club' },
+    ];
+    scenario.tierRows = [{ user_id: 2, confirmed_events: 12, confirmers: 3 }];
+    const res = makeRes();
+    await getAllJoinRequests({ userId: 7 }, res);
+    const rows = res.json.mock.calls[0][0];
+    expect(Array.isArray(rows)).toBe(true);          // still a bare array
+    expect(rows[0].user_attendance_tier).toBe(2);
+    expect(rows[1].user_attendance_tier).toBe(0);
+    expect(rows[0]).not.toHaveProperty('attendance_tier');
   });
 
   it('scopes the query to entities the caller owns or co-manages', async () => {

@@ -1372,6 +1372,27 @@
     "done": "Fertig",
     "next": "Weiter"
   },
+  "attendance": {
+    "pillFmt": "{{n}}+ mal dabei",
+    "tierAriaFmt": "Abzeichen: mindestens {{n}}-mal bestätigt dabei",
+    "openAria": "Abzeichen ansehen",
+    "cardTitle": "Abzeichen",
+    "stepFmt": "ab {{n}}",
+    "stepDone": "erreicht",
+    "ownCount_one": "Du warst einmal bestätigt dabei.",
+    "ownCount_other": "Du warst {{count}}-mal bestätigt dabei.",
+    "ownNone": "Noch keine bestätigte Teilnahme.",
+    "toNext_one": "Noch {{count}} bis {{emoji}}",
+    "toNext_other": "Noch {{count}} bis {{emoji}}",
+    "needPeopleFmt": "Für {{emoji}} müssen dich mindestens {{n}} verschiedene Personen bestätigt haben.",
+    "maxReached": "Höchste Stufe erreicht 🎆",
+    "otherFmt": "Bei mindestens {{n}} Events als „dabei“ bestätigt.",
+    "how": "Zählt nur, wenn andere Teilnehmer nach dem Event bestätigen, dass du dabei warst. Anmeldungen allein zählen nicht, abgesagte Events und solche, die nicht stattgefunden haben, nie. Jede Stufe braucht Bestätigungen von mehreren verschiedenen Personen.",
+    "howOther": "Bestätigt von anderen Teilnehmern nach dem Event – Anmeldungen allein zählen nicht.",
+    "delayFmt": "Ein Treffen zählt, sobald die Abfrage „Wer war dabei?“ abgeschlossen ist – {{days}} Tage nach dem Event. So bleibt anonym, wer was angekreuzt hat.",
+    "progressAria": "Fortschritt bis {{emoji}}",
+    "newTierToastFmt": "Neues Abzeichen {{emoji}} – du warst {{n}}+ mal dabei!"
+  },
   "pro": {
     "back": "← Zurück",
     "verifying": "Verarbeite…",

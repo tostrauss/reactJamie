@@ -117,7 +117,9 @@ suite('write endpoints against real Postgres', () => {
       [A]
     );
     pastGroupId = pg.rows[0].id;
-    await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner'),($1,$3,'member')`,
+    // Members since before the event — only they may answer "Wer war dabei?".
+    await db.query(`INSERT INTO group_members (group_id, user_id, role, joined_at)
+                     VALUES ($1,$2,'owner', NOW() - INTERVAL '10 days'),($1,$3,'member', NOW() - INTERVAL '10 days')`,
       [pastGroupId, A, B]);
 
     // A second past group for the "did not take place" flow (A owner, B member).
@@ -127,7 +129,8 @@ suite('write endpoints against real Postgres', () => {
       [A]
     );
     pastGroup2Id = pg2.rows[0].id;
-    await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner'),($1,$3,'member')`,
+    await db.query(`INSERT INTO group_members (group_id, user_id, role, joined_at)
+                     VALUES ($1,$2,'owner', NOW() - INTERVAL '10 days'),($1,$3,'member', NOW() - INTERVAL '10 days')`,
       [pastGroup2Id, A, B]);
 
     // Boost credits so applyBoost exercises the INSERT path (not the 402 branch).
@@ -172,6 +175,9 @@ suite('write endpoints against real Postgres', () => {
       updateReportStatus: rp.updateReportStatus,
       setUserActive: ad.setUserActive, rejectClub: ad.rejectClub,
       getUserDetail: ad.getUserDetail, sendUserTestPush: ad.sendUserTestPush,
+      getMyAttendance: rv.getMyAttendance, getReviewForGroup: rv.getReviewForGroup, getUserById: us.getUserById,
+      getGroupMembers: g.getGroupMembers, getJoinRequests: g.getJoinRequests,
+      getAllJoinRequests: g.getAllJoinRequests,
       deleteClub: c.deleteClub, deleteClubEvent: c.deleteClubEvent,
       createClubEvent: c.createClubEvent, updateClubEvent: c.updateClubEvent,
       deleteDM: dm.deleteDM,
@@ -291,8 +297,10 @@ suite('write endpoints against real Postgres', () => {
 
   // ── event reviews (past group, A reviews B) ──────────────────────────────
   it('submitReview marks attendance', async () => {
-    ok(await call(C.submitReview, { userId: A, body: {
-      group_id: pastGroupId, attendances: [{ user_id: B, was_present: true }] } }));
+    const res = await call(C.submitReview, { userId: A, body: {
+      group_id: pastGroupId, attendances: [{ user_id: B, was_present: true }] } });
+    ok(res);
+    expect(res.body).toEqual({ success: true, counted: true });
   });
   it('submitReview not_held (owner) flags the event + writes no attendance', async () => {
     ok(await call(C.submitReview, { userId: A, body: { group_id: pastGroup2Id, not_held: true } }));
@@ -306,6 +314,21 @@ suite('write endpoints against real Postgres', () => {
     const res = await call(C.getPendingReviews, { userId: B });
     ok(res);
     expect((res.body || []).some(r => r.group_id === pastGroup2Id)).toBe(false);
+    // …and still asks about the one that took place (A reviewed it, B has not)
+    expect((res.body || []).some(r => r.group_id === pastGroupId)).toBe(true);
+  });
+  it('updateGroup: re-saving a PAST group with its own date is no reschedule (GroupEdit always sends it)', async () => {
+    const before = (await db.query(`SELECT to_char(date, 'YYYY-MM-DD') AS d, date::text AS ts FROM groups WHERE id = $1`, [pastGroupId])).rows[0];
+    const res = await call(C.updateGroup, { userId: A, params: { id: String(pastGroupId) },
+      body: { date: before.d, description: 'Fotos sind oben' } });
+    ok(res);
+    const after = (await db.query('SELECT is_recurring_weekly, description, date::text AS ts FROM groups WHERE id = $1', [pastGroupId])).rows[0];
+    // the stored value is kept as it was (a legacy time is not reset to 00:00)
+    expect(after).toEqual({ is_recurring_weekly: false, description: 'Fotos sind oben', ts: before.ts });
+    // another past day is still refused
+    const prev = (await db.query(`SELECT to_char(date - INTERVAL '1 day', 'YYYY-MM-DD') AS d FROM groups WHERE id = $1`, [pastGroupId])).rows[0].d;
+    const bad = await call(C.updateGroup, { userId: A, params: { id: String(pastGroupId) }, body: { date: prev } });
+    expect(bad.statusCode).toBe(400);
   });
 
   // ── deals (create by admin A, redeem by B) ───────────────────────────────
@@ -2681,6 +2704,313 @@ suite('write endpoints against real Postgres', () => {
       ok(await call(C.subscribePush, { userId: P, body: { endpoint: ep('shared'), keys } }));
       const owners = (await db.query('SELECT user_id FROM push_subscriptions WHERE endpoint = $1', [ep('shared')])).rows;
       expect(owners).toEqual([{ user_id: P }]);
+    });
+  });
+
+  // ── Abzeichen-Stufen (B2, tester 06.10.2026) ─────────────────────────────
+  // Confirmed attendance, never sign-ups: ✓ must strictly outnumber ✗ from
+  // OTHER people; „nicht stattgefunden“/cancelled/recurring/club events never
+  // count, nor a group deleted BEFORE it began (one deleted afterwards keeps
+  // its attendees' credit). Real Postgres, because the aggregate is a
+  // GROUP BY/HAVING + LATERAL unnest over event_reviews × groups.
+  describe('attendance tiers (Abzeichen-Stufen)', () => {
+    let T, R1, R2, R3, firstEvent, cancelledEvent, at;
+    const mkU = async (email, name) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+       VALUES ($1,$2,'1995-03-03','female',$3, TRUE, 'email') RETURNING id`, [email, name, avatar])).rows[0].id;
+    // Dates are always days in the past/future, never "today": CURRENT_DATE
+    // flips at UTC midnight. Default 20 days ago: the review round
+    // (REVIEW_WINDOW_DAYS = 14) has closed, so the meetup can count; daysAgo 3
+    // = round still open (writes allowed, nothing counted yet). Members joined
+    // long before the event.
+    const mkEvent = async (owner, o = {}) => {
+      const id = (await db.query(
+        `INSERT INTO groups (name, type, date, owner_id, category, location, max_members,
+                             did_not_take_place, is_recurring_weekly, is_active)
+         VALUES ($1, $2, NOW() - make_interval(days => $7), $3, 'Sport', 'Wien', 20, $4, $5, $6) RETURNING id`,
+        [o.name || 'Tier-Event', o.type || 'group', owner, !!o.notHeld, !!o.recurring, o.active !== false,
+          o.daysAgo ?? 20])).rows[0].id;
+      if (o.deletedBefore) await db.query(`UPDATE groups SET deleted_at = date - INTERVAL '1 day' WHERE id = $1`, [id]);
+      if (o.deletedAfter) await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [id]);
+      await db.query(
+        `INSERT INTO group_members (group_id, user_id, role, joined_at)
+         SELECT $1, u, CASE WHEN u = $2 THEN 'owner' ELSE 'member' END, NOW() - INTERVAL '40 days'
+           FROM unnest($3::int[]) AS u
+         ON CONFLICT DO NOTHING`, [id, owner, [owner, T, R1, R2]]);
+      return id;
+    };
+    const vote = (gid, reviewer, present) => db.query(
+      'INSERT INTO event_reviews (group_id, reviewer_id, reviewed_user_id, was_present) VALUES ($1,$2,$3,$4)',
+      [gid, reviewer, T, present]);
+    const statsOfT = async () => {
+      const m = await at.getAttendanceStats(db, [T]);
+      const s = m.get(T) || { confirmedEvents: 0, confirmers: 0 };
+      return { events: s.confirmedEvents, confirmers: s.confirmers, tier: at.tierFor(s.confirmedEvents, s.confirmers) };
+    };
+
+    beforeAll(async () => {
+      at = await import('../../src/utils/attendanceTiers.js');
+      T = await mkU('smoke-tier-t@x.com', 'Tia');
+      R1 = await mkU('smoke-tier-r1@x.com', 'Rea');
+      R2 = await mkU('smoke-tier-r2@x.com', 'Rob');
+      R3 = await mkU('smoke-tier-r3@x.com', 'Ria');
+    });
+
+    it('counts a meetup only when ✓ STRICTLY outnumber ✗ from other people', async () => {
+      firstEvent = await mkEvent(R3);
+      await vote(firstEvent, R1, true); await vote(firstEvent, R2, true); await vote(firstEvent, R3, false); // 2:1 → counts
+      const tie = await mkEvent(R3);
+      await vote(tie, R1, true); await vote(tie, R2, false);                                               // 1:1 → no
+      const own = await mkEvent(R3);
+      await db.query(
+        'INSERT INTO event_reviews (group_id, reviewer_id, reviewed_user_id, was_present) VALUES ($1,$2,$2,FALSE)',
+        [own, T]);
+      await vote(own, R1, true);                                                                           // own sentinel ignored → counts
+      expect(await statsOfT()).toEqual({ events: 2, confirmers: 2, tier: 0 });
+    });
+
+    // Weekly series are kept out at WRITE time (never asked, ticks refused —
+    // see the write-gate test); votes recorded before an owner ticked
+    // „wöchentlich“ keep counting (see "moving, re-dating…").
+    it('never counts „nicht stattgefunden“, cancelled, club events or a group deleted before it began', async () => {
+      for (const o of [{ notHeld: true }, { active: false }, { deletedBefore: true }, { type: 'event' }]) {
+        const gid = await mkEvent(R3, o);
+        await vote(gid, R1, true); await vote(gid, R2, true);
+      }
+      expect((await statsOfT()).events).toBe(2);
+    });
+
+    it('a group cleaned up AFTER it took place keeps its attendees\' credit', async () => {
+      const gid = await mkEvent(R3, { deletedAfter: true });
+      await vote(gid, R1, true);
+      expect((await statsOfT()).events).toBe(3);
+    });
+
+    it('🏅 at 5 confirmed meetups from at least 2 different people — getMyAttendance shows the progress', async () => {
+      for (let i = 0; i < 2; i++) {
+        const gid = await mkEvent(R3);
+        await vote(gid, R1, true);
+      }
+      const res = await call(C.getMyAttendance, { userId: T });
+      ok(res);
+      expect(res.body).toEqual({
+        available: true, tier: 1, confirmed_events: 5, confirmers: 2,
+        next: { tier: 2, events_missing: 5, confirmers_missing: 1 },
+        window_days: 14,
+      });
+    });
+
+    it('an owner flagging „nicht stattgefunden“ AFTER confirmations removes the meetup at once (order race)', async () => {
+      // The flag directly — R3 already voted on this event, so submitReview's
+      // not_held would (rightly) answer 409 "Bereits bewertet". What matters
+      // here is that the count reacts on the next read, with nothing to recompute.
+      await db.query('UPDATE groups SET did_not_take_place = TRUE WHERE id = $1', [firstEvent]);
+      expect(await statsOfT()).toMatchObject({ events: 4, tier: 0 });
+      await db.query('UPDATE groups SET did_not_take_place = FALSE WHERE id = $1', [firstEvent]);
+      expect((await statsOfT()).tier).toBe(1);
+    });
+
+    it('write gate: ticks for a cancelled event are not recorded — 2xx {counted:false}, sentinel only', async () => {
+      cancelledEvent = await mkEvent(R3, { active: false, daysAgo: 3 });
+      const res = await call(C.submitReview, { userId: R1, body: {
+        group_id: cancelledEvent, attendances: [{ user_id: T, was_present: true }] } });
+      ok(res);
+      expect(res.body).toEqual({ success: true, counted: false });
+      const rows = (await db.query(
+        'SELECT reviewed_user_id, was_present FROM event_reviews WHERE group_id = $1 AND reviewer_id = $2',
+        [cancelledEvent, R1])).rows;
+      expect(rows).toEqual([{ reviewed_user_id: R1, was_present: false }]);
+      // a weekly series: never asked about, ticks refused the same way
+      const weekly = await mkEvent(R3, { recurring: true, daysAgo: 3 });
+      const wk = await call(C.submitReview, { userId: R1, body: {
+        group_id: weekly, attendances: [{ user_id: T, was_present: true }] } });
+      expect(wk.body).toEqual({ success: true, counted: false });
+      // …and a countable one (round still open) still records them
+      const countable = await mkEvent(R3, { daysAgo: 3 });
+      const ok2 = await call(C.submitReview, { userId: R2, body: {
+        group_id: countable, attendances: [{ user_id: T, was_present: true }] } });
+      expect(ok2.body).toEqual({ success: true, counted: true });
+    });
+
+    it('the prompts no longer ask about cancelled events', async () => {
+      const pending = await call(C.getPendingReviews, { userId: R2 });
+      ok(pending);
+      expect(pending.body.map(r => r.group_id)).not.toContain(cancelledEvent);
+    });
+
+    // ── review findings (B2): anonymity, owner edits, late joiners, blocks ──
+    it('a meetup counts only once its review round has closed — never vote by vote', async () => {
+      const before = await statsOfT();
+      const fresh = await mkEvent(R3, { daysAgo: 3 });
+      await vote(fresh, R1, true);
+      expect(await statsOfT()).toEqual(before);          // open round: nothing moves…
+      await vote(fresh, R2, true);
+      expect(await statsOfT()).toEqual(before);
+      await db.query(`UPDATE groups SET date = NOW() - INTERVAL '20 days' WHERE id = $1`, [fresh]);
+      expect((await statsOfT()).events).toBe(before.events + 1); // …closed: counts once, final
+    });
+
+    it('moving, re-dating, making weekly or deleting a past group afterwards keeps the meetup', async () => {
+      const before = await statsOfT();
+      const gid = await mkEvent(R3);
+      await db.query(
+        `INSERT INTO event_reviews (group_id, reviewer_id, reviewed_user_id, was_present, created_at)
+         VALUES ($1, $2, $3, TRUE, NOW() - INTERVAL '19 days')`, [gid, R1, T]);
+      const counts = async () => (await statsOfT()).events;
+      expect(await counts()).toBe(before.events + 1);
+      await db.query(`UPDATE groups SET date = NOW() + INTERVAL '10 days' WHERE id = $1`, [gid]); // the next meetup
+      expect(await counts()).toBe(before.events + 1);
+      // …and once that date has passed, the CLOSED round does not reopen
+      await db.query(`UPDATE groups SET date = NOW() - INTERVAL '2 days' WHERE id = $1`, [gid]);
+      const late = await call(C.submitReview, { userId: R2, body: {
+        group_id: gid, attendances: [{ user_id: T, was_present: false }] } });
+      expect(late.body).toEqual({ success: true, counted: false });
+      expect(await counts()).toBe(before.events + 1);
+      await db.query('UPDATE groups SET is_recurring_weekly = TRUE WHERE id = $1', [gid]);
+      expect(await counts()).toBe(before.events + 1);
+      await db.query(`UPDATE groups SET date = NOW() + INTERVAL '10 days', deleted_at = NOW() WHERE id = $1`, [gid]);
+      expect(await counts()).toBe(before.events + 1);
+    });
+
+    it('a group deleted ON its own day never counts — even with ticks written afterwards (legacy prompts)', async () => {
+      const before = await statsOfT();
+      const gid = await mkEvent(R3);
+      // date-only event at 00:00, called off by deleting it at 10:00 that day
+      await db.query(`UPDATE groups SET date = date_trunc('day', date),
+                                        deleted_at = date_trunc('day', date) + INTERVAL '10 hours' WHERE id = $1`, [gid]);
+      await vote(gid, R1, true); await vote(gid, R2, true);
+      expect((await statsOfT()).events).toBe(before.events);
+    });
+
+    it('late joiners are neither asked nor listed, their answers are not recorded, nobody can vote on them', async () => {
+      const late = await mkU('smoke-tier-late@x.com', 'Lou');
+      const gid = await mkEvent(R3, { daysAgo: 3 });
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, [gid, late]); // joined NOW
+      const own = await call(C.getPendingReviews, { userId: late });
+      ok(own);
+      expect(own.body.map(r => r.group_id)).not.toContain(gid);
+      const r1 = await call(C.getPendingReviews, { userId: R1 });
+      const listed = r1.body.find(r => r.group_id === gid).members.map(m => m.id);
+      expect(listed).toContain(T);
+      expect(listed).not.toContain(late);
+      const reopen = await call(C.getReviewForGroup, { userId: late, params: { groupId: String(gid) } });
+      expect(reopen.statusCode).toBe(404);
+
+      const theirs = await call(C.submitReview, { userId: late, body: {
+        group_id: gid, attendances: [{ user_id: T, was_present: false }] } });
+      expect(theirs.body).toEqual({ success: true, counted: false });
+      const mine = await call(C.submitReview, { userId: R1, body: {
+        group_id: gid, attendances: [{ user_id: late, was_present: true }, { user_id: T, was_present: true }] } });
+      expect(mine.body).toEqual({ success: true, counted: true });
+      const votes = (await db.query(
+        `SELECT reviewer_id, reviewed_user_id FROM event_reviews
+          WHERE group_id = $1 AND reviewer_id <> reviewed_user_id`, [gid])).rows;
+      expect(votes).toEqual([{ reviewer_id: R1, reviewed_user_id: T }]);
+    });
+
+    it('blocks: neither side is listed in the other\'s prompt, and the blocked one\'s ✗ never lands', async () => {
+      const H = await mkU('smoke-tier-h@x.com', 'Hal');
+      const gid = await mkEvent(R3, { daysAgo: 3 });
+      await db.query(`INSERT INTO group_members (group_id, user_id, role, joined_at)
+                       VALUES ($1, $2, 'member', NOW() - INTERVAL '40 days')`, [gid, H]);
+      await db.query(`INSERT INTO friendships (requester_id, addressee_id, status) VALUES ($1, $2, 'blocked')`, [T, H]);
+      const promptOf = async (uid) => (await call(C.getPendingReviews, { userId: uid })).body
+        .find(r => r.group_id === gid).members.map(m => m.id);
+      const hSees = await promptOf(H);
+      expect(hSees).not.toContain(T);
+      expect(hSees).toContain(R1);
+      expect(await promptOf(T)).not.toContain(H);
+
+      await vote(gid, R1, true);
+      const res = await call(C.submitReview, { userId: H, body: {
+        group_id: gid, attendances: [{ user_id: T, was_present: false }, { user_id: R1, was_present: true }] } });
+      expect(res.body).toEqual({ success: true, counted: true });
+      const hVotes = (await db.query(
+        `SELECT reviewed_user_id, was_present FROM event_reviews
+          WHERE group_id = $1 AND reviewer_id = $2 AND reviewed_user_id <> reviewer_id`, [gid, H])).rows;
+      expect(hVotes).toEqual([{ reviewed_user_id: R1, was_present: true }]);
+      const before = await statsOfT();
+      await db.query(`UPDATE groups SET date = NOW() - INTERVAL '20 days' WHERE id = $1`, [gid]);
+      expect((await statsOfT()).events).toBe(before.events + 1); // 1:0 — the ✗ never landed
+    });
+
+    it('profile, roster and join-request payloads carry the step (the level, never the counts)', async () => {
+      const prof = await call(C.getUserById, { userId: R1, params: { id: String(T) } });
+      ok(prof);
+      expect(prof.body.attendance_tier).toBe(1);
+      expect(prof.body).not.toHaveProperty('confirmed_events');
+      expect(prof.body).not.toHaveProperty('confirmers');
+
+      const roster = await call(C.getGroupMembers, { userId: R3, params: { id: String(firstEvent) } });
+      ok(roster);
+      expect(roster.body.members.find(m => m.id === T).attendance_tier).toBe(1);
+
+      const reqGroup = (await db.query(
+        `INSERT INTO groups (name, type, date, owner_id, category, location, max_members, is_private)
+         VALUES ('Tier-Anfrage','group', NOW() + INTERVAL '5 days', $1, 'Sport', 'Wien', 10, TRUE) RETURNING id`,
+        [R1])).rows[0].id;
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner')`, [reqGroup, R1]);
+      await db.query(`INSERT INTO group_join_requests (group_id, user_id, status) VALUES ($1,$2,'pending')`, [reqGroup, T]);
+      const reqs = await call(C.getJoinRequests, { userId: R1, params: { id: String(reqGroup) } });
+      ok(reqs);
+      expect(reqs.body.find(r => r.user_id === T).user_attendance_tier).toBe(1);
+      const deck = await call(C.getAllJoinRequests, { userId: R1 });
+      ok(deck);
+      expect(deck.body.find(r => r.user_id === T).user_attendance_tier).toBe(1);
+    });
+
+    it('reads never write: the seal and updated_at are untouched by tier reads', async () => {
+      const before = (await db.query('SELECT is_trusted_user, trusted_count, updated_at FROM users WHERE id = $1', [T])).rows[0];
+      await call(C.getMyAttendance, { userId: T });
+      await call(C.getUserById, { userId: R1, params: { id: String(T) } });
+      await call(C.getGroupMembers, { userId: R3, params: { id: String(firstEvent) } });
+      const after = (await db.query('SELECT is_trusted_user, trusted_count, updated_at FROM users WHERE id = $1', [T])).rows[0];
+      expect(after).toEqual(before);
+    });
+
+    it('the optional covering index exists and its migration step did not fail', async () => {
+      const idx = (await db.query(`SELECT 1 FROM pg_indexes WHERE indexname = 'idx_event_reviews_votes'`)).rowCount;
+      expect(idx).toBe(1);
+      const { getMigrationHealth } = await import('../../src/config/migrations.js');
+      expect(getMigrationHealth().stepFailures.map(f => f.label || String(f))
+        .filter(l => /Abzeichen/.test(l))).toEqual([]);
+    });
+
+    it('fail-soft in the boot window: missing table/column → null / field absent, nothing logged, no throw', async () => {
+      at._resetAttendanceLog(); // no earlier log may mute this one
+      const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const client = await db.pool.connect();
+      let logged;
+      try {
+        await client.query('BEGIN');
+        await client.query('ALTER TABLE event_reviews RENAME TO event_reviews_boot');
+        expect(await at.getAttendanceStats(client, [T])).toBeNull();
+        await client.query('ROLLBACK');
+
+        await client.query('BEGIN');
+        await client.query('ALTER TABLE groups RENAME COLUMN did_not_take_place TO dntp_boot');
+        const rows = [{ id: T }];
+        await at.attachAttendanceTiers(client, rows);
+        expect(rows[0]).not.toHaveProperty('attendance_tier');
+        await client.query('ROLLBACK');
+      } finally {
+        logged = err.mock.calls.slice(); // mockRestore() empties mock.calls
+        client.release();
+        err.mockRestore();
+      }
+      expect(logged).toEqual([]);
+      expect((await statsOfT()).tier).toBe(1);
+    });
+
+    it("deleting a confirmer's account takes their ticks with it (FKs cascade, no 500)", async () => {
+      const gone = await mkU('smoke-tier-gone@x.com', 'Gina');
+      const gid = await mkEvent(R3);
+      await vote(gid, gone, true); await vote(gid, R3, true);
+      const before = await statsOfT();
+      await db.query('DELETE FROM users WHERE id = $1', [gone]);
+      const after = await statsOfT();
+      expect(after.events).toBe(before.events);          // R3's tick alone is still a majority
+      expect(after.confirmers).toBe(before.confirmers - 1);
     });
   });
 

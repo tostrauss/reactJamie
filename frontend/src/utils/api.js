@@ -942,6 +942,9 @@ export const reviews = {
   notHeld: (group_id) => axiosInstance.post('/reviews', { group_id, not_held: true }),
   // Manual re-open: fetch the review payload for one past event (404 if not eligible).
   getForGroup: (group_id) => axiosInstance.get(`/reviews/for-group/${group_id}`),
+  // Own Abzeichen-Stufen numbers → { available, tier, confirmed_events, confirmers, next }.
+  // available:false = lookup failed; render nothing rather than "0".
+  getMyAttendance: () => axiosInstance.get('/reviews/attendance'),
 };
 
 // ==========================================

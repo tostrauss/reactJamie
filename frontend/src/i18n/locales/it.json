@@ -1372,6 +1372,27 @@
     "done": "Fatto",
     "next": "Avanti"
   },
+  "attendance": {
+    "pillFmt": "{{n}}+ presenze",
+    "tierAriaFmt": "Badge: presenza confermata ad almeno {{n}} eventi",
+    "openAria": "Vedi i badge",
+    "cardTitle": "Badge",
+    "stepFmt": "da {{n}}",
+    "stepDone": "raggiunto",
+    "ownCount_one": "Presenza confermata a {{count}} evento.",
+    "ownCount_other": "Presenza confermata a {{count}} eventi.",
+    "ownNone": "Ancora nessuna presenza confermata.",
+    "toNext_one": "Ancora {{count}} per {{emoji}}",
+    "toNext_other": "Ancora {{count}} per {{emoji}}",
+    "needPeopleFmt": "Per {{emoji}} servono conferme da almeno {{n}} persone diverse.",
+    "maxReached": "Livello massimo raggiunto 🎆",
+    "otherFmt": "Presenza confermata ad almeno {{n}} eventi.",
+    "how": "Conta solo se, dopo l'evento, altri partecipanti confermano che c'eri. La sola iscrizione non conta, e gli eventi annullati o che non si sono svolti non contano mai. Ogni livello richiede conferme da più persone diverse.",
+    "howOther": "Confermato da altri partecipanti dopo l'evento: la sola iscrizione non conta.",
+    "delayFmt": "Un incontro conta quando la domanda «Chi c'era?» si è chiusa – {{days}} giorni dopo l'evento. Così nessuno può sapere chi ha risposto cosa.",
+    "progressAria": "Progresso verso {{emoji}}",
+    "newTierToastFmt": "Nuovo badge {{emoji}}: {{n}}+ presenze!"
+  },
   "pro": {
     "back": "← Indietro",
     "verifying": "Elaborazione…",

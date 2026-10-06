@@ -10,6 +10,7 @@ import { AdminReportsSection } from '../components/AdminReportsSection';
 import { AdminUserModal } from '../components/AdminUserModal';
 import { UserName } from '../components/UserName';
 import { downloadCSV } from '../utils/csv';
+import { AttendanceTierBadge } from '../components/AttendanceTierBadge';
 
 const KPICard = ({ label, value, sub }) => (
   <div style={{
@@ -538,6 +539,14 @@ export const AdminDashboard = () => {
                     <UserName name={u.name} age={u.age} />
                     {u.is_admin && <span style={{ color: '#FD7666', marginLeft: 6, fontSize: 10, fontWeight: 700, letterSpacing: 0.5 }}>ADMIN</span>}
                     {u.is_trusted_user && <span style={{ color: '#4ade80', marginLeft: 6, fontSize: 12 }}>✓</span>}
+                    {u.attendance_tier > 0 && (
+                      <span style={{ marginLeft: 6 }}>
+                        <AttendanceTierBadge tier={u.attendance_tier} variant="chip" />
+                      </span>
+                    )}
+                    {u.attendance_count > 0 && (
+                      <span style={{ color: 'rgba(255,255,255,0.4)', marginLeft: 4, fontSize: 11 }}>{u.attendance_count}×</span>
+                    )}
                   </div>
                   <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email}</div>
                 </div>

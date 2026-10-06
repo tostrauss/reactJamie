@@ -22,7 +22,7 @@ vi.mock('../context/ToastContext', () => ({
 import { groups } from '../utils/api';
 
 const REQUESTS = [
-  { id: 11, user_id: 2, user_name: 'Anna', user_avatar: null, user_trusted: true, user_age: 24, message: 'Bin dabei!', user_interests: '["Yoga"]', created_at: '2026-09-06T10:00:00Z' },
+  { id: 11, user_id: 2, user_name: 'Anna', user_avatar: null, user_trusted: true, user_attendance_tier: 2, user_age: 24, message: 'Bin dabei!', user_interests: '["Yoga"]', created_at: '2026-09-06T10:00:00Z' },
   { id: 12, user_id: 3, user_name: 'Ben', user_avatar: null, user_trusted: false, user_age: 29, message: 'Hallo', user_interests: '[]', created_at: '2026-09-05T10:00:00Z' },
 ];
 
@@ -87,5 +87,27 @@ describe('GroupRequests — review-all overview', () => {
     await waitFor(() => expect(groups.acceptAllRequests).toHaveBeenCalledWith('1', [11, 12]));
     // Accepted rows drop out of the list.
     await waitFor(() => expect(screen.queryByText(/Anna, 24/)).not.toBeInTheDocument());
+  });
+
+  // Abzeichen-Stufen (B2, tester 06.10.2026): the organizer sees who reliably
+  // SHOWS UP, not just who signed up.
+  it('shows the applicant\'s Abzeichen-Stufe under the name', async () => {
+    renderPage();
+    await screen.findByText(/Anna, 24/);
+    expect(screen.getByRole('img', { name: /mindestens 10-mal bestätigt/ })).toBeInTheDocument();
+    // Ben has no step → nothing rendered for him
+    expect(screen.getAllByRole('img', { name: /bestätigt dabei/ })).toHaveLength(1);
+  });
+
+  it('"Verifizierte zuerst" ranks a higher Abzeichen-Stufe first among verified applicants (Pro)', async () => {
+    groups.getRequests.mockResolvedValue({ data: [
+      { id: 21, user_id: 5, user_name: 'Cara', user_avatar: null, user_trusted: true, user_attendance_tier: 1, user_age: 30, message: '', user_interests: '[]', created_at: '2026-09-07T10:00:00Z' },
+      { id: 22, user_id: 6, user_name: 'Dino', user_avatar: null, user_trusted: true, user_attendance_tier: 3, user_age: 31, message: '', user_interests: '[]', created_at: '2026-09-01T10:00:00Z' },
+    ] });
+    renderPage({ isPro: true });
+    await screen.findByText(/Cara, 30/);
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'verified' } });
+    const names = screen.getAllByText(/^(Cara|Dino), \d+$/).map((el) => el.textContent);
+    expect(names).toEqual(['Dino, 31', 'Cara, 30']);
   });
 });

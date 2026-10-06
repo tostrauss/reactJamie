@@ -267,6 +267,19 @@ const runStartupMigrations = async () => {
     await db.query(`CREATE INDEX IF NOT EXISTS idx_event_reviews_group    ON event_reviews(group_id)`);
     await db.query(`CREATE INDEX IF NOT EXISTS idx_event_reviews_reviewed ON event_reviews(reviewed_user_id)`);
   });
+  // Abzeichen-Stufen (2026-10): covering index for the read-time attendance
+  // aggregate in utils/attendanceTiers.js — the vote side of it (who, ✓/✗,
+  // when) comes from the index instead of heap fetches; groups is joined by
+  // its primary key anyway. OPTIONAL by design: until it exists (or if this
+  // step fails) idx_event_reviews_reviewed serves the same results, so it is
+  // NOT a CRITICAL_SCHEMA_PROBE. Plain build, not CONCURRENTLY: a failed
+  // concurrent build leaves an INVALID index that IF NOT EXISTS would then
+  // skip forever, and the table is small.
+  await migrate('idx_event_reviews_votes (Abzeichen-Stufen)', () => db.query(`
+    CREATE INDEX IF NOT EXISTS idx_event_reviews_votes
+      ON event_reviews (reviewed_user_id, group_id)
+      INCLUDE (reviewer_id, was_present, created_at)
+      WHERE reviewer_id <> reviewed_user_id`));
 
   // "Skip" on the post-event attendance modal records a dismissal here instead
   // of a permanent event_reviews sentinel, so the auto-popup stops nagging but

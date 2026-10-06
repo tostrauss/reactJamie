@@ -1,9 +1,9 @@
-import { useState, useContext, useEffect } from 'react';
+import { useState, useContext, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { auth, subscription as subscriptionApi, groups as groupsApi, clubs as clubsApi, friends as friendsApi } from '../utils/api';
+import { auth, subscription as subscriptionApi, groups as groupsApi, clubs as clubsApi, friends as friendsApi, reviews as reviewsApi } from '../utils/api';
 import SpotifySongPicker from '../components/SpotifySongPicker';
 import { ProModal } from '../components/ProModal';
 import { purchasesEnabled } from '../utils/platform';
@@ -12,6 +12,10 @@ import { shareLink } from '../utils/share';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { ProfilePhotoCarousel } from '../components/ProfilePhotoCarousel';
 import VerifiedBadge from '../components/VerifiedBadge';
+import { AttendanceTierBadge } from '../components/AttendanceTierBadge';
+import { AttendanceTiersCard } from '../components/AttendanceTiersCard';
+import { tierEmoji, tierMinEvents } from '../utils/attendanceTiers';
+import { safeStorage } from '../utils/safeStorage';
 import '../styles/home.css';
 import '../styles/profile.css';
 
@@ -69,6 +73,12 @@ export const Profile = () => {
   const [hofLoading, setHofLoading] = useState(false);
   const [favItems, setFavItems] = useState([]);
   const [pendingFriends, setPendingFriends] = useState(0);
+  // Abzeichen-Stufen (B2): the own numbers come from their own endpoint, so
+  // SAFE_USER_COLS / login / getProfile stay untouched. null = unknown → the
+  // pill and the card simply do not render.
+  const [attendance, setAttendance] = useState(null);
+  const [scrollToBadges, setScrollToBadges] = useState(false);
+  const badgeCardRef = useRef(null);
 
   const handleShareProfile = async () => {
     if (!user?.id) return;
@@ -102,6 +112,44 @@ export const Profile = () => {
       setFavItems([...(gRes.data || []), ...(cRes.data || [])]);
     });
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    reviewsApi.getMyAttendance()
+      .then(res => { if (!cancelled) setAttendance(res.data?.available ? res.data : null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // One-time "Neues Abzeichen" toast when the step went UP since this device
+  // last saw it. Only toasts when the seen-step could actually be stored —
+  // with storage denied it would otherwise repeat on every visit. The stored
+  // step only ever moves up: a dip (an owner's late „nicht stattgefunden“, a
+  // confirmer deleting their account) must not re-arm the toast for a badge
+  // this device already celebrated.
+  useEffect(() => {
+    if (!attendance || !user?.id) return;
+    const key = `jamie_seen_attendance_tier_${user.id}`;
+    const seen = Number(safeStorage.getItem(key) || 0);
+    if (!(attendance.tier > seen)) return;
+    safeStorage.setItem(key, String(attendance.tier));
+    if (safeStorage.getItem(key) === String(attendance.tier)) {
+      toast.success(t('attendance.newTierToastFmt', { emoji: tierEmoji(attendance.tier), n: tierMinEvents(attendance.tier) }));
+    }
+  }, [attendance, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pill tap → Hall-of-Fame tab, scrolled to the Abzeichen card; focus follows
+  // to the card heading (the pill has scrolled away). The wrapper's
+  // scroll-margin keeps the heading clear of the iOS status bar.
+  const openBadges = () => { setActiveTab('halloffame'); setScrollToBadges(true); };
+  useEffect(() => {
+    if (!scrollToBadges || activeTab !== 'halloffame' || !badgeCardRef.current) return;
+    const el = badgeCardRef.current;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    el.scrollIntoView?.({ block: 'start', behavior: reduce ? 'auto' : 'smooth' });
+    el.querySelector('.attend-card-title')?.focus?.({ preventScroll: true });
+    setScrollToBadges(false);
+  }, [scrollToBadges, activeTab, attendance]);
 
   useEffect(() => {
     if (activeTab !== 'halloffame' || pastEvents.length > 0) return;
@@ -217,6 +265,7 @@ export const Profile = () => {
                 {isPro && <span className="pro-name-badge">👑</span>}
               </div>
               {user?.is_pioneer && <span className="pioneer-tag">{t('common.pioneerBadge')}</span>}
+              <AttendanceTierBadge tier={attendance?.tier} variant="pill" onClick={openBadges} />
             </div>
           </div>
 
@@ -370,6 +419,18 @@ export const Profile = () => {
               </>
             ) : (
               <div className="halloffame-section">
+                {attendance && (
+                  <div className="profile-attend-wrap" ref={badgeCardRef}>
+                    <AttendanceTiersCard
+                      own
+                      tier={attendance.tier}
+                      confirmedEvents={attendance.confirmed_events}
+                      confirmers={attendance.confirmers}
+                      next={attendance.next}
+                      windowDays={attendance.window_days}
+                    />
+                  </div>
+                )}
                 {hofLoading ? (
                   <div className="home-loading"><div className="home-spinner" /></div>
                 ) : pastEvents.length === 0 ? (

@@ -11,6 +11,7 @@ import { ReportModal } from '../components/ReportModal';
 import { MapsChooser } from '../components/MapsChooser';
 import { UserName } from '../components/UserName';
 import VerifiedBadge from '../components/VerifiedBadge';
+import { AttendanceTierBadge } from '../components/AttendanceTierBadge';
 import { EventReviewModal } from '../components/EventReviewModal';
 import AvatarGateModal from '../components/AvatarGateModal';
 import { nextOccurrence, utcDayStart, viennaTodayUTC } from '../utils/recurrence';
@@ -605,6 +606,9 @@ export const GroupDetail = () => {
                     ? <img src={member.avatar_url} alt={member.name} loading="lazy" />
                     : <div className="gd-photo-placeholder">{(member.name || '?')[0].toUpperCase()}</div>
                   }
+                  {/* Abzeichen-Stufe in the free top-right corner — NOT in the
+                      name row below, which already overflows at 320px. */}
+                  <AttendanceTierBadge tier={member.attendance_tier} variant="corner" className="gd-photo-tier" />
                   <div className="gd-photo-bottom">
                     {/* Photo grid: age is shown only as the name-superscript
                         (corner chip removed) — single source of truth. */}

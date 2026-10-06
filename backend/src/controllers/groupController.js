@@ -17,6 +17,7 @@ import {
   MAX_JOIN_ATTEMPTS, joinAttemptsExhausted, joinBlockedBody, loadJoinAttempt,
 } from '../utils/joinAttempts.js';
 import { stampDelivered } from '../utils/readReceipts.js';
+import { attachAttendanceTiers } from '../utils/attendanceTiers.js';
 
 const GROUPS_TTL  = 30_000;  // 30 s — acceptable staleness for list views
 
@@ -1060,11 +1061,22 @@ export const updateGroup = async (req, res) => {
       }
     }
 
+    // Re-sending the date the group ALREADY has is no reschedule — GroupEdit
+    // always sends the stored date. Such a payload neither trips the future
+    // check below nor overwrites the stored value: every unrelated edit of a
+    // past group (cover photo, description) used to fail with "muss in der
+    // Zukunft liegen", owners got past it by moving the date or ticking
+    // „wöchentlich“, and that took the meetup out of every attendee's
+    // Abzeichen count. Keeping the stored value also keeps a legacy group's
+    // time (the date-only form would reset it to 00:00 and push „Neuer
+    // Termin“). Server-side, so the iOS bundles in the field are covered too.
+    const sameStoredDate = isSameStoredDate(date, group.rows[0].date);
+
     // Validate future date on update (groups only, clubs have no date).
     // Skip the future check when the (incoming or stored) event is weekly
     // recurring — past start dates are normal for recurring series. Date-only
     // payloads also pass when the date is today (time is set in chat).
-    if (date !== undefined && date !== null) {
+    if (date !== undefined && date !== null && !sameStoredDate) {
       const eventDate = new Date(date);
       if (isNaN(eventDate.getTime())) {
         return res.status(400).json({ error: 'Ungültiges Datum' });
@@ -1154,7 +1166,8 @@ export const updateGroup = async (req, res) => {
       [
         // '' → null: an empty date field must mean "keep existing" (COALESCE),
         // not a 500 from casting '' to timestamp (updateClub does the same).
-        name, description, (catList.length ? catList[0] : null), (date === '' ? null : date), location, image_url, max_members, is_private, skill_level,
+        // The stored date re-sent → keep it as well (see sameStoredDate).
+        name, description, (catList.length ? catList[0] : null), (date === '' || sameStoredDate ? null : date), location, image_url, max_members, is_private, skill_level,
         id, latUpdate, lngUpdate, chat_only_owner ?? null,
         ageMinU === undefined ? '__keep__' : (ageMinU === null ? '__null__' : String(ageMinU)),
         ageMaxU === undefined ? '__keep__' : (ageMaxU === null ? '__null__' : String(ageMaxU)),
@@ -1812,22 +1825,26 @@ export const getGroupMembers = async (req, res) => {
       callerIsAdmin = !!adm.rows[0]?.is_admin;
     }
     if (gateApplies && !callerIsAdmin) {
+      // Same field set the Home feed previews expose (+ the trusted badge
+      // the grids render). bio/location/role/joined_at stay behind the Pro gate.
+      const preview = fullList.rows.slice(0, 3).map(m => ({
+        id: m.id,
+        name: m.name,
+        avatar_url: m.avatar_url,
+        age: m.age,
+        is_trusted_user: m.is_trusted_user,
+      }));
+      // Abzeichen-Stufe: whitelist FIRST, then attach — so the members behind
+      // the gate are never even queried.
+      await attachAttendanceTiers(db, preview);
       return res.json({
-        // Same field set the Home feed previews expose (+ the trusted badge
-        // the grids render). bio/location/role/joined_at stay behind the Pro gate.
-        members: fullList.rows.slice(0, 3).map(m => ({
-          id: m.id,
-          name: m.name,
-          avatar_url: m.avatar_url,
-          age: m.age,
-          is_trusted_user: m.is_trusted_user,
-        })),
+        members: preview,
         total_count: total,
         gated: true,
       });
     }
     return res.json({
-      members: fullList.rows,
+      members: await attachAttendanceTiers(db, fullList.rows),
       total_count: total,
       gated: false,
     });
@@ -1990,7 +2007,8 @@ export const getJoinRequests = async (req, res) => {
       [id]
     );
 
-    res.json(result.rows);
+    // user_ prefix like user_trusted: the request payload describes the asker.
+    res.json(await attachAttendanceTiers(db, result.rows, { idKey: 'user_id', field: 'user_attendance_tier' }));
   } catch (err) {
     console.error('Error fetching join requests:', err);
     res.status(500).json({ error: 'Anfragen konnten nicht geladen werden' });
@@ -2031,7 +2049,7 @@ export const getAllJoinRequests = async (req, res) => {
        LIMIT 200`,
       [req.userId]
     );
-    res.json(result.rows);
+    res.json(await attachAttendanceTiers(db, result.rows, { idKey: 'user_id', field: 'user_attendance_tier' }));
   } catch (err) {
     console.error('Error fetching all join requests:', err);
     res.status(500).json({ error: 'Anfragen konnten nicht geladen werden' });
@@ -2869,6 +2887,21 @@ export function formatEventWhen(value) {
   const datePart = `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.`;
   const timed = d.getHours() !== 0 || d.getMinutes() !== 0;
   return timed ? `${datePart} ${pad(d.getHours())}:${pad(d.getMinutes())}` : datePart;
+}
+
+// True when an incoming date payload names the date a group already stores
+// (same wall-clock reading as formatEventWhen): a date-only 'YYYY-MM-DD' on
+// the stored day, or a timed value at the stored instant.
+export function isSameStoredDate(incoming, stored) {
+  if (!stored || incoming === undefined || incoming === null || incoming === '') return false;
+  const d = new Date(stored);
+  if (isNaN(d.getTime())) return false;
+  if (typeof incoming === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(incoming)) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return incoming === `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+  const t = new Date(incoming).getTime();
+  return !isNaN(t) && t === d.getTime();
 }
 
 // Raising max_members on a full group/club/event frees seats → notify the next

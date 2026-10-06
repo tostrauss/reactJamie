@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import VerifiedBadge from './VerifiedBadge';
+import { AttendanceTierBadge } from './AttendanceTierBadge';
 
 // Shared join-request card so /group/:id/requests (page) and the chat-list
 // requests modal render IDENTICALLY (Tobi 2026-07-31: "beide sollen genau
@@ -35,6 +36,8 @@ export function RequestCard({ request }) {
         {request.user_trusted && (
           <VerifiedBadge className="request-trusted-badge" size={34} />
         )}
+        {/* Abzeichen-Stufe bottom-left, opposite the seal (swipes pass through). */}
+        <AttendanceTierBadge tier={request.user_attendance_tier} variant="pill" className="request-tier-badge" />
       </div>
 
       <div className="request-user-info">

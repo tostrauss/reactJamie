@@ -1372,6 +1372,27 @@
     "done": "Terminé",
     "next": "Continuer"
   },
+  "attendance": {
+    "pillFmt": "{{n}}+ présences",
+    "tierAriaFmt": "Badge : présence confirmée à au moins {{n}} événements",
+    "openAria": "Voir les badges",
+    "cardTitle": "Badges",
+    "stepFmt": "dès {{n}}",
+    "stepDone": "atteint",
+    "ownCount_one": "Présence confirmée à {{count}} événement.",
+    "ownCount_other": "Présence confirmée à {{count}} événements.",
+    "ownNone": "Aucune présence confirmée pour l'instant.",
+    "toNext_one": "Encore {{count}} pour {{emoji}}",
+    "toNext_other": "Encore {{count}} pour {{emoji}}",
+    "needPeopleFmt": "Pour {{emoji}}, il faut des confirmations d'au moins {{n}} personnes différentes.",
+    "maxReached": "Niveau maximal atteint 🎆",
+    "otherFmt": "Présence confirmée à au moins {{n}} événements.",
+    "how": "Ne compte que si d'autres participants confirment après l'événement que tu étais là. L'inscription seule ne compte pas, et les événements annulés ou qui n'ont pas eu lieu ne comptent jamais. Chaque niveau exige des confirmations de plusieurs personnes différentes.",
+    "howOther": "Confirmé par d'autres participants après l'événement – l'inscription seule ne compte pas.",
+    "delayFmt": "Une rencontre compte une fois la question « Qui était là ? » close – {{days}} jours après l'événement. Ainsi, personne ne peut savoir qui a coché quoi.",
+    "progressAria": "Progression vers {{emoji}}",
+    "newTierToastFmt": "Nouveau badge {{emoji}} : {{n}}+ présences !"
+  },
   "pro": {
     "back": "← Retour",
     "verifying": "Traitement…",

@@ -1372,6 +1372,27 @@
     "done": "Done",
     "next": "Next"
   },
+  "attendance": {
+    "pillFmt": "{{n}}+ attended",
+    "tierAriaFmt": "Badge: confirmed at {{n}}+ events",
+    "openAria": "View badges",
+    "cardTitle": "Badges",
+    "stepFmt": "from {{n}}",
+    "stepDone": "reached",
+    "ownCount_one": "You were confirmed at {{count}} event.",
+    "ownCount_other": "You were confirmed at {{count}} events.",
+    "ownNone": "No confirmed attendance yet.",
+    "toNext_one": "{{count}} more to {{emoji}}",
+    "toNext_other": "{{count}} more to {{emoji}}",
+    "needPeopleFmt": "For {{emoji}}, at least {{n}} different people need to have confirmed you.",
+    "maxReached": "Top tier reached 🎆",
+    "otherFmt": "Confirmed at {{n}}+ events.",
+    "how": "Only counts when other participants confirm after the event that you were there. Signing up alone doesn't count, and cancelled events or events that didn't take place never do. Each tier needs confirmations from several different people.",
+    "howOther": "Confirmed by other participants after the event – signing up alone doesn't count.",
+    "delayFmt": "A meetup counts once the “Who was there?” check has closed – {{days}} days after the event. That way nobody can tell who ticked what.",
+    "progressAria": "Progress to {{emoji}}",
+    "newTierToastFmt": "New badge {{emoji}} – {{n}}+ events attended!"
+  },
   "pro": {
     "back": "← Back",
     "verifying": "Processing…",

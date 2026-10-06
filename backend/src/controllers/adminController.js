@@ -1,6 +1,7 @@
 import db from '../config/database.js';
 import { revokeUserSessions } from '../socket.js';
 import { sendPushToUser, listPushDevices } from './pushController.js';
+import { attachAttendanceTiers } from '../utils/attendanceTiers.js';
 import { pushTexts } from '../utils/pushLocale.js';
 import { getClientIp } from '../utils/clientIp.js';
 import geoip from 'geoip-lite';
@@ -154,7 +155,9 @@ export const getRecentUsers = async (req, res) => {
     `, pageParams);
 
     res.json({
-      users: result.rows,
+      // Abzeichen-Stufe + confirmed-meetup count next to the ✓ — admins get
+      // the count to spot farming (two accounts ticking each other).
+      users: await attachAttendanceTiers(db, result.rows, { countField: 'attendance_count' }),
       total: totalRes.rows[0].total,
       limit,
       offset,

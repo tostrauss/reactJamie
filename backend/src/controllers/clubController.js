@@ -14,6 +14,7 @@ import { pushTexts } from '../utils/pushLocale.js';
 import { normalizeCategories } from '../utils/normalizeCategories.js';
 import { checkImageField } from '../utils/safeUrl.js';
 import { createEntityWithOwner, notifyCancellationFanout } from '../services/entityLifecycle.js';
+import { attachAttendanceTiers } from '../utils/attendanceTiers.js';
 
 const CLUBS_TTL = 30_000; // 30 s
 const DISCOVER_EVENTS_KEY = 'discover_events';
@@ -992,19 +993,22 @@ export const getClubMembers = async (req, res) => {
       callerIsAdmin = !!adm.rows[0]?.is_admin;
     }
     if (gateApplies && !callerIsAdmin) {
+      const preview = result.rows.slice(0, 3).map(m => ({
+        id: m.id,
+        name: m.name,
+        avatar_url: m.avatar_url,
+        age: m.age,
+        is_trusted_user: m.is_trusted_user,
+      }));
+      // Abzeichen-Stufe: whitelist first, then attach (see getGroupMembers).
+      await attachAttendanceTiers(db, preview);
       return res.json({
-        members: result.rows.slice(0, 3).map(m => ({
-          id: m.id,
-          name: m.name,
-          avatar_url: m.avatar_url,
-          age: m.age,
-          is_trusted_user: m.is_trusted_user,
-        })),
+        members: preview,
         total_count: total,
         gated: true,
       });
     }
-    res.json({ members: result.rows, total_count: total, gated: false });
+    res.json({ members: await attachAttendanceTiers(db, result.rows), total_count: total, gated: false });
   } catch (err) {
     console.error('Error fetching club members:', err);
     res.status(500).json({ error: 'Interner Serverfehler' });

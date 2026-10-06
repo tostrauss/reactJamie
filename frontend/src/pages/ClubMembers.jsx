@@ -6,6 +6,8 @@ import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { UserName } from '../components/UserName';
 import VerifiedBadge from '../components/VerifiedBadge';
+import { AttendanceTierBadge } from '../components/AttendanceTierBadge';
+import { normalizeTier } from '../utils/attendanceTiers';
 import { proUpsellAllowed } from '../utils/platform';
 import { usePaymentsConfig } from '../utils/paymentsConfig';
 import { thumbUrl } from '../utils/images';
@@ -180,8 +182,15 @@ export const ClubMembers = () => {
                         name={m.name || t('clubMembers.unknownName')}
                         age={m.age}
                       />
-                      {isRowOwner && (
-                        <span className="cd-member-row-tag">{t('clubMembers.ownerTag')}</span>
+                      {/* Owner tag + Abzeichen chip share one line; the seal
+                          stays its own flex child so the name keeps its width. */}
+                      {(isRowOwner || normalizeTier(m.attendance_tier) > 0) && (
+                        <div className="cd-member-row-tags">
+                          {isRowOwner && (
+                            <span className="cd-member-row-tag">{t('clubMembers.ownerTag')}</span>
+                          )}
+                          <AttendanceTierBadge tier={m.attendance_tier} variant="chip" />
+                        </div>
                       )}
                     </div>
                     {m.is_trusted_user && (
