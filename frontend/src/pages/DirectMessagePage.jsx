@@ -22,6 +22,7 @@ import { useToast } from '../context/ToastContext';
 import { dayKey, daySeparatorLabel } from '../utils/chatDate';
 import { useChatViewport } from '../hooks/useChatViewport';
 import useSwipeBack from '../hooks/useSwipeBack';
+import { dropVanished, quoteIdOf } from '../utils/chatMerge';
 import '../styles/chat.css';
 
 export const DirectMessagePage = () => {
@@ -78,8 +79,11 @@ export const DirectMessagePage = () => {
       const res = await directMessages.getConversation(otherUserId);
       const msgs = res.data || [];
       if (!msgs.length) return;
-      setMessagesList(prev => {
-        if (!prev.length) return msgs;
+      setMessagesList(current => {
+        if (!current.length) return msgs;
+        // Deleted while the thread was hidden (out of the DM room, so the live
+        // dm_deleted never came): drop them first — utils/chatMerge.js.
+        const prev = dropVanished(current, msgs);
         const known = new Set(prev.map(m => m.id));
         const fresh = msgs.filter(m => !known.has(m.id));
         const overlap = msgs.some(m => known.has(m.id));
@@ -98,8 +102,13 @@ export const DirectMessagePage = () => {
           // a refetch whose only news is 'someone reacted' must not be
           // thrown away just because no NEW message arrived.
           const rxChanged = JSON.stringify(s.reactions ?? []) !== JSON.stringify(m.reactions ?? []);
-          if (s.is_read === m.is_read && s.delivered_at === m.delivered_at && !rxChanged) return m;
-          return { ...m, is_read: s.is_read, delivered_at: s.delivered_at, reactions: s.reactions ?? [] };
+          // …and a quote the server cleared because its original was deleted.
+          const quoteChanged = quoteIdOf(s) !== quoteIdOf(m);
+          if (s.is_read === m.is_read && s.delivered_at === m.delivered_at && !rxChanged && !quoteChanged) return m;
+          return {
+            ...m, is_read: s.is_read, delivered_at: s.delivered_at, reactions: s.reactions ?? [],
+            ...(quoteChanged ? { reply_to: s.reply_to ?? null } : {}),
+          };
         });
         return fresh.length ? [...patched, ...fresh] : patched;
       });

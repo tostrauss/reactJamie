@@ -1,6 +1,6 @@
 import db from '../config/database.js';
 import { revokeUserSessions } from '../socket.js';
-import { sendPushToUser, listPushDevices } from './pushController.js';
+import { sendPushToUser, listPushDevices, PUSH_TEST } from './pushController.js';
 import { attachAttendanceTiers } from '../utils/attendanceTiers.js';
 import { pushTexts } from '../utils/pushLocale.js';
 import { getClientIp } from '../utils/clientIp.js';
@@ -325,7 +325,7 @@ export const sendUserTestPush = async (req, res) => {
   try {
     const exists = await db.query('SELECT 1 FROM users WHERE id = $1', [id]);
     if (!exists.rowCount) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
-    const results = await sendPushToUser(id, pushTexts('pushTest'), null, '/notifications');
+    const results = await sendPushToUser(id, pushTexts('pushTest'), null, '/notifications', PUSH_TEST);
     console.log(`[push] admin test push user=${id} by=${req.userId} devices=${results.length} ok=${results.filter(r => r.ok).length}`);
     res.json({ results });
   } catch (err) {

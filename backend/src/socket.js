@@ -193,6 +193,16 @@ const socketHandler = (io) => {
     const typingBucket = mkBucket();
     const withinTypingBudget = () => roll(typingBucket, 120);
 
+    // The rooms this client last ASKED to be in. join_room / join_dm_room
+    // await a DB (or cache) check, the leaves do not — so a [join, leave]
+    // pair arriving back to back (socket.io-client flushes its buffered emits
+    // that way after a reconnect, and chat pages leave on hide / rejoin on
+    // show since 1047f91) put the socket into the room AFTER the leave. A
+    // ghost member counts as "reading along" and silently suppresses that
+    // user's chat and DM pushes until the socket disconnects. A join now only
+    // takes effect if it is still wanted when its check returns.
+    const wantedRooms = new Set();
+
     // join_user is kept for compatibility but enforces the authenticated userId
     socket.on('join_user', () => {
       if (socket.userId) socket.join(`user_${socket.userId}`);
@@ -209,15 +219,20 @@ const socketHandler = (io) => {
       // Budget consumed BEFORE the await, or thousands of emits are already in
       // flight against the pool before the first one returns.
       if (!withinBudget()) return;
+      // String(gid) deliberately: the `typing` handler gates on
+      // socket.rooms.has(String(data.groupId)), so the room name has to
+      // stay the string form or the typing gate silently stops matching.
+      const room = String(gid);
+      wantedRooms.add(room);
       try {
         if (await checkMembership(gid, socket.userId)) {
-          // String(gid) deliberately: the `typing` handler gates on
-          // socket.rooms.has(String(data.groupId)), so the room name has to
-          // stay the string form or the typing gate silently stops matching.
-          socket.join(String(gid));
+          if (wantedRooms.has(room)) socket.join(room);
+        } else {
+          wantedRooms.delete(room);
         }
       } catch {
         // Non-critical — don't crash the socket on a DB error
+        wantedRooms.delete(room);
       }
     });
 
@@ -229,6 +244,7 @@ const socketHandler = (io) => {
     socket.on('leave_room', (groupId) => {
       const gid = Number.parseInt(groupId, 10);
       if (!Number.isInteger(gid) || gid <= 0) return;
+      wantedRooms.delete(String(gid));
       socket.leave(String(gid));
     });
 
@@ -275,15 +291,17 @@ const socketHandler = (io) => {
       const other = parseInt(data?.otherUserId, 10);
       if (!other || other <= 0 || other === socket.userId) return;
       if (!withinBudget()) return;
-      if (!(await areFriends(socket.userId, other))) return;
       const roomName = `dm_${Math.min(socket.userId, other)}_${Math.max(socket.userId, other)}`;
-      socket.join(roomName);
+      wantedRooms.add(roomName);
+      if (!(await areFriends(socket.userId, other))) { wantedRooms.delete(roomName); return; }
+      if (wantedRooms.has(roomName)) socket.join(roomName);
     });
 
     socket.on('leave_dm_room', (data) => {
       const other = parseInt(data?.otherUserId, 10);
       if (!other || other <= 0) return;
       const roomName = `dm_${Math.min(socket.userId, other)}_${Math.max(socket.userId, other)}`;
+      wantedRooms.delete(roomName);
       socket.leave(roomName);
     });
 

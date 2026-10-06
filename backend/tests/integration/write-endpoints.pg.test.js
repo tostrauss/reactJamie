@@ -155,7 +155,7 @@ suite('write endpoints against real Postgres', () => {
     C = {
       updateProfile: a.updateProfile, completeOnboarding: a.completeOnboarding, getProfile: a.getProfile,
       updatePushPreferences: pu.updatePushPreferences, searchUsers: us.searchUsers,
-      subscribePush: pu.subscribe,
+      subscribePush: pu.subscribe, saveApnsToken: pu.saveApnsToken,
       runEventReminders: er.runEventReminders, notifyFriendsOfActivity: fa.notifyFriendsOfActivity,
       createGroup: g.createGroup, updateGroup: g.updateGroup, createClub: c.createClub,
       inviteMember: g.inviteMember,
@@ -2704,6 +2704,22 @@ suite('write endpoints against real Postgres', () => {
       ok(await call(C.subscribePush, { userId: P, body: { endpoint: ep('shared'), keys } }));
       const owners = (await db.query('SELECT user_id FROM push_subscriptions WHERE endpoint = $1', [ep('shared')])).rows;
       expect(owners).toEqual([{ user_id: P }]);
+    });
+
+    it('an iPhone re-posting its token refreshes "last registered"; another account takes the token over', async () => {
+      const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const token = 'a'.repeat(64);
+      ok(await call(C.saveApnsToken, { userId: P, body: { token } }));
+      await db.query(`UPDATE push_subscriptions SET created_at = NOW() - INTERVAL '3 days' WHERE device_token = $1`, [token]);
+      ok(await call(C.saveApnsToken, { userId: P, body: { token } }));
+      const rows = (await db.query(
+        `SELECT user_id, created_at > NOW() - INTERVAL '1 minute' AS fresh FROM push_subscriptions WHERE device_token = $1`,
+        [token])).rows;
+      expect(rows).toEqual([{ user_id: P, fresh: true }]);
+      ok(await call(C.saveApnsToken, { userId: B, body: { token } }));
+      expect((await db.query('SELECT user_id FROM push_subscriptions WHERE device_token = $1', [token])).rows)
+        .toEqual([{ user_id: B }]);
+      log.mockRestore();
     });
   });
 

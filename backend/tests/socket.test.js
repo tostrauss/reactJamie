@@ -154,6 +154,60 @@ describe('socket event guards (audit 2026-09-15, finding 6)', () => {
     expect(socket.leave.mock.calls.length).toBe(100);
   });
 
+  // ── join/leave follow the client's LAST intent (push suppression) ──────
+  // join awaits the membership/friendship check, leave does not: a buffered
+  // [join, leave] pair used to leave a ghost member in the room, which
+  // counts as "reading along" and suppresses that user's pushes.
+  const deferred = () => { let resolve; const p = new Promise((r) => { resolve = r; }); return { p, resolve }; };
+
+  it('[join, leave] while the membership check is in flight → NOT in the room', async () => {
+    const { socket } = connect();
+    const d = deferred();
+    query.mockImplementationOnce(() => d.p);
+    const pending = socket._fire('join_room', 4101);
+    socket._fire('leave_room', 4101);
+    d.resolve({ rows: [{ user_id: 7 }] });
+    await pending;
+    expect(socket.rooms.has('4101')).toBe(false);
+  });
+
+  it('[join, leave, join] → in the room; [leave, join] → in the room', async () => {
+    const { socket } = connect();
+    const d = deferred();
+    query.mockImplementationOnce(() => d.p);
+    const first = socket._fire('join_room', 4102);
+    socket._fire('leave_room', 4102);
+    const second = socket._fire('join_room', 4102);
+    d.resolve({ rows: [{ user_id: 7 }] });
+    await Promise.all([first, second]);
+    expect(socket.rooms.has('4102')).toBe(true);
+
+    socket._fire('leave_room', 4103);
+    await socket._fire('join_room', 4103);
+    expect(socket.rooms.has('4103')).toBe(true);
+  });
+
+  it('a cached membership still joins at once', async () => {
+    const { socket } = connect();
+    await socket._fire('join_room', 4104);       // caches the membership
+    socket._fire('leave_room', 4104);
+    await socket._fire('join_room', 4104);       // cache hit
+    expect(socket.rooms.has('4104')).toBe(true);
+  });
+
+  it('DMs: [join_dm_room, leave_dm_room] while the friendship check is in flight → NOT in the room', async () => {
+    const { socket } = connect(7);
+    const d = deferred();
+    query.mockImplementationOnce(() => d.p);
+    const pending = socket._fire('join_dm_room', { otherUserId: 9 });
+    socket._fire('leave_dm_room', { otherUserId: 9 });
+    d.resolve({ rows: [{ '?column?': 1 }] });
+    await pending;
+    expect(socket.rooms.has('dm_7_9')).toBe(false);
+    await socket._fire('join_dm_room', { otherUserId: 9 }); // friendship now cached
+    expect(socket.rooms.has('dm_7_9')).toBe(true);
+  });
+
   // Regression guard for the 2026-09-04 release audit: destructuring a socket
   // payload threw a TypeError that escaped socket.io as an uncaughtException.
   it('DM handlers survive a missing / malformed payload', async () => {

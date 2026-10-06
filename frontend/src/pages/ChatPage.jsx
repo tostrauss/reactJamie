@@ -22,6 +22,7 @@ import { serverErrorMessage } from '../utils/apiError';
 import { downscaleImageFile } from '../utils/images';
 import { useChatViewport } from '../hooks/useChatViewport';
 import useSwipeBack from '../hooks/useSwipeBack';
+import { dropVanished, quoteIdOf } from '../utils/chatMerge';
 import '../styles/chat.css';
 
 export const ChatPage = () => {
@@ -266,8 +267,11 @@ export const ChatPage = () => {
       // must move.
       if (data?.receipts) setReceipts(data.receipts);
       if (!msgs.length) return;
-      setMessageList(prev => {
-        if (!prev.length) return msgs;
+      setMessageList(current => {
+        if (!current.length) return msgs;
+        // Deleted while this page was hidden (out of the room, so the live
+        // message_deleted never came): drop them first — utils/chatMerge.js.
+        const prev = dropVanished(current, msgs);
         const known = new Set(prev.map(m => m.id));
         const fresh = msgs.filter(m => !known.has(m.id));
         // Patch reactions onto rows we ALREADY hold before deciding there is
@@ -281,8 +285,11 @@ export const ChatPage = () => {
         const patched = prev.map(m => {
           const s = byId.get(m.id);
           if (!s) return m;
-          if (JSON.stringify(s.reactions ?? []) === JSON.stringify(m.reactions ?? [])) return m;
-          return { ...m, reactions: s.reactions ?? [] };
+          // The server clears the quote of a reply whose original was deleted
+          // (getMessages joins only live originals) — adopt that as well.
+          const quoteChanged = quoteIdOf(s) !== quoteIdOf(m);
+          if (!quoteChanged && JSON.stringify(s.reactions ?? []) === JSON.stringify(m.reactions ?? [])) return m;
+          return { ...m, reactions: s.reactions ?? [], ...(quoteChanged ? { reply_to: s.reply_to ?? null } : {}) };
         });
         if (!fresh.length) return patched;
         // No overlap → the gap exceeds the fetched window; the fetched page IS

@@ -32,6 +32,11 @@ const WEB_PUSH_TIMEOUT_MS = 10_000;
 //     is noise); on APNs it raises the default 1 h expiry, after which a phone
 //     that was offline for an hour (flight mode, no signal) never got it.
 export const PUSH_CONVERSATION = Object.freeze({ urgency: 'high', ttl: 24 * 60 * 60 });
+// The admin "Test-Push senden": urgency high like a chat push, or Android Doze
+// holds it until the phone is unlocked and the test reads "device broken"
+// although chat/DM pushes would arrive; a 10-minute TTL so a test nobody saw
+// does not pop up hours later.
+export const PUSH_TEST = Object.freeze({ urgency: 'high', ttl: 600 });
 
 // Configure VAPID once on first import
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
@@ -202,10 +207,13 @@ export const saveApnsToken = async (req, res) => {
       `DELETE FROM push_subscriptions WHERE device_token = $1 AND user_id <> $2`,
       [token, req.userId]
     );
+    // created_at = "last registered", as for web: the app posts its token on
+    // every cold start, so refreshing it here is what makes the admin device
+    // list ("zuletzt registriert") show an iPhone's last start, not its first.
     await db.query(
       `INSERT INTO push_subscriptions (user_id, platform, device_token)
        VALUES ($1, 'apns', $2)
-       ON CONFLICT (user_id, device_token) DO NOTHING`,
+       ON CONFLICT (user_id, device_token) DO UPDATE SET created_at = CURRENT_TIMESTAMP`,
       [req.userId, token]
     );
     // TEMP debug (2026-08-05): confirms the native iPhone reaches this
