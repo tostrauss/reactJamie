@@ -106,8 +106,8 @@ git log --oneline -5
   grep -c "perMonthApprox" frontend/src/components/ProModal.jsx
   ```
 
-  Sie muss **1** ausgeben. Steht dort **0** → der Paywall-Fix fehlt, Apple würde die
-  Abos ablehnen → **STOPP, Tobi.**
+  Sie muss eine Zahl **größer als 0** ausgeben (z. B. 2). Steht dort **0** → der
+  Paywall-Fix fehlt, Apple würde die Abos ablehnen → **STOPP, Tobi.**
 
 ## 2. Bauen und ins iOS-Projekt übertragen
 
