@@ -298,6 +298,12 @@ export const ChatPage = () => {
         const overlap = msgs.some(m => known.has(m.id));
         return overlap ? [...patched, ...fresh] : [...msgs, ...patched.filter(m => m._pending)];
       });
+      // More than a page arrived while the chat was away: the no-overlap
+      // branch above REPLACED the list with the newest page, so the rows in
+      // between are only reachable via "Ältere laden" — offer it again (a
+      // chat opened with ≤ 50 messages had hidden it for good). Only ever
+      // switches it on; a superfluous tap loads nothing and hides it again.
+      if (!Array.isArray(data) && data?.has_more) setHasMore(true);
     } catch { /* next reconnect/visibility tick retries */ }
   }, [groupId]);
 
@@ -386,10 +392,27 @@ export const ChatPage = () => {
     onReturn: catchUpMessages,
   }), [catchUpMessages, socket, groupId]);
 
+  // The FIRST scroll of each chat jumps without animation, and only once the
+  // chat surface is mounted. When GET /messages answered before GET
+  // /groups/:id, this effect used to run behind the loading screen
+  // (messagesEndRef still null) and never again — the chat opened at the
+  // OLDEST of its 50 rows and the newest photo sat unseen below. The instant
+  // jump also keeps a fast photo from loading mid-animation (more than 400 px
+  // from the end), where its re-pin would skip it.
+  const initialScrollDoneRef = useRef(false);
+  useEffect(() => { initialScrollDoneRef.current = false; }, [groupId]);
+
   useEffect(() => {
+    if (loading) return;
     if (skipAutoScrollRef.current) { skipAutoScrollRef.current = false; return; }
+    if (!initialScrollDoneRef.current) {
+      if (!messageList.length) return;
+      initialScrollDoneRef.current = true;
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      return;
+    }
     scrollToBottom();
-  }, [messageList]);
+  }, [messageList, loading]);
 
   const loadEarlier = async () => {
     if (!hasMore || loadingMore || messageList.length === 0) return;

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { chatImageUrl } from '../utils/images';
 
@@ -89,7 +90,13 @@ export function ImageMessage({ url, onOpen, onLoad, mine = false }) {
         alt=""
         loading="lazy"
         decoding="async"
-        onLoad={() => { setLoaded(true); onLoad?.(); }}
+        // Commit img-msg--loaded (the photo's own proportions) BEFORE telling
+        // the chat: its re-pin measures the scroll height, and React 18
+        // commits a plain load-event update only in a later task — the chat
+        // measured the 240×180 loading box, and a portrait photo then grew
+        // ~140px below the fold. A browser event is never inside render or
+        // commit, so flushing synchronously here is safe.
+        onLoad={() => { flushSync(() => setLoaded(true)); onLoad?.(); }}
         onError={() => setStage(next)}
       />
     </button>

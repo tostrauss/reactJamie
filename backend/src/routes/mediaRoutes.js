@@ -76,6 +76,13 @@ const IMMUTABLE = 'public, max-age=31536000, immutable';
 const SHORT_LIVED = 'public, max-age=300';
 
 const streamObject = (res, obj, cacheControl = IMMUTABLE) => {
+  // The viewer left while we awaited R2 (scrolled past, closed the chat):
+  // the 'close' below has already fired and would never release the R2
+  // stream — one leaked socket of the client's pool per abandoned photo.
+  if (res.destroyed || res.writableEnded || !res.socket || res.socket.destroyed) {
+    obj.Body?.destroy?.();
+    return;
+  }
   res.setHeader('Content-Type', obj.ContentType || 'application/octet-stream');
   if (obj.ContentLength != null) res.setHeader('Content-Length', obj.ContentLength);
   if (obj.ETag) res.setHeader('ETag', obj.ETag);
@@ -94,11 +101,28 @@ const streamObject = (res, obj, cacheControl = IMMUTABLE) => {
 const isMissing = (err) =>
   err?.name === 'NoSuchKey' || err?.$metadata?.httpStatusCode === 404;
 
-const bufferBody = async (body) => {
-  const chunks = [];
-  for await (const c of body) chunks.push(c);
-  return Buffer.concat(chunks);
+// `signal` (the generation deadline) destroys a body that stalls mid-transfer
+// — the SDK's request timeout ends once the headers are in.
+const bufferBody = async (body, signal) => {
+  const onAbort = () => body.destroy?.(signal.reason instanceof Error ? signal.reason : new Error('aborted'));
+  if (signal?.aborted) onAbort();
+  else signal?.addEventListener('abort', onAbort, { once: true });
+  try {
+    const chunks = [];
+    for await (const c of body) chunks.push(c);
+    return Buffer.concat(chunks);
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
+  }
 };
+
+// Reading a variant's SOURCE (R2 GET + buffering the body) is abandoned after
+// this long. A stalled read used to hold one of the four sharp slots and the
+// shared in-flight entry, so every later viewer of that photo waited on the
+// same dead promise until R2 closed the socket or the process restarted. The
+// caller then serves the original with a short cache, like any failed
+// variant. The env override exists for tests.
+const SOURCE_DEADLINE_MS = Number(process.env.MEDIA_SOURCE_DEADLINE_MS) || 10_000;
 
 // Derived variants of an uploaded image, addressed by ?size=<name> off the
 // main URL — no second id to persist anywhere.
@@ -145,15 +169,23 @@ const getOrCreateVariant = (file, name) => {
 const generateOne = async (file, name) => {
   const variant = VARIANTS[name];
   if (!variant) return null;
-  const orig = await getObjectFromCloud(`uploads/${file}`);
-  if (
-    (orig.ContentLength ?? 0) > THUMB_SOURCE_MAX_BYTES ||
-    orig.ContentType === 'image/gif'
-  ) {
-    orig.Body.destroy?.();
-    return null;
+  const deadline = new AbortController();
+  const timer = setTimeout(() => deadline.abort(new Error('media source read deadline')), SOURCE_DEADLINE_MS);
+  let orig;
+  let buf;
+  try {
+    orig = await getObjectFromCloud(`uploads/${file}`, { abortSignal: deadline.signal });
+    if (
+      (orig.ContentLength ?? 0) > THUMB_SOURCE_MAX_BYTES ||
+      orig.ContentType === 'image/gif'
+    ) {
+      orig.Body.destroy?.();
+      return null;
+    }
+    buf = await bufferBody(orig.Body, deadline.signal);
+  } finally {
+    clearTimeout(timer);
   }
-  const buf = await bufferBody(orig.Body);
   const made = await variant.generate(buf, orig.ContentType || 'image/webp');
   if (!made) return null;
   putObjectToCloud(`${variant.prefix}${file}`, made.buffer, made.mimetype).catch((err) => {

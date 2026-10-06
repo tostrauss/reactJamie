@@ -3,6 +3,8 @@ import express from 'express';
 import { Readable } from 'node:stream';
 
 process.env.NODE_ENV = 'test';
+// The variant source-read deadline (10 s in production), short for the tests.
+process.env.MEDIA_SOURCE_DEADLINE_MS = '200';
 
 // The /media proxy in front of R2. Storage and sharp are mocked: this suite is
 // about what the ROUTE answers when a derived variant cannot be produced.
@@ -141,6 +143,62 @@ describe('GET /media/uploads/:file?size=chat', () => {
       expect(res.status).toBe(200);
       expect(await res.text()).toBe('ORIGINAL');
     }
+  });
+});
+
+// A stalled R2 read must not pin the shared generation: the SDK's request
+// timeout ends at the response headers, so the proxy sets its own deadline
+// over the GET + the body, then serves the original (short cache) and lets
+// the next viewer start a fresh generation.
+describe('variant source reads have a deadline', () => {
+  const abortable = (signal) => new Promise((_, reject) => {
+    signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+  });
+
+  it('a GET that never answers: the original arrives in time, and the next request generates anew', async () => {
+    let generations = 0;
+    vi.mocked(storage.getObjectFromCloud).mockImplementation(async (key, opts) => {
+      if (key === 'uploads/chat/h.webp') throw missing();
+      if (opts?.abortSignal) { generations += 1; return abortable(opts.abortSignal); }
+      return object('ORIGINAL');
+    });
+    const started = Date.now();
+    const res = await get('h.webp?size=chat');
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('ORIGINAL');
+    expect(res.headers.get('cache-control')).toBe('public, max-age=300');
+    expect(Date.now() - started).toBeLessThan(2_000);
+    await (await get('h.webp?size=chat')).text();
+    expect(generations).toBe(2); // the in-flight entry was released
+  });
+
+  it('a body that stalls mid-transfer is destroyed at the deadline', async () => {
+    const stalled = new Readable({ read() {} }); // headers arrived, bytes never do
+    vi.mocked(storage.getObjectFromCloud).mockImplementation(async (key, opts) => {
+      if (key === 'uploads/chat/s.webp') throw missing();
+      if (opts?.abortSignal) return { Body: stalled, ContentType: 'image/webp', ContentLength: 10 };
+      return object('ORIGINAL');
+    });
+    const res = await get('s.webp?size=chat');
+    expect(await res.text()).toBe('ORIGINAL');
+    expect(stalled.destroyed).toBe(true);
+  });
+});
+
+describe('a viewer who leaves while R2 is still answering', () => {
+  it('does not leak the R2 stream', async () => {
+    let answer;
+    vi.mocked(storage.getObjectFromCloud).mockImplementation(() => new Promise((r) => { answer = r; }));
+    const ac = new AbortController();
+    const pending = fetch(`${baseUrl}/media/uploads/gone.webp`, { signal: ac.signal }).catch(() => null);
+    while (!answer) await new Promise((r) => setTimeout(r, 5));
+    ac.abort();
+    await pending;
+    await new Promise((r) => setTimeout(r, 50)); // let the server see the close
+    const body = new Readable({ read() {} });
+    answer({ Body: body, ContentType: 'image/webp', ContentLength: 4 });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(body.destroyed).toBe(true);
   });
 });
 

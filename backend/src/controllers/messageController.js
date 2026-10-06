@@ -274,9 +274,11 @@ export const sendMessage = async (req, res) => {
             // The TYPE travels, not a label: the recipient's client knows their
             // locale, this server does not (one emit, many recipients).
             message_type: isVoice ? 'voice' : isImage ? 'image' : 'text',
-            // A voice/image message stores a URL — the client renders a label
-            // off the type instead.
-            content: (isVoice || isImage) ? '' : content.slice(0, 200),
+            // A voice/image message stores a URL — current clients render a
+            // localized label off the type. The label here is for bundles that
+            // predate the type: iOS 1.4.1 renders `content || ''` in its chat
+            // list, so a photo showed up there as an EMPTY line.
+            content: isVoice ? MEDIA_LABEL.voice : isImage ? MEDIA_LABEL.image : content.slice(0, 200),
           });
         }
       }

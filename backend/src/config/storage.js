@@ -10,9 +10,18 @@ let _s3Client = null;
 // photo, avatar and voice note is read through the same-origin /media proxy,
 // so one stuck GET was a chat photo that stayed a grey box — no error, no
 // retry, nothing in the logs — and a stuck variant generation also held one
-// of the proxy's four sharp slots. requestTimeout is an IDLE timeout (no bytes
-// for that long), so a slow-but-flowing upload or stream is not cut off.
-export const STORAGE_TIMEOUTS = Object.freeze({ connectionTimeout: 5_000, requestTimeout: 20_000 });
+// of the proxy's four sharp slots.
+// In @smithy/node-http-handler 4.4 requestTimeout is the time until the
+// response HEADERS arrive (its timers end there; a body has no deadline of its
+// own — the proxy's variant generation sets one, see mediaRoutes), and without
+// throwOnRequestTimeout it only logs a warning and aborts NOTHING. Uploads
+// (≤ 5 MB, one request) get the same 15 s to R2's answer; the SDK retries a
+// TimeoutError up to 3 times.
+export const STORAGE_TIMEOUTS = Object.freeze({
+  connectionTimeout: 5_000,
+  requestTimeout: 15_000,
+  throwOnRequestTimeout: true,
+});
 
 const getS3Client = () => {
   if (!_s3Client) {
@@ -107,12 +116,14 @@ export const putObjectToCloud = async (key, buffer, mimetype) => {
  * Returns the raw SDK response: `.Body` is a Node Readable stream,
  * plus ContentType / ContentLength / ETag passthrough metadata.
  * Throws NoSuchKey (surfaced as 404 by the route) when the key is absent.
+ * `abortSignal` cancels the request (the proxy's variant deadline).
  */
-export const getObjectFromCloud = async (key) => {
+export const getObjectFromCloud = async (key, { abortSignal } = {}) => {
   if (!isCloudStorageEnabled()) {
     throw new Error('Cloud storage is not configured — set STORAGE_* env vars');
   }
   return getS3Client().send(
-    new GetObjectCommand({ Bucket: process.env.STORAGE_BUCKET, Key: key })
+    new GetObjectCommand({ Bucket: process.env.STORAGE_BUCKET, Key: key }),
+    abortSignal ? { abortSignal } : undefined
   );
 };

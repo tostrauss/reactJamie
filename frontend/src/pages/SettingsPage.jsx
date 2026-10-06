@@ -19,6 +19,7 @@ import { RADIUS_OPTIONS_KM } from '../utils/geo';
 import { restorePurchases, openAppleSubscriptions } from '../utils/iap';
 import { PasswordInput } from '../components/PasswordInput';
 import { FeedbackModal } from '../components/FeedbackModal';
+import { useAppVersion } from '../hooks/useAppVersion';
 import '../styles/profile.css';
 
 export const SettingsPage = () => {
@@ -26,6 +27,7 @@ export const SettingsPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const { t, i18n } = useTranslation();
+  const appVersion = useAppVersion();
   // Re-render when the runtime payments config arrives (Pro entry, restore).
   usePaymentsConfig();
 
@@ -1158,7 +1160,7 @@ export const SettingsPage = () => {
             </svg>
             <div className="settings-row-stacked">
               <span>{t('settings.app.version')}</span>
-              <span className="settings-row-detail">1.3</span>
+              <span className="settings-row-detail">{appVersion ?? '…'}</span>
             </div>
           </div>
         </div>

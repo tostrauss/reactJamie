@@ -84,6 +84,15 @@ describe('ImageMessage load failures degrade instead of giving up (tester 06.10.
     expect(onLoad).toHaveBeenCalledTimes(1);
   });
 
+  it('…only AFTER the photo left its loading box (the re-pin measures the real height)', async () => {
+    let classAtCallback = null;
+    const { container } = render(
+      <ImageMessage url={url} onOpen={() => {}} onLoad={() => { classAtCallback = container.querySelector('button').className; }} />,
+    );
+    await act(async () => { fireEvent.load(img(container)); });
+    expect(classAtCallback).toContain('img-msg--loaded');
+  });
+
   it('renders the unavailable label without any request for an empty url', () => {
     const { container, getByText } = render(<ImageMessage url="" onOpen={() => {}} />);
     expect(img(container)).toBeNull();

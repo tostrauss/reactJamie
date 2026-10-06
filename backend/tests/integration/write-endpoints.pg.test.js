@@ -58,7 +58,9 @@ vi.mock('../../src/utils/email.js', () => ({
 // Socket.IO is looked up via req.app.get('io'); provide a chainable no-op.
 // sendMessage additionally chains .except() on to() and reads the room
 // presence via io.in(room).fetchSockets() (push suppression, audit risk #8).
-const emitChain = { emit: () => {}, except: () => emitChain };
+// Every emit is recorded (and otherwise ignored) so payloads can be checked.
+const emitted = [];
+const emitChain = { emit: (ev, payload) => { emitted.push({ ev, payload }); }, except: () => emitChain };
 const fakeIo = {
   to: () => emitChain,
   in: () => ({ fetchSockets: async () => [] }),
@@ -619,6 +621,23 @@ suite('write endpoints against real Postgres', () => {
           groupId, message_type: 'image', content: bad } });
         expect(r.statusCode, `${bad}: ${JSON.stringify(r.body)}`).toBe(400);
       }
+    });
+
+    it('the chat-list nudge of a photo / voice note carries a readable label for older apps', async () => {
+      const nudgeAfter = async (fn, args, ev) => {
+        const from = emitted.length;
+        ok(await call(fn, args));
+        for (let i = 0; i < 20 && !emitted.slice(from).some(e => e.ev === ev); i++) await new Promise(r => setTimeout(r, 10));
+        return emitted.slice(from).find(e => e.ev === ev)?.payload;
+      };
+      expect(await nudgeAfter(C.sendMessage, { userId: A, body: {
+        groupId, message_type: 'image', content: '/media/uploads/photo3.webp' } }, 'group_message_notification'))
+        .toMatchObject({ message_type: 'image', content: '📷 Foto' });
+      expect(await nudgeAfter(C.sendDM, { userId: A, body: {
+        receiverId: B, message_type: 'voice', content: '/media/uploads/dm9.webm', duration_ms: 2000 } }, 'new_dm_notification'))
+        .toMatchObject({ message_type: 'voice', message: '🎤 Sprachnachricht' });
+      expect((await nudgeAfter(C.sendMessage, { userId: A, body: { groupId, content: 'nur Text' } },
+        'group_message_notification')).content).toBe('nur Text');
     });
 
     it('a photo can be quoted, and the quote carries no URL', async () => {

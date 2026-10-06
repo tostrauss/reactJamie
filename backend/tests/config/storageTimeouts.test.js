@@ -22,7 +22,7 @@ process.env.STORAGE_BUCKET = 'jamie-uploads';
 const { getObjectFromCloud, STORAGE_TIMEOUTS } = await import('../../src/config/storage.js');
 
 describe('R2 client timeouts', () => {
-  it('passes connection + idle timeouts to the request handler', async () => {
+  it('passes the connection + request timeouts (which abort, see storageTimeoutBehavior) to the request handler', async () => {
     await getObjectFromCloud('uploads/p.webp');
     expect(configs).toHaveLength(1);
     expect(configs[0].requestHandler).toEqual(STORAGE_TIMEOUTS);

@@ -295,11 +295,12 @@ export const sendDM = async (req, res) => {
           });
           io.to(`user_${receiverId}`).emit('new_dm_notification', {
             senderId: req.userId,
-            // The TYPE travels, not a label — the recipient's client knows
-            // their locale, this server does not. `message` stays empty for a
-            // voice note rather than leaking the storage URL.
+            // The TYPE travels — the recipient's client knows their locale and
+            // renders its own label. `message` carries the stored label (never
+            // the storage URL) for bundles that predate the type: iOS 1.4.1
+            // shows `message` as-is, and an empty string was an empty line.
             message_type: isVoice ? 'voice' : isImage ? 'image' : 'text',
-            message: (isVoice || isImage) ? '' : (msgRow.content || '').slice(0, 200),
+            message: isVoice ? MEDIA_LABEL.voice : isImage ? MEDIA_LABEL.image : (msgRow.content || '').slice(0, 200),
             timestamp: msgRow.created_at,
           });
         }
