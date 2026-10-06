@@ -238,106 +238,32 @@ export const sendMessage = async (req, res) => {
     const created = withReply(result.rows[0]);
     res.status(201).json(created);
 
-    // Nudge every member's personal `user_<id>` room (DM pattern) so nav
-    // badges + chat-list rows update for members who do NOT have this chat
-    // open — `receive_message` is room-scoped and never reaches them.
-    // Deliberately HERE and not in the socket send_message handler: this
-    // runs only for messages that passed moderation + rate limit and are
-    // actually persisted, and it works even if the sender's socket is down.
-    // One batched emit (array of rooms) = one adapter publish.
-    try {
-      const memberRows = await db.query(
-        'SELECT user_id, notifications_muted FROM group_members WHERE group_id = $1 AND user_id <> $2',
-        [groupId, req.userId]
-      );
-
-      // In-app nudge for connected clients (nav badges + chat-list rows).
-      const io = req.app.get('io');
-      if (io) {
-        // Authoritative live delivery: broadcast the already-moderated, persisted
-        // row to everyone in the open chat EXCEPT the sender (who rendered it
-        // optimistically and reconciles via the 201). This REPLACES the old
-        // client→socket `send_message` re-broadcast, which ran no moderation and
-        // trusted client-supplied identity — a member could emit unmoderated,
-        // name-spoofed text live to the room. Here content is server-moderated
-        // and user_id/name/avatar come from the DB row, so neither is forgeable.
-        // `.except(user_<id>)` drops all the sender's own sockets (every client
-        // joins its personal room on connect).
-        io.to(String(groupId)).except(`user_${req.userId}`).emit('receive_message', created);
-
-        const rooms = memberRows.rows.map(r => `user_${r.user_id}`);
-        if (rooms.length) {
-          io.to(rooms).emit('group_message_notification', {
-            group_id: created.group_id,
-            group_type: type,
-            user_name: created.user_name,
-            // The TYPE travels, not a label: the recipient's client knows their
-            // locale, this server does not (one emit, many recipients).
-            message_type: isVoice ? 'voice' : isImage ? 'image' : 'text',
-            // A voice/image message stores a URL — current clients render a
-            // localized label off the type. The label here is for bundles that
-            // predate the type: iOS 1.4.1 renders `content || ''` in its chat
-            // list, so a photo showed up there as an EMPTY line.
-            content: isVoice ? MEDIA_LABEL.voice : isImage ? MEDIA_LABEL.image : content.slice(0, 200),
-          });
-        }
-      }
-
-      // Web push for members with the app closed/backgrounded — the socket emit
-      // above only reaches connected clients. This was the long-standing gap:
-      // group/club chat messages sent no push, so members learned of them only
-      // on next open. Fire-and-forget (no await); the DB unread count is the
-      // source of truth if a push fails.
-      //
-      // Uses the BULK variant deliberately: every member gets the identical
-      // title/body, so one `WHERE user_id = ANY(...)` fetches all subscriptions
-      // instead of one SELECT per member. This is the hottest path in the app
-      // (60 msg/min/user) — the per-user loop meant a 50-member club chat fired
-      // 50 extra round trips per message and could saturate the pg pool.
-      const senderName = created.user_name || 'Jemand';
-      const preview = isImage ? null : content.slice(0, 120);
-      // Skip members who muted this group's notifications via the chat-header
-      // bell — the in-app nudge above still updates their unread badge, but no
-      // push is sent (Tina 2026-07-31). Additionally suppress members with a
-      // live socket IN THIS ROOM (they just received `receive_message`) and
-      // apply the per-member 30s cooldown. fetchSockets() is cluster-correct
-      // under the Redis adapter; remote sockets expose only socket.data, so
-      // the handshake mirrors userId into data (socket.js).
-      let activeInRoom = new Set();
-      if (io) {
-        try {
-          const roomSockets = await io.in(String(groupId)).fetchSockets();
-          activeInRoom = new Set(
-            roomSockets.map(s => Number(s.data?.userId ?? s.userId)).filter(Boolean)
-          );
-        } catch { /* best-effort — fall back to pushing everyone non-muted */ }
-      }
-      const pushRecipients = computePushRecipients(
-        memberRows.rows, activeInRoom, _pushCooldown, groupId
-      );
-      if (pushRecipients.length) {
-        sendPushToUsers(
-          pushRecipients,
-          // isVoice + sender, not a pre-joined line: the voice label has to be
-          // chosen per RECIPIENT locale, which only the builder knows.
-          pushTexts('groupMessage', {
-            groupName: group_name,
-            sender: senderName,
-            isVoice,
-            isImage,
-            line: (isVoice || isImage) ? null : `${senderName}: ${preview}`,
-          }),
-          null,
-          `/chat/${groupId}`,
-          PUSH_CONVERSATION
-        );
-      }
-    } catch (err) {
-      // Best-effort: unread truth lives in the DB, the next refetch catches up.
-      // Logged, though: this block also carries the PUSH fan-out, and a silent
-      // catch here meant "nobody got a push for this message" left no trace.
-      console.error(`[push] group fan-out failed group=${groupId}:`, err?.message);
-    }
+    const senderName = created.user_name || 'Jemand';
+    const preview = isImage ? null : content.slice(0, 120);
+    await deliverGroupMessage(req, {
+      groupId,
+      groupType: type,
+      groupName: group_name,
+      created,
+      nudge: {
+        // The TYPE travels, not a label: the recipient's client knows their
+        // locale, this server does not (one emit, many recipients).
+        message_type: isVoice ? 'voice' : isImage ? 'image' : 'text',
+        // A voice/image message stores a URL — current clients render a
+        // localized label off the type. The label here is for bundles that
+        // predate the type: iOS 1.4.1 renders `content || ''` in its chat
+        // list, so a photo showed up there as an EMPTY line.
+        content: isVoice ? MEDIA_LABEL.voice : isImage ? MEDIA_LABEL.image : content.slice(0, 200),
+      },
+      // isVoice + sender, not a pre-joined line: the voice label has to be
+      // chosen per RECIPIENT locale, which only the builder knows.
+      push: {
+        sender: senderName,
+        isVoice,
+        isImage,
+        line: (isVoice || isImage) ? null : `${senderName}: ${preview}`,
+      },
+    });
   } catch (error) {
     console.error('Error sending message:', error);
     // Only if the response hasn't been sent — post-201 failures are best-effort
@@ -345,6 +271,105 @@ export const sendMessage = async (req, res) => {
     if (!res.headersSent) {
       res.status(500).json({ error: 'Nachricht konnte nicht gesendet werden' });
     }
+  }
+};
+
+// ==========================================
+// DELIVER A PERSISTED GROUP MESSAGE
+// ==========================================
+// Everything that happens AFTER a chat row is stored and answered (201): the
+// live broadcast to the open chat, the chat-list nudge and the push. Shared by
+// sendMessage and the poll endpoint (pollController, B1), so both follow the
+// same rules — mute bell, live-in-room, 30 s cooldown. Moved here verbatim
+// from sendMessage; tests/controllers/messageDelivery.test.js pinned the
+// behaviour before the move. Never throws: delivery is best-effort, the DB is
+// the source of truth.
+//   nudge — { message_type, content } of group_message_notification
+//   push  — the groupMessage pushTexts params besides groupName
+export const deliverGroupMessage = async (req, { groupId, groupType, groupName, created, nudge, push }) => {
+  // Nudge every member's personal `user_<id>` room (DM pattern) so nav
+  // badges + chat-list rows update for members who do NOT have this chat
+  // open — `receive_message` is room-scoped and never reaches them.
+  // Deliberately HERE and not in the socket send_message handler: this
+  // runs only for messages that passed moderation + rate limit and are
+  // actually persisted, and it works even if the sender's socket is down.
+  // One batched emit (array of rooms) = one adapter publish.
+  try {
+    const memberRows = await db.query(
+      'SELECT user_id, notifications_muted FROM group_members WHERE group_id = $1 AND user_id <> $2',
+      [groupId, req.userId]
+    );
+
+    // In-app nudge for connected clients (nav badges + chat-list rows).
+    const io = req.app.get('io');
+    if (io) {
+      // Authoritative live delivery: broadcast the already-moderated, persisted
+      // row to everyone in the open chat EXCEPT the sender (who rendered it
+      // optimistically and reconciles via the 201). This REPLACES the old
+      // client→socket `send_message` re-broadcast, which ran no moderation and
+      // trusted client-supplied identity — a member could emit unmoderated,
+      // name-spoofed text live to the room. Here content is server-moderated
+      // and user_id/name/avatar come from the DB row, so neither is forgeable.
+      // `.except(user_<id>)` drops all the sender's own sockets (every client
+      // joins its personal room on connect).
+      io.to(String(groupId)).except(`user_${req.userId}`).emit('receive_message', created);
+
+      const rooms = memberRows.rows.map(r => `user_${r.user_id}`);
+      if (rooms.length) {
+        io.to(rooms).emit('group_message_notification', {
+          group_id: created.group_id,
+          group_type: groupType,
+          user_name: created.user_name,
+          message_type: nudge.message_type,
+          content: nudge.content,
+        });
+      }
+    }
+
+    // Web push for members with the app closed/backgrounded — the socket emit
+    // above only reaches connected clients. This was the long-standing gap:
+    // group/club chat messages sent no push, so members learned of them only
+    // on next open. Fire-and-forget (no await); the DB unread count is the
+    // source of truth if a push fails.
+    //
+    // Uses the BULK variant deliberately: every member gets the identical
+    // title/body, so one `WHERE user_id = ANY(...)` fetches all subscriptions
+    // instead of one SELECT per member. This is the hottest path in the app
+    // (60 msg/min/user) — the per-user loop meant a 50-member club chat fired
+    // 50 extra round trips per message and could saturate the pg pool.
+    // Skip members who muted this group's notifications via the chat-header
+    // bell — the in-app nudge above still updates their unread badge, but no
+    // push is sent (Tina 2026-07-31). Additionally suppress members with a
+    // live socket IN THIS ROOM (they just received `receive_message`) and
+    // apply the per-member 30s cooldown. fetchSockets() is cluster-correct
+    // under the Redis adapter; remote sockets expose only socket.data, so
+    // the handshake mirrors userId into data (socket.js).
+    let activeInRoom = new Set();
+    if (io) {
+      try {
+        const roomSockets = await io.in(String(groupId)).fetchSockets();
+        activeInRoom = new Set(
+          roomSockets.map(s => Number(s.data?.userId ?? s.userId)).filter(Boolean)
+        );
+      } catch { /* best-effort — fall back to pushing everyone non-muted */ }
+    }
+    const pushRecipients = computePushRecipients(
+      memberRows.rows, activeInRoom, _pushCooldown, groupId
+    );
+    if (pushRecipients.length) {
+      sendPushToUsers(
+        pushRecipients,
+        pushTexts('groupMessage', { groupName, ...push }),
+        null,
+        `/chat/${groupId}`,
+        PUSH_CONVERSATION
+      );
+    }
+  } catch (err) {
+    // Best-effort: unread truth lives in the DB, the next refetch catches up.
+    // Logged, though: this block also carries the PUSH fan-out, and a silent
+    // catch here meant "nobody got a push for this message" left no trace.
+    console.error(`[push] group fan-out failed group=${groupId}:`, err?.message);
   }
 };
 
