@@ -1,6 +1,11 @@
-# iOS-Update für Tina — Version 1.4.4 (JAMIE Pro auf dem iPhone)
+# iOS-Update für Tina — Version 1.4.4 (JAMIE Pro, Profilbilder im Gruppenchat, Event-Chats)
 
 Stand: **08.10.2026** · Ziel: **Version 1.4.4** mit den drei Pro-Abos in den App Store bringen.
+
+**Außerdem neu in 1.4.4** (dein Feedback vom 08.10.): Im Gruppenchat steht neben der ersten
+Nachricht jeder Person ihr **Profilbild** (antippen → Profil), wie bei WhatsApp. Und
+**Chats von Club-Events** (z. B. „JAMIE x Mon Ami Halloween") stehen jetzt in der
+Chatliste und im roten Zähler — bisher wurden sie dort komplett ausgeblendet.
 
 **Was passiert ist:** In 1.4.3 (Build 12) steckt ein Fehler in **unserer** Kauf-Anbindung,
 nicht in deinen Einstellungen: Das Pro-Fenster lädt endlos, darum hast du in TestFlight
@@ -202,10 +207,16 @@ schon drin) → am iPhone **TestFlight-App** → JAMIE → **Installieren**.
    und **„Abo im App Store verwalten"** (kein JAMIE-Kündigen-Knopf, richtig so).
 6. **„Käufe wiederherstellen"** → „1 Kauf wiederhergestellt".
 
-**Kurzer Rundgang (2 Minuten):** JAMIE komplett schließen und neu öffnen, alle Reiter
+**Kurzer Rundgang (3 Minuten):** JAMIE komplett schließen und neu öffnen, alle Reiter
 unten antippen, einen Gruppen-Chat mit Foto öffnen (das **Bild** erscheint), Tobi oder
 ein zweiter Account schickt dir eine Direktnachricht, während JAMIE geschlossen ist →
 die Benachrichtigung kommt. Keine weiße Seite, nichts hängt.
+- **Profilbilder (neu):** In einem Gruppen-Chat steht links neben der ersten Nachricht
+  jeder Person ihr Profilbild, der Name nur einmal pro Block. Antippen öffnet das Profil.
+  Deine eigenen Nachrichten rechts bleiben wie bisher.
+- **Event-Chats (neu):** **Chats** → „Alle" und „Gruppen": Der Chat von „JAMIE x Mon Ami
+  Halloween" (oder einem anderen Club-Event, in dem du bist) steht in der Liste, mit der
+  letzten Nachricht. Schreibt jemand dort, erscheint der rote Zähler unten.
 
 Klappt h und der Rundgang → Schritt 7. Hakt etwas → Schritt 6.
 
@@ -234,6 +245,8 @@ Auf https://appstoreconnect.apple.com → **Meine Apps → JAMIE → Vertrieb**:
 
    ```
    • JAMIE Pro jetzt auch auf dem iPhone: alle Mitglieder sehen, Gruppen und Clubs boosten und mehr – als Abo über Apple, jederzeit kündbar
+   • Gruppen-Chat: Profilbilder neben den Nachrichten – antippen öffnet das Profil
+   • Chats von Club-Events stehen jetzt in deiner Chatliste
    • Kleine Verbesserungen und Fehlerbehebungen
    ```
 
@@ -241,6 +254,8 @@ Auf https://appstoreconnect.apple.com → **Meine Apps → JAMIE → Vertrieb**:
 
    ```
    • JAMIE Pro now on iPhone: see all members, boost groups and clubs and more – as a subscription through Apple, cancel anytime
+   • Group chats: profile pictures next to messages – tap to open the profile
+   • Club event chats now show up in your chat list
    • Small improvements and bug fixes
    ```
 
@@ -248,6 +263,8 @@ Auf https://appstoreconnect.apple.com → **Meine Apps → JAMIE → Vertrieb**:
 
    ```
    • JAMIE Pro ora anche su iPhone: vedi tutti i membri, dai visibilità a gruppi e club e altro – abbonamento tramite Apple, disdici quando vuoi
+   • Chat di gruppo: foto profilo accanto ai messaggi – toccala per aprire il profilo
+   • Le chat degli eventi dei club ora compaiono nell’elenco delle chat
    • Piccoli miglioramenti e correzioni
    ```
 
