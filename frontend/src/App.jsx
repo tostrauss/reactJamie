@@ -294,8 +294,8 @@ const Navigation = () => {
     || location.pathname.startsWith('/dm/')
     || /^\/deal\/[^/]+\/redeem$/.test(location.pathname);
 
-  // Server-truth total across all three chat tabs: DMs + group chats + club
-  // chats (events excluded — they have no row in the chat list). The badge
+  // Server-truth total across all chat rows: DMs + group, club and club-event
+  // chats (event chats have a chat-list row since 08.10.2026). The badge
   // only drops when a conversation is actually READ (opening it stamps
   // last_read_at / zeroes dm unread server-side) — NOT when the chat list is
   // merely viewed. Tester bug 2026-06-11: the old clear-on-/chats hack wiped
@@ -309,8 +309,9 @@ const Navigation = () => {
       ]).then(([dmRes, grpRes]) => {
         const dmTotal = (dmRes.data || [])
           .reduce((sum, c) => sum + (c.unread_count || 0), 0);
+        // Club-event chats count too: the chat list shows them since
+        // 08.10.2026, so the badge must not hide their unread messages.
         const grpTotal = (grpRes.data || [])
-          .filter(g => g.type !== 'event')
           .reduce((sum, g) => sum + (g.unread_count || 0), 0);
         unreadRef.current = dmTotal + grpTotal;
         setUnreadCount(unreadRef.current);
@@ -365,7 +366,8 @@ const Navigation = () => {
       bump();
     };
     const onGroupMsg = (data) => {
-      if (data?.group_type === 'event') return; // no chat-list row → no badge
+      // Club-event chats count as well — they have a chat-list row since
+      // 08.10.2026, so their messages need the badge like any group's.
       if (location.pathname === `/chat/${data?.group_id}`) return;
       bump();
     };

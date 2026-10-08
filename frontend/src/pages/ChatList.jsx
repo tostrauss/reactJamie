@@ -112,10 +112,13 @@ export const ChatList = () => {
         directMessages.getConversations().catch(() => null),
       ]);
 
-      // Events (type='event') live under a parent club and shouldn't surface
-      // as a top-level chat row — that would duplicate the club entry.
+      // Club events (type='event') are chats of their own and get a row like
+      // a group (filter "Gruppen"). They used to be filtered out on the
+      // assumption that the club row covered them — it never did: the club
+      // row shows only the club's own chat, so a busy event chat stayed
+      // invisible here and in the unread badge (Tina 08.10.2026, "JAMIE x
+      // Mon Ami Halloween").
       setGroupChats((joinedRes?.data || [])
-        .filter(g => g.type !== 'event')
         .map(g => {
           return {
             id: g.id,
@@ -458,7 +461,9 @@ export const ChatList = () => {
   // Summe deckt sich mit dem Bottom-Nav-Chat-Badge (App.jsx unreadCount).
   const hasUnread    = (groupsUnread + clubsUnread + dmsUnread) > 0;
 
-  const ownedEntities = groupChats.filter(c => c.isOwner);
+  // Events are managed on their own page (GroupDetail), not from this tab —
+  // its links and edit route are for groups and clubs.
+  const ownedEntities = groupChats.filter(c => c.isOwner && c.type !== 'event');
 
   const emptyStateForFilter = () => {
     // "Noch keine Chats" directly above three hidden ones is a contradiction —

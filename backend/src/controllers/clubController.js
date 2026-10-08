@@ -1741,6 +1741,10 @@ export const deleteClubEvent = async (req, res) => {
     invalidatePrefix(DISCOVER_EVENTS_KEY);
     invalidatePrefix('map:'); // removed event → drop its map pin
     invalidatePrefix('groups:'); // …and out of the Gruppen feed
+    // …and out of every member's Chats now (like deleteGroup/deleteClub), not
+    // after the 15 s user_groups TTL: since 08.10.2026 the chat list shows
+    // event chats, and a stale row would open a deleted event.
+    invalidatePrefix('user_groups:');
 
     // Batch 2 (2026-09-07): attendees get told the event was removed (was
     // notifying NOBODY). /notifications, not the 404-ing event.
