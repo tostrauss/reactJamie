@@ -60,7 +60,9 @@ und den Hinweis, was danach abgebucht wird. Nur Nutzer, denen Apple das
 Angebot wirklich gibt, sehen den Text. Ohne Einführungsangebot steht dort
 einfach „Jetzt starten".
 
-- [ ] 3 Abos angelegt, Status „Bereit zur Einreichung"
+- [ ] 3 Abos angelegt, alle Pflichtfelder ausgefüllt (inkl. Review-Screenshot und
+      Lokalisierung der Gruppe). Die Status-Namen hat Apple 2026 geändert:
+      „Vorbereitung für die Einreichung" kann auch dastehen, wenn noch etwas fehlt.
 
 ### A3. In-App-Purchase-Schlüssel für RevenueCat
 
@@ -156,30 +158,49 @@ Diese drei **per Passwort-Manager** an Tobi, nicht per Chat oder Mail.
 | `REVENUECAT_IOS_API_KEY` | `appl_…` |
 | `REVENUECAT_SECRET_API_KEY` | `sk_…` (V1) |
 | `REVENUECAT_WEBHOOK_AUTH` | der Webhook-Wert aus B4 |
-| `IOS_IAP_ENABLED` | `true` |
+| `IOS_IAP_ENABLED` | `true` — **erst in Schritt 2 unten** |
 | `PAYMENTS_ENABLED` | `true` (Master, schaltet **auch** Stripe im Web frei) |
 
-Danach prüfen:
+**Reihenfolge beim Einschalten** (seit 08.10.2026: 1.4.3 / Build 12 darf nie einen
+Kauf angeboten bekommen, sein Pro-Fenster lädt endlos — Sentry
+`"Purchases.then()" is not implemented on ios`, `frontend/src/utils/iap.js`):
 
-1. `https://app.jamie-app.com/api/iap/config` im Browser: `ios_iap_enabled`
-   muss `true` sein. Bleibt es `false`, fehlt einer der beiden Schlüssel oder
-   ein Schalter.
-2. RevenueCat → Webhook → **Send test event** → Railway-Log zeigt
+1. Code pushen und warten, bis in Railway (Projekt **incredible-radiance**, nicht
+   superb-courage) der Deploy mit **genau diesem Commit** aktiv ist. Solange
+   `IOS_IAP_ENABLED` aus ist, sieht der alte Server-Code von außen gleich aus — nur
+   der Commit beweist, dass die Sperre live ist.
+2. Dann `IOS_IAP_ENABLED=true` setzen und deployen.
+3. Beide Adressen im Browser prüfen:
+   - `https://app.jamie-app.com/api/iap/config` → `ios_iap_enabled` muss `false`
+     sein. Ohne das Merkmal `?iap_client=2` gibt es nie einen iOS-Kauf: Erst der
+     reparierte Code (ab 1.4.4) schickt es. Steht hier `true`, läuft noch der alte
+     Server-Code → sofort `IOS_IAP_ENABLED=false`, deployen, zurück zu 1.
+   - `https://app.jamie-app.com/api/iap/config?iap_client=2` → `ios_iap_enabled`
+     muss `true` sein. Bleibt es `false`, fehlt einer der beiden Schlüssel oder ein
+     Schalter.
+4. RevenueCat → Webhook → **Send test event** → Railway-Log zeigt
    `[revenuecat-webhook] test event received ✓`. Ein `401` bedeutet: Der
    Authorization-Wert stimmt nicht mit `REVENUECAT_WEBHOOK_AUTH` überein.
 
-**Die Schalter müssen an sein, BEVOR 1.4.2 zur Prüfung geht.** Apples Prüfer
+**Die Schalter müssen an sein, BEVOR 1.4.4 zur Prüfung geht.** Apples Prüfer
 kaufen in der Sandbox. Sehen sie keinen Kauf-Knopf, lehnen sie die Abos ab.
+1.4.3 (Build 12) bekommt — sobald die Sperre aus Schritt 1 live ist — auch bei
+Schalter an nie einen Kauf.
 
 **Rollback:** `IOS_IAP_ENABLED=false` → iPhone-Kauf-Knöpfe verschwinden beim
-nächsten App-Start, der Server nimmt keine neuen Käufe mehr an. Laufende Abos
-bleiben gültig, Verlängerungen laufen weiter über den Webhook.
+nächsten App-Start oder wenn die App wieder in den Vordergrund kommt. Einen
+StoreKit-Kauf kann der Server nicht verhindern, und Pro kommt trotzdem an: Der
+RevenueCat-Webhook läuft immer weiter. `PAYMENTS_ENABLED=false` gibt nur dem
+Abgleich aus der App ein 403 (und stoppt Stripe im Web). Laufende Abos bleiben
+gültig, Verlängerungen laufen weiter über den Webhook.
 
 ---
 
 ## So funktioniert es (für die Fehlersuche)
 
-1. App-Start: Die App holt `GET /api/iap/config`. Darin steht, ob iOS-Käufe an
+1. App-Start (und jedes Mal, wenn die App wieder in den Vordergrund kommt): Die
+   App holt `GET /api/iap/config`, die iPhone-App ab 1.4.4 mit `?iap_client=2`
+   (ohne das Merkmal nie ein iOS-Kauf, siehe Teil C). Darin steht, ob iOS-Käufe an
    sind, plus der öffentliche RevenueCat-Schlüssel.
 2. Login: RevenueCat läuft mit der **JAMIE-User-ID** als App User ID.
 3. Kauf: Apple-Kaufbogen → danach `POST /api/iap/revenuecat/sync`. Der Server
@@ -204,7 +225,8 @@ SELECT status, current_period_end, stripe_customer_id
 
 | Symptom | Ursache |
 |---|---|
-| iPhone zeigt keinen Pro-Knopf | `ios_iap_enabled` false (Teil C) oder App vor 1.4.2 |
-| „JAMIE Pro ist auf dem iPhone derzeit nicht verfügbar" | Apple liefert keine Produkte: Paid-Apps-Vertrag (A1), Produkt-IDs, oder Abos noch nicht „Bereit zur Einreichung" |
+| iPhone zeigt keinen Pro-Knopf | App vor 1.4.4 (1.4.3 = Build 12 bekommt nie einen Kauf, siehe Teil C) oder `ios_iap_enabled` false — mit `?iap_client=2` prüfen (Teil C) |
+| „JAMIE Pro ist auf dem iPhone derzeit nicht verfügbar" | Apple liefert keine Produkte: Paid-Apps-Vertrag (A1), Lokalisierung der Abo-Gruppe, Produkt-IDs, Abo ohne Preis/Namen oder im Land nicht verfügbar; Änderungen brauchen bis zu 1 Stunde. Sentry zeigt `[iap] StoreKit returned no product for …` mit den fehlenden IDs |
+| Pro-Fenster dreht sich endlos | Nur App 1.4.3 (Build 12) mit altem Code (Sentry `"Purchases.then()" is not implemented`). Ab 1.4.4 gibt das Fenster nach 20 s mit „nicht verfügbar" auf (Sentry `[iap] … did not answer`) |
 | Kauf klappt, aber kein Pro | Entitlement `pro` fehlt oder Produkt nicht angehängt (B2) |
 | Pro kommt erst nach Minuten | Sync-Aufruf fehlgeschlagen, der Webhook hat es nachgeholt. Railway-Log `[revenuecat]` prüfen |
