@@ -9,6 +9,10 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './vitest.setup.js',
     css: false,
+    // The page tests render whole pages in jsdom; with 30+ files in parallel a
+    // slow machine pushed single tests past the 5 s default (they take 1–2 s
+    // alone). 15 s still catches a real hang.
+    testTimeout: 15000,
   },
   plugins: [
     react(),

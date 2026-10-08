@@ -41,6 +41,10 @@ const storeProducts = (trial = null) => ({
   yearly: { productId: 'pro_yearly', price: 49.99, priceString: '49,99 €', pricePerMonth: 4.17, pricePerMonthString: '4,17 €', currencyCode: 'EUR', freeTrial: trial },
 });
 
+// The purchase button. A direct lookup: role queries with an accessible name
+// scan the whole sheet and pushed these tests past 5 s in the parallel run.
+const ctaButton = () => screen.getByText(/Jetzt starten/).closest('button');
+
 const renderModal = async () => {
   render(<ProModal onClose={() => {}} />);
   await act(async () => {});
@@ -75,9 +79,9 @@ describe('ProModal paywall — App Store (3.1.2)', () => {
     expect(then.style.fontSize).toBe('17px');
     // the trial length is stated once, small, right above it — not at the top
     expect(screen.getAllByText('🎁 Starte mit 14 Tagen kostenlos')).toHaveLength(1);
-    const cta = screen.getByRole('button', { name: /Jetzt starten/ });
+    const cta = ctaButton();
     expect(then.compareDocumentPosition(cta) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /kostenlos starten/ })).toBeNull();
+    expect(screen.queryByText(/kostenlos starten/)).toBeNull();
   });
 
   it('a trial counted in months still states its length', async () => {
@@ -106,11 +110,11 @@ describe('ProModal paywall — App Store (3.1.2)', () => {
   it('the pre-selected plan is the one that is bought', async () => {
     subscribePro.mockClear();
     await renderModal();
-    const pressed = screen.getAllByRole('button', { pressed: true });
+    const pressed = [...document.querySelectorAll('button[aria-pressed="true"]')];
     expect(pressed).toHaveLength(1);
     expect(pressed[0].textContent).toContain('6 Monate');
-    fireEvent.click(screen.getByRole('checkbox'));
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Jetzt starten/ })); });
+    fireEvent.click(document.querySelector('input[type="checkbox"]'));
+    await act(async () => { fireEvent.click(ctaButton()); });
     expect(subscribePro).toHaveBeenCalledWith('sixmonth');
   });
 
@@ -120,11 +124,11 @@ describe('ProModal paywall — App Store (3.1.2)', () => {
     subscribePro.mockClear();
     await renderModal();
     expect(screen.queryByText('29,99 €')).toBeNull();
-    const pressed = screen.getAllByRole('button', { pressed: true });
+    const pressed = [...document.querySelectorAll('button[aria-pressed="true"]')];
     expect(pressed).toHaveLength(1);
     expect(pressed[0].textContent).toContain('1 Monat');
-    fireEvent.click(screen.getByRole('checkbox'));
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Jetzt starten/ })); });
+    fireEvent.click(document.querySelector('input[type="checkbox"]'));
+    await act(async () => { fireEvent.click(ctaButton()); });
     expect(subscribePro).toHaveBeenCalledWith('monthly');
   });
 });
