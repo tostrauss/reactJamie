@@ -19,7 +19,7 @@ import { mediaUrl, repinIfNearBottom, tailIdOf } from '../utils/chatMedia';
 import { bindRoomToVisibility, isPageHidden } from '../utils/roomPresence';
 import { MessageTicks, tickState } from '../components/MessageTicks';
 import { serverErrorMessage } from '../utils/apiError';
-import { downscaleImageFile } from '../utils/images';
+import { downscaleImageFile, thumbUrl } from '../utils/images';
 import { useChatViewport } from '../hooks/useChatViewport';
 import useSwipeBack from '../hooks/useSwipeBack';
 import { dropVanished, quoteIdOf } from '../utils/chatMerge';
@@ -28,6 +28,28 @@ import { PollComposerSheet } from '../components/PollComposerSheet';
 import { usePollVotes } from '../hooks/usePollVotes';
 import { isRenderablePoll, mergePoll } from '../utils/polls';
 import '../styles/chat.css';
+
+// The sender's profile picture beside a received group message, like
+// WhatsApp's group chats (Tina 08.10.2026); a tap opens a small profile sheet
+// over the chat. It sits inside the bubble (absolutely placed to its left, see
+// chat.css), so a long-press on it opens the message sheet like the bubble
+// does — the click itself must not also reach the bubble.
+function SenderAvatar({ msg, label, onOpen }) {
+  const picture = msg.avatar_url
+    ? <img src={thumbUrl(msg.avatar_url)} alt="" loading="lazy" decoding="async" />
+    : <span aria-hidden="true">{(msg.user_name || '?').trim().charAt(0).toUpperCase() || '?'}</span>;
+  if (!msg.user_id) return <span className="message-avatar message-avatar--static">{picture}</span>;
+  return (
+    <button
+      type="button"
+      className="message-avatar"
+      aria-label={label}
+      onClick={(e) => { e.stopPropagation(); onOpen(msg.user_id); }}
+    >
+      {picture}
+    </button>
+  );
+}
 
 export const ChatPage = () => {
   const { groupId } = useParams();
@@ -52,6 +74,10 @@ export const ChatPage = () => {
   // happens in chat, not on profiles, so this was the report that mattered
   // most and the one nobody could file.
   const [actionMsg, setActionMsg] = useState(null);
+  // The sender whose picture was tapped. A sheet over the chat, not a route
+  // change: leaving the chat would drop every page loaded with "Ältere laden"
+  // and the scroll position.
+  const [peekSender, setPeekSender] = useState(null);
   const [reportMsg, setReportMsg] = useState(null);
   const [replyTo, setReplyTo] = useState(null);
   const [lightbox, setLightbox] = useState(null);
@@ -727,7 +753,7 @@ export const ChatPage = () => {
       )}
 
       {/* Messages */}
-      <div className="messages-container" ref={messagesContainerRef}>
+      <div className="messages-container messages-container--avatars" ref={messagesContainerRef}>
         {hasMore && (
           <div style={{ textAlign: 'center', padding: '8px 0' }}>
             <button
@@ -766,16 +792,29 @@ export const ChatPage = () => {
             // server instance, failed side query) the content line shows —
             // exactly what an old app sees.
             const showPoll = msg.message_type === 'poll' && isRenderablePoll(msg.poll);
+            // WhatsApp-style runs (Tina 08.10.2026): name and profile picture
+            // only on the FIRST message of a run from one sender; a new day or
+            // a system line starts a new run. Deleted accounts all share
+            // user_id NULL, so each of their messages stands alone.
+            const mine = msg.user_id === user?.id;
+            const firstOfRun = !mine && (showDay || !prev || prev.message_type === 'system'
+              || prev.user_id !== msg.user_id || msg.user_id == null);
             return (
               <Fragment key={msg.id || index}>
                 {daySep}
                 <div
                   id={`msg-${msg.id}`}
-                  className={`message ${msg.user_id === user?.id ? 'sent' : 'received'}${showPoll ? ' message--poll' : ''}${msg._pending ? ' message--pending' : ''}${msg._failed ? ' message--failed' : ''}`}
+                  className={`message ${mine ? 'sent' : 'received'}${showPoll ? ' message--poll' : ''}${msg._pending ? ' message--pending' : ''}${msg._failed ? ' message--failed' : ''}`}
                   {...(msg.id && !msg._pending ? pressHandlers(msg) : {})}
                 >
-                  {msg.user_id !== user?.id && (
+                  {firstOfRun && <SenderAvatar msg={msg} label={t('chat.page.senderProfile', { name: msg.user_name || '' })} onOpen={() => setPeekSender(msg)} />}
+                  {firstOfRun && (
                     <div className="message-sender">{msg.user_name}</div>
+                  )}
+                  {/* Follow-up bubbles show no name; a screen reader still
+                      needs to hear who is speaking. */}
+                  {!mine && !firstOfRun && msg.user_name && (
+                    <span className="sr-only">{msg.user_name}: </span>
                   )}
                   {msg.reply_to && (
                     <MessageQuote
@@ -945,6 +984,30 @@ export const ChatPage = () => {
               </>
             )}
             <button className="msg-sheet-btn" onClick={() => setActionMsg(null)}>
+              {t('chat.page.message.cancel')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {peekSender && (
+        <div className="msg-sheet-backdrop" onClick={() => setPeekSender(null)} role="presentation">
+          <div className="msg-sheet" role="dialog" aria-label={peekSender.user_name || ''} onClick={(e) => e.stopPropagation()}>
+            <div className="sender-peek">
+              {peekSender.avatar_url
+                ? <img src={thumbUrl(peekSender.avatar_url)} alt="" className="sender-peek-avatar" decoding="async" />
+                : <span className="sender-peek-avatar sender-peek-avatar--initial" aria-hidden="true">
+                    {(peekSender.user_name || '?').trim().charAt(0).toUpperCase() || '?'}
+                  </span>}
+              <div className="sender-peek-name">{peekSender.user_name}</div>
+            </div>
+            <button
+              className="msg-sheet-btn"
+              onClick={() => { const id = peekSender.user_id; setPeekSender(null); navigate(`/user/${id}`); }}
+            >
+              {t('common.viewProfile')}
+            </button>
+            <button className="msg-sheet-btn" onClick={() => setPeekSender(null)}>
               {t('chat.page.message.cancel')}
             </button>
           </div>

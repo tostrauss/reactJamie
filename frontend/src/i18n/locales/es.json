@@ -801,6 +801,7 @@
       "notFound": "Grupo no encontrado",
       "members": "Miembros",
       "clubSuffix": " · Club",
+      "senderProfile": "Perfil de {{name}}",
       "mute": {
         "muted": "Notificaciones desactivadas para este grupo",
         "unmuted": "Notificaciones activadas para este grupo",

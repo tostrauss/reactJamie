@@ -1094,6 +1094,96 @@
   font-weight: 600;
   color: var(--accent-coral);
   margin-bottom: 4px;
+  overflow-wrap: anywhere;   /* a long name without spaces must not leave the bubble */
+}
+
+/* Group chats, WhatsApp-style (Tina 08.10.2026): the sender's profile picture
+   sits left of the FIRST bubble of each run; every received bubble (and its
+   reaction strip) shares the indent so a run stays aligned. Only ChatPage uses
+   the --avatars container — DMs stay as they are. The picture is a child of
+   the bubble, placed outside it: no extra wrapper, so poll widths, the
+   long-press target and jump-to-message ids stay untouched. */
+.messages-container--avatars .message.received,
+.messages-container--avatars .msg-reactions--received {
+  margin-left: 38px;
+}
+.messages-container--avatars .message.received {
+  position: relative;
+}
+.messages-container--avatars .message.received.message--poll {
+  width: calc(100% - 38px);
+}
+.message-avatar {
+  position: absolute;
+  top: 0;
+  left: -38px;
+  width: 34px;              /* tap area around the 30px picture */
+  height: 34px;
+  padding: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.message-avatar img,
+.message-avatar > span {
+  display: block;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.message-avatar > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-coral);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+.message-avatar--static {
+  cursor: default;
+}
+/* 30px picture, 44px tap (same trick as .chat-filter-bubble::after). The
+   button's own 50% radius would clip hit-testing to a 34px circle. */
+.message-avatar::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+}
+
+/* Sheet after a tap on a sender picture (reuses .msg-sheet). */
+.sender-peek {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0 12px;
+}
+.sender-peek-avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.sender-peek-avatar--initial {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-coral);
+  color: #fff;
+  font-size: 36px;
+  font-weight: 700;
+}
+.sender-peek-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .message-time {
