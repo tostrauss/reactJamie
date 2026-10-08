@@ -71,7 +71,7 @@ const subscriber = ({ expires = FUTURE, sub = {}, product = 'pro_sixmonth' } = {
 const writes = (re) => txQueries.filter(q => re.test(q.sql));
 
 const ENV_KEYS = ['PAYMENTS_ENABLED', 'IOS_IAP_ENABLED', 'PLAY_BILLING_ENABLED', 'REVENUECAT_IOS_API_KEY',
-  'REVENUECAT_SECRET_API_KEY', 'REVENUECAT_WEBHOOK_AUTH', 'REVENUECAT_ALLOW_SANDBOX'];
+  'REVENUECAT_SECRET_API_KEY', 'REVENUECAT_WEBHOOK_AUTH', 'REVENUECAT_ALLOW_SANDBOX', 'IOS_IAP_MIN_CLIENT'];
 const savedEnv = {};
 beforeEach(() => {
   for (const k of ENV_KEYS) savedEnv[k] = process.env[k];
@@ -82,6 +82,7 @@ beforeEach(() => {
   delete process.env.PLAY_BILLING_ENABLED;
   delete process.env.REVENUECAT_IOS_API_KEY;
   delete process.env.REVENUECAT_ALLOW_SANDBOX;
+  delete process.env.IOS_IAP_MIN_CLIENT;
   txQueries.length = 0;
   poolQueries.length = 0;
   scriptedTx = defaultTx;
@@ -251,7 +252,9 @@ describe('revenueCatWebhook', () => {
 
 // ── GET /api/iap/config ───────────────────────────────────────────────────
 describe('getPaymentsConfig', () => {
-  const cfg = () => { const res = makeRes(); getPaymentsConfig({}, res); return res.json.mock.calls[0][0]; };
+  const cfg = (query = { iap_client: '2' }) => {
+    const res = makeRes(); getPaymentsConfig({ query }, res); return res.json.mock.calls[0][0];
+  };
 
   it('iOS is off unless master switch, iOS switch AND both keys are set', () => {
     process.env.IOS_IAP_ENABLED = 'true';
@@ -263,6 +266,36 @@ describe('getPaymentsConfig', () => {
     process.env.REVENUECAT_SECRET_API_KEY = 'sk_test';
     process.env.PAYMENTS_ENABLED = 'false';
     expect(cfg()).toMatchObject({ payments_enabled: false, ios_iap_enabled: false });
+  });
+  it('app bundles without the RevenueCat fix never get the purchase path (1.4.3 (12) spun forever)', () => {
+    process.env.IOS_IAP_ENABLED = 'true';
+    process.env.REVENUECAT_IOS_API_KEY = 'appl_pub';
+    const ios = (query) => cfg(query).ios_iap_enabled;
+    expect(ios({})).toBe(false);                               // the broken bundles send nothing
+    const bare = makeRes(); getPaymentsConfig({}, bare);       // a request without any query object
+    expect(bare.json.mock.calls[0][0].ios_iap_enabled).toBe(false);
+    expect(ios({ iap_client: '1' })).toBe(false);
+    expect(ios({ iap_client: '2' })).toBe(true);
+    expect(ios({ iap_client: '7' })).toBe(true);
+    for (const junk of ['', 'abc', '2a', '-2', ' 2', '2.0', '1e3', '99999', ['2'], { a: '2' }]) {
+      expect(ios({ iap_client: junk })).toBe(false);
+    }
+    // the old build-number idea is not a key: build 12 must not unlock anything
+    expect(ios({ ios_build: '13' })).toBe(false);
+    // the rest of the answer does not depend on the client
+    expect(cfg({})).toMatchObject({ payments_enabled: true, revenuecat: { ios_api_key: 'appl_pub' } });
+  });
+  it('IOS_IAP_MIN_CLIENT can raise the bar, never lower it below the first fixed client', () => {
+    process.env.IOS_IAP_ENABLED = 'true';
+    process.env.REVENUECAT_IOS_API_KEY = 'appl_pub';
+    process.env.IOS_IAP_MIN_CLIENT = '3';
+    expect(cfg({ iap_client: '2' }).ios_iap_enabled).toBe(false);
+    expect(cfg({ iap_client: '3' }).ios_iap_enabled).toBe(true);
+    for (const low of ['1', '0', '-5', 'garbage']) {
+      process.env.IOS_IAP_MIN_CLIENT = low;
+      expect(cfg({ iap_client: '1' }).ios_iap_enabled).toBe(false);
+      expect(cfg({ iap_client: '2' }).ios_iap_enabled).toBe(true);
+    }
   });
   it('Play is off unless its switch is on AND Google is configured', () => {
     process.env.PLAY_BILLING_ENABLED = 'true';

@@ -44,6 +44,27 @@ export const paymentsEnabled = () => process.env.PAYMENTS_ENABLED === 'true';
 export const iosIapEnabled = () => paymentsEnabled() && process.env.IOS_IAP_ENABLED === 'true';
 export const playBillingEnabled = () => paymentsEnabled() && process.env.PLAY_BILLING_ENABLED === 'true';
 
+// Which iOS app BUNDLES get the purchase path. The iOS app carries a frozen
+// copy of the web build, and the bundles up to 1.4.3 (12) can't sell: their
+// RevenueCat glue hands the Capacitor plugin out as a promise value, the
+// promise takes it for a thenable and never settles (frontend utils/iap.js
+// getPlugin, Sentry 08.10.2026) — the Pro sheet spins forever. Fixed bundles
+// send their glue version with GET /api/iap/config (?iap_client=2, frontend
+// IAP_CLIENT_VERSION); a request without it (the broken bundles, web,
+// Android) never gets the iOS path, even with IOS_IAP_ENABLED on. Keyed on the
+// bundle, not on Apple's build number: build numbers are only unique per
+// version, and a broken bundle may have been uploaded under any number.
+//   IOS_IAP_MIN_CLIENT=3  → can only RAISE the bar (never below 2): after
+//                           another broken bundle, together with a bump of
+//                           IAP_CLIENT_VERSION in the fixed one.
+export const IOS_IAP_FIRST_FIXED_CLIENT = 2;
+export const iosIapMinClient = () => {
+  const env = Number.parseInt(process.env.IOS_IAP_MIN_CLIENT, 10);
+  return Number.isFinite(env) && env > IOS_IAP_FIRST_FIXED_CLIENT ? env : IOS_IAP_FIRST_FIXED_CLIENT;
+};
+export const iosClientMaySell = (version) =>
+  typeof version === 'string' && /^\d{1,4}$/.test(version) && Number(version) >= iosIapMinClient();
+
 // Stripe checkout must run in a real web browser, never inside the Play-Store
 // TWA or the iOS app shell — offering third-party billing for digital goods
 // inside a store app violates Google Play / Apple billing policy and risks app

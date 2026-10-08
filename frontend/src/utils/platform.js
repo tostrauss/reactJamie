@@ -89,7 +89,11 @@ export const NATIVE_API_ORIGIN = 'https://api.jamie-app.com';
 //   IOS_IAP_ENABLED=true       iPhone-App verkauft über RevenueCat/StoreKit
 //   PLAY_BILLING_ENABLED=true  Play-App (TWA) verkauft über Google Play Billing
 // ROLLBACK: den jeweiligen Schalter in Railway auf false. Wirkt beim nächsten
-// App-Start auf ALLEN Clients, und der Server 403t neue Käufe sofort.
+// App-Start bzw. wenn die App wieder in den Vordergrund kommt (bis dahin gilt
+// die zwischengespeicherte Config). Einen StoreKit-/Play-Kauf kann der Server
+// nicht verhindern, nur die App blendet den Kauf aus; der RevenueCat-Webhook
+// vergibt Pro weiterhin. PAYMENTS_ENABLED=false gibt den Kauf-/Abgleich-
+// Endpunkten ein 403 (und stoppt Stripe im Web), nicht dem Webhook.
 //
 // Historie der alten Konstante: 03.09. live und am selben Tag wieder aus,
 // weil ~70 % der Nutzer auf iOS sind und dort ohne StoreKit-IAP nichts

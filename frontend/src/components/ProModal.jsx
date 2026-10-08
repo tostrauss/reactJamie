@@ -234,6 +234,7 @@ function PlanTile({ plan, selected, onSelect, t }) {
   return (
     <button
       type="button"
+      aria-pressed={selected}
       onClick={() => onSelect(plan.key)}
       style={{
         position: 'relative',
@@ -406,10 +407,18 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
     });
   })();
 
+  // The plan the sheet acts on. On the App Store the tiles are what StoreKit
+  // returned; if the chosen plan is missing there (not offered in this
+  // storefront, not yet propagated), fall back to one that exists — never no
+  // highlighted tile with a button that tries to buy the missing plan.
+  const activePlan = plans.some(pl => pl.key === selectedPlan)
+    ? selectedPlan
+    : (plans.find(pl => pl.key === DEFAULT_PLAN_KEY) || plans[0] || { key: selectedPlan }).key;
+
   // Free trial. Web: the server's first-subscription rule (14 days via
   // Stripe). iOS: whatever intro offer Tina sets in App Store Connect, and
   // only if Apple says this Apple ID is still eligible.
-  const iosTrial = iosIap ? (iosProducts?.[selectedPlan]?.freeTrial || null) : null;
+  const iosTrial = iosIap ? (iosProducts?.[activePlan]?.freeTrial || null) : null;
   const trialDaysStore = iosTrial
     ? (iosTrial.unit === 'DAY' ? iosTrial.count : iosTrial.unit === 'WEEK' ? iosTrial.count * 7 : null)
     : null;
@@ -441,7 +450,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
       // iOS app → StoreKit via RevenueCat (App Review 3.1.1). Success as soon
       // as Apple approves; the server sync (or the webhook) grants Pro.
       if (iosIap) {
-        await subscribePro(selectedPlan);
+        await subscribePro(activePlan);
         setStep('success');
         setTimeout(() => { onSuccess?.(); onClose?.(); }, 3000);
         return;
@@ -449,12 +458,12 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
       // Play-Store app (TWA) → Google Play Billing sheet, no Stripe (Play
       // billing policy; the server 403s Stripe from the TWA anyway).
       if (isPlayBillingActive()) {
-        await purchasePlaySubscription(selectedPlan);
+        await purchasePlaySubscription(activePlan);
         setStep('success');
         setTimeout(() => { onSuccess?.(); onClose?.(); }, 3000);
         return;
       }
-      const res = await subscriptionApi.create(selectedPlan);
+      const res = await subscriptionApi.create(activePlan);
       const { client_secret, publishable_key, mode, trial_days } = res.data;
       setPaymentMode(mode || 'payment');
       setTrialDays(trial_days || 0);
@@ -668,7 +677,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                     <PlanTile
                       key={plan.key}
                       plan={plan}
-                      selected={selectedPlan === plan.key}
+                      selected={activePlan === plan.key}
                       onSelect={setSelectedPlan}
                       t={t}
                     />
@@ -749,15 +758,15 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                   {/* App Store + free trial: what will be charged afterwards,
                       right above the button that starts the trial — not only
                       in the 11 px fine print below (Apple 3.1.2). */}
-                  {iosIap && showTrialOffer && iosProducts?.[selectedPlan] && (
+                  {iosIap && showTrialOffer && iosProducts?.[activePlan] && (
                     <div style={{ margin: '0 0 10px', textAlign: 'center', lineHeight: 1.35 }}>
                       <div style={{ fontSize: '13px', fontWeight: '700', color: '#4ade80' }}>
                         {trialHeadline}
                       </div>
                       <div style={{ fontSize: '17px', fontWeight: '900', color: '#fff', marginTop: '2px' }}>
                         {t('pro.storeTrialThen', {
-                          price: iosProducts[selectedPlan].priceString,
-                          period: t(`pro.plans.every.${(plans.find(pl => pl.key === selectedPlan) || PRO_PLANS[0]).termKey}`),
+                          price: iosProducts[activePlan].priceString,
+                          period: t(`pro.plans.every.${(plans.find(pl => pl.key === activePlan) || PRO_PLANS[0]).termKey}`),
                         })}
                       </div>
                     </div>
@@ -845,10 +854,13 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                   {isPlayBillingActive()
                     ? t('pro.playTerms', { defaultValue:
                       'JAMIE Pro verlängert sich automatisch zum gewählten Preis am Ende jeder Laufzeit. Abrechnung über Google Play; kündbar jederzeit in Google Play → Abos.' })
+                    // Menu names as iOS shows them (Apple support: Einstellungen
+                    // > [Name] > Abonnements; "Apple-ID" is "Apple Account"
+                    // since iOS 18), the 24-hour rule as a condition.
                     : t('pro.iosTerms', { defaultValue:
-                      'JAMIE Pro verlängert sich automatisch zum gewählten Preis am Ende jeder Laufzeit. Kündbar jederzeit über iOS-Einstellungen → Apple-ID → Abos, mindestens 24 Std. vor Ablauf.' })}
-                  {iosTrial && iosProducts?.[selectedPlan] && (
-                    <>{' '}{t('pro.storeTrialTerms', { price: iosProducts[selectedPlan].priceString })}</>
+                      'JAMIE Pro verlängert sich automatisch zum angezeigten Preis um die gewählte Laufzeit, wenn du nicht spätestens 24 Stunden vor Ablauf kündigst. Kündigen kannst du jederzeit in den iPhone-Einstellungen: oben auf deinen Namen tippen → Abonnements.' })}
+                  {iosTrial && iosProducts?.[activePlan] && (
+                    <>{' '}{t('pro.storeTrialTerms', { price: iosProducts[activePlan].priceString })}</>
                   )}
                   {' '}
                   {/* Absolute URLs: inside the iOS app a relative target=_blank
@@ -900,7 +912,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
 
               {/* Amount reminder — reflects the plan the user picked */}
               {(() => {
-                const sel = PRO_PLANS.find(p => p.key === selectedPlan) || PRO_PLANS[0];
+                const sel = PRO_PLANS.find(p => p.key === activePlan) || PRO_PLANS[0];
                 return (
                   <div style={{
                     display:'flex', alignItems:'center', justifyContent:'space-between',

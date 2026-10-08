@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 
 // Paywall vs Apple 3.1.2 (decision 06.10.2026: 1.4.3 ships with Pro). On the
 // iPhone the amount that is actually BILLED must be the clearest price; the
@@ -33,6 +33,7 @@ vi.mock('@stripe/react-stripe-js', () => ({
 }));
 
 const { ProModal } = await import('../components/ProModal');
+const { subscribePro } = await import('../utils/iap');
 
 const storeProducts = (trial = null) => ({
   monthly: { productId: 'pro_monthly', price: 6.99, priceString: '6,99 €', pricePerMonth: 6.99, pricePerMonthString: '6,99 €', currencyCode: 'EUR', freeTrial: trial },
@@ -100,6 +101,31 @@ describe('ProModal paywall — App Store (3.1.2)', () => {
   it('no trial line without a trial', async () => {
     await renderModal();
     expect(screen.queryByText(/^Danach /)).toBeNull();
+  });
+
+  it('the pre-selected plan is the one that is bought', async () => {
+    subscribePro.mockClear();
+    await renderModal();
+    const pressed = screen.getAllByRole('button', { pressed: true });
+    expect(pressed).toHaveLength(1);
+    expect(pressed[0].textContent).toContain('6 Monate');
+    fireEvent.click(screen.getByRole('checkbox'));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Jetzt starten/ })); });
+    expect(subscribePro).toHaveBeenCalledWith('sixmonth');
+  });
+
+  it('a plan StoreKit did not return is never the selection the button would buy', async () => {
+    const all = storeProducts();
+    products.value = { monthly: all.monthly, yearly: all.yearly };   // pro_sixmonth not in this storefront
+    subscribePro.mockClear();
+    await renderModal();
+    expect(screen.queryByText('29,99 €')).toBeNull();
+    const pressed = screen.getAllByRole('button', { pressed: true });
+    expect(pressed).toHaveLength(1);
+    expect(pressed[0].textContent).toContain('1 Monat');
+    fireEvent.click(screen.getByRole('checkbox'));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Jetzt starten/ })); });
+    expect(subscribePro).toHaveBeenCalledWith('monthly');
   });
 });
 

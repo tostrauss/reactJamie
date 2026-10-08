@@ -21,7 +21,7 @@
  */
 
 import db from '../config/database.js';
-import { paymentsEnabled, iosIapEnabled, playBillingEnabled } from '../config/features.js';
+import { paymentsEnabled, iosIapEnabled, playBillingEnabled, iosClientMaySell } from '../config/features.js';
 import { Sentry } from '../config/sentry.js';
 import * as rc from '../utils/revenueCat.js';
 import { isGooglePlayConfigured } from '../utils/googlePlay.js';
@@ -136,14 +136,18 @@ export async function syncRevenueCatSubscription({ userId, source }) {
  * GET /api/iap/config (public, no auth)
  * Which purchase paths the client may show. Everything fail-closed: a path is
  * only on when payments are on, its own switch is on, AND the server can
- * actually verify that store's purchases.
+ * actually verify that store's purchases. The iOS path additionally needs an
+ * app bundle whose purchase glue works (?iap_client, features.js
+ * iosClientMaySell). Only the offer is gated — sync and webhook stay open for
+ * every bundle: they carry real Apple charges and renewals.
  */
-export const getPaymentsConfig = (_req, res) => {
+export const getPaymentsConfig = (req, res) => {
   const iosKey = rc.getIosApiKey();
   res.set('Cache-Control', 'no-store');
   res.json({
     payments_enabled: paymentsEnabled(),
-    ios_iap_enabled: iosIapEnabled() && !!iosKey && rc.isRevenueCatConfigured(),
+    ios_iap_enabled: iosIapEnabled() && !!iosKey && rc.isRevenueCatConfigured()
+      && iosClientMaySell(req.query?.iap_client),
     play_billing_enabled: playBillingEnabled() && isGooglePlayConfigured(),
     revenuecat: {
       ios_api_key: iosKey,

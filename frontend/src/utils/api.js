@@ -825,8 +825,9 @@ export const featureInterest = {
 // ==========================================
 
 export const iap = {
-  // Which purchase paths are live (utils/paymentsConfig.js). Public.
-  getConfig: () => axiosInstance.get('/iap/config'),
+  // Which purchase paths are live (utils/paymentsConfig.js). Public. The iOS
+  // app passes { iap_client } — the server gates the iOS purchase path on it.
+  getConfig: (params) => axiosInstance.get('/iap/config', params ? { params } : undefined),
   // After an iOS purchase / restore: server re-reads the RevenueCat entitlement.
   syncRevenueCat: () => axiosInstance.post('/iap/revenuecat/sync'),
   verifyApple: (payload) => axiosInstance.post('/iap/apple/verify', payload),
