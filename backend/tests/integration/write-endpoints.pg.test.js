@@ -207,6 +207,20 @@ suite('write endpoints against real Postgres', () => {
       name: 'Ann', bio: null, location: null, date_of_birth: '1995-03-03', gender: 'female',
       interests: ['Yoga'], avatar_url: avatar, photos: [], pinnwand: [], favorite_song: null } }));
   });
+  // Reordering profile photos / Pinnwand is ProfileEdit-only (Wunsch
+  // 10.10.2026): the server must store both JSONB arrays in exactly the order
+  // sent and accept any of the photos as the new avatar.
+  it('updateProfile keeps a reordered photo list and Pinnwand exactly as sent', async () => {
+    const img = (n) => `https://app.jamie-app.com/media/uploads/${n}.webp`;
+    ok(await call(C.updateProfile, { userId: A, body: {
+      avatar_url: img('p3'), photos: [img('p1'), img('p2')], pinnwand: [img('w3'), img('w1'), img('w2')] } }));
+    const r = await db.query('SELECT avatar_url, photos, pinnwand FROM users WHERE id=$1', [A]);
+    expect(r.rows[0].avatar_url).toBe(img('p3'));
+    expect(r.rows[0].photos).toEqual([img('p1'), img('p2')]);
+    expect(r.rows[0].pinnwand).toEqual([img('w3'), img('w1'), img('w2')]);
+    // Put the shared fixture back for the tests below.
+    ok(await call(C.updateProfile, { userId: A, body: { avatar_url: avatar, photos: [], pinnwand: [] } }));
+  });
   // Tina spotted a member with no age on 2026-09-15. Cause: googleLogin creates
   // its user with date_of_birth = NULL and NOTHING ever asked — completeOnboarding
   // did not accept the field and the form did not show it. Those accounts ended
@@ -3362,6 +3376,122 @@ suite('write endpoints against real Postgres', () => {
       } finally {
         await db.query('ALTER TABLE IF EXISTS message_polls_bootwin RENAME TO message_polls');
       }
+    });
+  });
+
+
+  // Profile completeness (10.10.2026): only the onboarding wizard ever set
+  // onboarding_completed, so a profile completed in the editor stayed blocked
+  // from every group. The rule (utils/profileCompleteness.js) now heals the
+  // flag on save, app start, login and at the join gate; a one-shot backfill
+  // unlocks those already stuck; redoing the wizard keeps song and bio.
+  describe('profile completeness (10.10.2026)', () => {
+    const mkStuck = async (email, { gender = null, interests = [] } = {}) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, interests, avatar_url, onboarding_completed, auth_provider)
+       VALUES ($1, 'Elli', '1999-05-05', $2, $3::jsonb, $4, FALSE, 'email') RETURNING id`,
+      [email, gender, JSON.stringify(interests), avatar])).rows[0].id;
+    const flag = async (id) =>
+      (await db.query('SELECT onboarding_completed FROM users WHERE id = $1', [id])).rows[0].onboarding_completed;
+
+    it('the backfill ran clean and its SQL rule matches the JS rule', async () => {
+      const { getMigrationHealth } = await import('../../src/config/migrations.js');
+      expect(getMigrationHealth().stepFailures.map(f => f.label || String(f))
+        .filter(l => /onboarding_completed backfill/.test(l))).toEqual([]);
+      const { PROFILE_COMPLETE_SQL } = await import('../../src/utils/profileCompleteness.js');
+      const complete = await mkStuck('smoke-pc-1@x.com', { gender: 'female', interests: ['Musik', 'Kunst', 'Yoga'] });
+      const blank = await mkStuck('smoke-pc-2@x.com', { gender: 'female', interests: ['Musik', ' ', 'Kunst'] });
+      const noGender = await mkStuck('smoke-pc-2b@x.com', { interests: ['Musik', 'Kunst', 'Yoga'] });
+      const r = await db.query(
+        `SELECT id FROM users WHERE id = ANY($1::int[]) AND ${PROFILE_COMPLETE_SQL}`, [[complete, blank, noGender]]);
+      expect(r.rows.map(x => x.id)).toEqual([complete]);
+    });
+
+    it('saving a complete profile in the editor unlocks it in the same response', async () => {
+      const u = await mkStuck('smoke-pc-3@x.com');
+      const res = await call(C.updateProfile, { userId: u, body: { gender: 'female', interests: ['Musik', 'Kunst', 'Yoga'] } });
+      ok(res);
+      expect(res.body.onboarding_completed).toBe(true);
+      expect(await flag(u)).toBe(true);
+    });
+
+    it('an already stuck user is unlocked on the next app start (GET /api/auth/profile)', async () => {
+      const u = await mkStuck('smoke-pc-4@x.com', { gender: 'diverse', interests: ['Gaming', 'Kochen', 'Reisen'] });
+      const res = await call(C.getProfile, { userId: u });
+      ok(res);
+      expect(res.body.onboarding_completed).toBe(true);
+      expect(await flag(u)).toBe(true);
+    });
+
+    it('the join gate heals a complete profile and names what an incomplete one lacks', async () => {
+      const { requireCompleteProfile } = await import('../../src/middleware/auth.js');
+      const gate = async (userId) => {
+        let passed = false;
+        const res = await call((req, r) => requireCompleteProfile(req, r, () => { passed = true; }), { userId });
+        return { res, passed };
+      };
+      const done = await mkStuck('smoke-pc-5@x.com', { gender: 'male', interests: ['Laufen', 'Tennis', 'Golf'] });
+      const ok1 = await gate(done);
+      expect(ok1.passed).toBe(true);
+      expect(await flag(done)).toBe(true);
+
+      const half = await mkStuck('smoke-pc-5b@x.com', { interests: ['Laufen'] });
+      const no = await gate(half);
+      expect(no.passed).toBe(false);
+      expect(no.res.statusCode).toBe(403);
+      expect(no.res.body).toMatchObject({ code: 'PROFILE_INCOMPLETE', missing: ['gender', 'interests'] });
+      expect(await flag(half)).toBe(false);
+    });
+
+    it('redoing the wizard keeps the favourite song and a bio left blank', async () => {
+      const u = await mkStuck('smoke-pc-6@x.com', { gender: 'female', interests: ['Musik', 'Kunst', 'Yoga'] });
+      ok(await call(C.updateProfile, { userId: u, body: { bio: 'Hallo aus Wien', favorite_song: { title: 'Song', artist: 'X' } } }));
+      ok(await call(C.completeOnboarding, { userId: u, body: {
+        gender: 'female', interests: ['Musik', 'Kunst', 'Yoga'], bio: '', photos: [], location: '' } }));
+      const r = await db.query('SELECT bio, favorite_song, onboarding_completed FROM users WHERE id = $1', [u]);
+      expect(r.rows[0].bio).toBe('Hallo aus Wien');
+      expect(r.rows[0].favorite_song).toMatchObject({ title: 'Song' });
+      expect(r.rows[0].onboarding_completed).toBe(true);
+    });
+  });
+
+
+  // Teilnehmerzahl nachträglich ändern (Tina 10.10.2026): an event at 20 could
+  // not be raised (the edit page's stepper used the group cap). The server now
+  // checks a CHANGED limit: 2–500 and never below the people already in.
+  describe('club event participant limit after creation (10.10.2026)', () => {
+    it('raises past 20, accepts the unchanged value, refuses > 500 and below the attendees', async () => {
+      const mk = async (email) => (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ($1, 'Ev', '1995-01-01', 'female', $2, TRUE, 'email') RETURNING id`, [email, avatar])).rows[0].id;
+      const host = await mk('smoke-evsize-host@x.com');
+      const club = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, is_private, approval_status, lat, lng)
+         VALUES ('Size Club', 'club', $1, 'Sport', 'Wien', 100, FALSE, 'approved', 48.2, 16.37) RETURNING id`,
+        [host])).rows[0].id;
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'owner')`, [club, host]);
+      const day = new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10);
+      const created = await call(C.createClubEvent, { userId: host, params: { id: String(club) },
+        body: { name: 'Halloween', date: day, time: '20:00', max_members: 20 } });
+      expect(created.statusCode, JSON.stringify(created.body)).toBe(201);
+      const ev = created.body.id;
+      const tooBigNew = await call(C.createClubEvent, { userId: host, params: { id: String(club) },
+        body: { name: 'Zu groß', date: day, time: '20:00', max_members: 501 } });
+      expect(tooBigNew.statusCode).toBe(400);                // create checks the same 2–500
+      const upd = (max) => call(C.updateClubEvent, { userId: host,
+        params: { id: String(club), eventId: String(ev) }, body: { max_members: max } });
+      const stored = async () => (await db.query('SELECT max_members FROM groups WHERE id = $1', [ev])).rows[0].max_members;
+
+      ok(await upd(80));
+      expect(await stored()).toBe(80);
+      ok(await upd(80));                                  // GroupEdit always re-sends the value
+      expect((await upd(501)).statusCode).toBe(400);
+      for (const e of ['smoke-evsize-a@x.com', 'smoke-evsize-b@x.com', 'smoke-evsize-c@x.com']) {
+        await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, [ev, await mk(e)]);
+      }
+      const below = await upd(2);
+      expect(below.statusCode).toBe(400);
+      expect(below.body.error).toMatch(/bereits \d+ Teilnehmer/);
+      expect(await stored()).toBe(80);
     });
   });
 

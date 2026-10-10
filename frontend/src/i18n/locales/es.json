@@ -1100,6 +1100,12 @@
       "diciembre"
     ],
     "interestsCountFmt": "{{count}} seleccionados",
+    "joinMissing": "Para unirte a grupos aún falta: {{items}}.",
+    "joinMissingParts": {
+      "dob": "tu fecha de nacimiento",
+      "gender": "tu género",
+      "interests": "al menos {{count}} intereses"
+    },
     "spotify": {
       "connected": "Conectado",
       "connectedDesc": "Tu cuenta de Spotify está vinculada",
@@ -1112,6 +1118,18 @@
     "cropPhotoTitle": "Recortar foto de perfil",
     "photosFirstHint": "Tu primera foto es tu foto de perfil. Puedes añadir hasta 6 fotos que los demás podrán ver deslizando.",
     "pinnwandHint": "Tu tablón estilo Pinterest – reúne fotos que muestren tu vibe. Hasta 12.",
+    "photoOrder": {
+      "hint": "Toca una foto para cambiar el orden.",
+      "pickAria": "Seleccionar la foto {{n}} de {{total}}",
+      "groupAria": "Mover la foto {{n}} de {{total}}",
+      "earlier": "Mover un puesto antes",
+      "later": "Mover un puesto después",
+      "makeProfile": "Como foto de perfil",
+      "makeFirst": "Poner en primer lugar",
+      "done": "Listo",
+      "positionFmt": "Ahora en el puesto {{n}} de {{total}}",
+      "removeAria": "Quitar foto"
+    },
     "saveBtn": "Guardar cambios",
     "saveLoading": "Guardando...",
     "toast": {
@@ -1816,6 +1834,9 @@
       "desc": "Descripción",
       "descPlaceholder": "Cuenta algo sobre el grupo…",
       "size": "Tamaño del grupo",
+      "sizeEvent": "Máx. participantes",
+      "sizeLess": "Menos",
+      "sizeMore": "Más",
       "category": "Categoría",
       "date": "Fecha",
       "time": "Hora",

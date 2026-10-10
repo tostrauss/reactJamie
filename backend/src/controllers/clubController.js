@@ -1577,6 +1577,14 @@ export const createClubEvent = async (req, res) => {
   if (ticketUrl && !(await isUserPro(userId))) {
     return res.status(403).json({ error: 'Kostenpflichtige Events sind ein Pro-Feature.', code: 'PRO_REQUIRED' });
   }
+  // Participant limit: 2–500 like the create form and updateClubEvent; unset → 20.
+  let createMax = 20;
+  if (max_members !== undefined && max_members !== null && max_members !== '') {
+    createMax = Number.parseInt(max_members, 10);
+    if (Number.isNaN(createMax) || createMax < 2 || createMax > 500) {
+      return res.status(400).json({ error: 'Maximale Teilnehmerzahl muss zwischen 2 und 500 liegen' });
+    }
+  }
 
   try {
     const club = await db.query(
@@ -1647,7 +1655,7 @@ export const createClubEvent = async (req, res) => {
         club.rows[0].category || null,
         dateTime,
         eventLocation,
-        max_members || 20,
+        createMax,
         userId,
         parseInt(id, 10),
         eventIsPrivate,
@@ -1823,6 +1831,31 @@ export const updateClubEvent = async (req, res) => {
       return res.status(403).json({ error: 'Keine Berechtigung' });
     }
 
+    // Teilnehmerlimit nachträglich ändern (Tina 10.10.2026): 2–500 like the
+    // create form, and never below the people already in. Only a CHANGED value
+    // is checked — GroupEdit always re-sends max_members, so an untouched
+    // legacy value (or an old iOS bundle's) must never make the event
+    // unsaveable. Raising it notifies the waitlist below (promoteWaitlistSeats).
+    let maxParam = null;
+    if (max_members !== undefined && max_members !== null && max_members !== '') {
+      const parsedMax = Number.parseInt(max_members, 10);
+      const storedMax = Number(event.rows[0].max_members);
+      if (parsedMax !== storedMax) {
+        const upper = Math.max(500, storedMax || 0);
+        if (Number.isNaN(parsedMax) || parsedMax < 2 || parsedMax > upper) {
+          return res.status(400).json({ error: `Maximale Teilnehmerzahl muss zwischen 2 und ${upper} liegen` });
+        }
+        const cnt = await db.query('SELECT COUNT(*)::int AS c FROM group_members WHERE group_id = $1', [eventId]);
+        const current = cnt.rows[0]?.c ?? 0;
+        if (parsedMax < current) {
+          return res.status(400).json({
+            error: `Es sind bereits ${current} Teilnehmer dabei – die maximale Teilnehmerzahl darf nicht darunter liegen.`,
+          });
+        }
+        maxParam = parsedMax;
+      }
+    }
+
     const textToCheck = [name, description].filter(Boolean).join('\n');
     if (textToCheck) {
       const { safe, reason } = await checkTextSafety(textToCheck);
@@ -1873,7 +1906,7 @@ export const updateClubEvent = async (req, res) => {
         description !== undefined ? (description || null) : null,
         dateTime,
         eventLocation,
-        max_members !== undefined ? (parseInt(max_members, 10) || null) : null,
+        maxParam,
         is_recurring_weekly === undefined ? null : !!is_recurring_weekly,
         coords?.lat ?? null,
         coords?.lng ?? null,

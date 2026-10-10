@@ -213,6 +213,8 @@ export const GroupEdit = () => {
     try {
       await groups.kickMember(id, memberId);
       setMembers(prev => prev.filter(m => m.id !== memberId && m.user_id !== memberId));
+      // The size stepper's floor follows the members still in.
+      setGroup(g => (g ? { ...g, members_count: Math.max(0, (Number(g.members_count) || 0) - 1) } : g));
     } catch {
       toast.error(t('groupEdit.removeError'));
     }
@@ -283,6 +285,23 @@ export const GroupEdit = () => {
   // Only the club OWNER may assign/revoke co-managers (a manager viewing this
   // page can edit + invite + remove members, but not mint more managers).
   const viewerIsOwner = !!(group && user && Number(group.owner_id) === Number(user.id));
+
+  // Teilnehmerzahl (Tina 10.10.2026: "Events nachträglich auf mehr Leute
+  // stellen"). Clubs AND club events use 2–500 — the event create form's range
+  // and the server's; events used to get the group cap by accident, so "+"
+  // stopped at 20. Groups stay 4–20 (Tobi 30.07.2026; a legacy group past 20
+  // keeps its size). Never below the people already in: members_count, not
+  // members.length (a club manager editing someone else's event only gets the
+  // Pro-gated preview of the roster).
+  const memberCount = Math.max(Number(group?.members_count) || 0, members.length);
+  const wideSize = isClub || isEvent;
+  const sizeMin = Math.max(wideSize ? 2 : 4, memberCount);
+  const sizeMax = wideSize ? Math.max(500, Number(group?.max_members) || 0) : Math.max(20, memberCount);
+  // ±1 up to 20, then ±5, so 20 → 80 is not 60 taps.
+  const stepSize = (v, dir) => (!wideSize ? v + dir
+    : dir > 0 ? (v < 20 ? v + 1 : Math.floor(v / 5) * 5 + 5)
+      : (v <= 20 ? v - 1 : Math.ceil(v / 5) * 5 - 5));
+  const clampSize = (v) => Math.min(sizeMax, Math.max(sizeMin, v));
 
   const groupName = group?.name || group?.title || t('groupEdit.fallbackName');
   const displayDate = formData.date
@@ -573,16 +592,22 @@ export const GroupEdit = () => {
 
             <div className="ge-controls-row">
               <div className="ge-control-block">
-                <span className="ge-control-label">{t('groupEdit.fields.size')}</span>
+                <span className="ge-control-label">{isEvent ? t('groupEdit.fields.sizeEvent') : t('groupEdit.fields.size')}</span>
                 <div className="ge-stepper">
                   <button
+                    type="button"
                     className="ge-step-btn"
-                    onClick={() => setFormData(p => ({ ...p, max_members: Math.max(isClub ? 2 : 4, p.max_members - 1) }))}
+                    disabled={formData.max_members <= sizeMin}
+                    aria-label={t('groupEdit.fields.sizeLess')}
+                    onClick={() => setFormData(p => ({ ...p, max_members: clampSize(stepSize(p.max_members, -1)) }))}
                   >−</button>
                   <span className="ge-step-val">{formData.max_members}</span>
                   <button
+                    type="button"
                     className="ge-step-btn"
-                    onClick={() => setFormData(p => ({ ...p, max_members: Math.min(isClub ? 500 : Math.max(20, members.length), p.max_members + 1) }))}
+                    disabled={formData.max_members >= sizeMax}
+                    aria-label={t('groupEdit.fields.sizeMore')}
+                    onClick={() => setFormData(p => ({ ...p, max_members: clampSize(stepSize(p.max_members, 1)) }))}
                   >+</button>
                 </div>
               </div>

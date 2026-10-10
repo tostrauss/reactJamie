@@ -1100,6 +1100,12 @@
       "December"
     ],
     "interestsCountFmt": "{{count}} selected",
+    "joinMissing": "To join groups you still need: {{items}}.",
+    "joinMissingParts": {
+      "dob": "your date of birth",
+      "gender": "your gender",
+      "interests": "at least {{count}} interests"
+    },
     "spotify": {
       "connected": "Connected",
       "connectedDesc": "Your Spotify account is linked",
@@ -1112,6 +1118,18 @@
     "cropPhotoTitle": "Crop profile photo",
     "photosFirstHint": "Your first photo is your profile picture. Add up to 6 photos that others can swipe through.",
     "pinnwandHint": "Your Pinterest-style wall — collect photos that show your vibe. Up to 12.",
+    "photoOrder": {
+      "hint": "Tap a photo to change the order.",
+      "pickAria": "Select photo {{n}} of {{total}}",
+      "groupAria": "Move photo {{n}} of {{total}}",
+      "earlier": "Move one place earlier",
+      "later": "Move one place later",
+      "makeProfile": "Make profile picture",
+      "makeFirst": "Move to the front",
+      "done": "Done",
+      "positionFmt": "Now in place {{n}} of {{total}}",
+      "removeAria": "Remove photo"
+    },
     "saveBtn": "Save changes",
     "saveLoading": "Saving...",
     "toast": {
@@ -1816,6 +1834,9 @@
       "desc": "Description",
       "descPlaceholder": "Tell people about the group…",
       "size": "Group size",
+      "sizeEvent": "Max. participants",
+      "sizeLess": "Fewer",
+      "sizeMore": "More",
       "category": "Category",
       "date": "Date",
       "time": "Time",

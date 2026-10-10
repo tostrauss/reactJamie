@@ -782,3 +782,23 @@
 .ge-toggle input:checked + .ge-toggle-slider::before {
   transform: translateX(20px);
 }
+
+/* Size stepper at its limit (2–500 for clubs and events, 4–20 for groups, never
+   below the people already in). */
+.ge-step-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Three-digit limits (clubs and events go up to 500) next to the date block:
+   keep the round buttons round and the number whole, tighten the gaps below
+   390px, stack the two blocks only on the narrowest phones. */
+.ge-step-btn { flex-shrink: 0; }
+.ge-step-val { flex-shrink: 0; }
+@media (max-width: 389px) {
+  .ge-stepper { gap: 8px; }
+}
+@media (max-width: 359px) {
+  .ge-controls-row { flex-direction: column; }
+  .ge-control-divider { width: auto; height: 1px; margin: 0 18px; }
+}
