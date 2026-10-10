@@ -1,11 +1,24 @@
-# iOS-Update für Tina — Version 1.4.4 (JAMIE Pro, Profilbilder im Gruppenchat, Event-Chats)
+# iOS-Update für Tina — Version 1.4.4 (JAMIE Pro, Chat-Profilbilder, Event-Chats, Fotos umreihen)
 
-Stand: **08.10.2026** · Ziel: **Version 1.4.4** mit den drei Pro-Abos in den App Store bringen.
+Stand: **10.10.2026** · Ziel: **Version 1.4.4** mit den drei Pro-Abos in den App Store bringen.
 
 **Außerdem neu in 1.4.4** (dein Feedback vom 08.10.): Im Gruppenchat steht neben der ersten
 Nachricht jeder Person ihr **Profilbild** (antippen → Profil), wie bei WhatsApp. Und
 **Chats von Club-Events** (z. B. „JAMIE x Mon Ami Halloween") stehen jetzt in der
 Chatliste und im roten Zähler — bisher wurden sie dort komplett ausgeblendet.
+
+**Und aus dem Feedback vom 10.10.** (Elli per Instagram, du):
+- **Fotos nachträglich umreihen:** Profil → Bearbeiten → Foto antippen → nach vorne,
+  nach hinten oder „Als Profilbild". Bei der Pinnwand genauso.
+- **Eine Interessen-Liste** für Start-Fragebogen und Profil (25 Stück, „Mode" und
+  „Brettspiele" jetzt überall).
+- **Profil bearbeiten** sagt oben, was zum Gruppen-Beitritt noch fehlt.
+- **Club-Events nachträglich vergrößern:** „Max. Teilnehmer" geht bis 500 (bisher war bei
+  20 Schluss).
+
+Dass ein im Profil ausgefülltes Profil **sofort** zum Beitritt reicht, ist ein Server-Fix:
+Der wirkt nach Tobis Push in **jeder** App-Version, auch in 1.4.3 — dafür braucht es 1.4.4
+nicht. Die Event-Größe kannst du bis 1.4.4 im Browser (app.jamie-app.com) ändern.
 
 **Was passiert ist:** In 1.4.3 (Build 12) steckt ein Fehler in **unserer** Kauf-Anbindung,
 nicht in deinen Einstellungen: Das Pro-Fenster lädt endlos, darum hast du in TestFlight
@@ -217,6 +230,15 @@ die Benachrichtigung kommt. Keine weiße Seite, nichts hängt.
 - **Event-Chats (neu):** **Chats** → „Alle" und „Gruppen": Der Chat von „JAMIE x Mon Ami
   Halloween" (oder einem anderen Club-Event, in dem du bist) steht in der Liste, mit der
   letzten Nachricht. Schreibt jemand dort, erscheint der rote Zähler unten.
+- **Fotos umreihen (neu):** Profil → Bearbeiten → ein Profilfoto antippen (orangener
+  Rahmen) → unten erscheinen ‹ · „Als Profilbild" · › · „Fertig". Ein Foto nach vorne
+  schieben, **Speichern** → auf deinem Profil steht es an der neuen Stelle. Danach
+  wieder zurück, wie es war. Bei der Pinnwand heißt der Knopf „Ganz nach vorne".
+- **Event-Größe (neu):** In einem Club-Event, das du verwaltest → Bearbeiten →
+  **„Max. Teilnehmer"**: „+" geht über 20 (ab 20 in Fünferschritten), **Speichern** →
+  die neue Zahl steht beim Event. „−" geht nie unter die Zahl, die schon dabei ist.
+- **Interessen (neu):** Profil → Bearbeiten → Interessen: „Mode" **und** „Brettspiele"
+  sind beide da.
 
 Klappt h und der Rundgang → Schritt 7. Hakt etwas → Schritt 6.
 
