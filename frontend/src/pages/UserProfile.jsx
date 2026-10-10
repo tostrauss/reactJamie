@@ -12,6 +12,7 @@ import { AttendanceTiersCard } from '../components/AttendanceTiersCard';
 import { normalizeTier } from '../utils/attendanceTiers';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { ProfilePhotoCarousel } from '../components/ProfilePhotoCarousel';
+import { PinnwandMasonry } from '../components/PinnwandMasonry';
 import '../styles/user-profile.css';
 
 export const UserProfile = () => {
@@ -331,19 +332,11 @@ export const UserProfile = () => {
       {/* ── Photo grid ── */}
       {activeTab === 'pinnwand' && (
         pinnwandPhotos.length > 0 ? (
-          <div className="pinnwand-masonry">
-            {pinnwandPhotos.map((photo, i) => (
-              <button
-                key={i}
-                type="button"
-                className="pinnwand-masonry-item"
-                onClick={() => setPinnwandLightboxIndex(i)}
-                aria-label={t('userProfile.viewPhotoAria')}
-              >
-                <img src={photo} alt="" loading="lazy" />
-              </button>
-            ))}
-          </div>
+          <PinnwandMasonry
+            photos={pinnwandPhotos}
+            onOpen={setPinnwandLightboxIndex}
+            itemAriaLabel={t('userProfile.viewPhotoAria')}
+          />
         ) : (
           <div className="up-photo-grid">
             <p className="up-empty-photos">{t('userProfile.emptyPhotos')}</p>

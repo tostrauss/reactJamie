@@ -6,15 +6,13 @@ import { api } from '../utils/api';
 import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
 import { ImageUpload } from '../components/ImageUpload';
 import '../styles/auth.css';
+import { INTEREST_NAMES, MIN_INTERESTS } from '../utils/interests';
 
 // Interest values are stored canonically in German on the user row — translating
 // them would break category matching. Display as-is; later phases can add a
 // parallel display-name map per locale.
-const INTEREST_OPTIONS = [
-  'Sport', 'Musik', 'Technik', 'Kunst', 'Soziales', 'Gaming',
-  'Fitness', 'Reisen', 'Essen', 'Filme', 'Lesen', 'Fotografie',
-  'Wandern', 'Yoga', 'Tanzen', 'Kochen', 'Mode', 'Natur', 'Clubbing'
-];
+// Shared with the profile editor (utils/interests.js).
+const INTEREST_OPTIONS = INTEREST_NAMES;
 
 // 5 steps total — used for the progress dots only; visible labels come
 // from i18n at render time.
@@ -224,7 +222,7 @@ export const Onboarding = () => {
     }
   };
 
-  const interestsNeeded = Math.max(0, 3 - formData.interests.length);
+  const interestsNeeded = Math.max(0, MIN_INTERESTS - formData.interests.length);
   // Own interests first: appended at the END they landed below the fold
   // (under „Clubbing"), so adding one looked like nothing happened.
   const customInterests = formData.interests.filter(i => !INTEREST_OPTIONS.includes(i));
@@ -498,7 +496,7 @@ export const Onboarding = () => {
           <button
             className="auth-btn auth-btn-primary"
             onClick={handleNext}
-            disabled={currentStep === 2 && formData.interests.length < 3}
+            disabled={currentStep === 2 && formData.interests.length < MIN_INTERESTS}
           >
             {t('onboarding.next')}
           </button>

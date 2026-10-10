@@ -1748,6 +1748,20 @@ select:focus {
 @media (min-width: 480px) {
   .pinnwand-masonry { column-count: 3; }
 }
+/* Reading-order variant (components/PinnwandMasonry.jsx): photo i is dealt
+   into column i % n by JS, each column a plain stack — same stagger, but the
+   order a user sets in ProfileEdit reads left → right instead of down the
+   first column. Placed after the media query so it wins at every width. */
+.pinnwand-masonry--rows {
+  column-count: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.pinnwand-col {
+  flex: 1 1 0;
+  min-width: 0;
+}
 
 .pinnwand-masonry-item,
 .pinnwand-masonry-add {

@@ -9,26 +9,12 @@ import { useToast } from '../context/ToastContext';
 import SpotifySongPicker from '../components/SpotifySongPicker';
 import { ImageCropModal } from '../components/ImageCropModal';
 import { downscaleImageFile } from '../utils/images';
+import { movePhoto, joinProfilePhotos, splitProfilePhotos } from '../utils/photoOrder';
+import { INTERESTS, MIN_INTERESTS } from '../utils/interests';
 import '../styles/profile.css';
 
-const AVAILABLE_INTERESTS = [
-  { name: 'Wandern', icon: '\u{1F3D4}\uFE0F' },
-  { name: 'Tennis', icon: '\u{1F3BE}' },
-  { name: 'Golf', icon: '\u26F3' },
-  { name: 'Laufen', icon: '\u{1F3C3}' },
-  { name: 'Volleyball', icon: '\u{1F3D0}' },
-  { name: 'Yoga', icon: '\u{1F9D8}' },
-  { name: 'Kochen', icon: '\u{1F468}\u200D\u{1F373}' },
-  { name: 'Fotografie', icon: '\u{1F4F7}' },
-  { name: 'Musik', icon: '\u{1F3B5}' },
-  { name: 'Kunst', icon: '\u{1F3A8}' },
-  { name: 'Tanzen', icon: '\u{1F483}' },
-  { name: 'Brettspiele', icon: '\u{1F3B2}' },
-  { name: 'Reisen', icon: '\u2708\uFE0F' },
-  { name: 'Gaming', icon: '\u{1F3AE}' },
-  { name: 'Fitness', icon: '\u{1F4AA}' },
-  { name: 'Schwimmen', icon: '\u{1F3CA}' }
-];
+// Shared with the onboarding wizard (utils/interests.js).
+const AVAILABLE_INTERESTS = INTERESTS;
 
 // value: backend enum (en) \u2014 must match GENDER_VALUES in authController.js
 // value: backend enum (en) \u2014 must match GENDER_VALUES in authController.js.
@@ -38,6 +24,41 @@ const GENDER_OPTION_KEYS = [
   { value: 'female',  labelKey: 'profileEdit.gender.female' },
   { value: 'diverse', labelKey: 'profileEdit.gender.diverse' }
 ];
+
+// Reihenfolge ändern (Wunsch 10.10.2026). Sits under a photo grid: with nothing
+// of THIS grid selected it is a one-line hint, with a photo selected it is the
+// move bar. Tap-to-select instead of drag & drop: HTML5 drag events do not fire
+// for touch in WKWebView, and a pointer drag would fight the .settings-body
+// scroll. A single photo has no order to change → nothing at all.
+function PhotoOrderBar({ list, count, selected, firstLabel, onMove, onDone }) {
+  const { t } = useTranslation();
+  if (count < 2) return null;
+  const index = selected?.list === list && selected.index < count ? selected.index : null;
+  if (index === null) {
+    return <p className="pe-photo-hint pe-order-hint">{t('profileEdit.photoOrder.hint')}</p>;
+  }
+  return (
+    <div className="pe-order-bar" role="group" aria-label={t('profileEdit.photoOrder.groupAria', { n: index + 1, total: count })}>
+      <button type="button" className="pe-order-btn pe-order-btn--icon" onClick={() => onMove(index - 1)}
+        disabled={index === 0} aria-label={t('profileEdit.photoOrder.earlier')}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+          <path d="M15 18l-6-6 6-6"/>
+        </svg>
+      </button>
+      <button type="button" className="pe-order-btn pe-order-btn--first" onClick={() => onMove(0)} disabled={index === 0}>
+        {firstLabel}
+      </button>
+      <button type="button" className="pe-order-btn pe-order-btn--icon" onClick={() => onMove(index + 1)}
+        disabled={index === count - 1} aria-label={t('profileEdit.photoOrder.later')}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+          <path d="M9 18l6-6-6-6"/>
+        </svg>
+      </button>
+      <button type="button" className="pe-order-btn" onClick={onDone}>{t('profileEdit.photoOrder.done')}</button>
+      <span className="sr-only" aria-live="polite">{t('profileEdit.photoOrder.positionFmt', { n: index + 1, total: count })}</span>
+    </div>
+  );
+}
 
 export const ProfileEdit = () => {
   const { user, setUser } = useContext(AuthContext);
@@ -74,6 +95,8 @@ export const ProfileEdit = () => {
   // Pending crop: the picked profile photo waits in the crop modal until the
   // user frames it, then we upload the cropped result. { file, onConfirm }.
   const [cropPhoto, setCropPhoto] = useState(null);
+  // The photo picked for moving: { list: 'profile' | 'pinnwand', index } or null.
+  const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [spotifyConnected, setSpotifyConnected] = useState(false);
   const [spotifyLoading, setSpotifyLoading] = useState(false);
   const [locationSuggestions, setLocationSuggestions] = useState([]);
@@ -92,16 +115,11 @@ export const ProfileEdit = () => {
       }
       setDobParts({ y, m, d });
       // Normalise to the unified model: avatar_url is always the first photo.
-      // Legacy profiles with photos but no avatar → promote photos[0]. Dedupe
-      // the avatar out of `photos` in case it was stored in both places.
-      const existingPhotos = user.photos || [];
-      let avatar = user.avatar_url || '';
-      let rest = existingPhotos;
-      if (!avatar && existingPhotos.length) {
-        avatar = existingPhotos[0];
-        rest = existingPhotos.slice(1);
-      }
-      rest = rest.filter(p => p && p !== avatar);
+      // Legacy profiles with photos but no avatar → promote photos[0]; the
+      // avatar is deduped out of `photos` (Onboarding stores it in both). Both
+      // lists are de-duplicated so a URL can key its tile (uploads are
+      // UUID-named, so only a hand-crafted row can hold a duplicate).
+      const { avatar_url, photos } = splitProfilePhotos(joinProfilePhotos(user.avatar_url, user.photos));
       setFormData({
         name: user.name || '',
         bio: user.bio || '',
@@ -109,10 +127,11 @@ export const ProfileEdit = () => {
         date_of_birth: y && m && d ? `${y}-${m}-${d}` : '',
         gender: user.gender || '',
         interests: user.interests || [],
-        avatar_url: avatar,
-        photos: rest,
-        pinnwand: user.pinnwand || []
+        avatar_url,
+        photos,
+        pinnwand: [...new Set((user.pinnwand || []).filter(Boolean))]
       });
+      setSelectedPhoto(null);
       setFavoriteSong(user.favorite_song || null);
     }
   }, [user]);
@@ -254,14 +273,20 @@ export const ProfileEdit = () => {
     }, 350);
   };
 
+  // The profile photos as ONE ordered list — [0] is the profile picture
+  // (avatar_url), the rest is `photos`, the split the backend and every reader
+  // expect. Add, remove and move all go through here.
+  const setProfilePhotos = (update) => setFormData(prev => ({
+    ...prev,
+    ...splitProfilePhotos(update(joinProfilePhotos(prev.avatar_url, prev.photos))),
+  }));
+
   // Upload a (already cropped) profile photo. First photo becomes the avatar.
   const uploadProfilePhoto = async (file) => {
     setPhotoUploading(true);
     try {
       const res = await upload.image(file, 'avatar');
-      setFormData(prev => prev.avatar_url
-        ? { ...prev, photos: [...(prev.photos || []), res.data.url] }
-        : { ...prev, avatar_url: res.data.url });
+      setProfilePhotos(list => [...list, res.data.url]);
     } catch (err) {
       // Surface the backend's reason if present — moderation rejection, format,
       // size, etc. — so the user knows WHY the upload failed.
@@ -292,17 +317,35 @@ export const ProfileEdit = () => {
     });
   };
 
-  const handlePhotoRemove = (index) => {
-    setFormData(prev => ({ ...prev, photos: prev.photos.filter((_, i) => i !== index) }));
+  // Removing the profile picture (index 0) promotes the next photo to be the
+  // new one, so the first slot is never left empty while other photos remain.
+  // Clears the selection: every index after the removed one shifts.
+  const removeProfilePhoto = (index) => {
+    setSelectedPhoto(null);
+    setProfilePhotos(list => list.filter((_, i) => i !== index));
   };
 
-  // Removing the profile picture promotes the next photo to be the new one,
-  // so the first slot is never left empty while other photos remain.
-  const handleProfilePhotoRemove = () => {
-    setFormData(prev => {
-      const [next, ...rest] = prev.photos || [];
-      return { ...prev, avatar_url: next || '', photos: rest };
-    });
+  // Tap a photo to pick it for moving; tap it again to put it down.
+  const togglePhotoSelect = (list, index) => {
+    const count = list === 'profile'
+      ? joinProfilePhotos(formData.avatar_url, formData.photos).length
+      : (formData.pinnwand || []).length;
+    if (count < 2) return;   // one photo has no order to change
+    setSelectedPhoto(prev => (prev?.list === list && prev.index === index ? null : { list, index }));
+  };
+
+  // Move the picked photo to `to`. The selection follows the photo, so the
+  // arrows can be tapped again and again.
+  const moveSelectedPhoto = (to) => {
+    if (!selectedPhoto) return;
+    const { list, index } = selectedPhoto;
+    const len = list === 'profile'
+      ? joinProfilePhotos(formData.avatar_url, formData.photos).length
+      : (formData.pinnwand || []).length;
+    if (to < 0 || to >= len || to === index) return;
+    if (list === 'profile') setProfilePhotos(arr => movePhoto(arr, index, to));
+    else setFormData(prev => ({ ...prev, pinnwand: movePhoto(prev.pinnwand || [], index, to) }));
+    setSelectedPhoto({ list, index: to });
   };
 
   // ── Pinnwand (separate Pinterest-style gallery) ──
@@ -329,8 +372,29 @@ export const ProfileEdit = () => {
   };
 
   const handlePinnwandRemove = (index) => {
+    setSelectedPhoto(null);
     setFormData(prev => ({ ...prev, pinnwand: prev.pinnwand.filter((_, i) => i !== index) }));
   };
+
+  // What the join rule (backend utils/profileCompleteness.js: 18+ birth date,
+  // gender, at least 3 interests) still misses in what is on this page. Only
+  // while the server has not unlocked the profile yet — saving a page that
+  // meets it unlocks groups at once, so the notice is the to-do list.
+  const joinMissing = (() => {
+    if (!user || user.onboarding_completed === true) return [];
+    const missing = [];
+    const dob = formData.date_of_birth ? new Date(formData.date_of_birth) : null;
+    const adultCutoff = new Date();
+    adultCutoff.setFullYear(adultCutoff.getFullYear() - 18);
+    if (!dob || Number.isNaN(dob.getTime()) || dob > adultCutoff) missing.push('dob');
+    if (!['male', 'female', 'diverse', 'prefer_not_to_say'].includes(formData.gender)) missing.push('gender');
+    if ((formData.interests || []).filter((s) => s && String(s).trim()).length < MIN_INTERESTS) missing.push('interests');
+    return missing;
+  })();
+
+  const profilePhotos = joinProfilePhotos(formData.avatar_url, formData.photos);
+  const pinnwandPhotos = formData.pinnwand || [];
+  const isPicked = (list, i) => selectedPhoto?.list === list && selectedPhoto.index === i;
 
   return (
     <div className="settings-page">
@@ -346,6 +410,13 @@ export const ProfileEdit = () => {
 
       <div className="settings-body">
       <form onSubmit={handleSubmit}>
+        {joinMissing.length > 0 && (
+          <p className="pe-join-missing" role="status">
+            {t('profileEdit.joinMissing', {
+              items: joinMissing.map((k) => t(`profileEdit.joinMissingParts.${k}`, { count: MIN_INTERESTS })).join(', '),
+            })}
+          </p>
+        )}
         {/* Pers\u00f6nliche Daten */}
         <div className="settings-section">
           <h3 className="settings-section-title">
@@ -495,9 +566,9 @@ export const ProfileEdit = () => {
           </h3>
 
           <div className="pe-interests-grid">
-            {/* Onboarding bietet eine andere Liste + frei eingetippte Interessen an —
-                gespeicherte Interessen außerhalb von AVAILABLE_INTERESTS müssen trotzdem
-                sichtbar (und abwählbar) sein, sonst stimmt der Zähler nicht mit dem Grid überein. */}
+            {/* Gespeicherte Interessen außerhalb der Liste (frei im Onboarding
+                eingetippt, oder aus einer älteren Liste) müssen trotzdem sichtbar
+                (und abwählbar) sein, sonst stimmt der Zähler nicht mit dem Grid überein. */}
             {[
               ...AVAILABLE_INTERESTS,
               ...formData.interests
@@ -605,36 +676,31 @@ export const ProfileEdit = () => {
               <circle cx="12" cy="13" r="4"/>
             </svg>
             {t('profileEdit.sections.photos')}
-            <span className="pe-interest-count">{t('profileEdit.photosCountFmt', { current: (formData.avatar_url ? 1 : 0) + (formData.photos || []).length, total: 6 })}</span>
+            <span className="pe-interest-count">{t('profileEdit.photosCountFmt', { current: profilePhotos.length, total: 6 })}</span>
           </h3>
 
           <p className="pe-photo-hint">{t('profileEdit.photosFirstHint')}</p>
 
           <div className="pe-photo-grid">
-            {/* Profile picture — always the first photo */}
-            {formData.avatar_url && (
-              <div className="pe-photo-cell pe-photo-cell--profile">
-                <img src={formData.avatar_url} alt="" loading="lazy" decoding="async" />
-                <span className="pe-photo-badge">{t('profileEdit.photosProfileBadge')}</span>
+            {/* Slot 1 is the profile picture. Keyed by URL so a moved tile keeps
+                its DOM node and its already-decoded image. */}
+            {profilePhotos.map((url, i) => (
+              <div key={url} className={`pe-photo-cell${i === 0 ? ' pe-photo-cell--profile' : ''}${isPicked('profile', i) ? ' is-picked' : ''}`}>
                 <button
                   type="button"
-                  className="pe-photo-remove"
-                  onClick={handleProfilePhotoRemove}
+                  className="pe-photo-pick"
+                  aria-pressed={isPicked('profile', i)}
+                  aria-label={t('profileEdit.photoOrder.pickAria', { n: i + 1, total: profilePhotos.length })}
+                  onClick={() => togglePhotoSelect('profile', i)}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                    <path d="M18 6L6 18M6 6l12 12"/>
-                  </svg>
+                  <img src={url} alt="" loading="lazy" decoding="async" />
                 </button>
-              </div>
-            )}
-
-            {(formData.photos || []).map((url, i) => (
-              <div key={i} className="pe-photo-cell">
-                <img src={url} alt="" loading="lazy" decoding="async" />
+                {i === 0 && <span className="pe-photo-badge">{t('profileEdit.photosProfileBadge')}</span>}
                 <button
                   type="button"
                   className="pe-photo-remove"
-                  onClick={() => handlePhotoRemove(i)}
+                  aria-label={t('profileEdit.photoOrder.removeAria')}
+                  onClick={() => removeProfilePhoto(i)}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                     <path d="M18 6L6 18M6 6l12 12"/>
@@ -643,7 +709,7 @@ export const ProfileEdit = () => {
               </div>
             ))}
 
-            {((formData.avatar_url ? 1 : 0) + (formData.photos || []).length) < 6 && (
+            {profilePhotos.length < 6 && (
               <button
                 type="button"
                 className="pe-photo-add"
@@ -656,7 +722,7 @@ export const ProfileEdit = () => {
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M12 5v14M5 12h14"/>
                       </svg>
-                      {!formData.avatar_url && <span className="pe-photo-add-label">{t('profileEdit.photosProfileBadge')}</span>}
+                      {!profilePhotos.length && <span className="pe-photo-add-label">{t('profileEdit.photosProfileBadge')}</span>}
                     </>
                 }
               </button>
@@ -669,6 +735,14 @@ export const ProfileEdit = () => {
               hidden
             />
           </div>
+          <PhotoOrderBar
+            list="profile"
+            count={profilePhotos.length}
+            selected={selectedPhoto}
+            firstLabel={t('profileEdit.photoOrder.makeProfile')}
+            onMove={moveSelectedPhoto}
+            onDone={() => setSelectedPhoto(null)}
+          />
         </div>
 
         {/* Pinnwand — separate Pinterest-style gallery (vibe check) */}
@@ -679,18 +753,27 @@ export const ProfileEdit = () => {
               <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
             </svg>
             {t('profileEdit.sections.pinnwand')}
-            <span className="pe-interest-count">{t('profileEdit.photosCountFmt', { current: (formData.pinnwand || []).length, total: 12 })}</span>
+            <span className="pe-interest-count">{t('profileEdit.photosCountFmt', { current: pinnwandPhotos.length, total: 12 })}</span>
           </h3>
 
           <p className="pe-photo-hint">{t('profileEdit.pinnwandHint')}</p>
 
           <div className="pe-photo-grid">
-            {(formData.pinnwand || []).map((url, i) => (
-              <div key={i} className="pe-photo-cell">
-                <img src={url} alt="" loading="lazy" decoding="async" />
+            {pinnwandPhotos.map((url, i) => (
+              <div key={url} className={`pe-photo-cell${isPicked('pinnwand', i) ? ' is-picked' : ''}`}>
+                <button
+                  type="button"
+                  className="pe-photo-pick"
+                  aria-pressed={isPicked('pinnwand', i)}
+                  aria-label={t('profileEdit.photoOrder.pickAria', { n: i + 1, total: pinnwandPhotos.length })}
+                  onClick={() => togglePhotoSelect('pinnwand', i)}
+                >
+                  <img src={url} alt="" loading="lazy" decoding="async" />
+                </button>
                 <button
                   type="button"
                   className="pe-photo-remove"
+                  aria-label={t('profileEdit.photoOrder.removeAria')}
                   onClick={() => handlePinnwandRemove(i)}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -700,7 +783,7 @@ export const ProfileEdit = () => {
               </div>
             ))}
 
-            {(formData.pinnwand || []).length < 12 && (
+            {pinnwandPhotos.length < 12 && (
               <button
                 type="button"
                 className="pe-photo-add"
@@ -723,6 +806,14 @@ export const ProfileEdit = () => {
               hidden
             />
           </div>
+          <PhotoOrderBar
+            list="pinnwand"
+            count={pinnwandPhotos.length}
+            selected={selectedPhoto}
+            firstLabel={t('profileEdit.photoOrder.makeFirst')}
+            onMove={moveSelectedPhoto}
+            onDone={() => setSelectedPhoto(null)}
+          />
         </div>
 
         {/* Save Button */}

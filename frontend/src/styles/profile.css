@@ -2409,6 +2409,79 @@
   text-transform: uppercase;
   color: var(--accent-coral);
 }
+
+/* ── Reihenfolge ändern: tap a photo → move bar under the grid ── */
+/* The whole tile is the pick button; badge (pointer-events: none) and the
+   remove × sit on top of it. */
+.pe-photo-pick {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.pe-photo-pick:focus-visible { outline-offset: -3px; }   /* the cell clips overflow */
+
+.pe-photo-cell { transition: transform 0.15s ease; }
+/* Picked: shrinks a little and gets a white ring — distinct from the coral
+   ring of the profile picture. Drawn in ::after because the image covers any
+   inset box-shadow of the cell itself. */
+.pe-photo-cell.is-picked { transform: scale(0.94); }
+.pe-photo-cell.is-picked::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--text-white);
+  border-radius: inherit;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pe-photo-cell { transition: none; }
+}
+
+.pe-order-hint { margin: 10px 4px 0; }
+
+.pe-order-bar {
+  /* Containing block of its .sr-only live region. Without it the region was
+     placed against the page itself, made the document taller than the screen
+     and let a scroll move the whole app shell (review 10.10.2026). */
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 4px 0;
+}
+.pe-order-btn {
+  min-width: 44px;                     /* app-wide touch-target floor */
+  min-height: 44px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  color: var(--text-white);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.15;
+  cursor: pointer;
+}
+.pe-order-btn--icon { padding: 0; }
+/* "Als Profilbild" / "Ganz nach vorne" takes the rest of the row and may wrap
+   to two lines on a 320px phone instead of overflowing. */
+.pe-order-btn--first {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 10px;
+  line-height: 1.2;
+  background: var(--accent-coral);
+  color: #fff;
+}
+.pe-order-btn:disabled { opacity: 0.35; cursor: default; }
 /* Umkreis-Auswahl in den Benachrichtigungs-Einstellungen. Sits in the right
    slot of a .settings-row, where the other rows put a toggle — so it is sized
    to that slot (auto width, not the full-width .settings-input) while keeping
@@ -2432,3 +2505,16 @@
 }
 
 .settings-select:focus { border-color: var(--accent-coral); }
+
+/* "Damit du Gruppen beitreten kannst, fehlt noch: …" on top of Profil
+   bearbeiten (join rule, backend utils/profileCompleteness.js). */
+.pe-join-missing {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: rgba(253, 118, 102, 0.12);
+  border: 1px solid rgba(253, 118, 102, 0.35);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.45;
+}

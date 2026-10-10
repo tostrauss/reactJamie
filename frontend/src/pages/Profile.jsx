@@ -11,6 +11,7 @@ import { usePaymentsConfig } from '../utils/paymentsConfig';
 import { shareLink } from '../utils/share';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { ProfilePhotoCarousel } from '../components/ProfilePhotoCarousel';
+import { PinnwandMasonry } from '../components/PinnwandMasonry';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { AttendanceTierBadge } from '../components/AttendanceTierBadge';
 import { AttendanceTiersCard } from '../components/AttendanceTiersCard';
@@ -366,29 +367,23 @@ export const Profile = () => {
             {activeTab === 'pinnwand' ? (
               <>
                 {/* Pinnwand = Pinterest-style masonry (separate from the
-                    Profilfoto-Carousel above). */}
-                <div className="pinnwand-masonry">
-                  {pinnwandPhotos.map((photo, i) => (
+                    Profilfoto-Carousel above), in the order set in ProfileEdit. */}
+                <PinnwandMasonry
+                  photos={pinnwandPhotos}
+                  onOpen={setPinnwandLightboxIndex}
+                  itemAriaLabel={t('userProfile.viewPhotoAria')}
+                  addTile={
                     <button
-                      key={i}
                       type="button"
-                      className="pinnwand-masonry-item"
-                      onClick={() => setPinnwandLightboxIndex(i)}
-                      aria-label={t('userProfile.viewPhotoAria')}
+                      className="pinnwand-masonry-add"
+                      onClick={() => navigate('/profile/edit')}
+                      aria-label={t('profile.addPhoto')}
                     >
-                      <img src={photo} alt={`Pinnwand ${i + 1}`} loading="lazy" />
+                      <span>+</span>
+                      <p>{t('profile.addPhoto')}</p>
                     </button>
-                  ))}
-                  <button
-                    type="button"
-                    className="pinnwand-masonry-add"
-                    onClick={() => navigate('/profile/edit')}
-                    aria-label={t('profile.addPhoto')}
-                  >
-                    <span>+</span>
-                    <p>{t('profile.addPhoto')}</p>
-                  </button>
-                </div>
+                  }
+                />
 
                 {/* Lieblingssong below pinnwand */}
                 <div className="profile-song-section">
