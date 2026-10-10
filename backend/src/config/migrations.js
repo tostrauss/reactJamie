@@ -4,6 +4,7 @@
 import db from './database.js';
 import { Sentry } from './sentry.js';
 import { DEFAULT_NOTIFY_RADIUS_KM } from '../utils/geoRadius.js';
+import { PROFILE_COMPLETE_SQL } from '../utils/profileCompleteness.js';
 
 // Failure ledger (audit 2026-09-02, operability): steps stay log-and-continue
 // (the fresh-DB bootstrap deliberately tolerates step errors — schema.sql runs
@@ -1216,6 +1217,25 @@ const runStartupMigrations = async () => {
               AND (c.approval_status = 'rejected' OR c.is_active = FALSE OR c.deleted_at IS NOT NULL)
          )`);
     console.log(`   [club-events] retired ${r.rowCount} event(s) of dead clubs`);
+  });
+
+  // Until 10.10.2026 only the onboarding wizard set onboarding_completed, so
+  // everyone who filled in their profile in the editor instead was blocked
+  // from joining (403 PROFILE_INCOMPLETE) and kept seeing the home banner.
+  // The rule lives in utils/profileCompleteness.js now and heals the flag on
+  // save, app start, login and at the join gate; this unlocks the people who
+  // are stuck today in one go. One-way and marker-guarded.
+  await migrate('onboarding_completed backfill (2026-10-10)', async () => {
+    const claimed = await db.query(
+      `INSERT INTO one_shot_migrations (name) VALUES ('2026-10-10_onboarding_completed_backfill')
+       ON CONFLICT (name) DO NOTHING RETURNING name`
+    );
+    if (claimed.rowCount === 0) return;
+    const r = await db.query(`
+      UPDATE users SET onboarding_completed = TRUE
+       WHERE onboarding_completed IS NOT TRUE
+         AND ${PROFILE_COMPLETE_SQL}`);
+    console.log(`   [onboarding] unlocked ${r.rowCount} complete profile(s)`);
   });
 
   // ── One-time storage-domain rewrite (pub-*.r2.dev → custom domain) ──────

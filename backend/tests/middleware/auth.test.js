@@ -8,7 +8,7 @@ vi.mock('../../src/config/database.js', () => ({
   default: { query: vi.fn().mockResolvedValue({ rows: [{ is_active: true, sessions_valid_after: null }] }) },
 }));
 
-import { authenticate, generateToken, optionalAuth } from '../../src/middleware/auth.js';
+import { authenticate, generateToken, optionalAuth, requireCompleteProfile } from '../../src/middleware/auth.js';
 import db from '../../src/config/database.js';
 
 // Set a test secret before importing anything that uses it
@@ -167,5 +167,52 @@ describe('optionalAuth middleware', () => {
     optionalAuth(req, res, next);
     expect(next).toHaveBeenCalled();
     expect(req.userId).toBeNull();
+  });
+});
+
+// ── requireCompleteProfile: the rule decides, not just the wizard's flag ─────
+// 10.10.2026: a profile completed in the editor never set onboarding_completed,
+// so the user stayed blocked from every group. The gate now heals the flag when
+// the profile meets the rule, and says what is missing when it does not.
+describe('requireCompleteProfile', () => {
+  const complete = { id: 7, onboarding_completed: false, date_of_birth: '1995-04-01', gender: 'female', interests: ['Musik', 'Kunst', 'Yoga'] };
+
+  it('passes a flagged profile without touching it', async () => {
+    db.query.mockResolvedValueOnce({ rows: [{ ...complete, onboarding_completed: true }] });
+    const res = makeRes();
+    const nxt = vi.fn();
+    await requireCompleteProfile({ userId: 7 }, res, nxt);
+    expect(nxt).toHaveBeenCalled();
+    expect(db.query).toHaveBeenCalledTimes(1);
+  });
+
+  it('a complete profile without the flag (filled in the editor) heals it and passes', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [{ ...complete }] })   // a copy: the heal mutates the row it got
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] });
+    const res = makeRes();
+    const nxt = vi.fn();
+    await requireCompleteProfile({ userId: 7 }, res, nxt);
+    expect(nxt).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+    expect(db.query.mock.calls[1][0]).toMatch(/SET onboarding_completed = TRUE/);
+  });
+
+  it('an incomplete profile gets a 403 that names what is missing', async () => {
+    db.query.mockResolvedValueOnce({ rows: [{ ...complete, gender: null, interests: ['Musik'] }] });
+    const res = makeRes();
+    const nxt = vi.fn();
+    await requireCompleteProfile({ userId: 7 }, res, nxt);
+    expect(nxt).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+    const body = res.json.mock.calls[0][0];
+    expect(body).toMatchObject({ code: 'PROFILE_INCOMPLETE', missing: ['gender', 'interests'] });
+    expect(body.error).toContain('dein Geschlecht');
+  });
+
+  it('guests stay out', async () => {
+    const res = makeRes();
+    await requireCompleteProfile({ isGuest: true }, res, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(403);
   });
 });

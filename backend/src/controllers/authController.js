@@ -23,6 +23,9 @@ import { readFile } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { POLL_SQL } from '../utils/polls.js';
+import {
+  GENDER_VALUES, checkAdultDob, healOnboardingFlag,
+} from '../utils/profileCompleteness.js';
 
 const __authDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -113,10 +116,9 @@ const isValidEmail = (email) => typeof email === 'string' && email.length <= 254
 // attacker DoS the server with megabyte-sized passwords.
 const MAX_PASSWORD_LENGTH = 200;
 
-// Whitelist of accepted gender values. App lets users skip this field
-// (NULL is OK) but if they set one, it must be a known token. Defined
-// once at module scope so both updateProfile and completeOnboarding share it.
-const GENDER_VALUES = new Set(['male', 'female', 'diverse', 'prefer_not_to_say']);
+// Accepted gender values (GENDER_VALUES) come from utils/profileCompleteness.js:
+// the app lets users skip the field (NULL is OK), but a set value must be a
+// known token — and the completeness rule shares the same set.
 
 // Constant-time-ish dummy bcrypt to equalize login response time when a user
 // does not exist. Without this, lookup time differs between existing and
@@ -424,6 +426,7 @@ export const login = async (req, res) => {
 
     const token = generateToken(user.id);
 
+    await healOnboardingFlag(db, user);
     sanitizeUserForClient(user);
     parseUserJSONFields(user);
 
@@ -450,6 +453,9 @@ export const getProfile = async (req, res) => {
 
     const user = result.rows[0];
     parseUserJSONFields(user);
+    // A profile completed in the editor (or before 10.10.2026) unlocks on the
+    // next app start — no need to redo the wizard. See utils/profileCompleteness.js.
+    await healOnboardingFlag(db, user);
     res.json(user);
   } catch (error) {
     console.error('GetProfile error:', error);
@@ -661,6 +667,10 @@ export const updateProfile = async (req, res) => {
     );
     const user = result.rows[0];
     parseUserJSONFields(user);
+    // Completing the profile here unlocks groups right away — the editor used
+    // to leave onboarding_completed off for good (10.10.2026). ProfileEdit
+    // adopts this response (setUser), so the home banner goes too.
+    await healOnboardingFlag(db, user);
     res.json(user);
   } catch (error) {
     console.error('UpdateProfile error:', error);
@@ -683,21 +693,10 @@ export const updateProfile = async (req, res) => {
 // Spotted in production by Tina on 2026-09-15 ("einen gesehen, wo kein Alter
 // dabei stand").
 //
-// Returns an error body to send, or null when the value is acceptable.
-export const checkAdultDob = (value) => {
-  if (!value) return { error: 'Geburtsdatum ist erforderlich', code: 'DOB_REQUIRED' };
-  const dob = new Date(value);
-  if (isNaN(dob.getTime())) return { error: 'Ungültiges Geburtsdatum', code: 'DOB_INVALID' };
-  const cutoff = new Date();
-  cutoff.setFullYear(cutoff.getFullYear() - 18);
-  if (dob > cutoff) {
-    return {
-      error: 'Du musst mindestens 18 Jahre alt sein, um JAMIE zu nutzen.',
-      code: 'DOB_UNDERAGE',
-    };
-  }
-  return null;
-};
+// Returns an error body to send, or null when the value is acceptable. Lives
+// in utils/profileCompleteness.js since 10.10.2026 (the join gate needs it
+// too); re-exported for existing importers.
+export { checkAdultDob };
 
 export const completeOnboarding = async (req, res) => {
   try {
@@ -762,10 +761,14 @@ export const completeOnboarding = async (req, res) => {
         return res.status(422).json({ error: quality.reason, requiresAvatar: true });
       }
     }
-
     const interestsStr = JSON.stringify(interests || []);
     const photosStr = JSON.stringify(photos || []);
     const songStr = favorite_song ? JSON.stringify(favorite_song) : null;
+    // The wizard never sends a favourite song, and redoing it (the only way out
+    // of the "Profil vervollständigen" banner before 10.10.2026) wiped the one
+    // set in the profile editor — same for a bio left blank. Only an explicit
+    // value replaces them now.
+    const hasFavSong = 'favorite_song' in req.body;
 
     // Preserve values the onboarding form doesn't re-send: location is captured
     // at registration, avatar_url comes from the Google/Apple profile picture.
@@ -787,10 +790,10 @@ export const completeOnboarding = async (req, res) => {
                        AND location IS DISTINCT FROM NULLIF($2, '')
                       THEN NULL ELSE lng END,
            interests = $3,
-           bio = $4,
+           bio = COALESCE(NULLIF($4, ''), bio),
            photos = CASE WHEN $5::jsonb = '[]'::jsonb THEN photos ELSE $5::jsonb END,
            avatar_url = COALESCE($6, avatar_url),
-           favorite_song = $7,
+           favorite_song = CASE WHEN $10::boolean THEN $7::jsonb ELSE favorite_song END,
            -- Writes the birth date a social-login account arrives without.
            -- effectiveDob is the stored value when the form did not send one,
            -- so an email signup's date (set at register, and editable exactly
@@ -801,7 +804,7 @@ export const completeOnboarding = async (req, res) => {
            onboarding_completed = TRUE,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $8`,
-      [gender, location, interestsStr, bio, photosStr, avatar_url, songStr, req.userId, effectiveDob]
+      [gender, location, interestsStr, bio, photosStr, avatar_url, songStr, req.userId, effectiveDob, hasFavSong]
     );
 
     // Return updated user
@@ -1601,6 +1604,7 @@ async function finishGoogleLogin({ email, name, picture, googleId }, res) {
   const fullUser = await db.query(`SELECT ${SAFE_USER_COLS} FROM users WHERE id = $1`, [userId]);
   const user = fullUser.rows[0];
   parseUserJSONFields(user);
+  await healOnboardingFlag(db, user);   // a profile completed in the editor (utils/profileCompleteness.js)
 
   const token = generateToken(user.id);
   setAuthCookie(res, token);
@@ -1781,6 +1785,7 @@ export const appleLogin = async (req, res) => {
     const fullUser = await db.query(`SELECT ${SAFE_USER_COLS} FROM users WHERE id = $1`, [userId]);
     const user = fullUser.rows[0];
     parseUserJSONFields(user);
+    await healOnboardingFlag(db, user);   // a profile completed in the editor (utils/profileCompleteness.js)
 
     const token = generateToken(user.id);
     setAuthCookie(res, token);

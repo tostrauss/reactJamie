@@ -22,7 +22,7 @@ vi.mock('../../src/config/redis.js', () => ({
 }));
 
 const { default: db } = await import('../../src/config/database.js');
-const { register, login, refreshToken, updateProfile, sendEmailCode } = await import('../../src/controllers/authController.js');
+const { register, login, refreshToken, updateProfile, sendEmailCode, completeOnboarding, getProfile } = await import('../../src/controllers/authController.js');
 
 const makeRes = () => {
   const res = {};
@@ -377,6 +377,34 @@ describe('updateProfile location/country param typing', () => {
   });
 });
 
+// ── updateProfile: photo order is the client's (Wunsch 10.10.2026) ───────────
+// Reordering profile photos / Pinnwand is a ProfileEdit-only feature: the
+// server must store both arrays exactly in the order sent — no sorting, no
+// dedupe — and accept any of the photos as the new avatar_url. Pins that, so
+// the feature never silently grows a backend dependency.
+describe('updateProfile photo order', () => {
+  const u = (n) => `/media/uploads/${n}.webp`;
+  it('writes photos, avatar_url and pinnwand verbatim, in the order sent', async () => {
+    db.query.mockImplementation(async (sql) => {
+      // Unchanged avatar → the stored-image quality backstop is skipped.
+      if (/SELECT avatar_url FROM users/.test(sql)) return { rows: [{ avatar_url: u('p3') }] };
+      if (/UPDATE users/.test(sql)) return { rows: [] };
+      return { rows: [{ id: 1 }] };
+    });
+    const res = makeRes();
+    await updateProfile({ userId: 1, body: {
+      avatar_url: u('p3'),
+      photos: [u('p2'), u('p1')],
+      pinnwand: [u('w3'), u('w1'), u('w2')],
+    } }, res, vi.fn());
+    expect(res.status).not.toHaveBeenCalled();
+    const update = db.query.mock.calls.find((c) => /UPDATE users/.test(c[0]));
+    expect(update[1][5]).toBe(JSON.stringify([u('p2'), u('p1')]));              // $6 photos
+    expect(update[1][6]).toBe(u('p3'));                                         // $7 avatar_url
+    expect(update[1][10]).toBe(JSON.stringify([u('w3'), u('w1'), u('w2')]));    // $11 pinnwand
+  });
+});
+
 // ── sendEmailCode: per-email throttle (2M2M TV-spike readiness) ─────────────
 // The per-IP registrationLimiter was raised for carrier-NAT bursts; the
 // anti-abuse load moved to this in-DB per-email layer (60s cooldown + 6/h).
@@ -449,4 +477,81 @@ describe('refreshToken', () => {
     await refreshToken({ userId: 1 }, res, vi.fn());
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ token: expect.any(String) }));
   });
+});
+
+// ── Profile completeness (10.10.2026) ────────────────────────────────────────
+// Only the onboarding wizard ever set onboarding_completed, so a profile filled
+// in under Profil → Bearbeiten stayed blocked from every group (user report via
+// Instagram). The rule (utils/profileCompleteness.js) now heals the flag on
+// save and on every app start; redoing the wizard no longer wipes song and bio.
+describe('profile completeness heals the onboarding flag', () => {
+  const completeRow = () => ({
+    id: 1, onboarding_completed: false, date_of_birth: '1990-01-01', gender: 'female',
+    interests: ['Musik', 'Kunst', 'Yoga'],
+  });
+
+  it('updateProfile: completing the profile in the editor unlocks it in the same response', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [] })                  // UPDATE users
+      .mockResolvedValueOnce({ rows: [completeRow()] })     // return SELECT
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] });    // heal
+    const res = makeRes();
+    await updateProfile({ userId: 1, body: { gender: 'female', interests: ['Musik', 'Kunst', 'Yoga'] } }, res, vi.fn());
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ onboarding_completed: true }));
+    expect(db.query.mock.calls.some(c => /SET onboarding_completed = TRUE/.test(c[0]))).toBe(true);
+  });
+
+  it('updateProfile: an incomplete profile keeps the flag off', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ ...completeRow(), interests: ['Musik'] }] });
+    const res = makeRes();
+    await updateProfile({ userId: 1, body: { interests: ['Musik'] } }, res, vi.fn());
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ onboarding_completed: false }));
+    expect(db.query.mock.calls.some(c => /SET onboarding_completed = TRUE/.test(c[0]))).toBe(false);
+  });
+
+  it('getProfile (every app start): an already stuck user is unlocked without a new app build', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [completeRow()] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] });
+    const res = makeRes();
+    await getProfile({ userId: 1 }, res, vi.fn());
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ onboarding_completed: true }));
+  });
+});
+
+describe('completeOnboarding — no data loss when redoing the wizard', () => {
+  const body = { gender: 'female', interests: ['Musik', 'Kunst', 'Yoga'], bio: '', photos: [], location: '' };
+
+  it('keeps the favourite song and a bio left blank instead of wiping them', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [{ dob: '1990-01-01' }] })   // stored DOB
+      .mockResolvedValueOnce({ rows: [] })                         // UPDATE
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] });               // return SELECT
+    const res = makeRes();
+    await completeOnboarding({ userId: 1, body }, res, vi.fn());
+    const update = db.query.mock.calls.find(c => /onboarding_completed = TRUE/.test(c[0]));
+    expect(update).toBeDefined();
+    expect(update[0]).toMatch(/bio = COALESCE\(NULLIF\(\$4, ''\), bio\)/);
+    expect(update[0]).toMatch(/favorite_song = CASE WHEN \$10::boolean THEN \$7::jsonb ELSE favorite_song END/);
+    expect(update[1][9]).toBe(false);          // no favorite_song in the body → keep the stored one
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('an explicit favourite song is still written', async () => {
+    db.query
+      .mockResolvedValueOnce({ rows: [{ dob: '1990-01-01' }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] });
+    const res = makeRes();
+    await completeOnboarding({ userId: 1, body: { ...body, favorite_song: { title: 'Song' } } }, res, vi.fn());
+    const update = db.query.mock.calls.find(c => /onboarding_completed = TRUE/.test(c[0]));
+    expect(update[1][9]).toBe(true);
+    expect(update[1][6]).toBe(JSON.stringify({ title: 'Song' }));
+  });
+
+  // No hard gender/interests check here on purpose: every shipped wizard
+  // enforces both itself, and refusing an older client's onboarding would be
+  // far worse than a flag set by it. The rule decides at the join gate.
 });

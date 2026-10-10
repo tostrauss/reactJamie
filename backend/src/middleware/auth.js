@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import db from '../config/database.js';
+import { profileMissing, incompleteMessage, healOnboardingFlag } from '../utils/profileCompleteness.js';
 
 // Guest access only allowed when explicitly enabled via env var
 const isGuestAllowed = () => process.env.ALLOW_GUEST_TOKEN === 'true';
@@ -193,15 +194,27 @@ export const requireCompleteProfile = async (req, res, next) => {
   try {
     if (req.isGuest) return res.status(403).json({ error: 'Guests cannot join groups. Please register.' });
 
-    const result = await db.query('SELECT onboarding_completed FROM users WHERE id = $1', [req.userId]);
+    const result = await db.query(
+      'SELECT id, onboarding_completed, date_of_birth, gender, interests FROM users WHERE id = $1',
+      [req.userId]
+    );
 
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
-    if (!result.rows[0].onboarding_completed) {
-      return res.status(403).json({
-        error: 'Bitte vervollständige dein Profil, bevor du Gruppen beitrittst.',
-        code: 'PROFILE_INCOMPLETE'
-      });
+    const user = result.rows[0];
+    if (user.onboarding_completed !== true) {
+      // The flag used to come only from the onboarding wizard, so a profile
+      // completed in the editor stayed blocked (10.10.2026). The rule decides
+      // now; a complete profile heals the flag and passes.
+      const missing = profileMissing(user);
+      if (missing.length) {
+        return res.status(403).json({
+          error: incompleteMessage(missing),
+          code: 'PROFILE_INCOMPLETE',
+          missing,
+        });
+      }
+      await healOnboardingFlag(db, user);
     }
     next();
   } catch (error) {
