@@ -14,7 +14,7 @@ Bei Fragen wende dich an: privacy@getjamie.app
 2. WELCHE DATEN WIR ERHEBEN
 ----------------------------
 - Kontodaten: Name, E-Mail-Adresse, Passwort (verschlüsselt)
-- Profildaten: Profilbild, Biografie, Standort, Interessen, Alter
+- Profildaten: Profilbild, Biografie, Standort, Interessen, Alter, Geschlecht, Beweggründe für JAMIE (Antworten auf „Was trifft zu?“ — nur zusammengefasst ausgewertet, für andere nicht sichtbar)
 - Inhaltsdaten: Nachrichten, erstellte Gruppen und Clubs
 - Spotify-Daten: Nur wenn du Spotify verbindest: deine Top-Tracks und zuletzt gehörte Songs
   (nur lesend, wir speichern keine Musik-Inhalte)

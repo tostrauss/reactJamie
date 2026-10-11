@@ -11,7 +11,7 @@ export default function PrivacyPolicy() {
 
       <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 8 }}>JAMIE Privacy Policy</h1>
       <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 32 }}>
-        Last updated: 12.06.2026
+        Last updated: 11.10.2026
       </p>
 
       <Section title="1. Introduction">
@@ -80,6 +80,7 @@ export default function PrivacyPolicy() {
           <li>profile photograph;</li>
           <li>biography;</li>
           <li>interests and hobbies;</li>
+          <li>your reasons for using JAMIE (your answers to “What sounds like you?” during sign-up);</li>
           <li>location information such as your city;</li>
           <li>additional profile pictures;</li>
           <li>favourite song (if you choose to set one);</li>
@@ -181,6 +182,11 @@ export default function PrivacyPolicy() {
           <li>optimise user experience;</li>
           <li>develop new features.</li>
         </ul>
+        <p>
+          Your answers to “What sounds like you?” (for example “new in town” or “make new
+          friends”) are only evaluated in aggregated form, to understand why people use JAMIE
+          and to improve our services. They are never shown to other users.
+        </p>
         <p>
           Where required by law, we will obtain your consent before processing personal data
           for analytics purposes. Legal basis: your consent under Article 6(1)(a) GDPR or
