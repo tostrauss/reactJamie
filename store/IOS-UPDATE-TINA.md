@@ -1,4 +1,4 @@
-# iOS-Update für Tina — Version 1.4.4 (JAMIE Pro, Chat-Profilbilder, Event-Chats, Fotos umreihen)
+# iOS-Update für Tina — Version 1.4.4 (iOS-27-Fix, JAMIE Pro, neue Anmeldung, Chat-Profilbilder)
 
 Stand: **11.10.2026** · Ziel: **Version 1.4.4** mit den drei Pro-Abos in den App Store bringen.
 
@@ -24,6 +24,10 @@ Chatliste und im roten Zähler — bisher wurden sie dort komplett ausgeblendet.
 - **Profil bearbeiten** sagt oben, was zum Gruppen-Beitritt noch fehlt.
 - **Club-Events nachträglich vergrößern:** „Max. Teilnehmer" geht bis 500 (bisher war bei
   20 Schluss).
+
+**Und deine Onboarding-Checkliste (live im Browser/Android seit 11.10.):** Registrierung in
+4 Seiten, „Was trifft zu?“ als erster Schritt, Fotos als letzter Schritt mit dem
+Achtung-Fenster, danach die Seite „Clubs für dich“.
 
 Dass ein im Profil ausgefülltes Profil **sofort** zum Beitritt reicht, ist ein Server-Fix:
 Der wirkt nach Tobis Push in **jeder** App-Version, auch in 1.4.3 — dafür braucht es 1.4.4
@@ -85,16 +89,6 @@ Fixe Werte (nur zum Abgleichen, nichts ändern):
 > 4. **Vertrieb:** Status von **1.4.3** ansehen. Die neue Version 1.4.4 legst du erst in
 >    Schritt 7 an, wenn 1.4.3 **im App Store** ist. Bauen und TestFlight (Schritte 1–5)
 >    gehen schon vorher.
-> 5. **1.4.3 zeigt kein Pro — also darf es dort auch nicht drinstehen.** Unter
->    **Vertrieb → 1.4.3**: Steht in **„Was ist neu"** (in jeder Sprache) die Zeile
->    „JAMIE Pro: alle Mitglieder sehen, Boosts und mehr" (EN „JAMIE Pro: see all
->    members …", IT „JAMIE Pro: vedi tutti i membri …"), oder in
->    **App-Review-Informationen → Notizen** der Satz von „JAMIE Pro subscriptions: …"
->    bis „… in Settings." → löschen, **Sichern**. Die Notiz lässt sich laut Apple
->    jederzeit ändern. Ist „Was ist neu" gesperrt (grau): so lassen. Fragt Apple nach
->    Pro oder den Abos, im Resolution Center antworten:
->    `JAMIE Pro and its subscriptions are not part of this version. They will be submitted together with the next version (1.4.4).`
->    Lehnt Apple deshalb ab: die Zeile löschen und ohne neuen Build erneut einreichen.
 
 ---
 
@@ -156,6 +150,13 @@ git log --oneline -3
   ```
 
   Sie muss eine Zahl **größer als 0** ausgeben. **0** → **STOPP, Tobi.**
+- Und diese (die neue Anmeldung und der iOS-27-Schutz sind da):
+
+  ```bash
+  grep -c "OnboardingClubs" frontend/src/App.jsx; grep -c "UIApplicationSceneManifest" ios/4-preflight.sh
+  ```
+
+  Beide Zahlen müssen **größer als 0** sein. Eine **0** → **STOPP, Tobi.**
 
 ## 2. Bauen und ins iOS-Projekt übertragen
 
@@ -279,7 +280,8 @@ ein Test-Konto anlegen (z. B. `tina+test1@…`; danach unter Einstellungen wiede
    freigeschaltet hat — sonst einfach eintippen); **Fotos** ist der letzte Schritt (4 / 4).
 4. **Ohne** Profilbild „Los geht's!“ tippen → Fenster **„Achtung: Dein Profil ist nicht
    vollständig“**. „Profilbild hinzufügen“ muss **sofort** die Foto-Auswahl öffnen; ein
-   Foto wählen → der Ring um das Bild wird **ganz grün**, danach geht es automatisch weiter.
+   Foto wählen → das Bild erscheint im runden Feld, darunter „Profil vollständig“, danach
+   geht es automatisch weiter.
 5. Es folgt **„Clubs für dich“** (JAMIE Groups Official zuerst — sobald die Liste im
    Admin-Dashboard gepflegt ist; ist sie leer, geht es direkt auf Home). „Beitreten“ bei
    einem Club → „Dabei“. „Weiter“ → Home, ohne Profil-Hinweis.
@@ -415,6 +417,7 @@ wird automatisch veröffentlicht. **Dann Tobi Bescheid sagen.**
 | Problem | Lösung |
 |---|---|
 | Tobi hat noch nicht „gepusht + live + Schalter an" gesagt | Warten |
+| Preflight: „❌ Xcode 27 … is active" | Schritt 0 (Xcode 26), dann Preflight nochmal |
 | `grep -c "Purchases: m.Purchases"` gibt 0 aus | Fix fehlt → Tobi, **nicht** bauen |
 | `git pull` meckert über lokale Änderungen | `git checkout -- frontend/package-lock.json`, nochmal `git pull`. Sonst Tobi |
 | Preflight zeigt kein `NSMicrophoneUsageDescription` oder kein „4/4 … ✓" | Screenshot an Tobi, **nicht** archivieren |
@@ -429,7 +432,6 @@ wird automatisch veröffentlicht. **Dann Tobi Bescheid sagen.**
 | Pro-Fenster: „derzeit nicht verfügbar" | Vertrag, Gruppen-Lokalisierung, Abo-Pflichtfelder (Vorab 1–3), bis zu 1 Stunde warten, App neu öffnen. Sonst Tobi |
 | Gar keine Pro-Karte im Profil | Fix fehlt im Build (Schritt 1), oder Kauf-Schalter in Railway aus → Tobi |
 | Kein ⊕ für 1.4.4 in Schritt 7 | 1.4.3 ist noch nicht im App Store → warten. Abgelehnt → Begründung an Tobi |
-| 1.4.3: Apple fragt nach JAMIE Pro oder lehnt deswegen ab | Vorab 5: Pro-Zeile und Notiz-Satz löschen, Antworttext von dort, ohne neuen Build erneut einreichen → Tobi Bescheid |
 | Apple-Review lehnt ab | Begründung als Screenshot an Tobi |
 
 **Was du NICHT anfassen musst:** Android (läuft über den Web-Deploy), Server/Railway
