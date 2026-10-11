@@ -6,6 +6,8 @@ import { AuthContext } from '../context/AuthContext';
 import { AdminDealsSection } from '../components/AdminDealsSection';
 import { AdminGrowthSection } from '../components/AdminGrowthSection';
 import { AdminFeedbackSection } from '../components/AdminFeedbackSection';
+import { AdminFeaturedClubsSection } from '../components/AdminFeaturedClubsSection';
+import { AdminMotivationsCard } from '../components/AdminMotivationsCard';
 import { AdminReportsSection } from '../components/AdminReportsSection';
 import { AdminUserModal } from '../components/AdminUserModal';
 import { UserName } from '../components/UserName';
@@ -371,6 +373,12 @@ export const AdminDashboard = () => {
           )}
         </div>
 
+        {/* Clubs new users see right after onboarding, in this order (Tina
+            10.10.2026: "wir sortieren Clubs im Admin-Dashboard"). Next to the
+            approval queue: a club has to be approved before it can be picked.
+            Self-loading; an older server → the section is not rendered. */}
+        <AdminFeaturedClubsSection />
+
         {screens.length > 0 && (
           <div style={{ marginBottom: 32 }}>
             <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
@@ -470,6 +478,12 @@ export const AdminDashboard = () => {
             </div>
           </div>
         )}
+
+        {/* "Was trifft zu?" answers from onboarding step ① — like the
+            suggestions above, what people come to JAMIE for. Rides on the
+            stats payload; without `motivations` (older server) it renders
+            nothing. */}
+        <AdminMotivationsCard motivations={stats?.motivations} />
 
         <div style={{ marginBottom: 32 }}>
           <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
