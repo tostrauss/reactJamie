@@ -1,5 +1,6 @@
 import { useContext, useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { lazyWithReload } from './utils/lazyRetry';
+import { loadOnboardingClubs } from './utils/onboardingClubsChunk';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
@@ -23,7 +24,10 @@ import { NotificationPrompt } from './components/NotificationPrompt';
 import { NativePushDeniedBanner } from './components/NativePushDeniedBanner';
 import PullToRefresh from './components/PullToRefresh';
 import AvatarGateModal from './components/AvatarGateModal';
+import { InstallBanner } from './components/InstallBanner';
 import { reviews } from './utils/api';
+import { postAuthPath } from './utils/authRedirect';
+import { shouldNudge, AVATAR_NUDGE_KEY, AVATAR_NUDGE_SNOOZE_MS } from './utils/avatarNudge';
 
 // Auth Pages (eagerly loaded - needed at startup)
 import { Login } from './pages/Login';
@@ -31,6 +35,8 @@ import { Register } from './pages/Register';
 
 // Lazy-loaded pages (code-split per route)
 const Onboarding = lazyWithReload(() => import('./pages/Onboarding'));
+// Shared loader: the wizard's photo step warms this chunk (utils/onboardingClubsChunk.js).
+const OnboardingClubs = lazyWithReload(loadOnboardingClubs);
 const Home = lazyWithReload(() => import('./pages/Home'));
 const Explore = lazyWithReload(() => import('./pages/Explore'));
 const Profile = lazyWithReload(() => import('./pages/Profile'));
@@ -135,80 +141,6 @@ const UpdateBanner = () => {
   );
 };
 
-// ==========================================
-// INSTALL PROMPT BANNER
-// ==========================================
-const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
-const isInStandaloneMode = () =>
-  window.matchMedia('(display-mode: standalone)').matches ||
-  window.navigator.standalone === true;
-
-const InstallBanner = () => {
-  const { t } = useTranslation();
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [showBanner, setShowBanner] = useState(false);
-  const [iosMode, setIosMode] = useState(false);
-
-  useEffect(() => {
-    if (isInStandaloneMode()) return;
-
-    const dismissed = safeStorage.getItem('pwa-install-dismissed');
-    if (dismissed && Date.now() - parseInt(dismissed) < 7 * 24 * 60 * 60 * 1000) return;
-
-    if (isIOS()) {
-      setIosMode(true);
-      setShowBanner(true);
-      return;
-    }
-
-    const handler = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setShowBanner(true);
-    };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
-
-  const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setShowBanner(false);
-    }
-    setDeferredPrompt(null);
-  };
-
-  const handleDismiss = () => {
-    safeStorage.setItem('pwa-install-dismissed', Date.now().toString());
-    setShowBanner(false);
-  };
-
-  if (!showBanner) return null;
-
-  return (
-    <div className="install-banner">
-      <div className="install-banner-content">
-        <div className="install-banner-icon">J</div>
-        <div className="install-banner-text">
-          <strong>{t('app.install.title')}</strong>
-          {iosMode
-            ? <span>{t('app.install.iosHintPrefix')} <strong>{t('app.install.iosShare')}</strong> {t('app.install.iosHintArrow')} <strong>{t('app.install.iosHomeScreen')}</strong></span>
-            : <span>{t('app.install.defaultText')}</span>
-          }
-        </div>
-      </div>
-      <div className="install-banner-actions">
-        {!iosMode && (
-          <button className="install-btn" onClick={handleInstall}>{t('app.install.btn')}</button>
-        )}
-        <button className="install-dismiss" onClick={handleDismiss}>✕</button>
-      </div>
-    </div>
-  );
-};
-
 const CreateModal = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -286,7 +218,9 @@ const Navigation = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const unreadRef = useRef(0);
 
-  const hideNavPaths = ['/login', '/register', '/onboarding', '/welcome'];
+  // Exact matches — /onboarding/clubs is listed on its own (the wizard's
+  // last page has its own Weiter footer; a tab bar would invite leaving it).
+  const hideNavPaths = ['/login', '/register', '/onboarding', '/onboarding/clubs', '/welcome'];
   // Routes that own the whole screen and shouldn't render the bottom nav.
   // Includes the deal redemption proof screen — staff is supposed to glance
   // at the brand + deal card, the nav would just be visual noise.
@@ -436,14 +370,19 @@ const ProtectedRoute = ({ children }) => {
   return user ? children : <Navigate to="/login" replace />;
 };
 
-const AuthRoute = ({ children }) => {
+const AuthRoute = ({ children, newUserAware = false }) => {
   const { user } = useContext(AuthContext);
   // No PageLoader swap here: the global `loading` flips during login/register
   // attempts, and unmounting the form resets its state — a wrong password
   // threw users back to the first login screen with the error wiped. The
   // submit buttons render their own busy state; on success `user` is set and
   // the redirect below kicks in.
-  return user ? <Navigate to="/home" replace /> : children;
+  // newUserAware (/register, /auth/google/callback): an account that hasn't
+  // finished onboarding goes to /onboarding — the SAME target the page itself
+  // navigates to. This redirect renders first (setUser beats the router's
+  // transition), so a hard-coded /home here sent new accounts past the
+  // wizard (utils/authRedirect.js).
+  return user ? <Navigate to={postAuthPath(user, { newUserAware })} replace /> : children;
 };
 
 // ==========================================
@@ -832,7 +771,7 @@ function AppRoutes() {
   useHideKeyboardAccessoryBar();
   useViewportRestore();
   useAnalytics();
-  const [showIntro, setShowIntro] = useState(() => !!user && !user?.isGuest && shouldShowIntro());
+  const [showIntro, setShowIntro] = useState(() => !!user && !user?.isGuest && user?.onboarding_completed !== true && shouldShowIntro());
   const [showProModal, setShowProModal] = useState(false);
   // Which feature the user bumped into, from the open event's detail — the
   // modal prepends a matching bubble so the first thing they read is the
@@ -868,29 +807,43 @@ function AppRoutes() {
   // grandfathered in before the join-time avatar gate (2026-08-04), which no
   // join/create/invite path re-checks retroactively (Tina 2026-08-27). Never a
   // hard block for existing users; dismissible and re-shown after ~7 days until
-  // they add a photo. Suppressed on the auth/onboarding routes (the photo step
-  // lives there) and while another modal is up. Clears itself the moment
-  // avatar_url is set.
+  // they add a photo. Only for FINISHED profiles, never on the auth/onboarding
+  // routes (the photo step lives there) and never while another modal is up.
+  // Clears itself the moment avatar_url is set.
+  // The rule (utils/avatarNudge.js) is asked here to arm the timer AND again
+  // at render time below: this check alone let the sheet open over onboarding
+  // step 1 — it armed while a new account sat on /home for a moment, and no
+  // route change cancels the timer (10.10.2026). onboarding_completed is a
+  // dep so a profile finished in-session (e.g. via Profil bearbeiten) is
+  // re-evaluated without waiting for the next app start.
   useEffect(() => {
-    if (!user || user.isGuest || user.avatar_url) return;
-    if (/^\/(onboarding|welcome|login|register)/.test(window.location.pathname)) return;
-    const KEY = 'jamie_avatar_nudge_next';
-    const now = Date.now();
-    const next = parseInt(safeStorage.getItem(KEY) || '0', 10);
-    if (next && now < next) return;
+    if (!shouldNudge({
+      user,
+      pathname: window.location.pathname,
+      now: Date.now(),
+      snoozeUntil: safeStorage.getItem(AVATAR_NUDGE_KEY),
+    })) return;
     const tid = setTimeout(() => setShowAvatarNudge(true), 1800);
     return () => clearTimeout(tid);
-  }, [user?.id, user?.avatar_url]);
+  }, [user?.id, user?.avatar_url, user?.onboarding_completed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dismissAvatarNudge = () => {
     // Re-nudge in ~7 days if they still have no photo.
-    safeStorage.setItem('jamie_avatar_nudge_next', String(Date.now() + 7 * 24 * 60 * 60 * 1000));
+    safeStorage.setItem(AVATAR_NUDGE_KEY, String(Date.now() + AVATAR_NUDGE_SNOOZE_MS));
     setShowAvatarNudge(false);
   };
 
-  // Show intro when user first logs in
+  // Intro right after sign-up: Register raises jamie_new_registration BEFORE
+  // register(), so this fires on the very render that stores the new account
+  // — before onboarding step 1 (AuthRoute has already sent the URL to
+  // /onboarding; the wizard clears the flag on mount). Only while the profile
+  // is unfinished: since the flag now goes up before the request, an app
+  // killed mid-request can leave it behind, and it must not replay the intro
+  // when a finished account signs in later — such a leftover is dropped.
   useEffect(() => {
-    if (user && !user.isGuest && shouldShowIntro()) setShowIntro(true);
+    if (!user || user.isGuest || !shouldShowIntro()) return;
+    if (user.onboarding_completed !== true) setShowIntro(true);
+    else safeStorage.removeItem('jamie_new_registration');
   }, [user]);
 
   // Check for pending post-event reviews once after login
@@ -940,6 +893,22 @@ function AppRoutes() {
 
   const [region, allowRegion] = useGeoFence(onLegalPage);
 
+  // Render-time gates, against the router's CURRENT pathname (see the nudge
+  // effect above for why arm-time checks are not enough).
+  // Sign-up flow = Register, the onboarding wizard and its clubs page. No
+  // permission or install banners on top of it: the web push prompt's 3 s
+  // timer used to land on onboarding step 1 right after sign-up, and in iOS
+  // Safari the „JAMIE installieren" banner covered the last „Was trifft zu?"
+  // option just above Weiter (integration screenshots 11.10.2026). Leaving the
+  // flow lets them through again, so they still come — on Home, once the
+  // profile is done. The install banner only hides here, and Chrome's one
+  // install event is held by utils/installPrompt.js, not by the banner: the
+  // AppIntro return below unmounts the banner right after sign-up. Native iOS
+  // permission timing (useNativePush) is deliberately unchanged.
+  const inSignupFlow = /^\/(register|onboarding)(\/|$)/.test(pathname);
+  const avatarNudgeVisible = showAvatarNudge && !showFeedback && !pendingReviews && !showIntro
+    && shouldNudge({ user, pathname, now: Date.now(), snoozeUntil: safeStorage.getItem(AVATAR_NUDGE_KEY) });
+
   if (showIntro) return <AppIntro onDone={() => setShowIntro(false)} />;
 
   // Block users outside DACH (only when we have a confirmed location)
@@ -954,18 +923,22 @@ function AppRoutes() {
   return (
     <>
       {!isNative() && <UpdateBanner />}
-      {!isNative() && <InstallBanner />}
+      {!isNative() && <InstallBanner suppressed={inSignupFlow} />}
       <div className="app-viewport">
       <ErrorBoundary>
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Auth */}
           <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
-          <Route path="/register" element={<AuthRoute><Register /></AuthRoute>} />
+          <Route path="/register" element={<AuthRoute newUserAware><Register /></AuthRoute>} />
           {/* /welcome removed — AppIntro after login covers the same flow.
               Redirect kept so any cached link / external reference still works. */}
           <Route path="/welcome" element={<Navigate to="/onboarding" replace />} />
           <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+          {/* Unnumbered page after the onboarding save: the admin-curated
+              clubs (Admin-Dashboard order). Skips itself to /home when the
+              list is empty or the server is older. */}
+          <Route path="/onboarding/clubs" element={<ProtectedRoute><OnboardingClubs /></ProtectedRoute>} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
@@ -1023,9 +996,10 @@ function AppRoutes() {
 
           {/* Google Sign-In — auth-code redirect landing page (see
               utils/googleAuth.js). AuthRoute: an already-logged-in visitor
-              (e.g. hitting Back after a completed login) bounces to /home
-              instead of re-running a single-use, now-consumed code. */}
-          <Route path="/auth/google/callback" element={<AuthRoute><GoogleCallback /></AuthRoute>} />
+              (e.g. hitting Back after a completed login) bounces away instead
+              of re-running a single-use, now-consumed code — to /onboarding
+              while the account's profile is unfinished, else /home. */}
+          <Route path="/auth/google/callback" element={<AuthRoute newUserAware><GoogleCallback /></AuthRoute>} />
 
           {/* Admin — requires login + is_admin flag in DB */}
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
@@ -1079,9 +1053,10 @@ function AppRoutes() {
       {showFeedback && !pendingReviews && !showIntro && (
         <FeedbackModal onClose={dismissFeedback} />
       )}
-      {/* Proactive web-push enable nudge — hidden on native iOS + when a modal
-          is up. Self-gates on support / permission / prior dismissal. */}
-      {user && !user.isGuest && !showFeedback && !pendingReviews && !showIntro && !showAvatarNudge && (
+      {/* Proactive web-push enable nudge — hidden on native iOS, during the
+          sign-up flow and when a modal is up. Self-gates on support /
+          permission / prior dismissal. */}
+      {user && !user.isGuest && !inSignupFlow && !showFeedback && !pendingReviews && !showIntro && !avatarNudgeVisible && (
         <NotificationPrompt />
       )}
       {/* Native-iOS counterpart: the OS permission is DENIED (sticky — iOS
@@ -1090,12 +1065,13 @@ function AppRoutes() {
           Both prompts also yield to the soft avatar-nudge sheet — it's a
           bottom sheet at z 2000, the banners float at 9000 and would sit on
           top of its CTA. */}
-      {user && !user.isGuest && !showFeedback && !pendingReviews && !showIntro && !showAvatarNudge && (
+      {user && !user.isGuest && !inSignupFlow && !showFeedback && !pendingReviews && !showIntro && !avatarNudgeVisible && (
         <NativePushDeniedBanner permission={nativePush.permission} />
       )}
-      {/* Avatar nudge for grandfathered avatar-less members — soft, dismissible,
-          suppressed while other modals are up. */}
-      {showAvatarNudge && !showFeedback && !pendingReviews && !showIntro && (
+      {/* Avatar nudge for avatar-less members with a finished profile — soft,
+          dismissible, suppressed while other modals are up and on the sign-up
+          / onboarding routes (render-time, see above). */}
+      {avatarNudgeVisible && (
         <AvatarGateModal isOpen soft onClose={dismissAvatarNudge} />
       )}
     </>

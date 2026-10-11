@@ -7,11 +7,25 @@ import { useToast } from '../context/ToastContext';
 // triggerRef (optional): parent passes a ref and can then open the file
 // picker from its own UI (e.g. the onboarding photo tiles) via
 // triggerRef.current?.() — keeps validation/upload logic in one place.
-export const ImageUpload = ({ onUpload, label, triggerRef, purpose }) => {
+// Call it SYNCHRONOUSLY inside the tap's click handler: WebKit opens a file
+// input only while a user gesture is being processed (never after an await,
+// in an effect or in a timer).
+//
+// hideLabel (optional, default false): render only the hidden <input> — for
+// parents whose own UI is the picker (the onboarding ring + tiles, the
+// onboarding clubs page). The input stays in the document while the picker is
+// open, so its change event still reaches React.
+// onUploadingChange (optional): called with true/false around each upload, so
+// such a parent can show its own progress state.
+export const ImageUpload = ({ onUpload, label, triggerRef, purpose, hideLabel = false, onUploadingChange }) => {
   const { t } = useTranslation();
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploadingState] = useState(false);
   const inputRef = useRef(null);
   const toast = useToast();
+  const setUploading = (value) => {
+    setUploadingState(value);
+    onUploadingChange?.(value);
+  };
 
   useEffect(() => {
     if (!triggerRef) return;
@@ -56,6 +70,19 @@ export const ImageUpload = ({ onUpload, label, triggerRef, purpose }) => {
       e.target.value = '';
     }
   };
+
+  if (hideLabel) {
+    return (
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        onChange={handleFile}
+        style={{ display: 'none' }}
+        disabled={uploading}
+      />
+    );
+  }
 
   return (
     <div style={{ marginBottom: '15px' }}>

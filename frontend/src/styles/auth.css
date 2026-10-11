@@ -816,63 +816,15 @@
 }
 
 /* ══════════════════════════════════════════
-   ONBOARDING v2 (23.09.2026, „mehr JAMIE-Style")
+   ONBOARDING v2 (23.09.2026, „mehr JAMIE-Style") — the base of v3
    Two-tone Archivo headlines (white + coral italic, like the wordmark),
-   progress dots like Register, card choices with a coral check, chips with
-   check marks. Container / content / footer scroll mechanics stay the ones
-   above (Onboarding-Stuck-Bug 2026-07-07) — only the look changes.
+   fields, chips with check marks. Container / content / footer scroll
+   mechanics stay the ones above (Onboarding-Stuck-Bug 2026-07-07).
+   v3 (11.10.2026, Tina's checklist) replaced the top bar + dots with the
+   shared FlowHeader (styles/flow.css) and adds its own parts in
+   styles/onboarding.css; the v2 gender cards, photo grid and „Du bist
+   bereit" step are gone. .ob-title* also heads Register (StepTitle).
    ══════════════════════════════════════════ */
-.ob-top {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 20px 4px;
-}
-
-.ob-back {
-  width: 44px;
-  height: 44px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-card);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 50%;
-  color: var(--text-light);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: background var(--transition-fast);
-}
-.ob-back:active { background: var(--bg-hover); }
-
-.ob-dots {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 6px;
-}
-
-.ob-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.14);
-  transition: width 0.3s ease, background 0.3s ease;
-}
-.ob-dot--done { background: rgba(253, 118, 102, 0.45); }
-.ob-dot--active { width: 28px; background: var(--accent-coral); }
-
-.ob-step-count {
-  width: 44px;
-  flex-shrink: 0;
-  text-align: right;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
 
 /* Step body — left-aligned, enters with a short rise */
 .onboarding-content.ob-content {
@@ -882,8 +834,7 @@
 }
 
 /* Steps sit at the top (the base rule centers the first child with auto
-   margins, which left a big empty band above the forms). Only the final
-   "Du bist bereit" step is centered (.ob-step--done). */
+   margins, which left a big empty band above the forms). */
 .onboarding-content.ob-content > .ob-step {
   margin-top: 8px;
   margin-bottom: 0;
@@ -918,7 +869,6 @@
   color: var(--accent-coral);
   font-style: italic;
 }
-.ob-title--center { text-align: center; }
 
 .ob-sub {
   font-size: 15px;
@@ -926,82 +876,8 @@
   color: var(--text-muted);
   margin: 0 0 28px;
 }
-.ob-sub--center { text-align: center; }
 
-/* Step 0 — gender cards */
-.ob-choices {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.ob-choice {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  min-height: 68px;
-  padding: 10px 18px 10px 12px;
-  background: var(--bg-card);
-  border: 1.5px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
-  color: var(--text-light);
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-  transition: border-color 0.15s, background 0.15s, transform 0.1s;
-}
-.ob-choice:active { transform: scale(0.985); }
-.ob-choice.selected {
-  border-color: var(--accent-coral);
-  background: rgba(253, 118, 102, 0.12);
-  color: var(--text-white);
-}
-
-.ob-choice-icon {
-  width: 46px;
-  height: 46px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 14px;
-  background: rgba(253, 118, 102, 0.12);
-  color: var(--accent-coral);
-  font-size: 22px;
-}
-.ob-choice.selected .ob-choice-icon {
-  background: var(--accent-coral);
-  color: #fff;
-}
-
-.ob-choice-label {
-  flex: 1;
-  font-size: 17px;
-  font-weight: 700;
-}
-
-.ob-choice-check {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.18);
-  color: transparent;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-.ob-choice.selected .ob-choice-check {
-  background: var(--accent-coral);
-  border-color: var(--accent-coral);
-  color: #fff;
-}
-
-/* Step 1 — fields */
+/* Fields („Über dich") */
 .ob-form {
   display: flex;
   flex-direction: column;
@@ -1056,7 +932,7 @@
   margin: 0;
 }
 
-/* Step 2 — interests */
+/* Interests */
 .ob-custom-input {
   width: 100%;
   margin-bottom: 16px;
@@ -1149,176 +1025,6 @@
 }
 .ob-suggest-btn:disabled { opacity: 0.4; cursor: default; }
 
-/* Step 3 — photos: first tile is the big one */
-.ob-photos {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-
-.ob-photo {
-  position: relative;
-  aspect-ratio: 1;
-  border-radius: 16px;
-  border: 1.5px dashed rgba(253, 118, 102, 0.35);
-  background: rgba(253, 118, 102, 0.05);
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.ob-photo.first {
-  grid-column: span 2;
-  grid-row: span 2;
-  aspect-ratio: auto;
-}
-.ob-photo.filled { border: 2px solid transparent; background: var(--bg-card); }
-.ob-photo.main { border-color: var(--accent-coral); }
-
-.ob-photo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.ob-photo-add {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--accent-coral);
-  color: #fff;
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1;
-}
-.ob-photo.first .ob-photo-add { width: 48px; height: 48px; font-size: 28px; }
-
-.ob-photo-badge {
-  position: absolute;
-  left: 8px;
-  bottom: 8px;
-  padding: 3px 10px;
-  border-radius: var(--radius-full);
-  background: var(--accent-coral);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.ob-photo-remove {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.65);
-  color: #fff;
-  font-size: 16px;
-  cursor: pointer;
-}
-
-.ob-photo-upload {
-  margin-top: 18px;
-  display: flex;
-  justify-content: center;
-}
-
-/* Step 4 — done */
-.onboarding-content.ob-content > .ob-step--done {
-  align-items: center;
-  margin-top: auto;
-  margin-bottom: auto;
-}
-
-.ob-done-avatar {
-  width: 112px;
-  height: 112px;
-  margin-bottom: 20px;
-  border-radius: 50%;
-  padding: 4px;
-  background: var(--accent-coral);
-  box-shadow: 0 10px 32px rgba(253, 118, 102, 0.35);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.ob-done-avatar img,
-.ob-done-avatar span {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  border: 3px solid var(--bg-primary);
-  object-fit: cover;
-}
-.ob-done-avatar span {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-card);
-  color: var(--text-white);
-  font-family: 'Archivo', sans-serif;
-  font-size: 40px;
-  font-weight: 900;
-}
-
-.ob-preview {
-  width: 100%;
-  padding: 18px;
-  background: var(--bg-card);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 20px;
-  text-align: left;
-}
-.ob-preview-name {
-  font-size: 18px;
-  font-weight: 800;
-  color: var(--text-white);
-  margin: 0 0 4px;
-}
-.ob-preview-location {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--text-muted);
-  margin: 0 0 8px;
-}
-.ob-preview-location svg { color: var(--accent-coral); flex-shrink: 0; }
-.ob-preview-bio {
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--text-light);
-  margin: 0 0 10px;
-}
-.ob-preview-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.ob-preview-chip {
-  padding: 4px 10px;
-  border-radius: var(--radius-full);
-  background: rgba(253, 118, 102, 0.16);
-  color: var(--accent-coral);
-  font-size: 12px;
-  font-weight: 700;
-}
-.ob-preview-more {
-  padding: 4px 6px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
 @media (max-width: 370px) {
   .ob-title { font-size: 30px; }
 }
@@ -1343,77 +1049,203 @@
   overscroll-behavior-y: contain;
 }
 
-/* Compact top: logo sits higher, less bottom padding */
-.auth-top--compact {
-  flex: 0 0 auto;
-  justify-content: center;
-  padding-top: 32px;
-  padding-bottom: 28px;
-  gap: 16px;
+/* ── Register, 4 pages (11.10.2026) — the onboarding / Home look ──
+   FlowHeader on top (round back button · small wordmark · „2 / 4" · the
+   segmented progress line, styles/flow.css) replaced the splash wordmark,
+   the dots and „SCHRITT N VON 6". Two-tone StepTitle (.ob-title), pill
+   inputs, gender as bubbles. The screen stays the scroll container
+   (.auth-screen--scroll), so on small phones the page scrolls to its CTA. */
+
+/* Fills the screen so the login link sits at the bottom edge. 20px sides
+   (not .auth-mid's 24px, which Login keeps): the content lines up with the
+   FlowHeader's back button and with onboarding's steps. */
+.reg-mid {
+  flex: 1 0 auto;
+  padding-top: 20px;
+  padding-left: 20px;
+  padding-right: 20px;
 }
 
-.auth-top--compact .auth-wordmark {
-  font-size: 48px;
-  margin-bottom: 0;
-}
-
-/* Progress dots */
-.reg-steps {
+/* One page of the wizard; keyed by step in Register.jsx, so it remounts and
+   plays the rise-in on every page change (same motion as onboarding). */
+.reg-page {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 18px;
+  animation: reg-enter 0.35s cubic-bezier(.25, .8, .25, 1) both;
 }
 
-.reg-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
-  transition: width 0.2s ease, background 0.2s ease, border-radius 0.2s ease;
+@keyframes reg-enter {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-.reg-dot--active {
-  width: 28px;
-  border-radius: var(--radius-full);
-  background: var(--accent-coral);
-}
-
-.reg-dot--done {
-  background: var(--accent-green);
-}
-
-.reg-step-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-/* Per-step heading block */
+/* Per-step heading block: StepTitle + hint */
 .reg-step-heading {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-bottom: 4px;
+  gap: 8px;
+  margin-bottom: 2px;
 }
 
-.reg-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text-white);
-  line-height: 1.2;
+.reg-step-heading .ob-title {
+  margin: 0;
 }
 
 .reg-hint {
   font-size: 14px;
   color: var(--text-muted);
   line-height: 1.5;
+  margin: 0;
 }
 
 .reg-hint-em {
   color: rgba(255, 255, 255, 0.8);
   font-weight: 600;
+  overflow-wrap: anywhere; /* a long address must not widen the page */
+}
+
+/* Field labels in the onboarding weight (13/700, as .ob-field label).
+   .reg-label = the same look for a group that has no single control to
+   label (the gender bubbles). */
+.reg-screen .form-group label,
+.reg-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-light);
+  letter-spacing: 0.02em;
+}
+
+/* Pill inputs. Must out-rank global.css's
+   input:not([type=checkbox]):not([type=radio]):not([type=file]) — (0,3,1),
+   and global.css comes AFTER auth.css in the bundle, so a tie would lose.
+   This is (0,4,1). Background, border and the coral focus ring stay the
+   global ones (not set here, so the global :focus rule still applies). */
+.reg-screen .form-group input:not([type="checkbox"]):not([type="radio"]) {
+  min-height: 52px;
+  padding: 14px 22px;
+  border-radius: var(--radius-full);
+}
+
+/* WebKit centres a date value by default; keep it where the placeholder-
+   less field's text starts. */
+.reg-screen .form-group input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+}
+
+/* Gender bubbles: the .ob-chip look (44px pill, card fill, 1.5px white 8%,
+   selected = coral fill + white text + tick). Three in a row; longer
+   translations (it „Non binario", fr „Non-binaire", es „No binario") wrap
+   on small phones — the half-width cap turns that into a tidy 2 + 1 instead
+   of an orphan stretched across the whole row. Onboarding ③'s .ob-bubble
+   (onboarding.css) mirrors this sizing — change both together. */
+.reg-bubbles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.reg-bubble {
+  flex: 1 1 0;
+  min-width: max-content;
+  max-width: calc(50% - 4px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  background: var(--bg-card);
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-full);
+  color: var(--text-light);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+}
+.reg-bubble:active { transform: scale(0.96); }
+.reg-bubble.selected {
+  background: var(--accent-coral);
+  border-color: var(--accent-coral);
+  color: #fff;
+}
+
+/* Fixed-size slot: the glyph and the tick swap without a width change. */
+.reg-bubble-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-coral);
+  font-size: 16px;
+  line-height: 1;
+}
+.reg-bubble.selected .reg-bubble-icon { color: #fff; }
+
+/* Consent checkbox row (was inline styles) */
+.reg-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.5;
+  cursor: pointer;
+}
+.reg-consent input[type="checkbox"] {
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: var(--coral);
+}
+.reg-consent span {
+  flex: 1;
+  min-width: 0;
+}
+.reg-consent a {
+  color: var(--coral);
+}
+
+/* Shown when a guest was bounced here from an account-only action. */
+.reg-guest-banner {
+  box-sizing: border-box;
+  width: calc(100% - 40px);
+  max-width: 400px; /* .reg-mid's 440px minus its side padding */
+  margin: 8px auto 0;
+  padding: 12px 16px;
+  background: rgba(253, 118, 102, 0.12);
+  border: 1px solid rgba(253, 118, 102, 0.35);
+  border-radius: 14px;
+  color: var(--accent-coral);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.reg-bottom {
+  padding-top: 24px;
+}
+
+/* Short phones (iPhone SE / 8: 667pt): a tighter rhythm keeps „Konto
+   erstellen" fully on screen once the keyboard is closed; the login link
+   below it is a scroll away. */
+@media (max-height: 700px) {
+  .reg-mid { padding-top: 12px; }
+  .reg-page { gap: 14px; }
+  .reg-screen .reg-step-heading .ob-title { font-size: 30px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reg-page { animation: none; }
+  .reg-bubble { transition: none; }
 }
 
 /* OTP input — big centered digits */
@@ -1445,43 +1277,6 @@
 .auth-btn-resend:not(:disabled):active {
   border-color: rgba(255, 255, 255, 0.25);
   color: var(--text-light);
-}
-
-/* Location field with inline clear button */
-.location-field {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.location-field input {
-  width: 100%;
-  padding-right: 44px; /* room for × button */
-}
-
-.location-clear {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 22px;
-  line-height: 1;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-  transition: color 0.15s;
-}
-
-.location-clear:hover,
-.location-clear:active {
-  color: var(--text-white);
 }
 
 /* Optional label suffix */

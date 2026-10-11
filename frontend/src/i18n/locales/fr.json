@@ -98,25 +98,17 @@
       "comingSoon": "La connexion {{provider}} arrive bientôt. Utilise la connexion par e-mail."
     },
     "register": {
-      "stepLabel": "Étape {{current}} sur {{total}}",
       "guestBlocked": "Crée un compte gratuit pour fonder des clubs, créer des événements et ajouter des photos.",
       "step1": {
-        "title": "Comment tu t'appelles ?",
-        "hint": "C'est ainsi que tu apparaîtras dans l'app",
         "label": "Ton nom",
         "placeholder": "Ton nom"
       },
       "step2": {
-        "title": "Ton e-mail",
-        "hint": "Nous t'enverrons un code de confirmation",
         "label": "Adresse e-mail",
         "placeholder": "ton@email.com",
         "sendCode": "Envoyer le code"
       },
       "step3": {
-        "title": "Saisis le code",
-        "hintPrefix": "Nous avons envoyé un code à 6 chiffres à",
-        "hintSuffix": ".",
         "label": "Code de confirmation",
         "placeholder": "— — — — — —",
         "confirm": "Confirmer",
@@ -128,20 +120,9 @@
         "errorSendFailed": "Le code n'a pas pu être envoyé"
       },
       "step4": {
-        "title": "Ta date de naissance",
-        "hint": "Tu dois avoir au moins 18 ans",
-        "label": "Date de naissance",
         "errorAge": "Tu dois avoir au moins 18 ans."
       },
-      "step5": {
-        "title": "Où es-tu ?",
-        "hint": "Pour te proposer des événements près de chez toi",
-        "label": "Ville ou région",
-        "placeholder": "p. ex. Paris, France",
-        "removeLocation": "Supprimer le lieu"
-      },
       "step6": {
-        "title": "Choisis un mot de passe",
         "hint": "Min. 6 caractères, majuscule/minuscule, chiffre & caractère spécial",
         "label": "Mot de passe",
         "placeholder": "Ton mot de passe",
@@ -150,6 +131,27 @@
         "referralPlaceholder": "p. ex. JAMIE-X7K2",
         "submit": "Créer le compte",
         "creating": "Création en cours…"
+      },
+      "identity": {
+        "titleLine1": "Qui",
+        "titleLine2": "es-tu ?",
+        "hint": "Ton nom apparaît sur ton profil. Nous t'enverrons un code par e-mail."
+      },
+      "code": {
+        "titleLine1": "Consulte tes",
+        "titleLine2": "e-mails",
+        "hint": "Nous avons envoyé un code à 6 chiffres à <1>{{email}}</1>."
+      },
+      "about": {
+        "titleLine1": "Un peu",
+        "titleLine2": "sur toi",
+        "hint": "JAMIE est réservé aux 18+. Ton âge apparaît sur ton profil, pas ta date de naissance.",
+        "dobLabel": "Date de naissance",
+        "genderLabel": "Genre"
+      },
+      "password": {
+        "titleLine1": "Presque",
+        "titleLine2": "fini !"
       },
       "strength": {
         "veryWeak": "Très faible",
@@ -271,14 +273,24 @@
   },
   "onboarding": {
     "stepCounter": "{{current}} / {{total}}",
-    "confirm": "Confirmer",
+    "progressAria": "Étape {{current}} sur {{total}}",
     "next": "Continuer",
     "save": "Enregistrement...",
     "finish": "C'est parti ! 🚀",
+    "goals": {
+      "titleLine1": "Qu'est-ce qui",
+      "titleLine2": "te correspond ?",
+      "subtitle": "Choisis-en autant que tu veux · ça nous aide à améliorer JAMIE – invisible pour les autres",
+      "needOne": "Choisis au moins une réponse",
+      "options": {
+        "new_in_town": "Je viens d'arriver en ville et je cherche à rencontrer du monde",
+        "new_friends": "Nouer de nouvelles amitiés",
+        "activity_partners": "Trouver des gens pour des activités à plusieurs, p. ex. du sport ou des jeux",
+        "discover_places": "Découvrir de nouveaux lieux et événements",
+        "more_active": "Rendre ma vie sociale plus active et sortir davantage"
+      }
+    },
     "gender": {
-      "titleLine1": "Choisis ton",
-      "titleLine2": "genre",
-      "subtitle": "Pour te proposer des groupes plus adaptés",
       "male": "Homme",
       "female": "Femme",
       "diverse": "Non-binaire"
@@ -287,6 +299,7 @@
       "titleLine1": "Parle-nous",
       "titleLine2": "un peu de toi",
       "subtitle": "Pour te proposer ensuite des groupes plus adaptés",
+      "genderLabel": "Genre",
       "locationLabel": "Lieu de résidence",
       "locationPlaceholder": "p. ex. Paris, France",
       "bioLabel": "Courte description (facultatif)",
@@ -309,13 +322,36 @@
     "photos": {
       "titleLine1": "Ajoute des",
       "titleLine2": "photos",
-      "subtitle": "Appuie sur une photo pour la définir comme photo de profil",
-      "mainBadge": "Photo de profil",
-      "addPhoto": "Ajouter une photo ({{current}}/{{total}})"
+      "subtitle": "Avec une photo de profil, tu peux rejoindre des groupes et des clubs.",
+      "addPhoto": "Ajouter une photo ({{current}}/{{total}})",
+      "avatarCta": "Ajouter une photo de profil",
+      "avatarChange": "Changer la photo de profil",
+      "complete": "Profil complet",
+      "moreTitle": "Autres photos (facultatif)",
+      "makeMain": "Définir comme photo de profil"
     },
-    "done": {
-      "title": "Tu es prêt·e !",
-      "subtitle": "Ton profil est terminé. Tu peux maintenant rejoindre des groupes et écrire aux autres."
+    "photoPrompt": {
+      "title": "Attention : ton profil n'est pas complet",
+      "text": "Ajoute une photo de profil pour rejoindre des groupes et des clubs.",
+      "cta": "Ajouter une photo de profil",
+      "skip": "Passer"
+    },
+    "clubs": {
+      "titleLine1": "Clubs",
+      "titleLine2": "pour toi",
+      "subtitle": "Rejoins des clubs et ne rate plus aucun événement.",
+      "join": "Rejoindre",
+      "request": "Demander",
+      "joined": "Membre",
+      "pending": "Demande envoyée",
+      "blocked": "Impossible",
+      "full": "Complet",
+      "joinError": "Impossible de rejoindre le club. Réessaie, s'il te plaît.",
+      "members_one": "{{count}} membre",
+      "members_other": "{{count}} membres",
+      "public": "Public",
+      "private": "Privé",
+      "next": "Continuer"
     },
     "error": "Le profil n'a pas pu être enregistré"
   },
@@ -644,7 +680,10 @@
     "profileBanner": {
       "title": "Profil pas encore complet",
       "text": "Complète ton profil pour rejoindre des groupes.",
-      "button": "Terminer mon profil"
+      "button": "Terminer mon profil",
+      "avatarTitle": "Attention : ton profil n'est pas complet",
+      "avatarText": "Ajoute une photo de profil pour rejoindre des groupes et des clubs.",
+      "avatarButton": "Ajouter une photo de profil"
     },
     "empty": {
       "groups": "Aucun groupe trouvé.",
@@ -2147,6 +2186,11 @@
       "redemptionsTotalSub_one": "sur {{count}} offre",
       "redemptionsTotalSub_other": "sur {{count}} offres"
     },
+    "motivations": {
+      "title": "Qu'est-ce qui te correspond ? (onboarding)",
+      "answered_one": "{{count}} personne a répondu",
+      "answered_other": "{{count}} personnes ont répondu"
+    },
     "pendingClubs": {
       "empty": "Aucune demande en attente.",
       "noCategory": "sans catégorie",
@@ -2158,6 +2202,28 @@
       "rejectConfirm": "Vraiment refuser le club « {{name}} » ?",
       "approveError": "Échec de la validation",
       "rejectError": "Échec du refus"
+    },
+    "featuredClubs": {
+      "title": "Clubs dans l'onboarding",
+      "hint": "Les nouveaux utilisateurs voient ces clubs juste après l'inscription – exactement dans cet ordre.",
+      "searchPlaceholder": "Rechercher un club…",
+      "add": "Ajouter",
+      "remove": "Retirer",
+      "moveUp": "Monter",
+      "moveDown": "Descendre",
+      "save": "Enregistrer l'ordre",
+      "saving": "Enregistrement…",
+      "saved": "Enregistré ✓",
+      "saveError": "Échec de l'enregistrement",
+      "empty": "Aucun club sélectionné pour l'instant – les nouveaux utilisateurs sautent la page des clubs.",
+      "notApproved": "non approuvé",
+      "inactive": "n'est plus actif",
+      "maxReached": "{{max}} clubs maximum",
+      "members_one": "{{count}} membre",
+      "members_other": "{{count}} membres",
+      "invalidClubs": "Non approuvés ou plus actifs : {{names}}. Retire-les et enregistre à nouveau.",
+      "alreadyAdded": "Déjà dans la liste",
+      "noResults": "Aucun club approuvé trouvé"
     },
     "topPages": {
       "page": "Page",
@@ -2337,6 +2403,10 @@
     "JOIN_REQUEST_BLOCKED": "Tu as déjà fait deux demandes et elles ont été refusées. Tu ne peux plus en envoyer.",
     "POLL_INVALID": "Vérifie la question et les options.",
     "POLL_CLOSED": "Ce sondage est clos.",
-    "POLLS_UNAVAILABLE": "Les sondages reviennent dans un instant. Réessaie dans une minute."
+    "POLLS_UNAVAILABLE": "Les sondages reviennent dans un instant. Réessaie dans une minute.",
+    "ALREADY_MEMBER": "Tu es déjà membre de ce club.",
+    "JOIN_REQUEST_PENDING": "Ta demande d’adhésion attend encore une réponse.",
+    "CLUB_FULL": "Ce club est complet.",
+    "JOIN_CAP_REACHED": "Tu as déjà rejoint ce club deux fois et tu ne peux plus le rejoindre."
   }
 }

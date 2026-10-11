@@ -98,25 +98,17 @@
       "comingSoon": "{{provider}} login is coming soon. Please use email login."
     },
     "register": {
-      "stepLabel": "Step {{current}} of {{total}}",
       "guestBlocked": "Create a free account to found clubs, create events and upload photos.",
       "step1": {
-        "title": "What's your name?",
-        "hint": "This is how you'll appear in the app",
         "label": "Your name",
         "placeholder": "Your name"
       },
       "step2": {
-        "title": "Your email",
-        "hint": "We'll send you a confirmation code",
         "label": "Email address",
         "placeholder": "you@email.com",
         "sendCode": "Send code"
       },
       "step3": {
-        "title": "Enter code",
-        "hintPrefix": "We sent a 6-digit code to",
-        "hintSuffix": ".",
         "label": "Confirmation code",
         "placeholder": "— — — — — —",
         "confirm": "Confirm",
@@ -128,20 +120,9 @@
         "errorSendFailed": "Could not send code"
       },
       "step4": {
-        "title": "Your date of birth",
-        "hint": "You must be at least 18 years old",
-        "label": "Date of birth",
         "errorAge": "You must be at least 18 years old."
       },
-      "step5": {
-        "title": "Where are you?",
-        "hint": "Helps you find events near you",
-        "label": "City or region",
-        "placeholder": "e.g. Vienna, Austria",
-        "removeLocation": "Remove location"
-      },
       "step6": {
-        "title": "Choose a password",
         "hint": "Min. 6 characters, upper/lower, number & special char",
         "label": "Password",
         "placeholder": "Your password",
@@ -150,6 +131,27 @@
         "referralPlaceholder": "e.g. JAMIE-X7K2",
         "submit": "Create account",
         "creating": "Creating…"
+      },
+      "identity": {
+        "titleLine1": "Who",
+        "titleLine2": "are you?",
+        "hint": "Your name appears on your profile. We'll send a code to your email."
+      },
+      "code": {
+        "titleLine1": "Check your",
+        "titleLine2": "inbox",
+        "hint": "We sent a 6-digit code to <1>{{email}}</1>."
+      },
+      "about": {
+        "titleLine1": "A bit",
+        "titleLine2": "about you",
+        "hint": "JAMIE is 18+. Your age shows on your profile, your date of birth doesn't.",
+        "dobLabel": "Date of birth",
+        "genderLabel": "Gender"
+      },
+      "password": {
+        "titleLine1": "Almost",
+        "titleLine2": "there!"
       },
       "strength": {
         "veryWeak": "Very weak",
@@ -271,14 +273,24 @@
   },
   "onboarding": {
     "stepCounter": "{{current}} / {{total}}",
-    "confirm": "Confirm",
+    "progressAria": "Step {{current}} of {{total}}",
     "next": "Next",
     "save": "Saving...",
     "finish": "Let's go! 🚀",
+    "goals": {
+      "titleLine1": "What sounds",
+      "titleLine2": "like you?",
+      "subtitle": "Pick as many as you like · helps us make JAMIE better – never shown to others",
+      "needOne": "Pick at least one",
+      "options": {
+        "new_in_town": "New in town and looking to connect",
+        "new_friends": "Make new friends",
+        "activity_partners": "Find people for activities together, e.g. sports or games",
+        "discover_places": "Discover new places and events",
+        "more_active": "Make my social life more active and do more"
+      }
+    },
     "gender": {
-      "titleLine1": "Choose your",
-      "titleLine2": "gender",
-      "subtitle": "So we can suggest groups that fit you better",
       "male": "Male",
       "female": "Female",
       "diverse": "Diverse"
@@ -287,6 +299,7 @@
       "titleLine1": "Tell us",
       "titleLine2": "about yourself",
       "subtitle": "Helps us suggest more relevant groups later",
+      "genderLabel": "Gender",
       "locationLabel": "Location",
       "locationPlaceholder": "e.g. Vienna, Austria",
       "bioLabel": "Short bio (optional)",
@@ -309,13 +322,36 @@
     "photos": {
       "titleLine1": "Add",
       "titleLine2": "photos",
-      "subtitle": "Tap a photo to set it as your profile picture",
-      "mainBadge": "Profile picture",
-      "addPhoto": "Add photo ({{current}}/{{total}})"
+      "subtitle": "With a profile picture you can join groups & clubs.",
+      "addPhoto": "Add photo ({{current}}/{{total}})",
+      "avatarCta": "Add profile picture",
+      "avatarChange": "Change profile picture",
+      "complete": "Profile complete",
+      "moreTitle": "More photos (optional)",
+      "makeMain": "Set as profile picture"
     },
-    "done": {
-      "title": "You're ready!",
-      "subtitle": "Your profile is set up. You can now join groups and chat with others."
+    "photoPrompt": {
+      "title": "Heads up: your profile isn't complete",
+      "text": "Add a profile picture to join groups & clubs.",
+      "cta": "Add profile picture",
+      "skip": "Skip"
+    },
+    "clubs": {
+      "titleLine1": "Clubs",
+      "titleLine2": "for you",
+      "subtitle": "Join clubs and never miss an event.",
+      "join": "Join",
+      "request": "Request",
+      "joined": "Joined",
+      "pending": "Requested",
+      "blocked": "Not possible",
+      "full": "Full",
+      "joinError": "Couldn't join. Please try again.",
+      "members_one": "{{count}} member",
+      "members_other": "{{count}} members",
+      "public": "Public",
+      "private": "Private",
+      "next": "Continue"
     },
     "error": "Could not save profile"
   },
@@ -644,7 +680,10 @@
     "profileBanner": {
       "title": "Profile not complete yet",
       "text": "Complete your profile to join groups.",
-      "button": "Finish profile now"
+      "button": "Finish profile now",
+      "avatarTitle": "Heads up: your profile isn't complete",
+      "avatarText": "Add a profile picture to join groups & clubs.",
+      "avatarButton": "Add profile picture"
     },
     "empty": {
       "groups": "No groups found.",
@@ -2147,6 +2186,11 @@
       "redemptionsTotalSub_one": "across {{count}} deal",
       "redemptionsTotalSub_other": "across {{count}} deals"
     },
+    "motivations": {
+      "title": "What sounds like you? (onboarding)",
+      "answered_one": "{{count}} person answered",
+      "answered_other": "{{count}} people answered"
+    },
     "pendingClubs": {
       "empty": "No open requests.",
       "noCategory": "no category",
@@ -2158,6 +2202,28 @@
       "rejectConfirm": "Really reject club \"{{name}}\"?",
       "approveError": "Approval failed",
       "rejectError": "Rejection failed"
+    },
+    "featuredClubs": {
+      "title": "Clubs in onboarding",
+      "hint": "New users see these clubs right after signing up — in exactly this order.",
+      "searchPlaceholder": "Search clubs…",
+      "add": "Add",
+      "remove": "Remove",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "save": "Save order",
+      "saving": "Saving…",
+      "saved": "Saved ✓",
+      "saveError": "Saving failed",
+      "empty": "No clubs selected yet — new users skip the clubs page.",
+      "notApproved": "not approved",
+      "inactive": "no longer active",
+      "maxReached": "At most {{max}} clubs",
+      "members_one": "{{count}} member",
+      "members_other": "{{count}} members",
+      "invalidClubs": "Not approved or no longer active: {{names}}. Remove them and save again.",
+      "alreadyAdded": "Already in the list",
+      "noResults": "No approved clubs found"
     },
     "topPages": {
       "page": "Page",
@@ -2337,6 +2403,10 @@
     "JOIN_REQUEST_BLOCKED": "You have already asked twice and were declined. You can’t request again.",
     "POLL_INVALID": "Please check the question and the options.",
     "POLL_CLOSED": "This poll has ended.",
-    "POLLS_UNAVAILABLE": "Polls will be back in a moment. Please try again in a minute."
+    "POLLS_UNAVAILABLE": "Polls will be back in a moment. Please try again in a minute.",
+    "ALREADY_MEMBER": "You’re already a member of this club.",
+    "JOIN_REQUEST_PENDING": "Your request to join is still waiting for an answer.",
+    "CLUB_FULL": "This club is full.",
+    "JOIN_CAP_REACHED": "You’ve already joined this club twice and can’t join it again."
   }
 }

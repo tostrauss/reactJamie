@@ -713,7 +713,7 @@ export const Home = () => {
             without ever being asked for one — those users have
             onboarding_completed = TRUE and no age, so the unfinished-onboarding
             check alone would never reach them. Onboarding now asks. */}
-        {user && (user.onboarding_completed === false || !user.date_of_birth) && (
+        {user && (user.onboarding_completed === false || !user.date_of_birth) ? (
           <div className="profile-warning-banner">
             <div className="profile-warning-title">{t('home.profileBanner.title')}</div>
             <p className="profile-warning-text">
@@ -723,7 +723,22 @@ export const Home = () => {
               {t('home.profileBanner.button')}
             </button>
           </div>
-        )}
+        ) : user && !user.avatar_url ? (
+          /* Finished profile, no picture: joining is still refused
+             (requiresAvatar), yet the banner above only knows the onboarding
+             flag and the birth date — so Home said nothing, typically after
+             „Überspringen" on onboarding's photo prompt (Tina's checklist
+             10.10.2026: „Achtung, dein Profil ist nicht vollständig…"). */
+          <div className="profile-warning-banner">
+            <div className="profile-warning-title">{t('home.profileBanner.avatarTitle')}</div>
+            <p className="profile-warning-text">
+              {t('home.profileBanner.avatarText')}
+            </p>
+            <button className="profile-warning-button" onClick={() => navigate("/profile/edit")}>
+              {t('home.profileBanner.avatarButton')}
+            </button>
+          </div>
+        ) : null}
 
         {/* GRUPPEN */}
         {activeTab === 'gruppen' && (

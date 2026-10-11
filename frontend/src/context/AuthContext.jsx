@@ -5,6 +5,7 @@ import { auth, restoreSession, setMemToken, clearMemToken, clearApiCache, subscr
 // for those users (Sentry JAMIE-REACT-J). Auth truth is the httpOnly cookie;
 // this cache is only a paint-speed nicety and may silently not persist.
 import { safeStorage } from '../utils/safeStorage';
+import { clearAllOnboardingDrafts } from '../utils/onboardingDraft';
 import { unsubscribeFromPush } from '../utils/pushNotifications';
 import { useNetwork } from './NetworkContext';
 
@@ -49,6 +50,10 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     clearMemToken();
     safeStorage.removeItem('jamie_user');
+    // A half-finished onboarding (birth date, gender, answers) must not stay
+    // on a shared device for the next person — covers logout, account
+    // deletion (SettingsPage → logout) and both expired-session paths.
+    clearAllOnboardingDrafts();
     // Logout → purge cached /api responses so the next account can't read them.
     clearApiCache();
   };
@@ -64,10 +69,13 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const register = useCallback(async (email, password, name, referral_code, date_of_birth) => {
+  // gender: optional trailing param (Register asks it since 11.10.2026); older
+  // callers keep their exact request body. An older server ignores the field
+  // and onboarding then asks for it, because its step shows from !user.gender.
+  const register = useCallback(async (email, password, name, referral_code, date_of_birth, gender) => {
     setLoading(true);
     try {
-      const { data } = await auth.register(email, password, name, referral_code, date_of_birth);
+      const { data } = await auth.register(email, password, name, referral_code, date_of_birth, gender);
       storeAuth(data.user, data.token);
       return data.user;
     } finally {

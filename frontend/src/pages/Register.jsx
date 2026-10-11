@@ -5,36 +5,52 @@ import { serverErrorMessage } from '../utils/apiError';
 import { AuthContext } from '../context/AuthContext';
 import { auth } from '../utils/api';
 import { safeStorage, safeSession } from '../utils/safeStorage';
-import { JamieWordmark } from '../components/JamieWordmark';
 import { PasswordInput } from '../components/PasswordInput';
+import { FlowHeader } from '../components/FlowHeader';
+import { StepTitle } from '../components/StepTitle';
 import '../styles/auth.css';
 
 const OTP_RESEND_SECONDS = 60;
-const TOTAL_STEPS = 6;
 
-async function fetchLocationSuggestions(query) {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1&countrycodes=at,de,ch&accept-language=de`;
-  const res = await fetch(url, { headers: { 'Accept-Language': 'de' } });
-  const data = await res.json();
-  return data.map(item => {
-    const a = item.address || {};
-    const place = a.city || a.town || a.village || a.municipality || item.name;
-    const country = a.country;
-    return place && country ? `${place}, ${country}` : item.display_name;
-  });
-}
+// Four pages since the 11.10.2026 rework (Tina's checklist: „Name, Email;
+// Geburtsdatum, Geschlecht? (Bubbles) eigene Vorderseite"). The Wohnort step
+// is gone: onboarding asks it with Google Places and the server geocodes it,
+// so it was asked twice (here through a browser-side Nominatim lookup limited
+// to at/de/ch). Ids instead of numbers — the i18n keys stay step1…step6 and
+// their labels, placeholders and errors are reused below.
+const STEPS = ['identity', 'code', 'about', 'password'];
+
+// AppIntro's trigger (shouldShowIntro); cleared by AppIntro when it finishes
+// and by Onboarding on mount.
+const NEW_REG_KEY = 'jamie_new_registration';
+
+// value: backend enum — must match GENDER_VALUES (utils/profileCompleteness.js).
+// The trailing U+FE0E (text variation selector) keeps ⚧ from rendering as a
+// colour emoji on iOS, so all three glyphs stay monochrome (as in onboarding).
+const GENDER_OPTIONS = [
+  { value: 'male',    labelKey: 'onboarding.gender.male',    icon: '♂︎' },
+  { value: 'female',  labelKey: 'onboarding.gender.female',  icon: '♀︎' },
+  { value: 'diverse', labelKey: 'onboarding.gender.diverse', icon: '⚧︎' },
+];
+
+const CheckIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+);
 
 export const Register = () => {
   const { t } = useTranslation();
-  const [step, setStep]                       = useState(1);
+  const [step, setStep]                       = useState('identity');
   const [name, setName]                       = useState('');
   const [email, setEmail]                     = useState('');
   const [otpCode, setOtpCode]                 = useState('');
   const [otpLoading, setOtpLoading]           = useState(false);
   const [otpError, setOtpError]               = useState('');
   const [otpResendTimer, setOtpResendTimer]   = useState(0);
-  const [location, setLocation]               = useState('');
   const [dateOfBirth, setDateOfBirth]         = useState('');
+  const [gender, setGender]                   = useState('');
   const [password, setPassword]               = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [referralCode, setReferralCode]       = useState('');
@@ -53,28 +69,7 @@ export const Register = () => {
   const { register, loading } = useContext(AuthContext);
   const navigate = useNavigate();
 
-  const [locationSuggestions, setLocationSuggestions] = useState([]);
-  const locationDebounceRef = useRef(null);
   const resendIntervalRef = useRef(null);
-
-  const handleLocationInput = (value) => {
-    setLocation(value);
-    setLocationSuggestions([]);
-    if (locationDebounceRef.current) clearTimeout(locationDebounceRef.current);
-    if (!value.trim() || value.length < 2) return;
-    locationDebounceRef.current = setTimeout(async () => {
-      try {
-        const suggestions = await fetchLocationSuggestions(value);
-        setLocationSuggestions(suggestions);
-      } catch (_) {}
-    }, 350);
-  };
-
-  const selectLocationSuggestion = (suggestion) => {
-    setLocation(suggestion);
-    setLocationSuggestions([]);
-    if (locationDebounceRef.current) clearTimeout(locationDebounceRef.current);
-  };
 
   useEffect(() => {
     if (otpResendTimer <= 0) { clearInterval(resendIntervalRef.current); return; }
@@ -93,11 +88,11 @@ export const Register = () => {
     try {
       const res = await auth.sendEmailCode(email, name);
       if (res.data?.devCode) {
-        // Dev mode: auto-verify and skip the OTP step
+        // Dev mode: auto-verify and skip the code page
         await auth.verifyEmailCode(email, res.data.devCode);
-        setStep(4);
+        setStep('about');
       } else {
-        setStep(3);
+        setStep('code');
         setOtpResendTimer(OTP_RESEND_SECONDS);
       }
     } catch (err) {
@@ -113,7 +108,7 @@ export const Register = () => {
     setOtpLoading(true);
     try {
       await auth.verifyEmailCode(email, otpCode);
-      setStep(4);
+      setStep('about');
     } catch (err) {
       setOtpError(serverErrorMessage(err, t, 'auth.register.step3.errorInvalid'));
     } finally {
@@ -129,7 +124,7 @@ export const Register = () => {
       const res = await auth.sendEmailCode(email, name);
       if (res.data?.devCode) {
         await auth.verifyEmailCode(email, res.data.devCode);
-        setStep(4);
+        setStep('about');
       } else {
         setOtpResendTimer(OTP_RESEND_SECONDS);
       }
@@ -173,373 +168,320 @@ export const Register = () => {
     d.setFullYear(d.getFullYear() - 18);
     return d.toISOString().split('T')[0];
   })();
+  const dobTooYoung = !!dateOfBirth && dateOfBirth > maxDOB;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // Pressing Enter in any earlier step's input submits the form and used to
-    // fire the final registration prematurely (with errors that step doesn't
-    // render). Only the last step performs the actual submit; the visible
-    // per-step "Weiter" buttons drive navigation.
-    if (step !== TOTAL_STEPS) return;
+    // Pressing Enter in any earlier page's input submits the form and used to
+    // fire the final registration prematurely (with errors that page doesn't
+    // render). Only the last page performs the actual submit; the visible
+    // per-page buttons drive navigation.
+    if (step !== 'password') return;
     setError('');
     if (!dateOfBirth) { setError(t('auth.register.validation.dobRequired')); return; }
     if (dateOfBirth > maxDOB) { setError(t('auth.register.validation.ageMin')); return; }
     if (password !== confirmPassword) { setError(t('auth.register.validation.passwordMismatch')); return; }
     const pwdError = validatePassword(password);
     if (pwdError) { setError(pwdError); return; }
+    // The intro flag goes up BEFORE register(): App shows AppIntro from its
+    // [user] effect, i.e. on the very render that stores the new account. Set
+    // afterwards (and, until 11.10.2026, only after an awaited Wohnort save),
+    // the intro either opened on that render or missed it and replayed later
+    // over the finished onboarding — now it is always right after sign-up,
+    // before onboarding step 1.
+    safeStorage.setItem(NEW_REG_KEY, '1');
     try {
-      await register(email, password, name, referralCode.trim() || undefined, dateOfBirth);
-      if (location.trim()) {
-        try { await auth.updateProfile({ location: location.trim() }); } catch (_) {}
-      }
-      safeStorage.setItem('jamie_new_registration', '1');
-      // replace: the registration wizard must not stay in history — back from
-      // onboarding should not re-enter the (now consumed) signup form.
-      navigate('/onboarding', { replace: true });
+      await register(email, password, name, referralCode.trim() || undefined, dateOfBirth, gender || undefined);
     } catch (err) {
+      // No account → no intro: a leftover flag would open it on a later login.
+      safeStorage.removeItem(NEW_REG_KEY);
       setError(serverErrorMessage(err, t, 'auth.register.validation.registerFailed'));
+      return;
     }
+    // Nothing may be awaited between register() and this navigate: AuthRoute
+    // redirects on the same setUser, and both must land on /onboarding
+    // (utils/authRedirect.js). replace: the registration wizard must not stay
+    // in history — back from onboarding should not re-enter the (now
+    // consumed) signup form.
+    navigate('/onboarding', { replace: true });
   };
 
-  const BackBtn = ({ onClick }) => (
-    <button type="button" className="auth-back-btn" onClick={onClick}>
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M19 12H5M12 19l-7-7 7-7"/>
-      </svg>
-      {t('common.back')}
-    </button>
-  );
+  // Back from the code page AND from the about page goes to identity — not
+  // to the code page: the code was already consumed when it was verified, so
+  // returning there would dead-end on a verify screen. Re-sending from
+  // identity issues a fresh code.
+  const backTo = { code: 'identity', about: 'identity', password: 'about' }[step];
+  const goBack = backTo
+    ? () => { setStep(backTo); setOtpCode(''); setOtpError(''); setError(''); }
+    : undefined;
 
   return (
-    <div className="auth-screen auth-screen--scroll">
-      {/* Top — logo + progress */}
-      <div className="auth-top auth-top--compact">
-        <JamieWordmark size="splash" />
-        <div className="reg-steps">
-          {Array.from({ length: TOTAL_STEPS }, (_, i) => (
-            <div
-              key={i}
-              className={`reg-dot ${i + 1 === step ? 'reg-dot--active' : i + 1 < step ? 'reg-dot--done' : ''}`}
-            />
-          ))}
-        </div>
-        <p className="reg-step-label">{t('auth.register.stepLabel', { current: step, total: TOTAL_STEPS })}</p>
-      </div>
+    <div className="auth-screen auth-screen--scroll reg-screen">
+      <FlowHeader onBack={goBack} current={STEPS.indexOf(step) + 1} total={STEPS.length} />
 
       {guestBlocked && (
-        <div style={{
-          margin: '0 20px 12px',
-          padding: '12px 16px',
-          background: 'rgba(253,118,102,0.12)',
-          border: '1px solid rgba(253,118,102,0.35)',
-          borderRadius: 14,
-          color: '#FD7666',
-          fontSize: 13.5,
-          fontWeight: 600,
-          lineHeight: 1.45,
-          textAlign: 'center',
-        }}>
+        <div className="reg-guest-banner">
           {t('auth.register.guestBlocked')}
         </div>
       )}
 
-      {/* Middle — step content */}
-      <div className="auth-mid">
-        <form onSubmit={handleSubmit} className="auth-form">
+      <div className="auth-mid reg-mid">
+        <form onSubmit={handleSubmit} className="auth-form reg-form">
+          {/* key → each page mounts fresh and plays the enter animation */}
+          <div className="reg-page" key={step}>
 
-          {/* ── Step 1: Name ─────────────────────────────────────────────── */}
-          {step === 1 && (
-            <>
-              <div className="reg-step-heading">
-                <h2 className="reg-title">{t('auth.register.step1.title')}</h2>
-                <p className="reg-hint">{t('auth.register.step1.hint')}</p>
-              </div>
-              <div className="form-group">
-                <label>{t('auth.register.step1.label')}</label>
-                <input
-                  type="text"
-                  placeholder={t('auth.register.step1.placeholder')}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  autoComplete="name"
-                />
-              </div>
-              <button
-                type="button"
-                className="auth-btn auth-btn-primary"
-                onClick={() => name.trim() && setStep(2)}
-                disabled={!name.trim()}
-              >
-                {t('common.continue')}
-              </button>
-            </>
-          )}
-
-          {/* ── Step 2: E-Mail ───────────────────────────────────────────── */}
-          {step === 2 && (
-            <>
-              <BackBtn onClick={() => setStep(1)} />
-              <div className="reg-step-heading">
-                <h2 className="reg-title">{t('auth.register.step2.title')}</h2>
-                <p className="reg-hint">{t('auth.register.step2.hint')}</p>
-              </div>
-              <div className="form-group">
-                <label>{t('auth.register.step2.label')}</label>
-                <input
-                  type="email"
-                  placeholder={t('auth.register.step2.placeholder')}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
-                />
-              </div>
-              {otpError && <p className="error-message">{otpError}</p>}
-              <button
-                type="button"
-                className="auth-btn auth-btn-primary"
-                onClick={handleSendCode}
-                disabled={!email || otpLoading}
-              >
-                {otpLoading ? t('common.sending') : t('auth.register.step2.sendCode')}
-              </button>
-            </>
-          )}
-
-          {/* ── Step 3: OTP ─────────────────────────────────────────────── */}
-          {step === 3 && (
-            <>
-              <BackBtn onClick={() => { setStep(2); setOtpCode(''); setOtpError(''); }} />
-              <div className="reg-step-heading">
-                <h2 className="reg-title">{t('auth.register.step3.title')}</h2>
-                <p className="reg-hint">
-                  {t('auth.register.step3.hintPrefix')}{' '}
-                  <strong className="reg-hint-em">{email}</strong>
-                  {t('auth.register.step3.hintSuffix')}
-                </p>
-              </div>
-              <div className="form-group">
-                <label>{t('auth.register.step3.label')}</label>
-                <input
-                  className="otp-input"
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={6}
-                  placeholder={t('auth.register.step3.placeholder')}
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  autoComplete="one-time-code"
-                />
-              </div>
-              {otpError && <p className="error-message">{otpError}</p>}
-              <button
-                type="button"
-                className="auth-btn auth-btn-primary"
-                onClick={handleVerifyCode}
-                disabled={otpCode.length !== 6 || otpLoading}
-              >
-                {otpLoading ? t('auth.register.step3.checking') : t('auth.register.step3.confirm')}
-              </button>
-              <button
-                type="button"
-                className="auth-btn auth-btn-resend"
-                onClick={handleResendCode}
-                disabled={otpResendTimer > 0 || otpLoading}
-              >
-                {otpResendTimer > 0
-                  ? t('auth.register.step3.resendIn', { seconds: otpResendTimer })
-                  : t('auth.register.step3.resend')}
-              </button>
-            </>
-          )}
-
-          {/* ── Step 4: Geburtsdatum ─────────────────────────────────────── */}
-          {step === 4 && (
-            <>
-              {/* Back to the EMAIL step, not the OTP step: the code was already
-                  consumed at step 3, so returning there would dead-end on a
-                  verify screen. Re-sending from step 2 issues a fresh code. */}
-              <BackBtn onClick={() => { setStep(2); setOtpCode(''); setOtpError(''); }} />
-              <div className="reg-step-heading">
-                <h2 className="reg-title">{t('auth.register.step4.title')}</h2>
-                <p className="reg-hint">{t('auth.register.step4.hint')}</p>
-              </div>
-              <div className="form-group">
-                <label>{t('auth.register.step4.label')}</label>
-                <input
-                  type="date"
-                  value={dateOfBirth}
-                  onChange={(e) => setDateOfBirth(e.target.value)}
-                  max={maxDOB}
-                  required
-                  style={{ colorScheme: 'dark' }}
-                />
-                {dateOfBirth && dateOfBirth > maxDOB && (
-                  <p className="error-message" style={{ marginTop: 6 }}>
-                    {t('auth.register.step4.errorAge')}
-                  </p>
-                )}
-              </div>
-              <button
-                type="button"
-                className="auth-btn auth-btn-primary"
-                onClick={() => setStep(5)}
-                disabled={!dateOfBirth || dateOfBirth > maxDOB}
-              >
-                {t('common.continue')}
-              </button>
-            </>
-          )}
-
-          {/* ── Step 5: Standort ─────────────────────────────────────────── */}
-          {step === 5 && (
-            <>
-              <BackBtn onClick={() => setStep(4)} />
-              <div className="reg-step-heading">
-                <h2 className="reg-title">{t('auth.register.step5.title')}</h2>
-                <p className="reg-hint">{t('auth.register.step5.hint')}</p>
-              </div>
-              <div className="form-group">
-                <label>
-                  {t('auth.register.step5.label')}
-                  <span className="field-optional"> {t('auth.shared.fieldOptional')}</span>
-                </label>
-                <div className="location-field">
+            {/* ── 1 · Name + E-Mail ─────────────────────────────────────── */}
+            {step === 'identity' && (
+              <>
+                <div className="reg-step-heading">
+                  <StepTitle line1={t('auth.register.identity.titleLine1')} line2={t('auth.register.identity.titleLine2')} />
+                  <p className="reg-hint">{t('auth.register.identity.hint')}</p>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="reg-name">{t('auth.register.step1.label')}</label>
                   <input
+                    id="reg-name"
                     type="text"
-                    placeholder={t('auth.register.step5.placeholder')}
-                    value={location}
-                    onChange={(e) => handleLocationInput(e.target.value)}
-                    autoComplete="off"
+                    placeholder={t('auth.register.step1.placeholder')}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                    autoComplete="name"
                   />
-                  {locationSuggestions.length > 0 && (
-                    <ul className="location-suggestions">
-                      {locationSuggestions.map((s, i) => (
-                        <li key={i} onMouseDown={() => selectLocationSuggestion(s)}>{s}</li>
-                      ))}
-                    </ul>
-                  )}
-                  {location && (
-                    <button
-                      type="button"
-                      className="location-clear"
-                      onClick={() => { setLocation(''); setLocationSuggestions([]); }}
-                      aria-label={t('auth.register.step5.removeLocation')}
-                    >
-                      ×
-                    </button>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="reg-email">{t('auth.register.step2.label')}</label>
+                  <input
+                    id="reg-email"
+                    type="email"
+                    placeholder={t('auth.register.step2.placeholder')}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                  />
+                </div>
+                {otpError && <p className="error-message">{otpError}</p>}
+                <button
+                  type="button"
+                  className="auth-btn auth-btn-primary"
+                  onClick={handleSendCode}
+                  disabled={!name.trim() || !email.trim() || otpLoading}
+                >
+                  {otpLoading ? t('common.sending') : t('auth.register.step2.sendCode')}
+                </button>
+              </>
+            )}
+
+            {/* ── 2 · Code ──────────────────────────────────────────────── */}
+            {step === 'code' && (
+              <>
+                <div className="reg-step-heading">
+                  <StepTitle line1={t('auth.register.code.titleLine1')} line2={t('auth.register.code.titleLine2')} />
+                  {/* One sentence with the address inside: the old prefix/
+                      address/suffix split lost the space before „gesendet."
+                      („…@example.comgesendet."). */}
+                  <p className="reg-hint">
+                    <Trans
+                      i18nKey="auth.register.code.hint"
+                      values={{ email: email.trim() }}
+                      components={{ 1: <strong className="reg-hint-em" /> }}
+                    />
+                  </p>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="reg-otp">{t('auth.register.step3.label')}</label>
+                  <input
+                    id="reg-otp"
+                    className="otp-input"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    placeholder={t('auth.register.step3.placeholder')}
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    autoComplete="one-time-code"
+                  />
+                </div>
+                {otpError && <p className="error-message">{otpError}</p>}
+                <button
+                  type="button"
+                  className="auth-btn auth-btn-primary"
+                  onClick={handleVerifyCode}
+                  disabled={otpCode.length !== 6 || otpLoading}
+                >
+                  {otpLoading ? t('auth.register.step3.checking') : t('auth.register.step3.confirm')}
+                </button>
+                <button
+                  type="button"
+                  className="auth-btn auth-btn-resend"
+                  onClick={handleResendCode}
+                  disabled={otpResendTimer > 0 || otpLoading}
+                >
+                  {otpResendTimer > 0
+                    ? t('auth.register.step3.resendIn', { seconds: otpResendTimer })
+                    : t('auth.register.step3.resend')}
+                </button>
+              </>
+            )}
+
+            {/* ── 3 · Geburtsdatum + Geschlecht ─────────────────────────── */}
+            {step === 'about' && (
+              <>
+                <div className="reg-step-heading">
+                  <StepTitle line1={t('auth.register.about.titleLine1')} line2={t('auth.register.about.titleLine2')} />
+                  <p className="reg-hint">{t('auth.register.about.hint')}</p>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="reg-dob">{t('auth.register.about.dobLabel')}</label>
+                  <input
+                    id="reg-dob"
+                    type="date"
+                    value={dateOfBirth}
+                    onChange={(e) => setDateOfBirth(e.target.value)}
+                    max={maxDOB}
+                    required
+                    style={{ colorScheme: 'dark' }}
+                  />
+                  {dobTooYoung && (
+                    <p className="error-message">{t('auth.register.step4.errorAge')}</p>
                   )}
                 </div>
-              </div>
-              <button
-                type="button"
-                className="auth-btn auth-btn-primary"
-                onClick={() => setStep(6)}
-              >
-                {t('common.continue')}
-              </button>
-            </>
-          )}
-
-          {/* ── Step 6: Passwort ─────────────────────────────────────────── */}
-          {step === 6 && (
-            <>
-              <BackBtn onClick={() => setStep(5)} />
-              <div className="reg-step-heading">
-                <h2 className="reg-title">{t('auth.register.step6.title')}</h2>
-                <p className="reg-hint">{t('auth.register.step6.hint')}</p>
-              </div>
-              <div className="form-group">
-                <label>{t('auth.register.step6.label')}</label>
-                <PasswordInput
-                  placeholder={t('auth.register.step6.placeholder')}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoComplete="new-password"
-                />
-                {password.length > 0 && (
-                  <div className="password-strength">
-                    <div className="strength-bar">
-                      {[0, 1, 2, 3].map((i) => (
-                        <div
-                          key={i}
-                          className="strength-segment"
-                          style={{ background: i < strength.score ? strength.color : 'rgba(255,255,255,0.1)' }}
-                        />
-                      ))}
-                    </div>
-                    <span className="strength-label" style={{ color: strength.color }}>
-                      {strength.label}
-                    </span>
+                {/* Gender as bubbles (Tina's checklist). Asked here so an
+                    e-mail account is never created without one; onboarding
+                    only asks when the server still has none (Google sign-in,
+                    or an older server that ignored the field). */}
+                <div className="form-group">
+                  <span className="reg-label" id="reg-gender-label">{t('auth.register.about.genderLabel')}</span>
+                  <div className="reg-bubbles" role="radiogroup" aria-labelledby="reg-gender-label">
+                    {GENDER_OPTIONS.map(({ value, labelKey, icon }) => {
+                      const selected = gender === value;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          role="radio"
+                          aria-checked={selected}
+                          className={`reg-bubble${selected ? ' selected' : ''}`}
+                          onClick={() => setGender(value)}
+                        >
+                          {/* The tick takes the glyph's place: the bubble
+                              keeps its width, so the row never re-wraps. */}
+                          <span className="reg-bubble-icon" aria-hidden="true">
+                            {selected ? <CheckIcon /> : icon}
+                          </span>
+                          {t(labelKey)}
+                        </button>
+                      );
+                    })}
                   </div>
-                )}
-              </div>
-              <div className="form-group">
-                <label>{t('auth.register.step6.confirmLabel')}</label>
-                <PasswordInput
-                  placeholder={t('auth.shared.confirmPasswordPlaceholder')}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  autoComplete="new-password"
-                />
-              </div>
-              <div className="form-group">
-                <label>
-                  {t('auth.register.step6.referralLabel')}
-                  <span className="field-optional"> {t('auth.shared.fieldOptional')}</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder={t('auth.register.step6.referralPlaceholder')}
-                  value={referralCode}
-                  onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                  className="referral-input"
-                  autoComplete="off"
-                />
-              </div>
-              <label style={{
-                display: 'flex', alignItems: 'flex-start', gap: 10,
-                width: '100%', textAlign: 'left',
-                fontSize: 13, color: 'rgba(255,255,255,0.65)',
-                lineHeight: 1.5, cursor: 'pointer', marginTop: 4,
-              }}>
-                <input
-                  type="checkbox"
-                  checked={consentGiven}
-                  onChange={(e) => setConsentGiven(e.target.checked)}
-                  style={{ marginTop: 2, flexShrink: 0, accentColor: 'var(--coral)' }}
-                />
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <Trans
-                    i18nKey="auth.shared.consentText"
-                    components={{
-                      1: <Link to="/privacy" target="_blank" style={{ color: 'var(--coral)' }} />,
-                      2: <Link to="/terms" target="_blank" style={{ color: 'var(--coral)' }} />,
-                      3: <Link to="/guidelines" target="_blank" style={{ color: 'var(--coral)' }} />,
-                    }}
-                  />
-                </span>
-              </label>
-              {error && <p className="error-message">{error}</p>}
-              <button
-                type="submit"
-                className="auth-btn auth-btn-primary"
-                disabled={loading || !password || !confirmPassword || !consentGiven}
-              >
-                {loading ? t('auth.register.step6.creating') : t('auth.register.step6.submit')}
-              </button>
-            </>
-          )}
+                </div>
+                <button
+                  type="button"
+                  className="auth-btn auth-btn-primary"
+                  onClick={() => setStep('password')}
+                  disabled={!dateOfBirth || dobTooYoung || !gender}
+                >
+                  {t('common.continue')}
+                </button>
+              </>
+            )}
 
+            {/* ── 4 · Passwort ──────────────────────────────────────────── */}
+            {step === 'password' && (
+              <>
+                <div className="reg-step-heading">
+                  <StepTitle line1={t('auth.register.password.titleLine1')} line2={t('auth.register.password.titleLine2')} />
+                  <p className="reg-hint">{t('auth.register.step6.hint')}</p>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="reg-password">{t('auth.register.step6.label')}</label>
+                  <PasswordInput
+                    id="reg-password"
+                    placeholder={t('auth.register.step6.placeholder')}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    autoComplete="new-password"
+                  />
+                  {password.length > 0 && (
+                    <div className="password-strength">
+                      <div className="strength-bar">
+                        {[0, 1, 2, 3].map((i) => (
+                          <div
+                            key={i}
+                            className="strength-segment"
+                            style={{ background: i < strength.score ? strength.color : 'rgba(255,255,255,0.1)' }}
+                          />
+                        ))}
+                      </div>
+                      <span className="strength-label" style={{ color: strength.color }}>
+                        {strength.label}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div className="form-group">
+                  <label htmlFor="reg-password-confirm">{t('auth.register.step6.confirmLabel')}</label>
+                  <PasswordInput
+                    id="reg-password-confirm"
+                    placeholder={t('auth.shared.confirmPasswordPlaceholder')}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="reg-referral">
+                    {t('auth.register.step6.referralLabel')}
+                    <span className="field-optional"> {t('auth.shared.fieldOptional')}</span>
+                  </label>
+                  <input
+                    id="reg-referral"
+                    type="text"
+                    placeholder={t('auth.register.step6.referralPlaceholder')}
+                    value={referralCode}
+                    onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                    className="referral-input"
+                    autoComplete="off"
+                  />
+                </div>
+                <label className="reg-consent">
+                  <input
+                    type="checkbox"
+                    checked={consentGiven}
+                    onChange={(e) => setConsentGiven(e.target.checked)}
+                  />
+                  <span>
+                    <Trans
+                      i18nKey="auth.shared.consentText"
+                      components={{
+                        1: <Link to="/privacy" target="_blank" />,
+                        2: <Link to="/terms" target="_blank" />,
+                        3: <Link to="/guidelines" target="_blank" />,
+                      }}
+                    />
+                  </span>
+                </label>
+                {error && <p className="error-message">{error}</p>}
+                <button
+                  type="submit"
+                  className="auth-btn auth-btn-primary"
+                  disabled={loading || !password || !confirmPassword || !consentGiven}
+                >
+                  {loading ? t('auth.register.step6.creating') : t('auth.register.step6.submit')}
+                </button>
+              </>
+            )}
+
+          </div>
         </form>
       </div>
 
       {/* Bottom — login link */}
-      <div className="auth-bottom">
+      <div className="auth-bottom reg-bottom">
         <p>
           {t('auth.register.alreadyAccount')}{' '}
           <Link to="/login" className="auth-link">{t('auth.register.loginLink')}</Link>

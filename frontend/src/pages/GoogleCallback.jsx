@@ -2,6 +2,7 @@ import { useEffect, useRef, useContext } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { consumeGoogleState, googleRedirectUri } from '../utils/googleAuth';
+import { postAuthPath } from '../utils/authRedirect';
 
 /**
  * Landing page for Google's auth-code redirect (see utils/googleAuth.js /
@@ -32,8 +33,13 @@ const GoogleCallback = () => {
       return;
     }
 
+    // A Google account that has never finished onboarding (every first
+    // sign-in: googleLogin creates it with onboarding_completed = FALSE and
+    // no gender) goes straight into the wizard — no AppIntro on this path.
+    // Same helper as this route's AuthRoute, which reacts to the same setUser
+    // first: whichever of the two navigations wins, both pick one target.
     loginWithGoogleCode(code, googleRedirectUri())
-      .then(() => navigate('/home', { replace: true }))
+      .then((u) => navigate(postAuthPath(u, { newUserAware: true }), { replace: true }))
       .catch(() => navigate('/login?error=google', { replace: true }));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -4,11 +4,17 @@ import i18n, { whenActiveLanguageReady } from './i18n'; // init i18next before R
 import App from './App.jsx';
 import { initSentry } from './utils/sentry';
 import { isTWA } from './utils/platform';
+import { captureInstallPrompt } from './utils/installPrompt';
 
 // Latch TWA detection on the very first load, while document.referrer still
 // carries the android-app:// launch referrer — a later hard reload can drop it.
 // This keeps Stripe purchase surfaces OFF inside the Play-distributed wrapper.
 isTWA();
+
+// Catch Chrome's one beforeinstallprompt of this page load before React
+// mounts: the install banner is not always mounted when it fires (AppIntro
+// right after sign-up replaces the whole shell). See utils/installPrompt.js.
+captureInstallPrompt();
 
 function mount() {
   ReactDOM.createRoot(document.getElementById('root')).render(

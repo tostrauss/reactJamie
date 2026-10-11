@@ -1,0 +1,694 @@
+/* ══════════════════════════════════════════
+   ONBOARDING v3 (Umbau 11.10.2026, Tinas Checkliste)
+   pages/Onboarding.jsx (① Was trifft zu? ② Interessen ③ Über dich ④ Fotos)
+   and pages/OnboardingClubs.jsx („Clubs für dich").
+   Imported by both pages AFTER auth.css, so equal-specificity rules here win.
+   The container / content / footer scroll mechanics stay the ones in auth.css
+   (Onboarding-Stuck-Bug 2026-07-07): only the look and the new parts live
+   here. Home's language: bubbles (pills), cards #291C4B with a 1.5px white-8%
+   edge, coral for choices, green for „done". No gradients on new surfaces.
+   ══════════════════════════════════════════ */
+
+/* Footer: an error line can sit above the CTA, always on screen (the old
+   wizard showed it at the end of a scrolled step, often below the fold). */
+.ob-flow .onboarding-footer {
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding-top: 14px;
+}
+
+/* Soft edges where a step scrolls under the header and the footer — a hard
+   cut through a chip or a card read as a rendering bug (screenshots
+   11.10.2026, iPhone SE). Overlays only: no mask on the scroller itself
+   (WebKit + masked overflow scrolling is fragile). Over the step's own empty
+   padding they are invisible, so a step that fits shows no edge at all.
+   z-index 2: above the step's positioned children (tiles, ring, covers). */
+.ob-flow .flow-header,
+.ob-flow .onboarding-footer {
+  position: relative;
+  z-index: 2;
+}
+.ob-flow .flow-header::after,
+.ob-flow .onboarding-footer::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 18px;
+  pointer-events: none;
+}
+.ob-flow .flow-header::after {
+  top: 100%;
+  background: linear-gradient(to bottom, var(--bg-primary), rgba(35, 27, 67, 0));
+}
+.ob-flow .onboarding-footer::before {
+  bottom: 100%;
+  background: linear-gradient(to top, var(--bg-primary), rgba(35, 27, 67, 0));
+}
+
+/* No lone last word („…passendere Gruppen / vor"). Ignored where unsupported. */
+.ob-flow .ob-sub { text-wrap: pretty; }
+
+.ob-footer-error {
+  width: 100%;
+  max-width: 360px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(248, 113, 113, 0.1);
+  color: var(--status-busy);
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+/* ── Pill inputs („Anmeldeprozess komplett in Bubbles") ──
+   The global field rule `input:not([type=checkbox]):not([type=radio])
+   :not([type=file])` has specificity (0,3,1); this one is (0,5,1). The
+   Wohnort field keeps auth.css's !important left padding for its pin. */
+.ob-flow .ob-content input:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
+  min-height: 52px;
+  padding: 14px 20px;
+  border-radius: var(--radius-full);
+}
+.ob-flow .ob-content textarea {
+  padding: 14px 20px;
+  border-radius: 22px;
+}
+
+.ob-flow .ob-suggest-btn {
+  padding: 0 18px;
+  border-radius: var(--radius-full);
+}
+
+/* Label of a field that is a group of bubbles, not one input. */
+.ob-field-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-light);
+  letter-spacing: 0.02em;
+}
+
+/* ── ① Was trifft zu? — checklist bubbles ── */
+.ob-goals {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ob-goal {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 60px;
+  padding: 13px 16px 13px 20px;
+  background: var(--bg-card);
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  color: var(--text-light);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: border-color 0.15s, background 0.15s, color 0.15s, transform 0.1s;
+}
+.ob-goal:active { transform: scale(0.985); }
+.ob-goal.selected {
+  border-color: var(--accent-coral);
+  background: rgba(253, 118, 102, 0.12);
+  color: var(--text-white);
+}
+
+.ob-goal-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.ob-goal-check {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  color: transparent;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.ob-goal.selected .ob-goal-check {
+  background: var(--accent-coral);
+  border-color: var(--accent-coral);
+  color: #fff;
+}
+
+.ob-goals-hint {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ── ③ Gender bubbles — the same sizing as Register's .reg-bubble (auth.css),
+   so the two screens of one flow lay the choice out alike: three in a row
+   where they fit, else a tidy 2 + 1 (the half-width cap stops an orphan from
+   stretching across the row). Never shrunk below the label: the old
+   min-width 96px + nowrap let it/fr/es („Non binario", „Non-binaire") run
+   into the pill border at 360–375px. A 360px phone wraps German 2 + 1 too,
+   exactly as Register does. Change both rules together. ── */
+.ob-bubbles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ob-bubble {
+  flex: 1 1 0;
+  min-width: max-content;
+  max-width: calc(50% - 4px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  background: var(--bg-card);
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-full);
+  color: var(--text-light);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+}
+.ob-bubble:active { transform: scale(0.96); }
+.ob-bubble.selected {
+  background: var(--accent-coral);
+  border-color: var(--accent-coral);
+  color: #fff;
+}
+
+/* Fixed-size slot: the glyph and the selected tick swap without a width
+   change (as .reg-bubble-icon on Register). */
+.ob-bubble-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--accent-coral);
+}
+.ob-bubble.selected .ob-bubble-icon { color: #fff; }
+
+/* ── ④ Fotos — profile picture on the Face-Scan ring ── */
+.ob-avatar-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 0 0 18px;
+}
+
+.ob-avatar-btn {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: 50%;
+  line-height: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.ob-avatar-btn:active .fsr-slot { transform: scale(0.97); }
+
+.ob-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ob-avatar-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px dashed rgba(253, 118, 102, 0.45);
+  background: rgba(253, 118, 102, 0.07);
+  color: var(--accent-coral);
+}
+
+.ob-avatar-busy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(35, 27, 67, 0.6);
+}
+
+.ob-avatar-caption {
+  min-height: 44px;
+  margin: 0;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ob-avatar-caption--done {
+  color: #4ade80;
+  cursor: default;
+}
+
+.ob-more { width: 100%; }
+
+.ob-more-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-light);
+  letter-spacing: 0.02em;
+}
+
+/* Five equal squares in ONE row. No span-2 tile: a 4:5 photo in the old big
+   tile set the grid's auto row heights (rows 138/138/110 instead of 110). The
+   tile's size comes from aspect-ratio alone; its picture is positioned out of
+   the flow, so no picture can stretch a row. */
+.ob-more-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ob-more-tile {
+  position: relative;
+  aspect-ratio: 1;
+  min-width: 0;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.ob-more-tile--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: rgba(253, 118, 102, 0.05);
+  border: 1.5px dashed rgba(253, 118, 102, 0.35);
+  color: var(--accent-coral);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.ob-more-tile--empty:active { background: rgba(253, 118, 102, 0.12); }
+
+.ob-more-tile--filled { background: var(--bg-card); }
+
+.ob-more-pick {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ob-more-pick img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ob-more-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+/* 38px tap area around the 22px dot. */
+.ob-more-remove::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+/* ── Face-Scan ring (components/FaceScanRing.jsx) ──
+   Box = slot × 216/168 (the svg's viewBox). --fsr-slot is the slot
+   diameter; the component only sets it inline when given a `size`. */
+.fsr {
+  --fsr-slot: 168px;
+  position: relative;
+  display: block;
+  width: calc(var(--fsr-slot) * 216 / 168);
+  height: calc(var(--fsr-slot) * 216 / 168);
+  flex-shrink: 0;
+}
+
+.fsr-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transition: filter 0.4s ease;
+}
+.fsr--complete .fsr-ring {
+  filter: drop-shadow(0 0 5px rgba(34, 197, 94, 0.45));
+}
+
+.fsr-tick {
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+/* Green ticks sweep in one after another (delay set per tick). */
+.fsr-tick--on {
+  stroke: var(--accent-green);
+  animation: fsr-tick-in 0.28s ease-out both;
+}
+@keyframes fsr-tick-in {
+  from { stroke: rgba(255, 255, 255, 0.18); }
+}
+
+.fsr-slot {
+  position: absolute;
+  inset: calc(50% - var(--fsr-slot) / 2);
+  display: block;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg-card);
+  transition: transform 0.15s ease;
+}
+
+/* Check badge centred on the slot's edge at half past four. */
+.fsr-badge {
+  position: absolute;
+  left: calc(50% + var(--fsr-slot) * 0.3536 - 18px);
+  top: calc(50% + var(--fsr-slot) * 0.3536 - 18px);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 3px solid var(--bg-primary);
+  background: var(--accent-green);
+  color: #fff;
+  animation: fsr-badge-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
+}
+@keyframes fsr-badge-in {
+  from { transform: scale(0); opacity: 0; }
+}
+
+/* ── Spinner (ring upload, clubs page) ── */
+.ob-spinner {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: ob-spin 0.8s linear infinite;
+}
+.ob-spinner--sm {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+@keyframes ob-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Achtung sheet (components/ProfilePhotoPrompt.jsx) ──
+   It takes focus on open (screen readers start at its title); the sheet
+   itself needs no focus ring. */
+.profile-photo-prompt:focus { outline: none; }
+
+/* ══════════════════════════════════════════
+   „Clubs für dich" (pages/OnboardingClubs.jsx)
+   ══════════════════════════════════════════ */
+.obc-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+}
+
+/* Inline Achtung card — Home's .profile-warning-banner look, with a full
+   44px-class button (the Home one is a 28px chip). */
+.obc-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  background: rgba(253, 118, 102, 0.18);
+  border: 1px solid rgba(253, 118, 102, 0.5);
+  border-radius: 16px;
+  color: #fff;
+}
+.obc-warning-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.obc-warning-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #f5dede;
+}
+.obc-warning-btn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  margin-top: 6px;
+  padding: 0 18px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--accent-coral);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.obc-warning-btn:active { transform: scale(0.97); }
+.obc-warning-btn:disabled { opacity: 0.75; cursor: default; transform: none; }
+
+.obc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Home's club card (.group-card in .clubs-grid): title + meta + badge on
+   top, the cover in an inner framed box — plus one join button. */
+.obc-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  border-radius: 20px;
+}
+
+.obc-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 2px;
+}
+
+.obc-card-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.obc-card-title {
+  margin: 0;
+  font-family: 'Archivo', -apple-system, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--accent-coral);
+  overflow-wrap: anywhere;
+}
+
+.obc-card-meta {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-coral);
+}
+.obc-card-loc { font-weight: 600; }
+
+.obc-badge {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-light);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+.obc-badge--private {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+}
+
+/* 16:9 = exactly the frame the owner cropped (club covers are cut 16:9 in
+   the editor); a wider box would crop again, the „heads and signs vanish"
+   complaint of 30.09 (utils/images.js coverCardUrl). Home shows it the same. */
+.obc-cover {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-input);
+}
+.obc-cover img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.obc-cover-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Archivo', -apple-system, sans-serif;
+  font-size: 44px;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* One button per card. Solid coral while it can act (no gradient: the
+   gradient stays the footer's „Weiter"), quiet once it cannot. */
+.obc-join {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  background: var(--accent-coral);
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.1s;
+}
+.obc-join:active { transform: scale(0.98); }
+.obc-join:disabled { cursor: default; transform: none; }
+.obc-join--busy { opacity: 0.85; }
+.obc-join--joined {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #4ade80;
+}
+.obc-join--pending {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: var(--text-light);
+}
+.obc-join--blocked,
+.obc-join--full {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--text-muted);
+}
+
+/* ── Short screens (iPhone SE class, 667pt): the photo step fits without
+   scrolling — smaller title and ring, tighter gaps. ── */
+@media (max-height: 700px) {
+  .ob-flow .onboarding-content.ob-content {
+    padding-top: 14px;
+    padding-bottom: 20px;
+  }
+  .ob-flow .ob-title { font-size: 30px; }
+  .ob-flow .ob-sub { margin-bottom: 18px; }
+  .ob-flow .fsr { --fsr-slot: 124px; }
+  .ob-photos-step .ob-sub { margin-bottom: 12px; }
+  .ob-avatar-block { margin-bottom: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fsr-tick--on,
+  .fsr-badge { animation: none; }
+  .fsr-ring,
+  .fsr-slot,
+  .ob-goal,
+  .ob-bubble,
+  .obc-join { transition: none; }
+}

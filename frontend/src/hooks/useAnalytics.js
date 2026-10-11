@@ -33,6 +33,7 @@ const resolveScreen = (pathname) => {
   if (pathname === '/create-group') return { name: 'CreateGroup' };
   if (pathname === '/create-club') return { name: 'CreateClub' };
   if (pathname === '/onboarding') return { name: 'Onboarding' };
+  if (pathname === '/onboarding/clubs') return { name: 'OnboardingClubs' };
   if (pathname === '/privacy') return { name: 'Privacy' };
   if (pathname.startsWith('/group/') && pathname.endsWith('/requests')) return { name: 'GroupRequests', subjectId: numericSegment(pathname, 2) };
   if (pathname.startsWith('/group/') && pathname.endsWith('/members')) return { name: 'GroupMembers', subjectId: numericSegment(pathname, 2) };

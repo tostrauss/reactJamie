@@ -1,0 +1,101 @@
+/* ══════════════════════════════════════════
+   FLOW HEADER + STEP PROGRESS (Onboarding-Umbau 11.10.2026)
+   Shared top bar of Register, Onboarding and the onboarding clubs page, in
+   Home's visual language: round back button (the .ob-back look) · small
+   centred wordmark (as on Home) · step counter, and below it the segmented
+   progress line („Strich in der Mitte"): done = green, active = coral.
+   Own class names only, so the rule order against auth.css / global.css in
+   the bundle cannot matter. No safe-area padding here: .auth-screen and
+   .onboarding-container already reserve the top inset.
+   ══════════════════════════════════════════ */
+.flow-header {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 20px 8px;
+}
+
+.flow-header-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+}
+
+/* Same look as .ob-back (auth.css), duplicated on purpose so the header does
+   not depend on the old onboarding rules surviving a cleanup. */
+.flow-back {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 50%;
+  color: var(--text-light);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--transition-fast);
+}
+.flow-back:active { background: var(--bg-hover); }
+
+/* Keeps the wordmark centred when there is no back button. */
+.flow-header-slot {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.flow-header-brand {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.flow-header-count {
+  width: 44px;
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── Segmented progress line ── */
+.step-progress {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  max-width: 240px;
+  margin: 0 auto;
+}
+
+.step-progress-seg {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.15);
+  transition: background-color 0.3s ease;
+}
+.step-progress-seg--active { background: var(--accent-coral); }
+.step-progress-seg--done { background: var(--accent-green); }
+
+/* „Schritte nach Vervollständigung komplett grün": when the flow completes,
+   the remaining segments fill left to right instead of all at once. */
+.step-progress--complete .step-progress-seg {
+  transition-delay: calc(var(--seg-i, 0) * 60ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-back,
+  .step-progress-seg {
+    transition: none;
+  }
+}

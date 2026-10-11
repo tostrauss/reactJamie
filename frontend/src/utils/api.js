@@ -1,6 +1,7 @@
 import axios from 'axios';
 import i18n from '../i18n';
 import { isNative, isNativeIOS, isTWA, NATIVE_API_ORIGIN } from './platform';
+import { clearAllOnboardingDrafts } from './onboardingDraft';
 
 // ==========================================
 // AXIOS INSTANCE SETUP
@@ -227,6 +228,9 @@ axiosInstance.interceptors.response.use(
       // localStorage, AuthRoute bounces /login → /home, GETs fire with the dead
       // cookie, 401 again → a redirect loop that flashed Home/login repeatedly.
       try { localStorage.removeItem('jamie_user'); } catch { /* private mode */ }
+      // Same as AuthContext.clearAuth: a half-finished onboarding must not
+      // outlive the session (this hard redirect never reaches clearAuth).
+      clearAllOnboardingDrafts();
       const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email'];
       if (!publicPaths.some(p => window.location.pathname === p || window.location.pathname.startsWith(p + '/'))) {
         window.location.href = '/login';
@@ -241,8 +245,15 @@ axiosInstance.interceptors.response.use(
 // ==========================================
 
 export const auth = {
-  register: (email, password, name, referral_code, date_of_birth) =>
-    axiosInstance.post('/auth/register', { email, password, name, date_of_birth, ...(referral_code ? { referral_code } : {}) }),
+  // `gender` (optional, trailing so every older caller keeps its exact body):
+  // Register asks it since the 11.10.2026 rework. Sent only when chosen — an
+  // older server ignores the unknown field, the new one validates it.
+  register: (email, password, name, referral_code, date_of_birth, gender) =>
+    axiosInstance.post('/auth/register', {
+      email, password, name, date_of_birth,
+      ...(referral_code ? { referral_code } : {}),
+      ...(gender ? { gender } : {}),
+    }),
   
   login: (email, password) => 
     axiosInstance.post('/auth/login', { email, password }),
@@ -490,6 +501,13 @@ export const clubs = {
       params: { search, category, location, featured, limit, offset }
     });
   },
+
+  // Admin-curated clubs for the onboarding clubs page, in the admin's order.
+  // Bare array (card columns + per-caller is_member / join_request_status).
+  // An old server answers via /clubs/:id with an error — callers treat any
+  // error, non-array or empty list as "no page".
+  getFeatured: () =>
+    axiosInstance.get('/clubs/featured'),
 
   // Get single club
   getById: (id) =>
@@ -891,6 +909,11 @@ export const admin = {
   getPendingClubs: () => axiosInstance.get('/admin/clubs/pending'),
   approveClub: (id) => axiosInstance.post(`/admin/clubs/${id}/approve`),
   rejectClub: (id) => axiosInstance.post(`/admin/clubs/${id}/reject`),
+  // Onboarding clubs list (featured_clubs). GET → { clubs, max }; PUT replaces
+  // the whole list in exactly the given order ([] clears it) and answers with
+  // the same shape. A 404 means an older server — the section hides itself.
+  getFeaturedClubs: () => axiosInstance.get('/admin/clubs/featured'),
+  setFeaturedClubs: (clubIds) => axiosInstance.put('/admin/clubs/featured', { clubIds }),
   // Live presence: users with an active Socket.IO connection right now.
   getOnlineUsers: () => axiosInstance.get('/admin/online-users'),
   // Per-club / per-group view rankings (analytics_events.subject_id ⨯ groups)
