@@ -16,6 +16,8 @@
 #   3. Ensures the three permission usage strings exist — Apple REJECTS or
 #      crashes the app when camera/photos/location are used without them.
 #      Existing values are left untouched.
+#   0. Refuses to continue when Xcode 27+ is active and the app still has no
+#      UIScene life cycle — such an archive never launches on iOS 27 (below).
 #   4. Installs the Push Notifications (APNs) entitlement — copies
 #      ios/App.entitlements into the project and wires CODE_SIGN_ENTITLEMENTS
 #      into project.pbxproj. `npx cap add ios` does NOT add the Push
@@ -35,6 +37,37 @@ if [ ! -f "$PLIST" ]; then
   echo "    Run:  cd frontend && npx cap add ios && npx cap sync ios"
   exit 1
 fi
+
+# 0. Xcode / UIScene guard (2026-10-11). Apple TN3187: "In the next major
+# release following iOS 26, UIScene lifecycle will be required when building
+# with the latest SDK; otherwise, your app won't launch." This project comes
+# from the Capacitor 8.2 template — no SceneDelegate, no
+# UIApplicationSceneManifest — so an archive made with Xcode 27 (iOS 27 SDK)
+# never launches on an iOS 27 iPhone, while Xcode 26 archives keep working
+# there. That is what 1.4.3 (Build 12, archived 06.10.2026) ran into: "App
+# stürzt direkt nach dem Öffnen ab", reinstalling does not help, nothing
+# reaches our logs (it dies before the WebView exists). Until the UIScene
+# migration is done (Capacitor >= 8.5 + `npx cap migrate`), archive with
+# Xcode 26.x. `xcodebuild` reports the xcode-select'ed Xcode — open the
+# project with ios/open-xcode.sh so the GUI uses the same one.
+echo "🛠️  0 Xcode version + UIScene life cycle..."
+XCODE_VER=$(xcodebuild -version 2>/dev/null | awk '/^Xcode/ {print $2; exit}')
+XCODE_MAJOR=${XCODE_VER%%.*}
+case "$XCODE_MAJOR" in
+  ''|*[!0-9]*)
+    echo "    ⚠️  could not read the Xcode version — check Xcode → About Xcode by hand: it must say 26.x"
+    ;;
+  *)
+    if [ "$XCODE_MAJOR" -ge 27 ] && ! $PB -c "Print :UIApplicationSceneManifest" "$PLIST" >/dev/null 2>&1; then
+      echo "    ❌  Xcode $XCODE_VER is active, but the app has no UIScene life cycle."
+      echo "        An archive from this Xcode does NOT launch on iOS 27 (Apple TN3187)."
+      echo "        Switch to Xcode 26:  sudo xcode-select -s /Applications/Xcode-26.app"
+      echo "        then run this script again (store/IOS-UPDATE-TINA.md, step 0). STOP."
+      exit 1
+    fi
+    echo "    ✓ Xcode $XCODE_VER"
+    ;;
+esac
 
 echo "📋  1/3 Privacy manifest..."
 cp ios/PrivacyInfo.xcprivacy frontend/ios/App/App/PrivacyInfo.xcprivacy
@@ -159,7 +192,8 @@ echo ""
 echo "✅  Preflight done. Remaining manual steps in Xcode:"
 echo "    1. Set Version + Build exactly as store/IOS-UPDATE-TINA.md says (step 3);"
 echo "       a version already in the App Store cannot be re-submitted; duplicate builds are rejected"
-echo "    2. Product → Archive → Distribute App"
+echo "    2. Open the project with:  bash ios/open-xcode.sh   (uses the Xcode checked above)"
+echo "    3. Product → Archive → Distribute App"
 echo ""
 echo "🔔  For iOS PUSH to actually deliver, the entitlement above is NOT enough:"
 echo "    • Apple Developer → Keys: create an APNs Auth Key (.p8), note the Key ID"

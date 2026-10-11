@@ -1,6 +1,15 @@
 # iOS-Update für Tina — Version 1.4.4 (JAMIE Pro, Chat-Profilbilder, Event-Chats, Fotos umreihen)
 
-Stand: **10.10.2026** · Ziel: **Version 1.4.4** mit den drei Pro-Abos in den App Store bringen.
+Stand: **11.10.2026** · Ziel: **Version 1.4.4** mit den drei Pro-Abos in den App Store bringen.
+
+> ### ⚠️ Neu am 11.10.: 1.4.4 mit **Xcode 26** bauen — nicht mit Xcode 27
+> **1.4.3 (Build 12) öffnet sich auf iPhones mit iOS 27 überhaupt nicht** (Meldungen vom
+> 08.–10.10.: „stürzt direkt nach dem Öffnen ab“, Neu-Installieren hilft nicht). Grund:
+> Seit iOS 27 startet Apple Apps, die **mit Xcode 27 gebaut** sind, nur noch, wenn sie ein
+> neues Start-Verfahren („UIScene“) können — unsere App kann das noch nicht. Mit
+> **Xcode 26** gebaut startet sie auch auf iOS 27 ganz normal. **Schritt 0** unten richtet
+> Xcode 26 ein; das Prüf-Skript in Schritt 2 bricht ab, solange noch Xcode 27 aktiv ist.
+> 1.4.4 ist damit **dringend**: Es repariert JAMIE für alle iPhones mit iOS 27.
 
 **Außerdem neu in 1.4.4** (dein Feedback vom 08.10.): Im Gruppenchat steht neben der ersten
 Nachricht jeder Person ihr **Profilbild** (antippen → Profil), wie bei WhatsApp. Und
@@ -89,6 +98,33 @@ Fixe Werte (nur zum Abgleichen, nichts ändern):
 
 ---
 
+## 0. Xcode 26 bereitstellen (einmalig, ~20 Minuten)
+
+1. Xcode öffnen → Menü **Xcode → Über Xcode**. Steht dort **26.x** → nichts zu tun,
+   weiter mit Schritt 1. Steht dort **27.x** → weiter mit 2. **Bitte Tobi kurz schreiben,
+   welche Version dort steht** (hast du Xcode seit dem 06.10. nicht aktualisiert, ist das
+   die Version, mit der 1.4.3 gebaut wurde).
+2. https://developer.apple.com/download/all öffnen, mit deiner Apple-ID anmelden, nach
+   **„Xcode 26“** suchen und die **neueste 26er-Version** laden (Datei `Xcode_26….xip`,
+   mehrere GB).
+3. Doppelklick auf die `.xip` → es entsteht `Xcode.app` im Downloads-Ordner →
+   **umbenennen in `Xcode-26.app`** → in den Ordner **Programme** ziehen. Dein
+   bisheriges Xcode bleibt einfach daneben stehen.
+4. **Xcode-26** einmal per Doppelklick öffnen, Zusatzkomponenten installieren lassen,
+   wieder schließen.
+5. Im Terminal (Mac-Passwort eingeben, es erscheinen beim Tippen keine Zeichen):
+
+   ```bash
+   sudo xcode-select -s /Applications/Xcode-26.app
+   xcodebuild -version
+   ```
+
+   Die zweite Zeile muss **Xcode 26.…** ausgeben.
+- **Xcode 26 lässt sich auf deinem Mac nicht öffnen** (z. B. „nicht kompatibel mit
+  dieser macOS-Version“) → **STOPP, Tobi**. Dann stellen wir die App auf das neue
+  Start-Verfahren um, das dauert länger.
+- Für JAMIE-Builds bis auf Weiteres **immer Xcode 26** nehmen, bis Tobi Entwarnung gibt.
+
 ## 1. Neuesten Code holen
 
 Terminal öffnen (Programme → Dienstprogramme → Terminal), dann Zeile für Zeile,
@@ -132,7 +168,9 @@ cd ..
 bash ios/4-preflight.sh
 ```
 
-- Dauert ein paar Minuten. Am Ende des letzten Befehls achte auf **vier** Dinge:
+- Dauert ein paar Minuten. Ganz oben in der Ausgabe des letzten Befehls muss
+  **„0 Xcode version … ✓ Xcode 26.…“** stehen. Steht dort **❌ … Xcode 27** → Schritt 0.
+- Am Ende des letzten Befehls achte auf **vier** Dinge:
   1. Unter **„3/3 Permission usage strings"** steht **`NSMicrophoneUsageDescription`**
      („`+ … added`" oder „`✓ … already set`").
   2. **„4/4 Push Notifications entitlement … ✓"**
@@ -149,11 +187,12 @@ bash ios/4-preflight.sh
 ## 3. Xcode öffnen, Version setzen, Fähigkeiten prüfen
 
 ```bash
-cd frontend
-npx cap open ios
+bash ios/open-xcode.sh
 ```
 
-Xcode öffnet das Projekt. Dann:
+(Nicht mehr `npx cap open ios` — das öffnet womöglich Xcode 27.) Xcode öffnet das
+Projekt. **Erst prüfen:** Menü **Xcode → Über Xcode** muss **26.x** zeigen. Sonst
+Xcode schließen → Schritt 0. Dann:
 
 1. Links im Dateibaum ganz oben das blaue **App**-Projekt anklicken →
    unter TARGETS **App** → Reiter **General** → Abschnitt **Identity**.
@@ -220,6 +259,13 @@ schon drin) → am iPhone **TestFlight-App** → JAMIE → **Installieren**.
    und **„Abo im App Store verwalten"** (kein JAMIE-Kündigen-Knopf, richtig so).
 6. **„Käufe wiederherstellen"** → „1 Kauf wiederhergestellt".
 
+**iOS 27 — der wichtigste Test dieses Updates:** Wer im Team hat ein iPhone mit
+**iOS 27** (Einstellungen → Allgemein → Info → iOS-Version)? Diese Person installiert
+den Build über TestFlight und öffnet JAMIE: Die App **muss normal starten**. (Zum
+Vergleich: 1.4.3 aus dem App Store geht dort sofort wieder zu.) Startet auch 1.4.4 nicht
+→ **STOPP, Tobi**. Hat niemand iOS 27: Tobi Bescheid sagen, dann bitten wir eine
+betroffene Nutzerin um den TestFlight-Test.
+
 **Kurzer Rundgang (3 Minuten):** JAMIE komplett schließen und neu öffnen, alle Reiter
 unten antippen, einen Gruppen-Chat mit Foto öffnen (das **Bild** erscheint), Tobi oder
 ein zweiter Account schickt dir eine Direktnachricht, während JAMIE geschlossen ist →
@@ -269,6 +315,7 @@ Auf https://appstoreconnect.apple.com → **Meine Apps → JAMIE → Vertrieb**:
    • JAMIE Pro jetzt auch auf dem iPhone: alle Mitglieder sehen, Gruppen und Clubs boosten und mehr – als Abo über Apple, jederzeit kündbar
    • Gruppen-Chat: Profilbilder neben den Nachrichten – antippen öffnet das Profil
    • Chats von Club-Events stehen jetzt in deiner Chatliste
+   • Behebt einen Fehler, durch den sich JAMIE auf iOS 27 nicht öffnen ließ
    • Kleine Verbesserungen und Fehlerbehebungen
    ```
 
@@ -278,6 +325,7 @@ Auf https://appstoreconnect.apple.com → **Meine Apps → JAMIE → Vertrieb**:
    • JAMIE Pro now on iPhone: see all members, boost groups and clubs and more – as a subscription through Apple, cancel anytime
    • Group chats: profile pictures next to messages – tap to open the profile
    • Club event chats now show up in your chat list
+   • Fixes an issue that kept JAMIE from opening on iOS 27
    • Small improvements and bug fixes
    ```
 
@@ -287,6 +335,7 @@ Auf https://appstoreconnect.apple.com → **Meine Apps → JAMIE → Vertrieb**:
    • JAMIE Pro ora anche su iPhone: vedi tutti i membri, dai visibilità a gruppi e club e altro – abbonamento tramite Apple, disdici quando vuoi
    • Chat di gruppo: foto profilo accanto ai messaggi – toccala per aprire il profilo
    • Le chat degli eventi dei club ora compaiono nell’elenco delle chat
+   • Risolto un problema per cui JAMIE non si apriva su iOS 27
    • Piccoli miglioramenti e correzioni
    ```
 
@@ -325,6 +374,12 @@ Auf https://appstoreconnect.apple.com → **Meine Apps → JAMIE → Vertrieb**:
     `pro_yearly`? Apple meckert nicht, wenn sie fehlen — dann gingen die Abos wieder
     nicht mit. Fehlt etwas → **STOPP, Tobi**. Sonst **„Zur Prüfung hinzufügen" / „Bei
     App-Review einreichen"**.
+
+12. **Beschleunigte Prüfung beantragen** (gleich nach dem Einreichen):
+    https://developer.apple.com/contact/app-store/?topic=expedite → „Request an expedited
+    app review“ → App **JAMIE**, Plattform iOS, Version **1.4.4**, Grund **„Critical bug
+    fix“**, Text:
+    `Version 1.4.3 does not launch on devices running iOS 27 - the app terminates immediately at launch, so affected users cannot use JAMIE at all. Version 1.4.4 fixes this.`
 
 Review dauert meist unter 24 h, bei den ersten Abos manchmal etwas länger. Nach Freigabe
 wird automatisch veröffentlicht. **Dann Tobi Bescheid sagen.**
