@@ -266,6 +266,27 @@ Vergleich: 1.4.3 aus dem App Store geht dort sofort wieder zu.) Startet auch 1.4
 → **STOPP, Tobi**. Hat niemand iOS 27: Tobi Bescheid sagen, dann bitten wir eine
 betroffene Nutzerin um den TestFlight-Test.
 
+**Neue Anmeldung (deine Checkliste vom 10.10.):** Mit einer **neuen** E-Mail-Adresse
+ein Test-Konto anlegen (z. B. `tina+test1@…`; danach unter Einstellungen wieder löschen).
+1. Registrierung hat **4 Seiten**: „Wer bist du?“ (Name + E-Mail) → Code → „Ein bisschen
+   über dich“ (Geburtsdatum + Geschlecht als Bubbles) → Passwort. Erledigte Striche oben
+   werden **grün**. Beim Code steht die E-Mail mit Leerzeichen („an … gesendet.“).
+2. Nach „Konto erstellen“ kommt das **Intro (3 Folien)**, danach **„Was trifft zu?“ 1 / 4**.
+   Zwischendurch darf **kein** Fenster „Magst du ein Profilbild ergänzen?“ aufgehen (auch
+   nicht nach ein paar Sekunden Warten auf Schritt 1).
+3. „Was trifft zu?“ → mind. eine Antwort; „Worauf hast du Lust?“ → mind. 3; „Erzähl uns
+   etwas über dich“ → Wohnort (Vorschläge erscheinen erst, wenn Tobi Google Maps wieder
+   freigeschaltet hat — sonst einfach eintippen); **Fotos** ist der letzte Schritt (4 / 4).
+4. **Ohne** Profilbild „Los geht's!“ tippen → Fenster **„Achtung: Dein Profil ist nicht
+   vollständig“**. „Profilbild hinzufügen“ muss **sofort** die Foto-Auswahl öffnen; ein
+   Foto wählen → der Ring um das Bild wird **ganz grün**, danach geht es automatisch weiter.
+5. Es folgt **„Clubs für dich“** (JAMIE Groups Official zuerst — sobald die Liste im
+   Admin-Dashboard gepflegt ist; ist sie leer, geht es direkt auf Home). „Beitreten“ bei
+   einem Club → „Dabei“. „Weiter“ → Home, ohne Profil-Hinweis.
+6. Zweites Test-Konto, diesmal bei Schritt 4 **„Überspringen“** → Clubs-Seite mit
+   Achtung-Kasten, Home zeigt oben „Achtung: Dein Profil ist nicht vollständig“.
+Hakt etwas → Uhrzeit + Screenshot an Tobi.
+
 **Kurzer Rundgang (3 Minuten):** JAMIE komplett schließen und neu öffnen, alle Reiter
 unten antippen, einen Gruppen-Chat mit Foto öffnen (das **Bild** erscheint), Tobi oder
 ein zweiter Account schickt dir eine Direktnachricht, während JAMIE geschlossen ist →
@@ -315,6 +336,7 @@ Auf https://appstoreconnect.apple.com → **Meine Apps → JAMIE → Vertrieb**:
    • JAMIE Pro jetzt auch auf dem iPhone: alle Mitglieder sehen, Gruppen und Clubs boosten und mehr – als Abo über Apple, jederzeit kündbar
    • Gruppen-Chat: Profilbilder neben den Nachrichten – antippen öffnet das Profil
    • Chats von Club-Events stehen jetzt in deiner Chatliste
+   • Neue, kürzere Anmeldung: in wenigen Schritten zu deinem Profil und zu den ersten Clubs
    • Behebt einen Fehler, durch den sich JAMIE auf iOS 27 nicht öffnen ließ
    • Kleine Verbesserungen und Fehlerbehebungen
    ```
@@ -325,6 +347,7 @@ Auf https://appstoreconnect.apple.com → **Meine Apps → JAMIE → Vertrieb**:
    • JAMIE Pro now on iPhone: see all members, boost groups and clubs and more – as a subscription through Apple, cancel anytime
    • Group chats: profile pictures next to messages – tap to open the profile
    • Club event chats now show up in your chat list
+   • New, shorter sign-up: a few steps to your profile and your first clubs
    • Fixes an issue that kept JAMIE from opening on iOS 27
    • Small improvements and bug fixes
    ```
@@ -335,6 +358,7 @@ Auf https://appstoreconnect.apple.com → **Meine Apps → JAMIE → Vertrieb**:
    • JAMIE Pro ora anche su iPhone: vedi tutti i membri, dai visibilità a gruppi e club e altro – abbonamento tramite Apple, disdici quando vuoi
    • Chat di gruppo: foto profilo accanto ai messaggi – toccala per aprire il profilo
    • Le chat degli eventi dei club ora compaiono nell’elenco delle chat
+   • Nuova registrazione più breve: pochi passi per il tuo profilo e i primi club
    • Risolto un problema per cui JAMIE non si apriva su iOS 27
    • Piccoli miglioramenti e correzioni
    ```
