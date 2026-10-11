@@ -372,15 +372,14 @@ describe('Onboarding — after a successful save, until the page is gone', () =>
 });
 
 describe('Onboarding — photos', () => {
-  it('a picture from the ring completes the ring; extra photos fill the tiles; the PUT keeps the Onboarding shape', async () => {
+  it('a picture in the round slot completes the profile; extra photos fill the tiles; the PUT keeps the Onboarding shape', async () => {
     await renderOnboarding();
     await toPhotos();
-    expect(document.querySelectorAll('.fsr-tick--on')).toHaveLength(42);
+    // No ring around the slot any more (Tina 11.10.2026).
+    expect(document.querySelector('.fsr, .fsr-tick')).toBeNull();
     fireEvent.click(document.querySelector('.ob-avatar-btn'));
     await pickFile('/media/uploads/a.webp');
     await screen.findByText('Profil vollständig');
-    expect(document.querySelectorAll('.fsr-tick--on')).toHaveLength(56);
-    expect(document.querySelector('.fsr-badge')).not.toBeNull();
     expect(document.querySelectorAll('.step-progress-seg--done')).toHaveLength(4);
     expect(document.querySelector('.ob-avatar-img').getAttribute('src')).toBe('/media/uploads/a.webp');
 
@@ -392,7 +391,7 @@ describe('Onboarding — photos', () => {
     await waitFor(() => expect(screen.getAllByRole('button', { name: 'Als Profilbild' })).toHaveLength(2));
     expect(screen.getAllByRole('button', { name: /^Foto hinzufügen/ })).toHaveLength(3);
 
-    // „Als Profilbild" on c: c to the ring, a back among the others.
+    // „Als Profilbild" on c: c to the round slot, a back among the others.
     fireEvent.click(screen.getAllByRole('button', { name: 'Als Profilbild' })[1]);
     expect(document.querySelector('.ob-avatar-img').getAttribute('src')).toBe('/media/uploads/c.webp');
     // Remove b.
@@ -440,7 +439,7 @@ describe('Onboarding — Google sign-up', () => {
   it('shows the Google picture but never sends it; gender and birth date asked here are sent', async () => {
     await renderOnboarding(GOOGLE_USER);
     await toPhotos({ gender: 'Weiblich', dob: '1990-02-03' });
-    // The account already has a picture: complete ring, no sheet.
+    // The account already has a picture: profile complete, no sheet.
     expect(document.querySelector('.ob-avatar-img').getAttribute('src')).toBe(GOOGLE_PIC);
     expect(screen.getByText('Profil vollständig')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Profilbild ändern' })).toBeTruthy();

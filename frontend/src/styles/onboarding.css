@@ -23,7 +23,7 @@
    11.10.2026, iPhone SE). Overlays only: no mask on the scroller itself
    (WebKit + masked overflow scrolling is fragile). Over the step's own empty
    padding they are invisible, so a step that fits shows no edge at all.
-   z-index 2: above the step's positioned children (tiles, ring, covers). */
+   z-index 2: above the step's positioned children (tiles, picture slot, covers). */
 .ob-flow .flow-header,
 .ob-flow .onboarding-footer {
   position: relative;
@@ -211,7 +211,7 @@
 }
 .ob-bubble.selected .ob-bubble-icon { color: #fff; }
 
-/* ── ④ Fotos — profile picture on the Face-Scan ring ── */
+/* ── ④ Fotos — round profile-picture slot ── */
 .ob-avatar-block {
   display: flex;
   flex-direction: column;
@@ -232,7 +232,18 @@
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
-.ob-avatar-btn:active .fsr-slot { transform: scale(0.97); }
+.ob-avatar-btn:active .ob-avatar-slot { transform: scale(0.97); }
+
+.ob-avatar-slot {
+  position: relative;
+  display: block;
+  width: 168px;
+  height: 168px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg-card);
+  transition: transform 0.15s ease;
+}
 
 .ob-avatar-img {
   width: 100%;
@@ -370,75 +381,7 @@
   inset: -8px;
 }
 
-/* ── Face-Scan ring (components/FaceScanRing.jsx) ──
-   Box = slot × 216/168 (the svg's viewBox). --fsr-slot is the slot
-   diameter; the component only sets it inline when given a `size`. */
-.fsr {
-  --fsr-slot: 168px;
-  position: relative;
-  display: block;
-  width: calc(var(--fsr-slot) * 216 / 168);
-  height: calc(var(--fsr-slot) * 216 / 168);
-  flex-shrink: 0;
-}
-
-.fsr-ring {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  transition: filter 0.4s ease;
-}
-.fsr--complete .fsr-ring {
-  filter: drop-shadow(0 0 5px rgba(34, 197, 94, 0.45));
-}
-
-.fsr-tick {
-  stroke: rgba(255, 255, 255, 0.18);
-  stroke-width: 3;
-  stroke-linecap: round;
-}
-/* Green ticks sweep in one after another (delay set per tick). */
-.fsr-tick--on {
-  stroke: var(--accent-green);
-  animation: fsr-tick-in 0.28s ease-out both;
-}
-@keyframes fsr-tick-in {
-  from { stroke: rgba(255, 255, 255, 0.18); }
-}
-
-.fsr-slot {
-  position: absolute;
-  inset: calc(50% - var(--fsr-slot) / 2);
-  display: block;
-  border-radius: 50%;
-  overflow: hidden;
-  background: var(--bg-card);
-  transition: transform 0.15s ease;
-}
-
-/* Check badge centred on the slot's edge at half past four. */
-.fsr-badge {
-  position: absolute;
-  left: calc(50% + var(--fsr-slot) * 0.3536 - 18px);
-  top: calc(50% + var(--fsr-slot) * 0.3536 - 18px);
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  border: 3px solid var(--bg-primary);
-  background: var(--accent-green);
-  color: #fff;
-  animation: fsr-badge-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s both;
-}
-@keyframes fsr-badge-in {
-  from { transform: scale(0); opacity: 0; }
-}
-
-/* ── Spinner (ring upload, clubs page) ── */
+/* ── Spinner (avatar upload, clubs page) ── */
 .ob-spinner {
   display: inline-block;
   flex-shrink: 0;
@@ -670,7 +613,7 @@
 }
 
 /* ── Short screens (iPhone SE class, 667pt): the photo step fits without
-   scrolling — smaller title and ring, tighter gaps. ── */
+   scrolling — smaller title and picture, tighter gaps. ── */
 @media (max-height: 700px) {
   .ob-flow .onboarding-content.ob-content {
     padding-top: 14px;
@@ -678,16 +621,13 @@
   }
   .ob-flow .ob-title { font-size: 30px; }
   .ob-flow .ob-sub { margin-bottom: 18px; }
-  .ob-flow .fsr { --fsr-slot: 124px; }
+  .ob-flow .ob-avatar-slot { width: 124px; height: 124px; }
   .ob-photos-step .ob-sub { margin-bottom: 12px; }
   .ob-avatar-block { margin-bottom: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fsr-tick--on,
-  .fsr-badge { animation: none; }
-  .fsr-ring,
-  .fsr-slot,
+  .ob-avatar-slot,
   .ob-goal,
   .ob-bubble,
   .obc-join { transition: none; }

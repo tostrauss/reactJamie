@@ -14,7 +14,6 @@ import { loadOnboardingClubs } from '../utils/onboardingClubsChunk';
 import { ImageUpload } from '../components/ImageUpload';
 import { FlowHeader } from '../components/FlowHeader';
 import { StepTitle } from '../components/StepTitle';
-import { FaceScanRing } from '../components/FaceScanRing';
 import { ProfilePhotoPrompt } from '../components/ProfilePhotoPrompt';
 import '../styles/auth.css';
 import '../styles/onboarding.css';
@@ -34,7 +33,7 @@ const INTEREST_OPTIONS = INTEREST_NAMES;
 // picture that joining requires.
 const STEPS = ['goals', 'interests', 'about', 'photos'];
 
-// Server cap (authController: „Maximal 6 Fotos erlaubt"). The ring holds the
+// Server cap (authController: „Maximal 6 Fotos erlaubt"). The round slot holds the
 // profile picture, the tiles below the other five.
 const MAX_PHOTOS = 6;
 const MORE_SLOTS = MAX_PHOTOS - 1;
@@ -173,8 +172,8 @@ export const Onboarding = () => {
   const dobOk = isAdultDob(formData.date_of_birth);
 
   // The picker: ONE hidden ImageUpload in the photo step, opened from the
-  // ring, the tiles and the Achtung sheet. uploadTargetRef says what the next
-  // upload is for — 'avatar' (ring, sheet) or 'more' (tiles).
+  // round slot, the tiles and the Achtung sheet. uploadTargetRef says what the next
+  // upload is for — 'avatar' (slot, sheet) or 'more' (tiles).
   const uploadTriggerRef = useRef(null);
   const uploadTargetRef = useRef('avatar');
   // Set by the Achtung sheet's CTA: finish onboarding as soon as that upload
@@ -307,14 +306,14 @@ export const Onboarding = () => {
   };
 
   // ── Photos ──────────────────────────────────────────────────────────────
-  // The picture on the ring: one uploaded here, else the one the account
+  // The picture in the round slot: one uploaded here, else the one the account
   // already has (Google sign-up) — shown, never sent back.
   const displayAvatar = formData.avatar_url || user?.avatar_url || null;
   const hasAvatar = !!displayAvatar;
   const morePhotos = formData.photos.filter(p => p !== formData.avatar_url).slice(0, MORE_SLOTS);
   const emptyTiles = Math.max(0, MORE_SLOTS - morePhotos.length);
 
-  // Tap on the ring / an empty tile. The picker call comes before anything
+  // Tap on the round slot / an empty tile. The picker call comes before anything
   // else that could take time: WebKit opens a file input only while the tap is
   // being processed. One upload at a time — re-aiming uploadTargetRef while a
   // picture is still uploading would file it in the wrong slot.
@@ -329,7 +328,7 @@ export const Onboarding = () => {
     const target = uploadTargetRef.current;
     setFormData(prev => {
       if (!url || prev.photos.includes(url)) return prev;
-      // The ring — or the very first picture of an account without one —
+      // The slot — or the very first picture of an account without one —
       // becomes the profile picture, replacing an earlier one from this
       // wizard. Photos keep the avatar INSIDE the list, first.
       if (target === 'avatar' || !(prev.avatar_url || user?.avatar_url)) {
@@ -341,7 +340,7 @@ export const Onboarding = () => {
     });
   };
 
-  // „Als Profilbild": the tapped photo moves to the ring; the previous one
+  // „Als Profilbild": the tapped photo moves to the round slot; the previous one
   // from this wizard goes back among the others.
   const makeMainPhoto = (url) => {
     if (locked()) return;
@@ -651,7 +650,8 @@ export const Onboarding = () => {
           </div>
         )}
 
-        {/* ④ Fotos — always last: profile picture on the Face-Scan ring */}
+        {/* ④ Fotos — always last: round profile-picture slot, extra photos below.
+            (The green Face-Scan ring around it was dropped again — Tina 11.10.) */}
         {stepId === 'photos' && (
           <div className="ob-step ob-photos-step">
             <StepTitle line1={t('onboarding.photos.titleLine1')} line2={t('onboarding.photos.titleLine2')} />
@@ -665,8 +665,7 @@ export const Onboarding = () => {
                 aria-label={hasAvatar ? t('onboarding.photos.avatarChange') : t('onboarding.photos.avatarCta')}
                 aria-busy={uploading}
               >
-                {/* ①–③ are done on arrival: 3 of 4 green; the picture completes it. */}
-                <FaceScanRing done={STEPS.length - 1} total={STEPS.length} complete={hasAvatar}>
+                <span className="ob-avatar-slot">
                   {displayAvatar ? (
                     <img className="ob-avatar-img" src={displayAvatar} alt="" decoding="async" />
                   ) : (
@@ -675,7 +674,7 @@ export const Onboarding = () => {
                   {uploading && (
                     <span className="ob-avatar-busy"><span className="ob-spinner" /></span>
                   )}
-                </FaceScanRing>
+                </span>
               </button>
               {hasAvatar ? (
                 <p className="ob-avatar-caption ob-avatar-caption--done" aria-live="polite">
@@ -726,7 +725,7 @@ export const Onboarding = () => {
               </div>
             </div>
 
-            {/* The one picker of this step (ring, tiles, Achtung sheet). Outside
+            {/* The one picker of this step (round slot, tiles, Achtung sheet). Outside
                 the sheet and mounted for the whole step, so its change event
                 still arrives after the sheet has closed. */}
             <ImageUpload
