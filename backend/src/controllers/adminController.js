@@ -7,13 +7,14 @@ import { getClientIp } from '../utils/clientIp.js';
 import geoip from 'geoip-lite';
 import { checkSubscriptionCountry, getSubscriptionCountries } from '../utils/paymentRegion.js';
 import { isBackupConfigured, missingBackupEnv, listBackupObjects, DB_BACKUP_PREFIX } from '../jobs/backup.js';
+import { MOTIVATION_KEYS } from '../utils/motivations.js';
 
 // ==========================================
 // OVERVIEW STATS
 // ==========================================
 export const getStats = async (_req, res) => {
   try {
-    const [users, groups, events, suggestions, topScreens, churn, dealRedemptions] = await Promise.all([
+    const [users, groups, events, suggestions, topScreens, churn, dealRedemptions, motivations] = await Promise.all([
       // User counts. Aliases match what AdminDashboard renders (`u.this_week`,
       // `u.this_month`) — earlier the SQL was using `week`/`month` and the
       // dashboard fell back to undefined → blank "-" cells.
@@ -90,6 +91,30 @@ export const getStats = async (_req, res) => {
           COUNT(DISTINCT deal_id)::int                                           AS distinct_deals_redeemed
         FROM deal_redemptions
       `),
+      // "Was trifft zu?" (onboarding 2026-10): how many people answered, and
+      // how often each key was picked (multi-select, so the counts add up to
+      // more than `answered`). Every key is present, 0 included, in the
+      // allowlist order. The CASE guards are required — AND does not fix the
+      // evaluation order, and jsonb_array_length throws on a non-array (same
+      // reason as PROFILE_COMPLETE_SQL). Its OWN catch: one failing query
+      // 500s this whole Promise.all, and the column does not exist in the
+      // boot window of the deploy that adds it → `motivations: null`.
+      db.query(`
+        SELECT
+          (SELECT COUNT(*)::int FROM users
+            WHERE (CASE WHEN jsonb_typeof(motivations) = 'array'
+                        THEN jsonb_array_length(motivations) ELSE 0 END) > 0) AS answered,
+          (SELECT COALESCE(json_object_agg(k.key, (
+                    SELECT COUNT(*)::int FROM users u
+                     WHERE (CASE WHEN jsonb_typeof(u.motivations) = 'array'
+                                 THEN u.motivations ? k.key ELSE FALSE END)
+                  ) ORDER BY k.ord), '{}'::json)
+             FROM unnest($1::text[]) WITH ORDINALITY AS k(key, ord)) AS counts
+      `, [MOTIVATION_KEYS]).catch((err) => {
+        // 42703 = column not there yet: expected in the boot window, silent.
+        if (err?.code !== '42703') console.error('[admin-stats] motivations query failed:', err.message);
+        return { rows: [] };
+      }),
     ]);
 
     res.json({
@@ -100,6 +125,7 @@ export const getStats = async (_req, res) => {
       churn_screens: churn.rows,
       category_suggestions: suggestions.rows,
       deal_redemptions: dealRedemptions.rows[0],
+      motivations: motivations.rows[0] || null,
     });
   } catch (err) {
     console.error('Admin stats error:', err);

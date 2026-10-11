@@ -17,6 +17,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, beforeAll, afterAll, expect, vi } from 'vitest';
 import { distanceKmSql, distanceKm } from '../../src/utils/geoRadius.js';
+import { MOTIVATION_KEYS } from '../../src/utils/motivations.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -34,6 +35,8 @@ if (SMOKE_URL) {
   // production-shaped avatar URL below.
   process.env.FRONTEND_URL = 'https://app.jamie-app.com';
   process.env.STORAGE_PUBLIC_URL = 'https://app.jamie-app.com/media';
+  // register() signs a session token; CI has no backend/.env to supply one.
+  process.env.JWT_SECRET ||= 'smoke-test-secret';
 }
 
 // Mock external geocoding so the create/update paths never hit the network.
@@ -68,9 +71,12 @@ const fakeIo = {
 const fakeApp = { get: (k) => (k === 'io' ? fakeIo : undefined) };
 
 const makeRes = () => {
-  const res = { statusCode: 200, body: null };
+  const res = { statusCode: 200, body: null, cookies: {} };
   res.status = (c) => { res.statusCode = c; return res; };
   res.json = (o) => { res.body = o; return res; };
+  // register / login set the httpOnly session cookie.
+  res.cookie = (name, value) => { res.cookies[name] = value; return res; };
+  res.clearCookie = (name) => { delete res.cookies[name]; return res; };
   return res;
 };
 const call = async (fn, { userId, params = {}, body = {}, query = {} }) => {
@@ -154,7 +160,11 @@ suite('write endpoints against real Postgres', () => {
     const us = await import('../../src/controllers/userController.js');
     const er = await import('../../src/jobs/eventReminders.js');
     const fa = await import('../../src/utils/friendActivity.js');
+    const fc = await import('../../src/controllers/featuredClubController.js');
     C = {
+      register: a.register, getStats: ad.getStats,
+      getFeaturedClubs: fc.getFeaturedClubs, getFeaturedClubsAdmin: fc.getFeaturedClubsAdmin,
+      setFeaturedClubs: fc.setFeaturedClubs,
       updateProfile: a.updateProfile, completeOnboarding: a.completeOnboarding, getProfile: a.getProfile,
       updatePushPreferences: pu.updatePushPreferences, searchUsers: us.searchUsers,
       subscribePush: pu.subscribe, saveApnsToken: pu.saveApnsToken,
@@ -1327,6 +1337,32 @@ suite('write endpoints against real Postgres', () => {
       "SELECT id, status FROM group_join_requests WHERE group_id=$1 AND user_id=$2", [privateGroupId, E]);
     expect(r.rows[0]?.status).toBe('pending');
     joinReqId = r.rows[0].id;
+  });
+  // The owner is a stranger to the asker: the request shows the age, never
+  // the birth date (sign-up: „dein Geburtsdatum nicht“, 2026-10).
+  it('join-request payloads carry the age but no birth date', async () => {
+    const noDob = (row) => {
+      expect(row).not.toHaveProperty('user_dob');
+      expect(row).not.toHaveProperty('date_of_birth');
+      // created_at / updated_at are the request's own timestamps; no OTHER
+      // value may be a date under some new alias (DATE columns come back as
+      // 'YYYY-MM-DD' strings — database.js pins OID 1082).
+      const { created_at, updated_at, ...rest } = row;  // eslint-disable-line no-unused-vars
+      for (const [k, v] of Object.entries(rest)) {
+        expect(v instanceof Date, k).toBe(false);
+        if (typeof v === 'string') expect(v, k).not.toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      }
+    };
+    const one = await call(C.getJoinRequests, { userId: A, params: { id: String(privateGroupId) } });
+    ok(one);
+    const mine = one.body.find(x => x.user_id === E);
+    expect(mine.user_age).toEqual(expect.any(Number));
+    noDob(mine);
+    const deck = await call(C.getAllJoinRequests, { userId: A });
+    ok(deck);
+    const card = deck.body.find(x => x.user_id === E);
+    expect(card.user_age).toBe(mine.user_age);
+    noDob(card);
   });
   it('handleJoinRequest accept runs the capacity-checked tx and adds the member', async () => {
     ok(await call(C.handleJoinRequest, {
@@ -3492,6 +3528,400 @@ suite('write endpoints against real Postgres', () => {
       expect(below.statusCode).toBe(400);
       expect(below.body.error).toMatch(/bereits \d+ Teilnehmer/);
       expect(await stored()).toBe(80);
+    });
+  });
+
+
+  // ── Onboarding-Umbau (Tina's checklist, 2026-10) ─────────────────────────
+  // Gender moved to the sign-up, "Was trifft zu?" (users.motivations) became
+  // onboarding step 1, and admins curate the clubs new users see right after
+  // (featured_clubs). Real Postgres, because the new pieces are exactly what a
+  // mocked db.query cannot judge: a jsonb parameter that must be stringified,
+  // the to_jsonb read that must survive a missing column, unnest WITH
+  // ORDINALITY into a SMALLINT, an FK cascade, and jsonb operators behind CASE.
+  // Dedicated users and clubs only — A/B/D stay untouched for the suites above.
+  // KEEP THIS BLOCK LAST: its final tests rename schema objects (restored in
+  // finally), and nothing may run after them.
+  describe('onboarding rework (2026-10)', () => {
+    const regBody = (email, extra = {}) => ({
+      email, password: 'Smoke1!pass', name: 'Reg', date_of_birth: '1996-02-02', ...extra });
+    const motivationsOf = async (id) =>
+      (await db.query('SELECT motivations FROM users WHERE id = $1', [id])).rows[0].motivations;
+    let R;                                   // registered through the real register()
+    let FO, FM, K1, K2, K3, K4, KP, PLAIN;   // featured: owner, member, clubs, a plain group
+
+    describe('gender at sign-up + "Was trifft zu?"', () => {
+      it('both migration steps ran clean on the schema.sql → migrations path', async () => {
+        const { getMigrationHealth } = await import('../../src/config/migrations.js');
+        expect(getMigrationHealth().stepFailures.map(f => f.label || String(f))
+          .filter(l => /motivations|featured_clubs/.test(l))).toEqual([]);
+        const col = await db.query(`SELECT data_type, column_default FROM information_schema.columns
+                                     WHERE table_name = 'users' AND column_name = 'motivations'`);
+        expect(col.rows[0]).toEqual({ data_type: 'jsonb', column_default: null }); // NULL = never asked
+        const t = await db.query(`SELECT to_regclass('featured_clubs')::text AS t`);
+        expect(t.rows[0].t).toBe('featured_clubs');
+      });
+
+      it('register stores the gender picked at sign-up; none or \'\' stays NULL; an unknown one creates nothing', async () => {
+        const res = await call(C.register, { body: regBody('smoke-reg-male@x.com', { gender: 'male' }) });
+        expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+        expect(res.body.user).toMatchObject({ gender: 'male', motivations: null, onboarding_completed: false });
+        expect(res.body.token).toEqual(expect.any(String));
+        R = res.body.user.id;
+
+        for (const [email, extra] of [['smoke-reg-none@x.com', {}], ['smoke-reg-empty@x.com', { gender: '' }]]) {
+          const r = await call(C.register, { body: regBody(email, extra) });
+          expect(r.statusCode, JSON.stringify(r.body)).toBe(201);
+          expect(r.body.user.gender).toBe(null);
+        }
+
+        const bad = await call(C.register, { body: regBody('smoke-reg-bad@x.com', { gender: 'robot' }) });
+        expect(bad.statusCode).toBe(400);
+        expect(bad.body.code).toBe('GENDER_INVALID');
+        expect((await db.query(`SELECT 1 FROM users WHERE email = 'smoke-reg-bad@x.com'`)).rowCount).toBe(0);
+      });
+
+      it('the new wizard omits gender: onboarding keeps the sign-up value, sets the flag, stores the answer normalised', async () => {
+        const res = await call(C.completeOnboarding, { userId: R, body: {
+          interests: ['Laufen', 'Tennis', 'Golf'], location: 'Wien', bio: '', photos: [],
+          motivations: ['more_active', 'bogus', 'new_in_town', 'more_active'] } });
+        ok(res);
+        expect(res.body).toMatchObject({ gender: 'male', onboarding_completed: true });
+        // allowlist order, deduped, unknown key dropped — and the response carries it
+        expect(res.body.motivations).toEqual(['new_in_town', 'more_active']);
+        expect(await motivationsOf(R)).toEqual(['new_in_town', 'more_active']);
+      });
+
+      it('old clients keep the answer: an onboarding redo and a profile save without the field', async () => {
+        ok(await call(C.completeOnboarding, { userId: R, body: {
+          gender: 'male', interests: ['Laufen', 'Tennis', 'Golf'], location: 'Wien', bio: '', photos: [] } }));
+        ok(await call(C.updateProfile, { userId: R, body: { bio: 'Hallo', location: 'Wien', motivations: null } }));
+        expect(await motivationsOf(R)).toEqual(['new_in_town', 'more_active']);
+      });
+
+      it('an onboarding body without interests (or gender) no longer wipes them', async () => {
+        ok(await call(C.completeOnboarding, { userId: R, body: { location: 'Wien' } }));
+        const r = (await db.query('SELECT interests, gender FROM users WHERE id = $1', [R])).rows[0];
+        expect(r).toEqual({ interests: ['Laufen', 'Tennis', 'Golf'], gender: 'male' });
+      });
+
+      it('updateProfile: [] clears, a new answer replaces, a malformed one is refused', async () => {
+        const cleared = await call(C.updateProfile, { userId: R, body: { motivations: [] } });
+        ok(cleared);
+        expect(cleared.body.motivations).toEqual([]);
+        expect(await motivationsOf(R)).toEqual([]);
+
+        const set = await call(C.updateProfile, { userId: R, body: { motivations: ['discover_places'] } });
+        expect(set.body.motivations).toEqual(['discover_places']);
+
+        const bad = await call(C.updateProfile, { userId: R, body: { motivations: 'discover_places', bio: 'nope' } });
+        expect(bad.statusCode).toBe(400);
+        expect(bad.body.code).toBe('MOTIVATIONS_INVALID');
+        const row = (await db.query('SELECT motivations, bio FROM users WHERE id = $1', [R])).rows[0];
+        expect(row).toEqual({ motivations: ['discover_places'], bio: 'Hallo' });   // nothing written
+      });
+
+      it('a user who was never asked reads as null', async () => {
+        const res = await call(C.getProfile, { userId: B });
+        ok(res);
+        expect(res.body).toHaveProperty('motivations', null);
+      });
+
+      it('the GDPR export carries the answer', async () => {
+        const exp = await call(C.exportData, { userId: R });
+        ok(exp);
+        expect(exp.body.profile.motivations).toEqual(['discover_places']);
+      });
+
+      it('getStats: answered + one int count per key, in key order; a non-array value never counts or throws', async () => {
+        const odd = (await db.query(
+          `INSERT INTO users (email, name, motivations) VALUES ('smoke-mot-odd@x.com', 'Odd', '"new_friends"'::jsonb) RETURNING id`
+        )).rows[0].id;
+        const two = await call(C.register, { body: regBody('smoke-reg-two@x.com', { gender: 'female' }) });
+        ok(await call(C.updateProfile, { userId: two.body.user.id, body: { motivations: ['new_friends', 'discover_places'] } }));
+
+        const res = await call(C.getStats, {});
+        ok(res);
+        const m = res.body.motivations;
+        expect(Object.keys(m.counts)).toEqual([...MOTIVATION_KEYS]);
+        for (const v of [m.answered, ...Object.values(m.counts)]) expect(Number.isInteger(v)).toBe(true);
+        const arrays = (await db.query(
+          `SELECT motivations FROM users WHERE jsonb_typeof(motivations) = 'array'`)).rows.map(r => r.motivations);
+        expect(m.answered).toBe(arrays.filter(a => a.length > 0).length);
+        for (const k of MOTIVATION_KEYS) expect(m.counts[k], k).toBe(arrays.filter(a => a.includes(k)).length);
+        expect(m.counts.discover_places).toBeGreaterThanOrEqual(2);
+        // the scalar "new_friends" would match jsonb ? — the CASE keeps it out
+        expect(m.counts.new_friends).toBe(arrays.filter(a => a.includes('new_friends')).length);
+        await db.query('DELETE FROM users WHERE id = $1', [odd]);
+      });
+    });
+
+    // A returning user (Home banner) or one who filled Profil bearbeiten first
+    // runs the wizard again: it neither shows nor re-sends what is stored.
+    describe('redoing the wizard keeps the gallery and the birth date', () => {
+      const img = (n) => `https://app.jamie-app.com/media/uploads/${n}.webp`;
+      const mkReturning = async (email, { photos, dobChanged = false }) => (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, date_of_birth_changed, gender, avatar_url, photos,
+                            interests, onboarding_completed, auth_provider)
+         VALUES ($1,'Ret','1993-03-03',$2,'female',$3,$4::jsonb,'["Laufen","Tennis","Golf"]'::jsonb, TRUE,'email')
+         RETURNING id`, [email, dobChanged, img('a'), JSON.stringify(photos)])).rows[0].id;
+      const row = async (id) => (await db.query(
+        `SELECT avatar_url, photos, to_char(date_of_birth,'YYYY-MM-DD') AS dob, date_of_birth_changed
+           FROM users WHERE id = $1`, [id])).rows[0];
+
+      it('a photo added in the wizard joins the stored gallery instead of replacing it', async () => {
+        const u = await mkReturning('smoke-redo-1@x.com', { photos: [img('a'), img('b'), img('c')] });
+        ok(await call(C.completeOnboarding, { userId: u, body: {
+          interests: ['Laufen', 'Tennis', 'Golf'], photos: [img('d')] } }));
+        expect(await row(u)).toMatchObject({ avatar_url: img('a'), photos: [img('d'), img('a'), img('b'), img('c')] });
+      });
+
+      it('a new ring picture becomes the avatar, keeps the others, and the cap keeps the NEW uploads', async () => {
+        const u = await mkReturning('smoke-redo-2@x.com', { photos: [img('a'), img('b'), img('c'), img('e'), img('f'), img('g')] });
+        ok(await call(C.completeOnboarding, { userId: u, body: {
+          avatar_url: img('n'), photos: [img('n'), img('m'), img('b')] } }));
+        // new first (b re-sent once, not twice), then the stored rest up to six
+        expect(await row(u)).toMatchObject({
+          avatar_url: img('n'), photos: [img('n'), img('m'), img('b'), img('a'), img('c'), img('e')] });
+      });
+
+      it('no photos in the body leaves the stored gallery exactly as it was', async () => {
+        const u = await mkReturning('smoke-redo-3@x.com', { photos: [img('a'), img('b')] });
+        ok(await call(C.completeOnboarding, { userId: u, body: { interests: ['Laufen', 'Tennis', 'Golf'], photos: [] } }));
+        expect((await row(u)).photos).toEqual([img('a'), img('b')]);
+      });
+
+      it('a stored birth date wins over a sent one — the edit-once lock cannot be bypassed', async () => {
+        const u = await mkReturning('smoke-redo-4@x.com', { photos: [], dobChanged: true });
+        const res = await call(C.completeOnboarding, { userId: u, body: {
+          interests: ['Laufen', 'Tennis', 'Golf'], date_of_birth: '2000-01-01' } });
+        expect(res.statusCode, JSON.stringify(res.body)).toBe(200);
+        expect(await row(u)).toMatchObject({ dob: '1993-03-03', date_of_birth_changed: true });
+        // ...and an unlocked account cannot use it as a free extra edit either
+        const v = await mkReturning('smoke-redo-5@x.com', { photos: [] });
+        ok(await call(C.completeOnboarding, { userId: v, body: { date_of_birth: '1980-08-08' } }));
+        expect(await row(v)).toMatchObject({ dob: '1993-03-03', date_of_birth_changed: false });
+      });
+    });
+
+    describe('featured clubs (the onboarding club page)', () => {
+      const mkUser = async (email, name) => (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ($1,$2,'1994-04-04','female',$3, TRUE, 'email') RETURNING id`, [email, name, avatar])).rows[0].id;
+      const mkClub = async (name, { approval = 'approved', isPrivate = false, type = 'club' } = {}) => {
+        const id = (await db.query(
+          `INSERT INTO groups (name, type, owner_id, category, location, max_members, is_private, approval_status, lat, lng)
+           VALUES ($1,$2,$3,'Sport','Wien',100,$4,$5,48.2,16.37) RETURNING id`,
+          [name, type, FO, isPrivate, approval])).rows[0].id;
+        await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner')`, [id, FO]);
+        return id;
+      };
+      const put = (clubIds) => call(C.setFeaturedClubs, { userId: A, body: { clubIds } });
+      const pub = (userId) => call(C.getFeaturedClubs, { userId });
+      const ids = (res) => res.body.map(c => c.id);
+      const stored = async () =>
+        (await db.query('SELECT club_id, position FROM featured_clubs ORDER BY position')).rows
+          .map(r => [r.club_id, r.position]);
+      let log;
+
+      beforeAll(() => { log = vi.spyOn(console, 'log').mockImplementation(() => {}); });
+      afterAll(() => log.mockRestore());
+
+      it('seed: three approved clubs (one public, two private), a pending one, a plain group', async () => {
+        FO = await mkUser('smoke-feat-owner@x.com', 'Fiona');
+        FM = await mkUser('smoke-feat-member@x.com', 'Fritz');
+        K1 = await mkClub('JAMIE Groups Official');
+        K2 = await mkClub('Feat Private Pending-Request', { isPrivate: true });
+        K3 = await mkClub('Feat Private Blocked', { isPrivate: true });
+        K4 = await mkClub('Feat Spare');
+        KP = await mkClub('Feat Pending', { approval: 'pending' });
+        PLAIN = await mkClub('Feat Plain Group', { type: 'group' });
+        await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'member')`, [K1, FM]);
+        await db.query(`INSERT INTO group_join_requests (group_id, user_id, status) VALUES ($1,$2,'pending')`, [K2, FM]);
+        await db.query(`INSERT INTO group_join_requests (group_id, user_id, status, rejected_count)
+                        VALUES ($1,$2,'rejected',2)`, [K3, FM]);
+      });
+
+      it('nothing curated yet: public [] and an empty admin list', async () => {
+        const p = await pub(undefined);
+        ok(p);
+        expect(p.body).toEqual([]);
+        const a = await call(C.getFeaturedClubsAdmin, { userId: A });
+        ok(a);
+        expect(a.body).toEqual({ clubs: [], max: 20 });
+      });
+
+      it('PUT [K3, K1, K2] stores positions 1..3 and answers with the admin list', async () => {
+        const res = await put([K3, String(K1), K2]);
+        ok(res);
+        expect(await stored()).toEqual([[K3, 1], [K1, 2], [K2, 3]]);
+        expect(res.body.max).toBe(20);
+        expect(res.body.clubs.map(c => [c.id, c.position, c.alive])).toEqual([[K3, 1, true], [K1, 2, true], [K2, 3, true]]);
+        expect(res.body.clubs[1]).toMatchObject({ name: 'JAMIE Groups Official', is_deleted: false, approval_status: 'approved' });
+      });
+
+      it('public, anonymous: the curated order with card columns and no per-caller flags', async () => {
+        const res = await pub(undefined);
+        ok(res);
+        expect(ids(res)).toEqual([K3, K1, K2]);
+        expect(res.body.map(c => c.featured_position)).toEqual([1, 2, 3]);
+        const k1 = res.body[1];
+        expect(k1).toMatchObject({ name: 'JAMIE Groups Official', owner_name: 'Fiona', is_boosted: false, members_count: 2 });
+        expect(k1.member_previews.map(m => m.name)).toEqual(['Fiona', 'Fritz']);
+        expect(k1).not.toHaveProperty('is_member');
+      });
+
+      it('public, signed in: membership, pending request and exhausted budget per card', async () => {
+        const res = await pub(FM);
+        ok(res);
+        expect(res.body.map(c => [c.id, c.is_member, c.join_request_status, c.join_request_blocked])).toEqual([
+          [K3, false, 'rejected', true],
+          [K1, true, null, false],
+          [K2, false, 'pending', false],
+        ]);
+        // ...and the next caller does not inherit any of it from the shared cache
+        const other = await pub(FO);
+        expect(other.body.map(c => [c.is_member, c.join_request_status, c.join_request_blocked]))
+          .toEqual([[true, null, false], [true, null, false], [true, null, false]]);  // FO owns all three
+        expect((await pub(undefined)).body[0]).not.toHaveProperty('is_member');
+      });
+
+      it('the join refusals the club page maps onto its buttons carry codes', async () => {
+        const join = (userId, id) => call(C.joinClub, { userId, params: { id: String(id) }, body: {} });
+        const member = await join(FM, K1);
+        expect([member.statusCode, member.body.code]).toEqual([400, 'ALREADY_MEMBER']);
+        const pending = await join(FM, K2);
+        expect([pending.statusCode, pending.body.code]).toEqual([400, 'JOIN_REQUEST_PENDING']);
+        const blocked = await join(FM, K3);
+        expect([blocked.statusCode, blocked.body.code]).toEqual([403, 'JOIN_REQUEST_BLOCKED']);
+        await db.query('UPDATE groups SET max_members = members_count WHERE id = $1', [K4]);
+        try {
+          const full = await join(FM, K4);
+          expect([full.statusCode, full.body.code]).toEqual([400, 'CLUB_FULL']);
+        } finally {
+          await db.query('UPDATE groups SET max_members = 100 WHERE id = $1', [K4]);
+        }
+        await db.query(`INSERT INTO group_join_counts (group_id, user_id, join_count) VALUES ($1,$2,2)`, [K4, FM]);
+        try {
+          const cap = await join(FM, K4);
+          expect([cap.statusCode, cap.body.code]).toEqual([403, 'JOIN_CAP_REACHED']);
+        } finally {
+          await db.query('DELETE FROM group_join_counts WHERE group_id = $1 AND user_id = $2', [K4, FM]);
+        }
+        // Nothing was written by any of the refusals.
+        const rows = await db.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [K4, FM]);
+        expect(rows.rows.length).toBe(0);
+      });
+
+      it('a pending club, a plain group or an unknown id: 400 with exactly those ids, list unchanged', async () => {
+        const res = await put([K1, KP, PLAIN, 2147483000]);
+        expect(res.statusCode).toBe(400);
+        expect(res.body).toMatchObject({ code: 'FEATURED_INVALID_CLUBS', invalidIds: [KP, PLAIN, 2147483000] });
+        expect(await stored()).toEqual([[K3, 1], [K1, 2], [K2, 3]]);
+        const dup = await put([K1, K1]);
+        expect(dup.statusCode).toBe(400);
+        expect(dup.body.code).toBe('FEATURED_INVALID');
+      });
+
+      it('a reorder shows immediately (the PUT drops the cached list)', async () => {
+        expect(ids(await pub(undefined))).toEqual([K3, K1, K2]);   // cached
+        ok(await put([K1, K2, K3]));
+        expect(ids(await pub(undefined))).toEqual([K1, K2, K3]);
+        expect(await stored()).toEqual([[K1, 1], [K2, 2], [K3, 3]]);
+      });
+
+      it('two admins saving at the same moment: both succeed, one order wins (LOCK, no 23505)', async () => {
+        const [x, y] = await Promise.all([put([K4, K1, K2, K3]), put([K1, K4, K3])]);
+        ok(x); ok(y);
+        const final = (await stored()).map(([id]) => id);
+        expect([[K4, K1, K2, K3], [K1, K4, K3]]).toContainEqual(final);
+        ok(await put([K1, K2, K3]));
+      });
+
+      it('rejecting a curated club takes it off the page at once; the admin list flags it and a re-save is refused', async () => {
+        ok(await call(C.rejectClub, { userId: A, params: { id: String(K3) } }));
+        expect(ids(await pub(undefined))).toEqual([K1, K2]);           // clubs: prefix busted by rejectClub
+        const adm = await call(C.getFeaturedClubsAdmin, { userId: A });
+        expect(adm.body.clubs.map(c => [c.id, c.alive])).toEqual([[K1, true], [K2, true], [K3, false]]);
+        expect(adm.body.clubs[2]).toMatchObject({ approval_status: 'rejected', is_active: false });
+        const again = await put([K1, K2, K3]);
+        expect(again.statusCode).toBe(400);
+        expect(again.body.invalidIds).toEqual([K3]);
+        ok(await put([K1, K2]));                                      // what the dashboard does: drop it
+        expect(await stored()).toEqual([[K1, 1], [K2, 2]]);
+      });
+
+      it('a hard-deleted club takes its row with it (FK cascade)', async () => {
+        await db.query('DELETE FROM groups WHERE id = $1', [K2]);
+        expect(await stored()).toEqual([[K1, 1]]);
+      });
+
+      it('[] empties the list and the page is skipped', async () => {
+        const res = await put([]);
+        ok(res);
+        expect(res.body).toEqual({ clubs: [], max: 20 });
+        expect(await stored()).toEqual([]);
+        expect((await pub(FM)).body).toEqual([]);
+        ok(await put([K1]));                                           // for the boot-window case below
+      });
+    });
+
+    // ── Boot window (LAST — renames schema objects, restored in finally) ──
+    // The server serves before startup migrations finish. On the deploy that
+    // adds these pieces, and for good if a step failed, every read must
+    // degrade and no old client may break.
+    describe('boot window (LAST)', () => {
+      it('without users.motivations: reads give null, old AND new clients finish onboarding, stats load', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        try {
+          await db.query('ALTER TABLE users RENAME COLUMN motivations TO motivations_bootwin');
+          const prof = await call(C.getProfile, { userId: R });
+          ok(prof);
+          expect(prof.body.motivations).toBe(null);
+          // an old bundle's onboarding body
+          ok(await call(C.completeOnboarding, { userId: R, body: {
+            gender: 'male', interests: ['Laufen', 'Tennis', 'Golf'], location: 'Wien', bio: '', photos: [] } }));
+          // the new wizard's — the answer is dropped (logged), the onboarding is not
+          const neu = await call(C.completeOnboarding, { userId: R, body: {
+            interests: ['Laufen', 'Tennis', 'Golf'], motivations: ['new_friends'] } });
+          ok(neu);
+          expect(neu.body.motivations).toBe(null);
+          ok(await call(C.updateProfile, { userId: R, body: { motivations: ['new_friends'] } }));
+          const reg = await call(C.register, { body: regBody('smoke-reg-boot@x.com', { gender: 'female' }) });
+          expect(reg.statusCode, JSON.stringify(reg.body)).toBe(201);
+          const exp = await call(C.exportData, { userId: R });
+          ok(exp);
+          expect(exp.body.profile.motivations).toBe(null);
+          const stats = await call(C.getStats, {});
+          ok(stats);
+          expect(stats.body.motivations).toBe(null);
+          expect(stats.body.users).toBeTruthy();
+        } finally {
+          await db.query('ALTER TABLE users RENAME COLUMN motivations_bootwin TO motivations').catch(() => {});
+          warn.mockRestore();
+        }
+        expect(await motivationsOf(R)).toEqual(['discover_places']);   // the stored answer survived
+      });
+
+      it('without featured_clubs: the public list is empty, the admin endpoints answer 503', async () => {
+        const { deleteCached } = await import('../../src/utils/cache.js');
+        try {
+          await db.query('ALTER TABLE featured_clubs RENAME TO featured_clubs_bootwin');
+          deleteCached('clubs:featured');
+          const p = await call(C.getFeaturedClubs, { userId: FM });
+          expect(p.statusCode).toBe(200);
+          expect(p.body).toEqual([]);
+          const a = await call(C.getFeaturedClubsAdmin, { userId: A });
+          expect(a.statusCode).toBe(503);
+          expect(a.body.code).toBe('FEATURED_UNAVAILABLE');
+          const s = await call(C.setFeaturedClubs, { userId: A, body: { clubIds: [K1] } });
+          expect(s.statusCode).toBe(503);
+        } finally {
+          await db.query('ALTER TABLE IF EXISTS featured_clubs_bootwin RENAME TO featured_clubs');
+        }
+        deleteCached('clubs:featured');
+        expect((await call(C.getFeaturedClubs, { userId: undefined })).body.map(c => c.id)).toEqual([K1]);
+      });
     });
   });
 

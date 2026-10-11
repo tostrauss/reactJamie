@@ -31,6 +31,7 @@ import {
   getUserWaitlistStatus,
   getGroupMemberAvatars
 } from '../controllers/groupController.js';
+import { getFeaturedClubs } from '../controllers/featuredClubController.js';
 import { authenticate, optionalAuth, requireCompleteProfile } from '../middleware/auth.js';
 import { generalLimiter } from '../middleware/rateLimiter.js';
 
@@ -44,6 +45,9 @@ router.get('/categories', generalLimiter, getCategories);
 // Discover events from public clubs — declared before '/:id' so the literal
 // path is never swallowed by the club-by-id param route.
 router.get('/events/discover', optionalAuth, getDiscoverEvents);
+// The admin-curated onboarding list (2026-10). Same rule: it must stay ABOVE
+// '/:id', or getClubById('featured') answers it with a 22P02 → 500.
+router.get('/featured', optionalAuth, getFeaturedClubs);
 
 // ==========================================
 // USER-SPECIFIC ROUTES (require auth)

@@ -26,6 +26,9 @@ import { POLL_SQL } from '../utils/polls.js';
 import {
   GENDER_VALUES, checkAdultDob, healOnboardingFlag,
 } from '../utils/profileCompleteness.js';
+import {
+  parseMotivations, saveMotivations, MOTIVATIONS_SELECT, MOTIVATIONS_INVALID,
+} from '../utils/motivations.js';
 
 const __authDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -90,6 +93,7 @@ const parseUserJSONFields = (user) => {
     if (user.photos && typeof user.photos === 'string') user.photos = JSON.parse(user.photos);
     if (user.pinnwand && typeof user.pinnwand === 'string') user.pinnwand = JSON.parse(user.pinnwand);
     if (user.favorite_song && typeof user.favorite_song === 'string') user.favorite_song = JSON.parse(user.favorite_song);
+    if (user.motivations && typeof user.motivations === 'string') user.motivations = JSON.parse(user.motivations);
   } catch (e) { console.error('Failed to parse user JSON fields:', e.message); }
   return user;
 };
@@ -155,7 +159,13 @@ const SAFE_USER_COLS = `
   -- narrower column list for viewing other people) — so nothing here exposes
   -- one user's coordinates to another. The client needs them for the feed's
   -- Umkreis filter, which runs client-side like every other feed filter.
-  lat, lng, notify_radius_km
+  lat, lng, notify_radius_km,
+  -- "Was trifft zu?" answers (2026-10). Read through the row's jsonb image,
+  -- NOT as a plain column: the server serves before migrations finish, and a
+  -- missing column here would 500 every profile load in that window (house
+  -- rule, utils/attendanceTiers.js). Missing column → NULL, no error. Only
+  -- valid because every caller selects FROM the unaliased users table.
+  ${MOTIVATIONS_SELECT}
 `;
 
 // ==========================================
@@ -165,6 +175,11 @@ export const register = async (req, res) => {
   try {
     const { password, name, date_of_birth } = req.body;
     const email = normalizeEmail(req.body.email);
+    // Optional: the 4-page sign-up (2026-10) asks for it next to the birth
+    // date; older bundles never send it and Google/Apple accounts start
+    // without one — onboarding asks whenever it is still missing. '' is "not
+    // picked", not a value.
+    const gender = req.body.gender === '' ? null : req.body.gender;
 
     if (!isValidEmail(email)) {
       return res.status(400).json({ error: 'Ungültige E-Mail-Adresse' });
@@ -188,6 +203,13 @@ export const register = async (req, res) => {
     {
       const bad = checkAdultDob(date_of_birth);
       if (bad) return res.status(400).json(bad);
+    }
+
+    // Same token set as the profile editor and onboarding. Checked here, with
+    // the other pure validations, so a bad value can never cost the user their
+    // verified OTP row (consumed below) or reach the INSERT.
+    if (gender !== undefined && gender !== null && !GENDER_VALUES.has(gender)) {
+      return res.status(400).json({ error: 'Ungültige Geschlechtsangabe', code: 'GENDER_INVALID' });
     }
 
     // Password policy validation (server-side mirror of frontend rules)
@@ -256,10 +278,12 @@ export const register = async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Insert new user with RETURNING (email stored lowercase)
+    // Insert new user with RETURNING (email stored lowercase). gender is an
+    // original schema.sql column, so naming it here is boot-window safe; an
+    // older bundle simply inserts NULL, exactly as before.
     const insertResult = await db.query(
-      'INSERT INTO users (email, password, name, date_of_birth) VALUES ($1, $2, $3, $4) RETURNING id',
-      [email, hashedPassword, name.trim(), date_of_birth]
+      'INSERT INTO users (email, password, name, date_of_birth, gender) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+      [email, hashedPassword, name.trim(), date_of_birth, gender ?? null]
     );
 
     const newUserId = insertResult.rows[0].id;
@@ -468,7 +492,7 @@ export const getProfile = async (req, res) => {
 // ==========================================
 export const updateProfile = async (req, res) => {
   try {
-    const { name, location, bio, gender, interests, photos, pinnwand, avatar_url, favorite_song, date_of_birth } = req.body;
+    const { name, location, bio, gender, interests, photos, pinnwand, avatar_url, favorite_song, date_of_birth, motivations } = req.body;
 
     if (name !== undefined && (!name || typeof name !== 'string' || !name.trim() || name.length > 100)) {
       return res.status(400).json({ error: 'Name darf nicht leer sein (max. 100 Zeichen)' });
@@ -523,6 +547,9 @@ export const updateProfile = async (req, res) => {
         return res.status(400).json({ error: 'Ungültiges Interesse' });
       }
     }
+    // "Was trifft zu?" — absent/null keeps the stored answer, [] clears it.
+    const mot = parseMotivations(motivations);
+    if (mot.error) return res.status(400).json(MOTIVATIONS_INVALID);
     if (photos !== undefined && photos !== null) {
       if (!Array.isArray(photos) || photos.length > 6) {
         return res.status(400).json({ error: 'Maximal 6 Fotos erlaubt' });
@@ -659,6 +686,10 @@ export const updateProfile = async (req, res) => {
        WHERE id = $9`,
       [name, location, bio, gender, interestsStr, photosStr, avatar_url, songStr || null, req.userId, incomingDob, pinnwandStr, lockDob]
     );
+    // Its own statement, AFTER the main UPDATE (which stays exactly what every
+    // shipped client already exercises): a missing column in the boot window
+    // drops only this answer — see utils/motivations.js.
+    if (mot.provided) await saveMotivations(db, req.userId, mot.value);
 
     // Return updated profile
     const result = await db.query(
@@ -700,19 +731,29 @@ export { checkAdultDob };
 
 export const completeOnboarding = async (req, res) => {
   try {
-    const { gender, location, interests, bio, photos, avatar_url, favorite_song, date_of_birth } = req.body;
+    const { gender, location, interests, bio, photos, avatar_url, favorite_song, date_of_birth, motivations } = req.body;
 
     // Onboarding is where a social-login account gets its birth date — it is
     // created without one (googleLogin). Required here, so finishing onboarding
     // without an age is impossible; an email signup already has one from
     // `register` and simply passes the stored value through.
+    // A STORED date always wins: the body only fills a missing one. This route
+    // has no onboarding_completed guard, so taking the body's date over the
+    // stored one let any account rewrite its age as often as it liked — past
+    // the edit-once lock updateProfile enforces (date_of_birth_changed). No
+    // shipped wizard sends a date when one is stored, so a differing value is
+    // ignored silently rather than 400'd (a stale client must never get stuck
+    // here); corrections go through updateProfile's one edit.
+    // photos: read for the merge below.
     const stored = await db.query(
-      `SELECT to_char(date_of_birth, 'YYYY-MM-DD') AS dob FROM users WHERE id = $1`,
+      `SELECT photos, to_char(date_of_birth, 'YYYY-MM-DD') AS dob FROM users WHERE id = $1`,
       [req.userId]
     );
-    const effectiveDob = (typeof date_of_birth === 'string' && date_of_birth.trim())
+    const storedDob = stored.rows[0]?.dob || null;
+    const bodyDob = (typeof date_of_birth === 'string' && date_of_birth.trim())
       ? date_of_birth.trim().slice(0, 10)
-      : stored.rows[0]?.dob || null;
+      : null;
+    const effectiveDob = storedDob ?? bodyDob;
     {
       const bad = checkAdultDob(effectiveDob);
       if (bad) return res.status(400).json(bad);
@@ -720,9 +761,16 @@ export const completeOnboarding = async (req, res) => {
 
     // Mirror the validation surface of updateProfile so a malicious client
     // can't bypass it by going through onboarding first.
-    if (gender !== undefined && gender !== null && !GENDER_VALUES.has(gender)) {
+    // The 2026-10 wizard asks for gender only while it is missing (it moved to
+    // sign-up), so it omits the field — absent, null and '' all KEEP the
+    // stored value (COALESCE in the UPDATE). Every older wizard always sends
+    // one, so for them nothing changes.
+    const genderIn = gender === '' ? null : gender;
+    if (genderIn !== undefined && genderIn !== null && !GENDER_VALUES.has(genderIn)) {
       return res.status(400).json({ error: 'Ungültige Geschlechtsangabe' });
     }
+    const mot = parseMotivations(motivations);
+    if (mot.error) return res.status(400).json(MOTIVATIONS_INVALID);
     if (bio !== undefined && bio !== null && (typeof bio !== 'string' || bio.length > 500)) {
       return res.status(400).json({ error: 'Bio darf maximal 500 Zeichen lang sein' });
     }
@@ -762,22 +810,47 @@ export const completeOnboarding = async (req, res) => {
       }
     }
     const interestsStr = JSON.stringify(interests || []);
-    const photosStr = JSON.stringify(photos || []);
+    // The wizard only ever sends the photos uploaded IN it — it never shows,
+    // and so never re-sends, the gallery an account already has (a returning
+    // user sent back from the Home banner, or one who uploaded through Profil
+    // bearbeiten first). Writing the body as-is therefore replaced that
+    // gallery with the one new picture. Merge instead: this session's uploads
+    // first (they survive the cap), then every stored one not re-sent. Stored
+    // URLs are not re-validated — they passed isSafeImageUrl when written, and
+    // a legacy one must not 400 the whole save. A replaced ring picture still
+    // drops the old avatar_url, as the user chose; an empty list keeps the
+    // stored one untouched (CASE in the UPDATE).
+    let photosOut = Array.isArray(photos) ? photos : [];
+    if (photosOut.length) {
+      let storedPhotos = stored.rows[0]?.photos;
+      if (typeof storedPhotos === 'string') {
+        try { storedPhotos = JSON.parse(storedPhotos); } catch { storedPhotos = []; }
+      }
+      const keep = Array.isArray(storedPhotos) ? storedPhotos.filter(p => typeof p === 'string' && p) : [];
+      photosOut = [...new Set([...photosOut, ...keep])].slice(0, 6);
+    }
+    const photosStr = JSON.stringify(photosOut);
     const songStr = favorite_song ? JSON.stringify(favorite_song) : null;
     // The wizard never sends a favourite song, and redoing it (the only way out
     // of the "Profil vervollständigen" banner before 10.10.2026) wiped the one
     // set in the profile editor — same for a bio left blank. Only an explicit
     // value replaces them now.
     const hasFavSong = 'favorite_song' in req.body;
+    // Same data-loss class: interests are written only when the body carries
+    // a list. A body without one used to store [], so any client saving
+    // through here without the list wiped the user's interests. An explicit
+    // [] is still written as sent.
+    const hasInterests = Array.isArray(interests);
 
     // Preserve values the onboarding form doesn't re-send: location is captured
     // at registration, avatar_url comes from the Google/Apple profile picture.
     // An unconditional SET nuked both (empty string / NULL) — COALESCE/NULLIF
     // keeps the existing value when the field arrives empty, and photos only
-    // overwrite when a non-empty array was actually uploaded.
+    // change when a non-empty array was actually uploaded (merged, see above).
+    // New parameters are APPENDED ($11): existing indexes stay put.
     await db.query(
       `UPDATE users
-       SET gender = $1,
+       SET gender = COALESCE($1, gender),
            location = COALESCE(NULLIF($2, ''), location),
            country = CASE WHEN NULLIF($2, '') IS NOT NULL
                            AND location IS DISTINCT FROM NULLIF($2, '')
@@ -789,23 +862,28 @@ export const completeOnboarding = async (req, res) => {
            lng = CASE WHEN NULLIF($2, '') IS NOT NULL
                        AND location IS DISTINCT FROM NULLIF($2, '')
                       THEN NULL ELSE lng END,
-           interests = $3,
+           interests = CASE WHEN $11::boolean THEN $3::jsonb ELSE interests END,
            bio = COALESCE(NULLIF($4, ''), bio),
            photos = CASE WHEN $5::jsonb = '[]'::jsonb THEN photos ELSE $5::jsonb END,
            avatar_url = COALESCE($6, avatar_url),
            favorite_song = CASE WHEN $10::boolean THEN $7::jsonb ELSE favorite_song END,
            -- Writes the birth date a social-login account arrives without.
-           -- effectiveDob is the stored value when the form did not send one,
-           -- so an email signup's date (set at register, and editable exactly
-           -- once afterwards) is written back unchanged rather than cleared.
+           -- effectiveDob is the STORED value whenever there is one (a sent
+           -- date only fills a missing one), so an email signup's date (set at
+           -- register, and editable exactly once afterwards via updateProfile)
+           -- is written back unchanged, never cleared or replaced.
            -- Deliberately NOT setting date_of_birth_changed: this is the FIRST
            -- time the value is set, not the one edit the user is entitled to.
            date_of_birth = $9::date,
            onboarding_completed = TRUE,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $8`,
-      [gender, location, interestsStr, bio, photosStr, avatar_url, songStr, req.userId, effectiveDob, hasFavSong]
+      [genderIn ?? null, location, interestsStr, bio, photosStr, avatar_url, songStr, req.userId, effectiveDob, hasFavSong, hasInterests]
     );
+    // Separate statement, only when the client sent an answer — an older
+    // bundle's onboarding runs exactly the SQL it always did. See
+    // utils/motivations.js for the boot-window reasoning.
+    if (mot.provided) await saveMotivations(db, req.userId, mot.value);
 
     // Return updated user
     const result = await db.query(
@@ -1002,10 +1080,13 @@ export const exportData = async (req, res) => {
   try {
     const [userRes, groupsRes, messagesRes, friendsRes, pollVotesRes] = await Promise.all([
       db.query(
+        // motivations ("Was trifft zu?") are personal data like the rest of
+        // the profile — via the boot-window-safe read (utils/motivations.js).
         `SELECT id, email, name, username, gender, date_of_birth, bio, location,
                 avatar_url, photos, interests, favorite_song, pinterest_url,
                 onboarding_completed, is_verified, created_at,
-                push_reminders, push_friends, push_recommendations
+                push_reminders, push_friends, push_recommendations,
+                ${MOTIVATIONS_SELECT}
          FROM users WHERE id = $1`,
         [req.userId]
       ),

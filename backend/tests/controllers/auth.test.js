@@ -554,4 +554,289 @@ describe('completeOnboarding — no data loss when redoing the wizard', () => {
   // No hard gender/interests check here on purpose: every shipped wizard
   // enforces both itself, and refusing an older client's onboarding would be
   // far worse than a flag set by it. The rule decides at the join gate.
+
+  const armStored = (stored) => db.query.mockImplementation(async (sql) => {
+    if (/AS dob FROM users/.test(sql)) return { rows: [stored] };
+    if (/^\s*UPDATE/.test(sql)) return { rowCount: 1, rows: [] };
+    return { rows: [{ id: 1 }] };
+  });
+  const updateParams = () => db.query.mock.calls.find(c => /onboarding_completed = TRUE/.test(c[0]))[1];
+
+  it('a stored birth date wins over a sent one (no way around the edit-once lock)', async () => {
+    armStored({ dob: '1990-01-01', photos: [] });
+    const res = makeRes();
+    await completeOnboarding({ userId: 1, body: { ...body, date_of_birth: '2001-02-03' } }, res, vi.fn());
+    expect(res.status).not.toHaveBeenCalled();
+    expect(updateParams()[8]).toBe('1990-01-01');
+
+    vi.resetAllMocks();
+    armStored({ dob: null, photos: [] });           // social sign-up: the body fills the gap
+    await completeOnboarding({ userId: 1, body: { ...body, date_of_birth: '2001-02-03' } }, makeRes(), vi.fn());
+    expect(updateParams()[8]).toBe('2001-02-03');
+  });
+
+  it('photos from the wizard are merged in front of the stored gallery, capped at six', async () => {
+    const u = (n) => `https://app.jamie-app.com/media/uploads/${n}.webp`;
+    armStored({ dob: '1990-01-01', photos: [u('a'), u('b'), u('c'), u('e'), u('f')] });
+    await completeOnboarding({ userId: 1, body: { ...body, photos: [u('n'), u('b')] } }, makeRes(), vi.fn());
+    expect(JSON.parse(updateParams()[4])).toEqual([u('n'), u('b'), u('a'), u('c'), u('e'), u('f')]);
+
+    vi.resetAllMocks();
+    armStored({ dob: '1990-01-01', photos: JSON.stringify([u('a')]) });   // legacy text-encoded row
+    await completeOnboarding({ userId: 1, body: { ...body, photos: [u('n')] } }, makeRes(), vi.fn());
+    expect(JSON.parse(updateParams()[4])).toEqual([u('n'), u('a')]);
+
+    vi.resetAllMocks();
+    armStored({ dob: '1990-01-01', photos: [u('a')] });
+    await completeOnboarding({ userId: 1, body }, makeRes(), vi.fn());   // photos: [] → keep (CASE)
+    expect(updateParams()[4]).toBe('[]');
+  });
+});
+
+// ── Onboarding-Umbau (Tina's checklist, 2026-10) ─────────────────────────────
+// Gender moved to the sign-up's third page, "Was trifft zu?" became the first
+// onboarding step (users.motivations). Old iOS bundles stay in the field for
+// weeks, so every change here must leave their requests running the SQL they
+// always ran.
+const motivationWrites = () => db.query.mock.calls.filter((c) => /SET motivations = \$2::jsonb/.test(c[0]));
+// Any UPDATE that names the new column — the SELECTs legitimately do (via
+// to_jsonb), so only writes count.
+const updatesNamingMotivations = () =>
+  db.query.mock.calls.filter((c) => /^\s*UPDATE/.test(c[0]) && /motivations/.test(c[0]));
+const missingColumn = () => Object.assign(new Error('column "motivations" does not exist'), { code: '42703' });
+
+describe('register — gender from the sign-up page', () => {
+  const body = (extra = {}) => ({ email: 'neu@b.com', password: 'Test1!abc', name: 'Neu', date_of_birth: '1990-01-01', ...extra });
+  const arm = () => db.query.mockImplementation(async (sql) => {
+    if (/SELECT id FROM users WHERE LOWER\(email\)/.test(sql)) return { rows: [] };
+    if (/INSERT INTO users/.test(sql)) return { rows: [{ id: 42 }] };
+    if (/FROM users WHERE id = \$1/.test(sql)) return { rows: [{ id: 42, email: 'neu@b.com', gender: 'female', motivations: null }] };
+    return { rows: [] };
+  });
+  const insertCall = () => db.query.mock.calls.find((c) => /INSERT INTO users/.test(c[0]));
+
+  it('stores the gender as INSERT param $5', async () => {
+    arm();
+    const res = makeRes();
+    await register({ body: body({ gender: 'female' }) }, res, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(201);
+    const ins = insertCall();
+    expect(ins[0]).toMatch(/\(email, password, name, date_of_birth, gender\) VALUES \(\$1, \$2, \$3, \$4, \$5\)/);
+    expect(ins[1][4]).toBe('female');
+  });
+
+  it('an older bundle (no gender) and an unpicked one (\'\') insert NULL', async () => {
+    for (const extra of [{}, { gender: '' }, { gender: null }]) {
+      vi.resetAllMocks();
+      arm();
+      const res = makeRes();
+      await register({ body: body(extra) }, res, vi.fn());
+      expect(res.status, JSON.stringify(extra)).toHaveBeenCalledWith(201);
+      expect(insertCall()[1][4]).toBe(null);
+    }
+  });
+
+  it('an unknown value is a 400 GENDER_INVALID before ANY database access (the OTP row survives)', async () => {
+    for (const gender of ['robot', 'MALE', 5, { m: 1 }, ['male']]) {
+      vi.resetAllMocks();
+      arm();
+      const res = makeRes();
+      await register({ body: body({ gender }) }, res, vi.fn());
+      expect(res.status, JSON.stringify(gender)).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'GENDER_INVALID' }));
+      expect(db.query).not.toHaveBeenCalled();
+    }
+  });
+
+  it('the response user is read with the boot-window-safe motivations column', async () => {
+    arm();
+    const res = makeRes();
+    await register({ body: body({ gender: 'male' }) }, res, vi.fn());
+    const select = db.query.mock.calls.find((c) => /FROM users WHERE id = \$1/.test(c[0]));
+    expect(select[0]).toContain(`(to_jsonb(users) -> 'motivations') AS motivations`);
+  });
+});
+
+describe('completeOnboarding — gender optional, interests kept, motivations', () => {
+  const OLD_CLIENT = { gender: 'female', interests: ['Musik', 'Kunst', 'Yoga'], bio: '', photos: [], location: 'Wien' };
+  const arm = ({ failMotivations = false } = {}) => db.query.mockImplementation(async (sql) => {
+    if (/AS dob FROM users/.test(sql)) return { rows: [{ dob: '1990-01-01' }] };
+    if (/SET motivations = \$2::jsonb/.test(sql)) {
+      if (failMotivations) throw missingColumn();
+      return { rowCount: 1, rows: [] };
+    }
+    if (/^\s*UPDATE/.test(sql)) return { rowCount: 1, rows: [] };
+    return { rows: [{ id: 1, gender: 'female', motivations: null }] }; // response SELECT
+  });
+  const mainUpdate = () => db.query.mock.calls.find((c) => /onboarding_completed = TRUE/.test(c[0]));
+  const run = async (body) => {
+    const res = makeRes();
+    await completeOnboarding({ userId: 1, body }, res, vi.fn());
+    return res;
+  };
+
+  it('keeps the stored gender when the body has none (COALESCE), and writes a sent one', async () => {
+    arm();
+    let res = await run({ interests: ['Musik', 'Kunst', 'Yoga'] });
+    expect(res.status).not.toHaveBeenCalled();
+    expect(mainUpdate()[0]).toMatch(/gender = COALESCE\(\$1, gender\)/);
+    expect(mainUpdate()[1][0]).toBe(null);
+
+    vi.resetAllMocks(); arm();
+    res = await run({ gender: '' });                 // '' = not picked, no longer a 400
+    expect(res.status).not.toHaveBeenCalled();
+    expect(mainUpdate()[1][0]).toBe(null);
+
+    vi.resetAllMocks(); arm();
+    res = await run({ gender: 'diverse' });
+    expect(res.status).not.toHaveBeenCalled();
+    expect(mainUpdate()[1][0]).toBe('diverse');
+  });
+
+  it('still rejects an unknown gender', async () => {
+    arm();
+    const res = await run({ gender: 'robot' });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(mainUpdate()).toBeUndefined();
+  });
+
+  it('interests are written only when the body carries a list ($11, appended so $1-$10 keep their pins)', async () => {
+    arm();
+    await run({ gender: 'female' });
+    let upd = mainUpdate();
+    expect(upd[0]).toMatch(/interests = CASE WHEN \$11::boolean THEN \$3::jsonb ELSE interests END/);
+    expect(upd[1]).toHaveLength(11);
+    expect(upd[1][10]).toBe(false);
+
+    vi.resetAllMocks(); arm();
+    await run(OLD_CLIENT);
+    upd = mainUpdate();
+    expect(upd[1][10]).toBe(true);
+    expect(upd[1][2]).toBe(JSON.stringify(['Musik', 'Kunst', 'Yoga']));
+    expect(upd[1][9]).toBe(false);                   // hasFavSong pin unchanged
+  });
+
+  it('an old client runs the same main UPDATE as a new one, and no motivations write', async () => {
+    arm();
+    await run(OLD_CLIENT);
+    const old = mainUpdate();
+    expect(updatesNamingMotivations()).toEqual([]);
+
+    vi.resetAllMocks(); arm();
+    await run({ ...OLD_CLIENT, motivations: ['more_active', 'new_in_town'] });
+    const neu = mainUpdate();
+    expect(neu[0]).toBe(old[0]);
+    expect(neu[1]).toEqual(old[1]);
+  });
+
+  it('stores the answer in ONE separate statement, normalised, between the UPDATE and the response read', async () => {
+    arm();
+    const res = await run({ ...OLD_CLIENT, motivations: ['more_active', 'bogus', 'new_in_town', 'more_active'] });
+    expect(res.status).not.toHaveBeenCalled();
+    const writes = motivationWrites();
+    expect(writes).toHaveLength(1);
+    expect(writes[0][1]).toEqual([1, JSON.stringify(['new_in_town', 'more_active'])]);
+    const order = db.query.mock.calls.map((c) => c[0]);
+    const iMain = order.findIndex((s) => /onboarding_completed = TRUE/.test(s));
+    const iMot = order.findIndex((s) => /SET motivations/.test(s));
+    expect(iMot).toBe(iMain + 1);
+    expect(order[iMot + 1]).toMatch(/to_jsonb\(users\) -> 'motivations'/); // the response SELECT
+  });
+
+  it('a missing column in the boot window costs only the answer, never the onboarding', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    arm({ failMotivations: true });
+    const res = await run({ ...OLD_CLIENT, motivations: ['new_friends'] });
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }));
+    expect(mainUpdate()).toBeDefined();
+    warn.mockRestore();
+  });
+
+  it('a malformed answer is a 400 MOTIVATIONS_INVALID and nothing is written', async () => {
+    arm();
+    const res = await run({ ...OLD_CLIENT, motivations: 'new_friends' });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'MOTIVATIONS_INVALID' }));
+    expect(db.query.mock.calls.some((c) => /^\s*UPDATE/.test(c[0]))).toBe(false);
+  });
+});
+
+describe('updateProfile — motivations ride along without touching the main UPDATE', () => {
+  const PROFILE = { location: 'Wien', bio: 'hi', interests: ['Musik', 'Kunst', 'Yoga'] };
+  const arm = ({ failMotivations = false } = {}) => db.query.mockImplementation(async (sql) => {
+    if (/SET motivations = \$2::jsonb/.test(sql)) {
+      if (failMotivations) throw missingColumn();
+      return { rowCount: 1, rows: [] };
+    }
+    if (/^\s*UPDATE/.test(sql)) return { rowCount: 1, rows: [] };
+    return { rows: [{ id: 1, onboarding_completed: true, motivations: ['new_friends'] }] };
+  });
+  const mainUpdate = () => db.query.mock.calls.find((c) => /date_of_birth_changed = CASE/.test(c[0]));
+  const run = async (body) => {
+    const res = makeRes();
+    await updateProfile({ userId: 1, body }, res, vi.fn());
+    return res;
+  };
+
+  it('without the field: byte-identical main UPDATE and no motivations write', async () => {
+    arm();
+    await run(PROFILE);
+    const without = mainUpdate();
+    expect(updatesNamingMotivations()).toEqual([]);
+
+    vi.resetAllMocks(); arm();
+    await run({ ...PROFILE, motivations: ['new_friends'] });
+    const withIt = mainUpdate();
+    expect(withIt[0]).toBe(without[0]);
+    expect(withIt[1]).toEqual(without[1]);
+    expect(motivationWrites()).toHaveLength(1);
+  });
+
+  it('[] clears, null keeps', async () => {
+    arm();
+    await run({ motivations: [] });
+    expect(motivationWrites().map((c) => c[1])).toEqual([[1, '[]']]);
+
+    vi.resetAllMocks(); arm();
+    await run({ motivations: null });
+    expect(motivationWrites()).toEqual([]);
+  });
+
+  it('the response carries the stored answer', async () => {
+    arm();
+    const res = await run({ motivations: ['new_friends'] });
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ motivations: ['new_friends'] }));
+  });
+
+  it('a malformed answer is a 400 and nothing is written; a missing column is not a 500', async () => {
+    arm();
+    let res = await run({ ...PROFILE, motivations: { new_friends: true } });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'MOTIVATIONS_INVALID' }));
+    expect(db.query.mock.calls.some((c) => /^\s*UPDATE/.test(c[0]))).toBe(false);
+
+    vi.resetAllMocks();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    arm({ failMotivations: true });
+    res = await run({ ...PROFILE, motivations: ['new_friends'] });
+    expect(res.status).not.toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }));
+    warn.mockRestore();
+  });
+});
+
+describe('getProfile — motivations are boot-window safe', () => {
+  it('selects them through to_jsonb, never as a plain column', async () => {
+    db.query.mockResolvedValueOnce({ rows: [{ id: 1, onboarding_completed: true, motivations: null }] });
+    const res = makeRes();
+    await getProfile({ userId: 1 }, res, vi.fn());
+    const sql = db.query.mock.calls[0][0];
+    const expr = `(to_jsonb(users) -> 'motivations') AS motivations`;
+    expect(sql).toContain(expr);
+    // ...and nowhere else: a plain `motivations` column would 500 every
+    // profile load until the migration has run.
+    expect(sql.replace(expr, '')).not.toContain('motivations');
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ motivations: null }));
+  });
 });

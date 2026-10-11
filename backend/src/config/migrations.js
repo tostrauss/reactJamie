@@ -1513,6 +1513,78 @@ const runStartupMigrations = async () => {
     );
   });
 
+  // ── Onboarding-Umbau (Tina's checklist, 2026-10) ────────────────────────
+  // Both pieces are optional by design, like the chat polls: only here, never
+  // schema.sql (so the smoke suite runs exactly this production path), no
+  // CRITICAL_SCHEMA_PROBE, no backfill. Until they exist every read degrades
+  // (motivations read as NULL via to_jsonb, the featured list is empty) and
+  // only the writes that need them are lost or answer 503.
+
+  // "Was trifft zu?" answers: a JSONB array of utils/motivations.js keys.
+  // No DEFAULT — NULL means "never asked", which is every existing user.
+  //
+  // Probed first: even ADD COLUMN IF NOT EXISTS on an existing column waits
+  // for ACCESS EXCLUSIVE on users (verified), and the server is already
+  // serving while this runs — same reasoning as 'users name length cap'. The
+  // one real ALTER runs in a transaction with a short lock_timeout, so a long
+  // reader makes it fail fast (logged, retried next boot) instead of queueing
+  // every authenticated request behind it.
+  await migrate('users.motivations (2026-10)', async () => {
+    const { rows } = await db.query(
+      `SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'users' AND column_name = 'motivations'`
+    );
+    if (rows.length) return;   // already applied — no per-boot lock on users
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS motivations JSONB`);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // migrate() records it; answers are dropped (logged) until the next boot
+    } finally {
+      client.release();
+    }
+  });
+
+  // Clubs shown right after sign-up (/onboarding/clubs), in the order the
+  // admins curate in the dashboard. A side table rather than a groups column:
+  // no DDL on the hottest table at boot, PK + UNIQUE(position) is the whole
+  // rule (a save is DELETE + INSERT in one transaction), a hard delete
+  // cascades, a soft delete or rejection is filtered at read time
+  // (clubAliveSql), no updated_at churn from trg_groups_updated, and nothing
+  // new leaks into every `SELECT g.*`. groups.is_featured is NOT reused: a
+  // boolean "Im Trend" flag with no order, and not in migrations.
+  //
+  // No created_by FK on purpose — an FK without ON DELETE once broke account
+  // deletion (group_join_requests.reviewed_by); the acting admin is logged.
+  // Same transaction + lock_timeout shape as the polls: the FK takes SHARE ROW
+  // EXCLUSIVE on groups on the first boot. On every later boot CREATE TABLE IF
+  // NOT EXISTS returns at once without touching groups (verified).
+  await migrate('featured_clubs (2026-10)', async () => {
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS featured_clubs (
+          club_id    INTEGER   PRIMARY KEY REFERENCES groups(id) ON DELETE CASCADE,
+          position   SMALLINT  NOT NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT featured_clubs_position_key   UNIQUE (position),
+          CONSTRAINT featured_clubs_position_check CHECK (position BETWEEN 1 AND 100)
+        )`);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // reads answer [] / 503 until the next boot retries
+    } finally {
+      client.release();
+    }
+  });
+
   // ── Post-migration schema assertion ────────────────────────────────────
   // The server accepts traffic BEFORE migrations finish (listen → migrate),
   // so health stays green during the boot window; only a PROVEN-broken

@@ -23,6 +23,7 @@ import {
   sendUserTestPush,
 } from '../controllers/adminController.js';
 import { getFeedbackAdmin } from '../controllers/feedbackController.js';
+import { getFeaturedClubsAdmin, setFeaturedClubs } from '../controllers/featuredClubController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -68,5 +69,9 @@ router.get('/export/suggestions', exportSuggestions);
 router.get('/clubs/pending',         getPendingClubs);
 router.post('/clubs/:id/approve',    approveClub);
 router.post('/clubs/:id/reject',     rejectClub);
+
+// Clubs new users see right after onboarding, in this order (2026-10).
+router.get('/clubs/featured',        getFeaturedClubsAdmin);
+router.put('/clubs/featured',        setFeaturedClubs);
 
 export default router;

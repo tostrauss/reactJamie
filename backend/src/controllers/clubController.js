@@ -15,6 +15,7 @@ import { normalizeCategories } from '../utils/normalizeCategories.js';
 import { checkImageField } from '../utils/safeUrl.js';
 import { createEntityWithOwner, notifyCancellationFanout } from '../services/entityLifecycle.js';
 import { attachAttendanceTiers } from '../utils/attendanceTiers.js';
+import { CLUB_CARD_SELECT } from '../utils/clubCards.js';
 
 const CLUBS_TTL = 30_000; // 30 s
 const DISCOVER_EVENTS_KEY = 'discover_events';
@@ -284,26 +285,8 @@ export const getClubs = async (req, res) => {
       if (cached) return res.json(await withOwnPendingClubs(cached, callerId, callerIsAdmin));
     }
 
-    let query = `
-      SELECT g.*, u.name as owner_name, u.avatar_url as owner_avatar,
-             EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS owner_age,
-             (
-               SELECT COALESCE(json_agg(sub), '[]'::json)
-               FROM (
-                 SELECT u2.id, u2.name, u2.avatar_url,
-                        EXTRACT(YEAR FROM AGE(u2.date_of_birth))::int AS age
-                 FROM group_members gm
-                 JOIN users u2 ON gm.user_id = u2.id
-                 WHERE gm.group_id = g.id
-                 ORDER BY gm.joined_at ASC
-                 LIMIT 8
-               ) sub
-             ) AS member_previews,
-             EXISTS (
-               SELECT 1 FROM boosts b
-               WHERE b.target_id = g.id AND b.target_type = g.type
-                 AND b.boosted_until > NOW()
-             ) AS is_boosted
+    // Card columns shared with the onboarding club list (utils/clubCards.js).
+    let query = `${CLUB_CARD_SELECT}
       FROM groups g
       LEFT JOIN users u ON g.owner_id = u.id
       WHERE g.is_active = TRUE
@@ -675,7 +658,11 @@ export const joinClub = async (req, res) => {
       'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
       [id, req.userId]
     );
-    if (existing.rows.length > 0) return res.status(400).json({ error: 'Already a member' });
+    // Codes on the refusals below (2026-10): the onboarding club page maps
+    // them to its button states, and serverErrorMessage translates them
+    // (errors.<CODE>) — 'Already a member' / 'Club is full' were English in
+    // every locale. The sentences stay as the fallback for older bundles.
+    if (existing.rows.length > 0) return res.status(400).json({ error: 'Already a member', code: 'ALREADY_MEMBER' });
 
     // Profile-photo gate on JOIN (Tina/Tobi meeting 2026-08-04) — mirrors
     // joinGroup; was UX-only before, now enforced server-side.
@@ -698,6 +685,7 @@ export const joinClub = async (req, res) => {
     if ((jc.rows[0]?.join_count || 0) >= MAX_CLUB_JOINS) {
       return res.status(403).json({
         error: 'Du bist diesem Club bereits zweimal beigetreten und kannst ihm nicht erneut beitreten.',
+        code: 'JOIN_CAP_REACHED',
       });
     }
 
@@ -713,7 +701,7 @@ export const joinClub = async (req, res) => {
         [id, req.userId]
       );
       if (existingReq.rows[0]?.status === 'pending') {
-        return res.status(400).json({ error: 'Beitrittsanfrage bereits ausstehend' });
+        return res.status(400).json({ error: 'Beitrittsanfrage bereits ausstehend', code: 'JOIN_REQUEST_PENDING' });
       }
       if (joinAttemptsExhausted(existingReq.rows[0])) {
         return res.status(403).json(joinBlockedBody());
@@ -777,7 +765,7 @@ export const joinClub = async (req, res) => {
       );
       if (cap.rows[0].max_members && cap.rows[0].members_count >= cap.rows[0].max_members) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ error: 'Club is full' });
+        return res.status(400).json({ error: 'Club is full', code: 'CLUB_FULL' });
       }
       const memberIns = await client.query(
         'INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING',
