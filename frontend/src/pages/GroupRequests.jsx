@@ -26,9 +26,9 @@ const parseInterests = (raw) => {
   return Array.isArray(list) ? list : [];
 };
 
-const ageOf = (r) => (r.user_dob
-  ? Math.floor((Date.now() - new Date(r.user_dob)) / 31557600000)
-  : (r.user_age ?? null));
+// Server-computed age only — the payload carries no birth date (see
+// RequestCard).
+const ageOf = (r) => r.user_age ?? null;
 
 export const GroupRequests = () => {
   const { id } = useParams();

@@ -1996,7 +1996,11 @@ export const getJoinRequests = async (req, res) => {
 
     const result = await db.query(
       `SELECT jr.*, u.name as user_name, u.avatar_url as user_avatar, u.bio as user_bio,
-              u.interests as user_interests, u.date_of_birth as user_dob,
+              u.interests as user_interests,
+              -- The age only, never the birth date: the owner of a group is
+              -- a stranger to the asker, and sign-up promises „Dein Alter
+              -- steht auf deinem Profil, dein Geburtsdatum nicht“. Every
+              -- shipped client reads user_age (1.2) or falls back to it.
               EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS user_age,
               u.is_trusted_user as user_trusted
        FROM group_join_requests jr
@@ -2034,7 +2038,8 @@ export const getAllJoinRequests = async (req, res) => {
               jr.updated_at,
               g.name AS group_name, g.type AS group_type, g.image_url AS group_image,
               u.name AS user_name, u.avatar_url AS user_avatar, u.bio AS user_bio,
-              u.interests AS user_interests, u.date_of_birth AS user_dob,
+              u.interests AS user_interests,
+              -- Age only, no birth date — see getJoinRequests.
               EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS user_age,
               u.is_trusted_user AS user_trusted
        FROM group_join_requests jr

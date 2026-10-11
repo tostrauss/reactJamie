@@ -12,10 +12,10 @@ export function RequestCard({ request }) {
   const navigate = useNavigate();
   const { t } = useTranslation();
 
-  // Age: prefer the exact DOB calc, fall back to the server-computed age.
-  const age = request.user_dob
-    ? Math.floor((Date.now() - new Date(request.user_dob)) / 31557600000)
-    : (request.user_age ?? null);
+  // Age: the server-computed one only. The payload no longer carries the
+  // birth date (an owner is a stranger to the asker — 2026-10), and the old
+  // 365.25-day client calc got ages wrong around birthdays anyway.
+  const age = request.user_age ?? null;
 
   let interests = [];
   try {
