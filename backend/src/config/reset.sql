@@ -14,6 +14,7 @@ DROP TABLE IF EXISTS friendships CASCADE;
 -- migrations.js-only table (2026-10). Dropped explicitly: CASCADE on groups
 -- would remove only its FK and leave the table behind, and the next boot's
 -- CREATE TABLE IF NOT EXISTS would then keep that FK-less copy.
+DROP TABLE IF EXISTS group_join_log CASCADE;
 DROP TABLE IF EXISTS featured_clubs CASCADE;
 DROP TABLE IF EXISTS groups CASCADE;
 DROP TABLE IF EXISTS categories CASCADE;

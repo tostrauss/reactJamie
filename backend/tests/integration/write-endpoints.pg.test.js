@@ -3956,4 +3956,78 @@ suite('write endpoints against real Postgres', () => {
     });
   });
 
+
+  // Tina 12.10.2026, decided with Tobi: free accounts join at most 3 plain
+  // GROUPS per rolling week (utils/weeklyJoinLimit.js). Real Postgres because
+  // the rule lives in the count query (distinct groups, rejected requests
+  // excluded) and in the join path's ordering.
+  describe('weekly group-join limit for free accounts (12.10.2026)', () => {
+    const mkUser = async (email, isAdmin = false) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider, is_admin)
+       VALUES ($1, 'Wk', '1995-01-01', 'female', $2, TRUE, 'email', $3) RETURNING id`,
+      [email, avatar, isAdmin])).rows[0].id;
+    const mkGroup = async (name, { isPrivate = false, type = 'group', parent = null } = {}) => (await db.query(
+      `INSERT INTO groups (name, type, owner_id, category, location, max_members, is_private, parent_club_id, date, approval_status)
+       VALUES ($1, $2, $3, 'Sport', 'Wien', 20, $4, $5, NOW() + INTERVAL '3 days', 'approved') RETURNING id`,
+      [name, type, A, isPrivate, parent])).rows[0].id;
+    const join = (u, g) => call(C.joinGroup, { userId: u, params: { id: String(g) }, body: {} });
+
+    it('3 groups, then WEEKLY_JOIN_LIMIT; a rejoin, a club event and a club cost nothing', async () => {
+      const U = await mkUser('smoke-weekly-u@x.com');
+      const [g1, g2, g3, g4] = [await mkGroup('Wk 1'), await mkGroup('Wk 2'), await mkGroup('Wk 3'), await mkGroup('Wk 4')];
+      ok(await join(U, g1));
+      ok(await join(U, g2));
+      ok(await join(U, g3));
+      const blocked = await join(U, g4);
+      expect(blocked.statusCode).toBe(403);
+      expect(blocked.body.code).toBe('WEEKLY_JOIN_LIMIT');
+      expect(blocked.body.limit).toBe(3);
+      expect(blocked.body.resets_on).toMatch(/^\d{2}\.\d{2}\.$/);
+      expect(blocked.body.error).not.toMatch(/Pro/);          // old iOS bundles show it verbatim (3.1.1)
+      expect((await db.query('SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2', [g4, U])).rows).toHaveLength(0);
+
+      // Left and joining the same group again: already counted, no second slot.
+      await db.query('DELETE FROM group_members WHERE group_id=$1 AND user_id=$2', [g1, U]);
+      ok(await join(U, g1));
+
+      // Clubs and club events stay free.
+      const club = await mkGroup('Wk Club', { type: 'club' });
+      const ev = await mkGroup('Wk Event', { type: 'event', parent: club });
+      ok(await join(U, ev));
+    });
+
+    it('a rejected request gives the slot back', async () => {
+      const V = await mkUser('smoke-weekly-v@x.com');
+      const [a, b, c] = [await mkGroup('Wk V1'), await mkGroup('Wk V2'), await mkGroup('Wk V3')];
+      const priv = await mkGroup('Wk V private', { isPrivate: true });
+      ok(await join(V, a));
+      ok(await join(V, b));
+      const sent = await join(V, priv);                        // the request is slot 3
+      ok(sent);
+      expect(sent.body.status).toBe('pending');
+      expect((await join(V, c)).body.code).toBe('WEEKLY_JOIN_LIMIT');
+      const reqId = (await db.query('SELECT id FROM group_join_requests WHERE group_id=$1 AND user_id=$2', [priv, V])).rows[0].id;
+      ok(await call(C.handleJoinRequest, { userId: A, params: { id: String(priv), requestId: String(reqId) }, body: { action: 'reject' } }));
+      ok(await join(V, c));
+    });
+
+    it('JAMIE Pro and app admins are unlimited; FREE_WEEKLY_GROUP_JOINS=0 switches it off', async () => {
+      const P = await mkUser('smoke-weekly-pro@x.com');
+      await db.query(
+        `INSERT INTO subscriptions (user_id, status, current_period_end) VALUES ($1, 'active', NOW() + INTERVAL '30 days')`, [P]);
+      const Adm = await mkUser('smoke-weekly-admin@x.com', true);
+      const W = await mkUser('smoke-weekly-off@x.com');
+      const gs = [];
+      for (let i = 0; i < 4; i += 1) gs.push(await mkGroup(`Wk X${i}`));
+      for (const g of gs) ok(await join(P, g));
+      for (const g of gs) ok(await join(Adm, g));
+      process.env.FREE_WEEKLY_GROUP_JOINS = '0';
+      try {
+        for (const g of gs) ok(await join(W, g));
+      } finally {
+        delete process.env.FREE_WEEKLY_GROUP_JOINS;
+      }
+    });
+  });
+
 });

@@ -1585,6 +1585,35 @@ const runStartupMigrations = async () => {
     }
   });
 
+  // Weekly group-join limit for free accounts (Tina 12.10.2026,
+  // utils/weeklyJoinLimit.js). Its own log because leaving deletes the
+  // membership row. Same tx + lock_timeout shape as featured_clubs: the FKs
+  // briefly lock users/groups on first creation; on an existing table this is
+  // a no-op. Missing table → the limit fails open until the next boot retries.
+  await migrate('group_join_log (2026-10)', async () => {
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS group_join_log (
+          id         BIGSERIAL   PRIMARY KEY,
+          user_id    INTEGER     NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
+          group_id   INTEGER     NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+          kind       VARCHAR(10) NOT NULL CHECK (kind IN ('join', 'request')),
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`);
+      await client.query(
+        'CREATE INDEX IF NOT EXISTS idx_group_join_log_user_time ON group_join_log (user_id, created_at DESC)');
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+  });
+
   // ── Post-migration schema assertion ────────────────────────────────────
   // The server accepts traffic BEFORE migrations finish (listen → migrate),
   // so health stays green during the boot window; only a PROVEN-broken

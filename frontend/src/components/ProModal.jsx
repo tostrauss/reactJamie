@@ -166,6 +166,7 @@ function Spinner() {
 
 // ── Feature rows ─────────────────────────────────────────────────────────
 const FEATURE_KEYS = [
+  { icon:'♾️', titleKey:'unlimitedJoins', descKey:'unlimitedJoinsDesc' },
   { icon:'⚡', titleKey:'boostGroups',   descKey:'boostGroupsDesc' },
   { icon:'🏆', titleKey:'boostClubs',    descKey:'boostClubsDesc' },
   { icon:'👥', titleKey:'seeMembers',    descKey:'seeMembersDesc' },
@@ -182,6 +183,8 @@ const CONTEXT_FEATURE = {
   boosts: { icon:'🚀', titleKey:'boostGroups', descKey:'boostGroupsDesc' },
   paidEvents: { icon:'🎟️', titleKey:'paidEvents', descKey:'paidEventsDesc' },
   reviewRequests: { icon:'🗂️', titleKey:'reviewRequests', descKey:'reviewRequestsDesc' },
+  // GroupDetail after a 403 WEEKLY_JOIN_LIMIT (free: 3 groups per week).
+  joins: { icon:'♾️', titleKey:'unlimitedJoins', descKey:'joinsLimitReached' },
 };
 
 // ── Confetti piece ───────────────────────────────────────────────────────

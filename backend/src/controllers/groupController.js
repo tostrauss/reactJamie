@@ -8,6 +8,10 @@ import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/c
 import { parentClubGateSql } from '../utils/clubGate.js';
 import { postSystemMessage } from '../utils/systemMessage.js';
 import { isUserPro } from './subscriptionController.js';
+import {
+  freeWeeklyGroupJoins, countsTowardWeeklyLimit, weeklyJoinState, logGroupJoin,
+  weeklyLimitExempt, weeklyLimitBody,
+} from '../utils/weeklyJoinLimit.js';
 import { normalizeCategories } from '../utils/normalizeCategories.js';
 import { checkImageField } from '../utils/safeUrl.js';
 import { distanceKmSql } from '../utils/geoRadius.js';
@@ -1452,6 +1456,22 @@ export const joinGroup = async (req, res) => {
       return res.status(400).json({ error: 'Die Gruppe ist bereits voll' });
     }
 
+    // Weekly limit for free accounts (Tina 12.10.2026, utils/weeklyJoinLimit.js):
+    // plain groups only, 3 per rolling week, Pro/admins unlimited. After the
+    // capacity check on purpose — a full group answers "voll" (and offers the
+    // waitlist) instead of upselling a seat that does not exist. A group this
+    // week's log already holds (left and joining again, a re-sent request) is
+    // never refused: it costs no second slot. Not race-proof across two
+    // DIFFERENT groups tapped at the same instant — accepted, it can at most
+    // let one extra join through.
+    const weeklyLimit = countsTowardWeeklyLimit(g) ? freeWeeklyGroupJoins() : 0;
+    if (weeklyLimit > 0 && !(await weeklyLimitExempt(db, req.userId, isUserPro))) {
+      const week = await weeklyJoinState(db, req.userId, id);
+      if (!week.alreadyCounted && week.used >= weeklyLimit) {
+        return res.status(403).json(weeklyLimitBody(weeklyLimit, week.resetsAt));
+      }
+    }
+
     // Private group → create join request (or reset a previous rejection to pending).
     // Club events only when the event itself is private in a PUBLIC club — see
     // usesJoinRequest. A private club's events stay gated by CLUB membership
@@ -1478,6 +1498,8 @@ export const joinGroup = async (req, res) => {
       if (upserted.rowCount === 0) {
         return res.status(403).json(joinBlockedBody());
       }
+      // A sent request costs a weekly slot (a rejection gives it back).
+      if (countsTowardWeeklyLimit(g)) logGroupJoin(db, req.userId, Number(id), 'request');
       // Notify owner about the new join request (fire-and-forget)
       if (g.owner_id && Number(g.owner_id) !== Number(req.userId)) {
         notifyJoinRequest(req.userId, g.owner_id, g.name || '', id).catch(() => {});
@@ -1537,6 +1559,11 @@ export const joinGroup = async (req, res) => {
     } finally {
       client.release();
     }
+
+    // Weekly-limit log — after COMMIT, never inside the transaction: in the
+    // boot window the table may not exist yet, and that must not roll back
+    // the join itself.
+    if (didJoin && countsTowardWeeklyLimit(g)) logGroupJoin(db, req.userId, Number(id), 'join');
 
     // Notify group owner (fire-and-forget), gated on a real join.
     if (didJoin && g.owner_id && Number(g.owner_id) !== Number(req.userId)) {

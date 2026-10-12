@@ -1518,7 +1518,10 @@
       "paidEvents": "Créer des événements payants",
       "paidEventsDesc": "Vends des billets via ton propre lien",
       "reviewRequests": "Outils de demandes",
-      "reviewRequestsDesc": "Tout accepter, trier et filtrer"
+      "reviewRequestsDesc": "Tout accepter, trier et filtrer",
+      "unlimitedJoins": "Groupes illimités",
+      "unlimitedJoinsDesc": "Rejoins autant de groupes que tu veux",
+      "joinsLimitReached": "Tu as atteint ta limite gratuite de la semaine – avec Pro, tu continues tout de suite"
     },
     "title": "JAMIE Pro",
     "priceMonth": "/ mois",
@@ -2424,6 +2427,7 @@
     "ALREADY_MEMBER": "Tu es déjà membre de ce club.",
     "JOIN_REQUEST_PENDING": "Ta demande d’adhésion attend encore une réponse.",
     "CLUB_FULL": "Ce club est complet.",
-    "JOIN_CAP_REACHED": "Tu as déjà rejoint ce club deux fois et tu ne peux plus le rejoindre."
+    "JOIN_CAP_REACHED": "Tu as déjà rejoint ce club deux fois et tu ne peux plus le rejoindre.",
+    "WEEKLY_JOIN_LIMIT": "Tu as déjà rejoint {{limit}} groupes cette semaine. À partir du {{resets_on}}, tu pourras rejoindre un nouveau groupe."
   }
 }

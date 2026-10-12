@@ -356,6 +356,14 @@ export const GroupDetail = () => {
       // miss a stale `user` (avatar removed on another device) — the backend
       // 403s with requiresAvatar, route that into the same prompt.
       if (error.response?.data?.requiresAvatar) { setShowAvatarGate(true); return; }
+      // Weekly limit for free accounts (3 groups per week, utils/weeklyJoinLimit.js
+      // on the server). Where Pro can be bought, the Pro sheet leads with the
+      // "Unbegrenzt Gruppen beitreten" bubble; elsewhere (iOS without in-app
+      // purchase — App Review 3.1.1) only the neutral sentence with the date.
+      if (error.response?.data?.code === 'WEEKLY_JOIN_LIMIT' && proUpsellAllowed()) {
+        window.dispatchEvent(new CustomEvent('jamie:open-pro-modal', { detail: { feature: 'joins' } }));
+        return;
+      }
       // Page was open before the owner used up our last attempt - flip to the
       // honest state rather than leaving a live button that keeps 403ing.
       if (error.response?.data?.code === 'JOIN_REQUEST_BLOCKED') setJoinBlocked(true);
