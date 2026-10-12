@@ -186,6 +186,7 @@ suite('write endpoints against real Postgres', () => {
       createReport: rp.createReport, getReports: rp.getReports,
       updateReportStatus: rp.updateReportStatus,
       setUserActive: ad.setUserActive, rejectClub: ad.rejectClub,
+      removeUserAvatar: ad.removeUserAvatar,
       getUserDetail: ad.getUserDetail, sendUserTestPush: ad.sendUserTestPush,
       getMyAttendance: rv.getMyAttendance, getReviewForGroup: rv.getReviewForGroup, getUserById: us.getUserById,
       exportData: a.exportData,
@@ -1169,6 +1170,32 @@ suite('write endpoints against real Postgres', () => {
       expect((await call(C.setUserActive, { userId: A, params: { id: '99999999' }, body: { active: false } })).statusCode).toBe(404);
     });
 
+    // Tina 12.10.2026: a SpongeBob avatar — remove the picture instead of
+    // deleting the account. The real-Postgres part is the jsonb filter that
+    // drops the same URL from photos (the onboarding keeps the avatar there).
+    it('removing a profile picture clears avatar_url, drops it from photos and notifies the person', async () => {
+      const pic = '/media/uploads/spongebob.webp';
+      const other = '/media/uploads/beach.webp';
+      await db.query('UPDATE users SET avatar_url = $2, photos = $3::jsonb WHERE id = $1',
+        [D, pic, JSON.stringify([pic, other])]);
+      const res = await call(C.removeUserAvatar, { userId: A, params: { id: String(D) } });
+      ok(res);
+      const row = (await db.query('SELECT avatar_url, photos FROM users WHERE id = $1', [D])).rows[0];
+      expect(row.avatar_url).toBeNull();
+      expect(row.photos).toEqual([other]);
+      // The notification is written fire-and-forget after the response.
+      await vi.waitFor(async () => {
+        const again = await db.query(`SELECT 1 FROM notifications WHERE user_id = $1 AND type = 'avatar_removed'`, [D]);
+        expect(again.rows.length).toBe(1);
+      });
+      // Nothing left to remove → 409, not a second notification.
+      const twice = await call(C.removeUserAvatar, { userId: A, params: { id: String(D) } });
+      expect(twice.statusCode).toBe(409);
+      expect(twice.body.code).toBe('NO_AVATAR');
+      expect((await call(C.removeUserAvatar, { userId: A, params: { id: '99999999' } })).statusCode).toBe(404);
+      expect((await call(C.removeUserAvatar, { userId: A, params: { id: 'x' } })).statusCode).toBe(400);
+    });
+
     // Hit for real on 2026-09-15: an admin looking at a reported group could
     // not remove it. deleteGroup was owner-only with no override, so the only
     // lever was hard-deleting the OWNER's account — irreversible, cascading,
@@ -1685,8 +1712,12 @@ suite('write endpoints against real Postgres', () => {
     const tomorrow  = await mk('Smoke Tomorrow',   `date_trunc('day', ${vienna}) + INTERVAL '1 day 19 hours'`);
     const today     = await mk('Smoke Today',      `date_trunc('day', ${vienna}) + INTERVAL '20 hours'`);
     // Weekly recurring whose STORED date is 3 weeks in the past but whose next
-    // occurrence is today — the card badges it "Heute", so the feed must too.
-    const weekly    = await mk('Smoke Weekly Today', `date_trunc('day', ${vienna}) - INTERVAL '21 days' + INTERVAL '20 hours'`, true);
+    // occurrence is minutes away — the card badges it "Heute", so the feed must
+    // too. Anchored to NOW, not to 20:00: a fixed hour turned the test red every
+    // evening once 20:00 had passed (the next occurrence moved to next week —
+    // 12.10.2026). Run just before midnight, the occurrence lands tomorrow,
+    // which is still the imminent bucket.
+    const weekly    = await mk('Smoke Weekly Today', `${vienna} + INTERVAL '5 minutes' - INTERVAL '21 days'`, true);
     const undated   = await mk('Smoke Undated', 'NULL');
 
     const { invalidatePrefix } = await import('../../src/utils/cache.js');

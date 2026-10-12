@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, onTestFinished } from 'vitest';
 
 // Abstimmungen im Chat (B1, tester 06.10.2026) — the HTTP side. db.query is
 // routed on the /* poll:… */ tags; delivery (deliverGroupMessage) is real,
@@ -142,7 +142,18 @@ describe('createPoll', () => {
     expect(calls.some((c) => c.text.includes('/* poll:create */'))).toBe(false);
   });
 
+  // The fixtures use fixed dates (10./11.10.2026) and parsePollInput rejects
+  // days before yesterday — pin the clock to before them, or these two tests
+  // turn red the day after (they did on 12.10.2026). Only Date is faked; the
+  // async code under test still runs on real timers.
+  const pinClock = () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-09T10:00:00Z'));
+  };
+
   it('date labels are server-built and never sent to moderation', async () => {
+    pinClock();
+    onTestFinished(() => vi.useRealTimers());
     const res = makeRes();
     await createPoll(req({ params: { groupId: String(gid) }, body: {
       kind: 'date', question: 'Wann passt es euch?', options: [{ date: '2026-10-10', time: '18:00' }, { date: '2026-10-11' }],
@@ -151,6 +162,8 @@ describe('createPoll', () => {
   });
 
   it('the creator language shapes date labels in the stored content (X-App-Locale)', async () => {
+    pinClock();
+    onTestFinished(() => vi.useRealTimers());
     const res = makeRes();
     await createPoll(req({ headers: { 'x-app-locale': 'en' }, params: { groupId: String(gid) }, body: {
       kind: 'date', question: 'When?', options: [{ date: '2026-10-10', time: '18:00' }, { date: '2026-10-11' }],
