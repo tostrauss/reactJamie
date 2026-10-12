@@ -2303,7 +2303,24 @@
       "deleteConfirmBtn": "Sì, elimina",
       "deleting": "Eliminazione…",
       "deleted": "Utente eliminato",
-      "cancel": "Annulla"
+      "cancel": "Annulla",
+      "restrict": {
+        "title": "Limita",
+        "avatarLabel": "Rimuovi immagine del profilo",
+        "avatarHint": "Per fumetti, loghi o meme al posto di una vera foto. La persona riceve un avviso e potrà unirsi di nuovo a gruppi e club solo dopo aver caricato una vera foto.",
+        "avatarBtn": "Rimuovi immagine del profilo",
+        "avatarConfirm": "Rimuovere l’immagine del profilo di «{{name}}»? La persona riceverà un avviso.",
+        "avatarConfirmBtn": "Sì, rimuovi",
+        "avatarRemoving": "Rimozione…",
+        "avatarDone": "Immagine del profilo rimossa, persona avvisata",
+        "avatarNone": "Nessuna immagine del profilo.",
+        "avatarError": "Impossibile rimuovere l’immagine del profilo",
+        "freezeLabel": "Sospendi account",
+        "freezeHint": "Le persone sospese vengono disconnesse subito e non possono usare JAMIE finché non togli la sospensione. Non viene eliminato nulla.",
+        "frozenOn": "Account sospeso",
+        "frozenOff": "Sospensione rimossa",
+        "freezeError": "Impossibile modificare la sospensione"
+      }
     },
     "reports": {
       "loading": "Caricamento segnalazioni …",

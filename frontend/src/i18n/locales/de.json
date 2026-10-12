@@ -2303,7 +2303,24 @@
       "deleteConfirmBtn": "Ja, löschen",
       "deleting": "Löscht…",
       "deleted": "Nutzer gelöscht",
-      "cancel": "Abbrechen"
+      "cancel": "Abbrechen",
+      "restrict": {
+        "title": "Einschränken",
+        "avatarLabel": "Profilbild entfernen",
+        "avatarHint": "Für Comics, Logos oder Memes statt eines echten Fotos. Die Person bekommt einen Hinweis und kann erst wieder Gruppen & Clubs beitreten, wenn sie ein echtes Foto hochlädt.",
+        "avatarBtn": "Profilbild entfernen",
+        "avatarConfirm": "Profilbild von „{{name}}“ entfernen? Die Person wird benachrichtigt.",
+        "avatarConfirmBtn": "Ja, entfernen",
+        "avatarRemoving": "Entfernt…",
+        "avatarDone": "Profilbild entfernt, Person benachrichtigt",
+        "avatarNone": "Kein Profilbild vorhanden.",
+        "avatarError": "Profilbild konnte nicht entfernt werden",
+        "freezeLabel": "Account sperren",
+        "freezeHint": "Gesperrte Personen werden sofort abgemeldet und können JAMIE nicht nutzen, bis du sie wieder entsperrst. Nichts wird gelöscht.",
+        "frozenOn": "Account gesperrt",
+        "frozenOff": "Account entsperrt",
+        "freezeError": "Sperre konnte nicht geändert werden"
+      }
     },
     "reports": {
       "loading": "Meldungen werden geladen …",

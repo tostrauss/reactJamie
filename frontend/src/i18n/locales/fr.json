@@ -2303,7 +2303,24 @@
       "deleteConfirmBtn": "Oui, supprimer",
       "deleting": "Suppression…",
       "deleted": "Utilisateur supprimé",
-      "cancel": "Annuler"
+      "cancel": "Annuler",
+      "restrict": {
+        "title": "Restreindre",
+        "avatarLabel": "Retirer la photo de profil",
+        "avatarHint": "Pour les dessins, logos ou mèmes à la place d’une vraie photo. La personne reçoit un message et ne pourra rejoindre des groupes et des clubs qu’après avoir ajouté une vraie photo.",
+        "avatarBtn": "Retirer la photo de profil",
+        "avatarConfirm": "Retirer la photo de profil de « {{name}} » ? La personne sera prévenue.",
+        "avatarConfirmBtn": "Oui, retirer",
+        "avatarRemoving": "Suppression…",
+        "avatarDone": "Photo de profil retirée, personne prévenue",
+        "avatarNone": "Aucune photo de profil.",
+        "avatarError": "Impossible de retirer la photo de profil",
+        "freezeLabel": "Suspendre le compte",
+        "freezeHint": "Les personnes suspendues sont déconnectées aussitôt et ne peuvent plus utiliser JAMIE jusqu’à ce que tu lèves la suspension. Rien n’est supprimé.",
+        "frozenOn": "Compte suspendu",
+        "frozenOff": "Suspension levée",
+        "freezeError": "Impossible de modifier la suspension"
+      }
     },
     "reports": {
       "loading": "Chargement des signalements …",

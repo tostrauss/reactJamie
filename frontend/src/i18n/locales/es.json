@@ -2303,7 +2303,24 @@
       "deleteConfirmBtn": "Sí, eliminar",
       "deleting": "Eliminando…",
       "deleted": "Usuario eliminado",
-      "cancel": "Cancelar"
+      "cancel": "Cancelar",
+      "restrict": {
+        "title": "Restringir",
+        "avatarLabel": "Eliminar foto de perfil",
+        "avatarHint": "Para dibujos, logos o memes en lugar de una foto real. La persona recibe un aviso y solo podrá volver a unirse a grupos y clubes cuando suba una foto real.",
+        "avatarBtn": "Eliminar foto de perfil",
+        "avatarConfirm": "¿Eliminar la foto de perfil de «{{name}}»? La persona recibirá un aviso.",
+        "avatarConfirmBtn": "Sí, eliminar",
+        "avatarRemoving": "Eliminando…",
+        "avatarDone": "Foto de perfil eliminada, persona avisada",
+        "avatarNone": "No hay foto de perfil.",
+        "avatarError": "No se pudo eliminar la foto de perfil",
+        "freezeLabel": "Suspender cuenta",
+        "freezeHint": "Las personas suspendidas se desconectan al instante y no pueden usar JAMIE hasta que levantes la suspensión. No se borra nada.",
+        "frozenOn": "Cuenta suspendida",
+        "frozenOff": "Suspensión levantada",
+        "freezeError": "No se pudo cambiar la suspensión"
+      }
     },
     "reports": {
       "loading": "Cargando denuncias …",

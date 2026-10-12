@@ -81,6 +81,12 @@ export const AdminUserModal = ({ user, currentUserId, onClose, onUpdated, onDele
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [detail, setDetail] = useState(null);
+  // "Einschränken" (Tina 12.10.2026): the two reversible sanctions between
+  // "nothing" and "Account löschen".
+  const [avatarUrl, setAvatarUrl] = useState(user.avatar_url || null);
+  const [confirmAvatar, setConfirmAvatar] = useState(false);
+  const [removingAvatar, setRemovingAvatar] = useState(false);
+  const [frozen, setFrozen] = useState(user.is_active === false);
 
   const isSelf = user.id === currentUserId;
 
@@ -107,6 +113,41 @@ export const AdminUserModal = ({ user, currentUserId, onClose, onUpdated, onDele
     } catch (err) {
       setLocal(prev); // revert on failure
       toast.error(err.response?.data?.error || t('admin.userModal.roleError'));
+    } finally {
+      setSavingField('');
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    setRemovingAvatar(true);
+    try {
+      await admin.removeUserAvatar(user.id);
+      setAvatarUrl(null);
+      setConfirmAvatar(false);
+      onUpdated?.({ ...user, avatar_url: null });
+      toast.success(t('admin.userModal.restrict.avatarDone'));
+    } catch (err) {
+      if (err.response?.data?.code === 'NO_AVATAR') {
+        setAvatarUrl(null);
+        setConfirmAvatar(false);
+      }
+      toast.error(err.response?.data?.error || t('admin.userModal.restrict.avatarError'));
+    } finally {
+      setRemovingAvatar(false);
+    }
+  };
+
+  // Toggle = "gesperrt". Optimistic, reverted on failure — like updateRole.
+  const toggleFreeze = async (freeze) => {
+    setSavingField('is_active');
+    setFrozen(freeze);
+    try {
+      const res = await admin.setUserActive(user.id, !freeze);
+      onUpdated?.({ ...user, ...(res.data?.user || {}), is_active: !freeze });
+      toast.success(t(freeze ? 'admin.userModal.restrict.frozenOn' : 'admin.userModal.restrict.frozenOff'));
+    } catch (err) {
+      setFrozen(!freeze);
+      toast.error(err.response?.data?.error || t('admin.userModal.restrict.freezeError'));
     } finally {
       setSavingField('');
     }
@@ -144,8 +185,8 @@ export const AdminUserModal = ({ user, currentUserId, onClose, onUpdated, onDele
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 17, fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden',
           }}>
-            {user.avatar_url
-              ? <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            {avatarUrl
+              ? <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               : user.name?.[0]?.toUpperCase()}
           </div>
           <div style={{ minWidth: 0 }}>
@@ -229,6 +270,91 @@ export const AdminUserModal = ({ user, currentUserId, onClose, onUpdated, onDele
             </svg>
             {t('admin.userModal.messageBtn')}
           </button>
+        )}
+
+        {/* Einschränken — reversible sanctions, hidden for admins and yourself
+            (the server refuses both). */}
+        {!isSelf && !user.is_admin && (
+          <div className="admin-restrict" style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ color: 'var(--text-muted, rgba(255,255,255,0.5))', fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>
+              {t('admin.userModal.restrict.title')}
+            </div>
+
+            <div style={{ padding: '8px 0 12px' }}>
+              <div style={{ color: 'var(--text-white, #fff)', fontSize: 15, fontWeight: 600 }}>
+                {t('admin.userModal.restrict.avatarLabel')}
+              </div>
+              <div style={{ color: 'var(--text-muted, rgba(255,255,255,0.5))', fontSize: 12, marginTop: 2, lineHeight: 1.45 }}>
+                {t('admin.userModal.restrict.avatarHint')}
+              </div>
+              {!avatarUrl ? (
+                <div style={{ color: 'var(--text-muted, rgba(255,255,255,0.5))', fontSize: 13, marginTop: 10 }}>
+                  {t('admin.userModal.restrict.avatarNone')}
+                </div>
+              ) : !confirmAvatar ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmAvatar(true)}
+                  style={{
+                    width: '100%', marginTop: 10, minHeight: 44, padding: '10px 12px', borderRadius: 12,
+                    border: '1px solid rgba(253,118,102,0.45)', background: 'transparent',
+                    color: '#FD7666', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  {t('admin.userModal.restrict.avatarBtn')}
+                </button>
+              ) : (
+                <div style={{ marginTop: 10 }}>
+                  <p style={{ color: 'var(--text-muted, rgba(255,255,255,0.6))', fontSize: 13, margin: '0 0 10px', lineHeight: 1.5 }}>
+                    {t('admin.userModal.restrict.avatarConfirm', { name: user.name || user.email })}
+                  </p>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmAvatar(false)}
+                      disabled={removingAvatar}
+                      style={{
+                        flex: 1, minHeight: 44, padding: '10px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.15)',
+                        background: 'transparent', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                      }}
+                    >
+                      {t('admin.userModal.cancel')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRemoveAvatar}
+                      disabled={removingAvatar}
+                      style={{
+                        flex: 1, minHeight: 44, padding: '10px', borderRadius: 12, border: 'none',
+                        background: '#FD7666', color: '#fff', fontSize: 14, fontWeight: 700,
+                        cursor: removingAvatar ? 'wait' : 'pointer', opacity: removingAvatar ? 0.6 : 1,
+                      }}
+                    >
+                      {removingAvatar ? t('admin.userModal.restrict.avatarRemoving') : t('admin.userModal.restrict.avatarConfirmBtn')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0 0' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: 'var(--text-white, #fff)', fontSize: 15, fontWeight: 600 }}>
+                  {t('admin.userModal.restrict.freezeLabel')}
+                </div>
+                <div style={{ color: 'var(--text-muted, rgba(255,255,255,0.5))', fontSize: 12, marginTop: 2, lineHeight: 1.45 }}>
+                  {t('admin.userModal.restrict.freezeHint')}
+                </div>
+              </div>
+              <Toggle
+                checked={frozen}
+                disabled={savingField === 'is_active'}
+                onChange={toggleFreeze}
+              />
+            </div>
+          </div>
         )}
 
         {/* Danger zone — hidden for admins (server forbids deleting them) */}

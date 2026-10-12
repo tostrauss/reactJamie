@@ -172,7 +172,7 @@ export const getRecentUsers = async (req, res) => {
     const pageParams = [...params, limit, offset];
     const result = await db.query(`
       SELECT id, name, email, location, avatar_url, created_at, last_seen,
-             is_trusted_user, trusted_count, onboarding_completed, is_admin,
+             is_trusted_user, trusted_count, onboarding_completed, is_admin, is_active,
              EXTRACT(YEAR FROM AGE(date_of_birth))::int AS age
       FROM users
       ${where}
@@ -548,6 +548,75 @@ export const rejectClub = async (req, res) => {
     res.json({ success: true, club: c, wasPending });
   } catch (err) {
     console.error('rejectClub error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// REMOVE A USER'S PROFILE PICTURE (admin only)
+// ==========================================
+// POST /api/admin/users/:id/remove-avatar
+//
+// Tina 12.10.2026: a SpongeBob picture as avatar — "solche Profilbilder würde
+// ich sperren, also dass dann eine Info kommt dass das ein Profilbild sein
+// muss". The milder sanction next to the freeze: the account keeps working,
+// but without a picture every join path refuses (403 requiresAvatar), the app
+// shows its "Profilbild hinzufügen" banner, and the person gets a notification
+// + push saying why. Deleting the account would have been the only tool.
+// The picture is also dropped from `photos` (the onboarding keeps the avatar
+// inside that list), so it does not simply come back as the first photo.
+export const removeUserAvatar = async (req, res) => {
+  try {
+    const targetId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(targetId) || targetId <= 0) {
+      return res.status(400).json({ error: 'Ungültige Nutzer-ID' });
+    }
+    // Read the locale through the row image: no 42703 even before the
+    // locale migration has run (same trick as utils/motivations.js).
+    const found = await db.query(
+      `SELECT avatar_url, is_admin, (to_jsonb(users) ->> 'locale') AS locale
+         FROM users WHERE id = $1`,
+      [targetId]
+    );
+    if (found.rows.length === 0) return res.status(404).json({ error: 'Nutzer nicht gefunden' });
+    const { avatar_url: avatar, is_admin: targetIsAdmin, locale } = found.rows[0];
+    if (targetIsAdmin && targetId !== req.userId) {
+      return res.status(403).json({ error: 'Bei Admins geht das hier nicht' });
+    }
+    if (!avatar) {
+      return res.status(409).json({ error: 'Kein Profilbild vorhanden', code: 'NO_AVATAR' });
+    }
+
+    const upd = await db.query(
+      `UPDATE users
+          SET avatar_url = NULL,
+              photos = COALESCE((
+                SELECT jsonb_agg(p)
+                  FROM jsonb_array_elements(COALESCE(photos, '[]'::jsonb)) AS p
+                 WHERE p <> to_jsonb($2::text)
+              ), '[]'::jsonb),
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        RETURNING id, avatar_url, photos`,
+      [targetId, avatar]
+    );
+
+    // Tell the person why — in the app and as a push, in their language. Both
+    // best-effort: the removal itself has happened either way.
+    const text = pushTexts('avatarRemoved')(locale);
+    db.query(
+      `INSERT INTO notifications (user_id, type, title, message, reference_type)
+       VALUES ($1, 'avatar_removed', $2, $3, 'profile')`,
+      [targetId, text.title, text.body]
+    ).catch((err) => console.error('removeUserAvatar: notification failed:', err.message));
+    Promise.resolve()
+      .then(() => sendPushToUser(targetId, pushTexts('avatarRemoved'), null, '/profile/edit'))
+      .catch((err) => console.error('removeUserAvatar: push failed:', err.message));
+
+    console.log(`[admin] avatar of user ${targetId} removed by admin ${req.userId}`);
+    res.json({ success: true, user: upd.rows[0] });
+  } catch (err) {
+    console.error('removeUserAvatar error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

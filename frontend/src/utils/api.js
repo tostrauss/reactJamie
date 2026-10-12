@@ -921,6 +921,8 @@ export const admin = {
   // report without reaching for the irreversible hard delete.
   setUserActive: (id, active) =>
     axiosInstance.patch(`/admin/users/${id}/active`, { active }),
+  // Drops a picture that shows no real person; the user is told why.
+  removeUserAvatar: (id) => axiosInstance.post(`/admin/users/${id}/remove-avatar`),
 
   getTopClubs: (days = 30, limit = 20) =>
     axiosInstance.get('/admin/top-clubs', { params: { days, limit } }),

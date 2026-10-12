@@ -372,6 +372,15 @@ const PUSH_TEXTS = {
   },
   // Admin → Nutzer → "Test-Push senden" (support tool, 06.10.2026). Says what it
   // is, so a tester who receives it knows push reaches this device.
+  // To the USER: an admin removed a profile picture that shows no real person
+  // (cartoon, logo, meme). Also used as the in-app notification text.
+  avatarRemoved: {
+    de: () => ({ title: 'Dein Profilbild wurde entfernt', body: 'Bitte lade ein echtes Foto von dir hoch – Comics, Logos oder Memes gehen als Profilbild nicht. Mit Foto kannst du wieder Gruppen & Clubs beitreten.' }),
+    en: () => ({ title: 'Your profile picture was removed', body: 'Please upload a real photo of yourself – cartoons, logos or memes can’t be used as a profile picture. With a photo you can join groups & clubs again.' }),
+    it: () => ({ title: 'La tua immagine del profilo è stata rimossa', body: 'Carica una vera foto di te – fumetti, loghi o meme non vanno bene come immagine del profilo. Con una foto potrai di nuovo unirti a gruppi e club.' }),
+    fr: () => ({ title: 'Ta photo de profil a été retirée', body: 'Ajoute une vraie photo de toi – les dessins, logos ou mèmes ne sont pas acceptés comme photo de profil. Avec une photo, tu pourras de nouveau rejoindre des groupes et des clubs.' }),
+    es: () => ({ title: 'Se ha eliminado tu foto de perfil', body: 'Sube una foto real tuya: dibujos, logos o memes no valen como foto de perfil. Con una foto podrás volver a unirte a grupos y clubes.' }),
+  },
   pushTest: {
     de: () => ({ title: 'JAMIE Test-Benachrichtigung', body: 'Wenn du das siehst, kommen Benachrichtigungen auf diesem Gerät an. ✅' }),
     en: () => ({ title: 'JAMIE test notification', body: 'If you can see this, notifications reach this device. ✅' }),

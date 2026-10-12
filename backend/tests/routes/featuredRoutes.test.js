@@ -37,7 +37,7 @@ vi.mock('../../src/controllers/adminController.js', () => stubs([
   'getStats', 'getRecentUsers', 'getScreenTime', 'exportUsers', 'exportScreens', 'exportSuggestions',
   'getPendingClubs', 'approveClub', 'rejectClub', 'deleteUser', 'updateUserRole', 'getTopClubs',
   'getOnlineUsers', 'getGrowth', 'getUserOrigins', 'getUserDetail', 'getIpDiagnostics',
-  'getBackupStatus', 'setUserActive', 'sendUserTestPush',
+  'getBackupStatus', 'setUserActive', 'sendUserTestPush', 'removeUserAvatar',
 ]));
 vi.mock('../../src/controllers/feedbackController.js', () => stubs(['getFeedbackAdmin']));
 
