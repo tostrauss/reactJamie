@@ -582,6 +582,35 @@ select:focus {
 }
 
 /* ========================================
+   Status-bar scrim (components/StatusBarScrim.jsx)
+   ======================================== */
+/* Fades in while scrolled content sits under the iOS status bar, so the
+   clock stays readable. Exactly the top inset high — 0 on web/Android.
+   Background colour = --bg-primary (#231B43), so over a header of that
+   colour it is invisible. z 150: above page content and its headers
+   (≤ 100), below in-page overlays (200+), the nav and every modal (1000+). */
+.status-scrim {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top, 0px);
+  z-index: 150;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgba(35, 27, 67, 0.96) 0%,
+    rgba(35, 27, 67, 0.88) 60%,
+    rgba(35, 27, 67, 0) 100%
+  );
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.status-scrim.is-visible {
+  opacity: 1;
+}
+
+/* ========================================
    Bottom Navigation
    ======================================== */
 .bottom-nav {

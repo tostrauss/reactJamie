@@ -23,6 +23,7 @@ import { FeedbackModal } from './components/FeedbackModal';
 import { NotificationPrompt } from './components/NotificationPrompt';
 import { NativePushDeniedBanner } from './components/NativePushDeniedBanner';
 import PullToRefresh from './components/PullToRefresh';
+import StatusBarScrim from './components/StatusBarScrim';
 import AvatarGateModal from './components/AvatarGateModal';
 import { InstallBanner } from './components/InstallBanner';
 import { reviews } from './utils/api';
@@ -322,6 +323,9 @@ const Navigation = () => {
 
   return (
     <>
+      {/* Same routes as the nav: chat, DMs, sign-up and onboarding keep
+          their own pinned headers under the status bar. */}
+      <StatusBarScrim />
       <nav className="bottom-nav">
         <div className="bottom-nav-items">
           <Link to="/home" className={`nav-item ${isActive('/home') ? 'active' : ''}`}>

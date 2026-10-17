@@ -313,7 +313,8 @@ export const DealDetail = () => {
           aria-modal="true"
           onClick={() => !redeeming && setShowConfirm(false)}
           style={{
-            position: 'fixed', inset: 0, zIndex: 100,
+            // 1000 like the app's other modals — above the status-bar scrim (150).
+            position: 'fixed', inset: 0, zIndex: 1000,
             background: 'rgba(0,0,0,0.6)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: 20,
