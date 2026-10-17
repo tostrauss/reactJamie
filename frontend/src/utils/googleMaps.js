@@ -101,3 +101,30 @@ function flush() {
     try { cb(); } catch (err) { console.error('[googleMaps] callback error:', err); }
   }
 }
+
+const PAC_SELECTOR = '.pac-container';
+
+/**
+ * new google.maps.places.Autocomplete(input, options), plus a dispose() that
+ * also removes the suggestion dropdown. Google appends that `.pac-container`
+ * to <body> and never takes it away when the input unmounts, so it outlived
+ * every page that used one. With billing off it hung there empty, its 1px
+ * top border a stray line across every later screen (Robert's videos,
+ * 13.10.2026, Onboarding „Über dich" → Home). Call dispose() in the effect
+ * cleanup that unmounts the input.
+ */
+export function createPlacesAutocomplete(input, options) {
+  const before = new Set(document.querySelectorAll(PAC_SELECTOR));
+  const added = () => [...document.querySelectorAll(PAC_SELECTOR)].filter(el => !before.has(el));
+  const autocomplete = new window.google.maps.places.Autocomplete(input, options);
+  // Taken right away when Google builds the dropdown eagerly, so a later
+  // instance's dropdown is never mistaken for this one's.
+  let own = added();
+  const dispose = () => {
+    try { window.google?.maps?.event?.clearInstanceListeners(autocomplete); } catch { /* SDK gone */ }
+    if (!own.length) own = added();
+    own.forEach(el => el.remove());
+    own = [];
+  };
+  return { autocomplete, dispose };
+}

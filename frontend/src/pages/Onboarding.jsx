@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { api } from '../utils/api';
 import { serverErrorMessage } from '../utils/apiError';
-import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
+import { loadGoogleMaps, onGoogleMapsReady, createPlacesAutocomplete } from '../utils/googleMaps';
 import { safeStorage } from '../utils/safeStorage';
 import { AVATAR_NUDGE_KEY, AVATAR_NUDGE_SNOOZE_MS } from '../utils/avatarNudge';
 import { INTEREST_NAMES, MIN_INTERESTS } from '../utils/interests';
@@ -226,25 +226,25 @@ export const Onboarding = () => {
     if (stepId !== 'about') return undefined;
     const attach = () => {
       if (!window.google?.maps?.places || autocompleteRef.current || !locationRef.current) return;
-      const ac = new window.google.maps.places.Autocomplete(locationRef.current, {
+      const handle = createPlacesAutocomplete(locationRef.current, {
         types: ['(cities)'],
         fields: ['formatted_address', 'name'],
       });
+      const ac = handle.autocomplete;
       ac.addListener('place_changed', () => {
         const place = ac.getPlace();
         const val = place?.formatted_address || place?.name || '';
         if (val) setFormData(prev => ({ ...prev, location: val }));
       });
-      autocompleteRef.current = ac;
+      autocompleteRef.current = handle;
     };
     const timer = setTimeout(() => onGoogleMapsReady(attach), 50);
     return () => {
       clearTimeout(timer);
-      // The input unmounts with the step — drop the binding so coming back
-      // to this step attaches a fresh one to the new input element.
-      if (autocompleteRef.current && window.google?.maps?.event) {
-        window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
-      }
+      // The input unmounts with the step — drop the binding (and Google's
+      // dropdown) so coming back to this step attaches a fresh one to the
+      // new input element.
+      autocompleteRef.current?.dispose();
       autocompleteRef.current = null;
     };
   }, [stepId]);

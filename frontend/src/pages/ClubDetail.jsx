@@ -10,7 +10,7 @@ import { nextOccurrence } from '../utils/recurrence';
 import { shareLink } from '../utils/share';
 import { serverErrorMessage } from '../utils/apiError';
 import { openCalendar } from '../utils/calendarExport';
-import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
+import { loadGoogleMaps, onGoogleMapsReady, createPlacesAutocomplete } from '../utils/googleMaps';
 import { ALLOWED_COUNTRIES } from '../utils/regions';
 import { proUpsellAllowed } from '../utils/platform';
 import { usePaymentsConfig } from '../utils/paymentsConfig';
@@ -94,12 +94,13 @@ export const ClubDetail = () => {
       if (!window.google?.maps?.places) return;
       if (eventAutocompleteRef.current) return;
       if (!eventLocationRef.current) return;
-      const ac = new window.google.maps.places.Autocomplete(eventLocationRef.current, {
+      const handle = createPlacesAutocomplete(eventLocationRef.current, {
         // No componentRestrictions: Places accepts at most 5 countries and we sell
         // in 6 (utils/regions.js), so the 6-country list could break the whole
         // dropdown. The country is checked when a place is PICKED instead.
         fields: ['formatted_address', 'name', 'address_components'],
       });
+      const ac = handle.autocomplete;
       ac.addListener('place_changed', () => {
         const place = ac.getPlace();
         const val = place.formatted_address || place.name || '';
@@ -112,14 +113,12 @@ export const ClubDetail = () => {
           if (eventLocationRef.current) eventLocationRef.current.value = '';
         }
       });
-      eventAutocompleteRef.current = ac;
+      eventAutocompleteRef.current = handle;
     };
     const timer = setTimeout(() => onGoogleMapsReady(attach), 50);
     return () => {
       clearTimeout(timer);
-      if (eventAutocompleteRef.current && window.google?.maps?.event) {
-        window.google.maps.event.clearInstanceListeners(eventAutocompleteRef.current);
-      }
+      eventAutocompleteRef.current?.dispose();
       eventAutocompleteRef.current = null;
     };
   }, [showCreateEvent]);

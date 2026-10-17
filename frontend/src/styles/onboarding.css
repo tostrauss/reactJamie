@@ -76,6 +76,21 @@
   padding: 14px 20px;
   border-radius: 22px;
 }
+/* Native look off so iOS keeps the field to its column (it still opens the
+   wheel); value starts where the other fields' text does, as in Register. */
+.ob-flow .ob-content input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+}
+.ob-flow .ob-content input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+}
+/* Nothing on these steps scrolls sideways; a field that ever overflows again
+   must not turn the whole step into a horizontal pan. */
+.ob-flow .onboarding-content {
+  overflow-x: hidden;
+}
 
 .ob-flow .ob-suggest-btn {
   padding: 0 18px;

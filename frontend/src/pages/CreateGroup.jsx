@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { groups, map as mapApi, api as axiosInstance } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
-import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
+import { loadGoogleMaps, onGoogleMapsReady, createPlacesAutocomplete } from '../utils/googleMaps';
 import { ALLOWED_COUNTRIES } from '../utils/regions';
 import { ImageCropModal } from '../components/ImageCropModal';
 import '../styles/create.css';
@@ -96,12 +96,13 @@ export const CreateGroup = () => {
       if (!window.google?.maps?.places) return;
       if (autocompleteRef.current) return;
       if (!locationRef.current) return;
-      const ac = new window.google.maps.places.Autocomplete(locationRef.current, {
+      const handle = createPlacesAutocomplete(locationRef.current, {
         // No componentRestrictions: Places accepts at most 5 countries and we sell
         // in 6 (utils/regions.js), so the 6-country list could break the whole
         // dropdown. The country is checked when a place is PICKED instead.
         fields: ['formatted_address', 'name', 'address_components'],
       });
+      const ac = handle.autocomplete;
       ac.addListener('place_changed', () => {
         const place = ac.getPlace();
         const val = place.formatted_address || place.name || '';
@@ -116,11 +117,17 @@ export const CreateGroup = () => {
           if (locationRef.current) locationRef.current.value = '';
         }
       });
-      autocompleteRef.current = ac;
+      autocompleteRef.current = handle;
     };
 
     const timer = setTimeout(() => onGoogleMapsReady(attach), 50);
-    return () => clearTimeout(timer);
+    // The input unmounts when the step changes or the page closes: drop the
+    // binding and Google's dropdown, so step 2 re-binds to the new input.
+    return () => {
+      clearTimeout(timer);
+      autocompleteRef.current?.dispose();
+      autocompleteRef.current = null;
+    };
   }, [step]);
 
 

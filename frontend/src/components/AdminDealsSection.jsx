@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { deals as dealsApi, upload } from '../utils/api';
 import { useToast } from '../context/ToastContext';
-import { loadGoogleMaps, onGoogleMapsReady } from '../utils/googleMaps';
+import { loadGoogleMaps, onGoogleMapsReady, createPlacesAutocomplete } from '../utils/googleMaps';
 import { ALLOWED_COUNTRIES } from '../utils/regions';
 
 /**
@@ -79,15 +79,16 @@ export const AdminDealsSection = () => {
   // The deal address was a plain text input → no location suggestions/map hint
   // like group/club creation had (Tobi 2026-08-05). Re-attaches on each open.
   useEffect(() => {
-    if (!showForm) { dealAcRef.current = null; return; }
+    if (!showForm) return undefined;
     const attach = () => {
       if (!window.google?.maps?.places || dealAcRef.current || !addressRef.current) return;
-      const ac = new window.google.maps.places.Autocomplete(addressRef.current, {
+      const handle = createPlacesAutocomplete(addressRef.current, {
         // No componentRestrictions: Places accepts at most 5 countries and we sell
         // in 6 (utils/regions.js), so the 6-country list could break the whole
         // dropdown. The country is checked when a place is PICKED instead.
         fields: ['formatted_address', 'name', 'address_components'],
       });
+      const ac = handle.autocomplete;
       ac.addListener('place_changed', () => {
         const place = ac.getPlace();
         const val = place.formatted_address || place.name || addressRef.current?.value || '';
@@ -100,10 +101,15 @@ export const AdminDealsSection = () => {
           if (addressRef.current) addressRef.current.value = '';
         }
       });
-      dealAcRef.current = ac;
+      dealAcRef.current = handle;
     };
     const timer = setTimeout(() => onGoogleMapsReady(attach), 50);
-    return () => clearTimeout(timer);
+    // Form closes → the input unmounts: drop the binding and Google's dropdown.
+    return () => {
+      clearTimeout(timer);
+      dealAcRef.current?.dispose();
+      dealAcRef.current = null;
+    };
   }, [showForm]);
 
   const [exportingId, setExportingId] = useState(null);

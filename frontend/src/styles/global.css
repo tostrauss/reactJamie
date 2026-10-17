@@ -320,6 +320,12 @@ select:focus-visible {
   border-radius: 12px;
   margin-top: 4px;
 }
+/* Google shows the dropdown before its suggestions arrive; when they never
+   do (billing off, REQUEST_DENIED) only its 1px top border stays — a stray
+   line under the field (Robert 13.10.2026). No suggestion, no dropdown. */
+.pac-container:not(:has(.pac-item)) {
+  display: none !important;
+}
 
 /* Reduce motion for users who request it (iOS Settings → Accessibility → Reduce Motion) */
 @media (prefers-reduced-motion: reduce) {
@@ -552,6 +558,15 @@ select {
   border-radius: var(--radius-lg);
   outline: none;
   transition: all var(--transition-fast);
+}
+
+/* iOS WebKit gives a date/time field an intrinsic width wider than its box.
+   As a flex item (min-width:auto) it then pushes past its column and the
+   whole screen pans sideways (Robert 13.10.2026, Onboarding „Über dich"). */
+input[type="date"],
+input[type="time"] {
+  min-width: 0;
+  max-width: 100%;
 }
 
 input:not([type="checkbox"]):not([type="radio"])::placeholder,
