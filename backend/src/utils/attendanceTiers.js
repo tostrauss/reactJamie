@@ -4,7 +4,9 @@
 // COUNT(DISTINCT reviewer_id) >= 3 across all events, so three people ticking
 // you at a single meetup is enough — and someone who only says yes and then
 // does not come keeps it. The tester asked for steps that reward the people
-// who actually show up: from 5 meetups 🏅, from 10 🏆, from 100 🎆.
+// who actually show up: from 5 meetups 🏅, from 10 🏆, from 100 🎆. Lea
+// (18.10.2026) found the jump from 10 to 100 far too big, so 25 🌟 and 50 💎
+// sit in between since.
 //
 // What counts as ONE confirmed meetup of user u at event g:
 //   - only the votes OTHER members cast about u in the "Wer war dabei?" review
@@ -57,12 +59,24 @@
 //
 // Pure module: db is injected (never imports database.js), like reactions.js.
 
-// Minimum confirmed meetups for 🏅 / 🏆 / 🎆.
+// Minimum confirmed meetups for 🏅 / 🏆 / 🌟 / 💎 / 🎆.
 // MIRRORED in frontend/src/utils/attendanceTiers.js — a parity test reads both.
-export const TIER_MIN_EVENTS = [5, 10, 100];
+export const TIER_MIN_EVENTS = [5, 10, 25, 50, 100];
 // Minimum DISTINCT people who confirmed you, per step. Server-side rule;
-// [1, 1, 1] would be the literal reading of "ab 5 Treffen". MIRRORED as well.
-export const TIER_MIN_CONFIRMERS = [2, 3, 10];
+// [1, 1, 1, 1, 1] would be the literal reading of "ab 5 Treffen". MIRRORED as well.
+export const TIER_MIN_CONFIRMERS = [2, 3, 5, 7, 10];
+
+// The three steps app bundles from before 18.10.2026 know (🏅 / 🏆 / 🎆), as
+// positions on the ladder above. iOS ships its web build inside the binary,
+// so those bundles stay in use for weeks after a deploy, and they read every
+// `*_tier` field as 1 = 🏅 5, 2 = 🏆 10, 3 = 🎆 100: sent the five-step level
+// they would call somebody with 25 meetups „100+ mal dabei“ and show nothing
+// at all for 💎 and 🎆. So the `*_tier` fields keep that three-step meaning
+// and the five-step level travels next to them as `*_step`
+// (attachAttendanceTiers, getMyAttendance). Same thresholds either way — the
+// old 🏅 / 🏆 / 🎆 ARE steps 1, 2 and 5 here, so an old bundle shows exactly
+// what it showed before.
+export const LEGACY_STEPS = [1, 2, 5];
 
 // How long the "Wer war dabei?" round of an event stays open — the prompts'
 // window since 2026-07. A meetup counts only once its round has CLOSED: the
@@ -175,7 +189,7 @@ SELECT c.user_id,
   CROSS JOIN LATERAL unnest(c.confirmed_by) AS x(reviewer_id)
  GROUP BY c.user_id`;
 
-/** 0 = none, 1 = 🏅, 2 = 🏆, 3 = 🎆 */
+/** 0 = none, 1 = 🏅, 2 = 🏆, 3 = 🌟, 4 = 💎, 5 = 🎆 */
 export const tierFor = (events, confirmers) => {
   let tier = 0;
   TIER_MIN_EVENTS.forEach((min, i) => {
@@ -184,6 +198,15 @@ export const tierFor = (events, confirmers) => {
   return tier;
 };
 
+/** A level from tierFor on the old bundles' 0–3 scale (LEGACY_STEPS). */
+export const legacyTierOf = (step) => LEGACY_STEPS.filter((s) => s <= step).length;
+
+// What is still missing for the step at ladder index i (0 = already enough).
+const missingFor = (i, events, confirmers) => ({
+  events_missing: Math.max(0, TIER_MIN_EVENTS[i] - events),
+  confirmers_missing: Math.max(0, TIER_MIN_CONFIRMERS[i] - confirmers),
+});
+
 /**
  * What the NEXT step still needs, for the person's own progress card — or null
  * at the top. Both numbers are what is missing (0 = already enough).
@@ -191,11 +214,14 @@ export const tierFor = (events, confirmers) => {
 export const nextStepFor = (events, confirmers) => {
   const tier = tierFor(events, confirmers);
   if (tier >= TIER_MIN_EVENTS.length) return null;
-  return {
-    tier: tier + 1,
-    events_missing: Math.max(0, TIER_MIN_EVENTS[tier] - events),
-    confirmers_missing: Math.max(0, TIER_MIN_CONFIRMERS[tier] - confirmers),
-  };
+  return { tier: tier + 1, ...missingFor(tier, events, confirmers) };
+};
+
+/** nextStepFor on the old three-step ladder — the own card of an old bundle. */
+export const legacyNextStepFor = (events, confirmers) => {
+  const tier = legacyTierOf(tierFor(events, confirmers));
+  if (tier >= LEGACY_STEPS.length) return null;
+  return { tier: tier + 1, ...missingFor(LEGACY_STEPS[tier] - 1, events, confirmers) };
 };
 
 const CHUNK = 1000;
@@ -231,21 +257,30 @@ export const getAttendanceStats = async (db, ids) => {
   }
 };
 
+// attendance_tier → attendance_step, user_attendance_tier → user_attendance_step.
+const stepFieldOf = (field) => (field.endsWith('_tier') ? `${field.slice(0, -5)}_step` : `${field}_step`);
+
 /**
- * Stamp `field` (default attendance_tier, 0–3) onto each row keyed by
- * row[idKey]. Only the LEVEL leaves the server for other people — exact counts
- * are activity data (the person's own numbers: GET /api/reviews/attendance).
- * `countField` adds the count, for the admin list only. When the lookup
- * failed the field stays ABSENT.
+ * Stamp the step onto each row keyed by row[idKey]: `stepField` (default
+ * attendance_step, or `field` with _tier → _step) gets the level 0–5, `field`
+ * (default attendance_tier) the same level on the old bundles' 0–3 scale
+ * (LEGACY_STEPS). Only the LEVEL leaves the server for other people — exact
+ * counts are activity data (the person's own numbers: GET
+ * /api/reviews/attendance). `countField` adds the count, for the admin list
+ * only. When the lookup failed both fields stay ABSENT.
  */
-export const attachAttendanceTiers = async (db, rows, { idKey = 'id', field = 'attendance_tier', countField = null } = {}) => {
+export const attachAttendanceTiers = async (db, rows, {
+  idKey = 'id', field = 'attendance_tier', stepField = stepFieldOf(field), countField = null,
+} = {}) => {
   if (!Array.isArray(rows) || !rows.length) return rows;
   const stats = await getAttendanceStats(db, rows.map((r) => r?.[idKey]));
   if (!stats) return rows;
   for (const row of rows) {
     if (!row || typeof row !== 'object') continue;
     const s = stats.get(Number(row[idKey]));
-    row[field] = s ? tierFor(s.confirmedEvents, s.confirmers) : 0;
+    const step = s ? tierFor(s.confirmedEvents, s.confirmers) : 0;
+    row[field] = legacyTierOf(step);
+    row[stepField] = step;
     if (countField) row[countField] = s ? s.confirmedEvents : 0;
   }
   return rows;

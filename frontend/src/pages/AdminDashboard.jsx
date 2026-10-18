@@ -553,9 +553,9 @@ export const AdminDashboard = () => {
                     <UserName name={u.name} age={u.age} />
                     {u.is_admin && <span style={{ color: '#FD7666', marginLeft: 6, fontSize: 10, fontWeight: 700, letterSpacing: 0.5 }}>ADMIN</span>}
                     {u.is_trusted_user && <span style={{ color: '#4ade80', marginLeft: 6, fontSize: 12 }}>✓</span>}
-                    {u.attendance_tier > 0 && (
+                    {u.attendance_step > 0 && (
                       <span style={{ marginLeft: 6 }}>
-                        <AttendanceTierBadge tier={u.attendance_tier} variant="chip" />
+                        <AttendanceTierBadge tier={u.attendance_step} variant="chip" />
                       </span>
                     )}
                     {u.attendance_count > 0 && (

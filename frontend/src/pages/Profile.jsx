@@ -128,14 +128,21 @@ export const Profile = () => {
   // step only ever moves up: a dip (an owner's late „nicht stattgefunden“, a
   // confirmer deleting their account) must not re-arm the toast for a badge
   // this device already celebrated.
+  //
+  // The seen step lives under a new key since the ladder grew to five steps
+  // (Lea, 18.10.2026): level 3 was 🎆 and is 🌟 now. The old key is read on
+  // the old ladder (its 3 = 🎆 = 5), or everyone who already had 🎆 would be
+  // congratulated on it a second time.
   useEffect(() => {
     if (!attendance || !user?.id) return;
-    const key = `jamie_seen_attendance_tier_${user.id}`;
-    const seen = Number(safeStorage.getItem(key) || 0);
-    if (!(attendance.tier > seen)) return;
-    safeStorage.setItem(key, String(attendance.tier));
-    if (safeStorage.getItem(key) === String(attendance.tier)) {
-      toast.success(t('attendance.newTierToastFmt', { emoji: tierEmoji(attendance.tier), n: tierMinEvents(attendance.tier) }));
+    const step = attendance.step;
+    const key = `jamie_seen_attendance_step_${user.id}`;
+    const oldSeen = [0, 1, 2, 5][Number(safeStorage.getItem(`jamie_seen_attendance_tier_${user.id}`) || 0)] || 0;
+    const seen = Number(safeStorage.getItem(key) || oldSeen);
+    if (!(step > seen)) return;
+    safeStorage.setItem(key, String(step));
+    if (safeStorage.getItem(key) === String(step)) {
+      toast.success(t('attendance.newTierToastFmt', { emoji: tierEmoji(step), n: tierMinEvents(step) }));
     }
   }, [attendance, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -266,7 +273,7 @@ export const Profile = () => {
                 {isPro && <span className="pro-name-badge">👑</span>}
               </div>
               {user?.is_pioneer && <span className="pioneer-tag">{t('common.pioneerBadge')}</span>}
-              <AttendanceTierBadge tier={attendance?.tier} variant="pill" onClick={openBadges} />
+              <AttendanceTierBadge tier={attendance?.step} variant="pill" onClick={openBadges} />
             </div>
           </div>
 
@@ -418,10 +425,10 @@ export const Profile = () => {
                   <div className="profile-attend-wrap" ref={badgeCardRef}>
                     <AttendanceTiersCard
                       own
-                      tier={attendance.tier}
+                      tier={attendance.step}
                       confirmedEvents={attendance.confirmed_events}
                       confirmers={attendance.confirmers}
-                      next={attendance.next}
+                      next={attendance.next_step}
                       windowDays={attendance.window_days}
                     />
                   </div>

@@ -3,10 +3,11 @@ import { normalizeTier, tierEmoji, tierMinEvents } from '../utils/attendanceTier
 import '../styles/attendance.css';
 
 /**
- * Abzeichen-Stufe — 🏅 from 5, 🏆 from 10, 🎆 from 100 CONFIRMED meetups
- * (tester 06.10.2026). Confirmed = other participants ticked "war dabei"
- * after the event; sign-ups never count. The level comes from the server —
- * this only renders it, and renders nothing for 0 or an unknown value.
+ * Abzeichen-Stufe — 🏅 from 5, 🏆 from 10, 🌟 from 25, 💎 from 50, 🎆 from 100
+ * CONFIRMED meetups (tester 06.10.2026; 25 and 50 since Lea, 18.10.2026).
+ * Confirmed = other participants ticked "war dabei" after the event; sign-ups
+ * never count. The level comes from the server (a `*_step` field) — this only
+ * renders it, and renders nothing for 0 or an unknown value.
  *
  * Independent of the purple VerifiedBadge (the trusted seal): someone can have
  * a step without the seal and the seal without a step, so this never positions

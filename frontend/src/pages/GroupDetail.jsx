@@ -616,7 +616,7 @@ export const GroupDetail = () => {
                   }
                   {/* Abzeichen-Stufe in the free top-right corner — NOT in the
                       name row below, which already overflows at 320px. */}
-                  <AttendanceTierBadge tier={member.attendance_tier} variant="corner" className="gd-photo-tier" />
+                  <AttendanceTierBadge tier={member.attendance_step} variant="corner" className="gd-photo-tier" />
                   <div className="gd-photo-bottom">
                     {/* Photo grid: age is shown only as the name-superscript
                         (corner chip removed) — single source of truth. */}

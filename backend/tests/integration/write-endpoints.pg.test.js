@@ -2913,6 +2913,8 @@ suite('write endpoints against real Postgres', () => {
       expect(res.body).toEqual({
         available: true, tier: 1, confirmed_events: 5, confirmers: 2,
         next: { tier: 2, events_missing: 5, confirmers_missing: 1 },
+        step: 1,
+        next_step: { tier: 2, events_missing: 5, confirmers_missing: 1 },
         window_days: 14,
       });
     });
@@ -3055,12 +3057,14 @@ suite('write endpoints against real Postgres', () => {
       const prof = await call(C.getUserById, { userId: R1, params: { id: String(T) } });
       ok(prof);
       expect(prof.body.attendance_tier).toBe(1);
+      expect(prof.body.attendance_step).toBe(1);
       expect(prof.body).not.toHaveProperty('confirmed_events');
       expect(prof.body).not.toHaveProperty('confirmers');
 
       const roster = await call(C.getGroupMembers, { userId: R3, params: { id: String(firstEvent) } });
       ok(roster);
       expect(roster.body.members.find(m => m.id === T).attendance_tier).toBe(1);
+      expect(roster.body.members.find(m => m.id === T).attendance_step).toBe(1);
 
       const reqGroup = (await db.query(
         `INSERT INTO groups (name, type, date, owner_id, category, location, max_members, is_private)
@@ -3071,9 +3075,11 @@ suite('write endpoints against real Postgres', () => {
       const reqs = await call(C.getJoinRequests, { userId: R1, params: { id: String(reqGroup) } });
       ok(reqs);
       expect(reqs.body.find(r => r.user_id === T).user_attendance_tier).toBe(1);
+      expect(reqs.body.find(r => r.user_id === T).user_attendance_step).toBe(1);
       const deck = await call(C.getAllJoinRequests, { userId: R1 });
       ok(deck);
       expect(deck.body.find(r => r.user_id === T).user_attendance_tier).toBe(1);
+      expect(deck.body.find(r => r.user_id === T).user_attendance_step).toBe(1);
     });
 
     it('reads never write: the seal and updated_at are untouched by tier reads', async () => {
@@ -3109,6 +3115,7 @@ suite('write endpoints against real Postgres', () => {
         const rows = [{ id: T }];
         await at.attachAttendanceTiers(client, rows);
         expect(rows[0]).not.toHaveProperty('attendance_tier');
+        expect(rows[0]).not.toHaveProperty('attendance_step');
         await client.query('ROLLBACK');
       } finally {
         logged = err.mock.calls.slice(); // mockRestore() empties mock.calls

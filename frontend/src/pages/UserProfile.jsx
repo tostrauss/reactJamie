@@ -292,7 +292,7 @@ export const UserProfile = () => {
           </div>
           {profile.is_pioneer && <span className="pioneer-tag">{t('common.pioneerBadge')}</span>}
           {/* Abzeichen-Stufe — the level only; their counts stay theirs. */}
-          <AttendanceTierBadge tier={profile.attendance_tier} variant="pill" onClick={openBadges} />
+          <AttendanceTierBadge tier={profile.attendance_step} variant="pill" onClick={openBadges} />
         </div>
       </div>
 
@@ -345,9 +345,9 @@ export const UserProfile = () => {
       )}
 
       {activeTab === 'halloffame' && (
-        normalizeTier(profile.attendance_tier) > 0 ? (
+        normalizeTier(profile.attendance_step) > 0 ? (
           <div className="up-attend-wrap" ref={badgeCardRef}>
-            <AttendanceTiersCard tier={profile.attendance_tier} />
+            <AttendanceTiersCard tier={profile.attendance_step} />
           </div>
         ) : (
           <div className="up-photo-grid">

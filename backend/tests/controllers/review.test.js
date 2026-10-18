@@ -10,7 +10,7 @@ const txnStatements = [];
 const memberSet = new Set(); // user_ids that ARE in the group
 // What the reviewer-membership query says about the event (B2 write gate):
 // undefined = an old row shape without the column (today's behaviour).
-const scenario = { countable: undefined, dayOver: undefined, tierFail: false };
+const scenario = { countable: undefined, dayOver: undefined, tierFail: false, tierRows: [] };
 const outerQueries = [];
 
 vi.mock('../../src/config/database.js', () => {
@@ -48,7 +48,7 @@ vi.mock('../../src/config/database.js', () => {
         outerQueries.push({ text, params });
         if (text.includes('attendance-tiers')) {
           if (scenario.tierFail) throw new Error('connection reset');
-          return { rows: [] };
+          return { rows: scenario.tierRows };
         }
         // Reviewer membership + event date (joins groups). Return a date 24h in
         // the past so submitReview's "event must have ended" guard passes.
@@ -86,6 +86,7 @@ beforeEach(() => {
   scenario.countable = undefined;
   scenario.dayOver = undefined;
   scenario.tierFail = false;
+  scenario.tierRows = [];
 });
 
 // ── Abzeichen-Stufen (B2, 06.10.2026) ────────────────────────────────────
@@ -202,8 +203,24 @@ describe('getMyAttendance (own Abzeichen numbers)', () => {
     expect(res.json).toHaveBeenCalledWith({
       available: true, tier: 0, confirmed_events: 0, confirmers: 0,
       next: { tier: 1, events_missing: 5, confirmers_missing: 2 },
+      step: 0,
+      next_step: { tier: 1, events_missing: 5, confirmers_missing: 2 },
       window_days: 14,
     });
+  });
+
+  // 25 🌟 / 50 💎 (Lea, 18.10.2026): step/next_step walk the five-step ladder,
+  // tier/next stay on the three steps old app bundles render (LEGACY_STEPS).
+  it('sends the five-step ladder as step/next_step and keeps tier/next for old bundles', async () => {
+    scenario.tierRows = [{ user_id: 1, confirmed_events: 30, confirmers: 6 }];
+    const res = makeRes();
+    await reviewMod.getMyAttendance({ userId: 1 }, res);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+      step: 3,
+      next_step: { tier: 4, events_missing: 20, confirmers_missing: 1 },
+      tier: 2,
+      next: { tier: 3, events_missing: 70, confirmers_missing: 4 },
+    }));
   });
 
   it('a failed lookup is 200 {available:false} — never a 5xx (api.js retries those)', async () => {

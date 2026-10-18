@@ -43,8 +43,9 @@ export const getUserById = async (req, res) => {
       console.error('JSON Parse Error:', e);
     }
 
-    // Abzeichen-Stufe (0–3) — the level only, never the count (that is the
-    // person's own data: GET /api/reviews/attendance).
+    // Abzeichen-Stufe (attendance_step 0–5, attendance_tier 0–3 for old app
+    // bundles) — the level only, never the count (that is the person's own
+    // data: GET /api/reviews/attendance).
     await attachAttendanceTiers(db, [user]);
 
     res.json(user);

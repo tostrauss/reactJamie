@@ -5,7 +5,7 @@ import { AttendanceTierBadge } from '../components/AttendanceTierBadge';
 // Abzeichen-Stufen (tester 06.10.2026) — real German i18n (vitest.setup).
 describe('AttendanceTierBadge', () => {
   it('renders nothing for no / unknown / out-of-range levels', () => {
-    for (const tier of [0, undefined, null, 4, '2']) {
+    for (const tier of [0, undefined, null, 6, '2']) {
       const { container } = render(<AttendanceTierBadge tier={tier} />);
       expect(container.innerHTML).toBe('');
     }
@@ -25,8 +25,20 @@ describe('AttendanceTierBadge', () => {
   });
 
   it('corner: the emoji only', () => {
-    const { container } = render(<AttendanceTierBadge tier={3} variant="corner" />);
+    const { container } = render(<AttendanceTierBadge tier={5} variant="corner" />);
     expect(container.textContent).toBe('🎆');
+  });
+
+  // 25 🌟 and 50 💎 (Lea, 18.10.2026) — the steps between 🏆 and 🎆.
+  it('renders the new steps 3 and 4 as 🌟 25+ and 💎 50+', () => {
+    const { unmount } = render(<AttendanceTierBadge tier={3} variant="pill" />);
+    expect(screen.getByRole('img', { name: 'Abzeichen: mindestens 25-mal bestätigt dabei' })).toBeTruthy();
+    expect(screen.getByText('🌟')).toBeTruthy();
+    expect(screen.getByText('25+ mal dabei')).toBeTruthy();
+    unmount();
+    render(<AttendanceTierBadge tier={4} variant="chip" />);
+    expect(screen.getByText('💎')).toBeTruthy();
+    expect(screen.getByText('50+')).toBeTruthy();
   });
 
   it('with onClick the pill is a button that does not trigger the surrounding tap target', () => {
