@@ -760,12 +760,19 @@ export const friends = {
 // ==========================================
 
 export const notifications = {
-  getAll: () => 
+  getAll: () =>
     axiosInstance.get('/notifications'),
-  
-  markRead: () => 
-    axiosInstance.post('/notifications/mark-read'),
-  
+
+  // The bell on Home → { count } (capped server-side; the badge shows "9+").
+  getUnreadCount: () =>
+    axiosInstance.get('/notifications/unread-count'),
+
+  // upToId = the newest id the list showed, so a notification that arrives
+  // while the list is open stays unread. Without it: everything (old servers
+  // ignore the body and do exactly that anyway).
+  markRead: (upToId) =>
+    axiosInstance.post('/notifications/mark-read', upToId ? { upToId } : {}),
+
   markSingleRead: (id) => 
     axiosInstance.post(`/notifications/${id}/read`)
 };
@@ -871,6 +878,9 @@ export const push = {
   // Per-user push preference toggles (Settings → Benachrichtigungen). Server-side
   // flags, so they apply to APNs on iOS too — not just web push.
   updatePreferences: (prefs) => axiosInstance.put('/push/preferences', prefs),
+  // → { push_news: boolean | null } — the news & deals opt-in, which is not part
+  // of the profile. null = the server cannot store it yet.
+  getPreferences: () => axiosInstance.get('/push/preferences'),
 };
 
 // ==========================================
@@ -936,6 +946,16 @@ export const admin = {
   // In-app feedback list. Returns { feedback, total, limit, offset }.
   getFeedback: ({ limit = 50, offset = 0 } = {}) =>
     axiosInstance.get('/admin/feedback', { params: { limit, offset } }),
+
+  // "News an alle" (18.10.2026). Audience → { total, pushOptIn }; list →
+  // { news: [...] }; send → { id, recipients, pushRecipients, push }.
+  getNewsAudience: () => axiosInstance.get('/admin/news/audience'),
+  getNews: () => axiosInstance.get('/admin/news'),
+  // The fan-out runs inside the request (it answers with the counts), and
+  // every active account gets a row — far past the default 10 s on a large
+  // audience. A client-side timeout would not stop the send anyway; the
+  // server's double-send guard then refuses the retry.
+  sendNews: (news) => axiosInstance.post('/admin/news', news, { timeout: 60000 }),
 };
 
 // ==========================================

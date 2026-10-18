@@ -1,5 +1,5 @@
 import express from 'express';
-import { getVapidKey, subscribe, unsubscribe, saveApnsToken, reportPushDiagnostics, updatePushPreferences } from '../controllers/pushController.js';
+import { getVapidKey, subscribe, unsubscribe, saveApnsToken, reportPushDiagnostics, updatePushPreferences, getPushPreferences } from '../controllers/pushController.js';
 import { authenticate } from '../middleware/auth.js';
 import { generalLimiter } from '../middleware/rateLimiter.js';
 
@@ -35,5 +35,7 @@ router.post('/diagnostics', authenticate, reportPushDiagnostics);
 // Per-user toggles (reminders / friend activity / recommendations). Lives here
 // rather than under /api/auth so it doesn't eat the authLimiter budget.
 router.put('/preferences', authenticate, updatePushPreferences);
+// The news & deals opt-in (18.10.2026) — read here, never in the profile SELECT.
+router.get('/preferences', authenticate, getPushPreferences);
 
 export default router;

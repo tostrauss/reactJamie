@@ -1090,7 +1090,15 @@
     "title": "Benachrichtigungen",
     "emptyTitle": "Keine Benachrichtigungen",
     "emptySub": "Du bist auf dem neuesten Stand!",
-    "loadError": "Benachrichtigungen konnten nicht geladen werden"
+    "loadError": "Benachrichtigungen konnten nicht geladen werden",
+    "bell": {
+      "label": "Benachrichtigungen",
+      "labelUnread": "Benachrichtigungen, {{n}} neu"
+    },
+    "hofLike": {
+      "text": "{{name}} gefällt „{{event}}“ in der Hall of Fame",
+      "textAnonymous": "Jemandem gefällt „{{event}}“ in der Hall of Fame"
+    }
   },
   "profileEdit": {
     "title": "Profil bearbeiten",
@@ -1266,6 +1274,8 @@
       "remindersHint": "Vor deinen Events und Tipps für deine eigenen Gruppen",
       "friendActivity": "Aktivität von Freunden",
       "friendActivityHint": "Wenn Freunde Gruppen beitreten oder erstellen",
+      "news": "Neuigkeiten & Deals",
+      "newsHint": "Updates und neue Deals von JAMIE als Push",
       "radius": "Umkreis",
       "radiusKm": "Nur {{km}} km",
       "radiusAll": "Überall",
@@ -2227,6 +2237,47 @@
       "invalidClubs": "Nicht freigegeben oder nicht mehr aktiv: {{names}}. Entferne sie und speichere erneut.",
       "alreadyAdded": "Schon in der Liste",
       "noResults": "Keine freigegebenen Clubs gefunden"
+    },
+    "news": {
+      "title": "News an alle",
+      "hint": "Erscheint bei allen Nutzern in der Glocke auf Home. Als Push nur an Nutzer, die „Neuigkeiten & Deals“ eingeschaltet haben.",
+      "titleLabel": "Titel",
+      "titlePlaceholder": "z. B. Neue Deals in Wien",
+      "messageLabel": "Nachricht",
+      "messagePlaceholder": "Was gibt’s Neues bei JAMIE?",
+      "linkLabel": "Link in der App (optional)",
+      "linkHint": "Ein App-Pfad, beginnt mit „/“ – z. B. /deal/12 oder /explore",
+      "linkInvalid": "Der Link muss ein App-Pfad sein und mit „/“ beginnen – keine Web-Adresse.",
+      "pushLabel": "Auch als Push an Nutzer mit Einwilligung",
+      "audience": "Erreicht {{total}} Nutzer · davon {{pushOptIn}} mit Push-Einwilligung",
+      "audienceLoading": "Empfänger werden gezählt…",
+      "review": "Vorschau & senden",
+      "confirmTitle": "Wirklich an alle senden?",
+      "confirmBody": "Geht an {{total}} Nutzer – die News erscheint bei allen in der Glocke.",
+      "confirmBodyUnknown": "Alle aktiven Nutzer sehen diese News in ihrer Glocke.",
+      "confirmPush": "Zusätzlich als Push an {{pushOptIn}} Nutzer mit Einwilligung.",
+      "confirmNoPush": "Ohne Push – nur in der Glocke.",
+      "preview": "Vorschau",
+      "cancel": "Abbrechen",
+      "confirmSend": "Jetzt senden",
+      "sending": "Wird gesendet…",
+      "sent": "Gesendet an {{recipients}} Nutzer.",
+      "sentPush": "Push an {{pushRecipients}} Nutzer mit Einwilligung.",
+      "errors": {
+        "duplicate": "Diese News wurde gerade erst gesendet. Derselbe Titel geht erst nach {{minutes}} Minuten wieder.",
+        "unavailable": "News sind gleich wieder verfügbar. Bitte versuche es in einer Minute erneut.",
+        "sendFailed": "Senden abgebrochen – schon zugestellt an {{recipients}} Nutzer. Bitte nicht einfach nochmal senden.",
+        "noResponse": "Keine Antwort vom Server. Die News geht eventuell trotzdem raus – prüfe „Zuletzt gesendet“, bevor du es nochmal versuchst.",
+        "generic": "Senden fehlgeschlagen"
+      },
+      "recentTitle": "Zuletzt gesendet",
+      "recentEmpty": "Noch keine News gesendet.",
+      "recentMeta": "an {{recipients}} Nutzer · Push: {{push}}",
+      "recentBy": "von {{name}}",
+      "status": {
+        "sending": "wird gesendet",
+        "failed": "abgebrochen"
+      }
     },
     "topPages": {
       "page": "Seite",

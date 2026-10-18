@@ -1090,7 +1090,15 @@
     "title": "Notifications",
     "emptyTitle": "No notifications",
     "emptySub": "You're all caught up!",
-    "loadError": "Could not load notifications"
+    "loadError": "Could not load notifications",
+    "bell": {
+      "label": "Notifications",
+      "labelUnread": "Notifications, {{n}} new"
+    },
+    "hofLike": {
+      "text": "{{name}} likes “{{event}}” in the Hall of Fame",
+      "textAnonymous": "Someone likes “{{event}}” in the Hall of Fame"
+    }
   },
   "profileEdit": {
     "title": "Edit profile",
@@ -1266,6 +1274,8 @@
       "remindersHint": "Before your events and tips for your own groups",
       "friendActivity": "Friend activity",
       "friendActivityHint": "When friends join or create groups",
+      "news": "News & deals",
+      "newsHint": "Updates and new deals from JAMIE as push notifications",
       "radius": "Radius",
       "radiusKm": "{{km}} km only",
       "radiusAll": "Anywhere",
@@ -2227,6 +2237,47 @@
       "invalidClubs": "Not approved or no longer active: {{names}}. Remove them and save again.",
       "alreadyAdded": "Already in the list",
       "noResults": "No approved clubs found"
+    },
+    "news": {
+      "title": "News to everyone",
+      "hint": "Shows up in every user’s bell on Home. As a push only for users who turned on “News & deals”.",
+      "titleLabel": "Title",
+      "titlePlaceholder": "e.g. New deals in Vienna",
+      "messageLabel": "Message",
+      "messagePlaceholder": "What’s new at JAMIE?",
+      "linkLabel": "Link in the app (optional)",
+      "linkHint": "An app path starting with “/” — e.g. /deal/12 or /explore",
+      "linkInvalid": "The link must be an app path starting with “/” — not a web address.",
+      "pushLabel": "Also send as a push to users who opted in",
+      "audience": "Recipients: {{total}} · with push consent: {{pushOptIn}}",
+      "audienceLoading": "Counting recipients…",
+      "review": "Preview & send",
+      "confirmTitle": "Really send to everyone?",
+      "confirmBody": "Recipients: {{total}} — the news appears in everyone’s bell.",
+      "confirmBodyUnknown": "Every active user will see this news in their bell.",
+      "confirmPush": "Also as a push to those who opted in: {{pushOptIn}}.",
+      "confirmNoPush": "No push — bell only.",
+      "preview": "Preview",
+      "cancel": "Cancel",
+      "confirmSend": "Send now",
+      "sending": "Sending…",
+      "sent": "Sent · recipients: {{recipients}}.",
+      "sentPush": "Push to users who opted in: {{pushRecipients}}.",
+      "errors": {
+        "duplicate": "This news was just sent. The same title can only go out again after {{minutes}} minutes.",
+        "unavailable": "News will be available again shortly. Please try again in a minute.",
+        "sendFailed": "Sending stopped — already delivered: {{recipients}}. Please don’t simply send it again.",
+        "noResponse": "No answer from the server. The news may still be going out — check “Recently sent” before you try again.",
+        "generic": "Sending failed"
+      },
+      "recentTitle": "Recently sent",
+      "recentEmpty": "No news sent yet.",
+      "recentMeta": "Recipients: {{recipients}} · Push: {{push}}",
+      "recentBy": "by {{name}}",
+      "status": {
+        "sending": "sending",
+        "failed": "stopped"
+      }
     },
     "topPages": {
       "page": "Page",

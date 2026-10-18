@@ -8,6 +8,7 @@ import { AdminGrowthSection } from '../components/AdminGrowthSection';
 import { AdminFeedbackSection } from '../components/AdminFeedbackSection';
 import { AdminFeaturedClubsSection } from '../components/AdminFeaturedClubsSection';
 import { AdminMotivationsCard } from '../components/AdminMotivationsCard';
+import { AdminNewsSection } from '../components/AdminNewsSection';
 import { AdminReportsSection } from '../components/AdminReportsSection';
 import { AdminUserModal } from '../components/AdminUserModal';
 import { UserName } from '../components/UserName';
@@ -283,6 +284,11 @@ export const AdminDashboard = () => {
 
         {/* Sponsored cooperations (Kooperationen) */}
         <AdminDealsSection />
+
+        {/* "News an alle" — announce a new deal or feature in everyone's bell
+            (Lea, 18.10.2026). Right under the deals it usually announces.
+            Self-loading; an older server → the section is not rendered. */}
+        <AdminNewsSection />
 
         {/* In-app feedback (FeedbackModal submissions). Placed above the club
             queue: fresh bug reports should be seen before slower CRUD work. */}

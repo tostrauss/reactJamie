@@ -14,6 +14,8 @@ vi.mock('../utils/api', () => {
     groups: { getFavorites: vi.fn(empty), getJoined: vi.fn(empty) },
     clubs: { getAll: vi.fn(empty), getJoined: vi.fn(empty), getFavorites: vi.fn(empty) },
     deals: { getAll: vi.fn(empty) },
+    // The bell in the header (18.10.2026).
+    notifications: { getUnreadCount: vi.fn(() => Promise.resolve({ data: { count: 0 } })) },
   };
 });
 vi.mock('../context/ToastContext', () => ({ useToast: () => ({ error: vi.fn(), success: vi.fn(), info: vi.fn() }) }));

@@ -4030,4 +4030,108 @@ suite('write endpoints against real Postgres', () => {
     });
   });
 
+  // ── Stream B: Glocke + „News an alle" (Lea / Robert, 18.10.2026) ─────────
+  // The mocked unit tests pin the flow; this pins the SQL: the keyset-paged
+  // INSERT … SELECT fan-out, the advisory-locked double-send guard, the bell's
+  // list JOINs and the push_news opt-in, all against the real migrations.
+  describe('news to everyone + the bell (18.10.2026)', () => {
+    let N, NC, P;
+    let E;                                            // a fresh account: its bell holds only this block's rows
+    const title = 'Smoke-News: neue Deals';
+    beforeAll(async () => {
+      N = await import('../../src/controllers/newsController.js');
+      NC = await import('../../src/controllers/notificationController.js');
+      P = await import('../../src/controllers/pushController.js');
+      E = (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ('smoke-news-e@x.com', 'Ella', '1995-01-01', 'female', $1, TRUE, 'email') RETURNING id`,
+        [avatar])).rows[0].id;
+    });
+
+    it('push_news defaults OFF and round-trips through the preferences endpoints', async () => {
+      expect((await call(P.getPushPreferences, { userId: E })).body).toEqual({ push_news: false });
+      const on = await call(P.updatePushPreferences, { userId: E, body: { push_news: true } });
+      ok(on);
+      expect(on.body.push_news).toBe(true);
+      expect((await call(P.getPushPreferences, { userId: E })).body).toEqual({ push_news: true });
+    });
+
+    it('sendNews writes one row per active account, emits each, pushes only the opted-in', async () => {
+      const active = (await db.query(
+        'SELECT COUNT(*)::int AS n FROM users WHERE is_active IS DISTINCT FROM FALSE')).rows[0].n;
+      const optedIn = (await db.query(
+        'SELECT COUNT(*)::int AS n FROM users WHERE is_active IS DISTINCT FROM FALSE AND push_news = TRUE')).rows[0].n;
+      expect(optedIn).toBeGreaterThanOrEqual(1);      // E, from the test above
+
+      const audience = await call(N.getNewsAudience, {});
+      ok(audience);
+      expect(audience.body).toEqual({ total: active, pushOptIn: optedIn });
+
+      const before = emitted.length;
+      const sent = await call(N.sendNews, { userId: A, body: { title, message: 'Schau rein!', link: '/deal/1', push: true } });
+      expect(sent.statusCode, JSON.stringify(sent.body)).toBe(201);
+      expect(sent.body).toMatchObject({ recipients: active, pushRecipients: optedIn, push: true });
+
+      const rows = (await db.query(
+        `SELECT user_id, sender_id, link, is_read FROM notifications WHERE type = 'news' AND title = $1`, [title])).rows;
+      expect(rows).toHaveLength(active);
+      expect(rows.every((r) => r.sender_id === null && r.link === '/deal/1' && r.is_read === false)).toBe(true);
+      expect(rows.some((r) => r.user_id === E)).toBe(true);
+      const live = emitted.slice(before).filter((e) => e.ev === 'new_notification' && e.payload?.type === 'news');
+      expect(live).toHaveLength(active);
+
+      const list = await call(N.listNews, {});
+      ok(list);
+      expect(list.body.news[0]).toMatchObject({
+        title, status: 'sent', recipients: active, push_recipients: optedIn, with_push: true, link: '/deal/1',
+      });
+    });
+
+    it('the same title again (any case) within 10 minutes is refused, nothing is written', async () => {
+      const count = async () => (await db.query(
+        `SELECT COUNT(*)::int AS n FROM notifications WHERE type = 'news'`)).rows[0].n;
+      const before = await count();
+      const again = await call(N.sendNews, { userId: A, body: { title: title.toUpperCase(), message: 'Nochmal' } });
+      expect(again.statusCode).toBe(409);
+      expect(again.body.code).toBe('NEWS_DUPLICATE');
+      expect(await count()).toBe(before);
+    });
+
+    it('the bell: list carries sender + reference name, the badge counts, markRead(upToId) clears it', async () => {
+      const gid = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, date)
+         VALUES ('Bell Moment', 'group', $1, 'Sport', 'Wien', 10, NOW() - INTERVAL '1 day') RETURNING id`,
+        [A])).rows[0].id;
+      // The row shape Stream A's Hall-of-Fame likes use.
+      await db.query(
+        `INSERT INTO notifications (user_id, sender_id, type, title, reference_type, reference_id)
+         VALUES ($1, $2, 'hof_like', 'Ann gefällt „Bell Moment“', 'group', $3)`,
+        [E, A, gid]);
+
+      const list = await call(NC.getNotifications, { userId: E });
+      ok(list);
+      const like = list.body.find((n) => n.type === 'hof_like');
+      expect(like.sender).toMatchObject({ id: A });
+      expect(like.reference_name).toBe('Bell Moment');
+      expect(like.reference_gone).toBe(false);
+      const newsRow = list.body.find((n) => n.type === 'news');
+      expect(newsRow.sender).toBeNull();
+      expect(newsRow.link).toBe('/deal/1');
+
+      expect((await call(NC.getUnreadCount, { userId: E })).body.count).toBe(2);
+      // A row that arrives after the list was fetched stays unread.
+      const late = (await db.query(
+        `INSERT INTO notifications (user_id, type, title) VALUES ($1, 'news', 'Später') RETURNING id`, [E])).rows[0].id;
+      const newest = Math.max(...list.body.map((n) => n.id));
+      expect(late).toBeGreaterThan(newest);
+      ok(await call(NC.markRead, { userId: E, body: { upToId: newest } }));
+      expect((await call(NC.getUnreadCount, { userId: E })).body.count).toBe(1);
+
+      // Soft-deleting the group flips the row to "gone" (no tap target any more).
+      await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [gid]);
+      const after = await call(NC.getNotifications, { userId: E });
+      expect(after.body.find((n) => n.type === 'hof_like').reference_gone).toBe(true);
+    });
+  });
+
 });

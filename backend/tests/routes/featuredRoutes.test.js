@@ -40,6 +40,7 @@ vi.mock('../../src/controllers/adminController.js', () => stubs([
   'getBackupStatus', 'setUserActive', 'sendUserTestPush', 'removeUserAvatar',
 ]));
 vi.mock('../../src/controllers/feedbackController.js', () => stubs(['getFeedbackAdmin']));
+vi.mock('../../src/controllers/newsController.js', () => stubs(['getNewsAudience', 'listNews', 'sendNews']));
 
 const clubRoutes = (await import('../../src/routes/clubRoutes.js')).default;
 const adminRoutes = (await import('../../src/routes/adminRoutes.js')).default;
@@ -72,5 +73,12 @@ describe('admin routes', () => {
   it('the approval queue is untouched', async () => {
     expect(await handlerOf(request(app).get('/api/admin/clubs/pending'))).toBe('getPendingClubs');
     expect(await handlerOf(request(app).post('/api/admin/clubs/7/reject'))).toBe('rejectClub');
+  });
+
+  // "News an alle" (18.10.2026): the audience lives next to the list, both GET.
+  it('the news endpoints reach their own handlers', async () => {
+    expect(await handlerOf(request(app).get('/api/admin/news/audience'))).toBe('getNewsAudience');
+    expect(await handlerOf(request(app).get('/api/admin/news'))).toBe('listNews');
+    expect(await handlerOf(request(app).post('/api/admin/news').send({ title: 'x' }))).toBe('sendNews');
   });
 });

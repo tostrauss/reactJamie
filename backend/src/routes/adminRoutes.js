@@ -25,6 +25,7 @@ import {
 } from '../controllers/adminController.js';
 import { getFeedbackAdmin } from '../controllers/feedbackController.js';
 import { getFeaturedClubsAdmin, setFeaturedClubs } from '../controllers/featuredClubController.js';
+import { getNewsAudience, listNews, sendNews } from '../controllers/newsController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -76,5 +77,11 @@ router.post('/clubs/:id/reject',     rejectClub);
 // Clubs new users see right after onboarding, in this order (2026-10).
 router.get('/clubs/featured',        getFeaturedClubsAdmin);
 router.put('/clubs/featured',        setFeaturedClubs);
+
+// "News an alle" — JAMIE's channel into the bell on Home (Lea, 18.10.2026).
+// Audience first, so the dashboard can say how many people a send reaches.
+router.get('/news/audience',         getNewsAudience);
+router.get('/news',                  listNews);
+router.post('/news',                 sendNews);
 
 export default router;

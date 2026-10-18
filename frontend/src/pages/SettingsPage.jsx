@@ -19,6 +19,7 @@ import { RADIUS_OPTIONS_KM } from '../utils/geo';
 import { restorePurchases, openAppleSubscriptions } from '../utils/iap';
 import { PasswordInput } from '../components/PasswordInput';
 import { FeedbackModal } from '../components/FeedbackModal';
+import { NewsPushToggle } from '../components/NewsPushToggle';
 import { useAppVersion } from '../hooks/useAppVersion';
 import '../styles/profile.css';
 
@@ -984,6 +985,12 @@ export const SettingsPage = () => {
             <span className="settings-toggle-slider" />
           </label>
         </div>
+
+        {/* „Neuigkeiten & Deals" — the opt-in for JAMIE's news pushes (Lea,
+            18.10.2026), OFF by default (App Store Guideline 4.5.4). Outside the
+            pushSupported guard for the same reason as the rows above: it gates
+            APNs too. Reads its own value; hidden on servers that cannot store it. */}
+        <NewsPushToggle />
 
         {/* Umkreis — Play review „Suzkapu" (02.09.2026): „Filter für
             Benachrichtigungen etc. bezüglich Umkreis wären wichtig."

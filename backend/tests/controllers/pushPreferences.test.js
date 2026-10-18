@@ -11,7 +11,7 @@ vi.mock('../../src/config/sentry.js', () => ({
 vi.mock('../../src/config/redis.js', () => ({ redisClient: null, redisSubscriber: null }));
 
 const db = (await import('../../src/config/database.js')).default;
-const { updatePushPreferences } = await import('../../src/controllers/pushController.js');
+const { updatePushPreferences, getPushPreferences } = await import('../../src/controllers/pushController.js');
 
 const mockRes = () => {
   const res = {};
@@ -96,5 +96,66 @@ describe('updatePushPreferences', () => {
     expect(typeof res.json.mock.calls[0][0].error).toBe('string');
     expect(error).toHaveBeenCalledTimes(1);
     error.mockRestore();
+  });
+
+  // „Neuigkeiten & Deals" (18.10.2026): the opt-in for JAMIE's news pushes.
+  // It is a column the database may not have yet in the boot window, so it is
+  // only ever NAMED in SQL when the request is about it.
+  describe('push_news', () => {
+    it('is allowlisted and returned only when it was written', async () => {
+      db.query.mockResolvedValueOnce({ rows: [{ push_news: true }] });
+      const res = mockRes();
+      await updatePushPreferences(req({ push_news: true }), res);
+      const [sql, params] = db.query.mock.calls[0];
+      expect(sql).toContain('SET push_news = $2, updated_at');
+      expect(sql).toContain('notify_radius_km, push_news');
+      expect(params).toEqual([42, true]);
+      expect(res.json).toHaveBeenCalledWith({ push_news: true });
+    });
+
+    it('the other toggles never mention it — a missing column cannot break them', async () => {
+      db.query.mockResolvedValueOnce({ rows: [{ push_reminders: false }] });
+      const res = mockRes();
+      await updatePushPreferences(req({ push_reminders: false }), res);
+      expect(db.query.mock.calls[0][0]).not.toContain('push_news');
+    });
+
+    it('a string "true" is not consent', async () => {
+      const res = mockRes();
+      await updatePushPreferences(req({ push_news: 'true' }), res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(db.query).not.toHaveBeenCalled();
+    });
+
+    it('column missing (boot window) → 503 PREF_UNAVAILABLE, not a 500', async () => {
+      db.query.mockRejectedValueOnce(Object.assign(new Error('column "push_news" does not exist'), { code: '42703' }));
+      const res = mockRes();
+      await updatePushPreferences(req({ push_news: true }), res);
+      expect(res.status).toHaveBeenCalledWith(503);
+      expect(res.json.mock.calls[0][0].code).toBe('PREF_UNAVAILABLE');
+    });
+
+    it('GET reads the current value', async () => {
+      db.query.mockResolvedValueOnce({ rows: [{ push_news: true }] });
+      const res = mockRes();
+      await getPushPreferences(req(), res);
+      expect(db.query.mock.calls[0]).toEqual(['SELECT push_news FROM users WHERE id = $1', [42]]);
+      expect(res.json).toHaveBeenCalledWith({ push_news: true });
+    });
+
+    it('GET answers null while the column is missing, so the switch hides', async () => {
+      db.query.mockRejectedValueOnce(Object.assign(new Error('x'), { code: '42703' }));
+      const res = mockRes();
+      await getPushPreferences(req(), res);
+      expect(res.json).toHaveBeenCalledWith({ push_news: null });
+      expect(res.status).not.toHaveBeenCalled();
+    });
+
+    it('GET refuses guests without a query', async () => {
+      const res = mockRes();
+      await getPushPreferences({ userId: 0, isGuest: true }, res);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(db.query).not.toHaveBeenCalled();
+    });
   });
 });
