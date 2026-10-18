@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { groups, clubs, directMessages } from '../utils/api';
+import { groups, clubs, directMessages, friends as friendsApi } from '../utils/api';
 import { thumbUrl } from '../utils/images';
 import { SocketContext } from '../context/SocketContext';
 import { useToast } from '../context/ToastContext';
@@ -15,7 +15,8 @@ import '../styles/profile.css';
 //   Chats     — ONE merged list (groups + clubs + DMs) with 5 filter bubbles:
 //               Alle · Gruppen · Clubs · Freunde · Ungelesen
 //   Anfragen  — aggregated join-request swipe deck across every owned/managed
-//               group+club ("swipen soll süchtig machen" — Tina)
+//               group+club ("swipen soll süchtig machen" — Tina), plus the
+//               incoming friend requests (Lea, 18.10.2026)
 //   Verwalten — the caller's own groups/clubs with edit + request shortcuts
 const MAIN_TABS = ['chats', 'anfragen', 'verwalten'];
 const FILTERS = ['alle', 'gruppen', 'clubs', 'freunde', 'ungelesen'];
@@ -53,6 +54,10 @@ export const ChatList = () => {
   // pull-to-refresh) can replace `requests` at any moment without corrupting
   // the deck position — no index to go stale.
   const [requests, setRequests]           = useState([]);
+  // Incoming friend requests share the deck since 18.10.2026 — Lea: „Man
+  // bemerkt die Freundschaftsanfragen nicht, nur wenn man aufs eigene Profil
+  // schaut.“ Own snapshot, same processedIds rules as the join requests.
+  const [friendRequests, setFriendRequests] = useState([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
   const [processedIds, setProcessedIds]   = useState(() => new Set());
   const [processing, setProcessing]       = useState(false);
@@ -93,11 +98,15 @@ export const ChatList = () => {
     // Live join-request signal (2026-08-04): backend pings the owner's user
     // room on every new request — THE fix for the frozen "Anfragen (1)" badge.
     socket.on('join_request_update', handleJoinRequestUpdate);
+    // Same for friend requests (18.10.2026): pinged once a request to us is
+    // stored, and after we answered one on another device.
+    socket.on('friend_request_update', handleFriendRequestUpdate);
     return () => {
       socket.off('receive_message', handleNewGroupMessage);
       socket.off('group_message_notification', handleGroupNotification);
       socket.off('new_dm_notification', handleNewDM);
       socket.off('join_request_update', handleJoinRequestUpdate);
+      socket.off('friend_request_update', handleFriendRequestUpdate);
     };
   }, [socket]);
 
@@ -167,16 +176,30 @@ export const ChatList = () => {
     }
   };
 
-  const loadRequests = useCallback(async () => {
+  // Each kind refetches on its own: a socket ping for one never reloads the
+  // other, and a failed fetch keeps that kind's last snapshot.
+  const loadJoinRequests = useCallback(async () => {
     try {
       const res = await groups.getAllRequests();
       setRequests(res.data || []);
     } catch {
       // Non-fatal: tab shows its empty state; toast only spams here.
-    } finally {
-      setRequestsLoading(false);
     }
   }, []);
+
+  const loadFriendRequests = useCallback(async () => {
+    try {
+      const res = await friendsApi.getPending();
+      setFriendRequests(res.data || []);
+    } catch {
+      // Same as above — the deck keeps what it has.
+    }
+  }, []);
+
+  const loadRequests = useCallback(async () => {
+    await Promise.all([loadJoinRequests(), loadFriendRequests()]);
+    setRequestsLoading(false);
+  }, [loadJoinRequests, loadFriendRequests]);
 
   const formatTime = (dateStr) => {
     const date = new Date(dateStr);
@@ -251,13 +274,16 @@ export const ChatList = () => {
   const handleJoinRequestUpdate = (data) => {
     // Refetch the deck (cheap, deduped by processedIds — never corrupts the
     // deck position) and bump the per-chat chip immediately.
-    loadRequests();
+    loadJoinRequests();
     if (data?.group_id) {
       setGroupChats(prev => prev.map(c =>
         c.id === data.group_id ? { ...c, pendingRequests: (c.pendingRequests || 0) + 1 } : c
       ));
     }
   };
+
+  // The payload names no one on purpose — the pending list is the truth.
+  const handleFriendRequestUpdate = () => { loadFriendRequests(); };
 
   const openChat = (chat) => chat.isDM ? navigate(`/dm/${chat.id}`) : navigate(`/chat/${chat.id}`);
 
@@ -266,11 +292,37 @@ export const ChatList = () => {
   // (backend ON CONFLICT upsert), so id alone would keep the fresh incarnation
   // invisible for the rest of the session (review finding 2026-08-04). Stale
   // refetch races still dedupe correctly — a stale row carries the OLD
-  // updated_at and stays filtered.
-  const reqKey = (r) => `${r.id}:${r.updated_at}`;
+  // updated_at and stays filtered. A re-sent or restored friend request reuses
+  // its row the same way; the kind prefix keeps a friend request and a join
+  // request with the same id apart (two tables, two sequences).
+  const reqKey = (r) => `${r.kind || 'join'}:${r.id}:${r.updated_at}`;
+
+  // RequestCard renders the join-request payload (user_*). A friend request
+  // carries the same facts as requester_* — mapped once here, so the card,
+  // the next-card preview and the toasts need no second shape.
+  const friendCards = useMemo(() => [...friendRequests]
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    .map(f => ({
+      kind: 'friend',
+      id: f.id,
+      updated_at: f.updated_at,
+      user_id: f.requester_id,
+      user_name: f.requester_name,
+      user_avatar: f.requester_avatar,
+      user_age: f.requester_age,
+      user_trusted: f.requester_trusted,
+      user_interests: f.requester_interests,
+      user_attendance_step: f.requester_attendance_step,
+    })), [friendRequests]);
+
+  // Order: friend requests FIRST, then the join requests as before — each
+  // kind oldest first, the deck's "wer am längsten wartet, kommt zuerst dran".
+  // Friend requests lead because they are what went unnoticed (Lea), there
+  // are only ever a few, and a swipe each costs a club owner nothing; behind
+  // a backlog of 30 join requests they would be buried again.
   const deck = useMemo(
-    () => requests.filter(r => !processedIds.has(reqKey(r))),
-    [requests, processedIds]
+    () => [...friendCards, ...requests].filter(r => !processedIds.has(reqKey(r))),
+    [friendCards, requests, processedIds]
   );
   const current = deck[0];
   const nextReq = deck[1];
@@ -283,9 +335,24 @@ export const ChatList = () => {
     return next;
   });
 
-  // Route the action to the right API by entity type — club requests may be
-  // handled by co-managers, which the group endpoint would 403.
-  const apiFor = (r) => (r.group_type === 'club' ? clubs : groups);
+  const isFriend = (r) => r.kind === 'friend';
+
+  // Route the action to the right API by card kind — friend requests to the
+  // friendship endpoints; club requests to the club one, since co-managers
+  // may handle those and the group endpoint would 403. All take
+  // accept / reject / undo.
+  const respond = (r, action) => (isFriend(r)
+    ? friendsApi.respondRequest(r.id, action)
+    : (r.group_type === 'club' ? clubs : groups).handleRequest(r.group_id, r.id, action));
+
+  // A friend request's error never shows the server text (the friendship
+  // endpoints answer in English). 404 = no longer open: answered on another
+  // device, expired after 30 days, or the sender is gone. Say that, and
+  // refetch so the stale card leaves the deck.
+  const friendRequestFailed = (err, fallbackKey) => {
+    toast.error(err.response?.status === 404 ? t('chat.list.toast.requestGone') : t(fallbackKey));
+    loadFriendRequests();
+  };
 
   const decrementChatChip = (groupId) => setGroupChats(prev => prev.map(c =>
     c.id === groupId ? { ...c, pendingRequests: Math.max(0, (c.pendingRequests || 0) - 1) } : c
@@ -296,13 +363,16 @@ export const ChatList = () => {
     const r = current;
     setProcessing(true);
     try {
-      await apiFor(r).handleRequest(r.group_id, r.id, 'accept');
+      await respond(r, 'accept');
       markProcessed(reqKey(r));
-      decrementChatChip(r.group_id);
+      if (!isFriend(r)) decrementChatChip(r.group_id);
       resetDrag();
-      toast.success(t('chat.list.toast.requestAccepted', { name: r.user_name }));
+      toast.success(isFriend(r)
+        ? t('chat.list.toast.friendAccepted', { name: r.user_name })
+        : t('chat.list.toast.requestAccepted', { name: r.user_name }));
     } catch (err) {
-      toast.error(err.response?.data?.error || t('chat.list.toast.requestAcceptError'));
+      if (isFriend(r)) friendRequestFailed(err, 'chat.list.toast.requestAcceptError');
+      else toast.error(err.response?.data?.error || t('chat.list.toast.requestAcceptError'));
     } finally {
       setProcessing(false);
     }
@@ -313,27 +383,34 @@ export const ChatList = () => {
     const r = current;
     setProcessing(true);
     try {
-      await apiFor(r).handleRequest(r.group_id, r.id, 'reject');
+      await respond(r, 'reject');
       markProcessed(reqKey(r));
-      decrementChatChip(r.group_id);
+      if (!isFriend(r)) decrementChatChip(r.group_id);
       resetDrag();
       // Undoable — revert a mis-swipe (established pattern, Tobi 2026-07-31).
       toast.showUndo(
-        t('chat.list.toast.requestDeclined', { name: r.user_name }),
+        isFriend(r)
+          ? t('chat.list.toast.friendDeclined', { name: r.user_name })
+          : t('chat.list.toast.requestDeclined', { name: r.user_name }),
         async () => {
           try {
-            await apiFor(r).handleRequest(r.group_id, r.id, 'undo');
+            await respond(r, 'undo');
             unmarkProcessed(reqKey(r));
             // Restore the chip AND refetch: if a socket ping refreshed the
             // snapshot between decline and undo, the rejected row is gone from
             // `requests` — without the refetch the card would never reappear
             // (review finding 2026-08-04). Note the undone row keeps its
             // updated_at from the undo, so the refetched incarnation is
-            // visible regardless of the local unmark.
-            setGroupChats(prev => prev.map(c =>
-              c.id === r.group_id ? { ...c, pendingRequests: (c.pendingRequests || 0) + 1 } : c
-            ));
-            loadRequests();
+            // visible regardless of the local unmark. Friend requests: the
+            // same, without a chip.
+            if (isFriend(r)) {
+              loadFriendRequests();
+            } else {
+              setGroupChats(prev => prev.map(c =>
+                c.id === r.group_id ? { ...c, pendingRequests: (c.pendingRequests || 0) + 1 } : c
+              ));
+              loadJoinRequests();
+            }
           } catch {
             toast.error(t('chat.list.toast.requestDeclineError'));
           }
@@ -341,7 +418,8 @@ export const ChatList = () => {
         t('common.undo')
       );
     } catch (err) {
-      toast.error(err.response?.data?.error || t('chat.list.toast.requestDeclineError'));
+      if (isFriend(r)) friendRequestFailed(err, 'chat.list.toast.requestDeclineError');
+      else toast.error(err.response?.data?.error || t('chat.list.toast.requestDeclineError'));
     } finally {
       setProcessing(false);
     }
@@ -703,12 +781,19 @@ export const ChatList = () => {
                   />
                 </div>
 
-                {/* WHICH group/club the request is for */}
+                {/* WHICH group/club the request is for — or, in place of the
+                    group badge, that it is a friend request. */}
                 <div className="requests-deck-group">
-                  <span className={`chat-type-badge ${current.group_type === 'club' ? 'club-badge' : 'group-badge'}`}>
-                    {current.group_type === 'club' ? t('chat.list.filters.clubOne') : t('chat.list.filters.groupOne')}
-                  </span>
-                  <span className="requests-deck-group-name">{current.group_name}</span>
+                  {isFriend(current) ? (
+                    <span className="chat-type-badge friend-badge">{t('chat.list.requestsTab.friendLabel')}</span>
+                  ) : (
+                    <>
+                      <span className={`chat-type-badge ${current.group_type === 'club' ? 'club-badge' : 'group-badge'}`}>
+                        {current.group_type === 'club' ? t('chat.list.filters.clubOne') : t('chat.list.filters.groupOne')}
+                      </span>
+                      <span className="requests-deck-group-name">{current.group_name}</span>
+                    </>
+                  )}
                 </div>
 
                 <div

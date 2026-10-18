@@ -775,7 +775,8 @@
         "doneText_one": "Tu as traité {{count}} demande 🎉",
         "doneText_other": "Tu as traité {{count}} demandes 🎉",
         "emptyTitle": "Aucune demande en attente",
-        "emptyText": "Les nouvelles demandes d'adhésion à tes groupes et clubs apparaîtront ici."
+        "emptyText": "Les nouvelles demandes d'amitié et les demandes d'adhésion à tes groupes et clubs apparaîtront ici.",
+        "friendLabel": "Demande d'amitié"
       },
       "manage": {
         "edit": "Modifier",
@@ -824,6 +825,9 @@
         "requestAcceptError": "Erreur lors de l'acceptation",
         "requestDeclined": "{{name}} a été refusé·e",
         "requestDeclineError": "Erreur lors du refus",
+        "friendAccepted": "{{name}} et toi êtes maintenant amis !",
+        "friendDeclined": "Demande d'amitié de {{name}} refusée",
+        "requestGone": "Cette demande n'est plus en attente.",
         "archiveError": "Le chat n'a pas pu être masqué"
       },
       "requestsModal": {

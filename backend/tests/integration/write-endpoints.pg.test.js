@@ -172,6 +172,7 @@ suite('write endpoints against real Postgres', () => {
       createGroup: g.createGroup, updateGroup: g.updateGroup, createClub: c.createClub,
       inviteMember: g.inviteMember,
       sendFriendRequest: f.sendFriendRequest, respondFriendRequest: f.respondFriendRequest,
+      getPendingRequests: f.getPendingRequests,
       removeFriend: f.removeFriend, blockUser: f.blockUser, unblockUser: f.unblockUser,
       sendDM: dm.sendDM, submitReview: rv.submitReview, getPendingReviews: rv.getPendingReviews,
       createDeal: dl.createDeal, redeemDeal: dl.redeemDeal, applyBoost: bo.applyBoost,
@@ -508,6 +509,36 @@ suite('write endpoints against real Postgres', () => {
                               WHERE (requester_id=$1 AND addressee_id=$2)
                                  OR (requester_id=$2 AND addressee_id=$1)`, [B, D]);
     expect(r.rows).toEqual([{ status: 'pending' }]);
+  });
+  // Chat → Anfragen shows friend requests next to join requests (Lea,
+  // 18.10.2026). The pending list must carry what RequestCard renders (the
+  // unit tests mock the SQL — only a real Postgres proves the new columns),
+  // and reject + undo must hand the deck a NEW updated_at, its dedupe key, or
+  // the restored request would stay hidden for the rest of the session.
+  // Leaves B → D pending, as the case above did.
+  it('getPendingRequests carries interests, the seal and the Abzeichen-Stufe; undo refreshes updated_at', async () => {
+    const mine = async () => {
+      const res = await call(C.getPendingRequests, { userId: D });
+      ok(res);
+      return res.body.find(r => r.requester_id === B);
+    };
+    const row = await mine();
+    expect(row).toBeTruthy();
+    expect(row).toHaveProperty('requester_interests');
+    expect(row).toHaveProperty('requester_trusted');
+    expect(row).toHaveProperty('requester_name', 'Bea');
+    expect(row.requester_attendance_step).toBe(0);
+    expect(row.requester_attendance_tier).toBe(0);
+
+    const pings = () => emitted.filter(e => e.ev === 'friend_request_update').length;
+    const before = pings();
+    ok(await call(C.respondFriendRequest, { userId: D, params: { requestId: String(row.id) }, body: { action: 'reject' } }));
+    expect(await mine()).toBeUndefined();
+    ok(await call(C.respondFriendRequest, { userId: D, params: { requestId: String(row.id) }, body: { action: 'undo' } }));
+    const restored = await mine();
+    expect(restored.id).toBe(row.id);
+    expect(new Date(restored.updated_at).getTime()).toBeGreaterThan(new Date(row.updated_at).getTime());
+    expect(pings()).toBe(before + 2); // after each stored write, nothing else
   });
 
   // ── group chat (messageController — the hottest write path, audit risk #6) ─

@@ -775,7 +775,8 @@
         "doneText_one": "Has gestionado {{count}} solicitud 🎉",
         "doneText_other": "Has gestionado {{count}} solicitudes 🎉",
         "emptyTitle": "No hay solicitudes pendientes",
-        "emptyText": "Las nuevas solicitudes para tus grupos y clubes aparecerán aquí."
+        "emptyText": "Las nuevas solicitudes de amistad y las solicitudes para tus grupos y clubes aparecerán aquí.",
+        "friendLabel": "Solicitud de amistad"
       },
       "manage": {
         "edit": "Editar",
@@ -824,6 +825,9 @@
         "requestAcceptError": "Error al aceptar",
         "requestDeclined": "{{name}} ha sido rechazado",
         "requestDeclineError": "Error al rechazar",
+        "friendAccepted": "¡Tú y {{name}} ya sois amigos!",
+        "friendDeclined": "Solicitud de amistad de {{name}} rechazada",
+        "requestGone": "Esta solicitud ya no está pendiente.",
         "archiveError": "El chat no se pudo ocultar"
       },
       "requestsModal": {

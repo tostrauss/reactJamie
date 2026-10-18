@@ -1,6 +1,19 @@
 import db from '../config/database.js';
 import { sendPushToUser } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
+import { attachAttendanceTiers } from '../utils/attendanceTiers.js';
+
+// Live signal for the Anfragen deck on the chat page, which shows incoming
+// friend requests next to join requests since Lea's feedback (18.10.2026:
+// „Man bemerkt die Freundschaftsanfragen nicht“). Called only AFTER the write
+// succeeded. The payload names no one — the deck refetches
+// GET /friends/requests/pending, which applies every rule — and a failing
+// emit never turns a stored request into an error.
+const pingFriendRequests = (req, userId, action) => {
+  try {
+    req.app?.get('io')?.to(`user_${userId}`).emit('friend_request_update', { action });
+  } catch { /* the deck refetches on its next visit anyway */ }
+};
 
 // ==========================================
 // SEND FRIEND REQUEST
@@ -44,6 +57,7 @@ export const sendFriendRequest = async (req, res) => {
         [req.userId, userId, f.id]
       );
       notifyFriendRequest(req.userId, userId).catch(() => {});
+      pingFriendRequests(req, userId, 'received');
       return res.json({ message: 'Friend request sent', status: 'pending' });
     }
 
@@ -64,6 +78,7 @@ export const sendFriendRequest = async (req, res) => {
     }
 
     notifyFriendRequest(req.userId, userId).catch(() => {});
+    pingFriendRequests(req, userId, 'received');
     res.status(201).json({ message: 'Friend request sent' });
   } catch (error) {
     console.error('Error sending friend request:', error);
@@ -94,6 +109,10 @@ export const respondFriendRequest = async (req, res) => {
       if (restored.rows.length === 0) {
         return res.status(404).json({ error: 'Friend request not found' });
       }
+      // The answering side's own room only (here and below): keeps the deck
+      // on their other devices in step. The requester is never told — a
+      // rejection stays as silent as it always was.
+      pingFriendRequests(req, req.userId, 'restored');
       return res.json({ message: 'Friend request restored', status: 'pending' });
     }
 
@@ -117,6 +136,7 @@ export const respondFriendRequest = async (req, res) => {
     if (action === 'accept') {
       notifyFriendAccepted(req.userId, request.rows[0].requester_id).catch(() => {});
     }
+    pingFriendRequests(req, req.userId, newStatus);
 
     res.json({ message: `Friend request ${newStatus}`, status: newStatus });
   } catch (error) {
@@ -128,19 +148,31 @@ export const respondFriendRequest = async (req, res) => {
 // ==========================================
 // GET PENDING FRIEND REQUESTS (incoming)
 // ==========================================
+// Feeds the Friends page AND, since 18.10.2026, the chat page's Anfragen deck
+// (Lea). The deck renders the same RequestCard as for a join request, so the
+// row carries the same facts about the person: interests, the trusted seal
+// and the Abzeichen-Stufe (requester_attendance_step; _tier is the old
+// bundles' scale). updated_at (in f.*) is the deck's dedupe key: a re-sent or
+// restored request reuses its row id.
 export const getPendingRequests = async (req, res) => {
   try {
     const result = await db.query(
       `SELECT f.*, u.name as requester_name, u.avatar_url as requester_avatar,
               u.bio as requester_bio, u.location as requester_location,
-              EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS requester_age
+              EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS requester_age,
+              u.interests AS requester_interests,
+              u.is_trusted_user AS requester_trusted
        FROM friendships f
        JOIN users u ON f.requester_id = u.id
        WHERE f.addressee_id = $1 AND f.status = 'pending'
        ORDER BY f.created_at DESC LIMIT 100`,
       [req.userId]
     );
-    res.json(result.rows);
+    // Steps only for the rows this answer returns. Blocks need no extra
+    // filter: a pair has ONE friendships row (uniq_friend_pair) and a block
+    // overwrites it, so a pending request never coexists with a block in
+    // either direction.
+    res.json(await attachAttendanceTiers(db, result.rows, { idKey: 'requester_id', field: 'requester_attendance_tier' }));
   } catch (error) {
     console.error('Error fetching friend requests:', error);
     res.status(500).json({ error: 'Interner Serverfehler' });
