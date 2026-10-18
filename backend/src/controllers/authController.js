@@ -1078,7 +1078,7 @@ export const deleteAccount = async (req, res) => {
 // ==========================================
 export const exportData = async (req, res) => {
   try {
-    const [userRes, groupsRes, messagesRes, friendsRes, pollVotesRes] = await Promise.all([
+    const [userRes, groupsRes, messagesRes, friendsRes, pollVotesRes, photosRes, hofRes, newsPrefRes] = await Promise.all([
       db.query(
         // motivations ("Was trifft zu?") are personal data like the rest of
         // the profile — via the boot-window-safe read (utils/motivations.js).
@@ -1118,17 +1118,38 @@ export const exportData = async (req, res) => {
       // Own poll votes (B1). Its own catch: the poll tables are optional, and
       // the export must not fail while they are missing.
       db.query(POLL_SQL.export, [req.userId]).catch(() => ({ rows: [] })),
+      // Hall of Fame (18.10.2026): photos the user added to events, and the
+      // events kept in their history after leaving. Same own-catch rule.
+      db.query(
+        `SELECT ep.url, ep.created_at, g.name AS event_name, g.date AS event_date
+           FROM event_photos ep JOIN groups g ON g.id = ep.group_id
+          WHERE ep.user_id = $1 ORDER BY ep.created_at DESC`,
+        [req.userId]
+      ).catch(() => ({ rows: [] })),
+      db.query(
+        `SELECT g.name AS event_name, g.date AS event_date, h.created_at AS recorded_at
+           FROM hall_of_fame_entries h JOIN groups g ON g.id = h.group_id
+          WHERE h.user_id = $1 ORDER BY h.created_at DESC`,
+        [req.userId]
+      ).catch(() => ({ rows: [] })),
+      // News-push consent (18.10.2026) — outside the profile SELECT so a
+      // not-yet-migrated column cannot fail the whole export.
+      db.query('SELECT push_news FROM users WHERE id = $1', [req.userId]).catch(() => ({ rows: [] })),
     ]);
 
     res.json({
       // Note: all timestamps are UTC (ISO-8601 "Z"). Local time = UTC + your
       // timezone offset (e.g. Austria is UTC+2 in summer).
       exported_at: new Date().toISOString(),
-      profile: userRes.rows[0] || null,
+      profile: userRes.rows[0]
+        ? { ...userRes.rows[0], push_news: newsPrefRes.rows[0]?.push_news ?? false }
+        : null,
       groups: groupsRes.rows,
       messages: messagesRes.rows,
       friends: friendsRes.rows,
       poll_votes: pollVotesRes.rows,
+      event_photos: photosRes.rows,
+      hall_of_fame_kept_events: hofRes.rows,
     });
   } catch (error) {
     console.error('exportData error:', error);

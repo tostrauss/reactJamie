@@ -4219,4 +4219,166 @@ suite('write endpoints against real Postgres', () => {
     });
   });
 
+
+  // ── Hall of Fame (Lea, 18.10.2026) ─────────────────────────────────────────
+  // The SQL here is the risky part — Vienna-day comparisons, an uncorrelated
+  // participation subquery, a CTE in the wall, json_agg — which the unit tests
+  // only ever see as strings. A = owner/admin, L leaves after the meetup,
+  // M stays, Q is an outsider.
+  describe('Hall of Fame (Lea, 18.10.2026)', () => {
+    let H, G;
+    let L, M, Q;
+    let ev, privEv, deletedAfter, deletedBefore, cancelled, future, reviewedOnly;
+    const photo = (n) => `https://app.jamie-app.com/media/uploads/hof-${n}.webp`;
+    const until = async (fn, ms = 3000) => {
+      const t0 = Date.now();
+      for (;;) {
+        const v = await fn();
+        if (v || Date.now() - t0 > ms) return v;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    };
+
+    beforeAll(async () => {
+      H = await import('../../src/controllers/hallOfFameController.js');
+      G = await import('../../src/controllers/groupController.js');
+      const mk = async (email, name) => (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ($1, $2, '1995-01-01', 'female', $3, TRUE, 'email') RETURNING id`,
+        [email, name, avatar])).rows[0].id;
+      L = await mk('smoke-hof-l@x.com', 'Lea');
+      M = await mk('smoke-hof-m@x.com', 'Mia');
+      Q = await mk('smoke-hof-q@x.com', 'Quinn');
+      const mkGroup = async (name, { daysAgo = 3, isPrivate = false, members = [L, M] } = {}) => {
+        const id = (await db.query(
+          `INSERT INTO groups (name, type, date, owner_id, category, location, max_members, is_private, image_url)
+           VALUES ($1, 'group', NOW() - ($2 || ' days')::interval, $3, 'Sport', 'Wien', 10, $4, $5) RETURNING id`,
+          [name, String(daysAgo), A, isPrivate, avatar])).rows[0].id;
+        await db.query(
+          `INSERT INTO group_members (group_id, user_id, role, joined_at) VALUES ($1, $2, 'owner', NOW() - INTERVAL '20 days')`,
+          [id, A]);
+        for (const uid of members) {
+          await db.query(
+            `INSERT INTO group_members (group_id, user_id, role, joined_at) VALUES ($1, $2, 'member', NOW() - INTERVAL '20 days')`,
+            [id, uid]);
+        }
+        return id;
+      };
+      ev = await mkGroup('HoF Wandern');
+      privEv = await mkGroup('HoF Privat', { isPrivate: true });
+      deletedAfter = await mkGroup('HoF später gelöscht');
+      deletedBefore = await mkGroup('HoF vorher gelöscht');
+      cancelled = await mkGroup('HoF abgesagt');
+      future = await mkGroup('HoF Zukunft', { daysAgo: -3 });
+      reviewedOnly = await mkGroup('HoF nur Review', { members: [M] });
+      // Deleted today, the event was three days ago → stays. Deleted the day
+      // before its date → never happened. Cancelled → gone.
+      await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [deletedAfter]);
+      await db.query(`UPDATE groups SET deleted_at = date - INTERVAL '1 day' WHERE id = $1`, [deletedBefore]);
+      await db.query('UPDATE groups SET is_active = FALSE WHERE id = $1', [cancelled]);
+      // L left "HoF nur Review" before hall_of_fame_entries existed: no
+      // membership row, no entry — only their own answer in the review round.
+      await db.query(
+        `INSERT INTO event_reviews (group_id, reviewer_id, reviewed_user_id, was_present)
+         VALUES ($1, $2, $2, TRUE)`,
+        [reviewedOnly, L]);
+    });
+
+    it('leaving after the meetup keeps it; cancelled, future and deleted-before events stay out', async () => {
+      ok(await call(G.leaveGroup, { userId: L, params: { id: String(ev) } }));
+      const kept = await db.query('SELECT 1 FROM hall_of_fame_entries WHERE user_id = $1 AND group_id = $2', [L, ev]);
+      expect(kept.rowCount).toBe(1);
+
+      const own = await call(H.getUserHallOfFame, { userId: L, params: { id: 'me' } });
+      ok(own);
+      expect(own.body.map((e) => e.name).sort()).toEqual(
+        ['HoF Privat', 'HoF Wandern', 'HoF nur Review', 'HoF später gelöscht'].sort());
+      expect(own.body.find((e) => e.id === deletedAfter).is_deleted).toBe(true);
+      expect(own.body.find((e) => e.id === ev).cover_url).toBe(avatar);
+      expect(own.body.some((e) => [deletedBefore, cancelled, future].includes(e.id))).toBe(false);
+      expect(own.body.some((e) => e.id === privEv)).toBe(true);
+    });
+
+    it('somebody else sees only the public events, and nothing across a block', async () => {
+      const other = await call(H.getUserHallOfFame, { userId: Q, params: { id: String(L) } });
+      ok(other);
+      expect(other.body.map((e) => e.name).sort()).toEqual(
+        ['HoF Wandern', 'HoF nur Review', 'HoF später gelöscht'].sort());
+      expect(other.body.some((e) => e.id === privEv)).toBe(false);
+
+      await db.query(`INSERT INTO friendships (requester_id, addressee_id, status) VALUES ($1, $2, 'blocked')`, [Q, L]);
+      const blocked = await call(H.getUserHallOfFame, { userId: Q, params: { id: String(L) } });
+      expect(blocked.statusCode).toBe(404);
+      await db.query('DELETE FROM friendships WHERE requester_id = $1 AND addressee_id = $2', [Q, L]);
+    });
+
+    it('participants — also one who left afterwards — add photos; an outsider cannot', async () => {
+      const byM = await call(H.addEventPhoto, { userId: M, params: { id: String(ev) }, body: { url: photo('m1') } });
+      expect(byM.statusCode, JSON.stringify(byM.body)).toBe(201);
+      const byL = await call(H.addEventPhoto, { userId: L, params: { id: String(ev) }, body: { url: photo('l1') } });
+      expect(byL.statusCode, JSON.stringify(byL.body)).toBe(201);
+      const byQ = await call(H.addEventPhoto, { userId: Q, params: { id: String(ev) }, body: { url: photo('q1') } });
+      expect(byQ.statusCode).toBe(403);
+      const onFuture = await call(H.addEventPhoto, { userId: M, params: { id: String(future) }, body: { url: photo('f') } });
+      expect(onFuture.statusCode).toBe(404);
+
+      // Own Hall of Fame: the own photo becomes the cover.
+      const own = await call(H.getUserHallOfFame, { userId: M, params: { id: 'me' } });
+      expect(own.body.find((e) => e.id === ev).cover_url).toBe(photo('m1'));
+    });
+
+    it('the Explore wall carries the photos and who may add one', async () => {
+      const wall = await call(G.getHallOfFame, { userId: M, query: { limit: '60' } });
+      ok(wall);
+      const card = wall.body.find((c) => c.id === ev);
+      expect(card).toBeTruthy();
+      expect(card.photo_count).toBe(2);
+      expect(card.photos.map((p) => p.url)).toEqual([photo('l1'), photo('m1')]);
+      expect(card.photos[0].user_name).toBe('Lea');
+      expect(card).toMatchObject({ is_participant: true, my_photo_count: 1, can_add_photo: true });
+
+      const guest = await call(G.getHallOfFame, { query: { limit: '60' } });
+      ok(guest);
+      expect(guest.body.find((c) => c.id === ev)).toMatchObject({ is_participant: false, can_add_photo: false });
+    });
+
+    it('the gallery lists every photo with delete rights; only uploader, owner or admin may delete', async () => {
+      const asOwner = await call(H.getEventPhotos, { userId: A, params: { id: String(ev) } });
+      ok(asOwner);
+      expect(asOwner.body).toHaveLength(2);
+      expect(asOwner.body.every((p) => p.can_delete)).toBe(true);
+      const asQ = await call(H.getEventPhotos, { userId: Q, params: { id: String(ev) } });
+      expect(asQ.body.every((p) => !p.can_delete)).toBe(true);
+
+      const mine = asOwner.body.find((p) => p.url === photo('m1'));
+      expect((await call(H.deleteEventPhoto, { userId: Q, params: { id: String(ev), photoId: String(mine.id) } })).statusCode).toBe(403);
+      ok(await call(H.deleteEventPhoto, { userId: M, params: { id: String(ev), photoId: String(mine.id) } }));
+      ok(await call(H.addEventPhoto, { userId: M, params: { id: String(ev) }, body: { url: photo('m2') } }));
+    });
+
+    it('a like puts a bell row at the owner and every photo contributor, once a day', async () => {
+      const rowsFor = async () => (await db.query(
+        `SELECT user_id FROM notifications WHERE type = 'hof_like' AND sender_id = $1 AND reference_id = $2 ORDER BY user_id`,
+        [Q, ev])).rows.map((r) => r.user_id);
+      const expected = [A, L, M].sort((x, y) => x - y);
+
+      ok(await call(G.toggleLike, { userId: Q, params: { id: String(ev) } }));
+      const got = await until(async () => { const r = await rowsFor(); return r.length === 3 ? r : null; });
+      expect(got).toEqual(expected);
+
+      ok(await call(G.toggleLike, { userId: Q, params: { id: String(ev) } }));   // unlike
+      ok(await call(G.toggleLike, { userId: Q, params: { id: String(ev) } }));   // like again
+      await new Promise((r) => setTimeout(r, 300));
+      expect(await rowsFor()).toEqual(expected);
+    });
+
+    it('the data export carries the own event photos and the events kept after leaving', async () => {
+      const exp = await call(C.exportData, { userId: L });
+      ok(exp);
+      expect(exp.body.event_photos.map((p) => p.url)).toEqual([photo('l1')]);
+      expect(exp.body.hall_of_fame_kept_events.map((e) => e.event_name)).toEqual(['HoF Wandern']);
+      expect(exp.body.profile.push_news).toBe(false);
+    });
+  });
+
 });
