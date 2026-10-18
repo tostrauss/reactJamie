@@ -22,6 +22,14 @@ import {
 } from '../utils/joinAttempts.js';
 import { stampDelivered } from '../utils/readReceipts.js';
 import { attachAttendanceTiers } from '../utils/attendanceTiers.js';
+import {
+  recordHallOfFameEntry,
+  insertHofLikeNotifications,
+  participatedIdsSql,
+  isMissingRelation,
+  MAX_PHOTOS_PER_USER,
+  MAX_PHOTOS_PER_EVENT,
+} from '../utils/hallOfFame.js';
 
 const GROUPS_TTL  = 30_000;  // 30 s — acceptable staleness for list views
 
@@ -849,14 +857,8 @@ export const getHallOfFame = async (req, res) => {
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
     const callerId = req.userId || 0;
 
-    const result = await db.query(
-      `SELECT g.id, g.name, g.category, g.date, g.location, g.image_url,
-              g.moment_photo_url, g.owner_id, g.members_count, g.type,
-              u.name AS owner_name, u.avatar_url AS owner_avatar,
-              (SELECT COUNT(*) FROM event_likes el WHERE el.group_id = g.id)::int AS like_count
-         FROM groups g
-         LEFT JOIN users u ON u.id = g.owner_id
-        WHERE g.is_active = TRUE
+    // Shared by both shapes below.
+    const baseWhere = `g.is_active = TRUE
           AND g.deleted_at IS NULL
           AND g.type IN ('group', 'event')
           AND g.date IS NOT NULL
@@ -865,23 +867,89 @@ export const getHallOfFame = async (req, res) => {
           -- stays permanently in the past, so the old client-side isPast()
           -- treated a still-running weekly meetup as a finished event.
           AND g.is_recurring_weekly IS NOT TRUE
-          AND g.did_not_take_place = FALSE
+          AND g.did_not_take_place = FALSE`;
+    // The caller's OWN past events, photo or not: this card is the only place a
+    // moment can be uploaded, and the push that sends owners here must always
+    // find something to act on. Covers the two cases the imminent-first feed
+    // ordering does not — a late-evening event pushed after midnight, and a
+    // full event.
+    const ownerOwn = '($1::int > 0 AND g.owner_id = $1::int)';
+    const order = `ORDER BY (g.owner_id = $1::int AND g.moment_photo_url IS NULL) DESC,
+                 g.date DESC, g.id DESC
+        LIMIT $2 OFFSET $3`;
+
+    // Participant photos (Lea, 18.10.2026): every participant may add photos
+    // to the card, not only the owner's one moment. A card with participant
+    // photos shows up even without a moment or image, and a participant sees
+    // their own photoless events of the last 30 days — otherwise nobody could
+    // ever add the FIRST photo to one. Up to 8 photos ride along for the card;
+    // the gallery loads the rest (GET /groups/:id/photos).
+    const runWall = () => db.query(
+      `/* hall-of-fame:wall */
+       WITH mine AS ${participatedIdsSql('$1')}
+       SELECT g.id, g.name, g.category, g.date, g.location, g.image_url,
+              g.moment_photo_url, g.owner_id, g.members_count, g.type,
+              u.name AS owner_name, u.avatar_url AS owner_avatar,
+              (SELECT COUNT(*) FROM event_likes el WHERE el.group_id = g.id)::int AS like_count,
+              COALESCE(ph.photos, '[]'::json) AS photos,
+              (SELECT COUNT(*) FROM event_photos ep WHERE ep.group_id = g.id)::int AS photo_count,
+              (SELECT COUNT(*) FROM event_photos ep WHERE ep.group_id = g.id AND ep.user_id = $1::int)::int AS my_photo_count,
+              ($1::int > 0 AND g.id IN (SELECT group_id FROM mine)) AS is_participant
+         FROM groups g
+         LEFT JOIN users u ON u.id = g.owner_id
+         LEFT JOIN LATERAL (
+           SELECT json_agg(json_build_object(
+                    'id', p.id, 'url', p.url, 'user_id', p.user_id,
+                    'user_name', pu.name, 'created_at', p.created_at)
+                  ORDER BY p.created_at DESC, p.id DESC) AS photos
+             FROM (SELECT ep.id, ep.url, ep.user_id, ep.created_at
+                     FROM event_photos ep WHERE ep.group_id = g.id
+                    ORDER BY ep.created_at DESC, ep.id DESC LIMIT 8) p
+             LEFT JOIN users pu ON pu.id = p.user_id
+         ) ph ON TRUE
+        WHERE ${baseWhere}
           AND (
             g.moment_photo_url IS NOT NULL
             OR g.image_url IS NOT NULL
-            -- The caller's OWN past events, photo or not: this card is the only
-            -- place a moment can be uploaded, and the push that sends owners
-            -- here must always find something to act on. Covers the two cases
-            -- the imminent-first feed ordering does not — a late-evening event
-            -- pushed after midnight, and a full event.
-            OR ($1::int > 0 AND g.owner_id = $1::int)
+            OR ${ownerOwn}
+            OR EXISTS (SELECT 1 FROM event_photos ep WHERE ep.group_id = g.id)
+            OR ($1::int > 0 AND g.date > NOW() - INTERVAL '30 days' AND g.id IN (SELECT group_id FROM mine))
           )
-        ORDER BY (g.owner_id = $1::int AND g.moment_photo_url IS NULL) DESC,
-                 g.date DESC, g.id DESC
-        LIMIT $2 OFFSET $3`,
+        ${order}`,
       [callerId, limit, offset]
     );
-    res.json(result.rows);
+    // Boot window (event_photos / hall_of_fame_entries not created yet): the
+    // wall as it was, without participant photos.
+    const runLegacy = () => db.query(
+      `SELECT g.id, g.name, g.category, g.date, g.location, g.image_url,
+              g.moment_photo_url, g.owner_id, g.members_count, g.type,
+              u.name AS owner_name, u.avatar_url AS owner_avatar,
+              (SELECT COUNT(*) FROM event_likes el WHERE el.group_id = g.id)::int AS like_count
+         FROM groups g
+         LEFT JOIN users u ON u.id = g.owner_id
+        WHERE ${baseWhere}
+          AND (
+            g.moment_photo_url IS NOT NULL
+            OR g.image_url IS NOT NULL
+            OR ${ownerOwn}
+          )
+        ${order}`,
+      [callerId, limit, offset]
+    );
+
+    let rows;
+    try {
+      rows = (await runWall()).rows.map(r => ({
+        ...r,
+        can_add_photo: !!r.is_participant
+          && r.my_photo_count < MAX_PHOTOS_PER_USER
+          && r.photo_count < MAX_PHOTOS_PER_EVENT,
+      }));
+    } catch (err) {
+      if (!isMissingRelation(err)) throw err;
+      rows = (await runLegacy()).rows;
+    }
+    res.json(rows);
   } catch (err) {
     console.error('Error fetching hall of fame:', err);
     res.status(500).json({ error: 'Hall of Fame konnte nicht geladen werden' });
@@ -1607,6 +1675,10 @@ export const leaveGroup = async (req, res) => {
       return res.status(400).json({ error: 'Als Ersteller kannst du die Gruppe nicht verlassen – lösche sie stattdessen.' });
     }
 
+    // Leaving after the meetup must not take it out of the leaver's Hall of
+    // Fame (Lea, 18.10.2026) — record it while the membership row still exists.
+    await recordHallOfFameEntry(db, id, req.userId);
+
     const result = await db.query(
       'DELETE FROM group_members WHERE group_id = $1 AND user_id = $2',
       [id, req.userId]
@@ -1713,6 +1785,10 @@ export const toggleLike = async (req, res) => {
         if (ownerId && Number(ownerId) !== Number(req.userId)) {
           notifyEventLike(req.userId, ownerId, g.rows[0].name || '').catch(() => {});
         }
+        // …and an entry in the bell for the owner and everyone who added a
+        // photo (Lea, 18.10.2026: „man kriegt keine Like-Benachrichtigungen").
+        // Detached: the heart must answer at once.
+        notifyHofLikeInApp(req, id, g.rows[0]?.name || '').catch(() => {});
       }
     }
 
@@ -1723,6 +1799,23 @@ export const toggleLike = async (req, res) => {
     res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };
+
+// In-app half of a new Hall-of-Fame like: one bell row per recipient (owner +
+// photo contributors, see utils/hallOfFame.js), emitted live after the INSERT.
+// The stored title is the German fallback; clients render the type localised.
+async function notifyHofLikeInApp(req, groupId, eventName) {
+  const liker = await db.query('SELECT name FROM users WHERE id = $1', [req.userId]);
+  const likerName = liker.rows[0]?.name || 'Jemand';
+  const rows = await insertHofLikeNotifications(db, {
+    groupId,
+    likerId: req.userId,
+    title: `${likerName} gefällt „${eventName}“ in der Hall of Fame`.slice(0, 255),
+  });
+  const io = req.app?.get('io');
+  if (io) {
+    for (const notif of rows) io.to(`user_${notif.user_id}`).emit('new_notification', notif);
+  }
+}
 
 // Group ids the caller has liked — mirrors the favorites-id pattern the Explore
 // page uses to render filled hearts on load.

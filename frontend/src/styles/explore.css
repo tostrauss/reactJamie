@@ -1401,6 +1401,56 @@
   background: rgba(253, 118, 102, 0.22);
 }
 
+/* ── Participant photos (Lea, 18.10.2026) ─────────────────────────── */
+/* Top-left twin of the heart: "📷 n Fotos" → gallery of the event. */
+.ef-photos-chip {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 3;
+  height: 40px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: 20px;
+  border: none;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ef-photos-chip:active { transform: scale(0.94); }
+
+/* "Warst du dabei? Teile dein Foto." under the card footer. */
+.ef-add-photo {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  padding: 10px 14px;
+  border: 1.5px dashed rgba(253, 118, 102, 0.55);
+  border-radius: 14px;
+  background: rgba(253, 118, 102, 0.08);
+  color: var(--accent-coral);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ef-add-photo:active { transform: scale(0.98); }
+.ef-add-photo:disabled { opacity: 0.7; cursor: default; transform: none; }
+
 /* ── JAMIE Moment upload prompt (BeReal-style) ───────────────────── */
 /* Sits absolutely over the .ef-media block. Only rendered for the owner
    while moment_photo_url is null — persists across days until they fill it. */

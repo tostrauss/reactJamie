@@ -272,6 +272,24 @@
   padding: 32px 0;
 }
 
+/* ── Hall of Fame: their events (HallOfFameGrid), under the badge card ── */
+.up-hof-events {
+  padding: 14px 20px 0;
+}
+
+.up-hof-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-white);
+  margin: 0 0 10px;
+}
+
+.up-hof-loading {
+  display: flex;
+  justify-content: center;
+  padding: 32px 0;
+}
+
 /* ── Song card ── */
 .up-song-card {
   display: flex;

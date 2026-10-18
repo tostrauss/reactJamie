@@ -13,6 +13,8 @@ import { normalizeTier } from '../utils/attendanceTiers';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { ProfilePhotoCarousel } from '../components/ProfilePhotoCarousel';
 import { PinnwandMasonry } from '../components/PinnwandMasonry';
+import { HallOfFameGrid } from '../components/HallOfFameGrid';
+import '../styles/home.css'; // .home-spinner (Hall-of-Fame loading state)
 import '../styles/user-profile.css';
 
 export const UserProfile = () => {
@@ -56,6 +58,19 @@ export const UserProfile = () => {
   // Index into `allPhotos` for the fullscreen viewer; null = closed.
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [pinnwandLightboxIndex, setPinnwandLightboxIndex] = useState(null);
+
+  // Their Hall of Fame — public events only, server-side (Lea, 18.10.2026: the
+  // tab showed nothing but the badges). Loaded once per profile, on first open.
+  const [hofEvents, setHofEvents] = useState(null);
+  useEffect(() => { setHofEvents(null); }, [id]);
+  useEffect(() => {
+    if (activeTab !== 'halloffame' || hofEvents !== null) return;
+    let cancelled = false;
+    users.getHallOfFame(id)
+      .then(res => { if (!cancelled) setHofEvents(Array.isArray(res.data) ? res.data : []); })
+      .catch(() => { if (!cancelled) setHofEvents([]); });
+    return () => { cancelled = true; };
+  }, [activeTab, id, hofEvents]);
 
   useEffect(() => {
     if (currentUser && currentUser.id === parseInt(id)) {
@@ -345,15 +360,25 @@ export const UserProfile = () => {
       )}
 
       {activeTab === 'halloffame' && (
-        normalizeTier(profile.attendance_tier) > 0 ? (
-          <div className="up-attend-wrap" ref={badgeCardRef}>
-            <AttendanceTiersCard tier={profile.attendance_tier} />
-          </div>
-        ) : (
-          <div className="up-photo-grid">
-            <p className="up-empty-photos">{t('userProfile.emptyHof')}</p>
-          </div>
-        )
+        <>
+          {normalizeTier(profile.attendance_tier) > 0 && (
+            <div className="up-attend-wrap" ref={badgeCardRef}>
+              <AttendanceTiersCard tier={profile.attendance_tier} />
+            </div>
+          )}
+          {hofEvents === null ? (
+            <div className="up-hof-loading"><div className="home-spinner" /></div>
+          ) : hofEvents.length > 0 ? (
+            <div className="up-hof-events">
+              <h3 className="up-hof-title">{t('userProfile.hofEvents')}</h3>
+              <HallOfFameGrid events={hofEvents} onOpen={(event) => navigate(`/group/${event.id}`)} />
+            </div>
+          ) : normalizeTier(profile.attendance_tier) > 0 ? null : (
+            <div className="up-photo-grid">
+              <p className="up-empty-photos">{t('userProfile.emptyHof')}</p>
+            </div>
+          )}
+        </>
       )}
 
       {/* ── Favorite song ── */}

@@ -30,6 +30,7 @@ import {
   setGroupNotifications,
   getHallOfFame,
 } from '../controllers/groupController.js';
+import { getEventPhotos, addEventPhoto, deleteEventPhoto } from '../controllers/hallOfFameController.js';
 import { authenticate, optionalAuth, requireCompleteProfile } from '../middleware/auth.js';
 import { generalLimiter } from '../middleware/rateLimiter.js';
 
@@ -76,6 +77,12 @@ router.post('/:id/join', authenticate, requireCompleteProfile, joinGroup);
 router.post('/:id/leave', authenticate, leaveGroup);
 router.post('/:id/favorite', authenticate, toggleFavorite);
 router.post('/:id/like', authenticate, toggleLike);
+
+// Participant photos on a Hall-of-Fame card (Lea, 18.10.2026). Reading is
+// public like the wall itself; adding needs participation (checked inside).
+router.get('/:id/photos', optionalAuth, getEventPhotos);
+router.post('/:id/photos', authenticate, addEventPhoto);
+router.delete('/:id/photos/:photoId', authenticate, deleteEventPhoto);
 
 // ==========================================
 // JOIN REQUEST ROUTES (for private groups)

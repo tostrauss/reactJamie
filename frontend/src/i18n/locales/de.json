@@ -531,6 +531,24 @@
       "uploadError": "Foto konnte nicht hochgeladen werden.",
       "saveError": "Foto konnte nicht gespeichert werden.",
       "savedToast": "Dein JAMIE Moment ist live! ✨"
+    },
+    "photos": {
+      "add": "Foto teilen",
+      "addHint": "Warst du dabei? Teile dein Foto.",
+      "uploading": "Foto wird geteilt…",
+      "added": "Foto geteilt 🎉",
+      "error": "Foto konnte nicht geteilt werden.",
+      "limitUser": "Du hast für dieses Event schon {{count}} Fotos geteilt.",
+      "limitEvent": "Für dieses Event sind keine weiteren Fotos möglich.",
+      "notParticipant": "Nur wer dabei war, kann Fotos teilen.",
+      "count_one": "{{count}} Foto",
+      "count_other": "{{count}} Fotos",
+      "openGallery": "Fotos ansehen",
+      "by": "von {{name}}",
+      "delete": "Foto löschen",
+      "deleteConfirm": "Dieses Foto wirklich löschen?",
+      "deleted": "Foto gelöscht",
+      "deleteError": "Foto konnte nicht gelöscht werden."
     }
   },
   "imageCrop": {
@@ -1027,6 +1045,7 @@
     },
     "emptyPhotos": "Keine weiteren Fotos",
     "emptyHof": "Noch nichts hier",
+    "hofEvents": "Events",
     "viewPhotoAria": "Foto vergrößern",
     "reportBtn": "Nutzer melden",
     "blockBtn": "Blockieren",

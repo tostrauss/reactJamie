@@ -8,6 +8,7 @@ import { useToast } from '../context/ToastContext';
 import { DealCard } from '../components/DealCard';
 import { UserName } from '../components/UserName';
 import { JamieWordmark } from '../components/JamieWordmark';
+import { PhotoLightbox } from '../components/PhotoLightbox';
 import useOnPullRefresh from '../hooks/useOnPullRefresh';
 import '../styles/explore.css';
 
@@ -46,6 +47,36 @@ const formatCameraDate = (dateStr) => {
 const seedColor = (id, offset = 0) =>
   `hsl(${((id + offset) * 137) % 360}, 55%, 52%)`;
 
+// Mirrors backend utils/hallOfFame.js — only for the optimistic card state
+// after an add/delete; the server enforces both.
+const MAX_PHOTOS_PER_USER = 5;
+const MAX_PHOTOS_PER_EVENT = 40;
+const CARD_PHOTOS = 8; // photos the wall sends per card (preview)
+
+const withAddedPhoto = (g, photo) => {
+  const photoCount = (g.photo_count || 0) + 1;
+  const mine = (g.my_photo_count || 0) + 1;
+  return {
+    ...g,
+    photos: [photo, ...(g.photos || [])].slice(0, CARD_PHOTOS),
+    photo_count: photoCount,
+    my_photo_count: mine,
+    can_add_photo: mine < MAX_PHOTOS_PER_USER && photoCount < MAX_PHOTOS_PER_EVENT,
+  };
+};
+
+const withoutPhoto = (g, photo, myId) => {
+  const photoCount = Math.max(0, (g.photo_count || 0) - 1);
+  const mine = Math.max(0, (g.my_photo_count || 0) - (Number(photo.user_id) === Number(myId) ? 1 : 0));
+  return {
+    ...g,
+    photos: (g.photos || []).filter(p => p.id !== photo.id),
+    photo_count: photoCount,
+    my_photo_count: mine,
+    can_add_photo: !!g.is_participant && mine < MAX_PHOTOS_PER_USER && photoCount < MAX_PHOTOS_PER_EVENT,
+  };
+};
+
 // ─── Hall-of-Fame card ───────────────────────────────────────────────────────
 // Read-only "polaroid" of a past event. The outer is a <div> (NOT a <button>)
 // for both owners and viewers — nested interactive elements (heart, "Moment"
@@ -53,15 +84,20 @@ const seedColor = (id, offset = 0) =>
 // role="button" + keyboard handler so it stays accessible and tappable for
 // navigation, while preserving the heart and Moment-upload sub-buttons.
 //
-// The displayed image is moment_photo_url ?? image_url. When the viewer is
-// the owner AND moment_photo_url is null, a BeReal-style upload prompt sits
-// over the media. The prompt persists across days — owners can fill it in
-// whenever they want.
+// The displayed image is moment_photo_url ?? newest participant photo ??
+// image_url. When the viewer is the owner AND moment_photo_url is null, a
+// BeReal-style upload prompt sits over the media. The prompt persists across
+// days — owners can fill it in whenever they want.
+//
+// Participants add photos too (Lea, 18.10.2026: „als Teilnehmer nicht"):
+// can_add_photo comes from the server (took part + below the limits), the
+// „📷 n Fotos" chip opens the gallery of everything shared for the event.
 
-const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadMoment, navigate, t }) => {
+const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadMoment, onAddPhoto, onOpenGallery, uploading, navigate, t }) => {
   const icon = getCategoryIcon(item.category);
   const timeAgo = formatTimeAgo(item.created_at, t);
   const fileInputRef = useRef(null);
+  const photoInputRef = useRef(null);
   // Timestamp of the last picker selection. iOS synthesizes a "ghost" click on
   // whatever sits under the finger after a native picker/sheet dismisses — which
   // lands on the (now prompt-free) owner card and navigated to the group page
@@ -69,8 +105,12 @@ const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadM
   // after a pick so the user stays on Hall of Fame (Tobi, 2026-07-23).
   const lastPickRef = useRef(0);
 
-  const displayPhoto = item.moment_photo_url || item.image_url;
+  const displayPhoto = item.moment_photo_url || item.photos?.[0]?.url || item.image_url;
   const showMomentPrompt = isOwner && !item.moment_photo_url;
+  // The owner's empty card already shows the moment prompt — one call to
+  // action at a time.
+  const canAddPhoto = !!item.can_add_photo && !showMomentPrompt;
+  const photoTotal = (item.moment_photo_url ? 1 : 0) + (item.photo_count || 0);
 
   const handleLike = (e) => {
     e.stopPropagation();
@@ -87,6 +127,23 @@ const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadM
     e.target.value = ''; // reset so picking the same file again re-fires onChange
     lastPickRef.current = Date.now();
     if (file) onUploadMoment(item, file);
+  };
+
+  const openPhotoPicker = (e) => {
+    e.stopPropagation();
+    photoInputRef.current?.click();
+  };
+
+  const handlePhotoSelected = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    lastPickRef.current = Date.now();
+    if (file) onAddPhoto(item, file);
+  };
+
+  const openGallery = (e) => {
+    e.stopPropagation();
+    onOpenGallery(item);
   };
 
   const handleNavigate = () => {
@@ -139,6 +196,19 @@ const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadM
           {likeCount > 0 && <span className="ef-like-count">{likeCount}</span>}
         </button>
 
+        {/* Top-left: everything shared for this event → gallery. */}
+        {item.photo_count > 0 && (
+          <button
+            type="button"
+            className="ef-photos-chip"
+            onClick={openGallery}
+            aria-label={t('explore.photos.openGallery')}
+          >
+            <span aria-hidden="true">📷</span>
+            {t('explore.photos.count', { count: photoTotal })}
+          </button>
+        )}
+
         {/* Moment upload prompt — owner only, until moment_photo_url is set.
             BeReal-style: full-card frosted overlay with a single CTA. */}
         {showMomentPrompt && (
@@ -171,6 +241,15 @@ const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadM
           style={{ display: 'none' }}
           onClick={(e) => e.stopPropagation()}
           onChange={handleFileSelected}
+        />
+        {/* Same picker rules for participant photos. */}
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onClick={(e) => e.stopPropagation()}
+          onChange={handlePhotoSelected}
         />
 
         {/* Bottom-left: timestamp (the "polaroid" date stamp) */}
@@ -214,6 +293,25 @@ const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadM
         </div>
         {item.category && <span className="ef-cat">{item.category}</span>}
       </div>
+
+      {canAddPhoto && (
+        <button
+          type="button"
+          className="ef-add-photo"
+          onClick={openPhotoPicker}
+          disabled={uploading}
+          aria-busy={uploading}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+          {uploading
+            ? t('explore.photos.uploading')
+            : (item.my_photo_count > 0 ? t('explore.photos.add') : t('explore.photos.addHint'))}
+        </button>
+      )}
     </div>
   );
 });
@@ -244,6 +342,9 @@ export const Explore = () => {
   const [dealList, setDealList]       = useState([]);
   const [likedIds, setLikedIds]       = useState(() => new Set());
   const [showDealsInfo, setShowDealsInfo] = useState(false);
+  const [uploadingId, setUploadingId] = useState(null);
+  // Hall-of-Fame gallery: { item, photos: [{ id?, url, user_id?, user_name, can_delete }], index }
+  const [gallery, setGallery] = useState(null);
 
   // Shared by the mount effect and pull-to-refresh (which skips the full-page
   // loading state — the top spinner is the feedback there).
@@ -315,6 +416,67 @@ export const Explore = () => {
       toast.error(t('explore.moment.saveError'));
     }
   }, [toast, t]);
+
+  // A participant's photo for an event's card (Lea, 18.10.2026). Same two-step
+  // upload as the moment (the file passes POST /api/upload and its moderation),
+  // then the URL is attached; the card updates from the server's row.
+  const handleAddPhoto = useCallback(async (item, file) => {
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error(t('explore.moment.tooLarge'));
+      return;
+    }
+    setUploadingId(item.id);
+    try {
+      const up = await uploadApi.image(file);
+      const url = up.data?.url;
+      if (!url) throw new Error('no url');
+      const res = await groups.addPhoto(item.id, url);
+      setHallItems(prev => prev.map(g => (g.id === item.id ? withAddedPhoto(g, res.data) : g)));
+      toast.success(t('explore.photos.added'));
+    } catch (err) {
+      const code = err?.response?.data?.code;
+      if (code === 'USER_LIMIT') toast.error(t('explore.photos.limitUser', { count: MAX_PHOTOS_PER_USER }));
+      else if (code === 'EVENT_LIMIT') toast.error(t('explore.photos.limitEvent'));
+      else if (code === 'NOT_PARTICIPANT') toast.error(t('explore.photos.notParticipant'));
+      else toast.error(t('explore.photos.error'));
+    } finally {
+      setUploadingId(null);
+    }
+  }, [toast, t]);
+
+  // Opens with what the card already has, then swaps in the full list (with
+  // per-photo delete rights). The owner's moment photo leads, never deletable
+  // here — it belongs to the event, not to the gallery.
+  const handleOpenGallery = useCallback(async (item) => {
+    const lead = item.moment_photo_url
+      ? [{ key: 'moment', url: item.moment_photo_url, user_name: item.owner_name, can_delete: false }]
+      : [];
+    setGallery({ item, photos: [...lead, ...(item.photos || [])], index: 0 });
+    try {
+      const res = await groups.getPhotos(item.id);
+      const all = Array.isArray(res.data) ? res.data : [];
+      setGallery(prev => (prev && prev.item.id === item.id
+        ? { ...prev, photos: [...lead, ...all], index: Math.min(prev.index, Math.max(0, lead.length + all.length - 1)) }
+        : prev));
+    } catch { /* keep the preview */ }
+  }, []);
+
+  const handleDeletePhoto = useCallback(async (photo) => {
+    if (!gallery || !window.confirm(t('explore.photos.deleteConfirm'))) return;
+    const { item } = gallery;
+    try {
+      await groups.deletePhoto(item.id, photo.id);
+      setGallery(prev => {
+        if (!prev) return prev;
+        const photos = prev.photos.filter(p => p.key === 'moment' || p.id !== photo.id);
+        return photos.length ? { ...prev, photos, index: Math.min(prev.index, photos.length - 1) } : null;
+      });
+      setHallItems(prev => prev.map(g => (g.id === item.id ? withoutPhoto(g, photo, user?.id) : g)));
+      toast.success(t('explore.photos.deleted'));
+    } catch {
+      toast.error(t('explore.photos.deleteError'));
+    }
+  }, [gallery, toast, t, user?.id]);
 
   // Optimistic public-like toggle with rollback. Hall-of-Fame items are all
   // type='group' (clubs have no date), so groups.toggleLike covers every card.
@@ -408,6 +570,9 @@ export const Explore = () => {
                   likeCount={item.like_count || 0}
                   onToggleLike={handleToggleLike}
                   onUploadMoment={handleUploadMoment}
+                  onAddPhoto={handleAddPhoto}
+                  onOpenGallery={handleOpenGallery}
+                  uploading={uploadingId === item.id}
                   navigate={navigate}
                   t={t}
                 />
@@ -492,6 +657,32 @@ export const Explore = () => {
           </div>
         </div>
       )}
+
+      {/* Hall-of-Fame gallery: who shared each photo, delete where allowed. */}
+      <PhotoLightbox
+        photos={gallery ? gallery.photos.map(p => p.url) : []}
+        index={gallery ? gallery.index : null}
+        onIndex={(i) => setGallery(prev => (prev ? { ...prev, index: i } : prev))}
+        onClose={() => setGallery(null)}
+        renderCaption={(i) => {
+          const photo = gallery?.photos[i];
+          // Photos go with their uploader's account (ON DELETE CASCADE), so a
+          // name is always there; nothing to caption otherwise.
+          if (!photo?.user_name && !photo?.can_delete) return null;
+          return (
+            <>
+              {photo.user_name && (
+                <span className="lightbox-caption-text">{t('explore.photos.by', { name: photo.user_name })}</span>
+              )}
+              {photo.can_delete && (
+                <button type="button" className="lightbox-caption-btn" onClick={() => handleDeletePhoto(photo)}>
+                  {t('explore.photos.delete')}
+                </button>
+              )}
+            </>
+          );
+        }}
+      />
     </div>
   );
 };

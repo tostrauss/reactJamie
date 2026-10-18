@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { auth, subscription as subscriptionApi, groups as groupsApi, clubs as clubsApi, friends as friendsApi, reviews as reviewsApi } from '../utils/api';
+import { auth, subscription as subscriptionApi, groups as groupsApi, clubs as clubsApi, friends as friendsApi, reviews as reviewsApi, users as usersApi } from '../utils/api';
 import SpotifySongPicker from '../components/SpotifySongPicker';
 import { ProModal } from '../components/ProModal';
 import { purchasesEnabled } from '../utils/platform';
@@ -12,6 +12,7 @@ import { shareLink } from '../utils/share';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { ProfilePhotoCarousel } from '../components/ProfilePhotoCarousel';
 import { PinnwandMasonry } from '../components/PinnwandMasonry';
+import { HallOfFameGrid } from '../components/HallOfFameGrid';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { AttendanceTierBadge } from '../components/AttendanceTierBadge';
 import { AttendanceTiersCard } from '../components/AttendanceTiersCard';
@@ -51,9 +52,8 @@ export const Profile = () => {
   const { user, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
   const toast = useToast();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   usePaymentsConfig(); // re-render when the runtime payments config arrives
-  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : ((i18n.resolvedLanguage || i18n.language || 'de').startsWith('fr') ? 'fr-FR' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('es') ? 'es-ES' : 'de-AT');
   // Tab held in the URL (?tab=halloffame) so opening a past event from Hall of
   // Fame and swiping back restores the tab. replace:true so tab clicks don't
   // pile up history entries.
@@ -152,19 +152,16 @@ export const Profile = () => {
     setScrollToBadges(false);
   }, [scrollToBadges, activeTab, attendance]);
 
+  // Its own server read since 18.10.2026 (Lea): it used to be the chat list
+  // filtered to past dates, so leaving a chat — or its owner deleting it
+  // afterwards — erased the event from here too.
   useEffect(() => {
     if (activeTab !== 'halloffame' || pastEvents.length > 0) return;
     setHofLoading(true);
-    Promise.all([
-      groupsApi.getJoined().catch(() => ({ data: [] })),
-      clubsApi.getJoined().catch(() => ({ data: [] })),
-    ]).then(([gRes, cRes]) => {
-      const now = new Date();
-      const past = [...(gRes.data || []), ...(cRes.data || [])]
-        .filter(g => g.date && new Date(g.date) < now)
-        .sort((a, b) => new Date(b.date) - new Date(a.date));
-      setPastEvents(past);
-    }).finally(() => setHofLoading(false));
+    usersApi.getHallOfFame('me')
+      .then(res => setPastEvents(Array.isArray(res.data) ? res.data : []))
+      .catch(() => {})
+      .finally(() => setHofLoading(false));
   }, [activeTab]);
 
   const handleSongSelect = async (song) => {
@@ -435,30 +432,10 @@ export const Profile = () => {
                     <span>{t('profile.hof.hint')}</span>
                   </div>
                 ) : (
-                  <div className="hof-grid">
-                    {pastEvents.map(event => (
-                      <button
-                        key={`${event.type || 'group'}-${event.id}`}
-                        className="hof-card"
-                        onClick={() => navigate(`/group/${event.id}`)}
-                      >
-                        <div className="hof-card-img">
-                          {event.image_url
-                            ? <img src={event.image_url} alt={event.name} loading="lazy" />
-                            : <div className="hof-card-placeholder">🏆</div>
-                          }
-                          <div className="hof-card-overlay" />
-                        </div>
-                        <div className="hof-card-body">
-                          <p className="hof-card-name">{event.name || event.title}</p>
-                          <p className="hof-card-date">
-                            {new Date(event.date).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short', year: 'numeric' })}
-                          </p>
-                          {event.location && <p className="hof-card-loc">📍 {event.location}</p>}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+                  <HallOfFameGrid
+                    events={pastEvents}
+                    onOpen={(event) => navigate(`/group/${event.id}`)}
+                  />
                 )}
               </div>
             )}

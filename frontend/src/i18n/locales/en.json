@@ -531,6 +531,24 @@
       "uploadError": "Couldn't upload the photo.",
       "saveError": "Couldn't save the photo.",
       "savedToast": "Your JAMIE moment is live! ✨"
+    },
+    "photos": {
+      "add": "Add photo",
+      "addHint": "Were you there? Share your photo.",
+      "uploading": "Sharing photo…",
+      "added": "Photo shared 🎉",
+      "error": "Couldn't share the photo.",
+      "limitUser": "You've already shared {{count}} photos for this event.",
+      "limitEvent": "This event can't take any more photos.",
+      "notParticipant": "Only people who were there can share photos.",
+      "count_one": "{{count}} photo",
+      "count_other": "{{count}} photos",
+      "openGallery": "View photos",
+      "by": "by {{name}}",
+      "delete": "Delete photo",
+      "deleteConfirm": "Delete this photo?",
+      "deleted": "Photo deleted",
+      "deleteError": "Couldn't delete the photo."
     }
   },
   "imageCrop": {
@@ -1027,6 +1045,7 @@
     },
     "emptyPhotos": "No additional photos",
     "emptyHof": "Nothing here yet",
+    "hofEvents": "Events",
     "viewPhotoAria": "Enlarge photo",
     "reportBtn": "Report user",
     "blockBtn": "Block",

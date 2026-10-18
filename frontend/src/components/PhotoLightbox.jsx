@@ -9,13 +9,15 @@ import { useTranslation } from 'react-i18next';
  *   index     - currently shown index (controlled)
  *   onIndex   - (newIndex) => void   — move to another photo
  *   onClose   - () => void           — dismiss
+ *   renderCaption - optional (index) => node — a line under the photo (e.g.
+ *               who shared it + a delete button in the Hall-of-Fame gallery)
  *
  * Render nothing when index is null/undefined. Supports:
  *   • tap backdrop / ✕ to close
  *   • on-screen ‹ › arrows + ← → keys when there's more than one photo
  *   • Esc to close
  */
-export function PhotoLightbox({ photos, index, onIndex, onClose }) {
+export function PhotoLightbox({ photos, index, onIndex, onClose, renderCaption }) {
   const { t } = useTranslation();
   const open = index != null && Array.isArray(photos) && photos.length > 0;
   const count = photos?.length || 0;
@@ -44,6 +46,7 @@ export function PhotoLightbox({ photos, index, onIndex, onClose }) {
   }, [open, go, onClose]);
 
   if (!open) return null;
+  const caption = renderCaption ? renderCaption(index) : null;
 
   return (
     <div className="lightbox-backdrop" onClick={onClose} role="dialog" aria-modal="true">
@@ -83,6 +86,12 @@ export function PhotoLightbox({ photos, index, onIndex, onClose }) {
             <path d="M9 18l6-6-6-6"/>
           </svg>
         </button>
+      )}
+
+      {caption && (
+        <div className="lightbox-caption" onClick={(e) => e.stopPropagation()}>
+          {caption}
+        </div>
       )}
 
       {count > 1 && (

@@ -531,6 +531,24 @@
       "uploadError": "La photo n'a pas pu être téléversée.",
       "saveError": "La photo n'a pas pu être enregistrée.",
       "savedToast": "Ton JAMIE Moment est en ligne ! ✨"
+    },
+    "photos": {
+      "add": "Ajouter une photo",
+      "addHint": "Tu y étais ? Partage ta photo.",
+      "uploading": "Partage de la photo…",
+      "added": "Photo partagée 🎉",
+      "error": "Impossible de partager la photo.",
+      "limitUser": "Tu as déjà partagé {{count}} photos pour cet événement.",
+      "limitEvent": "Cet événement ne peut plus recevoir de photos.",
+      "notParticipant": "Seules les personnes présentes peuvent partager des photos.",
+      "count_one": "{{count}} photo",
+      "count_other": "{{count}} photos",
+      "openGallery": "Voir les photos",
+      "by": "par {{name}}",
+      "delete": "Supprimer la photo",
+      "deleteConfirm": "Supprimer cette photo ?",
+      "deleted": "Photo supprimée",
+      "deleteError": "Impossible de supprimer la photo."
     }
   },
   "imageCrop": {
@@ -1027,6 +1045,7 @@
     },
     "emptyPhotos": "Pas d'autres photos",
     "emptyHof": "Rien ici pour l'instant",
+    "hofEvents": "Événements",
     "viewPhotoAria": "Agrandir la photo",
     "reportBtn": "Signaler l'utilisateur",
     "blockBtn": "Bloquer",

@@ -358,7 +358,12 @@ export const users = {
     axiosInstance.get(`/users/${id}`),
   
   search: (query, config = {}) =>
-    axiosInstance.get('/users/search', { params: { q: query }, ...config })
+    axiosInstance.get('/users/search', { params: { q: query }, ...config }),
+
+  // Events someone took part in — id 'me' for the own list (Lea 18.10.2026:
+  // it used to be the chat list, so leaving a chat erased the memory).
+  getHallOfFame: (id) =>
+    axiosInstance.get(`/users/${id}/hall-of-fame`),
 };
 
 // ==========================================
@@ -422,6 +427,12 @@ export const groups = {
   // Public likes (Hall-of-Fame moments) — distinct from favorites.
   toggleLike: (id) => axiosInstance.post(`/groups/${id}/like`),
   getMyLikes: () => axiosInstance.get('/groups/likes/mine'),
+
+  // Participant photos on a Hall-of-Fame card. The file goes through
+  // upload.image first; addPhoto only attaches the returned URL.
+  getPhotos: (id) => axiosInstance.get(`/groups/${id}/photos`),
+  addPhoto: (id, url) => axiosInstance.post(`/groups/${id}/photos`, { url }),
+  deletePhoto: (id, photoId) => axiosInstance.delete(`/groups/${id}/photos/${photoId}`),
 
   // Get user's joined groups
   // fresh=true bypasses the backend's 15s cache — used by the nav unread

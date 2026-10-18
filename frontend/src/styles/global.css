@@ -115,6 +115,41 @@
   font-weight: 600;
   letter-spacing: 0.5px;
 }
+
+/* Optional line under the photo (renderCaption) — sits above the counter. */
+.lightbox-caption {
+  position: absolute;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 58px);
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 32px);
+  padding: 4px 4px 4px 14px;
+  border-radius: 26px;
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  font-weight: 600;
+}
+.lightbox-caption-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lightbox-caption-btn {
+  flex-shrink: 0;
+  min-height: 44px; /* app-wide touch-target floor */
+  padding: 0 14px;
+  border: none;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
 /* ─────────────────────────────────────────────────────────────────────────── */
 
 /* Age superscript next to a user name. Rendered by <UserName name age />

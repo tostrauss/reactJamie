@@ -531,6 +531,24 @@
       "uploadError": "Impossibile caricare la foto.",
       "saveError": "Impossibile salvare la foto.",
       "savedToast": "Il tuo JAMIE Moment è online! ✨"
+    },
+    "photos": {
+      "add": "Aggiungi foto",
+      "addHint": "C'eri anche tu? Condividi la tua foto.",
+      "uploading": "Condivisione della foto…",
+      "added": "Foto condivisa 🎉",
+      "error": "Impossibile condividere la foto.",
+      "limitUser": "Hai già condiviso {{count}} foto per questo evento.",
+      "limitEvent": "Non è possibile aggiungere altre foto a questo evento.",
+      "notParticipant": "Solo chi c'era può condividere foto.",
+      "count_one": "{{count}} foto",
+      "count_other": "{{count}} foto",
+      "openGallery": "Vedi foto",
+      "by": "di {{name}}",
+      "delete": "Elimina foto",
+      "deleteConfirm": "Eliminare questa foto?",
+      "deleted": "Foto eliminata",
+      "deleteError": "Impossibile eliminare la foto."
     }
   },
   "imageCrop": {
@@ -1027,6 +1045,7 @@
     },
     "emptyPhotos": "Nessun'altra foto",
     "emptyHof": "Ancora niente qui",
+    "hofEvents": "Eventi",
     "viewPhotoAria": "Ingrandisci foto",
     "reportBtn": "Segnala utente",
     "blockBtn": "Blocca",

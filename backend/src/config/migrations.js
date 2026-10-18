@@ -1614,6 +1614,48 @@ const runStartupMigrations = async () => {
     }
   });
 
+  // ── Stream A — Hall of Fame (Lea, 18.10.2026, utils/hallOfFame.js) ──────
+  //   - hall_of_fame_entries: events a member LEFT after the meetup. The
+  //     profile list read the chat list, so leaving (or the owner tidying up)
+  //     erased the memory; leaveGroup records the row before deleting.
+  //   - event_photos: photos participants add to a past event's card (before:
+  //     one owner-only moment photo per event).
+  // Same tx + lock_timeout shape as featured_clubs: the FKs briefly lock
+  // users/groups on first creation only. Missing tables → reads fall back to
+  // the old behaviour, photo writes answer 503 until the next boot retries.
+  await migrate('hall_of_fame_entries + event_photos (2026-10)', async () => {
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS hall_of_fame_entries (
+          user_id    INTEGER     NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
+          group_id   INTEGER     NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (user_id, group_id)
+        )`);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS event_photos (
+          id         SERIAL      PRIMARY KEY,
+          group_id   INTEGER     NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+          user_id    INTEGER     NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
+          url        TEXT        NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )`);
+      await client.query(
+        'CREATE INDEX IF NOT EXISTS idx_event_photos_group ON event_photos (group_id, created_at DESC)');
+      await client.query(
+        'CREATE INDEX IF NOT EXISTS idx_event_photos_user ON event_photos (user_id)');
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+  });
+
   // ── Post-migration schema assertion ────────────────────────────────────
   // The server accepts traffic BEFORE migrations finish (listen → migrate),
   // so health stays green during the boot window; only a PROVEN-broken
