@@ -793,7 +793,8 @@
         "doneText_one": "Du hast {{count}} Anfrage bearbeitet 🎉",
         "doneText_other": "Du hast {{count}} Anfragen bearbeitet 🎉",
         "emptyTitle": "Keine offenen Anfragen",
-        "emptyText": "Neue Beitrittsanfragen für deine Gruppen und Clubs landen hier."
+        "emptyText": "Neue Freundschaftsanfragen und Beitrittsanfragen für deine Gruppen und Clubs landen hier.",
+        "friendLabel": "Freundschaftsanfrage"
       },
       "manage": {
         "edit": "Bearbeiten",
@@ -842,6 +843,9 @@
         "requestAcceptError": "Fehler beim Annehmen",
         "requestDeclined": "{{name}} wurde abgelehnt",
         "requestDeclineError": "Fehler beim Ablehnen",
+        "friendAccepted": "Du und {{name}} seid jetzt befreundet!",
+        "friendDeclined": "Freundschaftsanfrage von {{name}} abgelehnt",
+        "requestGone": "Diese Anfrage ist nicht mehr offen.",
         "archiveError": "Chat konnte nicht ausgeblendet werden"
       },
       "requestsModal": {

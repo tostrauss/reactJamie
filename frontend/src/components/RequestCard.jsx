@@ -37,7 +37,7 @@ export function RequestCard({ request }) {
           <VerifiedBadge className="request-trusted-badge" size={34} />
         )}
         {/* Abzeichen-Stufe bottom-left, opposite the seal (swipes pass through). */}
-        <AttendanceTierBadge tier={request.user_attendance_tier} variant="pill" className="request-tier-badge" />
+        <AttendanceTierBadge tier={request.user_attendance_step} variant="pill" className="request-tier-badge" />
       </div>
 
       <div className="request-user-info">

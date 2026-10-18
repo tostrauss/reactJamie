@@ -146,7 +146,11 @@ describe('getAllJoinRequests', () => {
     expect(Array.isArray(rows)).toBe(true);          // still a bare array
     expect(rows[0].user_attendance_tier).toBe(2);
     expect(rows[1].user_attendance_tier).toBe(0);
+    // The five-step level for current clients (25 🌟 / 50 💎, 18.10.2026).
+    expect(rows[0].user_attendance_step).toBe(2);
+    expect(rows[1].user_attendance_step).toBe(0);
     expect(rows[0]).not.toHaveProperty('attendance_tier');
+    expect(rows[0]).not.toHaveProperty('attendance_step');
   });
 
   it('scopes the query to entities the caller owns or co-manages', async () => {

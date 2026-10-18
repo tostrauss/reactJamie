@@ -184,12 +184,12 @@ export const ClubMembers = () => {
                       />
                       {/* Owner tag + Abzeichen chip share one line; the seal
                           stays its own flex child so the name keeps its width. */}
-                      {(isRowOwner || normalizeTier(m.attendance_tier) > 0) && (
+                      {(isRowOwner || normalizeTier(m.attendance_step) > 0) && (
                         <div className="cd-member-row-tags">
                           {isRowOwner && (
                             <span className="cd-member-row-tag">{t('clubMembers.ownerTag')}</span>
                           )}
-                          <AttendanceTierBadge tier={m.attendance_tier} variant="chip" />
+                          <AttendanceTierBadge tier={m.attendance_step} variant="chip" />
                         </div>
                       )}
                     </div>

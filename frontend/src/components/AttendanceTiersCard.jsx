@@ -4,9 +4,11 @@ import { TIER_EMOJI, TIER_MIN_EVENTS, normalizeTier, progressOf } from '../utils
 import '../styles/attendance.css';
 
 /**
- * The "Abzeichen" card — the ladder 🏅 5 / 🏆 10 / 🎆 100 with the reached
- * steps highlighted, and how a meetup comes to count. Lives in the
- * Hall-of-Fame tab of a profile.
+ * The "Abzeichen" card — the ladder 🏅 5 / 🏆 10 / 🌟 25 / 💎 50 / 🎆 100 with
+ * the reached steps highlighted, and how a meetup comes to count. Lives in
+ * the Hall-of-Fame tab of a profile. Each step shows "25+" like the chip, not
+ * "ab 25": five steps share a 320px screen, and "desde 100" / "from 100" do
+ * not fit a fifth of it (the full "ab 25" stays in the step's label).
  *
  * own   — the person's own numbers from GET /reviews/attendance: status line,
  *         then exactly one of "top reached" / "needs more different people" /
@@ -41,7 +43,7 @@ export const AttendanceTiersCard = ({ tier, own = false, confirmedEvents = 0, co
               aria-label={on ? `${TIER_EMOJI[i]} ${stepText}, ${t('attendance.stepDone')}` : `${TIER_EMOJI[i]} ${stepText}`}
             >
               <span className="attend-step-emoji" aria-hidden="true">{TIER_EMOJI[i]}</span>
-              <span className="attend-step-label" aria-hidden="true">{stepText}</span>
+              <span className="attend-step-label" aria-hidden="true">{`${n}+`}</span>
             </li>
           );
         })}

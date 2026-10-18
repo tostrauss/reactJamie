@@ -1481,6 +1481,14 @@
   border: 1px solid rgba(253, 118, 102, 0.3);
 }
 
+/* Friend request in the Anfragen deck (18.10.2026): white like the plain
+   friends' DMs in the list (coral = Gruppe, lila = Club). */
+.friend-badge {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-white);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+}
+
 /* ── Skeleton loaders ("Ladezeit überbrücken") ── */
 @keyframes skeleton-pulse {
   0%, 100% { opacity: 0.45; }

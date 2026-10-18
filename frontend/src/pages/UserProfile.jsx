@@ -307,7 +307,7 @@ export const UserProfile = () => {
           </div>
           {profile.is_pioneer && <span className="pioneer-tag">{t('common.pioneerBadge')}</span>}
           {/* Abzeichen-Stufe — the level only; their counts stay theirs. */}
-          <AttendanceTierBadge tier={profile.attendance_tier} variant="pill" onClick={openBadges} />
+          <AttendanceTierBadge tier={profile.attendance_step} variant="pill" onClick={openBadges} />
         </div>
       </div>
 
@@ -361,9 +361,9 @@ export const UserProfile = () => {
 
       {activeTab === 'halloffame' && (
         <>
-          {normalizeTier(profile.attendance_tier) > 0 && (
+          {normalizeTier(profile.attendance_step) > 0 && (
             <div className="up-attend-wrap" ref={badgeCardRef}>
-              <AttendanceTiersCard tier={profile.attendance_tier} />
+              <AttendanceTiersCard tier={profile.attendance_step} />
             </div>
           )}
           {hofEvents === null ? (
@@ -373,7 +373,7 @@ export const UserProfile = () => {
               <h3 className="up-hof-title">{t('userProfile.hofEvents')}</h3>
               <HallOfFameGrid events={hofEvents} onOpen={(event) => navigate(`/group/${event.id}`)} />
             </div>
-          ) : normalizeTier(profile.attendance_tier) > 0 ? null : (
+          ) : normalizeTier(profile.attendance_step) > 0 ? null : (
             <div className="up-photo-grid">
               <p className="up-empty-photos">{t('userProfile.emptyHof')}</p>
             </div>

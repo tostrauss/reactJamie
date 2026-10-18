@@ -14,6 +14,7 @@ vi.mock('../utils/api', () => ({
   groups: { getJoined: vi.fn(), getAllRequests: vi.fn(async () => ({ data: [] })) },
   clubs: {},
   directMessages: { getConversations: vi.fn(async () => ({ data: [] })) },
+  friends: { getPending: vi.fn(async () => ({ data: [] })) },
 }));
 const { groups } = await import('../utils/api');
 const { ChatList } = await import('../pages/ChatList');

@@ -793,7 +793,8 @@
         "doneText_one": "You handled {{count}} request 🎉",
         "doneText_other": "You handled {{count}} requests 🎉",
         "emptyTitle": "No open requests",
-        "emptyText": "New join requests for your groups and clubs will show up here."
+        "emptyText": "New friend requests and join requests for your groups and clubs will show up here.",
+        "friendLabel": "Friend request"
       },
       "manage": {
         "edit": "Edit",
@@ -842,6 +843,9 @@
         "requestAcceptError": "Could not accept",
         "requestDeclined": "{{name}} declined",
         "requestDeclineError": "Could not decline",
+        "friendAccepted": "You and {{name}} are now friends!",
+        "friendDeclined": "Friend request from {{name}} declined",
+        "requestGone": "This request is no longer open.",
         "archiveError": "Could not hide chat"
       },
       "requestsModal": {

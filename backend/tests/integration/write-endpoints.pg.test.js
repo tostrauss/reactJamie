@@ -172,6 +172,7 @@ suite('write endpoints against real Postgres', () => {
       createGroup: g.createGroup, updateGroup: g.updateGroup, createClub: c.createClub,
       inviteMember: g.inviteMember,
       sendFriendRequest: f.sendFriendRequest, respondFriendRequest: f.respondFriendRequest,
+      getPendingRequests: f.getPendingRequests,
       removeFriend: f.removeFriend, blockUser: f.blockUser, unblockUser: f.unblockUser,
       sendDM: dm.sendDM, submitReview: rv.submitReview, getPendingReviews: rv.getPendingReviews,
       createDeal: dl.createDeal, redeemDeal: dl.redeemDeal, applyBoost: bo.applyBoost,
@@ -508,6 +509,36 @@ suite('write endpoints against real Postgres', () => {
                               WHERE (requester_id=$1 AND addressee_id=$2)
                                  OR (requester_id=$2 AND addressee_id=$1)`, [B, D]);
     expect(r.rows).toEqual([{ status: 'pending' }]);
+  });
+  // Chat → Anfragen shows friend requests next to join requests (Lea,
+  // 18.10.2026). The pending list must carry what RequestCard renders (the
+  // unit tests mock the SQL — only a real Postgres proves the new columns),
+  // and reject + undo must hand the deck a NEW updated_at, its dedupe key, or
+  // the restored request would stay hidden for the rest of the session.
+  // Leaves B → D pending, as the case above did.
+  it('getPendingRequests carries interests, the seal and the Abzeichen-Stufe; undo refreshes updated_at', async () => {
+    const mine = async () => {
+      const res = await call(C.getPendingRequests, { userId: D });
+      ok(res);
+      return res.body.find(r => r.requester_id === B);
+    };
+    const row = await mine();
+    expect(row).toBeTruthy();
+    expect(row).toHaveProperty('requester_interests');
+    expect(row).toHaveProperty('requester_trusted');
+    expect(row).toHaveProperty('requester_name', 'Bea');
+    expect(row.requester_attendance_step).toBe(0);
+    expect(row.requester_attendance_tier).toBe(0);
+
+    const pings = () => emitted.filter(e => e.ev === 'friend_request_update').length;
+    const before = pings();
+    ok(await call(C.respondFriendRequest, { userId: D, params: { requestId: String(row.id) }, body: { action: 'reject' } }));
+    expect(await mine()).toBeUndefined();
+    ok(await call(C.respondFriendRequest, { userId: D, params: { requestId: String(row.id) }, body: { action: 'undo' } }));
+    const restored = await mine();
+    expect(restored.id).toBe(row.id);
+    expect(new Date(restored.updated_at).getTime()).toBeGreaterThan(new Date(row.updated_at).getTime());
+    expect(pings()).toBe(before + 2); // after each stored write, nothing else
   });
 
   // ── group chat (messageController — the hottest write path, audit risk #6) ─
@@ -2913,6 +2944,8 @@ suite('write endpoints against real Postgres', () => {
       expect(res.body).toEqual({
         available: true, tier: 1, confirmed_events: 5, confirmers: 2,
         next: { tier: 2, events_missing: 5, confirmers_missing: 1 },
+        step: 1,
+        next_step: { tier: 2, events_missing: 5, confirmers_missing: 1 },
         window_days: 14,
       });
     });
@@ -3055,12 +3088,14 @@ suite('write endpoints against real Postgres', () => {
       const prof = await call(C.getUserById, { userId: R1, params: { id: String(T) } });
       ok(prof);
       expect(prof.body.attendance_tier).toBe(1);
+      expect(prof.body.attendance_step).toBe(1);
       expect(prof.body).not.toHaveProperty('confirmed_events');
       expect(prof.body).not.toHaveProperty('confirmers');
 
       const roster = await call(C.getGroupMembers, { userId: R3, params: { id: String(firstEvent) } });
       ok(roster);
       expect(roster.body.members.find(m => m.id === T).attendance_tier).toBe(1);
+      expect(roster.body.members.find(m => m.id === T).attendance_step).toBe(1);
 
       const reqGroup = (await db.query(
         `INSERT INTO groups (name, type, date, owner_id, category, location, max_members, is_private)
@@ -3071,9 +3106,11 @@ suite('write endpoints against real Postgres', () => {
       const reqs = await call(C.getJoinRequests, { userId: R1, params: { id: String(reqGroup) } });
       ok(reqs);
       expect(reqs.body.find(r => r.user_id === T).user_attendance_tier).toBe(1);
+      expect(reqs.body.find(r => r.user_id === T).user_attendance_step).toBe(1);
       const deck = await call(C.getAllJoinRequests, { userId: R1 });
       ok(deck);
       expect(deck.body.find(r => r.user_id === T).user_attendance_tier).toBe(1);
+      expect(deck.body.find(r => r.user_id === T).user_attendance_step).toBe(1);
     });
 
     it('reads never write: the seal and updated_at are untouched by tier reads', async () => {
@@ -3109,6 +3146,7 @@ suite('write endpoints against real Postgres', () => {
         const rows = [{ id: T }];
         await at.attachAttendanceTiers(client, rows);
         expect(rows[0]).not.toHaveProperty('attendance_tier');
+        expect(rows[0]).not.toHaveProperty('attendance_step');
         await client.query('ROLLBACK');
       } finally {
         logged = err.mock.calls.slice(); // mockRestore() empties mock.calls

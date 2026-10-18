@@ -122,6 +122,7 @@ describe('getGroupMembers — Pro gate matrix', () => {
       age: 21,
       is_trusted_user: true,
       attendance_tier: 0,
+      attendance_step: 0,
     });
     expect(payload.members[0]).not.toHaveProperty('bio');
     expect(payload.members[0]).not.toHaveProperty('location');
@@ -140,6 +141,7 @@ describe('getGroupMembers — Pro gate matrix', () => {
     const res = await call();
     const payload = res.json.mock.calls[0][0];
     expect(payload.members.map(m => m.attendance_tier)).toEqual([0, 2, 0]);
+    expect(payload.members.map(m => m.attendance_step)).toEqual([0, 2, 0]);
     // Whitelist first, then attach: the hidden members are never even queried.
     expect(scenario.tierCalls).toEqual([[[1, 2, 3]]]);
   });
@@ -151,7 +153,10 @@ describe('getGroupMembers — Pro gate matrix', () => {
     const payload = res.json.mock.calls[0][0];
     expect(payload.gated).toBe(false);
     expect(payload.members).toHaveLength(5);
-    for (const m of payload.members) expect(m).toHaveProperty('attendance_tier', 0);
+    for (const m of payload.members) {
+      expect(m).toHaveProperty('attendance_tier', 0);
+      expect(m).toHaveProperty('attendance_step', 0);
+    }
   });
 
   it('a failing tier lookup still answers 200 with the pre-feature shape', async () => {
@@ -160,6 +165,7 @@ describe('getGroupMembers — Pro gate matrix', () => {
     expect(res.status).not.toHaveBeenCalledWith(500);
     const payload = res.json.mock.calls[0][0];
     expect(payload.members[0]).not.toHaveProperty('attendance_tier');
+    expect(payload.members[0]).not.toHaveProperty('attendance_step');
     expect(payload.members[0]).toHaveProperty('is_trusted_user');
   });
 

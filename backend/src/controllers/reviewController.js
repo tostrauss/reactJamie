@@ -1,7 +1,7 @@
 import db from '../config/database.js';
 import {
-  getAttendanceStats, tierFor, nextStepFor, reviewableEventSql, reviewRoundOpenSql, joinedInTimeSql,
-  blockedWithSql, REVIEW_WINDOW_DAYS,
+  getAttendanceStats, tierFor, nextStepFor, legacyTierOf, legacyNextStepFor, reviewableEventSql,
+  reviewRoundOpenSql, joinedInTimeSql, blockedWithSql, REVIEW_WINDOW_DAYS,
 } from '../utils/attendanceTiers.js';
 
 const TRUST_THRESHOLD = 3;
@@ -364,10 +364,12 @@ export const getReviewForGroup = async (req, res) => {
 // GET MY ATTENDANCE — the caller's own Abzeichen numbers
 // ==========================================
 // Feeds the card on the own profile: confirmed meetups, how many different
-// people confirmed them, the current step (0–3) and what the next step still
-// needs. Counts go to the person THEMSELVES only — everyone else only ever
-// receives the step (attachAttendanceTiers). See utils/attendanceTiers.js for
-// what counts as a confirmed meetup.
+// people confirmed them, the current step and what the next step still needs —
+// step/next_step on the five-step ladder, tier/next on the three-step one that
+// app bundles from before 18.10.2026 read (LEGACY_STEPS). Counts go to the
+// person THEMSELVES only — everyone else only ever receives the step
+// (attachAttendanceTiers). See utils/attendanceTiers.js for what counts as a
+// confirmed meetup.
 //
 // Never a 5xx: api.js retries GETs on any 5xx and counts them toward its
 // circuit breaker. A failed lookup is 200 { available: false } — the card then
@@ -377,12 +379,15 @@ export const getMyAttendance = async (req, res) => {
     const stats = await getAttendanceStats(db, [req.userId]);
     if (!stats) return res.json({ available: false });
     const s = stats.get(Number(req.userId)) ?? { confirmedEvents: 0, confirmers: 0 };
+    const step = tierFor(s.confirmedEvents, s.confirmers);
     res.json({
       available: true,
-      tier: tierFor(s.confirmedEvents, s.confirmers),
+      tier: legacyTierOf(step),
       confirmed_events: s.confirmedEvents,
       confirmers: s.confirmers,
-      next: nextStepFor(s.confirmedEvents, s.confirmers),
+      next: legacyNextStepFor(s.confirmedEvents, s.confirmers),
+      step,
+      next_step: nextStepFor(s.confirmedEvents, s.confirmers),
       // A meetup counts once its review round has closed — the card says so.
       window_days: REVIEW_WINDOW_DAYS,
     });

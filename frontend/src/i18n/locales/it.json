@@ -793,7 +793,8 @@
         "doneText_one": "Hai gestito {{count}} richiesta 🎉",
         "doneText_other": "Hai gestito {{count}} richieste 🎉",
         "emptyTitle": "Nessuna richiesta in attesa",
-        "emptyText": "Le nuove richieste per i tuoi gruppi e club appariranno qui."
+        "emptyText": "Le nuove richieste di amicizia e le richieste per i tuoi gruppi e club appariranno qui.",
+        "friendLabel": "Richiesta di amicizia"
       },
       "manage": {
         "edit": "Modifica",
@@ -842,6 +843,9 @@
         "requestAcceptError": "Errore durante l'accettazione",
         "requestDeclined": "Richiesta di {{name}} rifiutata",
         "requestDeclineError": "Errore durante il rifiuto",
+        "friendAccepted": "Tu e {{name}} ora siete amici!",
+        "friendDeclined": "Richiesta di amicizia di {{name}} rifiutata",
+        "requestGone": "Questa richiesta non è più in attesa.",
         "archiveError": "Impossibile nascondere la chat"
       },
       "requestsModal": {

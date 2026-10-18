@@ -93,7 +93,7 @@ export const GroupRequests = () => {
     // who reliably SHOW UP rank above those who only signed up (tester 06.10.).
     else if (sortMode === 'verified') list = [...list].sort((a, b) =>
       (b.user_trusted ? 1 : 0) - (a.user_trusted ? 1 : 0)
-      || (Number(b.user_attendance_tier) || 0) - (Number(a.user_attendance_tier) || 0)
+      || (Number(b.user_attendance_step) || 0) - (Number(a.user_attendance_step) || 0)
       || byNewest(a, b));
     else list = [...list].sort(byNewest);
     return list;
@@ -278,7 +278,7 @@ export const GroupRequests = () => {
                       <button type="button" className="reqov-name" onClick={() => navigate(`/user/${req.user_id}`)}>
                         {req.user_name}{age ? `, ${age}` : ''}
                       </button>
-                      <AttendanceTierBadge tier={req.user_attendance_tier} variant="pill" className="reqov-tier" />
+                      <AttendanceTierBadge tier={req.user_attendance_step} variant="pill" className="reqov-tier" />
                       {req.message && <p className="reqov-msg">{req.message}</p>}
                       {interests.length > 0 && (
                         <div className="reqov-interests">

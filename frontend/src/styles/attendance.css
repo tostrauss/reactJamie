@@ -1,5 +1,6 @@
 /* ══ ABZEICHEN-STUFEN ═══════════════════════════════════════════════════════
-   🏅 from 5 / 🏆 from 10 / 🎆 from 100 CONFIRMED meetups (tester 06.10.2026).
+   🏅 from 5 / 🏆 from 10 / 🌟 from 25 / 💎 from 50 / 🎆 from 100 CONFIRMED
+   meetups (tester 06.10.2026; 25 and 50 since Lea, 18.10.2026).
    Flat, no gradients; coral only for what is reached or pressed. The host
    placements live here as well, so chat.css, group-detail.css and
    club-detail.css stay untouched. No fixed elements — the bottom-nav
@@ -161,10 +162,15 @@ button.attend-tier--pill[aria-expanded='true'] {
   color: var(--text-white);
 }
 
+/* One equal column per step, however many the ladder has (five since
+   18.10.2026). minmax(0, …) keeps a wide label from stretching its column.
+   At 320px the narrowest host (Profile, 24px gutters) leaves ~44px a step —
+   room for the 24px emoji and "100+". */
 .attend-ladder {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 6px;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -175,7 +181,9 @@ button.attend-tier--pill[aria-expanded='true'] {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 10px 4px 8px;
+  min-width: 0;
+  padding: 10px 2px 8px;
+  white-space: nowrap;
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
