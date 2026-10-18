@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { isPushSupported, getPushPermission, isPushSubscribed, subscribeToPush, syncPushSubscription } from '../utils/pushNotifications';
+import { isPushSupported, getPushPermission, subscribeToPush, syncPushSubscription, reportPushStartDiagnostics } from '../utils/pushNotifications';
 import { safeStorage } from '../utils/safeStorage';
 
 // Proactive "Benachrichtigungen aktivieren" banner. Web push is opt-in — a
@@ -17,6 +17,16 @@ import { safeStorage } from '../utils/safeStorage';
 const DISMISS_KEY = 'jamie_push_prompt_dismissed';
 const SNOOZE_MS = 14 * 24 * 60 * 60 * 1000;
 
+// Contextual ask (Lea, 18.10.2026): right after joining a group or club — or
+// asking to — is when a push starts to matter (the chat, the acceptance), so
+// the join handlers fire this window event, like jamie:open-pro-modal: loose
+// contract, no plumbing. It overrides the 14-day snooze, but never within
+// 24 h of a "Später", and only while the permission was never answered.
+const ASK_AFTER_JOIN_EVENT = 'jamie:push-prompt-after-join';
+const ASK_AFTER_JOIN_SNOOZE_MS = 24 * 60 * 60 * 1000;
+// A beat after the join so its own result (button, toast) is seen first.
+const ASK_AFTER_JOIN_DELAY_MS = 1200;
+
 export const NotificationPrompt = () => {
   const { t } = useTranslation();
   const [show, setShow] = useState(false);
@@ -24,8 +34,24 @@ export const NotificationPrompt = () => {
   const timerRef = useRef(null);
 
   useEffect(() => {
+    let tid = null;
+    const onJoin = () => {
+      if (!isPushSupported() || getPushPermission() !== 'default') return;
+      const dismissedAt = parseInt(safeStorage.getItem(DISMISS_KEY) || '0', 10);
+      if (dismissedAt && Date.now() - dismissedAt < ASK_AFTER_JOIN_SNOOZE_MS) return;
+      clearTimeout(tid);
+      tid = setTimeout(() => setShow(true), ASK_AFTER_JOIN_DELAY_MS);
+    };
+    window.addEventListener(ASK_AFTER_JOIN_EVENT, onJoin);
+    return () => { window.removeEventListener(ASK_AFTER_JOIN_EVENT, onJoin); clearTimeout(tid); };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Once a day per device: what this start found ([push-diag], Lea
+      // 18.10.2026) — read BEFORE the repair below changes the subscription.
+      await reportPushStartDiagnostics();
       if (!isPushSupported()) return;                 // native / unsupported browser
       const perm = getPushPermission();
       if (perm === 'granted') {
@@ -37,10 +63,14 @@ export const NotificationPrompt = () => {
         syncPushSubscription();
         return;
       }
-      if (perm !== 'default') return;                 // blocked
+      // Blocked: WebPushDeniedBanner explains the way back (Android), the
+      // Settings row everywhere.
+      if (perm !== 'default') return;
       const dismissedAt = parseInt(safeStorage.getItem(DISMISS_KEY) || '0', 10);
       if (dismissedAt && Date.now() - dismissedAt < SNOOZE_MS) return;
-      if (await isPushSubscribed()) return;
+      // No "already subscribed?" check any more: without the permission a
+      // leftover subscription delivers nothing, yet it used to keep this
+      // banner away for good (Lea, 18.10.2026).
       // Let the app settle (intro / review modals) before nudging.
       timerRef.current = setTimeout(() => { if (!cancelled) setShow(true); }, 3000);
     })();

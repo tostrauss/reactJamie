@@ -2824,6 +2824,53 @@ suite('write endpoints against real Postgres', () => {
     });
   });
 
+  // ── Tote Web-Push-Endpoints (Lea, 18.10.2026) ────────────────────────────
+  // A 404/410 prune now remembers the endpoint (sha256) and subscribe refuses
+  // a re-post of it with 409 { resubscribe: true } — the loop that pruned the
+  // same endpoint over and over. Real Postgres for the ON CONFLICT upsert and
+  // the boot-time 180-day sweep in the migration.
+  describe('a pruned web endpoint is never registered again', () => {
+    let Q;
+    const dead = 'https://fcm.googleapis.com/fcm/send/smoke-dead';
+    const keys = { p256dh: 'p'.repeat(20), auth: 'a'.repeat(8) };
+
+    beforeAll(async () => {
+      Q = (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ('smoke-deadpush@x.com','Dora','1995-03-03','female',$1, TRUE, 'email') RETURNING id`,
+        [avatar])).rows[0].id;
+    });
+
+    it('the migration step ran clean and created the table', async () => {
+      const { getMigrationHealth } = await import('../../src/config/migrations.js');
+      expect(getMigrationHealth().stepFailures.map(f => f.label || String(f))
+        .filter(l => /push_dead_endpoints/.test(l))).toEqual([]);
+      expect((await db.query(`SELECT to_regclass('push_dead_endpoints') AS r`)).rows[0].r).not.toBeNull();
+    });
+
+    it('remember (twice — the upsert) → re-post answers 409 resubscribe and stores nothing; a fresh endpoint registers', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { rememberDeadEndpoint } = await import('../../src/controllers/pushController.js');
+      expect(await rememberDeadEndpoint(dead)).toBe(true);
+      expect(await rememberDeadEndpoint(dead)).toBe(true);
+      // One row, keyed by the sha256 — never the URL (it is the device's push credential).
+      const { createHash } = await import('crypto');
+      const stored = (await db.query('SELECT endpoint_hash FROM push_dead_endpoints')).rows.map(r => r.endpoint_hash);
+      expect(stored.filter(h => h === createHash('sha256').update(dead).digest('hex'))).toHaveLength(1);
+      expect(stored.some(h => h.includes('fcm.googleapis.com'))).toBe(false);
+
+      const res = await call(C.subscribePush, { userId: Q, body: { endpoint: dead, keys } });
+      expect(res.statusCode).toBe(409);
+      expect(res.body).toMatchObject({ resubscribe: true });
+      expect((await db.query('SELECT 1 FROM push_subscriptions WHERE endpoint = $1', [dead])).rowCount).toBe(0);
+
+      ok(await call(C.subscribePush, { userId: Q, body: { endpoint: `${dead}-fresh`, keys } }));
+      expect((await db.query('SELECT user_id FROM push_subscriptions WHERE endpoint = $1', [`${dead}-fresh`])).rows)
+        .toEqual([{ user_id: Q }]);
+      warn.mockRestore();
+    });
+  });
+
   // ── Abzeichen-Stufen (B2, tester 06.10.2026) ─────────────────────────────
   // Confirmed attendance, never sign-ups: ✓ must strictly outnumber ✗ from
   // OTHER people; „nicht stattgefunden“/cancelled/recurring/club events never

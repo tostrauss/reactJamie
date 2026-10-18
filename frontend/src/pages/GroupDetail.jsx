@@ -340,6 +340,7 @@ export const GroupDetail = () => {
         await refreshMembers(isClub);
       } else {
         const res = isClub ? await clubs.join(id) : await groups.join(id);
+        window.dispatchEvent(new Event('jamie:push-prompt-after-join')); // contextual push ask (NotificationPrompt)
         if (res.data?.status === 'pending') {
           setJoinRequestStatus('pending');
           toast.success(t('groups.detail.toast.requestSent'));
@@ -452,6 +453,7 @@ export const GroupDetail = () => {
     setJoiningEventId(eventId);
     try {
       const res = await groups.join(eventId);
+      window.dispatchEvent(new Event('jamie:push-prompt-after-join')); // contextual push ask (NotificationPrompt)
       if (res.data?.status === 'pending') {
         toast.success(t('groups.detail.events.requestSent'));
       } else {

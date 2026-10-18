@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { safeStorage } from '../utils/safeStorage';
+import { pushSettingsLocation } from '../utils/platform';
+import { isPushSupported, syncPushSubscription, WEB_PUSH_DENIED_DISMISS_KEY } from '../utils/pushNotifications';
 
 // Native-iOS counterpart of NotificationPrompt. Shows when iOS has the app's
 // notification permission set to DENIED — which is sticky: iOS asks exactly
@@ -22,33 +24,28 @@ import { safeStorage } from '../utils/safeStorage';
 // Two-row layout on purpose: the DE/FR CTA ("Einstellungen öffnen") is ~60px
 // wider than the web prompt's "Aktivieren", and in a single row it squeezed
 // the title into ~100px on non-Max iPhones.
+//
+// WebPushDeniedBanner below is the same banner for Android (Play app and
+// browser), sharing the shell, the timing and the snooze rules.
 export const DISMISS_KEY = 'jamie_native_push_denied_dismissed';
 const SNOOZE_MS = 14 * 24 * 60 * 60 * 1000;
 
-export const NativePushDeniedBanner = ({ permission }) => {
-  const { t } = useTranslation();
+// Shows 3 s after `permission` turns 'denied' unless `dismissKey` was snoozed
+// in the last 14 days; "Später" snoozes. `action` is the optional CTA — only
+// iOS has a page it can open.
+const PushDeniedBannerShell = ({ permission, dismissKey, title, text, laterLabel, action }) => {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
     if (permission !== 'denied') { setShow(false); return; }
-    const dismissedAt = parseInt(safeStorage.getItem(DISMISS_KEY) || '0', 10);
+    const dismissedAt = parseInt(safeStorage.getItem(dismissKey) || '0', 10);
     if (dismissedAt && Date.now() - dismissedAt < SNOOZE_MS) return;
     // Let the app settle (intro / review modals) before nudging.
     const t0 = setTimeout(() => setShow(true), 3000);
     return () => clearTimeout(t0);
-  }, [permission]);
+  }, [permission, dismissKey]);
 
-  const snooze = () => safeStorage.setItem(DISMISS_KEY, String(Date.now()));
-  const openSettings = () => {
-    try { window.open('app-settings:', '_blank'); } catch { /* not in a Capacitor shell */ }
-    // Deliberately neither hidden nor snoozed: iOS backgrounds the app while
-    // Settings is open. If they enable notifications, the hook flips
-    // permission to 'granted' on return and the effect above hides us; if
-    // they come back without enabling, the banner is simply still here.
-    // (Hiding it here left it gone for the session — a same-value 'denied'
-    // re-check doesn't re-run the effect.)
-  };
-  const dismiss = () => { snooze(); setShow(false); };
+  const dismiss = () => { safeStorage.setItem(dismissKey, String(Date.now())); setShow(false); };
 
   if (!show) return null;
 
@@ -74,21 +71,109 @@ export const NativePushDeniedBanner = ({ permission }) => {
           </svg>
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', overflowWrap: 'anywhere' }}>{t('nativePushDenied.title')}</div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 1 }}>{t('nativePushDenied.text')}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', overflowWrap: 'anywhere' }}>{title}</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 1 }}>{text}</div>
         </div>
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
         <button onClick={dismiss} style={{
           background: 'none', color: 'rgba(255,255,255,0.55)', border: 'none',
           padding: '8px 12px', minHeight: 36, fontSize: 13, cursor: 'pointer',
-        }}>{t('nativePushDenied.later')}</button>
-        <button onClick={openSettings} style={{
-          background: '#FD7666', color: '#1a1a2e', border: 'none', borderRadius: 999,
-          padding: '9px 16px', minHeight: 36, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
-        }}>{t('nativePushDenied.open')}</button>
+        }}>{laterLabel}</button>
+        {action && (
+          <button onClick={action.onClick} style={{
+            background: '#FD7666', color: '#1a1a2e', border: 'none', borderRadius: 999,
+            padding: '9px 16px', minHeight: 36, fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+          }}>{action.label}</button>
+        )}
       </div>
     </div>
+  );
+};
+
+export const NativePushDeniedBanner = ({ permission }) => {
+  const { t } = useTranslation();
+  const openSettings = () => {
+    try { window.open('app-settings:', '_blank'); } catch { /* not in a Capacitor shell */ }
+    // Deliberately neither hidden nor snoozed: iOS backgrounds the app while
+    // Settings is open. If they enable notifications, the hook flips
+    // permission to 'granted' on return and the effect above hides us; if
+    // they come back without enabling, the banner is simply still here.
+    // (Hiding it here left it gone for the session — a same-value 'denied'
+    // re-check doesn't re-run the effect.)
+  };
+  return (
+    <PushDeniedBannerShell
+      permission={permission}
+      dismissKey={DISMISS_KEY}
+      title={t('nativePushDenied.title')}
+      text={t('nativePushDenied.text')}
+      laterLabel={t('nativePushDenied.later')}
+      action={{ label: t('nativePushDenied.open'), onClick: openSettings }}
+    />
+  );
+};
+
+// Notification.permission, re-read when it can change under a running app:
+// the Permissions API fires `change` when the site permission is flipped, and
+// visibilitychange covers a return from Android's settings in shells that
+// fire nothing. Module-level so the effect below has no moving dependency.
+const readWebPermission = () => (isPushSupported() ? Notification.permission : 'unsupported');
+
+const useWebNotificationPermission = () => {
+  const [permission, setPermission] = useState(readWebPermission);
+  useEffect(() => {
+    let cancelled = false;
+    let status = null;
+    const refresh = () => { if (!cancelled) setPermission(readWebPermission()); };
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    try {
+      navigator.permissions?.query?.({ name: 'notifications' })
+        ?.then((s) => { if (cancelled || !s) return; status = s; s.onchange = refresh; })
+        .catch(() => {});
+    } catch { /* no Permissions API */ }
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisible);
+      if (status) status.onchange = null;
+    };
+  }, []);
+  return permission;
+};
+
+// Android: the web permission is DENIED (Lea, 18.10.2026: „Bei vielen
+// Android-Nutzern funktionieren die Push-Benachrichtigungen gar nicht").
+// NotificationPrompt only ever asks while the permission is 'default'; once
+// Android's own dialog in the Play app was answered "no", nothing in the app
+// said a word about it again — only a line deep in Settings. The page cannot
+// re-prompt or deep-link into Android's settings (Chrome only launches
+// BROWSABLE intents), so this names the steps: per-app switch for the Play app
+// / an installed app, the site permission for a browser tab — same texts as
+// the Settings row (pushSettingsLocation in utils/platform.js decides both).
+// iOS web keeps the Settings row only; the native app has the banner above.
+export const WebPushDeniedBanner = () => {
+  const { t } = useTranslation();
+  const [where] = useState(pushSettingsLocation);
+  const permission = useWebNotificationPermission();
+  const previous = useRef(permission);
+
+  // Switched back on while JAMIE stayed open (a browser tab reports it at
+  // once): subscribe now rather than on the next app start.
+  useEffect(() => {
+    if (previous.current === 'denied' && permission === 'granted') syncPushSubscription();
+    previous.current = permission;
+  }, [permission]);
+
+  if (where !== 'android-app' && where !== 'android-browser') return null;
+  return (
+    <PushDeniedBannerShell
+      permission={permission}
+      dismissKey={WEB_PUSH_DENIED_DISMISS_KEY}
+      title={t('webPushDenied.title')}
+      text={t(where === 'android-app' ? 'webPushDenied.textApp' : 'webPushDenied.textBrowser')}
+      laterLabel={t('webPushDenied.later')}
+    />
   );
 };
 

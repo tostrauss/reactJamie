@@ -1306,6 +1306,7 @@
       "pushBlocked": "Les notifications sont bloquées dans le navigateur. Autorise-les dans les paramètres du navigateur.",
       "pushBlockedTwa": "Les notifications de JAMIE sont désactivées dans Android. Ouvre Paramètres › Applications › JAMIE › Notifications, active-les et rouvre JAMIE.",
       "pushBlockedIos": "Les notifications de JAMIE sont bloquées. Ouvre Réglages iOS › Notifications › JAMIE et autorise les notifications.",
+      "pushBlockedAndroidBrowser": "Les notifications de JAMIE sont bloquées dans le navigateur. Dans la barre d'adresse, touche l'icône devant l'adresse › Autorisations › Notifications › Autoriser.",
       "pushDisabled": "Notifications push désactivées",
       "pushEnabled": "Notifications push activées !",
       "pushPermissionDenied": "Autorisation refusée ou erreur lors de l'activation",
@@ -2404,6 +2405,12 @@
     "title": "Les notifications sont désactivées dans iOS",
     "text": "Tu rates des messages et des demandes d'adhésion. Réactive-les dans les Réglages.",
     "open": "Ouvrir les Réglages",
+    "later": "Plus tard"
+  },
+  "webPushDenied": {
+    "title": "Les notifications sont désactivées",
+    "textApp": "Tu rates des messages et des demandes d'adhésion. Ouvre Paramètres › Applications › JAMIE › Notifications, active-les et rouvre JAMIE.",
+    "textBrowser": "Tu rates des messages et des demandes d'adhésion. Dans la barre d'adresse, touche l'icône devant l'adresse › Autorisations › Notifications › Autoriser.",
     "later": "Plus tard"
   },
   "errors": {

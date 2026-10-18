@@ -12,7 +12,7 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
 } from '../utils/pushNotifications';
-import { isNativeIOS, isPlayBillingActive, isStoreBillingActive, proUpsellAllowed, isTWA, isIOSWeb, isIOSWebStandalone } from '../utils/platform';
+import { isNativeIOS, isPlayBillingActive, isStoreBillingActive, proUpsellAllowed, isIOSWeb, isIOSWebStandalone, pushSettingsLocation } from '../utils/platform';
 import { usePaymentsConfig } from '../utils/paymentsConfig';
 import { restorePlayPurchases, PLAY_SUBSCRIPTIONS_URL } from '../utils/playBilling';
 import { RADIUS_OPTIONS_KM } from '../utils/geo';
@@ -287,8 +287,12 @@ export const SettingsPage = () => {
   // everyone to the BROWSER settings — in the Play app the switch is Android's
   // per-app notification setting (the TWA delegates its permission to it), so
   // TWA users looked in the wrong place and stayed without push for good.
-  const pushBlockedText = isTWA() ? t('settings.toast.pushBlockedTwa')
-    : isIOSWebStandalone() ? t('settings.toast.pushBlockedIos')
+  // Same decision and same steps as WebPushDeniedBanner (Lea, 18.10.2026), so
+  // banner and Settings never send one user to two different places.
+  const blockedWhere = pushSettingsLocation();
+  const pushBlockedText = blockedWhere === 'android-app' ? t('settings.toast.pushBlockedTwa')
+    : blockedWhere === 'android-browser' ? t('settings.toast.pushBlockedAndroidBrowser')
+    : blockedWhere === 'ios-web' ? t('settings.toast.pushBlockedIos')
     : t('settings.toast.pushBlocked');
 
   useEffect(() => {

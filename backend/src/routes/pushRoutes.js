@@ -25,12 +25,13 @@ router.get('/vapid-key', generalLimiter, getVapidKey);
 router.post('/subscribe', authenticate, subscribe);
 router.post('/unsubscribe', authenticate, unsubscribe);
 router.post('/apns-token', apnsTokenEntryLog, authenticate, saveApnsToken);
-// Native app reports what happened on the device (permission / registration
+// The iOS app ([APNs-diag]) and, since 18.10.2026, the web app / Play-TWA
+// ([push-diag]) report what happened on the device (permission / registration
 // outcome) so "no push" is diagnosable from Railway logs — see controller.
 // No route-level generalLimiter: the SAME instance is already mounted on all
 // of /api (server.js), and repeating it double-counts every request
-// (express-rate-limit ERR_ERL_DOUBLE_COUNT). Sentry escalation is throttled
-// per user inside the controller.
+// (express-rate-limit ERR_ERL_DOUBLE_COUNT). Log lines and Sentry escalation
+// are budgeted per user inside the controller.
 router.post('/diagnostics', authenticate, reportPushDiagnostics);
 // Per-user toggles (reminders / friend activity / recommendations). Lives here
 // rather than under /api/auth so it doesn't eat the authLimiter budget.

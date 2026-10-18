@@ -1306,6 +1306,7 @@
       "pushBlocked": "Benachrichtigungen sind im Browser blockiert. Bitte in den Browser-Einstellungen freigeben.",
       "pushBlockedTwa": "Benachrichtigungen sind für JAMIE in Android ausgeschaltet. Öffne Einstellungen › Apps › JAMIE › Benachrichtigungen, schalte sie ein und öffne JAMIE neu.",
       "pushBlockedIos": "Benachrichtigungen sind für JAMIE blockiert. Öffne iOS-Einstellungen › Mitteilungen › JAMIE und erlaube Mitteilungen.",
+      "pushBlockedAndroidBrowser": "Benachrichtigungen sind für JAMIE im Browser blockiert. Tippe in der Adressleiste auf das Symbol vor der Adresse › Berechtigungen › Benachrichtigungen › Zulassen.",
       "pushDisabled": "Push-Benachrichtigungen deaktiviert",
       "pushEnabled": "Push-Benachrichtigungen aktiviert!",
       "pushPermissionDenied": "Berechtigung verweigert oder Fehler beim Aktivieren",
@@ -2404,6 +2405,12 @@
     "title": "Benachrichtigungen sind in iOS deaktiviert",
     "text": "Du verpasst Nachrichten und Beitritts-Anfragen. In den Einstellungen wieder einschalten.",
     "open": "Einstellungen öffnen",
+    "later": "Später"
+  },
+  "webPushDenied": {
+    "title": "Benachrichtigungen sind ausgeschaltet",
+    "textApp": "Du verpasst Nachrichten und Beitritts-Anfragen. Öffne Einstellungen › Apps › JAMIE › Benachrichtigungen, schalte sie ein und öffne JAMIE neu.",
+    "textBrowser": "Du verpasst Nachrichten und Beitritts-Anfragen. Tippe in der Adressleiste auf das Symbol vor der Adresse › Berechtigungen › Benachrichtigungen › Zulassen.",
     "later": "Später"
   },
   "errors": {

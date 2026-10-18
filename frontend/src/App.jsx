@@ -21,7 +21,7 @@ import { useAnalytics } from './hooks/useAnalytics';
 import { EventReviewModal } from './components/EventReviewModal';
 import { FeedbackModal } from './components/FeedbackModal';
 import { NotificationPrompt } from './components/NotificationPrompt';
-import { NativePushDeniedBanner } from './components/NativePushDeniedBanner';
+import { NativePushDeniedBanner, WebPushDeniedBanner } from './components/NativePushDeniedBanner';
 import PullToRefresh from './components/PullToRefresh';
 import StatusBarScrim from './components/StatusBarScrim';
 import AvatarGateModal from './components/AvatarGateModal';
@@ -1071,6 +1071,13 @@ function AppRoutes() {
           top of its CTA. */}
       {user && !user.isGuest && !inSignupFlow && !showFeedback && !pendingReviews && !showIntro && !avatarNudgeVisible && (
         <NativePushDeniedBanner permission={nativePush.permission} />
+      )}
+      {/* Android counterpart (Play app + browser): the WEB permission is
+          denied, and NotificationPrompt only ever asks while it is 'default'.
+          Same suppression rules as the two above; the component reads the
+          permission itself and stays silent outside Android (Lea, 18.10.2026). */}
+      {!isNative() && user && !user.isGuest && !inSignupFlow && !showFeedback && !pendingReviews && !showIntro && !avatarNudgeVisible && (
+        <WebPushDeniedBanner />
       )}
       {/* Avatar nudge for avatar-less members with a finished profile — soft,
           dismissible, suppressed while other modals are up and on the sign-up
