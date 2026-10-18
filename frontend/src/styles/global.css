@@ -1088,8 +1088,10 @@ select:focus {
    Notifications Page
    ======================================== */
 .notif-page {
-  height: 100vh;
-  height: 100dvh;
+  /* Fills .app-viewport (the nav is a flex sibling below). It was 100dvh — a
+     full screen inside the area ABOVE the nav, so the last rows sat below the
+     fold of their own scroller once the bell started linking here (18.10.2026). */
+  height: 100%;
   display: flex;
   flex-direction: column;
   background: var(--bg-primary);
@@ -1098,16 +1100,41 @@ select:focus {
 
 .notif-header {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   background: var(--bg-primary);
-  padding: calc(env(safe-area-inset-top, 0px) + 20px) 20px 16px;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 16px 12px;
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 
+/* Same round 44px back button as the flow header (.flow-back). */
+.notif-back {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 50%;
+  color: var(--text-light);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--transition-fast);
+}
+.notif-back:active { background: var(--bg-hover); }
+
 .notif-title {
-  font-size: 28px;
+  flex: 1;
+  min-width: 0;
+  font-size: 24px;
   font-weight: 800;
   color: var(--text-white);
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .notif-scroll {
@@ -1149,19 +1176,27 @@ select:focus {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  list-style: none;
+  margin: 0;
   /* Nav is a flex sibling now (not a fixed overlay) — no big clearance needed. */
-  padding: 16px 20px 16px;
-  min-height: 100%;
+  padding: 16px 16px 16px;
 }
 
+/* A row is a <button> when it leads somewhere and a <div> when it does not;
+   both look the same apart from the chevron and the press feedback. */
 .notif-item {
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 14px;
   padding: 16px;
   background: var(--bg-card);
+  border: none;
   border-radius: var(--radius-lg);
   border-left: 3px solid transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   transition: background 0.15s;
@@ -1172,7 +1207,17 @@ select:focus {
   border-left-color: var(--accent-coral);
 }
 
-.notif-item:active { transform: scale(0.985); }
+.notif-item--link { cursor: pointer; }
+.notif-item--link:active { transform: scale(0.985); }
+.notif-item--link:focus-visible {
+  outline: 2px solid var(--accent-coral);
+  outline-offset: 2px;
+}
+
+.notif-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
 
 .notif-icon {
   width: 44px;
@@ -1192,20 +1237,37 @@ select:focus {
 }
 
 .notif-item-title {
+  display: block;
   font-size: 14px;
   font-weight: 600;
   color: var(--text-white);
   margin: 0 0 4px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+/* JAMIE news: the admin's headline in bold, the text with its line breaks. */
+.notif-item-title--news {
+  font-size: 15px;
+  font-weight: 800;
 }
 
 .notif-item-msg {
+  display: block;
   font-size: 13px;
   color: var(--text-muted);
   margin: 0 0 4px;
   line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.notif-item-msg--news {
+  color: var(--text-light);
+  white-space: pre-line;
 }
 
 .notif-item-time {
+  display: block;
   font-size: 11px;
   color: var(--text-dark);
 }

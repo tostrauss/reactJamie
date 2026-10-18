@@ -8,6 +8,7 @@ import { MapErrorBoundary } from "../components/MapErrorBoundary";
 import { DealCard } from "../components/DealCard";
 import AvatarGateModal from "../components/AvatarGateModal";
 import { JamieWordmark } from "../components/JamieWordmark";
+import { NotificationBell } from "../components/NotificationBell";
 import { AuthContext } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { CATEGORY_HIERARCHY } from "../utils/categories";
@@ -645,6 +646,9 @@ export const Home = () => {
       <div className="home-sticky-header">
         <div className="home-header">
           <JamieWordmark size="header" />
+          {/* Top right, out of the flow so the wordmark stays centred
+              (Robert / Lea, 18.10.2026: news and deals went unnoticed). */}
+          <NotificationBell />
         </div>
         <div className="tabs-container">
           <button

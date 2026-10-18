@@ -1113,7 +1113,15 @@
     "title": "Notifiche",
     "emptyTitle": "Nessuna notifica",
     "emptySub": "Sei in pari con tutto!",
-    "loadError": "Impossibile caricare le notifiche"
+    "loadError": "Impossibile caricare le notifiche",
+    "bell": {
+      "label": "Notifiche",
+      "labelUnread": "Notifiche, {{n}} nuove"
+    },
+    "hofLike": {
+      "text": "A {{name}} piace «{{event}}» nella Hall of Fame",
+      "textAnonymous": "A qualcuno piace «{{event}}» nella Hall of Fame"
+    }
   },
   "profileEdit": {
     "title": "Modifica profilo",
@@ -1289,6 +1297,8 @@
       "remindersHint": "Prima dei tuoi eventi e consigli per i tuoi gruppi",
       "friendActivity": "Attività degli amici",
       "friendActivityHint": "Quando gli amici entrano in un gruppo o ne creano uno",
+      "news": "Novità e deal",
+      "newsHint": "Aggiornamenti e nuovi deal di JAMIE come notifica push",
       "radius": "Raggio",
       "radiusKm": "Solo {{km}} km",
       "radiusAll": "Ovunque",
@@ -2251,6 +2261,47 @@
       "invalidClubs": "Non approvati o non più attivi: {{names}}. Rimuovili e salva di nuovo.",
       "alreadyAdded": "Già nella lista",
       "noResults": "Nessun club approvato trovato"
+    },
+    "news": {
+      "title": "News a tutti",
+      "hint": "Compare nella campanella di tutti gli utenti nella Home. Come push solo a chi ha attivato «Novità e deal».",
+      "titleLabel": "Titolo",
+      "titlePlaceholder": "es. Nuovi deal a Vienna",
+      "messageLabel": "Messaggio",
+      "messagePlaceholder": "Cosa c’è di nuovo su JAMIE?",
+      "linkLabel": "Link nell’app (facoltativo)",
+      "linkHint": "Un percorso dell’app che inizia con «/» – es. /deal/12 o /explore",
+      "linkInvalid": "Il link deve essere un percorso dell’app che inizia con «/», non un indirizzo web.",
+      "pushLabel": "Invia anche come push a chi ha dato il consenso",
+      "audience": "Destinatari: {{total}} · con consenso alle push: {{pushOptIn}}",
+      "audienceLoading": "Conteggio dei destinatari…",
+      "review": "Anteprima e invio",
+      "confirmTitle": "Inviare davvero a tutti?",
+      "confirmBody": "Destinatari: {{total}} – la news compare nella campanella di tutti.",
+      "confirmBodyUnknown": "Tutti gli utenti attivi vedranno questa news nella campanella.",
+      "confirmPush": "Anche come push a chi ha dato il consenso: {{pushOptIn}}.",
+      "confirmNoPush": "Senza push – solo nella campanella.",
+      "preview": "Anteprima",
+      "cancel": "Annulla",
+      "confirmSend": "Invia ora",
+      "sending": "Invio in corso…",
+      "sent": "Inviata · destinatari: {{recipients}}.",
+      "sentPush": "Push a chi ha dato il consenso: {{pushRecipients}}.",
+      "errors": {
+        "duplicate": "Questa news è appena stata inviata. Lo stesso titolo si può reinviare solo dopo {{minutes}} minuti.",
+        "unavailable": "Le news saranno di nuovo disponibili a breve. Riprova tra un minuto.",
+        "sendFailed": "Invio interrotto – già consegnata a: {{recipients}}. Non inviarla semplicemente di nuovo.",
+        "noResponse": "Nessuna risposta dal server. La news potrebbe partire comunque: controlla «Inviate di recente» prima di riprovare.",
+        "generic": "Invio non riuscito"
+      },
+      "recentTitle": "Inviate di recente",
+      "recentEmpty": "Nessuna news inviata finora.",
+      "recentMeta": "Destinatari: {{recipients}} · Push: {{push}}",
+      "recentBy": "da {{name}}",
+      "status": {
+        "sending": "in invio",
+        "failed": "interrotta"
+      }
     },
     "topPages": {
       "page": "Pagina",

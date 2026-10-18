@@ -449,8 +449,18 @@ export const reportPushDiagnostics = (req, res) => {
 // flags so they govern APNs on iOS too, not just web push. Column names come
 // from this allowlist — never from the body — and only keys sent as REAL
 // booleans are written, so a one-key PUT can't reset the others. Honoured by
-// the recipient SELECTs in jobs/eventReminders.js + utils/friendActivity.js.
-const PUSH_PREF_KEYS = ['push_reminders', 'push_friends', 'push_recommendations'];
+// the recipient SELECTs in jobs/eventReminders.js + utils/friendActivity.js,
+// and push_news (the opt-in for JAMIE news & deals, 18.10.2026) by
+// controllers/newsController.js.
+const PUSH_PREF_KEYS = ['push_reminders', 'push_friends', 'push_recommendations', 'push_news'];
+// push_news is NOT in SAFE_USER_COLS and must not be read where the others
+// are: the server takes traffic before its migrations finish, and a column the
+// database does not have yet would 500 every profile load (house rule). It is
+// only named in SQL when the request is about it — see the RETURNING list.
+const PREF_UNAVAILABLE = {
+  error: 'Diese Einstellung ist gleich wieder verfügbar. Bitte versuche es in einer Minute erneut.',
+  code: 'PREF_UNAVAILABLE',
+};
 export const updatePushPreferences = async (req, res) => {
   if (req.isGuest || !req.userId) return res.status(403).json({ error: 'Guests have no push preferences' });
   const keys = PUSH_PREF_KEYS.filter(k => typeof req.body?.[k] === 'boolean');
@@ -473,19 +483,41 @@ export const updatePushPreferences = async (req, res) => {
   }
 
   if (!keys.length) return res.status(400).json({ error: 'Keine gültige Einstellung übergeben' });
+  const withNews = keys.includes('push_news');
   try {
     const sets = keys.map((k, i) => `${k} = $${i + 2}`).join(', ');
     const { rows } = await db.query(
       `UPDATE users SET ${sets}, updated_at = CURRENT_TIMESTAMP
        WHERE id = $1
-       RETURNING push_reminders, push_friends, push_recommendations, notify_radius_km`,
+       RETURNING push_reminders, push_friends, push_recommendations, notify_radius_km${withNews ? ', push_news' : ''}`,
       [req.userId, ...values]
     );
     if (!rows.length) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
     res.json(rows[0]);
   } catch (err) {
+    // Only a push_news write can hit a missing column (the others are covered
+    // by CRITICAL_SCHEMA_PROBES) — that is the boot window, not a failure.
+    if (withNews && err?.code === '42703') return res.status(503).json(PREF_UNAVAILABLE);
     console.error('Error updating push preferences:', err);
     res.status(500).json({ error: 'Einstellung konnte nicht gespeichert werden' });
+  }
+};
+
+// GET /push/preferences — what Settings needs beyond the profile: the news
+// opt-in, read here and nowhere hot (see PREF_UNAVAILABLE above). The other
+// toggles keep coming from the profile. `push_news: null` means this server
+// cannot store the choice yet (column missing) — the client then hides the
+// switch instead of showing one that cannot save.
+export const getPushPreferences = async (req, res) => {
+  if (req.isGuest || !req.userId) return res.status(403).json({ error: 'Guests have no push preferences' });
+  try {
+    const { rows } = await db.query('SELECT push_news FROM users WHERE id = $1', [req.userId]);
+    if (!rows.length) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+    res.json({ push_news: rows[0].push_news === true });
+  } catch (err) {
+    if (err?.code === '42703') return res.json({ push_news: null });
+    console.error('Error reading push preferences:', err);
+    res.status(500).json({ error: 'Einstellungen konnten nicht geladen werden' });
   }
 };
 

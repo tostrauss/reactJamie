@@ -1680,6 +1680,87 @@ const runStartupMigrations = async () => {
     await db.query(`DELETE FROM push_dead_endpoints WHERE pruned_at < NOW() - INTERVAL '180 days'`);
   });
 
+  // ── Stream B: Glocke + „News an alle" (Lea / Robert, 18.10.2026) ────────
+  // Lea: neue Features und Deals gehen unter — ein Kanal von JAMIE in der App
+  // fehlt. Robert: Benachrichtigungen oben rechts auf Home. Three optional
+  // pieces, like the onboarding ones above: only here (never schema.sql), no
+  // CRITICAL_SCHEMA_PROBE, no backfill. Until they exist every read degrades
+  // (no link on a row, news push opt-in reads as off, the admin news list is
+  // empty) and only the writes that need them answer 503.
+  //
+  // notifications.link — an optional internal app path ("/deal/12") a row
+  // opens on tap. Probed first and ALTERed under a short lock_timeout, same
+  // reasoning as users.motivations: notifications is written by every
+  // fan-out, and even ADD COLUMN IF NOT EXISTS on an existing column queues
+  // for ACCESS EXCLUSIVE.
+  await migrate('notifications.link (2026-10)', async () => {
+    const { rows } = await db.query(
+      `SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'notifications' AND column_name = 'link'`
+    );
+    if (rows.length) return;
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`ALTER TABLE notifications ADD COLUMN IF NOT EXISTS link VARCHAR(500)`);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // news rows go out without a link until the next boot (newsController retries without it)
+    } finally {
+      client.release();
+    }
+  });
+
+  // users.push_news — the explicit opt-in for promotional pushes. App Store
+  // Review Guideline 4.5.4 requires one inside the app, so it defaults to
+  // OFF for everyone: a missing column must read as "no" (fail closed), never
+  // as consent. NOT NULL with a constant default is metadata-only on PG 11+.
+  await migrate('users.push_news (2026-10)', async () => {
+    const { rows } = await db.query(
+      `SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'users' AND column_name = 'push_news'`
+    );
+    if (rows.length) return;
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS push_news BOOLEAN NOT NULL DEFAULT FALSE`);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // the toggle stays hidden and news pushes reach nobody until the next boot
+    } finally {
+      client.release();
+    }
+  });
+
+  // One row per "News an alle" send: the double-send guard (same title within
+  // 10 minutes is refused), the admin's "Zuletzt gesendet" list and the audit
+  // trail of who sent what to how many. A side table rather than a scan of
+  // notifications, which grows by one row per user and send. No created_by FK
+  // on purpose — an FK without ON DELETE once broke account deletion
+  // (group_join_requests.reviewed_by); a deleted admin's name just goes blank.
+  await migrate('news_posts (2026-10)', async () => {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS news_posts (
+        id              SERIAL       PRIMARY KEY,
+        title           VARCHAR(255) NOT NULL,
+        message         TEXT         NOT NULL,
+        link            VARCHAR(500),
+        with_push       BOOLEAN      NOT NULL DEFAULT FALSE,
+        created_by      INTEGER,
+        status          VARCHAR(12)  NOT NULL DEFAULT 'sending',
+        recipients      INTEGER      NOT NULL DEFAULT 0,
+        push_recipients INTEGER      NOT NULL DEFAULT 0,
+        created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        CONSTRAINT news_posts_status_check CHECK (status IN ('sending', 'sent', 'failed'))
+      )`);
+    await db.query('CREATE INDEX IF NOT EXISTS idx_news_posts_created ON news_posts (created_at DESC)');
+  });
+
   // ── Post-migration schema assertion ────────────────────────────────────
   // The server accepts traffic BEFORE migrations finish (listen → migrate),
   // so health stays green during the boot window; only a PROVEN-broken

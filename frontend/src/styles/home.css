@@ -68,6 +68,63 @@
 .home-header {
   padding: 10px 20px 10px;
   text-align: center;
+  position: relative; /* anchors the bell; the wordmark stays centred */
+}
+
+/* ── Bell top right (Robert / Lea, 18.10.2026) ──
+   Absolutely placed inside the logo row, so it never shifts the centred
+   wordmark and never touches .home-sticky-header's safe-area padding. The row
+   is 50px (10 + 30px wordmark + 10), the 44px target fits inside it; at 320px
+   the ~91px wordmark ends at ~205px and the bell starts at 264px. */
+.home-bell {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-light);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background var(--transition-fast);
+}
+.home-bell:active { background: var(--bg-hover); }
+@media (hover: hover) {
+  .home-bell:hover { background: rgba(255, 255, 255, 0.06); }
+}
+.home-bell:focus-visible {
+  outline: 2px solid var(--accent-coral);
+  outline-offset: 2px;
+}
+
+/* Unread count, "9+" at most. The ring in the page background separates it
+   from the bell's stroke without a hard outline. */
+.home-bell-badge {
+  position: absolute;
+  top: 5px;
+  right: 3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: var(--radius-full);
+  background: var(--accent-coral);
+  color: var(--text-white);
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px var(--bg-primary);
+  pointer-events: none;
 }
 
 .logo-text {
