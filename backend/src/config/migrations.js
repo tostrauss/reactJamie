@@ -1656,6 +1656,30 @@ const runStartupMigrations = async () => {
     }
   });
 
+  // ── Stream C: tote Web-Push-Endpoints (Lea, 18.10.2026) ─────────────────
+  // „Bei vielen Android-Nutzern funktionieren die Push-Benachrichtigungen gar
+  // nicht." A web subscription the push service answered 404/410 for was
+  // pruned — and the browser re-posted the SAME dead endpoint on the next app
+  // start, so it was stored, pruned on the next push, re-posted … forever
+  // (user 62: three prunes in one day). The prune now remembers the endpoint
+  // here (sha256 only — the URL itself is a credential) and POST
+  // /push/subscribe answers 409 { resubscribe: true } for it, so the client
+  // drops it and subscribes fresh (pushController.subscribe).
+  //
+  // Optional like the polls: only here, no schema probe, no FK (nothing to
+  // lock on users). Missing table → prune and subscribe behave as before.
+  // A dead endpoint never comes back to life; the 180-day sweep only keeps
+  // the table bounded. It runs on each boot — a deploy every few days is
+  // plenty for a limit measured in months.
+  await migrate('push_dead_endpoints (2026-10)', async () => {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS push_dead_endpoints (
+        endpoint_hash TEXT        PRIMARY KEY,
+        pruned_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`);
+    await db.query(`DELETE FROM push_dead_endpoints WHERE pruned_at < NOW() - INTERVAL '180 days'`);
+  });
+
   // ── Post-migration schema assertion ────────────────────────────────────
   // The server accepts traffic BEFORE migrations finish (listen → migrate),
   // so health stays green during the boot window; only a PROVEN-broken

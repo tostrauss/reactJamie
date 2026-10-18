@@ -5,8 +5,16 @@
 import { push as pushApi } from './api.js';
 import { isNative } from './platform.js';
 import { safeStorage } from './safeStorage.js';
+import { reportPushDiag, reportPushStart, pushStartDue, describePushError } from './pushDiagnostics.js';
 
 const SW_SCOPE = '/';
+
+// Snooze key of WebPushDeniedBanner (components/NativePushDeniedBanner.jsx).
+// Lives here because a FRESH denial — the user just answered the prompt with
+// "Nicht zulassen" — writes it (subscribeToPush), exactly like useNativePush
+// does for iOS: the "so schaltest du sie wieder ein" banner must not nag
+// three seconds after a deliberate no, only about a denial from before.
+export const WEB_PUSH_DENIED_DISMISS_KEY = 'jamie_web_push_denied_dismissed';
 
 // "Push on this device: off" — set when the user switches push off in
 // Settings. Without it the switch did not stick: unsubscribing leaves the
@@ -38,15 +46,46 @@ export const isPushSupported = () =>
 export const getPushPermission = () =>
   isPushSupported() ? Notification.permission : 'denied';
 
+// Tags a failure with the step it came from, for the [push-diag] line
+// ("subscribe:AbortError …" vs "post:http500 …").
+const step = (stage, promise) => Promise.resolve(promise).catch((err) => {
+  const e = err && typeof err === 'object' ? err : new Error(String(err));
+  if (!e.pushStage) e.pushStage = stage;
+  throw e;
+});
+
+// navigator.serviceWorker.ready never rejects — when the worker never
+// activates it waits forever, and the repair hung without a trace. Not raced
+// (a first start may legitimately precache for a while): only a breadcrumb if
+// it is still pending after 20 s.
+const SW_READY_WARN_MS = 20_000;
+const swReady = () => {
+  const timer = setTimeout(() => {
+    reportPushDiag('subscribe_failed', { permission: getPushPermission(), detail: 'sw:Timeout service worker not ready after 20 s' });
+  }, SW_READY_WARN_MS);
+  return navigator.serviceWorker.ready.finally(() => clearTimeout(timer));
+};
+
+// POST /push/subscribe answers 409 { resubscribe: true } for an endpoint the
+// push service already declared dead (404/410 → pruned → remembered, backend
+// pushController.subscribe). Checked on the flag, not the status alone.
+const isDeadSubscriptionAnswer = (err) =>
+  err?.response?.status === 409 && err.response.data?.resubscribe === true;
+
 /**
  * Create (or repair) this browser's PushSubscription and register it with the
  * backend. Needs permission to be 'granted' already. Throws on failure.
+ * `mode`: 'optin' (a tap) or 'sync' (silent start-up repair) — only decides
+ * what the [push-diag] success line says.
  */
-const ensureSubscription = async () => {
-  const reg = await navigator.serviceWorker.ready;
-  const { data } = await pushApi.getVapidKey();
+const ensureSubscription = async (mode) => {
+  const reg = await step('sw', swReady());
+  const { data } = await step('vapid', pushApi.getVapidKey());
   const serverKey = urlBase64ToUint8Array(data.publicKey);
-  let sub = await reg.pushManager.getSubscription();
+  let sub = await step('subscribe', reg.pushManager.getSubscription());
+  // What changed, for the success line. A silent re-post of a healthy
+  // subscription (every app start) reports nothing — the daily `start` covers it.
+  let change = null;
 
   // Self-heal after a VAPID key rotation: subscribe() over an existing sub
   // with a DIFFERENT applicationServerKey throws (was caught and swallowed
@@ -59,16 +98,39 @@ const ensureSubscription = async () => {
     if (mismatch) {
       await sub.unsubscribe().catch(() => {});
       sub = null;
+      change = 'key-rotated';
     }
   }
 
+  const subscribeFresh = (stage) => step(stage, reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: serverKey,
+  }));
+
   if (!sub) {
-    sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: serverKey,
+    sub = await subscribeFresh('subscribe');
+    if (!change) change = 'created';
+  }
+  try {
+    await step('post', pushApi.subscribe(sub.toJSON()));
+  } catch (err) {
+    if (!isDeadSubscriptionAnswer(err)) throw err;
+    // The push service declared THIS endpoint dead, but the browser keeps
+    // handing it back until it is unsubscribed — before this, the app
+    // re-posted it on every start and the next push pruned it again, forever
+    // (Lea, 18.10.2026). Drop it and register a fresh one: the permission is
+    // already granted, so no prompt. ONE retry — a second refusal throws.
+    await sub.unsubscribe().catch(() => {});
+    sub = await subscribeFresh('resubscribe');
+    await step('resubscribe', pushApi.subscribe(sub.toJSON()));
+    change = 'resubscribed';
+  }
+  if (mode === 'optin' || change) {
+    reportPushDiag('subscribed', {
+      permission: getPushPermission(),
+      detail: mode === 'optin' ? `optin${change ? ` ${change}` : ''}` : change,
     });
   }
-  await pushApi.subscribe(sub.toJSON());
   return true;
 };
 
@@ -87,11 +149,18 @@ export const subscribeToPush = async () => {
     // gesture was gone and WebKit answered 'denied' without ever showing a
     // prompt — and the banner then snoozed itself for two weeks.
     const permission = await Notification.requestPermission();
-    if (permission !== 'granted') return false;
+    // What the prompt answered — in the Play app that is Android's own
+    // dialog, and a "no" there sticks (the suspected Android opt-in gap).
+    reportPushDiag('permission', { permission, detail: 'prompt' });
+    if (permission !== 'granted') {
+      if (permission === 'denied') safeStorage.setItem(WEB_PUSH_DENIED_DISMISS_KEY, String(Date.now()));
+      return false;
+    }
     safeStorage.removeItem(OPT_OUT_KEY);
-    return await ensureSubscription();
+    return await ensureSubscription('optin');
   } catch (err) {
     console.error('Push subscribe failed:', err);
+    reportPushDiag('subscribe_failed', { permission: getPushPermission(), detail: describePushError(err) });
     return false;
   }
 };
@@ -116,11 +185,39 @@ export const syncPushSubscription = async () => {
   // Switched off in Settings — a silent repair must not overrule that.
   if (hasOptedOutOfPush()) return false;
   try {
-    return await ensureSubscription();
+    return await ensureSubscription('sync');
   } catch (err) {
     console.warn('Push subscription sync failed:', err);
+    reportPushDiag('subscribe_failed', { permission: 'granted', detail: describePushError(err) });
     return false;
   }
+};
+
+// Whether this browser holds a PushSubscription at all, whatever the
+// permission says — the leftover case isPushSubscribed() now ignores is
+// exactly what the diagnostics line has to show.
+const hasLocalSubscription = async () => {
+  try {
+    const reg = await navigator.serviceWorker.getRegistration(SW_SCOPE);
+    return !!(reg && await reg.pushManager.getSubscription());
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * The daily [push-diag] `start` line: permission + local subscription as this
+ * app start FOUND them. Resolves once that state is read — call it before the
+ * start-up repair touches the subscription; the request itself runs on.
+ * Not on native iOS ([APNs-diag] covers it); a browser without the Push API is
+ * reported as 'unsupported' — from the outside it looks exactly like "no push".
+ */
+export const reportPushStartDiagnostics = async () => {
+  if (isNative() || !pushStartDue()) return;
+  const supported = isPushSupported();
+  const permission = supported ? Notification.permission : 'unsupported';
+  const hasSubscription = supported && await hasLocalSubscription();
+  reportPushStart({ permission, hasSubscription });
 };
 
 /**
@@ -147,10 +244,14 @@ export const unsubscribeFromPush = async ({ optOut = false } = {}) => {
 };
 
 /**
- * Returns true if currently subscribed to push.
+ * Returns true if pushes can actually reach this browser: a subscription AND
+ * the permission. A leftover subscription without 'granted' delivers nothing,
+ * yet it used to count — the banner stayed away (NotificationPrompt) and
+ * Settings showed "an" while every push was dropped (Lea, 18.10.2026).
  */
 export const isPushSubscribed = async () => {
   if (!isPushSupported()) return false;
+  if (Notification.permission !== 'granted') return false;
   try {
     const reg = await navigator.serviceWorker.getRegistration(SW_SCOPE);
     if (!reg) return false;

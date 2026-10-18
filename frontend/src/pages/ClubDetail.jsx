@@ -213,6 +213,7 @@ export const ClubDetail = () => {
         await loadEvents();
       } else {
         const res = await clubs.join(id);
+        window.dispatchEvent(new Event('jamie:push-prompt-after-join')); // contextual push ask (NotificationPrompt)
         if (res.data?.status === 'pending') {
           setJoinRequestStatus('pending');
           toast.success(t('clubDetail.toast.requestSent'));
@@ -264,6 +265,7 @@ export const ClubDetail = () => {
       // Events are stored as groups under the hood — use groups join endpoint
       const { groups } = await import('../utils/api');
       const res = await groups.join(eventId);
+      window.dispatchEvent(new Event('jamie:push-prompt-after-join')); // contextual push ask (NotificationPrompt)
       if (res.data?.status === 'pending') {
         toast.success(t('clubDetail.events.requestSent'));
       } else {

@@ -1329,6 +1329,7 @@
       "pushBlocked": "Notifications are blocked in your browser. Please allow them in browser settings.",
       "pushBlockedTwa": "Notifications are switched off for JAMIE in Android. Open Settings › Apps › JAMIE › Notifications, turn them on and reopen JAMIE.",
       "pushBlockedIos": "Notifications are blocked for JAMIE. Open iOS Settings › Notifications › JAMIE and allow notifications.",
+      "pushBlockedAndroidBrowser": "Notifications are blocked for JAMIE in your browser. In the address bar, tap the icon in front of the address › Permissions › Notifications › Allow.",
       "pushDisabled": "Push notifications disabled",
       "pushEnabled": "Push notifications enabled!",
       "pushPermissionDenied": "Permission denied or failed to enable",
@@ -2427,6 +2428,12 @@
     "title": "Notifications are turned off in iOS",
     "text": "You're missing messages and join requests. Turn them back on in Settings.",
     "open": "Open Settings",
+    "later": "Later"
+  },
+  "webPushDenied": {
+    "title": "Notifications are turned off",
+    "textApp": "You're missing messages and join requests. Open Settings › Apps › JAMIE › Notifications, turn them on and reopen JAMIE.",
+    "textBrowser": "You're missing messages and join requests. In the address bar, tap the icon in front of the address › Permissions › Notifications › Allow.",
     "later": "Later"
   },
   "errors": {

@@ -1329,6 +1329,7 @@
       "pushBlocked": "Le notifiche sono bloccate nel browser. Autorizzale nelle impostazioni del browser.",
       "pushBlockedTwa": "Le notifiche di JAMIE sono disattivate in Android. Apri Impostazioni › App › JAMIE › Notifiche, attivale e riapri JAMIE.",
       "pushBlockedIos": "Le notifiche di JAMIE sono bloccate. Apri Impostazioni di iOS › Notifiche › JAMIE e consenti le notifiche.",
+      "pushBlockedAndroidBrowser": "Le notifiche di JAMIE sono bloccate nel browser. Nella barra degli indirizzi tocca l'icona prima dell'indirizzo › Autorizzazioni › Notifiche › Consenti.",
       "pushDisabled": "Notifiche push disattivate",
       "pushEnabled": "Notifiche push attivate!",
       "pushPermissionDenied": "Autorizzazione negata o errore durante l'attivazione",
@@ -2427,6 +2428,12 @@
     "title": "Le notifiche sono disattivate in iOS",
     "text": "Ti perdi messaggi e richieste di ingresso. Riattivale nelle Impostazioni.",
     "open": "Apri Impostazioni",
+    "later": "Più tardi"
+  },
+  "webPushDenied": {
+    "title": "Le notifiche sono disattivate",
+    "textApp": "Ti perdi messaggi e richieste di ingresso. Apri Impostazioni › App › JAMIE › Notifiche, attivale e riapri JAMIE.",
+    "textBrowser": "Ti perdi messaggi e richieste di ingresso. Nella barra degli indirizzi tocca l'icona prima dell'indirizzo › Autorizzazioni › Notifiche › Consenti.",
     "later": "Più tardi"
   },
   "errors": {

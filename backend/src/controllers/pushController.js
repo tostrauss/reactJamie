@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import webpush from 'web-push';
 import db from '../config/database.js';
 import { createSemaphore } from '../utils/semaphore.js';
@@ -115,6 +116,46 @@ export const getVapidKey = (_req, res) => {
 };
 
 // ==========================================
+// DEAD WEB ENDPOINTS (push_dead_endpoints, migrations.js "Stream C")
+// ==========================================
+// A 404/410 from the push service is final for that endpoint, but the browser
+// keeps handing the same PushSubscription back until someone unsubscribes it.
+// The client re-posted it on every app start, the next push pruned it again —
+// a loop with no way out (Lea, 18.10.2026: user 62 was pruned three times in
+// one day). Remembered by hash: the endpoint URL is the device's push
+// credential and must not sit in a table (or a log) longer than needed.
+const endpointHash = (endpoint) => createHash('sha256').update(String(endpoint)).digest('hex');
+
+// 42P01/42703: the table is not there yet — the server takes traffic before
+// the startup migrations finish. Both helpers then behave exactly as before
+// the table existed; anything else is worth a line, never a failed request.
+const isMissingSchema = (err) => err?.code === '42P01' || err?.code === '42703';
+
+// Resolves (never rejects) — the prune path fires it and moves on.
+export const rememberDeadEndpoint = (endpoint) =>
+  db.query(
+    `INSERT INTO push_dead_endpoints (endpoint_hash) VALUES ($1)
+     ON CONFLICT (endpoint_hash) DO UPDATE SET pruned_at = NOW()`,
+    [endpointHash(endpoint)]
+  ).then(() => true, (err) => {
+    if (!isMissingSchema(err)) console.warn('[push] could not remember dead endpoint:', err?.message);
+    return false;
+  });
+
+const isDeadEndpoint = async (endpoint) => {
+  try {
+    const { rows } = await db.query(
+      'SELECT 1 FROM push_dead_endpoints WHERE endpoint_hash = $1',
+      [endpointHash(endpoint)]
+    );
+    return rows.length > 0;
+  } catch (err) {
+    if (!isMissingSchema(err)) console.warn('[push] dead-endpoint check failed:', err?.message);
+    return false;
+  }
+};
+
+// ==========================================
 // SAVE WEB PUSH SUBSCRIPTION
 // ==========================================
 export const subscribe = async (req, res) => {
@@ -126,6 +167,16 @@ export const subscribe = async (req, res) => {
   // Reject anything wildly oversized so no one can flood the DB.
   if (endpoint.length > 1024 || keys.p256dh.length > 256 || keys.auth.length > 128) {
     return res.status(400).json({ error: 'Subscription object too large' });
+  }
+
+  // Checked BEFORE anything is written: a refused post must not evict rows
+  // or move the endpoint between accounts. 409 + resubscribe tells the client
+  // (utils/pushNotifications.js ensureSubscription) to unsubscribe this one
+  // and post a fresh subscription instead — once, no prompt needed, the
+  // permission is already granted.
+  if (await isDeadEndpoint(endpoint)) {
+    console.warn(`[push] refused dead web subscription user=${req.userId} host=${endpointHost(endpoint)} — client told to resubscribe`);
+    return res.status(409).json({ error: 'Subscription expired', resubscribe: true });
   }
 
   try {
@@ -228,7 +279,7 @@ export const saveApnsToken = async (req, res) => {
 };
 
 // ==========================================
-// CLIENT-REPORTED PUSH DIAGNOSTICS (native iOS)
+// CLIENT-REPORTED PUSH DIAGNOSTICS (native iOS; web / TWA further down)
 // ==========================================
 // Exists because every device-side failure was invisible from the server:
 // a denied permission returned silently, registrationError only reached the
@@ -261,7 +312,8 @@ const clip = (v, n = 160) => (v == null ? '' : String(v)
 // POST became its own Sentry issue (the message embedded the per-request
 // detail, and Sentry groups by text), so a single authenticated client could
 // mint thousands of issues inside generalLimiter's budget. The log line is
-// still written every time — Sentry is for "a build is broken", not a tally.
+// still written every time (within the per-user log budget below) — Sentry
+// is for "a build is broken", not a tally.
 const DIAG_SENTRY_WINDOW_MS = 60 * 60 * 1000;
 const DIAG_SENTRY_MAX_KEYS = 5000;
 const diagSentryLast = new Map();
@@ -276,12 +328,100 @@ const shouldEscalate = (key, now) => {
   return true;
 };
 
+// Log budget per user, both platforms: the clients report at most a handful
+// of lines per app start (iOS dedupes per start, web per page load + `start`
+// once a day), so 30 an hour is never reached by a real device — it only
+// stops one authenticated client from flooding the log viewer inside
+// generalLimiter's much larger budget. Fixed window, cleared wholesale, so
+// memory follows the traffic of ONE hour; the key cap is a backstop.
+const DIAG_LOG_WINDOW_MS = 60 * 60 * 1000;
+const DIAG_LOG_MAX_PER_USER = 30;
+const DIAG_LOG_MAX_KEYS = 100_000;
+let diagLogWindowStart = 0;
+const diagLogCount = new Map();
+const takeDiagLogBudget = (userId, now) => {
+  if (now - diagLogWindowStart >= DIAG_LOG_WINDOW_MS) { diagLogCount.clear(); diagLogWindowStart = now; }
+  const used = diagLogCount.get(userId) || 0;
+  if (used >= DIAG_LOG_MAX_PER_USER) return false;
+  if (!used && diagLogCount.size >= DIAG_LOG_MAX_KEYS) return false;
+  diagLogCount.set(userId, used + 1);
+  return true;
+};
+
+// ── Web / Play-app (TWA) counterpart of [APNs-diag] ────────────────────────
+// Lea, 18.10.2026: „Bei vielen Android-Nutzern funktionieren die
+// Push-Benachrichtigungen gar nicht" — and the logs could not say why: every
+// web failure stayed in the browser console. The web client
+// (utils/pushDiagnostics.js) now reports here too; its platform values route
+// it to this branch, so the iOS contract above is untouched. Log-only, no
+// Sentry: web failures are mostly device-specific (e.g. Chrome on a phone
+// without Play services fails subscribe() with AbortError on every start) —
+// that would burn the Sentry quota without pointing at a broken build. One
+// line per event:
+//   [push-diag] user=62 platform=twa ua=SamsungBrowser/26 android=14 display=standalone event=start permission=denied sub=no detail=-
+const WEB_DIAG_PLATFORMS = new Set(['twa', 'android-web', 'ios-web', 'web']);
+const WEB_DIAG_EVENTS = new Set([
+  'start',             // once a day per device: permission + local subscription as found at app start
+  'permission',        // answer to an explicit Notification.requestPermission()
+  'subscribed',        // a subscription reached the backend (detail: created | resubscribed | key-rotated, "optin …" after a tap)
+  'subscribe_failed',  // detail: <stage>:<error> <message> (stage: sw | vapid | subscribe | post | resubscribe)
+]);
+const WEB_PERMISSIONS = new Set(['granted', 'denied', 'default', 'unsupported']);
+const DISPLAY_MODES = new Set(['standalone', 'fullscreen', 'minimal-ui', 'browser', 'window-controls-overlay']);
+
+// Browser family + major version from the request's own User-Agent. Order
+// matters: Samsung Internet, Edge and Opera all ALSO say "Chrome/…". Samsung
+// Internet hosts the TWA on some Galaxys, where notification permission is
+// not Chrome's — exactly what a log line has to tell apart.
+const BROWSER_PATTERNS = [
+  ['SamsungBrowser', /SamsungBrowser\/(\d+)/],
+  ['Edge', /Edg(?:A|iOS)?\/(\d+)/],
+  ['Opera', /OPR\/(\d+)/],
+  ['Firefox', /(?:Firefox|FxiOS)\/(\d+)/],
+  ['Chrome', /(?:Chrome|CriOS)\/(\d+)/],
+  ['Safari', /Version\/(\d+)[^ ]* (?:Mobile\/\S+ )?Safari\//],
+  // The iPhone home-screen web app drops "Version/… Safari/…" from its UA.
+  ['iOS', /(?:iPhone|iPad|iPod).*? OS (\d+)_/],
+];
+export const browserFamily = (ua) => {
+  const s = String(ua || '');
+  for (const [name, re] of BROWSER_PATTERNS) {
+    const m = s.match(re);
+    if (m) return `${name}/${m[1]}`;
+  }
+  return '-';
+};
+
+const reportWebPushDiagnostics = (req, res, body) => {
+  if (!WEB_DIAG_EVENTS.has(body.event)) return res.status(400).json({ error: 'invalid event' });
+  if (!takeDiagLogBudget(req.userId, Date.now())) return res.status(429).json({ error: 'too many diagnostics' });
+  // Every client value is allowlisted or clipped — this line is RENDERED by
+  // Railway's log viewer (see clip()).
+  const permission = WEB_PERMISSIONS.has(body.permission) ? body.permission : '-';
+  const sub = typeof body.has_subscription === 'boolean' ? (body.has_subscription ? 'yes' : 'no') : '-';
+  const display = DISPLAY_MODES.has(body.display_mode) ? body.display_mode : '-';
+  // Chrome's reduced UA says "Android 10" on every phone; the client reads the
+  // real major version from userAgentData. 13+ is where Android's own
+  // notification dialog (POST_NOTIFICATIONS) comes in — the suspected opt-in
+  // gap in the Play app.
+  const android = /^\d{1,2}$/.test(String(body.android ?? '')) ? String(body.android) : '-';
+  const ua = browserFamily(req.get?.('user-agent') ?? req.headers?.['user-agent']);
+  const line = `[push-diag] user=${req.userId} platform=${body.platform} ua=${ua} android=${android} display=${display} event=${body.event} permission=${permission} sub=${sub} detail=${clip(body.detail) || '-'}`;
+  const healthy = body.event === 'subscribed'
+    || (body.event === 'permission' && permission === 'granted')
+    || (body.event === 'start' && permission === 'granted' && sub === 'yes');
+  if (healthy) console.log(line); else console.warn(line);
+  res.json({ ok: true });
+};
+
 export const reportPushDiagnostics = (req, res) => {
   // Guests (ALLOW_GUEST_TOKEN) have no device row to diagnose and would only
   // add user=0 noise + Sentry events from an unauthenticated caller.
   if (req.isGuest || !req.userId) return res.status(403).json({ error: 'Guests cannot report diagnostics' });
+  if (WEB_DIAG_PLATFORMS.has(req.body?.platform)) return reportWebPushDiagnostics(req, res, req.body);
   const { event, permission, detail, app_version, platform } = req.body || {};
   if (!DIAG_EVENTS.has(event)) return res.status(400).json({ error: 'invalid event' });
+  if (!takeDiagLogBudget(req.userId, Date.now())) return res.status(429).json({ error: 'too many diagnostics' });
   const app = clip(app_version, 32) || '-';
   const line = `[APNs-diag] user=${req.userId} platform=${clip(platform, 16) || '-'} app=${app} event=${event} permission=${clip(permission, 32) || '-'} detail=${clip(detail) || '-'}`;
   const isProblem = event !== 'registered' && !(event === 'permission' && permission === 'granted');
@@ -389,6 +529,9 @@ async function dispatchToSubscription(sub, title, body, url, opts = {}) {
         if (status === 410 || status === 404) {
           console.warn(`[push] pruning dead web subscription ${where} status=${status}`);
           db.query('DELETE FROM push_subscriptions WHERE id = $1', [sub.id]).catch(() => {});
+          // …and remember it, or the browser re-posts this very endpoint on
+          // its next start and the prune repeats forever (see subscribe).
+          rememberDeadEndpoint(sub.endpoint);
           return { ...result, ok: false, status, pruned: true };
         }
         // 403 here almost always means a VAPID key mismatch (the subscription
@@ -459,6 +602,26 @@ async function dispatchToSubscription(sub, title, body, url, opts = {}) {
   return { id: sub.id, platform: sub.platform, host: null, ok: false, reason: 'incomplete-subscription' };
 }
 
+// ONE line per send call summing up its WEB rows. Successful web sends logged
+// nothing per device (only failures do), so "do Android pushes go out at
+// all?" had no answer in the logs — 534 `[APNs] sent` lines a day and not a
+// single web line (Lea, 18.10.2026). Counts and push-service hosts only
+// (fcm.googleapis.com = Chrome/Android), never an endpoint; `kind` is the
+// first segment of the tap target (chat, dm, …), not the full route — that
+// would put who-wrote-to-whom into the logs.
+const logWebSendOutcome = (scope, url, results) => {
+  const web = results.filter((r) => r?.platform === 'web');
+  if (!web.length) return;
+  const ok = web.filter((r) => r.ok).length;
+  const pruned = web.filter((r) => r.pruned).length;
+  const hosts = new Map();
+  for (const r of web) hosts.set(r.host, (hosts.get(r.host) || 0) + 1);
+  const hostList = [...hosts].map(([h, n]) => `${h}:${n}`).join(',');
+  const kind = String(url || '').split(/[/?#]/)[1] || '-';
+  const vapid = web.some((r) => r.reason === 'vapid-not-configured') ? ' vapid=missing' : '';
+  console.log(`[push] web sent ${scope} kind=${kind} subs=${web.length} ok=${ok} failed=${web.length - ok - pruned} pruned=${pruned} hosts=${hostList}${vapid}`);
+};
+
 // `title` may be a plain string (with `body`) OR a builder function
 // `(locale) => ({ title, body })` from utils/pushLocale.pushTexts — the
 // recipient's users.locale rides along on the subscriptions SELECT (one JOIN,
@@ -491,9 +654,11 @@ export const sendPushToUser = async (userId, title, body, url = '/notifications'
   if (!subs.length) return [];
 
   const texts = resolveTexts(title, body, subs[0].locale);
-  return Promise.all(subs.map((sub) =>
+  const results = await Promise.all(subs.map((sub) =>
     userPushSlots.run(() => dispatchToSubscription(sub, texts.title, texts.body, url, opts))
   ));
+  logWebSendOutcome(`user=${userId}`, url, results);
+  return results;
 };
 
 // The push devices registered for one user, as an admin may see them: platform,
@@ -543,12 +708,13 @@ export const sendPushToUsers = async (userIds, title, body, url = '/notification
   // Bounded parallelism: up to 6 bulk sends in flight (semaphore), the rest
   // queue — in the BULK lane, so 1:1 pushes never wait behind a blast.
   // Each dispatch handles its own errors, so this Promise.all never rejects.
-  await Promise.all(subs.map((sub) => {
+  const results = await Promise.all(subs.map((sub) => {
     const key = sub.locale || 'de';
     let texts = textCache.get(key);
     if (!texts) { texts = resolveTexts(title, body, sub.locale); textCache.set(key, texts); }
     return bulkPushSlots.run(() => dispatchToSubscription(sub, texts.title, texts.body, url, opts));
   }));
+  logWebSendOutcome(`bulk users=${ids.length}`, url, results);
 };
 
 // Ops fan-out (Batch 3): push every admin (Tobi/Tina/Robert/Arno). Used for

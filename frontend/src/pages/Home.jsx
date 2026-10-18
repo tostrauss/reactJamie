@@ -572,6 +572,7 @@ export const Home = () => {
       if (activeTab === 'clubs') await clubs.join(groupId);
       else await groups.join(groupId);
       setJoined(prev => new Set(prev).add(groupId));
+      window.dispatchEvent(new Event('jamie:push-prompt-after-join')); // contextual push ask (NotificationPrompt)
     } catch (err) {
       // Server-side avatar gate (2026-08-04) — local pre-check can be stale.
       if (err.response?.data?.requiresAvatar) { setShowAvatarGate(true); return; }

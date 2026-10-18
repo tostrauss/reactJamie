@@ -60,6 +60,49 @@ export const isIOSWebStandalone = () => {
   } catch { return false; }
 };
 
+// Android, as the web app sees it (Play-TWA, home-screen install, browser tab).
+export const isAndroidWeb = () =>
+  !isNative() && typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent || '');
+
+// The CSS display mode the page runs in: 'standalone' / 'fullscreen' /
+// 'minimal-ui' for an installed app (Play-TWA, home-screen install),
+// 'browser' for a tab, '-' when unknown (no matchMedia, e.g. jsdom).
+const DISPLAY_MODES = ['fullscreen', 'standalone', 'minimal-ui', 'window-controls-overlay', 'browser'];
+export const displayMode = () => {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return '-';
+  try {
+    return DISPLAY_MODES.find((m) => window.matchMedia(`(display-mode: ${m})`).matches) || '-';
+  } catch { return '-'; }
+};
+
+// ── Where a blocked notification permission is switched back on ─────────
+// (Lea, 18.10.2026: Android-Nutzer ohne Push.) A DENIED permission can only
+// be fixed outside the page, and the place depends on the shell:
+//   'android-app'     the Play app (TWA): Chrome delegates its permission to
+//                     Android's per-app switch (Einstellungen › Apps › JAMIE ›
+//                     Benachrichtigungen). ALSO any Android page running
+//                     standalone without the TWA referrer — some Galaxys host
+//                     the TWA in Samsung Internet, which may not send
+//                     android-app://jamie.app (unverified), and a home-screen
+//                     install is an Android app with that same switch.
+//   'android-browser' an Android browser tab: the site's own permission
+//   'ios-web'         the iPhone home-screen web app
+//   'browser'         everything else; 'native' = the Capacitor app
+// Deliberately NOT folded into isTWA(): that one gates Stripe (Play billing
+// policy), and a home-screen install of the web app must keep its checkout.
+// The X-Client-Shell header is no second signal either — api.js derives it
+// from isTWA().
+export const pushSettingsLocation = () => {
+  if (isNative()) return 'native';
+  if (isTWA()) return 'android-app';
+  if (isAndroidWeb()) {
+    const mode = displayMode();
+    return mode === 'browser' || mode === '-' ? 'android-browser' : 'android-app';
+  }
+  if (isIOSWebStandalone()) return 'ios-web';
+  return 'browser';
+};
+
 // Any installed app wrapper (iOS/Android Capacitor OR the Android TWA) — i.e.
 // NOT a plain web browser. In-app digital purchases via Stripe are only
 // compliant in a real browser; every app shell must route through the store's
