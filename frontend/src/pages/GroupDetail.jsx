@@ -19,6 +19,7 @@ import { shareLink } from '../utils/share';
 import { openCalendar } from '../utils/calendarExport';
 import { proUpsellAllowed } from '../utils/platform';
 import { usePaymentsConfig } from '../utils/paymentsConfig';
+import { groupAgeLabel } from '../utils/ageRange';
 import '../styles/group-detail.css';
 
 // Lazy-load: pulls Stripe SDK only when the owner opens the modal.
@@ -29,11 +30,6 @@ const BoostModal = lazyWithReload(() => import('../components/BoostModal').then(
 const MAP_LIBRARIES = [];
 
 // Returns "{min}-{max}" with 60+ cap, or null if either bound is missing.
-function formatAgeRange(min, max) {
-  if (min == null || max == null) return null;
-  const capped = max >= 60 ? '60+' : String(max);
-  return min === max ? String(min) : `${Math.max(18, min)}-${capped}`;
-}
 
 // Local YYYY-MM-DD (timezone-safe) — used as the date input `min` so past
 // event dates can't be picked (a past date hides the event from the map).
@@ -861,7 +857,7 @@ export const GroupDetail = () => {
                   card is the single participants element (incl. capacity);
                   two of them read as clutter (Tobi, 2026-06-12). */}
               {(() => {
-                const ageRange = formatAgeRange(group.age_min, group.age_max);
+                const ageRange = groupAgeLabel(group);
                 return ageRange ? (
                   <span className="gd-info-item">
                     🎂 {t('groups.detail.info.age', { range: ageRange })}
