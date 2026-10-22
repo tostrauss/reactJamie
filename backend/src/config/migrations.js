@@ -1761,6 +1761,89 @@ const runStartupMigrations = async () => {
     await db.query('CREATE INDEX IF NOT EXISTS idx_news_posts_created ON news_posts (created_at DESC)');
   });
 
+  // ── Community / Club split (Tina, 22.10.2026) ───────────────────────────
+  // The product splits what was one "Club" into two: a COMMUNITY (user-founded,
+  // permanent, goes live immediately) and an official CLUB (clubs, companies,
+  // promoters — the only kind that still needs approval). Both stay
+  // groups.type='club'; club_type is the discriminator.
+  //
+  // NULLABLE, no NOT NULL DEFAULT: a default would stamp every type='group'
+  // and type='event' row with a meaningless club_type too. Every read is
+  // COALESCE(club_type, 'community') instead, which also makes the column
+  // fail-open during the boot window and before the backfill — a club without
+  // a value reads as a community, which is what all 'clubs' created so far are.
+  //
+  // Probed first, then ALTERed under a short lock_timeout: groups is read by
+  // every feed, and even ADD COLUMN IF NOT EXISTS on an existing column queues
+  // for ACCESS EXCLUSIVE (same reasoning as users.push_news above).
+  await migrate('groups.club_type (2026-10)', async () => {
+    const { rows } = await db.query(
+      `SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'groups' AND column_name = 'club_type'`
+    );
+    if (rows.length) return;
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS club_type VARCHAR(12)`);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // every club reads as a community until the next boot
+    } finally {
+      client.release();
+    }
+  });
+  // The free-text category line an official club shows in the Clubs list
+  // ("Sport · Laufclub"). Maintained by the club owner, overridable by an
+  // admin — deliberately NOT the fixed CATEGORY_HIERARCHY, which is what
+  // `category`/`categories` already carry.
+  await migrate('groups.category_label (2026-10)', async () => {
+    const { rows } = await db.query(
+      `SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'groups' AND column_name = 'category_label'`
+    );
+    if (rows.length) return;
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS category_label VARCHAR(60)`);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // the Clubs list falls back to `category` until the next boot
+    } finally {
+      client.release();
+    }
+  });
+  await migrate('chk_groups_club_type', () => db.query(`
+    DO $$ BEGIN
+      ALTER TABLE groups ADD CONSTRAINT chk_groups_club_type
+        CHECK (club_type IS NULL OR club_type IN ('community', 'official'));
+    EXCEPTION WHEN duplicate_object THEN NULL; END $$`));
+  // Partial: only clubs carry the column, and 'official' is the selective side
+  // of the filter — the community segment is most of the table and gets a
+  // bitmap/seq scan either way.
+  await migrate('idx_groups_club_type', () =>
+    db.query(`CREATE INDEX IF NOT EXISTS idx_groups_club_type ON groups(club_type) WHERE type = 'club'`));
+  // Backfill (Tobi 22.10.2026): EVERY existing club becomes a community —
+  // nobody loses visibility (they are all approved already) and an admin
+  // upgrades the real clubs one by one in the dashboard. Marker table, so it
+  // can never re-stamp a club an admin has since reclassified.
+  await migrate('club_type backfill (2026-10-22)', async () => {
+    const claimed = await db.query(
+      `INSERT INTO one_shot_migrations (name) VALUES ('2026-10-22_backfill_club_type')
+       ON CONFLICT (name) DO NOTHING RETURNING name`
+    );
+    if (claimed.rowCount === 0) return;
+    const r = await db.query(
+      `UPDATE groups SET club_type = 'community' WHERE type = 'club' AND club_type IS NULL`
+    );
+    console.log(`   [club-type] backfilled ${r.rowCount} existing clubs as 'community'`);
+  });
+
   // ── Post-migration schema assertion ────────────────────────────────────
   // The server accepts traffic BEFORE migrations finish (listen → migrate),
   // so health stays green during the boot window; only a PROVEN-broken

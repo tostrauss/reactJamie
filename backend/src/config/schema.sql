@@ -85,6 +85,8 @@ CREATE TABLE groups (
   owner_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   is_active       BOOLEAN DEFAULT TRUE,
   is_featured     BOOLEAN DEFAULT FALSE,                 -- "Im Trend" section
+  club_type       VARCHAR(12),                           -- clubs only: 'community' (user-founded, instant) | 'official' (needs approval); NULL reads as 'community'
+  category_label  VARCHAR(60),                           -- clubs only: free-text category line ("Sport · Laufclub")
   parent_club_id  INTEGER REFERENCES groups(id) ON DELETE CASCADE, -- NULL = top-level; set for club events
   deleted_at      TIMESTAMP,                             -- Soft delete (NULL = active)
   created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -100,6 +102,10 @@ CREATE INDEX idx_groups_active ON groups(is_active);
 CREATE INDEX idx_groups_featured ON groups(is_featured) WHERE is_featured = TRUE;
 CREATE INDEX idx_groups_lat_lng ON groups(lat, lng) WHERE lat IS NOT NULL AND lng IS NOT NULL;
 CREATE INDEX idx_groups_type_active ON groups(type, is_active);
+CREATE INDEX idx_groups_club_type ON groups(club_type) WHERE type = 'club';
+
+ALTER TABLE groups ADD CONSTRAINT chk_groups_club_type
+  CHECK (club_type IS NULL OR club_type IN ('community', 'official'));
 
 -- 4. Group Members
 CREATE TABLE group_members (
