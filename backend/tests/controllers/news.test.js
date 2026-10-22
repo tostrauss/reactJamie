@@ -82,6 +82,7 @@ vi.mock('../../src/controllers/adminController.js', () => stubs([
   'getPendingClubs', 'approveClub', 'rejectClub', 'deleteUser', 'updateUserRole', 'getTopClubs',
   'getOnlineUsers', 'getGrowth', 'getUserOrigins', 'getUserDetail', 'getIpDiagnostics',
   'getBackupStatus', 'setUserActive', 'sendUserTestPush', 'removeUserAvatar',
+  'classifyClub', 'getClubsForAdmin',
 ]));
 vi.mock('../../src/controllers/feedbackController.js', () => stubs(['getFeedbackAdmin']));
 vi.mock('../../src/controllers/featuredClubController.js', () => stubs(['getFeaturedClubsAdmin', 'setFeaturedClubs']));
