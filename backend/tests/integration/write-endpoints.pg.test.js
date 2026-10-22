@@ -199,7 +199,8 @@ suite('write endpoints against real Postgres', () => {
       joinGroup: g.joinGroup, handleJoinRequest: g.handleJoinRequest, kickMember: g.kickMember,
       joinWaitlist: g.joinWaitlist, joinClub: c.joinClub,
       handleClubJoinRequest: c.handleClubJoinRequest,
-      getGroups: g.getGroups,
+      getGroups: g.getGroups, getClubs: c.getClubs, getClubById: c.getClubById,
+      updateClub: c.updateClub, classifyClub: ad.classifyClub, getClubsForAdmin: ad.getClubsForAdmin,
       getDiscoverEvents: c.getDiscoverEvents, getMapPins: mp.getMapPins,
       getGroupById: g.getGroupById,
       cancelGroup: g.cancelGroup, deleteGroup: g.deleteGroup,
@@ -4378,6 +4379,365 @@ suite('write endpoints against real Postgres', () => {
       expect(exp.body.event_photos.map((p) => p.url)).toEqual([photo('l1')]);
       expect(exp.body.hall_of_fame_kept_events.map((e) => e.event_name)).toEqual(['HoF Wandern']);
       expect(exp.body.profile.push_news).toBe(false);
+    });
+  });
+
+  // ── Community / Club split (Tina, 22.10.2026) ─────────────────────────────
+  // The pieces a db-mocking test cannot see: the real column and its CHECK, the
+  // one-shot backfill, the segment filter against NULL rows, the featured_clubs
+  // join in the ORDER BY, the daily cap counting real rows, and the two
+  // approval gates that used to let a rejected club be joined by link.
+  describe('Community/Club split (22.10.2026)', () => {
+    let owner, outsider, adminUser;
+    let communityClub, officialClub, legacyClub, pendingOfficial, rejectedClub;
+
+    const mkUser = async (email, name, isAdmin = false) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider, is_admin)
+       VALUES ($1,$2,'1990-01-01','female',$3, TRUE, 'email', $4) RETURNING id`,
+      [email, name, avatar, isAdmin])).rows[0].id;
+
+    it('seed: users', async () => {
+      owner = await mkUser('smoke-ct-owner@x.com', 'Carla');
+      outsider = await mkUser('smoke-ct-out@x.com', 'Olaf');
+      adminUser = await mkUser('smoke-ct-admin@x.com', 'Alma', true);
+    });
+
+    describe('schema', () => {
+      it('club_type and category_label exist, nullable, with a CHECK and an index', async () => {
+        const cols = await db.query(
+          `SELECT column_name, is_nullable, character_maximum_length AS len
+             FROM information_schema.columns
+            WHERE table_schema = current_schema() AND table_name = 'groups'
+              AND column_name IN ('club_type','category_label')
+            ORDER BY column_name`);
+        expect(cols.rows.map((r) => r.column_name)).toEqual(['category_label', 'club_type']);
+        // Nullable on purpose: a NOT NULL DEFAULT would have stamped every
+        // group and event row with a meaningless club_type too.
+        expect(cols.rows.every((r) => r.is_nullable === 'YES')).toBe(true);
+        expect(cols.rows.find((r) => r.column_name === 'club_type').len).toBe(12);
+        expect(cols.rows.find((r) => r.column_name === 'category_label').len).toBe(60);
+
+        const idx = await db.query(
+          `SELECT 1 FROM pg_indexes WHERE tablename='groups' AND indexname='idx_groups_club_type'`);
+        expect(idx.rowCount).toBe(1);
+      });
+
+      it('the CHECK refuses anything but community/official (NULL stays allowed)', async () => {
+        await expect(db.query(
+          `INSERT INTO groups (name, type, owner_id, category, location, max_members, club_type)
+           VALUES ('Bad Type','club',$1,'Sport','Wien',10,'VEREIN')`, [owner])
+        ).rejects.toMatchObject({ code: '23514' });
+
+        // NULL must still insert — that is the fail-open side every read relies on.
+        const nulled = await db.query(
+          `INSERT INTO groups (name, type, owner_id, category, location, max_members, approval_status, lat, lng)
+           VALUES ('Legacy Club','club',$1,'Sport','Wien',50,'approved',48.2,16.37) RETURNING id, club_type`,
+          [owner]);
+        legacyClub = nulled.rows[0].id;
+        expect(nulled.rows[0].club_type).toBe(null);
+      });
+
+      it('the backfill is marked and never runs a second time', async () => {
+        const marker = await db.query(
+          `SELECT 1 FROM one_shot_migrations WHERE name = '2026-10-22_backfill_club_type'`);
+        expect(marker.rowCount).toBe(1);
+
+        // legacyClub was inserted AFTER the first migration run, with no
+        // club_type. Running the migrations again must leave it alone — that is
+        // what the marker buys, and why a later boot cannot re-stamp a club an
+        // admin has since reclassified. (A NULL row is not stranded either way:
+        // every read treats it as a community, which the segment tests below
+        // prove against the real query.)
+        const { runStartupMigrations } = await import('../../src/config/migrations.js');
+        await runStartupMigrations();
+        expect((await db.query('SELECT club_type FROM groups WHERE id=$1', [legacyClub]))
+          .rows[0].club_type).toBe(null);
+      });
+    });
+
+    describe('createClub', () => {
+      it("club_type:'community' is live at once", async () => {
+        const res = await call(C.createClub, { userId: owner, body: {
+          name: 'Smoke Community', description: 'live sofort', category: 'Sport',
+          location: 'Wien', max_members: 50, club_type: 'community' } });
+        expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+        communityClub = res.body.id;
+        const r = await db.query('SELECT club_type, approval_status FROM groups WHERE id=$1', [communityClub]);
+        expect(r.rows[0]).toEqual({ club_type: 'community', approval_status: 'approved' });
+      });
+
+      it("club_type:'official' waits for a moderator", async () => {
+        const res = await call(C.createClub, { userId: owner, body: {
+          name: 'Smoke Official', description: 'wartet', category: 'Sport',
+          location: 'Wien', max_members: 50, club_type: 'official' } });
+        expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+        pendingOfficial = res.body.id;
+        const r = await db.query('SELECT club_type, approval_status FROM groups WHERE id=$1', [pendingOfficial]);
+        expect(r.rows[0]).toEqual({ club_type: 'official', approval_status: 'pending' });
+      });
+
+      // The whole reason club_type is read explicitly: an iOS 1.4.1 bundle has
+      // no such field and must keep the moderation gate it shipped with.
+      it('a request WITHOUT club_type still goes to the queue', async () => {
+        const res = await call(C.createClub, { userId: outsider, body: {
+          name: 'Old Bundle Club', description: 'kein club_type', category: 'Sport',
+          location: 'Wien', max_members: 50 } });
+        expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+        const r = await db.query('SELECT club_type, approval_status FROM groups WHERE id=$1', [res.body.id]);
+        expect(r.rows[0]).toEqual({ club_type: 'community', approval_status: 'pending' });
+      });
+
+      it('the 4th community within 24 h is refused with 429', async () => {
+        const capUser = await mkUser('smoke-ct-cap@x.com', 'Cappy');
+        for (let i = 1; i <= 3; i++) {
+          const res = await call(C.createClub, { userId: capUser, body: {
+            name: `Cap Community ${i}`, description: 'x', category: 'Sport',
+            location: 'Wien', max_members: 20, club_type: 'community' } });
+          expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+        }
+        const over = await call(C.createClub, { userId: capUser, body: {
+          name: 'Cap Community 4', description: 'x', category: 'Sport',
+          location: 'Wien', max_members: 20, club_type: 'community' } });
+        expect(over.statusCode).toBe(429);
+        expect(over.body.code).toBe('COMMUNITY_DAILY_LIMIT');
+        expect((await db.query(
+          `SELECT COUNT(*)::int n FROM groups WHERE owner_id=$1 AND type='club'`, [capUser])).rows[0].n).toBe(3);
+
+        // An official club is NOT capped here — it waits for a human anyway.
+        const official = await call(C.createClub, { userId: capUser, body: {
+          name: 'Cap Official', description: 'x', category: 'Sport',
+          location: 'Wien', max_members: 20, club_type: 'official' } });
+        expect(official.statusCode, JSON.stringify(official.body)).toBe(201);
+      });
+    });
+
+    describe('getClubs segments', () => {
+      it('seed: an approved official club with two upcoming events', async () => {
+        officialClub = (await db.query(
+          `INSERT INTO groups (name, type, owner_id, category, category_label, location, max_members,
+                               approval_status, club_type, lat, lng, members_count)
+           VALUES ('Smoke Clubhaus','club',$1,'Bar','Bar · Nightlife','Wien',200,'approved','official',48.2,16.37,300)
+           RETURNING id`, [owner])).rows[0].id;
+        const mkEv = async (name, when) => db.query(
+          `INSERT INTO groups (name, type, owner_id, category, location, max_members, date, parent_club_id, lat, lng)
+           VALUES ($1,'event',$2,'Bar','Wien',20,$3,$4,48.2,16.37)`,
+          [name, owner, when, officialClub]);
+        await mkEv('Smoke Event morgen', new Date(Date.now() + 864e5));
+        await mkEv('Smoke Event naechste Woche', new Date(Date.now() + 7 * 864e5));
+        await mkEv('Smoke Event vorbei', new Date(Date.now() - 10 * 864e5));
+      });
+
+      const ids = (res) => (res.body || []).map((c) => Number(c.id));
+
+      it('?club_type=official returns only official clubs', async () => {
+        const res = await call(C.getClubs, { userId: outsider, query: { club_type: 'official', limit: '100' } });
+        ok(res);
+        expect(ids(res)).toContain(officialClub);
+        expect(ids(res)).not.toContain(communityClub);
+        expect(ids(res)).not.toContain(legacyClub);
+      });
+
+      it('?club_type=community returns communities INCLUDING the NULL legacy row', async () => {
+        const res = await call(C.getClubs, { userId: outsider, query: { club_type: 'community', limit: '100' } });
+        ok(res);
+        expect(ids(res)).toContain(communityClub);
+        expect(ids(res)).toContain(legacyClub);
+        expect(ids(res)).not.toContain(officialClub);
+      });
+
+      it('no club_type (old bundle) returns both kinds', async () => {
+        const res = await call(C.getClubs, { userId: outsider, query: { limit: '100' } });
+        ok(res);
+        expect(ids(res)).toContain(communityClub);
+        expect(ids(res)).toContain(officialClub);
+      });
+
+      it('a pending club is in nobody else’s list', async () => {
+        const res = await call(C.getClubs, { userId: outsider, query: { club_type: 'official', limit: '100' } });
+        expect(ids(res)).not.toContain(pendingOfficial);
+      });
+
+      // withOwnPendingClubs prepends the caller's own — but only in the segment
+      // it belongs to, or the owner's pending CLUB shows up under Communities.
+      it('the owner sees their own pending club in the Clubs segment only', async () => {
+        const inClubs = await call(C.getClubs, { userId: owner, query: { club_type: 'official', limit: '100' } });
+        expect(ids(inClubs)).toContain(pendingOfficial);
+        const inCommunities = await call(C.getClubs, { userId: owner, query: { club_type: 'community', limit: '100' } });
+        expect(ids(inCommunities)).not.toContain(pendingOfficial);
+      });
+
+      it('upcoming_events_count counts only what is still ahead', async () => {
+        const res = await call(C.getClubs, { userId: outsider, query: { club_type: 'official', limit: '100' } });
+        const row = (res.body || []).find((c) => Number(c.id) === officialClub);
+        expect(Number(row.upcoming_events_count)).toBe(2);
+        expect(row.category_label).toBe('Bar · Nightlife');
+      });
+
+      it('the admin-curated order applies, but a paid boost still outranks it', async () => {
+        const second = (await db.query(
+          `INSERT INTO groups (name, type, owner_id, category, location, max_members,
+                               approval_status, club_type, lat, lng, members_count)
+           VALUES ('Smoke Clubhaus Zwei','club',$1,'Bar','Wien',200,'approved','official',48.2,16.37,10)
+           RETURNING id`, [owner])).rows[0].id;
+
+        // Curate the SECOND club first — the order the admin saved. This read
+        // reflects it only because setFeaturedClubs busts the 'clubs:' prefix
+        // (added 22.10.2026, when getClubs started sorting by featured order);
+        // without that the list would serve the old order for a full TTL.
+        ok(await call(C.setFeaturedClubs, { userId: adminUser, body: { clubIds: [second, officialClub] } }));
+        const curated = await call(C.getClubs, { userId: outsider, query: { club_type: 'official', limit: '100' } });
+        const order = (curated.body || []).map((c) => Number(c.id)).filter((id) => [second, officialClub].includes(id));
+        expect(order).toEqual([second, officialClub]);
+
+        // Pro sells position 1 ("Immer ganz oben in der Entdecken-Liste"), so a
+        // boost on the club the admin put SECOND has to jump the queue.
+        await db.query(
+          `INSERT INTO boosts (user_id, target_type, target_id, credits_spent, boosted_until)
+           VALUES ($1,'club',$2,0, NOW() + INTERVAL '1 hour')`, [owner, officialClub]);
+        // The listing is cached for 30 s and a raw INSERT busts nothing; a real
+        // boost runs through applyBoost, which invalidates 'clubs:' itself.
+        (await import('../../src/utils/cache.js')).invalidatePrefix('clubs:');
+        const boosted = await call(C.getClubs, { userId: outsider, query: { club_type: 'official', limit: '100' } });
+        expect(Number((boosted.body || [])[0].id)).toBe(officialClub);
+
+        await db.query(`DELETE FROM boosts WHERE target_id = $1`, [officialClub]);
+        ok(await call(C.setFeaturedClubs, { userId: adminUser, body: { clubIds: [] } }));
+      });
+    });
+
+    describe('the direct link no longer leaks a club that is not live', () => {
+      it('seed: a rejected club with a member', async () => {
+        rejectedClub = (await db.query(
+          `INSERT INTO groups (name, type, owner_id, category, location, max_members,
+                               approval_status, club_type, is_active, lat, lng)
+           VALUES ('Smoke Rejected','club',$1,'Sport','Wien',50,'rejected','official',FALSE,48.2,16.37)
+           RETURNING id`, [owner])).rows[0].id;
+        await db.query(
+          `INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'member') ON CONFLICT DO NOTHING`,
+          [rejectedClub, outsider]);
+      });
+
+      it('a guest gets 404 for a pending club', async () => {
+        const res = await call(C.getClubById, { userId: null, params: { id: String(pendingOfficial) } });
+        expect(res.statusCode).toBe(404);
+      });
+
+      it('a logged-in stranger gets 404 for a pending club', async () => {
+        const stranger = await mkUser('smoke-ct-stranger@x.com', 'Sven');
+        const res = await call(C.getClubById, { userId: stranger, params: { id: String(pendingOfficial) } });
+        expect(res.statusCode).toBe(404);
+      });
+
+      it('the owner still sees their own pending club', async () => {
+        const res = await call(C.getClubById, { userId: owner, params: { id: String(pendingOfficial) } });
+        ok(res);
+        expect(Number(res.body.id)).toBe(pendingOfficial);
+      });
+
+      // A page must not vanish mid-conversation for the people already in it.
+      it('a member still reads a club that was rejected after they joined', async () => {
+        const res = await call(C.getClubById, { userId: outsider, params: { id: String(rejectedClub) } });
+        ok(res);
+        expect(res.body.is_member).toBe(true);
+      });
+
+      it('an app admin sees it for moderation', async () => {
+        ok(await call(C.getClubById, { userId: adminUser, params: { id: String(rejectedClub) } }));
+      });
+
+      it('joinClub refuses a pending and a rejected club with 404', async () => {
+        for (const id of [pendingOfficial, rejectedClub]) {
+          const joiner = await mkUser(`smoke-ct-join-${id}@x.com`, 'Jens');
+          const res = await call(C.joinClub, { userId: joiner, params: { id: String(id) }, body: {} });
+          expect(res.statusCode, JSON.stringify(res.body)).toBe(404);
+          expect((await db.query(
+            `SELECT COUNT(*)::int n FROM group_members WHERE group_id=$1 AND user_id=$2`,
+            [id, joiner])).rows[0].n).toBe(0);
+        }
+      });
+
+      it('an approved community is still joinable', async () => {
+        const joiner = await mkUser('smoke-ct-join-ok@x.com', 'Jana');
+        ok(await call(C.joinClub, { userId: joiner, params: { id: String(communityClub) }, body: {} }));
+      });
+    });
+
+    describe('admin reclassifying', () => {
+      it('promotes a community to an official club without touching its approval', async () => {
+        const res = await call(C.classifyClub, {
+          userId: adminUser, params: { id: String(legacyClub) }, body: { club_type: 'official' } });
+        ok(res);
+        const r = await db.query('SELECT club_type, approval_status FROM groups WHERE id=$1', [legacyClub]);
+        expect(r.rows[0]).toEqual({ club_type: 'official', approval_status: 'approved' });
+        // ...and it moves segment.
+        const inClubs = await call(C.getClubs, { userId: outsider, query: { club_type: 'official', limit: '100' } });
+        expect((inClubs.body || []).map((c) => Number(c.id))).toContain(legacyClub);
+      });
+
+      it('sets and clears the free-text category line', async () => {
+        ok(await call(C.classifyClub, {
+          userId: adminUser, params: { id: String(legacyClub) }, body: { category_label: '  Sport · Laufclub  ' } }));
+        expect((await db.query('SELECT category_label FROM groups WHERE id=$1', [legacyClub]))
+          .rows[0].category_label).toBe('Sport · Laufclub');
+
+        ok(await call(C.classifyClub, {
+          userId: adminUser, params: { id: String(legacyClub) }, body: { category_label: '' } }));
+        expect((await db.query('SELECT category_label FROM groups WHERE id=$1', [legacyClub]))
+          .rows[0].category_label).toBe(null);
+      });
+
+      it('refuses an unknown type and an empty body', async () => {
+        for (const body of [{ club_type: 'VEREIN' }, {}]) {
+          const res = await call(C.classifyClub, {
+            userId: adminUser, params: { id: String(legacyClub) }, body });
+          expect(res.statusCode).toBe(400);
+        }
+        expect((await db.query('SELECT club_type FROM groups WHERE id=$1', [legacyClub]))
+          .rows[0].club_type).toBe('official');
+      });
+
+      it('404s a club that does not exist', async () => {
+        const res = await call(C.classifyClub, {
+          userId: adminUser, params: { id: '99999999' }, body: { club_type: 'official' } });
+        expect(res.statusCode).toBe(404);
+      });
+
+      it('the admin list carries type and category for every club', async () => {
+        const res = await call(C.getClubsForAdmin, { userId: adminUser, query: { search: 'Smoke Clubhaus' } });
+        ok(res);
+        const row = (res.body || []).find((c) => Number(c.id) === officialClub);
+        expect(row.club_type).toBe('official');
+        expect(row.category_label).toBe('Bar · Nightlife');
+      });
+    });
+
+    describe('the owner maintains the category line', () => {
+      it('updateClub saves it, trims it, and refuses more than 60 characters', async () => {
+        ok(await call(C.updateClub, { userId: owner, params: { id: String(communityClub) },
+          body: { category_label: '  Sport · Laufgruppe  ' } }));
+        expect((await db.query('SELECT category_label FROM groups WHERE id=$1', [communityClub]))
+          .rows[0].category_label).toBe('Sport · Laufgruppe');
+
+        const tooLong = await call(C.updateClub, { userId: owner, params: { id: String(communityClub) },
+          body: { category_label: 'x'.repeat(61) } });
+        expect(tooLong.statusCode).toBe(400);
+
+        // '' clears, and NOT sending the field keeps what is stored.
+        ok(await call(C.updateClub, { userId: owner, params: { id: String(communityClub) },
+          body: { name: 'Smoke Community' } }));
+        expect((await db.query('SELECT category_label FROM groups WHERE id=$1', [communityClub]))
+          .rows[0].category_label).toBe('Sport · Laufgruppe');
+        ok(await call(C.updateClub, { userId: owner, params: { id: String(communityClub) },
+          body: { category_label: '' } }));
+        expect((await db.query('SELECT category_label FROM groups WHERE id=$1', [communityClub]))
+          .rows[0].category_label).toBe(null);
+      });
+
+      it('a stranger cannot touch it', async () => {
+        const res = await call(C.updateClub, { userId: outsider, params: { id: String(communityClub) },
+          body: { category_label: 'Fremd · Kategorie' } });
+        expect(res.statusCode).toBe(403);
+      });
     });
   });
 
