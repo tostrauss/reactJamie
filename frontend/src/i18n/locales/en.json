@@ -688,12 +688,36 @@
   "home": {
     "tabs": {
       "groups": "Groups",
-      "clubs": "Clubs",
+      "clubs": "Community",
       "map": "Map"
+    },
+    "segments": {
+      "communities": "Communities",
+      "clubs": "Clubs"
+    },
+    "communityHero": {
+      "title": "Find your community!",
+      "subtitle": "Join a community in your city — or found one yourself."
+    },
+    "clubsHero": {
+      "title": "Local clubs, events & more",
+      "subtitle": "Discover organised events and clubs near you!"
+    },
+    "clubRow": {
+      "upcomingEvents_one": "{{count}} upcoming event",
+      "upcomingEvents_other": "{{count}} upcoming events",
+      "members_one": "{{count}} member",
+      "members_other": "{{count}} members",
+      "official": "Official club",
+      "privateHint": "Join by request"
     },
     "search": {
       "placeholder": "Search",
-      "filterAria": "Open filters"
+      "filterAria": "Open filters",
+      "communityPlaceholder": "Search communities",
+      "minChars": "Enter at least 2 characters",
+      "searching": "Searching…",
+      "noResults": "No community found for “{{query}}”"
     },
     "profileBanner": {
       "title": "Profile not complete yet",
@@ -707,7 +731,11 @@
       "groups": "No groups found.",
       "groupsCta": "Create your own!",
       "clubs": "No clubs found.",
-      "clubsCta": "Start your own!"
+      "clubsCta": "Start your own!",
+      "communities": "No communities found.",
+      "communitiesCta": "Found your own!",
+      "officialClubs": "No clubs near you yet.",
+      "officialClubsHint": "Have a look at the events in the meantime."
     },
     "sections": {
       "myClubs": "My clubs",
@@ -715,7 +743,8 @@
       "eventsForYou": "Events for you",
       "seeAll": "See all",
       "imminent": "Today & Tomorrow",
-      "laterGroups": "More groups"
+      "laterGroups": "More groups",
+      "myCommunities": "My communities"
     },
     "clubEventsDiscover": "Discover events",
     "filter": {
@@ -1450,10 +1479,12 @@
     },
     "createModal": {
       "title": "What would you like to create?",
-      "groupTitle": "Create group",
-      "groupDesc": "Create an activity for 4-20 people",
-      "clubTitle": "Found a club",
-      "clubDesc": "Start a lasting community",
+      "groupTitle": "Create a meetup",
+      "groupDesc": "Create an activity for 4-20 people, e.g. grabbing a coffee, running etc.",
+      "communityTitle": "Found a community",
+      "communityDesc": "Create a lasting community and organise meetups.",
+      "clubTitle": "Create a club",
+      "clubDesc": "For associations, businesses, promoters and official clubs. With events, ticket links and more features.",
       "friendsTitle": "Find friends",
       "friendsDesc": "Search people and send friend requests",
       "cancel": "Cancel"
@@ -1810,6 +1841,16 @@
   },
   "createClub": {
     "title": "Found a club",
+    "community": {
+      "title": "Found a community",
+      "submit": "Found community",
+      "liveToast": "Your community is live! 🎉"
+    },
+    "official": {
+      "title": "Create a club",
+      "submit": "Create club",
+      "reviewHint": "We review clubs — yours will be live within 24 hours."
+    },
     "stepFmt": "{{current}}/3",
     "next": "Next",
     "submit": "Found club",
@@ -1954,7 +1995,10 @@
       "desc": "Description",
       "descPlaceholder": "Description...",
       "location": "Location",
-      "locationPlaceholder": "e.g. Vienna"
+      "locationPlaceholder": "e.g. Vienna",
+      "categoryLabel": "Category line",
+      "categoryLabelPlaceholder": "e.g. Sports · Running club",
+      "categoryLabelHint": "Shown under the name in the clubs list."
     },
     "chat": {
       "title": "Chat permissions",
@@ -2070,7 +2114,9 @@
   },
   "deals": {
     "card": {
-      "badge": "Jamie Deal"
+      "badge": "Jamie Deal",
+      "clubListSubtitle": "{{category}} · Deal",
+      "offer": "Offer"
     }
   },
   "pushPrompt": {
@@ -2239,6 +2285,18 @@
       "rejectConfirm": "Really reject club \"{{name}}\"?",
       "approveError": "Approval failed",
       "rejectError": "Rejection failed"
+    },
+    "classify": {
+      "title": "Reclassify clubs",
+      "hint": "Communities go live at once, clubs need approval.",
+      "searchPlaceholder": "Search clubs…",
+      "community": "Community",
+      "official": "Club",
+      "categoryPlaceholder": "e.g. Sports · Running club",
+      "save": "Save",
+      "saved": "Saved",
+      "saveError": "Could not be saved",
+      "empty": "No clubs found."
     },
     "featuredClubs": {
       "title": "Clubs in onboarding",

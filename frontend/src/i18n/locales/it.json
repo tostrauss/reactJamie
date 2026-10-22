@@ -688,12 +688,36 @@
   "home": {
     "tabs": {
       "groups": "Gruppi",
-      "clubs": "Club",
+      "clubs": "Community",
       "map": "Mappa"
+    },
+    "segments": {
+      "communities": "Community",
+      "clubs": "Club"
+    },
+    "communityHero": {
+      "title": "Trova la tua community!",
+      "subtitle": "Entra in una community della tua città o fondane una tua."
+    },
+    "clubsHero": {
+      "title": "Club locali, eventi e altro",
+      "subtitle": "Scopri eventi organizzati e club vicino a te!"
+    },
+    "clubRow": {
+      "upcomingEvents_one": "{{count}} evento in arrivo",
+      "upcomingEvents_other": "{{count}} eventi in arrivo",
+      "members_one": "{{count}} membro",
+      "members_other": "{{count}} membri",
+      "official": "Club ufficiale",
+      "privateHint": "Iscrizione su richiesta"
     },
     "search": {
       "placeholder": "Cerca",
-      "filterAria": "Apri filtri"
+      "filterAria": "Apri filtri",
+      "communityPlaceholder": "Cerca una community",
+      "minChars": "Inserisci almeno 2 caratteri",
+      "searching": "Ricerca in corso…",
+      "noResults": "Nessuna community trovata per «{{query}}»"
     },
     "profileBanner": {
       "title": "Profilo non ancora completo",
@@ -707,7 +731,11 @@
       "groups": "Nessun gruppo trovato.",
       "groupsCta": "Creane uno tu!",
       "clubs": "Nessun club trovato.",
-      "clubsCta": "Fonda il tuo!"
+      "clubsCta": "Fonda il tuo!",
+      "communities": "Nessuna community trovata.",
+      "communitiesCta": "Fondane una tua!",
+      "officialClubs": "Ancora nessun club vicino a te.",
+      "officialClubsHint": "Nel frattempo dai un’occhiata agli eventi."
     },
     "sections": {
       "myClubs": "I miei club",
@@ -715,7 +743,8 @@
       "eventsForYou": "Eventi per te",
       "seeAll": "Vedi tutti",
       "imminent": "Oggi e domani",
-      "laterGroups": "Altri gruppi"
+      "laterGroups": "Altri gruppi",
+      "myCommunities": "Le mie community"
     },
     "clubEventsDiscover": "Scopri gli eventi",
     "filter": {
@@ -1450,10 +1479,12 @@
     },
     "createModal": {
       "title": "Cosa vuoi creare?",
-      "groupTitle": "Crea gruppo",
-      "groupDesc": "Crea un'attività per 4-20 persone",
-      "clubTitle": "Fonda un club",
-      "clubDesc": "Avvia una community permanente",
+      "groupTitle": "Crea un incontro",
+      "groupDesc": "Crea un'attività per 4-20 persone, ad es. prendere un caffè, correre ecc.",
+      "communityTitle": "Fonda una community",
+      "communityDesc": "Crea una community duratura e organizza incontri.",
+      "clubTitle": "Crea un club",
+      "clubDesc": "Per associazioni, aziende, organizzatori e club ufficiali. Con eventi, link per i biglietti e altre funzioni.",
       "friendsTitle": "Trova amici",
       "friendsDesc": "Cerca persone e invia richieste di amicizia",
       "cancel": "Annulla"
@@ -1810,6 +1841,16 @@
   },
   "createClub": {
     "title": "Fonda un club",
+    "community": {
+      "title": "Fonda una community",
+      "submit": "Fonda la community",
+      "liveToast": "La tua community è online! 🎉"
+    },
+    "official": {
+      "title": "Crea un club",
+      "submit": "Crea il club",
+      "reviewHint": "Controlliamo i club: il tuo sarà online entro 24 ore."
+    },
     "stepFmt": "{{current}}/3",
     "next": "Avanti",
     "submit": "Fonda il club",
@@ -1954,7 +1995,10 @@
       "desc": "Descrizione",
       "descPlaceholder": "Descrizione...",
       "location": "Posizione",
-      "locationPlaceholder": "es. Vienna"
+      "locationPlaceholder": "es. Vienna",
+      "categoryLabel": "Riga categoria",
+      "categoryLabelPlaceholder": "ad es. Sport · Club di corsa",
+      "categoryLabelHint": "Compare sotto il nome nella lista dei club."
     },
     "chat": {
       "title": "Permessi di scrittura in chat",
@@ -2070,7 +2114,9 @@
   },
   "deals": {
     "card": {
-      "badge": "Jamie Deal"
+      "badge": "Jamie Deal",
+      "clubListSubtitle": "{{category}} · Deal",
+      "offer": "Offerta"
     }
   },
   "pushPrompt": {
@@ -2239,6 +2285,18 @@
       "rejectConfirm": "Rifiutare davvero il club \"{{name}}\"?",
       "approveError": "Approvazione non riuscita",
       "rejectError": "Rifiuto non riuscito"
+    },
+    "classify": {
+      "title": "Riclassifica i club",
+      "hint": "Le community vanno online subito, i club richiedono un’approvazione.",
+      "searchPlaceholder": "Cerca club…",
+      "community": "Community",
+      "official": "Club",
+      "categoryPlaceholder": "ad es. Sport · Club di corsa",
+      "save": "Salva",
+      "saved": "Salvato",
+      "saveError": "Salvataggio non riuscito",
+      "empty": "Nessun club trovato."
     },
     "featuredClubs": {
       "title": "Club nell'onboarding",

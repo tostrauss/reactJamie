@@ -7,6 +7,7 @@ import { AdminDealsSection } from '../components/AdminDealsSection';
 import { AdminGrowthSection } from '../components/AdminGrowthSection';
 import { AdminFeedbackSection } from '../components/AdminFeedbackSection';
 import { AdminFeaturedClubsSection } from '../components/AdminFeaturedClubsSection';
+import { AdminClassifySection } from '../components/AdminClassifySection';
 import { AdminMotivationsCard } from '../components/AdminMotivationsCard';
 import { AdminNewsSection } from '../components/AdminNewsSection';
 import { AdminReportsSection } from '../components/AdminReportsSection';
@@ -378,6 +379,14 @@ export const AdminDashboard = () => {
             </div>
           )}
         </div>
+
+        {/* Community ↔ Club (Tina 22.10.2026) — right below the approval
+            queue, because the two answer the same question about a club: the
+            queue decides whether it may go live, this decides what it IS.
+            Until a club is switched to "Club" here, the Clubs segment of
+            Entdecken stays empty. Self-loading; an older server or an
+            un-migrated database → the section is not rendered. */}
+        <AdminClassifySection />
 
         {/* Clubs new users see right after onboarding, in this order (Tina
             10.10.2026: "wir sortieren Clubs im Admin-Dashboard"). Next to the

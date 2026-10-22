@@ -688,12 +688,36 @@
   "home": {
     "tabs": {
       "groups": "Groupes",
-      "clubs": "Clubs",
+      "clubs": "Communauté",
       "map": "Carte"
+    },
+    "segments": {
+      "communities": "Communautés",
+      "clubs": "Clubs"
+    },
+    "communityHero": {
+      "title": "Trouve ta communauté !",
+      "subtitle": "Rejoins une communauté dans ta ville ou crée la tienne."
+    },
+    "clubsHero": {
+      "title": "Clubs locaux, événements et plus",
+      "subtitle": "Découvre des événements organisés et des clubs près de toi !"
+    },
+    "clubRow": {
+      "upcomingEvents_one": "{{count}} événement à venir",
+      "upcomingEvents_other": "{{count}} événements à venir",
+      "members_one": "{{count}} membre",
+      "members_other": "{{count}} membres",
+      "official": "Club officiel",
+      "privateHint": "Adhésion sur demande"
     },
     "search": {
       "placeholder": "Rechercher",
-      "filterAria": "Ouvrir les filtres"
+      "filterAria": "Ouvrir les filtres",
+      "communityPlaceholder": "Rechercher une communauté",
+      "minChars": "Saisis au moins 2 caractères",
+      "searching": "Recherche en cours…",
+      "noResults": "Aucune communauté trouvée pour « {{query}} »"
     },
     "profileBanner": {
       "title": "Profil pas encore complet",
@@ -707,7 +731,11 @@
       "groups": "Aucun groupe trouvé.",
       "groupsCta": "Crées-en un toi-même !",
       "clubs": "Aucun club trouvé.",
-      "clubsCta": "Fonde le tien !"
+      "clubsCta": "Fonde le tien !",
+      "communities": "Aucune communauté trouvée.",
+      "communitiesCta": "Crée la tienne !",
+      "officialClubs": "Pas encore de clubs près de toi.",
+      "officialClubsHint": "En attendant, jette un œil aux événements."
     },
     "sections": {
       "myClubs": "Mes clubs",
@@ -715,7 +743,8 @@
       "eventsForYou": "Événements pour toi",
       "seeAll": "Tout afficher",
       "imminent": "Aujourd'hui & demain",
-      "laterGroups": "Autres groupes"
+      "laterGroups": "Autres groupes",
+      "myCommunities": "Mes communautés"
     },
     "clubEventsDiscover": "Découvrir les événements",
     "filter": {
@@ -1450,10 +1479,12 @@
     },
     "createModal": {
       "title": "Que veux-tu créer ?",
-      "groupTitle": "Créer un groupe",
-      "groupDesc": "Crée une activité pour 4 à 20 personnes",
-      "clubTitle": "Fonder un club",
-      "clubDesc": "Lance une communauté durable",
+      "groupTitle": "Créer une sortie",
+      "groupDesc": "Crée une activité pour 4 à 20 personnes, p. ex. boire un café, courir, etc.",
+      "communityTitle": "Créer une communauté",
+      "communityDesc": "Crée une communauté durable et organise des rencontres.",
+      "clubTitle": "Créer un club",
+      "clubDesc": "Pour les associations, entreprises, organisateurs et clubs officiels. Avec événements, liens de billetterie et d'autres fonctions.",
       "friendsTitle": "Trouver des amis",
       "friendsDesc": "Cherche des gens et envoie des demandes d'amitié",
       "cancel": "Annuler"
@@ -1810,6 +1841,16 @@
   },
   "createClub": {
     "title": "Fonder un club",
+    "community": {
+      "title": "Créer une communauté",
+      "submit": "Créer la communauté",
+      "liveToast": "Ta communauté est en ligne ! 🎉"
+    },
+    "official": {
+      "title": "Créer un club",
+      "submit": "Créer le club",
+      "reviewHint": "Nous vérifions les clubs : le tien sera en ligne sous 24 heures."
+    },
     "stepFmt": "{{current}}/3",
     "next": "Continuer",
     "submit": "Fonder le club",
@@ -1954,7 +1995,10 @@
       "desc": "Description",
       "descPlaceholder": "Description...",
       "location": "Lieu",
-      "locationPlaceholder": "p. ex. Paris"
+      "locationPlaceholder": "p. ex. Paris",
+      "categoryLabel": "Ligne de catégorie",
+      "categoryLabelPlaceholder": "p. ex. Sport · Club de course",
+      "categoryLabelHint": "Apparaît sous le nom dans la liste des clubs."
     },
     "chat": {
       "title": "Droits d'écriture dans le chat",
@@ -2070,7 +2114,9 @@
   },
   "deals": {
     "card": {
-      "badge": "Jamie Deal"
+      "badge": "Jamie Deal",
+      "clubListSubtitle": "{{category}} · Deal",
+      "offer": "Offre"
     }
   },
   "pushPrompt": {
@@ -2239,6 +2285,18 @@
       "rejectConfirm": "Vraiment refuser le club « {{name}} » ?",
       "approveError": "Échec de la validation",
       "rejectError": "Échec du refus"
+    },
+    "classify": {
+      "title": "Reclasser les clubs",
+      "hint": "Les communautés sont publiées aussitôt, les clubs doivent être validés.",
+      "searchPlaceholder": "Rechercher un club…",
+      "community": "Communauté",
+      "official": "Club",
+      "categoryPlaceholder": "p. ex. Sport · Club de course",
+      "save": "Enregistrer",
+      "saved": "Enregistré",
+      "saveError": "Enregistrement impossible",
+      "empty": "Aucun club trouvé."
     },
     "featuredClubs": {
       "title": "Clubs dans l'onboarding",

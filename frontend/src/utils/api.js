@@ -507,9 +507,12 @@ export const groups = {
 export const clubs = {
   // Get all clubs
   getAll: (params = {}) => {
-    const { search, category, location, featured, limit, offset } = params;
+    // club_type ('community' | 'official') picks the Entdecken segment. Left
+    // out, the server filters on neither and answers with both kinds — which
+    // is what every client built before 22.10.2026 expects.
+    const { search, category, location, featured, limit, offset, club_type } = params;
     return axiosInstance.get('/clubs', {
-      params: { search, category, location, featured, limit, offset }
+      params: { search, category, location, featured, limit, offset, club_type }
     });
   },
 
@@ -935,6 +938,11 @@ export const admin = {
   // the same shape. A 404 means an older server — the section hides itself.
   getFeaturedClubs: () => axiosInstance.get('/admin/clubs/featured'),
   setFeaturedClubs: (clubIds) => axiosInstance.put('/admin/clubs/featured', { clubIds }),
+  // Community <-> Club reclassifying + the free-text category line (22.10.2026).
+  // A 404/503 means an older server — the section hides itself.
+  getClubsForAdmin: (search = '') =>
+    axiosInstance.get('/admin/clubs', { params: search ? { search } : {} }),
+  classifyClub: (id, body) => axiosInstance.post(`/admin/clubs/${id}/classify`, body),
   // Live presence: users with an active Socket.IO connection right now.
   getOnlineUsers: () => axiosInstance.get('/admin/online-users'),
   // Per-club / per-group view rankings (analytics_events.subject_id ⨯ groups)
