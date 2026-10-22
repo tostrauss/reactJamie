@@ -1973,7 +1973,10 @@
       "visibility": "Visibility",
       "visibilityPrivate": "Private — by request only",
       "visibilityPublic": "Public — anyone can join",
-      "categoryRemove": "Remove"
+      "categoryRemove": "Remove",
+      "categoryLabel": "Category line",
+      "categoryLabelPlaceholder": "e.g. Sports · Running club",
+      "categoryLabelHint": "Shown under the name in the clubs list."
     },
     "favoriteAria": "Add to favourites",
     "favError": "Could not save favourite",
@@ -1995,10 +1998,7 @@
       "desc": "Description",
       "descPlaceholder": "Description...",
       "location": "Location",
-      "locationPlaceholder": "e.g. Vienna",
-      "categoryLabel": "Category line",
-      "categoryLabelPlaceholder": "e.g. Sports · Running club",
-      "categoryLabelHint": "Shown under the name in the clubs list."
+      "locationPlaceholder": "e.g. Vienna"
     },
     "chat": {
       "title": "Chat permissions",

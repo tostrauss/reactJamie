@@ -3038,3 +3038,282 @@ input:checked + .slider:before {
 }
 
 .groups-load-more:disabled { opacity: 0.5; cursor: default; }
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   COMMUNITY TAB (Tina, 22.10.2026)
+   The former "Clubs" tab, split into Communities | Clubs. Everything below is
+   in-flow inside .clubs-feed (which already carries the 20px side gutter), so
+   none of it is fixed and none of it needs --nav-safe-bottom or a z-index.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Segmented pills ──────────────────────────────────────────────── */
+.community-seg {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  margin: 0 0 18px;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-full, 999px);
+}
+.community-seg-btn {
+  flex: 1;
+  min-height: 40px;
+  border: none;
+  border-radius: var(--radius-full, 999px);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.community-seg-btn.active {
+  background: var(--accent-coral);
+  color: #fff;
+}
+.community-seg-btn:active { transform: scale(0.99); }
+
+/* ── Segment hero ─────────────────────────────────────────────────── */
+.community-hero { margin: 0 0 16px; }
+.community-hero-title {
+  margin: 0 0 6px;
+  font-family: 'Archivo', -apple-system, sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--text-white);
+}
+.community-hero-sub {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+/* Below the search box: "at least 2 characters" / "searching…". */
+.clubs-search-hint {
+  margin: -12px 0 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Second line of an empty state (the Clubs segment before curation). */
+.empty-state .empty-sub {
+  font-size: 14px;
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+/* ── Community card ───────────────────────────────────────────────── */
+/* Reuses .group-card (and .clubs-grid's 4/3 banner ratio) for footprint and
+   press feedback; only the text block differs. Category bubble first, then the
+   title, then the member count — Tina's order. */
+.community-card-category {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 3px 10px;
+  margin-bottom: 6px;
+  border-radius: var(--radius-full, 999px);
+  background: var(--accent-coral);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.community-card .card-text-area {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+.community-card-title { margin: 0 0 4px; }
+.community-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.community-card-lock { font-size: 11px; }
+
+/* ── Official club rows ───────────────────────────────────────────── */
+.club-rows,
+.deal-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 18px;
+}
+.club-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.club-row:active { transform: scale(0.995); }
+.club-row-image {
+  flex-shrink: 0;
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-input);
+}
+.club-row-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.club-row-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.club-row-text { flex: 1; min-width: 0; }
+.club-row-title-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.club-row-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.club-row-verified { flex-shrink: 0; }
+.club-row-category,
+.club-row-meta {
+  margin: 2px 0 0;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.club-row-category { color: var(--accent-coral); font-weight: 700; }
+.club-row-meta { color: var(--text-muted); font-weight: 600; }
+.club-row-cta {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1.5px solid rgba(253, 118, 102, 0.4);
+  border-radius: var(--radius-full, 999px);
+  background: rgba(253, 118, 102, 0.1);
+  color: var(--accent-coral);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.club-row-cta:active { background: rgba(253, 118, 102, 0.2); }
+
+/* The row has to stay readable at 320px, where the CTA would squeeze the
+   title to nothing — so it drops under the text instead. */
+@media (max-width: 380px) {
+  .club-row { flex-wrap: wrap; }
+  .club-row-cta { width: 100%; margin-top: 2px; }
+}
+
+/* ── Deal row (DealCard variant="clubList") ───────────────────────── */
+.deal-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-card);
+  border: 1px solid rgba(253, 118, 102, 0.25);
+  border-radius: 16px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.deal-row:active { transform: scale(0.995); }
+.deal-row-image {
+  position: relative;
+  flex-shrink: 0;
+  width: 84px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-input);
+}
+.deal-row-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.deal-row-placeholder {
+  width: 100%;
+  height: 100%;
+  min-height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.deal-row-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  max-width: calc(100% - 8px);
+  padding: 2px 7px;
+  border-radius: var(--radius-full, 999px);
+  background: var(--accent-coral);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.deal-row-text { flex: 1; min-width: 0; }
+.deal-row-company {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.deal-row-category {
+  margin: 2px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--accent-coral);
+}
+.deal-row-offer {
+  margin: 5px 0 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text-light);
+  /* Two lines, then clamp: offers run long and the row must stay a row. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.deal-row-location {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

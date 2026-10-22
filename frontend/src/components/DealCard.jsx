@@ -10,6 +10,9 @@ import { useTranslation } from 'react-i18next';
  * - variant="home"    — compact card that drops into the 2-col groups grid
  *   on /home (Bild 1 right): same dimensions as a GroupCard so the row
  *   doesn't jump. Title is the 2-word headline, subtitle is the company name.
+ * - variant="clubList" — a wide row above the club list in the Clubs segment
+ *   of Entdecken (Tina 22.10.2026), where deals got their new home when the
+ *   Explore deals tab went away.
  */
 export const DealCard = memo(({ deal, variant = 'explore' }) => {
   const navigate = useNavigate();
@@ -62,6 +65,43 @@ export const DealCard = memo(({ deal, variant = 'explore' }) => {
               </div>
             )}
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Club-list variant: a row above the Clubs segment's club list ──
+  // Deals have no club relation in the database (the `deals` table has no
+  // club_id), so this card shows what a deal actually knows: the partner, its
+  // category, the offer itself and where to redeem it. Deliberately no member
+  // count and no verified badge — borrowing a club's would be a claim about a
+  // club that is not linked to this deal.
+  if (variant === 'clubList') {
+    return (
+      <div
+        className="deal-row"
+        role="button"
+        tabIndex={0}
+        onClick={onClick}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+      >
+        <div className="deal-row-image">
+          {photo
+            ? <img src={photo} alt={company} loading="lazy" decoding="async" />
+            : <div className="deal-row-placeholder">{(company || 'D')[0].toUpperCase()}</div>
+          }
+          {headline && <span className="deal-row-badge">{headline}</span>}
+        </div>
+
+        <div className="deal-row-text">
+          <h3 className="deal-row-company">{company}</h3>
+          {deal.category && (
+            <p className="deal-row-category">
+              {t('deals.card.clubListSubtitle', { category: deal.category })}
+            </p>
+          )}
+          {headline && <p className="deal-row-offer">🎁 {headline}</p>}
+          {deal.address && <p className="deal-row-location">📍 {deal.address}</p>}
         </div>
       </div>
     );

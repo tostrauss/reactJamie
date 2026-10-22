@@ -102,6 +102,9 @@ export const GroupEdit = () => {
         target_age_max: g.target_age_max ?? '',
         chat_only_owner: !!g.chat_only_owner,
         events_owner_only: !!g.events_owner_only,
+        // Clubs only: the free-text line the Clubs list shows under the name
+        // ("Sport · Laufclub", Tina 22.10.2026). '' clears it server-side.
+        category_label: g.category_label || '',
         is_recurring_weekly: !!g.is_recurring_weekly,
         is_private: !!g.is_private,
       });
@@ -195,7 +198,7 @@ export const GroupEdit = () => {
           target_age_max: formData.target_age_max === '' ? null : formData.target_age_max,
         };
         if (isClubType) {
-          await clubs.update(id, payload);
+          await clubs.update(id, { ...payload, category_label: formData.category_label ?? '' });
         } else {
           await groups.update(id, payload);
         }
@@ -742,6 +745,23 @@ export const GroupEdit = () => {
             {/* ── Club settings (only relevant for type='club') ─────── */}
             {isClub && (
               <>
+                <div className="ge-divider" />
+                <div className="ge-field">
+                  <label className="ge-label" htmlFor="ge-category-label">
+                    {t('groupEdit.fields.categoryLabel')}
+                  </label>
+                  <input
+                    id="ge-category-label"
+                    className="ge-input"
+                    type="text"
+                    maxLength={60}
+                    value={formData.category_label}
+                    onChange={e => setFormData(p => ({ ...p, category_label: e.target.value }))}
+                    placeholder={t('groupEdit.fields.categoryLabelPlaceholder')}
+                  />
+                  <p className="ge-hint">{t('groupEdit.fields.categoryLabelHint')}</p>
+                </div>
+
                 <div className="ge-divider" />
                 <div className="ge-field ge-toggle-field">
                   <div>

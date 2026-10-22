@@ -1973,7 +1973,10 @@
       "visibility": "Sichtbarkeit",
       "visibilityPrivate": "Privat — nur auf Anfrage",
       "visibilityPublic": "Öffentlich — jeder kann beitreten",
-      "categoryRemove": "Entfernen"
+      "categoryRemove": "Entfernen",
+      "categoryLabel": "Kategorie-Zeile",
+      "categoryLabelPlaceholder": "z.B. Sport · Laufclub",
+      "categoryLabelHint": "Erscheint in der Club-Liste unter dem Namen."
     },
     "favoriteAria": "Zu Favoriten hinzufügen",
     "favError": "Favorit konnte nicht gespeichert werden",
@@ -1995,10 +1998,7 @@
       "desc": "Beschreibung",
       "descPlaceholder": "Beschreibung...",
       "location": "Standort",
-      "locationPlaceholder": "z.B. Wien",
-      "categoryLabel": "Kategorie-Zeile",
-      "categoryLabelPlaceholder": "z.B. Sport · Laufclub",
-      "categoryLabelHint": "Erscheint in der Club-Liste unter dem Namen."
+      "locationPlaceholder": "z.B. Wien"
     },
     "chat": {
       "title": "Chat-Schreibrechte",

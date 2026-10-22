@@ -1973,7 +1973,10 @@
       "visibility": "Visibilità",
       "visibilityPrivate": "Privato — solo su richiesta",
       "visibilityPublic": "Pubblico — chiunque può unirsi",
-      "categoryRemove": "Rimuovi"
+      "categoryRemove": "Rimuovi",
+      "categoryLabel": "Riga categoria",
+      "categoryLabelPlaceholder": "ad es. Sport · Club di corsa",
+      "categoryLabelHint": "Compare sotto il nome nella lista dei club."
     },
     "favoriteAria": "Aggiungi ai preferiti",
     "favError": "Impossibile salvare il preferito",
@@ -1995,10 +1998,7 @@
       "desc": "Descrizione",
       "descPlaceholder": "Descrizione...",
       "location": "Posizione",
-      "locationPlaceholder": "es. Vienna",
-      "categoryLabel": "Riga categoria",
-      "categoryLabelPlaceholder": "ad es. Sport · Club di corsa",
-      "categoryLabelHint": "Compare sotto il nome nella lista dei club."
+      "locationPlaceholder": "es. Vienna"
     },
     "chat": {
       "title": "Permessi di scrittura in chat",

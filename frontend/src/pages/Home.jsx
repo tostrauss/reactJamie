@@ -6,6 +6,8 @@ import api, { groups, clubs, deals as dealsApi } from "../utils/api";
 import { GroupCard } from "../components/GroupCard";
 import { MapErrorBoundary } from "../components/MapErrorBoundary";
 import { DealCard } from "../components/DealCard";
+import { CommunityCard } from "../components/CommunityCard";
+import { ClubListRow } from "../components/ClubListRow";
 import AvatarGateModal from "../components/AvatarGateModal";
 import { JamieWordmark } from "../components/JamieWordmark";
 import { NotificationBell } from "../components/NotificationBell";
@@ -110,7 +112,21 @@ export const Home = () => {
   // — tab switches don't add history entries, only cross-page navigations do.
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "gruppen";
+  // The main tab is labelled "Community" since 22.10.2026, but its URL value
+  // stays `clubs`: every saved link, push deep-link and swipe-back depends on
+  // it. The segment rides along as its own param so returning from a club
+  // detail lands in the segment the person left — the same reason `tab` is in
+  // the URL at all.
+  const clubSegment = searchParams.get("seg") === "clubs" ? "clubs" : "communities";
   const [searchQuery, setSearchQuery] = useState("");
+  // The Communities search is SERVER-side (name/description ILIKE, trigram
+  // indexed) and therefore needs its own state: writing into the shared
+  // `searchQuery` would re-filter the Gruppen feed and the map on every
+  // keystroke. `communityTerm` is the debounced value loadData actually asks
+  // the server for.
+  const [communityQuery, setCommunityQuery] = useState("");
+  const [communityTerm, setCommunityTerm] = useState("");
+  const [clubsSearching, setClubsSearching] = useState(false);
   const [favorites, setFavorites] = useState(new Set());
   const [joined, setJoined] = useState(new Set());
   const [loading, setLoading] = useState(true);
@@ -125,9 +141,6 @@ export const Home = () => {
   // Umkreis in km, null = kein Limit. Play review „Suzkapu" (02.09.2026):
   // „Filter für Benachrichtigungen etc. bezüglich Umkreis wären wichtig."
   const [umkreisFilter, setUmkreisFilter] = useState(null);
-  // Clubs tab: inline single-select category bar (same UX as the Events page),
-  // separate from the Gruppen filter sheet. null = "Alle Kategorien".
-  const [clubCategory, setClubCategory] = useState(null);
 
   // Staged filters (selected inside open panel, not yet applied)
   const [showFilters, setShowFilters] = useState(false);
@@ -154,9 +167,25 @@ export const Home = () => {
     umkreisFilter != null,
   ].filter(Boolean).length;
 
+  // Min length 2 (below that the server would scan for a single letter and the
+  // answer would be meaningless anyway), debounced 300 ms — the same numbers
+  // the admin club search uses.
+  const COMMUNITY_SEARCH_MIN = 2;
+  useEffect(() => {
+    const term = communityQuery.trim();
+    const next = term.length >= COMMUNITY_SEARCH_MIN ? term : "";
+    if (next === communityTerm) { setClubsSearching(false); return undefined; }
+    setClubsSearching(true);
+    const h = setTimeout(() => setCommunityTerm(next), 300);
+    return () => clearTimeout(h);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [communityQuery]);
+
+  // The clubs branch refetches per segment and per committed search term;
+  // loadSeqRef below drops whichever answer is no longer the current question.
   useEffect(() => {
     loadData();
-  }, [activeTab]);
+  }, [activeTab, clubSegment, communityTerm]);
 
   // Pull-to-refresh re-runs the active tab's fetches (hook keeps the latest
   // closure, so tab switches are picked up without useCallback).
@@ -204,16 +233,27 @@ export const Home = () => {
           ...(joinedClubsRes.data || []).map(c => c.id),
         ]));
       } else {
-        const [allClubsRes, myClubsRes, favClubsRes, joinedGroupsRes] = await Promise.all([
-          // Default server limit is 20; the client-side search/filter then can
-          // never reach clubs 21+. Pull a full page so local filtering is real.
-          clubs.getAll({ limit: 100 }),
+        const [allClubsRes, myClubsRes, favClubsRes, joinedGroupsRes, dealsRes] = await Promise.all([
+          // One request per segment: club_type does the splitting on the
+          // server, so the 100-row page belongs entirely to the segment on
+          // screen. Filtering a shared page here would let one kind starve
+          // the other out of the limit. `search` is forwarded only once it
+          // reached the minimum length (empty string = no filter).
+          clubs.getAll({
+            limit: 100,
+            club_type: clubSegment === 'clubs' ? 'official' : 'community',
+            ...(communityTerm && clubSegment === 'communities' ? { search: communityTerm } : {}),
+          }),
           clubs.getJoined().catch(() => ({ data: [] })),
           clubs.getFavorites().catch(() => ({ data: [] })),
           groups.getJoined().catch(() => ({ data: [] })),
+          // Deals live above the club list since the Explore deals tab went
+          // away. Same tolerant call as the Gruppen branch.
+          dealsApi.getAll().catch(() => ({ data: [] })),
         ]);
         if (isStale()) return;
         setClubList(allClubsRes.data || []);
+        setDealList(dealsRes.data || []);
         setMyClubs(myClubsRes.data || []);
         setFavorites(new Set((favClubsRes.data || []).map(c => c.id)));
         setJoined(new Set([
@@ -230,7 +270,7 @@ export const Home = () => {
       }
     } finally {
       // A superseded fetch must not clear the skeleton the newer one shows.
-      if (!isStale()) setLoading(false);
+      if (!isStale()) { setLoading(false); setClubsSearching(false); }
     }
   };
 
@@ -417,31 +457,27 @@ export const Home = () => {
     [filteredGroups],
   );
 
-  // Clubs are MULTI-category: normalizeCategories stores up to 3 in
-  // groups.categories (text[]) and `category` is only categories[0]. Reading
-  // just `category` would hide a club under its 2nd/3rd category — the server's
-  // own filter is `category ILIKE $n OR $n = ANY(categories)`, so the pill bar
-  // has to match that or clubs become undiscoverable under their other
-  // categories (cafeconcertowien = Konzert + Bar-Hopping + Kultur).
-  const catsOf = (c) =>
-    (Array.isArray(c.categories) && c.categories.length ? c.categories : [c.category]).filter(Boolean);
+  // The server returns exactly one segment's clubs, already searched (Tina
+  // 22.10.2026 replaced the category pills with a search box). No second
+  // client-side pass: it would hide rows the server deliberately matched on
+  // their description, and a local filter over a LIMIT-ed page can never find
+  // what the page does not contain anyway.
+  //
+  // One guard stays: withOwnPendingClubs prepends the caller's own
+  // not-yet-approved clubs, which are 'official' by definition — in the
+  // Communities segment those must not appear.
+  const isOfficial = (c) => c.club_type === 'official';
+  const segmentClubs = useMemo(
+    () => clubList.filter((c) => (clubSegment === 'clubs' ? isOfficial(c) : !isOfficial(c))),
+    [clubList, clubSegment],
+  );
 
-  // Pills are built from the categories actually present, so the bar is never
-  // empty and never offers a filter that matches nothing.
-  const clubCategories = useMemo(() => {
-    const set = new Set();
-    for (const c of clubList) for (const cat of catsOf(c)) set.add(cat);
-    return [...set].sort((a, b) => a.localeCompare(b, 'de'));
-  }, [clubList]);
-
-  // Clubs are filtered by the inline search + the inline category bar only
-  // (the extended filter sheet was dropped here — Tina/Tobi 2026-09-03).
-  // Case-insensitive to mirror the server's ILIKE.
-  const filteredClubs = useMemo(() => clubList.filter(c =>
-    matchesSearch(c) &&
-    (!clubCategory || catsOf(c).some(cat => cat.toLowerCase() === clubCategory.toLowerCase()))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [clubList, searchQuery, clubCategory]);
+  // "Meine Clubs" / "Meine Communities": one list from the server
+  // (clubs.getJoined), split the same way as the feed.
+  const mySegmentClubs = useMemo(
+    () => myClubs.filter((c) => (clubSegment === 'clubs' ? isOfficial(c) : !isOfficial(c))),
+    [myClubs, clubSegment],
+  );
 
   // ── Filter panel actions ─────────────────────────────────────────
   const openFilters = () => {
@@ -623,21 +659,20 @@ export const Home = () => {
     </button>
   );
 
-  // Shared so the discover-clubs grid can render in two halves (before and
-  // after the "Events für dich" rail) without duplicating the card markup.
-  const renderClubCard = (club) => (
-    <GroupCard
-      key={club.id}
-      group={{ ...club, members_count: club.member_count || club.members_count || 0 }}
-      isFavorite={favorites.has(club.id)}
-      isJoined={joined.has(club.id)}
-      onFavorite={handleFavorite}
-      onJoin={handleJoin}
-      onChat={handleChat}
-      onWaitlist={handleWaitlist}
-      onClick={() => handleCardClick(club.id, 'club')}
-    />
-  );
+  // Switching segment keeps the tab but clears the search — the box only
+  // exists in the Communities segment, and carrying a term into the Clubs list
+  // would filter nothing the person can see.
+  const handleSegmentSwitch = (seg) => {
+    if (seg === clubSegment) return;
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', 'clubs');
+      if (seg === 'communities') next.delete('seg');
+      else next.set('seg', seg);
+      return next;
+    }, { replace: true });
+    setCommunityQuery('');
+  };
 
   return (
     <div className={`home-container${activeTab === 'karte' ? ' home-container--map' : ''}`}>
@@ -802,17 +837,39 @@ export const Home = () => {
           </div>
         )}
 
-        {/* CLUBS */}
+        {/* COMMUNITY — the label changed, the URL value is still ?tab=clubs */}
         {activeTab === 'clubs' && (
           <div className="clubs-feed">
-            {myClubs.length > 0 && (
+            {/* Segmented pills, first element of the feed: they decide what
+                everything below them even means. */}
+            <div className="community-seg" role="tablist" aria-label={t('home.tabs.clubs')}>
+              {['communities', 'clubs'].map(seg => (
+                <button
+                  key={seg}
+                  type="button"
+                  role="tab"
+                  aria-selected={clubSegment === seg}
+                  className={`community-seg-btn${clubSegment === seg ? ' active' : ''}`}
+                  onClick={() => handleSegmentSwitch(seg)}
+                >
+                  {t(`home.segments.${seg}`)}
+                </button>
+              ))}
+            </div>
+
+            {/* "Mine", filtered to the segment on screen — a rail of official
+                clubs under the Communities pill would contradict the pill.
+                Hidden when empty, as before. */}
+            {mySegmentClubs.length > 0 && (
               <div className="clubs-section">
                 <div className="section-header">
-                  <h2 className="section-heading">{t('home.sections.myClubs')}</h2>
-                  <span className="section-count">{myClubs.length}</span>
+                  <h2 className="section-heading">
+                    {t(clubSegment === 'clubs' ? 'home.sections.myClubs' : 'home.sections.myCommunities')}
+                  </h2>
+                  <span className="section-count">{mySegmentClubs.length}</span>
                 </div>
                 <div className="my-clubs-scroll">
-                  {myClubs.map(club => (
+                  {mySegmentClubs.map(club => (
                     <div key={club.id} className="my-club-card" onClick={() => handleCardClick(club.id, 'club')}>
                       <div className="my-club-image">
                         {club.image_url
@@ -830,71 +887,116 @@ export const Home = () => {
               </div>
             )}
 
-            {/* Robert's spec: discover events from public clubs — a prominent
-                CTA plus an "Events für dich" rail wedged after the first 3
-                clubs. Both lead to the standalone /events page. */}
-            <button className="club-events-cta" onClick={() => navigate('/events')}>
-              {t('home.clubEventsDiscover')}
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </button>
+            {/* ── COMMUNITIES ─────────────────────────────────────────── */}
+            {clubSegment === 'communities' && (
+              <div className="clubs-section">
+                <div className="community-hero">
+                  <h2 className="community-hero-title">{t('home.communityHero.title')}</h2>
+                  <p className="community-hero-sub">{t('home.communityHero.subtitle')}</p>
+                </div>
 
-            <div className="clubs-section">
-              <div className="section-header">
-                <h2 className="section-heading">{t('home.sections.trending')}</h2>
-              </div>
+                {/* A search box instead of the category pills (Tina). A real
+                    <input>, and deliberately HERE in the scroll content rather
+                    than in the sticky header: focusing a field up there shoves
+                    the header via the visual viewport on iOS and never restores
+                    it (the "page dragged down" bug the header comment names). */}
+                <input
+                  className="clubs-search"
+                  type="search"
+                  placeholder={t('home.search.communityPlaceholder')}
+                  value={communityQuery}
+                  onChange={(e) => setCommunityQuery(e.target.value)}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
+                />
+                {communityQuery.trim().length > 0 && communityQuery.trim().length < COMMUNITY_SEARCH_MIN && (
+                  <p className="clubs-search-hint">{t('home.search.minChars')}</p>
+                )}
+                {clubsSearching && communityQuery.trim().length >= COMMUNITY_SEARCH_MIN && (
+                  <p className="clubs-search-hint">{t('home.search.searching')}</p>
+                )}
 
-              {/* Same "Alle Kategorien" filter as the Events page + a thin,
-                  in-content search bar (Tina/Tobi 2026-09-03). The bar is built
-                  from the categories actually present so it's never empty. */}
-              {clubCategories.length > 0 && (
-                <div className="clubs-cat-row">
-                  <button
-                    type="button"
-                    className={`events-filter-pill${clubCategory === null ? ' active' : ''}`}
-                    onClick={() => setClubCategory(null)}
-                  >
-                    {t('events.filters.allCategories')}
-                  </button>
-                  {clubCategories.map(cat => (
-                    <button
-                      key={cat}
-                      type="button"
-                      className={`events-filter-pill${clubCategory === cat ? ' active' : ''}`}
-                      onClick={() => setClubCategory(clubCategory === cat ? null : cat)}
-                    >
-                      {catEmojiFor(cat)} {cat}
+                {loading ? renderFeedSkeleton(4) : segmentClubs.length > 0 ? (
+                  <div className="groups-grid clubs-grid">
+                    {segmentClubs.map(club => (
+                      <CommunityCard
+                        key={club.id}
+                        community={club}
+                        emojiFor={catEmojiFor}
+                        onClick={() => handleCardClick(club.id, 'club')}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <div className="empty-icon">🔍</div>
+                    <p>
+                      {communityTerm
+                        ? t('home.search.noResults', { query: communityTerm })
+                        : t('home.empty.communities')}
+                    </p>
+                    <button className="empty-hint" onClick={() => navigate('/create-club?type=community')}>
+                      {t('home.empty.communitiesCta')}
                     </button>
-                  ))}
-                </div>
-              )}
-              <input
-                className="clubs-search"
-                type="search"
-                placeholder={t('home.search.placeholder')}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck="false"
-              />
+                  </div>
+                )}
+              </div>
+            )}
 
-              {loading ? renderFeedSkeleton(4) : filteredClubs.length > 0 ? (
-                <div className="groups-grid clubs-grid">
-                  {filteredClubs.map(renderClubCard)}
+            {/* ── CLUBS ───────────────────────────────────────────────── */}
+            {clubSegment === 'clubs' && (
+              <div className="clubs-section">
+                <div className="community-hero">
+                  <h2 className="community-hero-title">{t('home.clubsHero.title')}</h2>
+                  <p className="community-hero-sub">{t('home.clubsHero.subtitle')}</p>
                 </div>
-              ) : (
-                <div className="empty-state">
-                  <div className="empty-icon">🏆</div>
-                  <p>{t('home.empty.clubs')}</p>
-                  <button className="empty-hint" onClick={() => navigate('/create-club')}>
-                    {t('home.empty.clubsCta')}
-                  </button>
-                </div>
-              )}
-            </div>
+
+                {/* The hero CTA opens the GLOBAL event discovery, which shows
+                    every club's events on purpose — the three event gates stay
+                    deliberately different (project_club_event_privacy). A
+                    single row's button opens that one club instead. */}
+                <button className="club-events-cta" onClick={() => navigate('/events')}>
+                  {t('home.clubEventsDiscover')}
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
+                </button>
+
+                {/* Deals sit ABOVE the list: a deal has no club relation in the
+                    database, so there is no club for it to sit under. */}
+                {dealList.length > 0 && (
+                  <div className="deal-rows">
+                    {dealList.map(deal => (
+                      <DealCard key={`deal-club-${deal.id}`} deal={deal} variant="clubList" />
+                    ))}
+                  </div>
+                )}
+
+                {loading ? renderFeedSkeleton(3) : segmentClubs.length > 0 ? (
+                  <div className="club-rows">
+                    {segmentClubs.map(club => (
+                      <ClubListRow
+                        key={club.id}
+                        club={club}
+                        onOpen={() => handleCardClick(club.id, 'club')}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  /* Straight after the deploy nothing is official yet — an
+                     admin has to classify first. The deals above already make
+                     the segment worth opening, so this says what is coming
+                     instead of offering to found a club. */
+                  <div className="empty-state">
+                    <div className="empty-icon">🏆</div>
+                    <p>{t('home.empty.officialClubs')}</p>
+                    <p className="empty-sub">{t('home.empty.officialClubsHint')}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

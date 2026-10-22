@@ -1973,7 +1973,10 @@
       "visibility": "Visibilité",
       "visibilityPrivate": "Privé — sur demande uniquement",
       "visibilityPublic": "Public — tout le monde peut rejoindre",
-      "categoryRemove": "Retirer"
+      "categoryRemove": "Retirer",
+      "categoryLabel": "Ligne de catégorie",
+      "categoryLabelPlaceholder": "p. ex. Sport · Club de course",
+      "categoryLabelHint": "Apparaît sous le nom dans la liste des clubs."
     },
     "favoriteAria": "Ajouter aux favoris",
     "favError": "Le favori n'a pas pu être enregistré",
@@ -1995,10 +1998,7 @@
       "desc": "Description",
       "descPlaceholder": "Description...",
       "location": "Lieu",
-      "locationPlaceholder": "p. ex. Paris",
-      "categoryLabel": "Ligne de catégorie",
-      "categoryLabelPlaceholder": "p. ex. Sport · Club de course",
-      "categoryLabelHint": "Apparaît sous le nom dans la liste des clubs."
+      "locationPlaceholder": "p. ex. Paris"
     },
     "chat": {
       "title": "Droits d'écriture dans le chat",

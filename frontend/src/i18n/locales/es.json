@@ -1973,7 +1973,10 @@
       "visibility": "Visibilidad",
       "visibilityPrivate": "Privado — solo con solicitud",
       "visibilityPublic": "Público — cualquiera puede unirse",
-      "categoryRemove": "Quitar"
+      "categoryRemove": "Quitar",
+      "categoryLabel": "Línea de categoría",
+      "categoryLabelPlaceholder": "p. ej. Deporte · Club de running",
+      "categoryLabelHint": "Aparece bajo el nombre en la lista de clubes."
     },
     "favoriteAria": "Añadir a favoritos",
     "favError": "El favorito no se pudo guardar",
@@ -1995,10 +1998,7 @@
       "desc": "Descripción",
       "descPlaceholder": "Descripción...",
       "location": "Ubicación",
-      "locationPlaceholder": "p. ej. Madrid",
-      "categoryLabel": "Línea de categoría",
-      "categoryLabelPlaceholder": "p. ej. Deporte · Club de running",
-      "categoryLabelHint": "Aparece bajo el nombre en la lista de clubes."
+      "locationPlaceholder": "p. ej. Madrid"
     },
     "chat": {
       "title": "Permisos de escritura en el chat",
