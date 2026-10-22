@@ -15,7 +15,7 @@ import db from '../config/database.js';
 import { clubAliveSql } from '../utils/clubGate.js';
 import { CLUB_CARD_SELECT } from '../utils/clubCards.js';
 import { JOIN_ATTEMPT_COLS, joinAttemptsExhausted } from '../utils/joinAttempts.js';
-import { getCached, setCached, deleteCached } from '../utils/cache.js';
+import { getCached, setCached, deleteCached, invalidatePrefix } from '../utils/cache.js';
 
 export const MAX_FEATURED_CLUBS = 20;
 
@@ -245,7 +245,11 @@ export const setFeaturedClubs = async (req, res) => {
   }
 
   // This instance shows the new order at once; other replicas within the TTL.
+  // The whole 'clubs:' namespace, not just this key: since 22.10.2026 the
+  // Clubs tab (getClubs) SORTS by featured_clubs.position, so its cached
+  // pages carry this order too and would otherwise show the old one.
   deleteCached(FEATURED_CLUBS_KEY);
+  invalidatePrefix('clubs:');
   console.log(`[admin] user ${req.userId} set featured clubs [${ids.join(', ')}]`);
   res.json(outcome.list);
 };

@@ -50,6 +50,11 @@ export const normalizeTicketUrl = (raw) => {
 // (counted across leaves via group_join_counts) to stop join/leave spam.
 const MAX_CLUB_JOINS = 2;
 
+// A community goes live without human review (22.10.2026), so how many one
+// person may found per day is all that stands between a spammer and the
+// Entdecken list. Tobi 22.10.: three.
+const MAX_COMMUNITIES_PER_DAY = 3;
+
 // Shared club management access. A club has ONE owner (groups.owner_id) plus any
 // number of co-managers — members with group_members.role = 'admin'. This powers
 // the paid "managed club" cooperation: JAMIE staff and the partner co-manage the
@@ -129,6 +134,52 @@ export const createClub = async (req, res) => {
       });
     }
 
+    // Approval workflow: clubs created by admins are auto-approved.
+    // Everyone else lands in the moderation queue until a human approves.
+    // Since 22.10.2026 a COMMUNITY goes live at once — "Nur Clubs müssen
+    // freigegeben werden" (Tina). What still guards it: the avatar gate above,
+    // checkTextSafety, checkImageField, the region gate, the report flow and
+    // rejectClub (which takes an already-approved club down together with its
+    // events). Moderation moves from before to after publication.
+    //
+    // Decided HERE, above the moderation call, so the daily cap below can
+    // refuse a spammer before we spend a text-moderation request on them.
+    const adminCheck = await db.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
+    const isAdminOwner = !!adminCheck.rows[0]?.is_admin;
+    const approval = (isAdminOwner || explicitClubType === 'community') ? 'approved' : 'pending';
+
+    // Spam brake for the auto-live path: a community skips human review, so
+    // founding one needs a ceiling. DELIBERATELY its own, narrower counter
+    // instead of createGroup's 10/24h — that one counts EVERY groups row the
+    // owner created, club events included, so a promoter running ten events a
+    // day could not found a single community while a spammer still got ten
+    // unmoderated ones. An official club is not capped here: it waits for an
+    // admin anyway.
+    if (approval === 'approved' && !isAdminOwner && clubTypeValue === 'community') {
+      const recent = await db.query(
+        `SELECT COUNT(*)::int AS n FROM groups
+          WHERE owner_id = $1 AND type = $2
+            AND club_type IS DISTINCT FROM 'official'
+            AND created_at > NOW() - INTERVAL '24 hours'`,
+        [userId, CLUB_TYPE]
+      ).catch((err) => {
+        // Pre-migration (42703): count clubs of any type rather than let the
+        // cap silently disappear.
+        if (err.code !== '42703') throw err;
+        return db.query(
+          `SELECT COUNT(*)::int AS n FROM groups
+            WHERE owner_id = $1 AND type = $2 AND created_at > NOW() - INTERVAL '24 hours'`,
+          [userId, CLUB_TYPE]
+        );
+      });
+      if ((recent.rows[0]?.n || 0) >= MAX_COMMUNITIES_PER_DAY) {
+        return res.status(429).json({
+          error: `Du kannst maximal ${MAX_COMMUNITIES_PER_DAY} Communities pro Tag gründen.`,
+          code: 'COMMUNITY_DAILY_LIMIT',
+        });
+      }
+    }
+
     const textToCheck = [name, description].filter(Boolean).join('\n');
     const { safe, reason } = await checkTextSafety(textToCheck);
     if (!safe) return res.status(422).json({ error: reason });
@@ -147,17 +198,6 @@ export const createClub = async (req, res) => {
       return res.status(400).json({ error: 'Dieser Ort liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien, Frankreich, Spanien).' });
     }
     const coords = geo.coords;
-
-    // Approval workflow: clubs created by admins are auto-approved.
-    // Everyone else lands in the moderation queue until a human approves.
-    // Since 22.10.2026 a COMMUNITY goes live at once — "Nur Clubs müssen
-    // freigegeben werden" (Tina). What still guards it: the avatar gate above,
-    // checkTextSafety, checkImageField, the region gate, the report flow and
-    // rejectClub (which takes an already-approved club down together with its
-    // events). Moderation moves from before to after publication.
-    const adminCheck = await db.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
-    const isAdminOwner = !!adminCheck.rows[0]?.is_admin;
-    const approval = (isAdminOwner || explicitClubType === 'community') ? 'approved' : 'pending';
 
     // Club row + owner membership in ONE transaction (audit risk #10) —
     // shared core in services/entityLifecycle.js.
@@ -235,9 +275,17 @@ export const createClub = async (req, res) => {
 // Prepended rather than spliced into the page: a pending club is the caller's
 // own and belongs at the top, and appending inside a LIMIT-ed page would have
 // pushed a legitimately-ranked club off the end.
-async function withOwnPendingClubs(rows, callerId, callerIsAdmin) {
+async function withOwnPendingClubs(rows, callerId, callerIsAdmin, clubType = null) {
   if (!callerId || callerIsAdmin) return rows;   // admins already see everything
   try {
+    // Must respect the segment, or the owner's pending CLUB turns up in the
+    // Communities list. Since 22.10. only an 'official' club can be pending at
+    // all, so the community segment legitimately prepends nothing.
+    const segment = clubType === 'official'
+      ? `AND g.club_type = 'official'`
+      : clubType === 'community'
+        ? `AND g.club_type IS DISTINCT FROM 'official'`
+        : '';
     const { rows: mine } = await db.query(
       `SELECT g.*, u.name AS owner_name, u.avatar_url AS owner_avatar,
               EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS owner_age,
@@ -248,6 +296,7 @@ async function withOwnPendingClubs(rows, callerId, callerIsAdmin) {
           AND g.type = 'club'
           AND g.is_active = TRUE
           AND g.approval_status <> 'approved'
+          ${segment}
         ORDER BY g.created_at DESC
         LIMIT 20`,
       [callerId]
@@ -307,7 +356,7 @@ export const getClubs = async (req, res) => {
       : null;
     if (cacheKey) {
       const cached = getCached(cacheKey);
-      if (cached) return res.json(await withOwnPendingClubs(cached, callerId, callerIsAdmin));
+      if (cached) return res.json(await withOwnPendingClubs(cached, callerId, callerIsAdmin, clubType));
     }
 
     // Built as a function so the whole listing can be retried WITHOUT the
@@ -327,7 +376,11 @@ export const getClubs = async (req, res) => {
                   AND e.type = 'event'
                   AND e.is_active = TRUE
                   AND e.deleted_at IS NULL
-                  AND e.date > NOW()
+                  -- EXACTLY getDiscoverEvents' rule (CURRENT_DATE, and a
+                  -- date-less event counts). The row says "3 anstehende
+                  -- Events" and its button opens that list: the two must
+                  -- never disagree.
+                  AND (e.date IS NULL OR e.date >= CURRENT_DATE)
              )::int AS upcoming_events_count,
              f.position AS featured_position`;
       }
@@ -349,10 +402,10 @@ export const getClubs = async (req, res) => {
       if (withSplit && clubType === 'official') {
         query += ` AND g.club_type = 'official'`;
       } else if (withSplit && clubType === 'community') {
-        // NULL counts as community — the fail-open side of the nullable column
-        // (see the migration note), so a club the backfill has not reached yet
-        // is still discoverable.
-        query += ` AND (g.club_type IS NULL OR g.club_type = 'community')`;
+        // IS DISTINCT FROM is NULL-safe: a club the backfill has not reached
+        // yet (or one an old replica inserted mid-deploy) still counts as a
+        // community — the fail-open side of the nullable column.
+        query += ` AND g.club_type IS DISTINCT FROM 'official'`;
       }
       if (search) {
         query += ` AND (g.name ILIKE $${paramIndex} OR g.description ILIKE $${paramIndex})`;
@@ -374,12 +427,15 @@ export const getClubs = async (req, res) => {
         query += ` AND g.is_featured = TRUE`;
       }
 
-      // Admin-curated first, then boosted clubs (paid 24h "Top-Platzierung"),
+      // Boosted clubs stay at position 1 — Pro SELLS that spot as "Immer ganz
+      // oben in der Entdecken-Liste" (pro.features.topPlacementDesc), so the
+      // admin's curation ranks BELOW it, not above. Then featured_clubs in the
+      // order an admin saved (Tina 13.10.2026: "die Reihenfolge stimmt nicht"),
       // then the liveliest, then newest. `g.id DESC` is not cosmetic: without a
       // total order, LIMIT/OFFSET paging can repeat or skip a row across page
       // boundaries (same fix as the Gruppen feed).
       query += withSplit
-        ? ` ORDER BY (f.position IS NULL), f.position ASC, is_boosted DESC,
+        ? ` ORDER BY is_boosted DESC, (f.position IS NULL), f.position ASC,
                      g.members_count DESC NULLS LAST, g.created_at DESC, g.id DESC`
         : ` ORDER BY is_boosted DESC, g.created_at DESC`;
 
@@ -411,7 +467,9 @@ export const getClubs = async (req, res) => {
     // A fallback page is NEVER cached: it ignores club_type, so caching it
     // under the segment's key would pin the wrong list for a full TTL.
     if (cacheKey && !fellBack) setCached(cacheKey, result.rows, CLUBS_TTL);
-    res.json(await withOwnPendingClubs(result.rows, callerId, callerIsAdmin));
+    // `fellBack` means club_type does not exist yet — the segment filter in
+    // withOwnPendingClubs would throw on it, so ask for the unsegmented set.
+    res.json(await withOwnPendingClubs(result.rows, callerId, callerIsAdmin, fellBack ? null : clubType));
   } catch (err) {
     console.error('Error fetching clubs:', err);
     res.status(500).json({ error: 'Clubs konnten nicht geladen werden' });
@@ -438,6 +496,33 @@ export const getClubById = async (req, res) => {
     }
 
     const club = result.rows[0];
+
+    // Visibility gate (22.10.2026). This endpoint filtered on NOTHING but the
+    // id, so a club awaiting review — or one a moderator had rejected, or soft-
+    // deleted — was fully readable by anyone holding the link, guests included.
+    // Who may still see a non-approved club: its owner, its members (someone
+    // who joined before a takedown keeps read access rather than having the
+    // page vanish mid-conversation) and app admins moderating it.
+    // Everyone else, and every guest, gets the same 404 as a club that is not
+    // there. deleted_at is absolute: a deleted club is gone for everyone.
+    const isLive = club.deleted_at === null
+      && club.is_active === true
+      && club.approval_status === 'approved';
+    if (!isLive) {
+      if (!req.userId || club.deleted_at !== null) {
+        return res.status(404).json({ error: 'Club not found' });
+      }
+      const [own, mem, adm] = await Promise.all([
+        Promise.resolve(Number(club.owner_id) === Number(req.userId)),
+        db.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2 LIMIT 1', [id, req.userId])
+          .then((r) => r.rows.length > 0).catch(() => false),
+        db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId])
+          .then((r) => !!r.rows[0]?.is_admin).catch(() => false),
+      ]);
+      if (!own && !mem && !adm) {
+        return res.status(404).json({ error: 'Club not found' });
+      }
+    }
 
     if (req.userId) {
       const [memberCheck, favCheck, requestCheck, waitlistCheck] = await Promise.all([
@@ -742,8 +827,15 @@ export const joinClub = async (req, res) => {
       return res.status(400).json({ error: 'Nachricht darf maximal 500 Zeichen lang sein' });
     }
 
+    // approval_status + is_active belong in the lookup, not after it: this
+    // checked deleted_at ONLY, so a club shared by direct link was joinable
+    // while it sat in the moderation queue — and stayed joinable after a
+    // moderator REJECTED it (rejectClub sets is_active = FALSE and leaves the
+    // row). 404, like any other club that is not there for this caller.
     const clubResult = await db.query(
-      'SELECT id, is_private, owner_id, name FROM groups WHERE id = $1 AND type = $2 AND deleted_at IS NULL',
+      `SELECT id, is_private, owner_id, name FROM groups
+        WHERE id = $1 AND type = $2 AND deleted_at IS NULL
+          AND is_active = TRUE AND approval_status = 'approved'`,
       [id, CLUB_TYPE]
     );
     if (clubResult.rows.length === 0) return res.status(404).json({ error: 'Club not found' });

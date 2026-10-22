@@ -38,6 +38,7 @@ vi.mock('../../src/controllers/adminController.js', () => stubs([
   'getPendingClubs', 'approveClub', 'rejectClub', 'deleteUser', 'updateUserRole', 'getTopClubs',
   'getOnlineUsers', 'getGrowth', 'getUserOrigins', 'getUserDetail', 'getIpDiagnostics',
   'getBackupStatus', 'setUserActive', 'sendUserTestPush', 'removeUserAvatar',
+  'classifyClub', 'getClubsForAdmin',
 ]));
 vi.mock('../../src/controllers/feedbackController.js', () => stubs(['getFeedbackAdmin']));
 vi.mock('../../src/controllers/newsController.js', () => stubs(['getNewsAudience', 'listNews', 'sendNews']));
@@ -68,6 +69,16 @@ describe('admin routes', () => {
   it('GET and PUT /api/admin/clubs/featured reach the curation handlers', async () => {
     expect(await handlerOf(request(app).get('/api/admin/clubs/featured'))).toBe('getFeaturedClubsAdmin');
     expect(await handlerOf(request(app).put('/api/admin/clubs/featured').send({ clubIds: [1] }))).toBe('setFeaturedClubs');
+  });
+
+  // Community/Club reclassifying (22.10.2026) added a bare GET /clubs next to
+  // the literal '/clubs/featured' and '/clubs/pending' — this is the guard that
+  // none of the three starts answering for another.
+  it('reclassifying routes do not swallow the curation or queue paths', async () => {
+    expect(await handlerOf(request(app).get('/api/admin/clubs'))).toBe('getClubsForAdmin');
+    expect(await handlerOf(request(app).post('/api/admin/clubs/7/classify'))).toBe('classifyClub');
+    expect(await handlerOf(request(app).get('/api/admin/clubs/featured'))).toBe('getFeaturedClubsAdmin');
+    expect(await handlerOf(request(app).get('/api/admin/clubs/pending'))).toBe('getPendingClubs');
   });
 
   it('the approval queue is untouched', async () => {
