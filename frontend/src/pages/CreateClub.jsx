@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { clubs, upload, map as mapApi } from '../utils/api';
 import { useToast } from '../context/ToastContext';
@@ -13,6 +13,17 @@ export const CreateClub = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
+
+  // Community or official club (Tina 22.10.2026) — the create sheet passes it
+  // as ?type=. Read ONCE on mount: the wizard must not change identity between
+  // step 1 and step 3, and a deep link without the param is the safe default
+  // (a community, which is what this form used to create).
+  const [clubType] = useState(() => (searchParams.get('type') === 'official' ? 'official' : 'community'));
+  const isOfficial = clubType === 'official';
+  // Both branches have their own title/submit/toast; `tt` keeps the JSX from
+  // repeating the conditional at every label.
+  const tt = (key) => t(`createClub.${isOfficial ? 'official' : 'community'}.${key}`);
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -196,19 +207,23 @@ export const CreateClub = () => {
         image_url: formData.image_url,
         chat_only_owner: formData.chat_only_owner,
         events_owner_only: formData.events_owner_only,
-        type: 'club'
+        type: 'club',
+        club_type: clubType
       });
 
-      // Backend stamps approval_status='pending' for non-admin owners.
-      // Route them home with an explanatory toast instead of into the
-      // newly-created (but invisible to everyone else) club detail page.
+      // Routed by what the SERVER decided, not by what we asked for: a
+      // community is approved on creation, an official club lands in the
+      // moderation queue (and an admin's club is approved either way). A
+      // pending club is invisible to everyone else, so its detail page would
+      // be a dead end — home plus an explanation instead.
       // replace, don't push: the create flow must not stay in the history —
       // back on the destination page should lead home, not into the wizard.
       if (response.data?.approval_status === 'pending') {
         toast.success(t('createClub.pendingToast'));
         navigate('/home', { replace: true });
       } else {
-        navigate(`/group/${response.data.id}`, { replace: true });
+        if (!isOfficial) toast.success(t('createClub.community.liveToast'));
+        navigate(`/club/${response.data.id}`, { replace: true });
       }
     } catch (err) {
       const msg = err.response?.data?.error || t('createClub.createError');
@@ -243,7 +258,7 @@ export const CreateClub = () => {
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
         </button>
-        <h1 className="create-title">{t('createClub.title')}</h1>
+        <h1 className="create-title">{tt('title')}</h1>
         <div className="step-indicator">{t('createClub.stepFmt', { current: step })}</div>
       </div>
 
@@ -256,6 +271,12 @@ export const CreateClub = () => {
       {/* Step 1: Basic Info */}
       {step === 1 && (
         <div className="create-content">
+          {/* Only an official club waits for us. Said on step 1, not above the
+              submit button: here the person can still back out and found a
+              community instead, having filled in nothing. */}
+          {isOfficial && (
+            <p className="form-hint">{t('createClub.official.reviewHint')}</p>
+          )}
           <div className="form-section">
             <label className="form-label">{t('createClub.step1.nameLabel')}</label>
             <input
@@ -465,7 +486,10 @@ export const CreateClub = () => {
             <div className="preview-content">
               <div className="preview-badges">
                 <span className="preview-badge type">{t('createClub.step3.clubBadge')}</span>
-                {formData.category && <span className="preview-badge category">{formData.category}</span>}
+                {/* formData.category does not exist in this wizard's state —
+                    the badge therefore never rendered. The primary category is
+                    categories[0] (see handleSubmit). */}
+                {formData.categories[0] && <span className="preview-badge category">{formData.categories[0]}</span>}
                 {!formData.is_public && <span className="preview-badge private">{t('createClub.step3.privateBadge')}</span>}
               </div>
 
@@ -494,7 +518,7 @@ export const CreateClub = () => {
           </button>
         ) : (
           <button className="btn btn-primary btn-block" onClick={handleSubmit} disabled={loading}>
-            {loading ? t('createClub.submitting') : t('createClub.submit')}
+            {loading ? t('createClub.submitting') : tt('submit')}
           </button>
         )}
       </div>

@@ -152,7 +152,8 @@ const CreateModal = ({ isOpen, onClose }) => {
     // Creating a group/club requires a profile photo (Tina 2026-08-03) — the
     // backend enforces this too; here we prompt before the user fills a whole
     // form only to be rejected. "Freunde finden" stays open.
-    const needsAvatar = path === '/create-group' || path === '/create-club';
+    // startsWith, not ===: the club paths now carry ?type=community|official.
+    const needsAvatar = path.startsWith('/create-group') || path.startsWith('/create-club');
     if (needsAvatar && !user?.avatar_url) {
       onClose();
       setShowAvatarGate(true);
@@ -180,7 +181,21 @@ const CreateModal = ({ isOpen, onClose }) => {
                 <div className="modal-option-arrow">→</div>
               </button>
 
-              <button className="modal-option" onClick={() => handleOption('/create-club')}>
+              {/* Two entries into the same wizard since 22.10.2026 (Tina): a
+                  COMMUNITY is user-founded and goes live at once, a CLUB is a
+                  club/company/promoter and waits for our approval. The type
+                  travels as ?type= and is what the server reads to decide
+                  that — see createClub. Texts are Tina's, verbatim. */}
+              <button className="modal-option" onClick={() => handleOption('/create-club?type=community')}>
+                <div className="modal-option-icon">🏘️</div>
+                <div className="modal-option-text">
+                  <h3>{t('app.createModal.communityTitle')}</h3>
+                  <p>{t('app.createModal.communityDesc')}</p>
+                </div>
+                <div className="modal-option-arrow">→</div>
+              </button>
+
+              <button className="modal-option" onClick={() => handleOption('/create-club?type=official')}>
                 <div className="modal-option-icon">🏆</div>
                 <div className="modal-option-text">
                   <h3>{t('app.createModal.clubTitle')}</h3>
