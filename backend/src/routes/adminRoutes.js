@@ -10,6 +10,8 @@ import {
   getPendingClubs,
   approveClub,
   rejectClub,
+  classifyClub,
+  getClubsForAdmin,
   deleteUser,
   updateUserRole,
   getTopClubs,
@@ -73,6 +75,12 @@ router.get('/export/suggestions', exportSuggestions);
 router.get('/clubs/pending',         getPendingClubs);
 router.post('/clubs/:id/approve',    approveClub);
 router.post('/clubs/:id/reject',     rejectClub);
+
+// Community <-> Club reclassifying + the free-text category line (Tina
+// 22.10.2026). '/clubs/featured' below and '/clubs/pending' above are literal
+// paths, so the ':id' route cannot swallow them -- but it must stay BELOW them.
+router.get('/clubs',                 getClubsForAdmin);
+router.post('/clubs/:id/classify',   classifyClub);
 
 // Clubs new users see right after onboarding, in this order (2026-10).
 router.get('/clubs/featured',        getFeaturedClubsAdmin);

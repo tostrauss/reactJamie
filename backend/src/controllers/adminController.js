@@ -553,6 +553,111 @@ export const rejectClub = async (req, res) => {
 };
 
 // ==========================================
+// RECLASSIFY A CLUB  (admin only)
+// ==========================================
+// POST /api/admin/clubs/:id/classify   body: { club_type?, category_label? }
+//
+// The 22.10.2026 split (Tina) made every existing club a 'community'; this is
+// how the real ones become 'official' — and where the free-text category line
+// ("Sport · Laufclub") can be corrected when an owner writes something
+// unusable. Both fields are optional; sending neither is a 400 rather than a
+// silent no-op.
+//
+// Deliberately does NOT touch approval_status: upgrading a long-approved club
+// to 'official' must not pull it back into the moderation queue and out of
+// every listing.
+export const classifyClub = async (req, res) => {
+  const { id } = req.params;
+  const { club_type, category_label } = req.body || {};
+
+  const hasType = club_type !== undefined;
+  const hasLabel = category_label !== undefined;
+  if (!hasType && !hasLabel) {
+    return res.status(400).json({ error: 'club_type oder category_label erforderlich' });
+  }
+  if (hasType && club_type !== 'community' && club_type !== 'official') {
+    return res.status(400).json({ error: "club_type muss 'community' oder 'official' sein" });
+  }
+  if (hasLabel && category_label !== null
+      && (typeof category_label !== 'string' || category_label.length > 60)) {
+    return res.status(400).json({ error: 'Kategorie darf maximal 60 Zeichen lang sein' });
+  }
+
+  try {
+    // NULL params + COALESCE/CASE: an unsent field keeps its stored value.
+    // Casts are explicit because both params are only read inside a CASE —
+    // without them Postgres answers "could not determine data type".
+    const result = await db.query(
+      `UPDATE groups
+          SET club_type = COALESCE($2::text, club_type),
+              category_label = CASE WHEN $3::text IS NULL THEN category_label
+                                    WHEN btrim($3::text) = '' THEN NULL
+                                    ELSE btrim($3::text) END,
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1 AND type = 'club' AND deleted_at IS NULL
+        RETURNING id, name, club_type, category_label, approval_status`,
+      [id, hasType ? club_type : null, hasLabel ? (category_label ?? '') : null]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Club nicht gefunden' });
+
+    // Every club listing is cached for 30 s, the onboarding list separately.
+    try {
+      const { invalidatePrefix, deleteCached } = await import('../utils/cache.js');
+      invalidatePrefix('clubs:');
+      deleteCached('clubs:featured');
+    } catch { /* non-fatal */ }
+
+    console.log(`[admin] user ${req.userId} classified club ${id} as ${result.rows[0].club_type}`);
+    res.json({ success: true, club: result.rows[0] });
+  } catch (err) {
+    // The 22.10. migration has not run on this database yet.
+    if (err.code === '42703') {
+      return res.status(503).json({
+        error: 'Die Club-Typen sind gleich verfügbar. Bitte in einer Minute erneut versuchen.',
+        code: 'CLUB_TYPE_UNAVAILABLE',
+      });
+    }
+    console.error('classifyClub error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// CLUB LIST FOR RECLASSIFYING  (admin only)
+// ==========================================
+// GET /api/admin/clubs?search=…  — name search over live clubs with their
+// current type, so the dashboard can show what it is about to change. Separate
+// from GET /api/clubs (card columns, member previews, caching) because this
+// view needs four fields and the truth, uncached.
+export const getClubsForAdmin = async (req, res) => {
+  const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+  try {
+    const params = [];
+    let where = `g.type = 'club' AND g.deleted_at IS NULL`;
+    if (search) {
+      // Trigram-indexed (idx_groups_name_gin).
+      params.push(`%${search}%`);
+      where += ` AND g.name ILIKE $${params.length}`;
+    }
+    const { rows } = await db.query(
+      `SELECT g.id, g.name, g.image_url, g.location, g.members_count,
+              g.approval_status, g.is_active, g.club_type, g.category_label,
+              g.category
+         FROM groups g
+        WHERE ${where}
+        ORDER BY g.members_count DESC NULLS LAST, g.created_at DESC, g.id DESC
+        LIMIT 30`,
+      params
+    );
+    res.json(rows);
+  } catch (err) {
+    if (err.code === '42703') return res.status(503).json({ code: 'CLUB_TYPE_UNAVAILABLE', clubs: [] });
+    console.error('getClubsForAdmin error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
 // REMOVE A USER'S PROFILE PICTURE (admin only)
 // ==========================================
 // POST /api/admin/users/:id/remove-avatar

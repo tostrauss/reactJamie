@@ -87,9 +87,19 @@ export const createClub = async (req, res) => {
     max_members,
     is_private,
     skill_level,
-    events_owner_only
+    events_owner_only,
+    club_type
   } = req.body;
   const userId = req.userId;
+  // Community vs official club (Tina 22.10.2026). EXPLICIT is load-bearing:
+  // only a client that names the type gets the new approval rule. A POST
+  // without club_type is an OLD BUNDLE (iOS 1.4.1), whose single "Club
+  // gründen" form carries no such choice — it keeps today's behaviour
+  // (pending + admin review) instead of silently losing the moderation gate.
+  // The row itself is still stored as a community, which is what that form
+  // actually creates ("Starte eine dauerhafte Community").
+  const explicitClubType = club_type === 'official' || club_type === 'community' ? club_type : null;
+  const clubTypeValue = explicitClubType || 'community';
   // Multi-category: `categories` is the full set (max 3, deduped); `category`
   // stays the PRIMARY (= categories[0]) for all single-category code paths.
   const catList = normalizeCategories(categories, category);
@@ -140,9 +150,14 @@ export const createClub = async (req, res) => {
 
     // Approval workflow: clubs created by admins are auto-approved.
     // Everyone else lands in the moderation queue until a human approves.
+    // Since 22.10.2026 a COMMUNITY goes live at once — "Nur Clubs müssen
+    // freigegeben werden" (Tina). What still guards it: the avatar gate above,
+    // checkTextSafety, checkImageField, the region gate, the report flow and
+    // rejectClub (which takes an already-approved club down together with its
+    // events). Moderation moves from before to after publication.
     const adminCheck = await db.query('SELECT is_admin FROM users WHERE id = $1', [userId]);
     const isAdminOwner = !!adminCheck.rows[0]?.is_admin;
-    const approval = isAdminOwner ? 'approved' : 'pending';
+    const approval = (isAdminOwner || explicitClubType === 'community') ? 'approved' : 'pending';
 
     // Club row + owner membership in ONE transaction (audit risk #10) —
     // shared core in services/entityLifecycle.js.
@@ -163,9 +178,10 @@ export const createClub = async (req, res) => {
         lat,
         lng,
         approval_status,
-        events_owner_only
+        events_owner_only,
+        club_type
       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
        RETURNING *`,
       [
         name,
@@ -183,7 +199,8 @@ export const createClub = async (req, res) => {
         coords?.lat ?? null,
         coords?.lng ?? null,
         approval,
-        events_owner_only || false
+        events_owner_only || false,
+        clubTypeValue
       ],
       userId
     );
@@ -251,6 +268,12 @@ async function withOwnPendingClubs(rows, callerId, callerIsAdmin) {
 export const getClubs = async (req, res) => {
   try {
     const { search, category, location, featured, limit, offset } = req.query;
+    // Community / Club segment (Tina 22.10.2026). A MISSING param means the
+    // caller is an old bundle (iOS 1.4.1) whose single Clubs tab must keep
+    // listing both kinds — so no filter at all, exactly as before.
+    const clubType = req.query.club_type === 'official' || req.query.club_type === 'community'
+      ? req.query.club_type
+      : null;
 
     // Approval gate: non-admin callers only see approved clubs (or their own).
     // A separate /api/admin/clubs/pending lists everything pending for the
@@ -277,59 +300,117 @@ export const getClubs = async (req, res) => {
     // everyone else sees. A caller's own not-yet-approved clubs are merged in
     // separately below, so they are not what forced per-user keying — and they
     // must NOT be cached, because they differ per caller.
+    // club_type is part of the key — without it the Communities segment would
+    // be served the Clubs segment's cached page (and vice versa).
     const cacheKey = !search && !location
-      ? `clubs:${category || ''}:${featured || ''}:${safeLimit}:${safeOffset}:adm${callerIsAdmin ? 1 : 0}`
+      ? `clubs:${category || ''}:${featured || ''}:${clubType || ''}:${safeLimit}:${safeOffset}:adm${callerIsAdmin ? 1 : 0}`
       : null;
     if (cacheKey) {
       const cached = getCached(cacheKey);
       if (cached) return res.json(await withOwnPendingClubs(cached, callerId, callerIsAdmin));
     }
 
-    // Card columns shared with the onboarding club list (utils/clubCards.js).
-    let query = `${CLUB_CARD_SELECT}
+    // Built as a function so the whole listing can be retried WITHOUT the
+    // pieces that depend on the 22.10.2026 migration (`withSplit`). The server
+    // takes traffic before startup migrations finish and a failed step stays
+    // failed until the next boot — on this surface that must degrade to the old
+    // list, not to a 500 on the Clubs tab.
+    const buildQuery = (withSplit) => {
+      // Card columns shared with the onboarding club list (utils/clubCards.js).
+      let query = CLUB_CARD_SELECT;
+      if (withSplit) {
+        // "N anstehende Events" on the club row. Walks idx_groups_parent_club.
+        query += `,
+             (
+               SELECT COUNT(*) FROM groups e
+                WHERE e.parent_club_id = g.id
+                  AND e.type = 'event'
+                  AND e.is_active = TRUE
+                  AND e.deleted_at IS NULL
+                  AND e.date > NOW()
+             )::int AS upcoming_events_count,
+             f.position AS featured_position`;
+      }
+      query += `
       FROM groups g
-      LEFT JOIN users u ON g.owner_id = u.id
+      LEFT JOIN users u ON g.owner_id = u.id`;
+      // The admin-curated order (featured_clubs, AdminFeaturedClubsSection) is
+      // the first sort key — Tina 13.10.2026: "die Reihenfolge stimmt nicht".
+      if (withSplit) query += `
+      LEFT JOIN featured_clubs f ON f.club_id = g.id`;
+      query += `
       WHERE g.is_active = TRUE
         AND g.type = $1
         ${callerIsAdmin ? '' : "AND g.approval_status = 'approved'"}
     `;
-    const params = [CLUB_TYPE];
-    let paramIndex = 2;
+      const params = [CLUB_TYPE];
+      let paramIndex = 2;
 
-    if (search) {
-      query += ` AND (g.name ILIKE $${paramIndex} OR g.description ILIKE $${paramIndex})`;
-      params.push(`%${search}%`);
-      paramIndex++;
-    }
-    if (category) {
-      // OR-match: a club appears under any of its categories (multi-category),
-      // falling back to the primary `category` for rows without an array.
-      query += ` AND (g.category ILIKE $${paramIndex} OR $${paramIndex} = ANY(g.categories))`;
-      params.push(category);
-      paramIndex++;
-    }
-    if (location) {
-      query += ` AND g.location ILIKE $${paramIndex++}`;
-      params.push(`%${location}%`);
-    }
-    if (featured === 'true') {
-      query += ` AND g.is_featured = TRUE`;
-    }
+      if (withSplit && clubType === 'official') {
+        query += ` AND g.club_type = 'official'`;
+      } else if (withSplit && clubType === 'community') {
+        // NULL counts as community — the fail-open side of the nullable column
+        // (see the migration note), so a club the backfill has not reached yet
+        // is still discoverable.
+        query += ` AND (g.club_type IS NULL OR g.club_type = 'community')`;
+      }
+      if (search) {
+        query += ` AND (g.name ILIKE $${paramIndex} OR g.description ILIKE $${paramIndex})`;
+        params.push(`%${search}%`);
+        paramIndex++;
+      }
+      if (category) {
+        // OR-match: a club appears under any of its categories (multi-category),
+        // falling back to the primary `category` for rows without an array.
+        query += ` AND (g.category ILIKE $${paramIndex} OR $${paramIndex} = ANY(g.categories))`;
+        params.push(category);
+        paramIndex++;
+      }
+      if (location) {
+        query += ` AND g.location ILIKE $${paramIndex++}`;
+        params.push(`%${location}%`);
+      }
+      if (featured === 'true') {
+        query += ` AND g.is_featured = TRUE`;
+      }
 
-    // Boosted clubs first (paid 24h "Top-Platzierung"), then newest.
-    query += ` ORDER BY is_boosted DESC, g.created_at DESC`;
+      // Admin-curated first, then boosted clubs (paid 24h "Top-Platzierung"),
+      // then the liveliest, then newest. `g.id DESC` is not cosmetic: without a
+      // total order, LIMIT/OFFSET paging can repeat or skip a row across page
+      // boundaries (same fix as the Gruppen feed).
+      query += withSplit
+        ? ` ORDER BY (f.position IS NULL), f.position ASC, is_boosted DESC,
+                     g.members_count DESC NULLS LAST, g.created_at DESC, g.id DESC`
+        : ` ORDER BY is_boosted DESC, g.created_at DESC`;
 
-    query += ` LIMIT $${paramIndex++}`;
-    params.push(safeLimit);
-    if (safeOffset > 0) {
-      query += ` OFFSET $${paramIndex++}`;
-      params.push(safeOffset);
+      query += ` LIMIT $${paramIndex++}`;
+      params.push(safeLimit);
+      if (safeOffset > 0) {
+        query += ` OFFSET $${paramIndex++}`;
+        params.push(safeOffset);
+      }
+      return { query, params };
+    };
+
+    let result;
+    let fellBack = false;
+    try {
+      const { query, params } = buildQuery(true);
+      result = await db.query(query, params);
+    } catch (err) {
+      // 42P01 undefined table / 42703 undefined column = the migration has not
+      // run on this database yet. Anything else is a real error.
+      if (err.code !== '42P01' && err.code !== '42703') throw err;
+      console.warn('[clubs] club_type/featured_clubs not available yet — serving the unsplit list:', err.message);
+      fellBack = true;
+      const { query, params } = buildQuery(false);
+      result = await db.query(query, params);
     }
-
-    const result = await db.query(query, params);
     // Cache the SHARED set, then merge the caller's own pending clubs on top.
     // Merging after the cache write is what keeps the entry caller-independent.
-    if (cacheKey) setCached(cacheKey, result.rows, CLUBS_TTL);
+    // A fallback page is NEVER cached: it ignores club_type, so caching it
+    // under the segment's key would pin the wrong list for a full TTL.
+    if (cacheKey && !fellBack) setCached(cacheKey, result.rows, CLUBS_TTL);
     res.json(await withOwnPendingClubs(result.rows, callerId, callerIsAdmin));
   } catch (err) {
     console.error('Error fetching clubs:', err);
@@ -413,7 +494,8 @@ export const updateClub = async (req, res) => {
       is_private,
       skill_level,
       events_owner_only,
-      chat_only_owner
+      chat_only_owner,
+      category_label
     } = req.body;
     // Multi-category: catList = full set; category column tracks the primary.
     // Empty (neither sent) → null params → COALESCE keeps existing values.
@@ -424,6 +506,12 @@ export const updateClub = async (req, res) => {
       return res.status(400).json({ error: 'Club-Name muss mindestens einen Buchstaben oder eine Zahl enthalten' });
     }
     if (description !== undefined && description.length > 2000) return res.status(400).json({ error: 'Beschreibung darf maximal 2.000 Zeichen lang sein' });
+    // Free-text category line shown in the Clubs list ("Sport · Laufclub").
+    // Short on purpose: it has to fit one line next to the club name.
+    if (category_label !== undefined && category_label !== null
+        && (typeof category_label !== 'string' || category_label.length > 60)) {
+      return res.status(400).json({ error: 'Kategorie darf maximal 60 Zeichen lang sein' });
+    }
     {
       const bad = checkImageField(image_url);
       if (bad) return res.status(400).json({ error: bad });
@@ -445,7 +533,7 @@ export const updateClub = async (req, res) => {
       return res.status(403).json({ error: 'Keine Berechtigung' });
     }
 
-    const textToCheck = [name, description].filter(Boolean).join('\n');
+    const textToCheck = [name, description, category_label].filter(Boolean).join('\n');
     if (textToCheck) {
       const { safe, reason } = await checkTextSafety(textToCheck);
       if (!safe) return res.status(422).json({ error: reason });
@@ -478,6 +566,13 @@ export const updateClub = async (req, res) => {
            skill_level = COALESCE($9, skill_level),
            events_owner_only = COALESCE($14, events_owner_only),
            chat_only_owner = COALESCE($15, chat_only_owner),
+           -- '' clears the line, NULL (field not sent) keeps it. Appended as
+           -- the LAST placeholder so none of the existing $n pins move, and
+           -- cast explicitly: a param used only inside a CASE otherwise fails
+           -- with "could not determine data type" (the 30.09. ticket_url bug).
+           category_label = CASE WHEN $17::text IS NULL THEN category_label
+                                 WHEN btrim($17::text) = '' THEN NULL
+                                 ELSE btrim($17::text) END,
            lat = CASE WHEN $5 IS NOT NULL THEN $12 ELSE lat END,
            lng = CASE WHEN $5 IS NOT NULL THEN $13 ELSE lng END,
            updated_at = CURRENT_TIMESTAMP
@@ -499,7 +594,8 @@ export const updateClub = async (req, res) => {
         lngUpdate,
         events_owner_only ?? null,
         chat_only_owner ?? null,
-        catList.length ? catList : null
+        catList.length ? catList : null,
+        category_label ?? null
       ]
     );
 
