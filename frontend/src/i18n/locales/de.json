@@ -1612,7 +1612,6 @@
     "ctaTrialStart": "🎁 14 Tage kostenlos starten",
     "trialHeadline": "🎁 Starte mit 14 Tagen kostenlos",
     "trialDisclosure": "Deine ersten {{days}} Tage sind kostenlos – heute wird nichts abgebucht. Danach läuft dein Abo automatisch weiter, jederzeit kündbar.",
-    "withdrawalConsent": "Ich stimme ausdrücklich zu, dass die Ausführung sofort beginnt, und nehme zur Kenntnis, dass ich dadurch mein 14-tägiges Rücktrittsrecht (§ 18 FAGG) verliere.",
     "loading": "Wird geladen…",
     "later": "Vielleicht später",
     "startError": "Fehler beim Starten des Abonnements",
@@ -1659,7 +1658,8 @@
     "contextCta": {
       "paidEvents": "Erstelle jetzt dein kostenpflichtiges Event!",
       "reviewRequests": "Verwalte deine Beitrittsanfragen wie ein Profi!",
-      "boosts": "Booste deine Gruppe jetzt ganz nach oben!"
+      "boosts": "Booste deine Gruppe jetzt ganz nach oben!",
+      "joins": "Tritt so vielen Gruppen bei, wie du willst!"
     },
     "trialHeadlineDays_one": "🎁 Starte mit {{count}} Tag kostenlos",
     "trialHeadlineDays_other": "🎁 Starte mit {{count}} Tagen kostenlos",

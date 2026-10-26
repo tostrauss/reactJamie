@@ -347,9 +347,10 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
   const [paymentMode,   setPaymentMode]   = useState('payment');
   const [trialDays,     setTrialDays]     = useState(0);
   const [loading,       setLoading]       = useState(false);
-  // §18 FAGG: the consumer must actively consent to immediate performance and
-  // the resulting loss of the 14-day withdrawal right BEFORE purchase.
-  const [consented,     setConsented]     = useState(false);
+  // No §18 FAGG consent checkbox any more (26.10.2026): it belonged to the
+  // web sale, where JAMIE itself was the seller. The sheet now only sells
+  // through a store (Apple/Google are the seller and run the withdrawal
+  // rules themselves), and the store terms + links sit below the button.
   // Whether THIS user still gets the 14-day trial. Asked up front, because the
   // trial is first-subscription-only (anti-farming) — advertising "14 Tage
   // kostenlos" to a returning subscriber who is then charged immediately is a
@@ -467,6 +468,11 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
         setTimeout(() => { onSuccess?.(); onClose?.(); }, 3000);
         return;
       }
+      // Stripe (web) — unreachable since 26.10.2026: purchasesEnabled() is
+      // only true with a store path, which returned above, and the server
+      // answers 410 (features.js STRIPE_SUBSCRIPTION_PURCHASES_ENABLED). Kept
+      // for existing code paths; bringing web sales back REQUIRES restoring
+      // the §18 FAGG consent checkbox removed with that change first.
       const res = await subscriptionApi.create(activePlan);
       const { client_secret, publishable_key, mode, trial_days } = res.data;
       setPaymentMode(mode || 'payment');
@@ -743,22 +749,6 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                 </div>
               ) : purchasesEnabled() && !iosNotReady ? (
                 <>
-                  {/* §18 FAGG consent — must be actively ticked before purchase */}
-                  <label style={{
-                    display:'flex', alignItems:'flex-start', gap:'10px',
-                    margin:'0 0 12px', cursor:'pointer',
-                  }}>
-                    <input
-                      type="checkbox"
-                      checked={consented}
-                      onChange={e => setConsented(e.target.checked)}
-                      style={{ marginTop:'2px', width:'18px', height:'18px', accentColor:'#FD7666', flexShrink:0 }}
-                    />
-                    <span style={{ fontSize:'11.5px', lineHeight:1.45, color:'rgba(255,255,255,0.6)', textAlign:'left' }}>
-                      {t('pro.withdrawalConsent')}
-                    </span>
-                  </label>
-
                   {/* App Store + free trial: what will be charged afterwards,
                       right above the button that starts the trial — not only
                       in the 11 px fine print below (Apple 3.1.2). */}
@@ -779,18 +769,18 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                   {/* CTA */}
                   <button
                     onClick={startPayment}
-                    disabled={loading || !consented}
+                    disabled={loading}
                     style={{
                       width:'100%', padding:'19px', borderRadius:'18px', border:'none',
-                      background: (loading || !consented)
+                      background: loading
                         ? 'rgba(253,118,102,0.25)'
                         : 'linear-gradient(270deg, #FD7666, #e5574a, #FD7666)',
                       backgroundSize:'200% auto',
-                      animation: (loading || !consented) ? 'none' : 'pm-shimmer 2.5s linear infinite',
-                      color: (loading || !consented) ? 'rgba(255,255,255,0.4)' : '#fff',
+                      animation: loading ? 'none' : 'pm-shimmer 2.5s linear infinite',
+                      color: loading ? 'rgba(255,255,255,0.4)' : '#fff',
                       fontSize:'17px', fontWeight:'900', letterSpacing:'0.2px',
-                      cursor: (loading || !consented) ? 'not-allowed' : 'pointer',
-                      boxShadow: (loading || !consented) ? 'none' : '0 10px 32px rgba(253,118,102,0.4), 0 2px 8px rgba(0,0,0,0.3)',
+                      cursor: loading ? 'not-allowed' : 'pointer',
+                      boxShadow: loading ? 'none' : '0 10px 32px rgba(253,118,102,0.4), 0 2px 8px rgba(0,0,0,0.3)',
                       marginBottom:'10px',
                       display:'flex', alignItems:'center', justifyContent:'center', gap:'8px',
                     }}

@@ -45,10 +45,14 @@ describe('platform.js — runtime payment switches', () => {
     expect(p.paymentsComingSoon()).toBe(true);
   });
 
-  it('web browser: payments_enabled alone opens Stripe', async () => {
+  // 26.10.2026 (Tobi): "Abos nur über Apple" — the browser sells nothing,
+  // even with the master switch on (it has to stay on for the iOS path).
+  // The upsell stays: the sheet shows the "Bald verfügbar" teaser instead.
+  it('web browser: payments_enabled no longer opens a Stripe checkout', async () => {
     const p = await loadPlatform();
     await setConfig({ payments_enabled: true });
-    expect(p.purchasesEnabled()).toBe(true);
+    expect(p.purchasesEnabled()).toBe(false);
+    expect(p.paymentsComingSoon()).toBe(true);
     expect(p.proUpsellAllowed()).toBe(true);
   });
 

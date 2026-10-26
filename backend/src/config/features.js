@@ -17,6 +17,20 @@ export const REFERRAL_CREDITS_ENABLED = false;
 // UND die Kauf-UI in BoostModal.jsx wiederherstellen, falls das kippt.
 export const BOOST_SINGLE_PURCHASES_ENABLED = false;
 
+// Pro-ABO-NEUKAUF über Stripe (Web) deaktiviert (Tobi, 26.10.2026: „wir
+// machen nichts mehr über Stripe, Abos nur über Apple"). Same pattern as the
+// boost switch above: createSubscription answers 410, the web app no longer
+// offers a checkout (frontend utils/platform.js purchasesEnabled). A code
+// constant, NOT the PAYMENTS_ENABLED env: that one is the master switch and
+// also gates the iOS path (iosIapEnabled below) — turning it off would stop
+// Apple sales too. Everything for existing web subscribers stays: Stripe
+// webhooks (refunds/disputes, also of old boosts), the Customer Portal + EU
+// cancellation path in Settings, cancel/withdraw, renewals, getStatus.
+// Re-enabling web sales needs more than flipping this: the §18 FAGG consent
+// checkbox was removed from the ProModal with this change and must come back
+// first (git log -S STRIPE_SUBSCRIPTION_PURCHASES_ENABLED).
+export const STRIPE_SUBSCRIPTION_PURCHASES_ENABLED = false;
+
 // Master payments kill-switch — the SERVER-SIDE counterpart of the frontend's
 // PAYMENTS_ENABLED const (frontend/src/utils/platform.js). platform.js has
 // instructed setting `PAYMENTS_ENABLED=false` in Railway since 2026-08-05

@@ -1612,7 +1612,6 @@
     "ctaTrialStart": "🎁 Start 14 days free",
     "trialHeadline": "🎁 Start with 14 days free",
     "trialDisclosure": "Your first {{days}} days are free — nothing is charged today. After that your subscription renews automatically; cancel anytime.",
-    "withdrawalConsent": "I expressly agree that performance begins immediately and acknowledge that I thereby lose my 14-day right of withdrawal (§ 18 FAGG).",
     "loading": "Loading…",
     "later": "Maybe later",
     "startError": "Could not start subscription",
@@ -1659,7 +1658,8 @@
     "contextCta": {
       "paidEvents": "Create your paid event now!",
       "reviewRequests": "Manage your join requests like a pro!",
-      "boosts": "Boost your group to the top now!"
+      "boosts": "Boost your group to the top now!",
+      "joins": "Join as many groups as you like!"
     },
     "trialHeadlineDays_one": "🎁 Start with {{count}} day free",
     "trialHeadlineDays_other": "🎁 Start with {{count}} days free",

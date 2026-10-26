@@ -128,7 +128,9 @@ export const NATIVE_API_ORIGIN = 'https://api.jamie-app.com';
 // utils/paymentsConfig.js), nicht mehr eine Konstante hier. Grund: die
 // iOS-App bündelt das Web-Build. Eine Konstante wäre bis zum nächsten
 // App-Store-Release eingefroren gewesen. Schalter jetzt in Railway:
-//   PAYMENTS_ENABLED=true      Master (Stripe im Web-Browser)
+//   PAYMENTS_ENABLED=true      Master (muss AN bleiben, sonst auch kein
+//                              iOS-Kauf; Stripe im Web ist seit 26.10.2026
+//                              im Code aus, nicht per Schalter)
 //   IOS_IAP_ENABLED=true       iPhone-App verkauft über RevenueCat/StoreKit
 //   PLAY_BILLING_ENABLED=true  Play-App (TWA) verkauft über Google Play Billing
 // ROLLBACK: den jeweiligen Schalter in Railway auf false. Wirkt beim nächsten
@@ -172,13 +174,14 @@ export const isPlayBillingActive = () =>
 // „Käufe wiederherstellen" und die Abo-Bedingungen am Kaufpunkt.
 export const isStoreBillingActive = () => isIosIapActive() || isPlayBillingActive();
 
-// Echte Käufe möglich? Stripe nur im echten Web-Browser. In jeder App-Hülle
-// (iOS/Android-Capacitor + Android-TWA) ist Stripe für digitale Güter laut
-// Store-Richtlinien unzulässig. Dort nur über den Store-Kaufweg. Der
-// ProModal-Kauf verzweigt entsprechend (RevenueCat / Play / Stripe). Der
-// Server-Backstop isAppShellRequest blockt Stripe aus den Hüllen weiterhin.
+// Echte Käufe möglich? Nur noch über einen Store-Kaufweg (StoreKit via
+// RevenueCat, Play Billing). Der Web-Browser verkauft seit 26.10.2026 nichts
+// mehr (Tobi: „Abos nur über Apple"): kein Stripe-Checkout, das ProModal
+// zeigt im Web das „Bald verfügbar"-Muster (paymentsComingSoon). Server:
+// features.js STRIPE_SUBSCRIPTION_PURCHASES_ENABLED → createSubscription 410.
+// paymentsEnabled() bleibt der Master — ohne ihn auch kein iOS-Kauf.
 export const purchasesEnabled = () =>
-  paymentsEnabled() && (!isAppShell() || isStoreBillingActive());
+  paymentsEnabled() && isStoreBillingActive();
 
 // Darf die App für Pro werben (Pro-Lock, „Pro holen", Upsell-Modal)? Überall
 // außer in der iOS-App ohne Kaufweg: dort verbietet Apple 3.1.1 Hinweise auf

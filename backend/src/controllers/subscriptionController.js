@@ -1,6 +1,6 @@
 import db from '../config/database.js';
 import Stripe from 'stripe';
-import { isAppShellRequest, paymentsEnabled } from '../config/features.js';
+import { isAppShellRequest, paymentsEnabled, STRIPE_SUBSCRIPTION_PURCHASES_ENABLED } from '../config/features.js';
 import { Sentry } from '../config/sentry.js';
 import { getClientIp } from '../utils/clientIp.js';
 import { checkSubscriptionCountry } from '../utils/paymentRegion.js';
@@ -208,6 +208,15 @@ export const createSubscription = async (req, res) => {
   // Store-policy backstop: no Stripe checkout from the Play/iOS app shells.
   if (isAppShellRequest(req)) {
     return res.status(403).json({ error: 'Abos sind nur im Browser verfügbar.', code: 'PAYMENTS_WEB_ONLY' });
+  }
+  // Product decision 26.10.2026: no new Stripe subscriptions — Pro is sold
+  // through the App Store only. 410 Gone (not 403): the checkout is retired,
+  // not gated. Old cached web bundles that still offer it end up here.
+  if (!STRIPE_SUBSCRIPTION_PURCHASES_ENABLED) {
+    return res.status(410).json({
+      error: 'Ein Abo-Abschluss über die Website ist nicht mehr möglich.',
+      code: 'SUBSCRIPTION_PURCHASES_DISABLED',
+    });
   }
   // Sell only where we are tax-registered (AT+DE). The app itself stays open in
   // every launch market — this gates the PAID product only.

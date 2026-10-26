@@ -4,15 +4,18 @@ import { render, screen, act, fireEvent } from '@testing-library/react';
 // Paywall vs Apple 3.1.2 (decision 06.10.2026: 1.4.3 ships with Pro). On the
 // iPhone the amount that is actually BILLED must be the clearest price; the
 // derived per-month figure may only be secondary, and a free trial must say
-// what is charged afterwards next to the button. The web keeps Tina's
-// per-month headline. Real German i18n.
-const platform = { ios: true };
+// what is charged afterwards next to the button. The euro ladder (Play app)
+// keeps Tina's per-month headline. Since 26.10.2026 only a store sells: the
+// web browser shows "Bald verfügbar" and no sheet has the §18 FAGG checkbox
+// any more (Apple/Google are the seller). Real German i18n.
+const platform = { ios: true, play: false };
 vi.mock('../utils/platform', () => ({
   isIosIapActive: () => platform.ios,
-  isStoreBillingActive: () => platform.ios,
-  isPlayBillingActive: () => false,
-  purchasesEnabled: () => true,
-  paymentsComingSoon: () => false,
+  isStoreBillingActive: () => platform.ios || platform.play,
+  isPlayBillingActive: () => platform.play,
+  // Mirrors utils/platform.js since 26.10.2026: only a store path sells.
+  purchasesEnabled: () => platform.ios || platform.play,
+  paymentsComingSoon: () => !(platform.ios || platform.play),
 }));
 vi.mock('../utils/paymentsConfig', () => ({ usePaymentsConfig: () => {} }));
 const products = { value: null };
@@ -34,6 +37,7 @@ vi.mock('@stripe/react-stripe-js', () => ({
 
 const { ProModal } = await import('../components/ProModal');
 const { subscribePro } = await import('../utils/iap');
+const { subscription } = await import('../utils/api');
 
 const storeProducts = (trial = null) => ({
   monthly: { productId: 'pro_monthly', price: 6.99, priceString: '6,99 €', pricePerMonth: 6.99, pricePerMonthString: '6,99 €', currencyCode: 'EUR', freeTrial: trial },
@@ -45,12 +49,12 @@ const storeProducts = (trial = null) => ({
 // scan the whole sheet and pushed these tests past 5 s in the parallel run.
 const ctaButton = () => screen.getByText(/Jetzt starten/).closest('button');
 
-const renderModal = async () => {
-  render(<ProModal onClose={() => {}} />);
+const renderModal = async (props = {}) => {
+  render(<ProModal onClose={() => {}} {...props} />);
   await act(async () => {});
 };
 
-beforeEach(() => { platform.ios = true; products.value = storeProducts(); });
+beforeEach(() => { platform.ios = true; platform.play = false; products.value = storeProducts(); });
 
 describe('ProModal paywall — App Store (3.1.2)', () => {
   it('the BILLED amount is the headline of each tile; the per-month figure is a secondary "≈" line', async () => {
@@ -113,7 +117,6 @@ describe('ProModal paywall — App Store (3.1.2)', () => {
     const pressed = [...document.querySelectorAll('button[aria-pressed="true"]')];
     expect(pressed).toHaveLength(1);
     expect(pressed[0].textContent).toContain('6 Monate');
-    fireEvent.click(document.querySelector('input[type="checkbox"]'));
     await act(async () => { fireEvent.click(ctaButton()); });
     expect(subscribePro).toHaveBeenCalledWith('sixmonth');
   });
@@ -127,19 +130,52 @@ describe('ProModal paywall — App Store (3.1.2)', () => {
     const pressed = [...document.querySelectorAll('button[aria-pressed="true"]')];
     expect(pressed).toHaveLength(1);
     expect(pressed[0].textContent).toContain('1 Monat');
-    fireEvent.click(document.querySelector('input[type="checkbox"]'));
     await act(async () => { fireEvent.click(ctaButton()); });
     expect(subscribePro).toHaveBeenCalledWith('monthly');
   });
+
+  // 26.10.2026: Apple is the seller and runs the withdrawal rules; the §18
+  // FAGG checkbox was the web sale's. The store terms stand under the button.
+  it('no consent checkbox: the button is live right away, the store terms stand below it', async () => {
+    await renderModal();
+    expect(document.querySelector('input[type="checkbox"]')).toBeNull();
+    expect(ctaButton().disabled).toBe(false);
+    expect(screen.getByText(/verlängert sich automatisch/)).toBeTruthy();
+    expect(screen.getByText(/in den iPhone-Einstellungen/)).toBeTruthy();
+  });
 });
 
-describe('ProModal paywall — web keeps the per-month headline', () => {
+describe('ProModal paywall — the Play app keeps the per-month headline', () => {
   it('per-month price big, billed amount secondary, baseline struck through', async () => {
     platform.ios = false;
+    platform.play = true;
     await renderModal();
     expect(screen.getByText('5,00 €').style.fontSize).toBe('19px');
     expect(screen.getByText('29,99 € alle 6 Monate')).toBeTruthy();
     expect(screen.queryByText('≈ 5,00 € pro Monat')).toBeNull();
     expect(screen.getByText(/NEU · Spare bis zu 40%/)).toBeTruthy();
+    expect(document.querySelector('input[type="checkbox"]')).toBeNull();
+  });
+});
+
+describe('ProModal — the web browser sells nothing since 26.10.2026', () => {
+  beforeEach(() => { platform.ios = false; platform.play = false; subscription.create.mockClear(); });
+
+  it('shows "Bald verfügbar" instead of plans, button or checkbox — no Stripe checkout', async () => {
+    await renderModal();
+    expect(screen.getByText('Pro ist in Kürze verfügbar')).toBeTruthy();
+    expect(screen.queryByText(/Jetzt starten/)).toBeNull();
+    expect(screen.queryByText('29,99 € alle 6 Monate')).toBeNull();
+    expect(document.querySelector('input[type="checkbox"]')).toBeNull();
+    expect(subscription.create).not.toHaveBeenCalled();
+  });
+
+  it('the weekly join limit ends cleanly: its own call-out, then "Bald verfügbar"', async () => {
+    await renderModal({ feature: 'joins' });
+    expect(screen.getByText('Tritt so vielen Gruppen bei, wie du willst!')).toBeTruthy();
+    expect(screen.getByText(/Dein kostenloses Wochenlimit ist erreicht/)).toBeTruthy();
+    expect(screen.getByText('Pro ist in Kürze verfügbar')).toBeTruthy();
+    // a missing contextCta key used to print the raw key under the title
+    expect(screen.queryByText(/pro\.contextCta/)).toBeNull();
   });
 });
