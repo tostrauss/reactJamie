@@ -1,11 +1,13 @@
-import { useState, useContext, useEffect, useRef } from 'react';
+import { useState, useContext, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { auth, subscription as subscriptionApi, groups as groupsApi, clubs as clubsApi, friends as friendsApi, reviews as reviewsApi, users as usersApi } from '../utils/api';
+import { auth, subscription as subscriptionApi, groups as groupsApi, clubs as clubsApi, friends as friendsApi, reviews as reviewsApi, users as usersApi, upload as uploadApi } from '../utils/api';
 import SpotifySongPicker from '../components/SpotifySongPicker';
 import { shareLink } from '../utils/share';
+import { MAX_MEMORY_BYTES, photoErrorText } from '../utils/memories';
+import { thumbUrl } from '../utils/images';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { ProfilePhotoCarousel } from '../components/ProfilePhotoCarousel';
 import { PinnwandMasonry } from '../components/PinnwandMasonry';
@@ -45,6 +47,18 @@ const INTEREST_DE = {
 
 const translateInterest = (i) => INTEREST_DE[i] ?? i;
 
+// „Warst du dabei?" above the own Memories (Tina asked, Tobi 26.10.2026: yes).
+// It reads the same prompts as /explore/share and leads there — one rule
+// source. One switch, so a "no" later is a one-line change.
+const SHOW_MEMORY_PROMPT_BANNER = true;
+
+// „Meine Gruppen & Clubs" (Tina 22.10.2026: management was „sehr versteckt").
+// Exactly the set of Chats → Verwalten — what the user OWNS, without club
+// events (those are managed on their own page) — open join requests first.
+const manageableEntities = (rows) => (Array.isArray(rows) ? rows : [])
+  .filter((g) => g.role === 'owner' && g.type !== 'event')
+  .sort((a, b) => (b.pending_request_count || 0) - (a.pending_request_count || 0));
+
 export const Profile = () => {
   const { user, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -77,6 +91,19 @@ export const Profile = () => {
   const [attendance, setAttendance] = useState(null);
   const [scrollToBadges, setScrollToBadges] = useState(false);
   const badgeCardRef = useRef(null);
+  // Stats row „Meet-ups | Friends | Memories" (Tina 22.10.2026). null =
+  // unknown or unavailable → no row at all, never a row of frustrating zeros.
+  const [profileStats, setProfileStats] = useState(null);
+  const [ownedEntities, setOwnedEntities] = useState([]);
+  const [memoryPrompts, setMemoryPrompts] = useState([]);
+  // Memories edit mode. Every change is saved the moment it happens; „Fertig"
+  // only ends the mode (and says so, loudly — Tina).
+  const [editMode, setEditMode] = useState(false);
+  const [busyMemoryId, setBusyMemoryId] = useState(null);
+  const [doneFlash, setDoneFlash] = useState(false);
+  const imageInputRef = useRef(null);
+  const imageTargetRef = useRef(null);
+  const lastPickRef = useRef(0);
 
   const handleShareProfile = async () => {
     if (!user?.id) return;
@@ -167,6 +194,138 @@ export const Profile = () => {
       .catch(() => {})
       .finally(() => setHofLoading(false));
   }, [activeTab]);
+
+  // Stats row: its own me-only endpoint, re-read after a memory is removed or
+  // restored so the Memories number never disagrees with the grid.
+  const loadProfileStats = useCallback(() => {
+    usersApi.getProfileStats()
+      .then(res => setProfileStats(res.data?.available ? res.data : null))
+      .catch(() => setProfileStats(null));
+  }, []);
+  useEffect(() => { loadProfileStats(); }, [loadProfileStats]);
+
+  // „Meine Gruppen & Clubs": the chat list's own read (role +
+  // pending_request_count included), no extra endpoint.
+  useEffect(() => {
+    let cancelled = false;
+    groupsApi.getJoined()
+      .then(res => { if (!cancelled) setOwnedEntities(manageableEntities(res.data)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // „Warst du dabei?": S2's prompts (21 days, an owner's moment counts as
+  // their photo) — read when the Memories tab opens, never re-derived here.
+  useEffect(() => {
+    if (!SHOW_MEMORY_PROMPT_BANNER || activeTab !== 'halloffame') return undefined;
+    let cancelled = false;
+    groupsApi.getMemoryPrompts()
+      .then(res => { if (!cancelled) setMemoryPrompts(Array.isArray(res.data) ? res.data : []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeTab]);
+
+  // Leaving the Memories tab ends the edit mode.
+  useEffect(() => { if (activeTab !== 'halloffame') setEditMode(false); }, [activeTab]);
+
+  // „Fertig" has to be impossible to miss (Tina): a toast plus a short check
+  // pop on the button (no motion under prefers-reduced-motion, see CSS).
+  useEffect(() => {
+    if (!doneFlash) return undefined;
+    const timer = setTimeout(() => setDoneFlash(false), 900);
+    return () => clearTimeout(timer);
+  }, [doneFlash]);
+
+  const toggleEditMode = () => {
+    if (!editMode) { setEditMode(true); return; }
+    setEditMode(false);
+    setDoneFlash(true);
+    toast.success(t('profile.memories.doneToast'));
+  };
+
+  const restoreMemory = async (event, index) => {
+    try {
+      await usersApi.unhideMemory(event.id);
+      setPastEvents(prev => {
+        if (prev.some(e => e.id === event.id)) return prev;
+        const next = [...prev];
+        next.splice(Math.min(Math.max(index, 0), next.length), 0, event);
+        return next;
+      });
+      loadProfileStats();
+    } catch {
+      toast.error(t('profile.memories.undoError'));
+    }
+  };
+
+  // „Entfernen" / the coral X: out of the own grid only — the event and its
+  // photos stay in Explore (Tobi 26.10.2026), hence the confirm names that.
+  const removeMemory = async (event) => {
+    if (busyMemoryId) return;
+    if (!window.confirm(t('profile.memories.removeConfirm', { name: event.name }))) return;
+    const index = pastEvents.findIndex(e => e.id === event.id);
+    setBusyMemoryId(event.id);
+    try {
+      await usersApi.hideMemory(event.id);
+      setPastEvents(prev => prev.filter(e => e.id !== event.id));
+      loadProfileStats();
+      toast.showUndo(t('profile.memories.removed'), () => restoreMemory(event, index), t('common.undo'));
+    } catch {
+      toast.error(t('profile.memories.removeError'));
+    } finally {
+      setBusyMemoryId(null);
+    }
+  };
+
+  // „Bild ändern": one hidden file input; the tile it is for rides along in a
+  // ref. A second tap within a second is the iOS ghost click (ShareMoments).
+  const pickNewImage = (event) => {
+    if (busyMemoryId || Date.now() - lastPickRef.current < 1000) return;
+    imageTargetRef.current = event;
+    imageInputRef.current?.click();
+  };
+
+  const handleImagePicked = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // picking the same file again must fire onChange again
+    lastPickRef.current = Date.now();
+    const event = imageTargetRef.current;
+    imageTargetRef.current = null;
+    if (!file || !event) return;
+    if (file.size > MAX_MEMORY_BYTES) {
+      toast.error(t('explore.moment.tooLarge'));
+      return;
+    }
+    setBusyMemoryId(event.id);
+    let replaced = false;
+    try {
+      const up = await uploadApi.image(file);
+      const url = up.data?.url;
+      if (!url) throw new Error('no url');
+      // Swap, not add: the photo behind the cover goes first, so the
+      // 5-photos-per-person cap can never block its replacement.
+      if (event.own_photo_id) {
+        await groupsApi.deletePhoto(event.id, event.own_photo_id);
+        replaced = true;
+      }
+      const added = await groupsApi.addPhoto(event.id, url);
+      setPastEvents(prev => prev.map(ev => (ev.id === event.id
+        ? { ...ev, cover_url: added.data?.url || url, own_photo_id: added.data?.id ?? null }
+        : ev)));
+      toast.success(t('profile.memories.imageChanged'));
+    } catch (err) {
+      toast.error(photoErrorText(err, t));
+      // The old photo may already be gone (deleted, then the add failed):
+      // read the list again rather than show a cover that no longer exists.
+      if (replaced) {
+        usersApi.getHallOfFame('me')
+          .then(res => { if (Array.isArray(res.data)) setPastEvents(res.data); })
+          .catch(() => {});
+      }
+    } finally {
+      setBusyMemoryId(null);
+    }
+  };
 
   const handleSongSelect = async (song) => {
     setSavingSong(true);
@@ -271,6 +430,26 @@ export const Profile = () => {
             </div>
           </div>
 
+          {/* Stats row (Tina 22.10.2026) — the labels stay English in every
+              language on purpose. Only with real numbers: no row at all when
+              they could not be had. */}
+          {profileStats && (
+            <div className="profile-stats-row">
+              <button type="button" className="profile-stat" onClick={openBadges}>
+                <span className="profile-stat-value">{profileStats.meetups}</span>
+                <span className="profile-stat-label">{t('profile.stats.meetups')}</span>
+              </button>
+              <button type="button" className="profile-stat" onClick={() => navigate('/friends')}>
+                <span className="profile-stat-value">{profileStats.friends}</span>
+                <span className="profile-stat-label">{t('profile.stats.friends')}</span>
+              </button>
+              <button type="button" className="profile-stat" onClick={() => setActiveTab('halloffame')}>
+                <span className="profile-stat-value">{profileStats.memories}</span>
+                <span className="profile-stat-label">{t('profile.stats.memories')}</span>
+              </button>
+            </div>
+          )}
+
           {/* Interests */}
           {interests.length > 0 && (
             <div className="profile-interests">
@@ -304,6 +483,48 @@ export const Profile = () => {
               <path d="M9 18l6-6-6-6"/>
             </svg>
           </button>
+
+          {/* Meine Gruppen & Clubs — management one tap from the profile. */}
+          {ownedEntities.length > 0 && (
+            <section className="profile-manage" aria-labelledby="profile-manage-title">
+              <div className="profile-manage-head">
+                <h3 id="profile-manage-title" className="profile-manage-title">{t('profile.manage.title')}</h3>
+                <button type="button" className="profile-manage-all" onClick={() => navigate('/chats?tab=verwalten')}>
+                  {t('profile.manage.all')}
+                </button>
+              </div>
+              <div className="profile-manage-rail">
+                {ownedEntities.map((g) => {
+                  const isClub = g.type === 'club';
+                  const base = isClub ? `/club/${g.id}` : `/group/${g.id}`;
+                  const pending = g.pending_request_count || 0;
+                  return (
+                    <div key={g.id} className="profile-manage-card">
+                      <button type="button" className="profile-manage-open" onClick={() => navigate(base)}>
+                        <span className="profile-manage-img">
+                          {g.image_url
+                            ? <img src={thumbUrl(g.image_url)} alt="" loading="lazy" decoding="async" />
+                            : <span aria-hidden="true">{(g.name || '?')[0].toUpperCase()}</span>}
+                        </span>
+                        <span className="profile-manage-name">{g.name}</span>
+                        <span className="profile-manage-type">
+                          {isClub ? t('profile.manage.typeClub') : t('profile.manage.typeGroup')}
+                        </span>
+                      </button>
+                      <button type="button" className="profile-manage-chip" onClick={() => navigate(`${base}/edit`)}>
+                        {t('profile.manage.edit')}
+                      </button>
+                      {pending > 0 && (
+                        <button type="button" className="profile-manage-requests" onClick={() => navigate('/chats?tab=anfragen')}>
+                          {t('profile.manage.requests', { count: pending })}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {/* Favoriten */}
           {favItems.length > 0 && (
@@ -415,6 +636,21 @@ export const Profile = () => {
                     />
                   </div>
                 )}
+                {SHOW_MEMORY_PROMPT_BANNER && memoryPrompts.length > 0 && !editMode && (
+                  <button type="button" className="profile-memory-prompt" onClick={() => navigate('/explore/share')}>
+                    <span className="profile-memory-prompt-text">
+                      <strong>{t('profile.memories.promptTitle')}</strong>
+                      <span>
+                        {memoryPrompts.length === 1
+                          ? t('profile.memories.promptOne', { name: memoryPrompts[0].name })
+                          : t('profile.memories.promptMany', { count: memoryPrompts.length })}
+                      </span>
+                    </span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                      <path d="M9 18l6-6-6-6"/>
+                    </svg>
+                  </button>
+                )}
                 {hofLoading ? (
                   <div className="home-loading"><div className="home-spinner" /></div>
                 ) : pastEvents.length === 0 ? (
@@ -424,11 +660,40 @@ export const Profile = () => {
                     <span>{t('profile.hof.hint')}</span>
                   </div>
                 ) : (
-                  <HallOfFameGrid
-                    events={pastEvents}
-                    onOpen={(event) => navigate(`/group/${event.id}`)}
-                  />
+                  <>
+                    <div className="profile-memories-toolbar">
+                      <button
+                        type="button"
+                        className={`profile-memories-edit${editMode ? ' is-active' : ''}${doneFlash ? ' is-done' : ''}`}
+                        onClick={toggleEditMode}
+                        aria-pressed={editMode}
+                      >
+                        {doneFlash && (
+                          <svg className="profile-memories-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M20 6L9 17l-5-5" />
+                          </svg>
+                        )}
+                        {editMode ? t('profile.memories.done') : t('profile.memories.edit')}
+                      </button>
+                    </div>
+                    <HallOfFameGrid
+                      events={pastEvents}
+                      onOpen={(event) => navigate(`/group/${event.id}`)}
+                      editMode={editMode}
+                      onRemove={removeMemory}
+                      onChangeImage={pickNewImage}
+                      busyId={busyMemoryId}
+                    />
+                  </>
                 )}
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={handleImagePicked}
+                  data-testid="memory-image-input"
+                />
               </div>
             )}
           </div>

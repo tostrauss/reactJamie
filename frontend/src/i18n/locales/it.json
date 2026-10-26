@@ -1067,6 +1067,36 @@
     "friendsBtn": "Amici e richieste",
     "favoritesTitle": "Preferiti",
     "clubBadge": "Club",
+    "stats": {
+      "meetups": "Meet-ups",
+      "friends": "Friends",
+      "memories": "Memories"
+    },
+    "manage": {
+      "title": "I miei gruppi e club",
+      "all": "Tutti",
+      "edit": "Gestisci",
+      "typeGroup": "Gruppo",
+      "typeClub": "Club",
+      "requests_one": "{{count}} richiesta",
+      "requests_other": "{{count}} richieste"
+    },
+    "memories": {
+      "edit": "Modifica",
+      "done": "Fatto",
+      "doneToast": "Fatto! Le tue Memories sono aggiornate ✓",
+      "changeImage": "Cambia foto",
+      "remove": "Rimuovi",
+      "removeAria": "Rimuovi «{{name}}» dalle tue Memories",
+      "removeConfirm": "Rimuovere «{{name}}» dal tuo profilo? L’incontro e le sue foto restano visibili in Scopri.",
+      "removed": "Rimosso dal tuo profilo",
+      "removeError": "Impossibile rimuovere: riprova",
+      "undoError": "Impossibile ripristinare",
+      "imageChanged": "Nuova foto salvata ✓",
+      "promptTitle": "📸 Eri presente?",
+      "promptOne": "«{{name}}» – condividi la tua foto",
+      "promptMany": "{{count}} incontri aspettano la tua foto"
+    },
     "tabs": {
       "pinnwand": "Bacheca",
       "halloffame": "Hall of Fame"

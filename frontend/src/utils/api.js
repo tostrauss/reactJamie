@@ -364,6 +364,14 @@ export const users = {
   // it used to be the chat list, so leaving a chat erased the memory).
   getHallOfFame: (id) =>
     axiosInstance.get(`/users/${id}/hall-of-fame`),
+
+  // Own profile only (Tina 22.10.2026): the stats row „Meet-ups | Friends |
+  // Memories“ — { available:false } whenever the numbers can't be had.
+  getProfileStats: () => axiosInstance.get('/users/me/profile-stats'),
+  // „Entfernen“ in the Memories edit mode: out of the own profile grid only
+  // (the Explore feeds keep the event); unhide is the undo.
+  hideMemory: (groupId) => axiosInstance.post(`/users/me/hall-of-fame/${groupId}/hide`),
+  unhideMemory: (groupId) => axiosInstance.delete(`/users/me/hall-of-fame/${groupId}/hide`),
 };
 
 // ==========================================

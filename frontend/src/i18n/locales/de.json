@@ -1067,6 +1067,36 @@
     "friendsBtn": "Freunde & Anfragen",
     "favoritesTitle": "Favoriten",
     "clubBadge": "Club",
+    "stats": {
+      "meetups": "Meet-ups",
+      "friends": "Friends",
+      "memories": "Memories"
+    },
+    "manage": {
+      "title": "Meine Gruppen & Clubs",
+      "all": "Alle",
+      "edit": "Verwalten",
+      "typeGroup": "Gruppe",
+      "typeClub": "Club",
+      "requests_one": "{{count}} Anfrage",
+      "requests_other": "{{count}} Anfragen"
+    },
+    "memories": {
+      "edit": "Bearbeiten",
+      "done": "Fertig",
+      "doneToast": "Fertig! Deine Memories sind aktuell ✓",
+      "changeImage": "Bild ändern",
+      "remove": "Entfernen",
+      "removeAria": "„{{name}}“ aus deinen Memories entfernen",
+      "removeConfirm": "„{{name}}“ aus deinem Profil entfernen? Das Treffen und seine Fotos bleiben unter Entdecken sichtbar.",
+      "removed": "Aus deinem Profil entfernt",
+      "removeError": "Konnte nicht entfernt werden – bitte versuch es nochmal",
+      "undoError": "Konnte nicht wiederhergestellt werden",
+      "imageChanged": "Neues Bild gespeichert ✓",
+      "promptTitle": "📸 Warst du dabei?",
+      "promptOne": "„{{name}}“ – teile dein Foto",
+      "promptMany": "{{count}} Treffen warten auf dein Foto"
+    },
     "tabs": {
       "pinnwand": "Pinnwand",
       "halloffame": "Hall of Fame"

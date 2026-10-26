@@ -2043,6 +2043,279 @@
   flex-shrink: 0;
 }
 
+/* ── Stats row „Meet-ups | Friends | Memories" (Tina 22.10.2026) ── */
+.profile-stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0 0 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.profile-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 64px;
+  padding: 10px 4px;
+  background: none;
+  border: none;
+  color: var(--text-white);
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.15s;
+}
+
+.profile-stat + .profile-stat { border-left: 1px solid var(--border-default); }
+.profile-stat:active { background: rgba(255, 255, 255, 0.06); }
+.profile-stat:focus-visible { outline: 2px solid var(--accent-coral); outline-offset: -2px; }
+
+.profile-stat-value {
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.profile-stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.2px;
+}
+
+/* ── „Meine Gruppen & Clubs" hub (Tina 22.10.2026) ── */
+.profile-manage {
+  width: calc(100% - 40px);
+  margin: 0 20px 16px;
+  padding: 12px 0 14px;
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 20px;
+}
+
+.profile-manage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 0 16px;
+  margin-bottom: 6px;
+}
+
+.profile-manage-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-white);
+}
+
+.profile-manage-all {
+  min-height: 44px;
+  padding: 0 8px;
+  background: none;
+  border: none;
+  color: var(--accent-coral);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.profile-manage-rail {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 0 16px 2px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.profile-manage-rail::-webkit-scrollbar { display: none; }
+
+.profile-manage-card {
+  flex: 0 0 136px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+.profile-manage-open {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-white);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.profile-manage-img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--bg-input);
+  color: var(--text-muted);
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.profile-manage-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.profile-manage-name {
+  width: 100%;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-manage-type {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.profile-manage-chip,
+.profile-manage-requests {
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.profile-manage-chip {
+  background: var(--bg-input);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-white);
+}
+
+.profile-manage-requests {
+  background: var(--accent-coral);
+  border: 1px solid var(--accent-coral);
+  color: #fff;
+}
+
+/* ── Memories tab: „Warst du dabei?" + edit mode ── */
+.profile-memory-prompt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  background: rgba(253, 118, 102, 0.1);
+  border: 1px solid rgba(253, 118, 102, 0.35);
+  border-radius: 16px;
+  color: var(--text-white);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.profile-memory-prompt-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.profile-memory-prompt-text strong {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.profile-memory-prompt-text span {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-memory-prompt svg { color: var(--accent-coral); flex-shrink: 0; }
+
+.profile-memories-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 10px;
+}
+
+.profile-memories-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: var(--bg-card);
+  color: var(--text-white);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.profile-memories-edit.is-active {
+  background: var(--accent-coral);
+  border-color: var(--accent-coral);
+  color: #fff;
+}
+
+/* „Fertig" — a short green check pop on top of the toast. */
+.profile-memories-edit.is-done {
+  border-color: #4ade80;
+  color: #4ade80;
+  animation: profile-memories-done 0.45s ease-out;
+}
+
+@keyframes profile-memories-done {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-memories-edit.is-done { animation: none; }
+}
+
 /* ── Favoriten section ── */
 .profile-favs {
   width: calc(100% - 40px);

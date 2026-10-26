@@ -1067,6 +1067,36 @@
     "friendsBtn": "Friends & requests",
     "favoritesTitle": "Favorites",
     "clubBadge": "Club",
+    "stats": {
+      "meetups": "Meet-ups",
+      "friends": "Friends",
+      "memories": "Memories"
+    },
+    "manage": {
+      "title": "My groups & clubs",
+      "all": "All",
+      "edit": "Manage",
+      "typeGroup": "Group",
+      "typeClub": "Club",
+      "requests_one": "{{count}} request",
+      "requests_other": "{{count}} requests"
+    },
+    "memories": {
+      "edit": "Edit",
+      "done": "Done",
+      "doneToast": "Done! Your Memories are up to date ✓",
+      "changeImage": "Change photo",
+      "remove": "Remove",
+      "removeAria": "Remove “{{name}}” from your Memories",
+      "removeConfirm": "Remove “{{name}}” from your profile? The meetup and its photos stay visible in Explore.",
+      "removed": "Removed from your profile",
+      "removeError": "Couldn’t remove it – please try again",
+      "undoError": "Couldn’t restore it",
+      "imageChanged": "New photo saved ✓",
+      "promptTitle": "📸 Were you there?",
+      "promptOne": "“{{name}}” – share your photo",
+      "promptMany": "{{count}} meetups are waiting for your photo"
+    },
     "tabs": {
       "pinnwand": "Wall",
       "halloffame": "Hall of Fame"

@@ -1067,6 +1067,36 @@
     "friendsBtn": "Amigos y solicitudes",
     "favoritesTitle": "Favoritos",
     "clubBadge": "Club",
+    "stats": {
+      "meetups": "Meet-ups",
+      "friends": "Friends",
+      "memories": "Memories"
+    },
+    "manage": {
+      "title": "Mis grupos y clubs",
+      "all": "Todos",
+      "edit": "Gestionar",
+      "typeGroup": "Grupo",
+      "typeClub": "Club",
+      "requests_one": "{{count}} solicitud",
+      "requests_other": "{{count}} solicitudes"
+    },
+    "memories": {
+      "edit": "Editar",
+      "done": "Listo",
+      "doneToast": "¡Listo! Tus Memories están al día ✓",
+      "changeImage": "Cambiar foto",
+      "remove": "Quitar",
+      "removeAria": "Quitar «{{name}}» de tus Memories",
+      "removeConfirm": "¿Quitar «{{name}}» de tu perfil? El encuentro y sus fotos siguen visibles en Descubrir.",
+      "removed": "Quitado de tu perfil",
+      "removeError": "No se pudo quitar; inténtalo de nuevo",
+      "undoError": "No se pudo restaurar",
+      "imageChanged": "Nueva foto guardada ✓",
+      "promptTitle": "📸 ¿Estuviste allí?",
+      "promptOne": "«{{name}}»: comparte tu foto",
+      "promptMany": "{{count}} encuentros esperan tu foto"
+    },
     "tabs": {
       "pinnwand": "Tablón",
       "halloffame": "Hall of Fame"
