@@ -14,7 +14,7 @@ vi.mock('../../src/config/database.js', () => ({ default: { query: vi.fn() } }))
 
 const {
   generalLimiter, authLimiter, strictLimiter, passwordResetLimiter, publicFormLimiter, verifiedUserId, authLimiterSkip,
-  pollCreateLimiter, pollVoteLimiter, reactionLimiter, messageLimiter,
+  pollCreateLimiter, pollVoteLimiter, reactionLimiter, messageLimiter, userSearchLimiter,
 } = await import('../../src/middleware/rateLimiter.js');
 const { generateToken } = await import('../../src/middleware/auth.js');
 
@@ -88,6 +88,16 @@ describe('rate limiters', () => {
       expect(mine[60]).toMatchObject({ allowed: false, status: 429 });
       expect(await run(reactionLimiter, 43)).toEqual({ allowed: true });
       expect(await run(messageLimiter, 43)).toEqual({ allowed: true });
+    });
+
+    // Friends tab (22.10.2026): the people search is prominent now — 40 per
+    // minute per user, generous for typing, a wall for a scraper.
+    it('userSearchLimiter: 40 per minute per user, another user unaffected', async () => {
+      const mine = [];
+      for (let i = 0; i < 41; i++) mine.push(await run(userSearchLimiter, 51));
+      expect(mine.filter((r) => r.allowed).length).toBe(40);
+      expect(mine[40]).toMatchObject({ allowed: false, status: 429 });
+      expect(await run(userSearchLimiter, 52)).toEqual({ allowed: true });
     });
 
     it('the poll limiters are their own instances', () => {

@@ -365,3 +365,21 @@ export const friendRequestLimiter = rateLimit({
   store: makeStore('rl:friendreq:'),
   message: { error: 'Zu viele Freundschaftsanfragen. Bitte versuche es in einer Stunde erneut.' }
 });
+
+// People search: 40/minute per authenticated user. The Friends tab (Tina,
+// 22.10.2026) makes the name search prominent, and every user is findable —
+// this keeps it from being a directory scraper. Generous on purpose: the 300ms
+// debounce sends a few requests per second while somebody types, and old
+// bundles (Friends.jsx) show "Keine Treffer" on a 429 instead of failing.
+// Keyed on req.userId, so it MUST be mounted after authenticate.
+export const userSearchLimiter = rateLimit({
+  ...SHARED,
+  windowMs: 60 * 1000,
+  max: disabled ? 10000 : 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `usersearch:${req.userId}`,
+  validate: { keyGeneratorIpFallback: false },
+  store: makeStore('rl:usersearch:'),
+  message: { error: 'Zu viele Suchanfragen. Bitte warte kurz.' }
+});

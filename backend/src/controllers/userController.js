@@ -1,5 +1,6 @@
 import db from '../config/database.js';
 import { attachAttendanceTiers } from '../utils/attendanceTiers.js';
+import { PROFILE_COMPLETE_SQL } from '../utils/profileCompleteness.js';
 
 // ==========================================
 // GET USER BY ID (public profile)
@@ -68,12 +69,35 @@ export const searchUsers = async (req, res) => {
     // a blocked user should be effectively invisible to the blocker, and the
     // blocker should also disappear from the blockee's search to avoid letting
     // them reach out via a different path.
+    //
+    // Friends tab (Tina, 22.10.2026): every hit carries the friendship state so
+    // the row can offer „Anfragen" / „Annehmen". rejected / expired read as
+    // 'none' — the person asked never learns of a rejection, and
+    // sendFriendRequest re-uses such a row. Frozen accounts (is_active FALSE)
+    // are not findable. Every column is qualified: the friendship lateral
+    // would otherwise make `id` ambiguous. The bio is an excerpt (one line in
+    // the row); old bundles never read it.
     const result = await db.query(
-      `SELECT id, name, avatar_url, location, bio
+      `SELECT users.id, users.name, users.avatar_url, users.location,
+              LEFT(users.bio, 160) AS bio,
+              EXTRACT(YEAR FROM AGE(users.date_of_birth))::int AS age,
+              CASE WHEN fs.f_status IN ('pending', 'accepted') THEN fs.friendship_id END AS friendship_id,
+              CASE WHEN fs.f_status = 'accepted' THEN 'accepted'
+                   WHEN fs.f_status = 'pending' AND fs.f_requester = $2 THEN 'pending_out'
+                   WHEN fs.f_status = 'pending' THEN 'pending_in'
+                   ELSE 'none' END AS friend_status
        FROM users
-       WHERE name ILIKE $1
-         AND id <> $2
-         AND id NOT IN (
+       LEFT JOIN LATERAL (
+         SELECT f.id AS friendship_id, f.status AS f_status, f.requester_id AS f_requester
+           FROM friendships f
+          WHERE (f.requester_id = $2 AND f.addressee_id = users.id)
+             OR (f.requester_id = users.id AND f.addressee_id = $2)
+          LIMIT 1
+       ) fs ON TRUE
+       WHERE users.name ILIKE $1
+         AND users.id <> $2
+         AND users.is_active IS DISTINCT FROM FALSE
+         AND users.id NOT IN (
            SELECT CASE WHEN requester_id = $2 THEN addressee_id ELSE requester_id END
            FROM friendships
            WHERE status = 'blocked' AND (requester_id = $2 OR addressee_id = $2)
@@ -83,15 +107,19 @@ export const searchUsers = async (req, res) => {
        -- than 20 matches, and without an ORDER BY the 20 returned were
        -- arbitrary — the person you meant was simply cut off. Now: people who
        -- share a group/club with the caller first, then prefix matches
-       -- ("Lena" before "Helena"), then alphabetically.
+       -- ("Lena" before "Helena"), then complete profiles before incomplete
+       -- ones (no photo, or below the profile rule — ranked down, never
+       -- hidden: Tobi 26.10.2026; COALESCE because a NULL would sort FIRST
+       -- under DESC), then alphabetically.
        ORDER BY
          EXISTS (
            SELECT 1 FROM group_members gm_me
            JOIN group_members gm_them ON gm_them.group_id = gm_me.group_id
            WHERE gm_me.user_id = $2 AND gm_them.user_id = users.id
          ) DESC,
-         (name ILIKE $3) DESC,
-         name ASC
+         (users.name ILIKE $3) DESC,
+         COALESCE(NULLIF(users.avatar_url, '') IS NOT NULL AND ${PROFILE_COMPLETE_SQL}, FALSE) DESC,
+         users.name ASC
        LIMIT 30`,
       [`%${q}%`, req.userId, `${q}%`]
     );
