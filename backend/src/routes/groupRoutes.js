@@ -30,7 +30,13 @@ import {
   setGroupNotifications,
   getHallOfFame,
 } from '../controllers/groupController.js';
-import { getEventPhotos, addEventPhoto, deleteEventPhoto } from '../controllers/hallOfFameController.js';
+import {
+  getEventPhotos,
+  addEventPhoto,
+  deleteEventPhoto,
+  getMemoryPrompts,
+  getHallOfFameFriends,
+} from '../controllers/hallOfFameController.js';
 import { authenticate, optionalAuth, requireCompleteProfile } from '../middleware/auth.js';
 import { generalLimiter } from '../middleware/rateLimiter.js';
 
@@ -45,6 +51,11 @@ router.get('/categories', generalLimiter, getCategories);
 // match "hall-of-fame" as an id. optionalAuth so a guest sees the wall, and so
 // an owner's own photoless past events can be surfaced to them for upload.
 router.get('/hall-of-fame', optionalAuth, getHallOfFame);
+// Memories (Tina, 22.10.2026): the caller's events still waiting for their
+// photo („Warst du dabei..“) and the friends feed. Personal, so authenticate;
+// also above every '/:id' route.
+router.get('/hall-of-fame/prompts', authenticate, getMemoryPrompts);
+router.get('/hall-of-fame/friends', authenticate, getHallOfFameFriends);
 
 // ==========================================
 // USER-SPECIFIC ROUTES (require auth)

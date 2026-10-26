@@ -281,6 +281,16 @@ const runStartupMigrations = async () => {
       ON event_reviews (reviewed_user_id, group_id)
       INCLUDE (reviewer_id, was_present, created_at)
       WHERE reviewer_id <> reviewed_user_id`));
+  // Friends feed (Tina, 22.10.2026): the reviewer arm of
+  // friendsParticipatedIdsSql looks up the reviews written by a SET of
+  // friends — every other index here leads with group_id or reviewed_user_id,
+  // so without this it is a sequential scan per request. Same plain build as
+  // above (a failed CONCURRENTLY build leaves an INVALID index that IF NOT
+  // EXISTS would skip forever). event_reviews lives only in these
+  // migrations, so schema.sql stays untouched.
+  await migrate('idx_event_reviews_reviewer (Friends-Feed)', () => db.query(`
+    CREATE INDEX IF NOT EXISTS idx_event_reviews_reviewer
+      ON event_reviews (reviewer_id)`));
 
   // "Skip" on the post-event attendance modal records a dismissal here instead
   // of a permanent event_reviews sentinel, so the auto-popup stops nagging but

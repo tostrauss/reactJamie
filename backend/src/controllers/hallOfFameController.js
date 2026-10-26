@@ -5,10 +5,16 @@ import { isSafeImageUrl } from '../utils/safeUrl.js';
 import {
   hallOfFameEventSql,
   participatedIdsSql,
+  friendsParticipatedIdsSql,
+  memoryPromptWindowSql,
   isMissingRelation,
+  withCanAddPhoto,
+  HOF_CARD_SELECT,
+  HOF_WALL_WHERE,
   MAX_PHOTOS_PER_USER,
   MAX_PHOTOS_PER_EVENT,
 } from '../utils/hallOfFame.js';
+import { blockedWithSql } from '../utils/attendanceTiers.js';
 
 const toId = (v) => {
   const n = Number.parseInt(v, 10);
@@ -76,6 +82,94 @@ export const getUserHallOfFame = async (req, res) => {
   } catch (err) {
     console.error('Error fetching user hall of fame:', err);
     res.status(500).json({ error: 'Hall of Fame konnte nicht geladen werden' });
+  }
+};
+
+// ==========================================
+// GET /api/groups/hall-of-fame/prompts
+// ==========================================
+// „Warst du dabei..“ (Tina, 22.10.2026): the caller's own past events of the
+// last MEMORY_PROMPT_DAYS that still lack THEIR photo — as owner or as a
+// participant. For the owner a set moment counts as their photo (the client
+// sends them to the moment upload); a participant is still asked after the
+// owner set one, it is not theirs. The list is only a view — addEventPhoto
+// and updateGroup check participation / ownership themselves. The profile's
+// prompt reads the same endpoint, so the rule lives in one place.
+export const getMemoryPrompts = async (req, res) => {
+  const run = (legacy) => db.query(
+    `/* hall-of-fame:prompts */
+     SELECT g.id, g.name, g.type, g.category, g.date, g.location,
+            g.owner_id, g.image_url, g.moment_photo_url
+       FROM groups g
+      WHERE g.id IN ${participatedIdsSql('$1', { withEntries: !legacy })}
+        AND ${hallOfFameEventSql('g')}
+        AND ${memoryPromptWindowSql('g')}
+        ${legacy ? '' : 'AND NOT EXISTS (SELECT 1 FROM event_photos ep WHERE ep.group_id = g.id AND ep.user_id = $1)'}
+        AND (g.owner_id IS DISTINCT FROM $1 OR g.moment_photo_url IS NULL)
+      ORDER BY g.date DESC, g.id DESC
+      LIMIT 100`,
+    [req.userId]
+  );
+
+  try {
+    let result;
+    try {
+      result = await run(false);
+    } catch (err) {
+      // Boot window: the server answers before the startup migrations ran.
+      if (!isMissingRelation(err)) throw err;
+      result = await run(true);
+    }
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error fetching memory prompts:', err);
+    res.status(500).json({ error: 'Treffen konnten nicht geladen werden' });
+  }
+};
+
+// ==========================================
+// GET /api/groups/hall-of-fame/friends?limit=&offset=
+// ==========================================
+// The Friends tab's feed (Tina, 22.10.2026): the wall's cards, narrowed to
+// events an accepted friend took part in — the same four sources as the
+// profile list. Only PUBLIC events (a friend's private group is not the
+// caller's business — getUserHallOfFame's rule), none whose owner is on
+// either side of a block, and only cards with a picture like the Memories
+// tab. The friend set is capped like GET /friends (500), newest first so the
+// cap is deterministic.
+export const getHallOfFameFriends = async (req, res) => {
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 30, 1), 60);
+  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+  try {
+    const result = await db.query(
+      `/* hall-of-fame:friends */
+       WITH my_friends AS (
+         SELECT CASE WHEN f.requester_id = $1 THEN f.addressee_id ELSE f.requester_id END AS fid
+           FROM friendships f
+          WHERE f.status = 'accepted' AND (f.requester_id = $1 OR f.addressee_id = $1)
+          ORDER BY f.updated_at DESC, f.id DESC
+          LIMIT 500
+       ),
+       friends_part AS ${friendsParticipatedIdsSql('my_friends')},
+       mine AS ${participatedIdsSql('$1')}
+       ${HOF_CARD_SELECT}
+        WHERE ${HOF_WALL_WHERE}
+          AND g.id IN (SELECT group_id FROM friends_part)
+          AND g.is_private IS NOT TRUE
+          AND (g.owner_id IS NULL OR g.owner_id NOT IN ${blockedWithSql('$1')})
+          AND (g.moment_photo_url IS NOT NULL
+            OR g.image_url IS NOT NULL
+            OR EXISTS (SELECT 1 FROM event_photos ep WHERE ep.group_id = g.id))
+        ORDER BY g.date DESC, g.id DESC
+        LIMIT $2 OFFSET $3`,
+      [req.userId, limit, offset]
+    );
+    res.json(result.rows.map(withCanAddPhoto));
+  } catch (err) {
+    // Boot window: no participant photos yet — an empty tab, never a 500.
+    if (isMissingRelation(err)) return res.json([]);
+    console.error('Error fetching friends memories:', err);
+    res.status(500).json({ error: 'Memories konnten nicht geladen werden' });
   }
 };
 
