@@ -27,8 +27,9 @@ import {
   insertHofLikeNotifications,
   participatedIdsSql,
   isMissingRelation,
-  MAX_PHOTOS_PER_USER,
-  MAX_PHOTOS_PER_EVENT,
+  HOF_CARD_SELECT,
+  HOF_WALL_WHERE,
+  withCanAddPhoto,
 } from '../utils/hallOfFame.js';
 
 const GROUPS_TTL  = 30_000;  // 30 s — acceptable staleness for list views
@@ -838,7 +839,7 @@ export const getGroups = async (req, res) => {
 // ==========================================
 // HALL OF FAME (Explore)
 // ==========================================
-// GET /api/groups/hall-of-fame?limit=&offset=
+// GET /api/groups/hall-of-fame?limit=&offset=[&photos_only=1]
 //
 // The Explore wall used to be built client-side by fetching the 50 NEWEST
 // groups and then filtering for PAST ones — an intersection that shrinks as
@@ -851,69 +852,57 @@ export const getGroups = async (req, res) => {
 // end and the moment-upload feature becomes unreachable.
 //
 // So: ask the database the question the page actually asks.
+//
+// photos_only=1 (Memories, Tina 22.10.2026): the new Explore shows only cards
+// with a picture; its uploads moved to their own page („Warst du dabei..“,
+// GET /groups/hall-of-fame/prompts). Without the param the wall is exactly
+// what it was — old bundles (iOS 1.4.1) have no such page, their own card IS
+// the upload entry point, and the cron push still lands them on it.
 export const getHallOfFame = async (req, res) => {
   try {
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 30, 1), 60);
     const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
     const callerId = req.userId || 0;
+    const photosOnly = req.query.photos_only === '1';
 
     // Shared by both shapes below.
-    const baseWhere = `g.is_active = TRUE
-          AND g.deleted_at IS NULL
-          AND g.type IN ('group', 'event')
-          AND g.date IS NOT NULL
-          AND g.date < NOW()
-          -- A weekly-recurring group's stored date is its FIRST occurrence and
-          -- stays permanently in the past, so the old client-side isPast()
-          -- treated a still-running weekly meetup as a finished event.
-          AND g.is_recurring_weekly IS NOT TRUE
-          AND g.did_not_take_place = FALSE`;
-    // The caller's OWN past events, photo or not: this card is the only place a
-    // moment can be uploaded, and the push that sends owners here must always
-    // find something to act on. Covers the two cases the imminent-first feed
-    // ordering does not — a late-evening event pushed after midnight, and a
-    // full event.
+    const baseWhere = HOF_WALL_WHERE;
+    // The caller's OWN past events, photo or not: for old bundles this card is
+    // the only place a moment can be uploaded, and the push that sends owners
+    // here must always find something to act on. Covers the two cases the
+    // imminent-first feed ordering does not — a late-evening event pushed
+    // after midnight, and a full event. Default mode only (see photos_only).
     const ownerOwn = '($1::int > 0 AND g.owner_id = $1::int)';
-    const order = `ORDER BY (g.owner_id = $1::int AND g.moment_photo_url IS NULL) DESC,
+    const order = photosOnly
+      ? `ORDER BY g.date DESC, g.id DESC
+        LIMIT $2 OFFSET $3`
+      : `ORDER BY (g.owner_id = $1::int AND g.moment_photo_url IS NULL) DESC,
                  g.date DESC, g.id DESC
         LIMIT $2 OFFSET $3`;
+    // A card makes the wall with a picture — moment, cover or (below) a
+    // participant photo — or, without photos_only, as one of the caller's
+    // upload entry points.
+    const anyOf = (arms) => arms.filter(Boolean).join('\n            OR ');
 
     // Participant photos (Lea, 18.10.2026): every participant may add photos
     // to the card, not only the owner's one moment. A card with participant
-    // photos shows up even without a moment or image, and a participant sees
-    // their own photoless events of the last 30 days — otherwise nobody could
-    // ever add the FIRST photo to one. Up to 8 photos ride along for the card;
-    // the gallery loads the rest (GET /groups/:id/photos).
+    // photos shows up even without a moment or image, and (default mode) a
+    // participant sees their own photoless events of the last 30 days —
+    // otherwise an old bundle could never add the FIRST photo to one. The card
+    // itself is HOF_CARD_SELECT, shared with the friends feed.
     const runWall = () => db.query(
       `/* hall-of-fame:wall */
        WITH mine AS ${participatedIdsSql('$1')}
-       SELECT g.id, g.name, g.category, g.date, g.location, g.image_url,
-              g.moment_photo_url, g.owner_id, g.members_count, g.type,
-              u.name AS owner_name, u.avatar_url AS owner_avatar,
-              (SELECT COUNT(*) FROM event_likes el WHERE el.group_id = g.id)::int AS like_count,
-              COALESCE(ph.photos, '[]'::json) AS photos,
-              (SELECT COUNT(*) FROM event_photos ep WHERE ep.group_id = g.id)::int AS photo_count,
-              (SELECT COUNT(*) FROM event_photos ep WHERE ep.group_id = g.id AND ep.user_id = $1::int)::int AS my_photo_count,
-              ($1::int > 0 AND g.id IN (SELECT group_id FROM mine)) AS is_participant
-         FROM groups g
-         LEFT JOIN users u ON u.id = g.owner_id
-         LEFT JOIN LATERAL (
-           SELECT json_agg(json_build_object(
-                    'id', p.id, 'url', p.url, 'user_id', p.user_id,
-                    'user_name', pu.name, 'created_at', p.created_at)
-                  ORDER BY p.created_at DESC, p.id DESC) AS photos
-             FROM (SELECT ep.id, ep.url, ep.user_id, ep.created_at
-                     FROM event_photos ep WHERE ep.group_id = g.id
-                    ORDER BY ep.created_at DESC, ep.id DESC LIMIT 8) p
-             LEFT JOIN users pu ON pu.id = p.user_id
-         ) ph ON TRUE
+       ${HOF_CARD_SELECT}
         WHERE ${baseWhere}
           AND (
-            g.moment_photo_url IS NOT NULL
-            OR g.image_url IS NOT NULL
-            OR ${ownerOwn}
-            OR EXISTS (SELECT 1 FROM event_photos ep WHERE ep.group_id = g.id)
-            OR ($1::int > 0 AND g.date > NOW() - INTERVAL '30 days' AND g.id IN (SELECT group_id FROM mine))
+            ${anyOf([
+              'g.moment_photo_url IS NOT NULL',
+              'g.image_url IS NOT NULL',
+              !photosOnly && ownerOwn,
+              'EXISTS (SELECT 1 FROM event_photos ep WHERE ep.group_id = g.id)',
+              !photosOnly && "($1::int > 0 AND g.date > NOW() - INTERVAL '30 days' AND g.id IN (SELECT group_id FROM mine))",
+            ])}
           )
         ${order}`,
       [callerId, limit, offset]
@@ -929,9 +918,11 @@ export const getHallOfFame = async (req, res) => {
          LEFT JOIN users u ON u.id = g.owner_id
         WHERE ${baseWhere}
           AND (
-            g.moment_photo_url IS NOT NULL
-            OR g.image_url IS NOT NULL
-            OR ${ownerOwn}
+            ${anyOf([
+              'g.moment_photo_url IS NOT NULL',
+              'g.image_url IS NOT NULL',
+              !photosOnly && ownerOwn,
+            ])}
           )
         ${order}`,
       [callerId, limit, offset]
@@ -939,12 +930,7 @@ export const getHallOfFame = async (req, res) => {
 
     let rows;
     try {
-      rows = (await runWall()).rows.map(r => ({
-        ...r,
-        can_add_photo: !!r.is_participant
-          && r.my_photo_count < MAX_PHOTOS_PER_USER
-          && r.photo_count < MAX_PHOTOS_PER_EVENT,
-      }));
+      rows = (await runWall()).rows.map(withCanAddPhoto);
     } catch (err) {
       if (!isMissingRelation(err)) throw err;
       rows = (await runLegacy()).rows;

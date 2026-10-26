@@ -90,6 +90,51 @@ describe('getHallOfFame — participant photos', () => {
   });
 });
 
+// Memories (Tina, 22.10.2026): the new Explore asks with photos_only=1 and gets
+// only cards with a picture. Old bundles call without it and must keep their
+// upload entry points (own photoless events first) untouched.
+describe('getHallOfFame — photos_only', () => {
+  const wallSql = () => calls.find(c => c.sql.includes('hall-of-fame:wall')).sql;
+
+  it('drops the caller-bound upload arms and the own-first order, keeps every picture arm', async () => {
+    const res = makeRes();
+    await getHallOfFame({ query: { photos_only: '1' }, userId: 9 }, res);
+    expect(res.statusCode).toBe(200);
+    expect(calls.find(c => c.sql.includes('hall-of-fame:wall')).params).toEqual([9, 30, 0]);
+    const sql = wallSql();
+    expect(sql).not.toContain('g.owner_id = $1::int)');
+    expect(sql).not.toContain("INTERVAL '30 days'");
+    expect(sql).not.toContain('g.moment_photo_url IS NULL) DESC');
+    expect(sql).toContain('ORDER BY g.date DESC, g.id DESC');
+    expect(sql).toContain('g.moment_photo_url IS NOT NULL');
+    expect(sql).toContain('OR g.image_url IS NOT NULL');
+    expect(sql).toContain('OR EXISTS (SELECT 1 FROM event_photos ep WHERE ep.group_id = g.id)');
+    // The card still says whether the caller may add a photo.
+    expect(sql).toContain('AS is_participant');
+  });
+
+  it('keeps the old wall without the param — and for any other value', async () => {
+    for (const query of [{}, { photos_only: 'true' }]) {
+      calls.length = 0;
+      await getHallOfFame({ query, userId: 9 }, makeRes());
+      const sql = wallSql();
+      expect(sql).toContain('OR ($1::int > 0 AND g.owner_id = $1::int)');
+      expect(sql).toContain("g.date > NOW() - INTERVAL '30 days'");
+      expect(sql).toContain('ORDER BY (g.owner_id = $1::int AND g.moment_photo_url IS NULL) DESC');
+    }
+  });
+
+  it('the boot-window fallback follows the same switch', async () => {
+    scenario.wallFail = missing('event_photos');
+    const res = makeRes();
+    await getHallOfFame({ query: { photos_only: '1' }, userId: 9 }, res);
+    expect(res.statusCode).toBe(200);
+    const legacy = calls.find(c => !c.sql.includes('hall-of-fame:wall') && c.sql.includes('event_likes el'));
+    expect(legacy.sql).not.toContain('g.owner_id = $1::int)');
+    expect(legacy.sql).toContain('ORDER BY g.date DESC, g.id DESC');
+  });
+});
+
 describe('toggleLike — in-app notification', () => {
   it('inserts bell rows on a new like and emits each to its recipient', async () => {
     scenario.notifRows = [{ id: 11, user_id: 2, type: 'hof_like' }, { id: 12, user_id: 5, type: 'hof_like' }];

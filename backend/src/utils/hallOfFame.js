@@ -69,6 +69,73 @@ export const participatedIdsSql = (p, { withEntries = true } = {}) => {
     + ` WHERE er.reviewer_id = ${u} OR (er.reviewed_user_id = ${u} AND er.was_present))`;
 };
 
+// The same four sources for a SET of people — the ids in column `fid` of CTE
+// `cte` (the friends feed, Tina 22.10.2026). The review source is split into
+// two arms: an OR over two IN-subqueries can use neither index, each arm on
+// its own is a semi-join on idx_event_reviews_reviewer / _reviewed.
+export const friendsParticipatedIdsSql = (cte, { withEntries = true } = {}) => {
+  const who = `IN (SELECT fid FROM ${alias(cte)})`;
+  return `(SELECT gm.group_id FROM group_members gm JOIN groups gj ON gj.id = gm.group_id`
+    + ` WHERE gm.user_id ${who} AND ${joinedInTimeSql('gm', 'gj')}`
+    + (withEntries ? ` UNION SELECT h.group_id FROM hall_of_fame_entries h WHERE h.user_id ${who}` : '')
+    + ` UNION SELECT er.group_id FROM event_reviews er WHERE er.reviewer_id ${who}`
+    + ` UNION SELECT er.group_id FROM event_reviews er WHERE er.reviewed_user_id ${who} AND er.was_present)`;
+};
+
+// „Warst du dabei..“ (Tina, 22.10.2026) asks for a photo for three weeks after
+// the event, then the event leaves THAT list — photos already shared stay on
+// the wall. Counted from groups.date (end_date is never written), Vienna
+// wall-clock like hallOfFameEventSql.
+export const MEMORY_PROMPT_DAYS = 21;
+export const memoryPromptWindowSql = (a) =>
+  `${alias(a)}.date > ${VIENNA_NOW} - INTERVAL '${MEMORY_PROMPT_DAYS} days'`;
+
+// The Explore wall's notion of a past event (moved verbatim from
+// getHallOfFame, so the friends feed shows the same cards as the wall).
+export const HOF_WALL_WHERE = `g.is_active = TRUE
+          AND g.deleted_at IS NULL
+          AND g.type IN ('group', 'event')
+          AND g.date IS NOT NULL
+          AND g.date < NOW()
+          -- A weekly-recurring group's stored date is its FIRST occurrence and
+          -- stays permanently in the past, so the old client-side isPast()
+          -- treated a still-running weekly meetup as a finished event.
+          AND g.is_recurring_weekly IS NOT TRUE
+          AND g.did_not_take_place = FALSE`;
+
+// One Memories card (HofCard) — the wall and the friends feed render the same
+// card, so both select it from here. Needs a CTE `mine` holding the caller's
+// participations and $1 = the caller's id (0 for a guest). Up to 8 photos
+// ride along; the gallery loads the rest (GET /groups/:id/photos).
+export const HOF_CARD_SELECT = `SELECT g.id, g.name, g.category, g.date, g.location, g.image_url,
+              g.moment_photo_url, g.owner_id, g.members_count, g.type,
+              u.name AS owner_name, u.avatar_url AS owner_avatar,
+              (SELECT COUNT(*) FROM event_likes el WHERE el.group_id = g.id)::int AS like_count,
+              COALESCE(ph.photos, '[]'::json) AS photos,
+              (SELECT COUNT(*) FROM event_photos ep WHERE ep.group_id = g.id)::int AS photo_count,
+              (SELECT COUNT(*) FROM event_photos ep WHERE ep.group_id = g.id AND ep.user_id = $1::int)::int AS my_photo_count,
+              ($1::int > 0 AND g.id IN (SELECT group_id FROM mine)) AS is_participant
+         FROM groups g
+         LEFT JOIN users u ON u.id = g.owner_id
+         LEFT JOIN LATERAL (
+           SELECT json_agg(json_build_object(
+                    'id', p.id, 'url', p.url, 'user_id', p.user_id,
+                    'user_name', pu.name, 'created_at', p.created_at)
+                  ORDER BY p.created_at DESC, p.id DESC) AS photos
+             FROM (SELECT ep.id, ep.url, ep.user_id, ep.created_at
+                     FROM event_photos ep WHERE ep.group_id = g.id
+                    ORDER BY ep.created_at DESC, ep.id DESC LIMIT 8) p
+             LEFT JOIN users pu ON pu.id = p.user_id
+         ) ph ON TRUE`;
+
+// The wall's can_add_photo: took part, below both photo limits.
+export const withCanAddPhoto = (r) => ({
+  ...r,
+  can_add_photo: !!r.is_participant
+    && r.my_photo_count < MAX_PHOTOS_PER_USER
+    && r.photo_count < MAX_PHOTOS_PER_EVENT,
+});
+
 export const isMissingRelation = (err) => err?.code === '42P01';
 
 // Called by leaveGroup BEFORE it deletes the membership row: keeps the event
