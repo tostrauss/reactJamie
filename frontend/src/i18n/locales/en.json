@@ -1225,7 +1225,9 @@
       "dobMonth": "Month",
       "dobYear": "Year",
       "dobOnceHint": "You can change your date of birth only once.",
-      "dobLockedHint": "Your date of birth has already been changed and can no longer be edited.",
+      "dobLockedHint": "Your date of birth has already been changed and can no longer be edited. This keeps the ages in the app reliable – JAMIE is 18+ only.",
+      "dobSetHint": "Your date of birth sets your age filter. Once saved, you can change it only one more time.",
+      "dobConfirm": "You're changing your date of birth to {{date}}. You can do this only once – after that it's locked for good. Save now?",
       "gender": "Gender"
     },
     "gender": {

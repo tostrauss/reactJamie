@@ -64,7 +64,7 @@ export const ProfileEdit = () => {
   const { user, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
   const toast = useToast();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const DE_MONTHS = t('profileEdit.months', { returnObjects: true });
   // Birthday is editable exactly once after onboarding. Once that single change
   // has been used (backend flag), lock the selects. Users who already have a
@@ -213,6 +213,20 @@ export const ProfileEdit = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    // Changing a SAVED birthday uses up its one change — the server's rule
+    // (authController updateProfile: stored date ≠ sent date, both
+    // YYYY-MM-DD). Say so before it happens, not after (Tina: „Geburtstag
+    // unklar"). Setting it for the first time costs nothing — no question.
+    const storedDob = typeof user?.date_of_birth === 'string' ? user.date_of_birth.substring(0, 10) : '';
+    const newDob = (formData.date_of_birth || '').substring(0, 10);
+    if (!dobLocked && storedDob && newDob && newDob !== storedDob) {
+      const [y, m, d] = newDob.split('-').map(Number);
+      const date = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(
+        i18n.resolvedLanguage || i18n.language || 'de',
+        { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' },
+      );
+      if (!window.confirm(t('profileEdit.fields.dobConfirm', { date }))) return;
+    }
     setLoading(true);
     try {
       // Backend rejects empty-string gender ('' isn't in the enum) with a 400.
@@ -525,9 +539,13 @@ export const ProfileEdit = () => {
                 ))}
               </select>
             </div>
+            {/* Always say how the birthday works: locked (and why), one change
+                left, or — not set yet — what saving it means. */}
             {dobLocked
               ? <p className="pe-photo-hint">{t('profileEdit.fields.dobLockedHint')}</p>
-              : user?.date_of_birth && <p className="pe-photo-hint">{t('profileEdit.fields.dobOnceHint')}</p>}
+              : user?.date_of_birth
+                ? <p className="pe-photo-hint">{t('profileEdit.fields.dobOnceHint')}</p>
+                : <p className="pe-photo-hint">{t('profileEdit.fields.dobSetHint')}</p>}
           </div>
 
           <div className="pe-field">

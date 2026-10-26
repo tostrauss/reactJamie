@@ -1225,7 +1225,9 @@
       "dobMonth": "Monat",
       "dobYear": "Jahr",
       "dobOnceHint": "Dein Geburtsdatum kannst du nur einmal ändern.",
-      "dobLockedHint": "Dein Geburtsdatum wurde bereits geändert und kann nicht mehr angepasst werden.",
+      "dobLockedHint": "Dein Geburtsdatum wurde bereits geändert und kann nicht mehr angepasst werden. Das schützt die Altersangaben in der App – JAMIE ist erst ab 18.",
+      "dobSetHint": "Dein Geburtsdatum bestimmt deinen Altersfilter. Nach dem Speichern kannst du es nur noch ein einziges Mal ändern.",
+      "dobConfirm": "Du änderst dein Geburtsdatum auf {{date}}. Das geht nur dieses eine Mal – danach ist es dauerhaft gesperrt. Jetzt speichern?",
       "gender": "Geschlecht"
     },
     "gender": {

@@ -1225,7 +1225,9 @@
       "dobMonth": "Mese",
       "dobYear": "Anno",
       "dobOnceHint": "Puoi modificare la tua data di nascita solo una volta.",
-      "dobLockedHint": "La tua data di nascita è già stata modificata e non può più essere cambiata.",
+      "dobLockedHint": "La tua data di nascita è già stata modificata e non può più essere cambiata. Così le età nell'app restano affidabili: JAMIE è solo per maggiorenni.",
+      "dobSetHint": "La tua data di nascita determina il filtro età. Dopo il salvataggio potrai cambiarla solo un'altra volta.",
+      "dobConfirm": "Stai cambiando la tua data di nascita in {{date}}. Puoi farlo una sola volta: dopo resterà bloccata per sempre. Salvare ora?",
       "gender": "Genere"
     },
     "gender": {
