@@ -57,9 +57,9 @@ export const GroupCard = memo(({
   const isAdmin = !!user?.is_admin;
   const isClub = group.type === 'club';
 
-  // member_previews is embedded by the backend (3 for the gated audience, 4
-  // for Pro/admins). Only the 4th (bottom-right) tile is the Pro gate; the
-  // first three show real avatars or empty "join" slots.
+  // member_previews is embedded by the backend (up to 4 faces for every
+  // viewer). Only the 4th (bottom-right) tile can be the Pro gate; the first
+  // three show real avatars or empty "join" slots.
   const memberAvatars = Array.isArray(group.member_previews) ? group.member_previews : [];
 
   const maxMembers  = group.max_members || 10;
@@ -73,8 +73,10 @@ export const GroupCard = memo(({
   // (purchasesEnabled). Otherwise it advertised Pro while payments are OFF and,
   // combined with the backend's old 3-preview cap, made an 11-member group look
   // like 3 members (Thomas 2026-08-27). Never on native iOS (Apple 3.1.1),
-  // clubs, Pro/admins, or when nobody is hidden (≤3 members).
-  const showProGate = purchasesEnabled() && !isClub && !isPro && !isAdmin && count > 3;
+  // clubs, Pro/admins, when nobody is hidden (≤3 members), or for a group the
+  // viewer already JOINED — members see the whole roster since 2026-10-22
+  // (server getGroupMembers), so they get the "+N" tile like everyone else.
+  const showProGate = purchasesEnabled() && !isClub && !isPro && !isAdmin && !isJoined && count > 3;
   // Big group without a gate: reserve the last tile for a "+N" counter (mirrors
   // the detail page) so the group reads as "3 faces + N more", not "3 members".
   const hasOverflow  = !isClub && !showProGate && count > GRID;

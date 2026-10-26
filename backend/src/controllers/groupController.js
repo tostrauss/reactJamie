@@ -1908,23 +1908,23 @@ export const getGroupMembers = async (req, res) => {
     );
     const total = fullList.rows.length;
 
-    // #1 Pro gate: seeing the FULL member roster is a PRO FEATURE — for
-    // members and non-members alike. Product call 2026-09-21 (Tobi, ahead of
-    // the Pro/IAP launch): "Alle Mitglieder sehen" must be a real Pro perk, so
-    // a plain member without Pro gets the same 3-avatar preview + total_count +
-    // gated flag as an outsider (the frontend renders the next slot as a
-    // blurred locked tile with a ProModal CTA). This REVERSES the 2026-09-07
-    // "members always see everyone" rule and applies to groups AND clubs
-    // (getClubMembers mirrors it). Exceptions — never gated, Pro or not:
+    // #1 Pro gate: seeing the FULL roster BEFORE joining is a PRO FEATURE.
+    // A non-member without Pro gets a 3-avatar preview + total_count + the
+    // gated flag (the frontend renders the next slot as a blurred locked tile
+    // with a ProModal CTA). Never gated, Pro or not:
+    //   • every MEMBER (Tobi, 2026-10-22: "wenn man beigetreten ist, muss man
+    //     alle sehen") — a joined member sees everyone,
     //   • the OWNER (must manage + remove no-shows — Lea, 2026-07-30),
     //   • a CO-MANAGER (group_members.role='admin'),
     //   • platform ADMINS (moderation).
-    // Membership still matters for PRIVACY (private clubs 403 non-members
-    // above); it just no longer lifts the Pro gate.
+    // History, so nobody "fixes" this back: 2026-09-07 members saw everyone,
+    // 2026-09-21 the gate covered members too (Pro/IAP launch), 2026-10-22 it
+    // is back to non-members only. getClubMembers mirrors this rule — keep
+    // both in step. Privacy is separate: private clubs 403 non-members above.
     const callerIsPro = req.userId ? await isUserPro(req.userId) : false;
     const callerIsOwner = req.userId != null &&
       Number(groupRes.rows[0].owner_id) === Number(req.userId);
-    const gateApplies = !callerIsPro && !callerIsOwner && !callerIsManager;
+    const gateApplies = !callerIsPro && !callerIsOwner && !callerIsManager && !isCallerMember;
     let callerIsAdmin = false;
     if (gateApplies && req.userId) {
       const adm = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);

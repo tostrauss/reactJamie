@@ -282,9 +282,9 @@ export const GroupDetail = () => {
   };
 
   // Re-fetch the roster and re-derive the Pro-gate state. Hand-patching the
-  // members array after join/leave left gated/total stale. Note: since
-  // 2026-09-21 joining does NOT lift the gate (Pro feature) — the server's
-  // `gated` flag is the only truth here.
+  // members array after join/leave left gated/total stale. Joining lifts the
+  // gate (members see everyone since 2026-10-22), leaving brings it back —
+  // either way the server's `gated` flag is the only truth here.
   const refreshMembers = async (isClub) => {
     try {
       const res = isClub ? await clubs.getMembers(id) : await groups.getMembers(id);

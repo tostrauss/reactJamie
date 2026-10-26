@@ -191,7 +191,8 @@ suite('write endpoints against real Postgres', () => {
       getUserDetail: ad.getUserDetail, sendUserTestPush: ad.sendUserTestPush,
       getMyAttendance: rv.getMyAttendance, getReviewForGroup: rv.getReviewForGroup, getUserById: us.getUserById,
       exportData: a.exportData,
-      getGroupMembers: g.getGroupMembers, getJoinRequests: g.getJoinRequests,
+      getGroupMembers: g.getGroupMembers, getClubMembers: c.getClubMembers,
+      getJoinRequests: g.getJoinRequests,
       getAllJoinRequests: g.getAllJoinRequests,
       deleteClub: c.deleteClub, deleteClubEvent: c.deleteClubEvent,
       createClubEvent: c.createClubEvent, updateClubEvent: c.updateClubEvent,
@@ -4910,6 +4911,103 @@ suite('write endpoints against real Postgres', () => {
           body: { category_label: 'Fremd · Kategorie' } });
         expect(res.statusCode).toBe(403);
       });
+    });
+  });
+
+  // ── Roster gate: members see everyone again (Tobi, 22.10.2026) ──────────
+  // getClubMembers had no test at all and getGroupMembers' gate only mocked
+  // ones. Real membership rows, real SQL: a joined non-Pro member gets the
+  // full roster, an outsider the 3-preview, a private club 403s outsiders —
+  // on both routes (/clubs/:id/members and its /groups/:id/members mirror).
+  describe('roster gate: members see everyone (22.10.2026)', () => {
+    let Own, Mem, Out, pubClub, privClub, plainGroup;
+    const mkUser = async (email, name) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider, bio)
+       VALUES ($1, $2, '1994-05-05', 'female', $3, TRUE, 'email', 'Hallo!') RETURNING id`,
+      [email, name, avatar])).rows[0].id;
+    const roster = (fn, userId, gid) => call(fn, { userId, params: { id: String(gid) } });
+
+    beforeAll(async () => {
+      Own = await mkUser('smoke-roster-own@x.com', 'Roster Owner');
+      Mem = await mkUser('smoke-roster-mem@x.com', 'Roster Mitglied');
+      Out = await mkUser('smoke-roster-out@x.com', 'Roster Aussen');
+      const extra = [];
+      for (let i = 0; i < 3; i += 1) extra.push(await mkUser(`smoke-roster-x${i}@x.com`, `Roster Extra ${i}`));
+
+      const mkClub = async (name, isPrivate) => (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, is_private, approval_status, lat, lng)
+         VALUES ($1, 'club', $2, 'Sport', 'Wien', 100, $3, 'approved', 48.2, 16.37) RETURNING id`,
+        [name, Own, isPrivate])).rows[0].id;
+      pubClub = await mkClub('Roster Public Club', false);
+      privClub = await mkClub('Roster Private Club', true);
+      plainGroup = (await db.query(
+        `INSERT INTO groups (name, type, date, owner_id, category, location, max_members)
+         VALUES ('Roster Gruppe', 'group', NOW() + INTERVAL '4 days', $1, 'Sport', 'Wien', 10) RETURNING id`,
+        [Own])).rows[0].id;
+
+      // Five members each: the owner, the plain member and three more.
+      for (const gid of [pubClub, privClub, plainGroup]) {
+        await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'owner')`, [gid, Own]);
+        for (const uid of [Mem, ...extra]) {
+          await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, [gid, uid]);
+        }
+      }
+    });
+
+    it('a joined non-Pro member gets the full club roster with the member fields', async () => {
+      const res = await roster(C.getClubMembers, Mem, pubClub);
+      ok(res);
+      expect(res.body.gated).toBe(false);
+      expect(res.body.total_count).toBe(5);
+      expect(res.body.members).toHaveLength(5);
+      for (const m of res.body.members) {
+        expect(m).toHaveProperty('bio');
+        expect(m).toHaveProperty('role');
+        expect(m).toHaveProperty('joined_at');
+      }
+    });
+
+    it('an outsider without Pro still gets the 3-preview with total_count and no member fields', async () => {
+      const res = await roster(C.getClubMembers, Out, pubClub);
+      ok(res);
+      expect(res.body.gated).toBe(true);
+      expect(res.body.total_count).toBe(5);
+      expect(res.body.members).toHaveLength(3);
+      expect(res.body.members[0]).not.toHaveProperty('bio');
+      expect(res.body.members[0]).not.toHaveProperty('joined_at');
+    });
+
+    it('a private club 403s the outsider and shows its member everyone', async () => {
+      expect((await roster(C.getClubMembers, Out, privClub)).statusCode).toBe(403);
+      const res = await roster(C.getClubMembers, Mem, privClub);
+      ok(res);
+      expect(res.body.gated).toBe(false);
+      expect(res.body.members).toHaveLength(5);
+    });
+
+    it('the /groups/:id/members mirror answers a club id the same way', async () => {
+      const mem = await roster(C.getGroupMembers, Mem, pubClub);
+      ok(mem);
+      expect(mem.body.gated).toBe(false);
+      expect(mem.body.members).toHaveLength(5);
+      const out = await roster(C.getGroupMembers, Out, pubClub);
+      ok(out);
+      expect(out.body.gated).toBe(true);
+      expect(out.body.members).toHaveLength(3);
+      expect((await roster(C.getGroupMembers, Out, privClub)).statusCode).toBe(403);
+      expect((await roster(C.getGroupMembers, Mem, privClub)).body.gated).toBe(false);
+    });
+
+    it('a plain group: the joined member sees everyone, the outsider the preview', async () => {
+      const mem = await roster(C.getGroupMembers, Mem, plainGroup);
+      ok(mem);
+      expect(mem.body.gated).toBe(false);
+      expect(mem.body.members).toHaveLength(5);
+      expect(mem.body.members[0]).toHaveProperty('bio');
+      const out = await roster(C.getGroupMembers, Out, plainGroup);
+      ok(out);
+      expect(out.body.gated).toBe(true);
+      expect(out.body.members).toHaveLength(3);
     });
   });
 

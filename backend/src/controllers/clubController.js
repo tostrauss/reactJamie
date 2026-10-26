@@ -1148,21 +1148,23 @@ export const getClubMembers = async (req, res) => {
     );
     const total = result.rows.length;
 
-    // Pro gate — mirrors getGroupMembers so "alle Mitglieder sehen" is a
-    // uniform PRO FEATURE across groups AND clubs (Tobi, 2026-09-21). Being a
-    // member no longer lifts it: a non-Pro member gets the first 3 + total +
-    // gated flag (the frontend renders the rest as a locked Pro upsell).
-    // Never gated: the club OWNER, CO-MANAGERS (role='admin') and platform
-    // admins. Privacy (private club → 403 for outsiders) was handled above.
+    // Pro gate — mirrors getGroupMembers: the full roster BEFORE joining is a
+    // PRO FEATURE. A non-member without Pro gets the first 3 + total + gated
+    // flag (the frontend renders the rest as a locked Pro upsell). Never
+    // gated: every MEMBER (Tobi, 2026-10-22 — reverses the 2026-09-21 rule
+    // that gated members too), the club OWNER, CO-MANAGERS (role='admin') and
+    // platform admins. Privacy (private club → 403 for outsiders) was handled
+    // above, so on a private club everyone who gets this far sees everyone.
     const memberRow = (await db.query(
       'SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2',
       [id, req.userId]
     )).rows[0];
+    const callerIsMember = !!memberRow;
     const callerIsOwner = req.userId != null &&
       Number(club.rows[0].owner_id) === Number(req.userId);
     const callerIsManager = memberRow?.role === 'admin';
     const callerIsPro = req.userId ? await isUserPro(req.userId) : false;
-    const gateApplies = !callerIsPro && !callerIsOwner && !callerIsManager;
+    const gateApplies = !callerIsPro && !callerIsOwner && !callerIsManager && !callerIsMember;
     let callerIsAdmin = false;
     if (gateApplies && req.userId) {
       const adm = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);

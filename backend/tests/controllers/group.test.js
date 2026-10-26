@@ -169,17 +169,16 @@ describe('getGroupMembers — Pro gate matrix', () => {
     expect(payload.members[0]).toHaveProperty('is_trusted_user');
   });
 
-  // 2026-09-21 (Tobi): "Alle Mitglieder sehen" is a PRO FEATURE — being a
-  // member no longer lifts the gate (reverses the 2026-09-07 rule). A plain
-  // member gets the same 3-preview slice as an outsider.
-  it('gates a plain (non-Pro) GROUP member to the 3-preview slice', async () => {
+  // 2026-10-22 (Tobi): a joined member sees everyone again — the Pro gate is
+  // for non-members only (reverses the 2026-09-21 rule that gated members too).
+  it('returns the full roster to a plain non-Pro member — membership lifts the gate since 2026-10-22', async () => {
     scenario.isMember = true;
     const res = await call();
     const payload = res.json.mock.calls[0][0];
-    expect(payload.gated).toBe(true);
+    expect(payload.gated).toBe(false);
     expect(payload.total_count).toBe(5);
-    expect(payload.members).toHaveLength(3);
-    expect(payload.members[0]).not.toHaveProperty('bio');
+    expect(payload.members).toHaveLength(5);
+    expect(payload.members[0]).toHaveProperty('bio');
   });
 
   it('returns the full ungated roster to a non-Pro CO-MANAGER (role=admin)', async () => {
@@ -235,14 +234,14 @@ describe('getGroupMembers — Pro gate matrix', () => {
     expect(res.status).toHaveBeenCalledWith(403);
   });
 
-  it('lets members past the PRIVACY 403 of a private club, but a non-Pro member still hits the Pro gate', async () => {
+  it('lets members past the PRIVACY 403 of a private club and shows them the full roster', async () => {
     scenario.group = { type: 'club', is_private: true };
     scenario.isMember = true;
     const res = await call();
     expect(res.status).not.toHaveBeenCalledWith(403);
     const payload = res.json.mock.calls[0][0];
-    expect(payload.gated).toBe(true);
-    expect(payload.members).toHaveLength(3);
+    expect(payload.gated).toBe(false);
+    expect(payload.members).toHaveLength(5);
   });
 
   it('404s for deleted/nonexistent groups before any member logic', async () => {

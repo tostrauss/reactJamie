@@ -98,6 +98,15 @@ describe('GroupCard', () => {
     expect(screen.getAllByRole('button')).toHaveLength(1);
   });
 
+  it('a joined member gets the +N tile instead of the Pro gate (members see everyone since 2026-10-22)', async () => {
+    purchasesEnabled.mockReturnValue(true);
+    const joinedGroup = { ...baseGroup, members_count: 5 };
+    render(<MemoryRouter><GroupCard group={joinedGroup} isJoined /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText('+5')).toBeInTheDocument());
+    expect(screen.queryByLabelText('Mit JAMIE Pro alle Mitglieder sehen')).not.toBeInTheDocument();
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+  });
+
   it('hides the Pro gate when no member is hidden behind it (≤3 members)', async () => {
     purchasesEnabled.mockReturnValue(true);
     // baseGroup has members_count: 3 — all members already visible, a lock

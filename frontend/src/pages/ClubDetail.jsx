@@ -221,16 +221,17 @@ export const ClubDetail = () => {
           setIsJoined(true);
           const r = await clubs.getById(id);
           setClub(r.data);
-          // Now a member → re-fetch the roster. Since 2026-09-21 membership
-          // does NOT lift the Pro gate ("Alle Mitglieder sehen" is a Pro
-          // feature), so we take `gated` from the server as-is.
+          // Now a member → re-fetch the roster. Membership lifts the Pro gate
+          // (members see everyone since 2026-10-22); `gated` still comes from
+          // the server as-is — it is the only truth.
           const mres = await clubs.getMembers(id).catch(() => null);
           if (mres) {
             const md = mres.data;
             setMembers(Array.isArray(md) ? md : (md?.members || []));
             setMembersGated(Array.isArray(md) ? false : !!md?.gated);
           } else {
-            // Fallback: keep the previous gated state — joining never unlocks.
+            // Fallback (roster request failed): keep the previous gated state —
+            // the conservative choice; the next load gets gated:false.
             setMembers(prev => [...prev, { id: user.id, name: user.name, avatar_url: user.avatar_url }]);
           }
           await loadEvents();
