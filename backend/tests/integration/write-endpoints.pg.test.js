@@ -5011,4 +5011,53 @@ suite('write endpoints against real Postgres', () => {
     });
   });
 
+  // ── Welcome lines from ONE source (SYSTEM_TEXTS, 26.10.2026) ────────────
+  // New since then: a club EVENT greets its chat too. postSystemMessage runs
+  // fire-and-forget after the response, so the rows are polled for briefly.
+  describe('welcome lines (26.10.2026)', () => {
+    let SYS, host;
+    const systemRows = async (gid) => (await db.query(
+      `SELECT content, user_id FROM messages WHERE group_id = $1 AND message_type = 'system' ORDER BY id`,
+      [gid])).rows;
+    const settledRows = async (gid) => {
+      for (let i = 0; i < 40; i += 1) {
+        const rows = await systemRows(gid);
+        if (rows.length > 0) return rows;
+        await new Promise((r) => setTimeout(r, 25));
+      }
+      return systemRows(gid);
+    };
+
+    beforeAll(async () => {
+      SYS = (await import('../../src/utils/systemMessage.js')).SYSTEM_TEXTS;
+      host = (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ('smoke-welcome@x.com', 'Wanda', '1993-02-02', 'female', $1, TRUE, 'email') RETURNING id`,
+        [avatar])).rows[0].id;
+    });
+
+    it('a new group, club and club event each start with exactly one welcome line', async () => {
+      const day = new Date(Date.now() + 6 * 864e5).toISOString().slice(0, 10);
+      const group = await call(C.createGroup, { userId: host, body: {
+        name: 'Willkommensgruppe', description: 'x', type: 'group', category: 'Sport',
+        date: day, time: '18:00', location: 'Wien', max_members: 8 } });
+      expect(group.statusCode, JSON.stringify(group.body)).toBe(201);
+      expect(await settledRows(group.body.id))
+        .toEqual([{ content: SYS.welcomeGroup('Willkommensgruppe'), user_id: null }]);
+
+      const club = await call(C.createClub, { userId: host, body: {
+        name: 'Willkommensclub', description: 'x', category: 'Sport', location: 'Wien',
+        max_members: 50, club_type: 'community' } });
+      expect(club.statusCode, JSON.stringify(club.body)).toBe(201);
+      expect(await settledRows(club.body.id))
+        .toEqual([{ content: SYS.welcomeClub('Willkommensclub'), user_id: null }]);
+
+      const event = await call(C.createClubEvent, { userId: host, params: { id: String(club.body.id) },
+        body: { name: 'Willkommensabend', date: day, time: '19:00' } });
+      expect(event.statusCode, JSON.stringify(event.body)).toBe(201);
+      expect(await settledRows(event.body.id))
+        .toEqual([{ content: SYS.welcomeEvent('Willkommensabend'), user_id: null }]);
+    });
+  });
+
 });

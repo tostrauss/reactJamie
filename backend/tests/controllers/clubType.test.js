@@ -69,7 +69,11 @@ vi.mock('../../src/utils/geocode.js', () => ({
   geocodeLocation: vi.fn(async () => null),
   resolveCreateLocation: vi.fn(async () => ({ ok: true, coords: { lat: 48.2, lng: 16.3 } })),
 }));
-vi.mock('../../src/utils/systemMessage.js', () => ({ postSystemMessage: vi.fn(async () => {}) }));
+vi.mock('../../src/utils/systemMessage.js', async (importOriginal) => ({
+  // The real SYSTEM_TEXTS (pure functions) — only the DB write is stubbed.
+  SYSTEM_TEXTS: (await importOriginal()).SYSTEM_TEXTS,
+  postSystemMessage: vi.fn(async () => {}),
+}));
 vi.mock('../../src/services/entityLifecycle.js', () => ({
   createEntityWithOwner: vi.fn(async (sql, params) => {
     scenario.createdWith = { sql, params };
@@ -92,6 +96,7 @@ vi.mock('../../src/utils/cache.js', () => ({
 
 const { createClub, getClubs, getClubById, joinClub } = await import('../../src/controllers/clubController.js');
 const { sendPushToAdmins } = await import('../../src/controllers/pushController.js');
+const { postSystemMessage, SYSTEM_TEXTS } = await import('../../src/utils/systemMessage.js');
 
 const mkRes = () => {
   const res = { statusCode: 200, body: null };
@@ -146,6 +151,14 @@ describe('createClub — who needs approval', () => {
     scenario.isAdmin = true;
     await createWith({ club_type: 'official' });
     expect(scenario.createdWith.params[14]).toBe('approved');
+  });
+});
+
+describe('createClub — welcome line', () => {
+  it('greets the new chat with the one shared text (SYSTEM_TEXTS.welcomeClub)', async () => {
+    const res = await createWith({ club_type: 'community' });
+    expect(res.statusCode).toBe(201);
+    expect(postSystemMessage).toHaveBeenCalledWith(99, SYSTEM_TEXTS.welcomeClub('Testclub'));
   });
 });
 

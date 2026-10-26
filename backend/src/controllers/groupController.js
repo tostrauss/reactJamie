@@ -6,7 +6,7 @@ import { expandMatchTerms } from '../utils/categoryFanout.js';
 import { normalizeLocale, categoryPushText, joinRequestText, pushTexts } from '../utils/pushLocale.js';
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
 import { parentClubGateSql } from '../utils/clubGate.js';
-import { postSystemMessage } from '../utils/systemMessage.js';
+import { postSystemMessage, SYSTEM_TEXTS } from '../utils/systemMessage.js';
 import { isUserPro } from './subscriptionController.js';
 import {
   freeWeeklyGroupJoins, countsTowardWeeklyLimit, weeklyJoinState, logGroupJoin,
@@ -489,8 +489,8 @@ export const createGroup = async (req, res) => {
     // Welcome system message (fire-and-forget, no live broadcast — nobody is
     // in the chat yet anyway).
     const welcomeText = (type || 'group') === 'club'
-      ? `Willkommen bei ${newGroup.name}! Stell euch kurz vor 👋`
-      : `Willkommen bei ${newGroup.name}! Stell dich kurz vor 👋`;
+      ? SYSTEM_TEXTS.welcomeClub(newGroup.name)
+      : SYSTEM_TEXTS.welcomeGroup(newGroup.name);
     postSystemMessage(newGroup.id, welcomeText).catch(() => {});
 
     invalidatePrefix('groups:');
@@ -1636,7 +1636,7 @@ export const joinGroup = async (req, res) => {
     db.query('SELECT name FROM users WHERE id = $1', [req.userId])
       .then(r => {
         const name = r.rows[0]?.name || 'Jemand';
-        postSystemMessage(id, `${name} ist der Gruppe beigetreten 🎉`, req.app.get('io')).catch(() => {});
+        postSystemMessage(id, SYSTEM_TEXTS.joined(name), req.app.get('io')).catch(() => {});
       })
       .catch(() => {});
 
@@ -1691,7 +1691,7 @@ export const leaveGroup = async (req, res) => {
     db.query('SELECT name FROM users WHERE id = $1', [req.userId])
       .then(r => {
         const name = r.rows[0]?.name || 'Jemand';
-        postSystemMessage(id, `${name} hat die Gruppe verlassen 👋`, req.app.get('io')).catch(() => {});
+        postSystemMessage(id, SYSTEM_TEXTS.left(name), req.app.get('io')).catch(() => {});
       })
       .catch(() => {});
 
@@ -2273,7 +2273,7 @@ export const handleJoinRequest = async (req, res) => {
       db.query('SELECT name FROM users WHERE id = $1', [joinReq.user_id])
         .then(r => {
           const name = r.rows[0]?.name || 'Jemand';
-          postSystemMessage(id, `${name} ist der Gruppe beigetreten 🎉`, req.app.get('io')).catch(() => {});
+          postSystemMessage(id, SYSTEM_TEXTS.joined(name), req.app.get('io')).catch(() => {});
         })
         .catch(() => {});
 
@@ -2460,7 +2460,7 @@ export const bulkAcceptJoinRequests = async (req, res) => {
     for (const uid of acceptedUserIds) {
       sendPushToUser(uid, pushTexts('joinAccepted', { name: gname }), null, `/group/${id}`);
       db.query('SELECT name FROM users WHERE id = $1', [uid])
-        .then(r => postSystemMessage(id, `${r.rows[0]?.name || 'Jemand'} ist der Gruppe beigetreten 🎉`, io).catch(() => {}))
+        .then(r => postSystemMessage(id, SYSTEM_TEXTS.joined(r.rows[0]?.name || 'Jemand'), io).catch(() => {}))
         .catch(() => {});
     }
 
@@ -2502,7 +2502,7 @@ export const kickMember = async (req, res) => {
     db.query('SELECT name FROM users WHERE id = $1', [userId])
       .then(r => {
         const name = r.rows[0]?.name || 'Jemand';
-        postSystemMessage(id, `${name} hat die Gruppe verlassen 👋`, req.app.get('io')).catch(() => {});
+        postSystemMessage(id, SYSTEM_TEXTS.left(name), req.app.get('io')).catch(() => {});
       })
       .catch(() => {});
 

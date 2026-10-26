@@ -41,7 +41,10 @@ vi.mock('../../src/controllers/pushController.js', () => ({
   PUSH_CONVERSATION: Object.freeze({ urgency: 'high', ttl: 86400 }),
 }));
 const postSystemMessage = vi.fn(async () => ({ id: 900 }));
-vi.mock('../../src/utils/systemMessage.js', () => ({ postSystemMessage: (...a) => postSystemMessage(...a) }));
+vi.mock('../../src/utils/systemMessage.js', async (importOriginal) => ({
+  SYSTEM_TEXTS: (await importOriginal()).SYSTEM_TEXTS,
+  postSystemMessage: (...a) => postSystemMessage(...a),
+}));
 vi.mock('../../src/config/sentry.js', () => ({ initSentry: vi.fn(), Sentry: { captureException: vi.fn() } }));
 vi.mock('../../src/config/redis.js', () => ({ redisClient: null, redisSubscriber: null }));
 

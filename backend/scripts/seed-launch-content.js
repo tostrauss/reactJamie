@@ -15,7 +15,7 @@
  */
 import 'dotenv/config';
 import pg from 'pg';
-import { postSystemMessage } from '../src/utils/systemMessage.js';
+import { postSystemMessage, SYSTEM_TEXTS } from '../src/utils/systemMessage.js';
 
 if (!process.env.DATABASE_URL) {
   console.error('FATAL: DATABASE_URL not set');
@@ -201,10 +201,10 @@ async function insertEntry(owner, entry, type) {
     [row.id, owner.id, 'owner']
   );
 
-  // Welcome system message — matches the live createGroup/createClub flow
+  // Welcome system message — same texts as the live createGroup/createClub flow
   const welcomeText = type === 'club'
-    ? `Willkommen bei ${row.name}! Stell euch kurz vor 👋`
-    : `Willkommen bei ${row.name}! Stell dich kurz vor 👋`;
+    ? SYSTEM_TEXTS.welcomeClub(row.name)
+    : SYSTEM_TEXTS.welcomeGroup(row.name);
   // Use the helper but skip the io arg — nobody is in the room yet.
   await postSystemMessage(row.id, welcomeText);
 

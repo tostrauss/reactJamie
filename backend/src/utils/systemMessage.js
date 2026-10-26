@@ -1,6 +1,33 @@
 import db from '../config/database.js';
 
 /**
+ * The texts of the automatic chat lines — the ONE place to change them.
+ *
+ * Deliberately a German server constant, not an i18n key: a system message
+ * is persisted as a single `content` string that every reader in every
+ * language sees as-is, and the shipped clients (iOS 1.4.1 included) render
+ * nothing but `content`. A per-language rendering would need structured
+ * message data and a client update. Same rule as before the texts lived
+ * here (2026-10-26) — only the source moved.
+ *
+ * Tina's final welcome text is still open (drafts with Tobi): swapping it is
+ * a one-line change of welcomeGroup/welcomeClub/welcomeEvent below. Keep it
+ * under the 500-character cap of postSystemMessage, which cuts silently.
+ */
+export const SYSTEM_TEXTS = Object.freeze({
+  // A new group's chat — the creator is alone in it, so "dich".
+  welcomeGroup: (name) => `Willkommen bei ${name}! Stell dich kurz vor 👋`,
+  // A new club or community (createClub, and the legacy club path of
+  // createGroup) — members arrive over time, so "euch".
+  welcomeClub: (name) => `Willkommen bei ${name}! Stell euch kurz vor 👋`,
+  // A new club event (since 2026-10-26). Participants join one by one, so
+  // the group wording until Tina wants a text of its own.
+  welcomeEvent: (name) => `Willkommen bei ${name}! Stell dich kurz vor 👋`,
+  joined: (name) => `${name} ist der Gruppe beigetreten 🎉`,
+  left: (name) => `${name} hat die Gruppe verlassen 👋`,
+});
+
+/**
  * Insert a system message into a group's chat and (optionally) broadcast it
  * over Socket.IO so any room members currently watching the chat see it live.
  *

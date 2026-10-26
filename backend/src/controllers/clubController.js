@@ -6,7 +6,7 @@ import { clubAliveSql } from '../utils/clubGate.js';
 import { geocodeLocation, resolveCreateLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
-import { postSystemMessage } from '../utils/systemMessage.js';
+import { postSystemMessage, SYSTEM_TEXTS } from '../utils/systemMessage.js';
 import { notifyJoinRequest, notifyGroupJoin, evictFromRoom, creatorHasAvatar, promoteFromWaitlist, promoteWaitlistSeats, formatEventWhen } from './groupController.js';
 import { isUserPro } from './subscriptionController.js';
 import { sendPushToUser, sendPushToUsers, sendPushToAdmins } from './pushController.js';
@@ -246,7 +246,7 @@ export const createClub = async (req, res) => {
     );
 
     // Welcome system message — no live broadcast (chat is empty on creation).
-    postSystemMessage(newClub.id, `Willkommen bei ${newClub.name}! Stell euch kurz vor 👋`).catch(() => {});
+    postSystemMessage(newClub.id, SYSTEM_TEXTS.welcomeClub(newClub.name)).catch(() => {});
 
     // Notify admins a new club is waiting for review — email (existing) AND a
     // device push (Batch 3): the team isn't always in the inbox.
@@ -1844,6 +1844,11 @@ export const createClubEvent = async (req, res) => {
       ],
       userId
     );
+
+    // Welcome line in the new event's chat, like every new group and club
+    // (since 2026-10-26, Tina). Fire-and-forget, no live broadcast — only the
+    // host is in the chat yet.
+    postSystemMessage(event.id, SYSTEM_TEXTS.welcomeEvent(event.name)).catch(() => {});
 
     invalidatePrefix('clubs:');
     invalidatePrefix(DISCOVER_EVENTS_KEY);
