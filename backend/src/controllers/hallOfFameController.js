@@ -14,11 +14,46 @@ import {
   MAX_PHOTOS_PER_USER,
   MAX_PHOTOS_PER_EVENT,
 } from '../utils/hallOfFame.js';
-import { blockedWithSql } from '../utils/attendanceTiers.js';
+import { blockedWithSql, getAttendanceStats } from '../utils/attendanceTiers.js';
 
 const toId = (v) => {
   const n = Number.parseInt(v, 10);
   return Number.isInteger(n) && n > 0 && String(n) === String(v).trim() ? n : null;
+};
+
+// The events in a person's PROFILE Memories — one predicate for the list, the
+// Memories number of the stats row and the hide check, so the number and the
+// grid cannot drift apart. `p` is the profile owner's $n parameter.
+//   variant 'full'   — every source, minus what they took out of the grid
+//           'nohide' — boot window: hall_of_fame_hidden not created yet
+//           'legacy' — boot window: none of the 2026-10 tables yet
+// The Explore feeds never read hall_of_fame_hidden: „Entfernen“ only tidies
+// the own profile (Tobi, 26.10.2026).
+const userHofWhere = (p, { variant = 'full', isSelf = true } = {}) => `
+          g.id IN ${participatedIdsSql(p, { withEntries: variant !== 'legacy' })}
+          AND ${hallOfFameEventSql('g')}
+          ${isSelf ? '' : 'AND g.is_private IS NOT TRUE'}
+          ${variant === 'full'
+            ? `AND NOT EXISTS (SELECT 1 FROM hall_of_fame_hidden hh WHERE hh.user_id = ${p} AND hh.group_id = g.id)`
+            : ''}`;
+
+// Runs `build(variant)` and steps down the variants only on a missing table
+// (the server answers before the startup migrations ran). Just the hide table
+// missing → keep photos + leavers; anything else missing → the old shape.
+const runWithBootFallback = async (build) => {
+  try {
+    return await build('full');
+  } catch (err) {
+    if (!isMissingRelation(err)) throw err;
+    if (/hall_of_fame_hidden/.test(err.message || '')) {
+      try {
+        return await build('nohide');
+      } catch (err2) {
+        if (!isMissingRelation(err2)) throw err2;
+      }
+    }
+    return build('legacy');
+  }
 };
 
 // ==========================================
@@ -50,38 +85,150 @@ export const getUserHallOfFame = async (req, res) => {
     // Cover: the person's own photo of that event, else the event's moment
     // photo, else its image — the upload prompt has always promised „wird zum
     // Cover in deiner Hall of Fame", and the old list never read it.
-    const run = (legacy) => db.query(
+    // own_photo_id (own list only, additive 26.10.2026): the photo behind that
+    // cover, so the profile's edit mode can swap it („Bild ändern“).
+    const run = (variant) => db.query(
       `/* hall-of-fame:user */
        SELECT g.id, g.name, g.type, g.category, g.date, g.location,
               (g.deleted_at IS NOT NULL) AS is_deleted,
-              COALESCE(own.url, g.moment_photo_url, g.image_url) AS cover_url
+              COALESCE(own.url, g.moment_photo_url, g.image_url) AS cover_url${isSelf ? `,
+              own.id AS own_photo_id` : ''}
          FROM groups g
-         ${legacy
-           ? 'LEFT JOIN LATERAL (SELECT NULL::text AS url) own ON TRUE'
+         ${variant === 'legacy'
+           ? 'LEFT JOIN LATERAL (SELECT NULL::int AS id, NULL::text AS url) own ON TRUE'
            : `LEFT JOIN LATERAL (
-                SELECT ep.url FROM event_photos ep
+                SELECT ep.id, ep.url FROM event_photos ep
                  WHERE ep.group_id = g.id AND ep.user_id = $1
                  ORDER BY ep.created_at DESC LIMIT 1) own ON TRUE`}
-        WHERE g.id IN ${participatedIdsSql('$1', { withEntries: !legacy })}
-          AND ${hallOfFameEventSql('g')}
-          ${isSelf ? '' : 'AND g.is_private IS NOT TRUE'}
+        WHERE ${userHofWhere('$1', { variant, isSelf })}
         ORDER BY g.date DESC, g.id DESC
         LIMIT 200`,
       [targetId]
     );
 
-    let result;
-    try {
-      result = await run(false);
-    } catch (err) {
-      // Boot window: the server answers before the startup migrations ran.
-      if (!isMissingRelation(err)) throw err;
-      result = await run(true);
-    }
+    const result = await runWithBootFallback(run);
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching user hall of fame:', err);
     res.status(500).json({ error: 'Hall of Fame konnte nicht geladen werden' });
+  }
+};
+
+// ==========================================
+// GET /api/users/me/profile-stats
+// ==========================================
+// The own profile's stats row „Meet-ups | Friends | Memories“ (Tina,
+// 22.10.2026). Me-only on purpose: exact counts never leave the server for
+// anybody else — a stranger sees only the badge step (utils/attendanceTiers).
+//   meetups  = confirmed group meetups (the badge's own count: confirmed by
+//              others, review window closed) + every club event taken part
+//              in, counted without confirmation — club events are never put
+//              up for review (Tobi/Tina, 26.10.2026). It starts small.
+//   friends  = accepted friendships, counted like GET /friends lists them
+//              (a COUNT — the list stops at 500)
+//   memories = the profile grid's own predicate, hidden ones left out
+// No cache: after accepting a friend or removing a memory the number has to
+// be right at once. Never a 5xx (like getMyAttendance): any failure is
+// 200 { available:false } and the client leaves the row out.
+export const getMyProfileStats = async (req, res) => {
+  const uid = Number(req.userId);
+  try {
+    const attendance = await getAttendanceStats(db, [uid]);
+    if (!attendance) return res.json({ available: false });
+    const confirmed = attendance.get(uid)?.confirmedEvents || 0;
+
+    const [clubEvents, friends, memories] = await Promise.all([
+      runWithBootFallback((variant) => db.query(
+        `/* profile-stats:club-events */
+         SELECT COUNT(*)::int AS n FROM groups g
+          WHERE g.type = 'event'
+            AND g.id IN ${participatedIdsSql('$1', { withEntries: variant !== 'legacy' })}
+            AND ${hallOfFameEventSql('g')}`,
+        [uid]
+      )),
+      db.query(
+        `/* profile-stats:friends */
+         SELECT COUNT(*)::int AS n
+           FROM friendships f
+           JOIN users u ON u.id = CASE WHEN f.requester_id = $1 THEN f.addressee_id ELSE f.requester_id END
+          WHERE (f.requester_id = $1 OR f.addressee_id = $1)
+            AND f.status = 'accepted'`,
+        [uid]
+      ),
+      runWithBootFallback((variant) => db.query(
+        `/* profile-stats:memories */
+         SELECT COUNT(*)::int AS n FROM groups g
+          WHERE ${userHofWhere('$1', { variant })}`,
+        [uid]
+      )),
+    ]);
+
+    const clubEventCount = clubEvents.rows[0]?.n || 0;
+    res.json({
+      available: true,
+      meetups: confirmed + clubEventCount,
+      meetups_confirmed: confirmed,
+      meetups_club_events: clubEventCount,
+      friends: friends.rows[0]?.n || 0,
+      memories: memories.rows[0]?.n || 0,
+    });
+  } catch (err) {
+    console.error('getMyProfileStats error:', err?.message);
+    res.json({ available: false });
+  }
+};
+
+// ==========================================
+// POST   /api/users/me/hall-of-fame/:groupId/hide
+// DELETE /api/users/me/hall-of-fame/:groupId/hide
+// ==========================================
+// „Entfernen“ in the profile's edit mode (Tina, 22.10.2026): the event leaves
+// the OWN profile grid — for every viewer of the profile — and nothing else.
+// The event, its photos and the Explore feeds stay as they are (Tobi,
+// 26.10.2026). Only a real memory of the caller can be hidden (404 otherwise,
+// so no junk rows); both calls are idempotent. DELETE is the undo.
+export const hideMemory = async (req, res) => {
+  const groupId = toId(req.params.groupId);
+  if (!groupId) return res.status(400).json({ error: 'Ungültige Gruppen-ID' });
+  try {
+    // An already hidden memory is still the caller's own (idempotent hide),
+    // so the check never applies the hidden filter itself.
+    const own = await runWithBootFallback((variant) => db.query(
+      `/* hall-of-fame:hide-check */
+       SELECT 1 FROM groups g
+        WHERE g.id = $2 AND ${userHofWhere('$1', { variant: variant === 'legacy' ? 'legacy' : 'nohide' })}`,
+      [req.userId, groupId]
+    ));
+    if (own.rows.length === 0) return res.status(404).json({ error: 'Memory nicht gefunden' });
+    await db.query(
+      `INSERT INTO hall_of_fame_hidden (user_id, group_id) VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [req.userId, groupId]
+    );
+    res.json({ hidden: true });
+  } catch (err) {
+    if (isMissingRelation(err)) {
+      return res.status(503).json({ error: 'Gleich wieder verfügbar – bitte versuch es gleich nochmal' });
+    }
+    console.error('Error hiding memory:', err);
+    res.status(500).json({ error: 'Memory konnte nicht entfernt werden' });
+  }
+};
+
+export const unhideMemory = async (req, res) => {
+  const groupId = toId(req.params.groupId);
+  if (!groupId) return res.status(400).json({ error: 'Ungültige Gruppen-ID' });
+  try {
+    await db.query(
+      'DELETE FROM hall_of_fame_hidden WHERE user_id = $1 AND group_id = $2',
+      [req.userId, groupId]
+    );
+    res.json({ hidden: false });
+  } catch (err) {
+    // Without the table nothing can be hidden — "not hidden" is the truth.
+    if (isMissingRelation(err)) return res.json({ hidden: false });
+    console.error('Error unhiding memory:', err);
+    res.status(500).json({ error: 'Memory konnte nicht wiederhergestellt werden' });
   }
 };
 

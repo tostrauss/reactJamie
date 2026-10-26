@@ -5060,4 +5060,121 @@ suite('write endpoints against real Postgres', () => {
     });
   });
 
+  // ── Profile: stats row + Memories edit mode (Tina 22.10., built 26.10.) ──
+  // Real SQL for what the mocks cannot see: the badge aggregate next to the
+  // club-event count, the friend count, the shared Memories predicate with its
+  // anti-join, own_photo_id, and the hide/unhide writes. Relative dates only.
+  describe('profile stats + hidden memories (26.10.2026)', () => {
+    let H, Me, Fr1, Fr2, Pend, Viewer, Rv1, Rv2;
+    let confirmedGroup, clubEvent, plainPast, privatePast, notMine;
+    const ids = (res) => res.body.map((r) => r.id);
+    const stats = async () => (await call(H.getMyProfileStats, { userId: Me })).body;
+    const ownList = async () => call(H.getUserHallOfFame, { userId: Me, params: { id: 'me' } });
+
+    beforeAll(async () => {
+      H = await import('../../src/controllers/hallOfFameController.js');
+      const mk = async (email, name) => (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ($1, $2, '1995-04-04', 'female', $3, TRUE, 'email') RETURNING id`,
+        [email, name, avatar])).rows[0].id;
+      Me = await mk('smoke-stats-me@x.com', 'Stats Ich');
+      Fr1 = await mk('smoke-stats-f1@x.com', 'Stats Freundin');
+      Fr2 = await mk('smoke-stats-f2@x.com', 'Stats Freund');
+      Pend = await mk('smoke-stats-p@x.com', 'Stats Anfrage');
+      Viewer = await mk('smoke-stats-v@x.com', 'Stats Besuch');
+      Rv1 = await mk('smoke-stats-r1@x.com', 'Stats Zeugin');
+      Rv2 = await mk('smoke-stats-r2@x.com', 'Stats Zeuge');
+
+      await db.query(
+        `INSERT INTO friendships (requester_id, addressee_id, status) VALUES
+           ($1, $2, 'accepted'), ($3, $1, 'accepted'), ($4, $1, 'pending')`,
+        [Me, Fr1, Fr2, Pend]);
+
+      const mkGroup = async (name, { type = 'group', daysAgo, isPrivate = false, owner = Rv1, parent = null }) =>
+        (await db.query(
+          `INSERT INTO groups (name, type, date, owner_id, category, location, max_members, is_private, parent_club_id)
+           VALUES ($1, $2, NOW() - make_interval(days => $3::int), $4, 'Sport', 'Wien', 20, $5, $6) RETURNING id`,
+          [name, type, daysAgo, owner, isPrivate, parent])).rows[0].id;
+      const join = (gid, uid) => db.query(
+        `INSERT INTO group_members (group_id, user_id, role, joined_at)
+         VALUES ($1, $2, 'member', NOW() - INTERVAL '40 days')`, [gid, uid]);
+
+      // 1) a group meetup two others confirmed, review window long closed
+      confirmedGroup = await mkGroup('Stats Bestätigt', { daysAgo: 20 });
+      for (const u of [Me, Rv2]) await join(confirmedGroup, u);
+      for (const r of [Rv1, Rv2]) {
+        await db.query(
+          `INSERT INTO event_reviews (group_id, reviewer_id, reviewed_user_id, was_present, created_at)
+           VALUES ($1, $2, $3, TRUE, NOW() - INTERVAL '19 days')`, [confirmedGroup, r, Me]);
+      }
+      // 2) a club event — counts without anybody confirming
+      const club = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, approval_status)
+         VALUES ('Stats Club', 'club', $1, 'Sport', 'Wien', 100, 'approved') RETURNING id`, [Rv1])).rows[0].id;
+      clubEvent = await mkGroup('Stats Club-Abend', { type: 'event', daysAgo: 5, parent: club });
+      await join(clubEvent, Me);
+      // 3) a plain past group nobody reviewed — a memory, not a meetup
+      plainPast = await mkGroup('Stats Ohne Review', { daysAgo: 3 });
+      await join(plainPast, Me);
+      // 4) a private past group — in the own grid, never in a stranger's view
+      privatePast = await mkGroup('Stats Privat', { daysAgo: 4, isPrivate: true });
+      await join(privatePast, Me);
+      // 5) somebody else's meetup
+      notMine = await mkGroup('Stats Fremd', { daysAgo: 6 });
+    });
+
+    it('meetups = 1 confirmed group meetup + 1 club event; friends 2 (pending not); memories 4', async () => {
+      expect(await stats()).toEqual({
+        available: true, meetups: 2, meetups_confirmed: 1, meetups_club_events: 1, friends: 2, memories: 4,
+      });
+    });
+
+    it('own_photo_id names the photo behind the cover — own list only', async () => {
+      const photo = (await db.query(
+        `INSERT INTO event_photos (group_id, user_id, url) VALUES ($1, $2, $3) RETURNING id`,
+        [clubEvent, Me, 'https://app.jamie-app.com/media/uploads/stats-own.webp'])).rows[0].id;
+      const own = await ownList();
+      ok(own);
+      const row = own.body.find((r) => r.id === clubEvent);
+      expect(row.own_photo_id).toBe(photo);
+      expect(row.cover_url).toBe('https://app.jamie-app.com/media/uploads/stats-own.webp');
+      expect(own.body.find((r) => r.id === plainPast).own_photo_id).toBe(null);
+      const foreign = await call(H.getUserHallOfFame, { userId: Viewer, params: { id: String(Me) } });
+      ok(foreign);
+      expect(foreign.body.every((r) => !('own_photo_id' in r))).toBe(true);
+    });
+
+    it('hide takes a memory out of the grid for every viewer and lowers the count; unhide brings it back', async () => {
+      const hide = await call(H.hideMemory, { userId: Me, params: { groupId: String(plainPast) } });
+      expect(hide.statusCode, JSON.stringify(hide.body)).toBe(200);
+      expect(ids(await ownList())).not.toContain(plainPast);
+      expect((await stats()).memories).toBe(3);
+      expect((await stats()).meetups).toBe(2);                  // meetups never shrink by hiding
+      const foreign = await call(H.getUserHallOfFame, { userId: Viewer, params: { id: String(Me) } });
+      expect(ids(foreign).sort((a, b) => a - b)).toEqual([confirmedGroup, clubEvent].sort((a, b) => a - b));
+
+      // idempotent, and only real own memories can be hidden
+      expect((await call(H.hideMemory, { userId: Me, params: { groupId: String(plainPast) } })).statusCode).toBe(200);
+      expect((await call(H.hideMemory, { userId: Me, params: { groupId: String(notMine) } })).statusCode).toBe(404);
+
+      const undo = await call(H.unhideMemory, { userId: Me, params: { groupId: String(plainPast) } });
+      expect(undo.body).toEqual({ hidden: false });
+      expect(ids(await ownList())).toContain(plainPast);
+      expect((await stats()).memories).toBe(4);
+    });
+
+    it('deleting the account clears its hidden rows (CASCADE)', async () => {
+      const tmp = (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ('smoke-stats-tmp@x.com', 'Stats Weg', '1995-04-04', 'female', $1, TRUE, 'email') RETURNING id`,
+        [avatar])).rows[0].id;
+      await db.query(`INSERT INTO group_members (group_id, user_id, role, joined_at)
+                      VALUES ($1, $2, 'member', NOW() - INTERVAL '40 days')`, [plainPast, tmp]);
+      ok(await call(H.hideMemory, { userId: tmp, params: { groupId: String(plainPast) } }));
+      await db.query('DELETE FROM users WHERE id = $1', [tmp]);
+      const left = await db.query('SELECT COUNT(*)::int AS n FROM hall_of_fame_hidden WHERE user_id = $1', [tmp]);
+      expect(left.rows[0].n).toBe(0);
+    });
+  });
+
 });

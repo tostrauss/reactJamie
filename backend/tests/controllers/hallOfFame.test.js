@@ -18,6 +18,16 @@ const scenario = {
   photosFail: null,
   deleteRow: null,        // row of the delete lookup
   insertFail: null,
+  // Profile stats + hide (26.10.2026)
+  attendanceRows: [],     // rows of the badge aggregate (attendance-tiers)
+  attendanceFail: null,
+  clubEventsN: 0,
+  friendsN: 0,
+  friendsFail: null,
+  memoriesN: 0,
+  memoriesFailFirst: null,
+  hideOwn: true,          // the hide check finds the caller's memory
+  hiddenFail: null,       // INSERT/DELETE on hall_of_fame_hidden throws this
 };
 const calls = [];
 
@@ -54,6 +64,28 @@ vi.mock('../../src/config/database.js', () => ({
         return { rows: scenario.deleteRow ? [scenario.deleteRow] : [] };
       }
       if (sql.startsWith('DELETE FROM event_photos')) return { rows: [], rowCount: 1 };
+      if (sql.includes('attendance-tiers')) {
+        if (scenario.attendanceFail) throw scenario.attendanceFail;
+        return { rows: scenario.attendanceRows };
+      }
+      if (sql.includes('profile-stats:club-events')) return { rows: [{ n: scenario.clubEventsN }] };
+      if (sql.includes('profile-stats:friends')) {
+        if (scenario.friendsFail) throw scenario.friendsFail;
+        return { rows: [{ n: scenario.friendsN }] };
+      }
+      if (sql.includes('profile-stats:memories')) {
+        if (scenario.memoriesFailFirst) {
+          const err = scenario.memoriesFailFirst;
+          scenario.memoriesFailFirst = null;
+          throw err;
+        }
+        return { rows: [{ n: scenario.memoriesN }] };
+      }
+      if (sql.includes('hall-of-fame:hide-check')) return { rows: scenario.hideOwn ? [{ '?column?': 1 }] : [] };
+      if (sql.startsWith('INSERT INTO hall_of_fame_hidden') || sql.startsWith('DELETE FROM hall_of_fame_hidden')) {
+        if (scenario.hiddenFail) throw scenario.hiddenFail;
+        return { rows: [], rowCount: 1 };
+      }
       return { rows: [] };
     }),
     pool: { connect: vi.fn() },
@@ -62,8 +94,10 @@ vi.mock('../../src/config/database.js', () => ({
 vi.mock('../../src/config/sentry.js', () => ({ initSentry: vi.fn(), Sentry: { captureException: vi.fn() } }));
 vi.mock('../../src/config/redis.js', () => ({ redisClient: null, redisSubscriber: null }));
 
-const { getUserHallOfFame, getEventPhotos, addEventPhoto, deleteEventPhoto } =
-  await import('../../src/controllers/hallOfFameController.js');
+const {
+  getUserHallOfFame, getEventPhotos, addEventPhoto, deleteEventPhoto,
+  getMyProfileStats, hideMemory, unhideMemory,
+} = await import('../../src/controllers/hallOfFameController.js');
 const hof = await import('../../src/utils/hallOfFame.js');
 
 const missing = (rel) => Object.assign(new Error(`relation "${rel}" does not exist`), { code: '42P01' });
@@ -86,8 +120,11 @@ beforeEach(() => {
   Object.assign(scenario, {
     visible: true, hofRows: [], hofFailFirst: null, photoCheck: null,
     photoRows: [], photosFail: null, deleteRow: null, insertFail: null,
+    attendanceRows: [], attendanceFail: null, clubEventsN: 0, friendsN: 0, friendsFail: null,
+    memoriesN: 0, memoriesFailFirst: null, hideOwn: true, hiddenFail: null,
   });
 });
+const HIDDEN_ANTI_JOIN = 'NOT EXISTS (SELECT 1 FROM hall_of_fame_hidden hh WHERE hh.user_id = $1 AND hh.group_id = g.id)';
 
 // ── SQL builders ──────────────────────────────────────────────────────────
 describe('utils/hallOfFame SQL builders', () => {
@@ -191,6 +228,121 @@ describe('getUserHallOfFame', () => {
     const { sql } = lastSql('hall-of-fame:user');
     expect(sql).not.toContain('event_photos');
     expect(sql).not.toContain('hall_of_fame_entries');
+  });
+
+  // Profile edit mode (Tina 22.10., built 26.10.2026)
+  it('the own list carries own_photo_id and leaves the memories taken out of the grid away', async () => {
+    const res = await run(getUserHallOfFame, { params: { id: 'me' }, userId: 9 });
+    expect(res.statusCode).toBe(200);
+    const { sql } = lastSql('hall-of-fame:user');
+    expect(sql).toContain('own.id AS own_photo_id');
+    expect(sql).toContain('SELECT ep.id, ep.url FROM event_photos ep');
+    expect(sql).toContain(HIDDEN_ANTI_JOIN);
+  });
+
+  it("somebody else's view hides the same memories but carries no photo ids", async () => {
+    const res = await run(getUserHallOfFame, { params: { id: '12' }, userId: 9 });
+    expect(res.statusCode).toBe(200);
+    const { sql } = lastSql('hall-of-fame:user');
+    expect(sql).toContain(HIDDEN_ANTI_JOIN);
+    expect(sql).not.toContain('own_photo_id');
+  });
+
+  it('boot window: only the hide table missing keeps photos and leavers', async () => {
+    scenario.hofFailFirst = missing('hall_of_fame_hidden');
+    scenario.hofRows = [{ id: 1 }];
+    const res = await run(getUserHallOfFame, { params: { id: 'me' }, userId: 9 });
+    expect(res.statusCode).toBe(200);
+    const { sql } = lastSql('hall-of-fame:user');
+    expect(sql).not.toContain('hall_of_fame_hidden');
+    expect(sql).toContain('event_photos');
+    expect(sql).toContain('hall_of_fame_entries');
+  });
+});
+
+// ── GET /users/me/profile-stats ───────────────────────────────────────────
+describe('getMyProfileStats', () => {
+  it('meetups = confirmed group meetups + club events; friends and memories are counts', async () => {
+    scenario.attendanceRows = [{ user_id: 9, confirmed_events: 2, confirmers: 3 }];
+    Object.assign(scenario, { clubEventsN: 3, friendsN: 4, memoriesN: 7 });
+    const res = await run(getMyProfileStats, { userId: 9 });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({
+      available: true, meetups: 5, meetups_confirmed: 2, meetups_club_events: 3, friends: 4, memories: 7,
+    });
+    expect(lastSql('profile-stats:club-events').sql).toContain("g.type = 'event'");
+    expect(lastSql('profile-stats:friends').sql).toContain("f.status = 'accepted'");
+    const memories = lastSql('profile-stats:memories').sql;
+    expect(memories).toContain(HIDDEN_ANTI_JOIN);
+    expect(memories).not.toContain('is_private');          // the own grid shows private events too
+  });
+
+  it('nobody confirmed yet is a 0, not "unavailable"', async () => {
+    const res = await run(getMyProfileStats, { userId: 9 });
+    expect(res.body).toMatchObject({ available: true, meetups: 0, meetups_confirmed: 0 });
+  });
+
+  it('never a 5xx: a failing count answers 200 { available:false }', async () => {
+    scenario.friendsFail = new Error('connection reset');
+    const res = await run(getMyProfileStats, { userId: 9 });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ available: false });
+  });
+
+  it('a failed badge lookup also hides the row instead of claiming 0 meetups', async () => {
+    scenario.attendanceFail = new Error('timeout');
+    const res = await run(getMyProfileStats, { userId: 9 });
+    expect(res.body).toEqual({ available: false });
+  });
+
+  it('boot window: the hide table missing still counts the memories, unfiltered', async () => {
+    scenario.memoriesFailFirst = missing('hall_of_fame_hidden');
+    scenario.memoriesN = 4;
+    const res = await run(getMyProfileStats, { userId: 9 });
+    expect(res.body).toMatchObject({ available: true, memories: 4 });
+    expect(lastSql('profile-stats:memories').sql).not.toContain('hall_of_fame_hidden');
+  });
+});
+
+// ── POST/DELETE /users/me/hall-of-fame/:groupId/hide ─────────────────────
+describe('hideMemory / unhideMemory', () => {
+  const req = (groupId = '5') => ({ params: { groupId }, userId: 9 });
+
+  it('hides a real own memory — idempotently: an already hidden one still counts as own', async () => {
+    const res = await run(hideMemory, req());
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ hidden: true });
+    expect(lastSql('hall-of-fame:hide-check').sql).not.toContain('hall_of_fame_hidden');
+    const ins = lastSql('INSERT INTO hall_of_fame_hidden');
+    expect(ins.sql).toContain('ON CONFLICT DO NOTHING');
+    expect(ins.params).toEqual([9, 5]);
+  });
+
+  it("404s an event that is not the caller's memory and writes nothing", async () => {
+    scenario.hideOwn = false;
+    const res = await run(hideMemory, req());
+    expect(res.statusCode).toBe(404);
+    expect(calls.some(c => c.sql.startsWith('INSERT INTO hall_of_fame_hidden'))).toBe(false);
+  });
+
+  it('400s a malformed id', async () => {
+    expect((await run(hideMemory, req('5x'))).statusCode).toBe(400);
+    expect((await run(unhideMemory, req('0'))).statusCode).toBe(400);
+  });
+
+  it('503 while the table is missing (boot window)', async () => {
+    scenario.hiddenFail = missing('hall_of_fame_hidden');
+    expect((await run(hideMemory, req())).statusCode).toBe(503);
+  });
+
+  it('unhide is the undo: deletes the row, and without the table nothing is hidden anyway', async () => {
+    const res = await run(unhideMemory, req());
+    expect(res.body).toEqual({ hidden: false });
+    expect(lastSql('DELETE FROM hall_of_fame_hidden').params).toEqual([9, 5]);
+    scenario.hiddenFail = missing('hall_of_fame_hidden');
+    const boot = await run(unhideMemory, req());
+    expect(boot.statusCode).toBe(200);
+    expect(boot.body).toEqual({ hidden: false });
   });
 });
 

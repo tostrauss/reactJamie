@@ -1078,7 +1078,7 @@ export const deleteAccount = async (req, res) => {
 // ==========================================
 export const exportData = async (req, res) => {
   try {
-    const [userRes, groupsRes, messagesRes, friendsRes, pollVotesRes, photosRes, hofRes, newsPrefRes] = await Promise.all([
+    const [userRes, groupsRes, messagesRes, friendsRes, pollVotesRes, photosRes, hofRes, newsPrefRes, hofHiddenRes] = await Promise.all([
       db.query(
         // motivations ("Was trifft zu?") are personal data like the rest of
         // the profile — via the boot-window-safe read (utils/motivations.js).
@@ -1135,6 +1135,14 @@ export const exportData = async (req, res) => {
       // News-push consent (18.10.2026) — outside the profile SELECT so a
       // not-yet-migrated column cannot fail the whole export.
       db.query('SELECT push_news FROM users WHERE id = $1', [req.userId]).catch(() => ({ rows: [] })),
+      // Memories taken out of the own profile grid (26.10.2026). Same
+      // own-catch rule: the table is optional in the boot window.
+      db.query(
+        `SELECT g.name AS event_name, g.date AS event_date, hh.created_at AS hidden_at
+           FROM hall_of_fame_hidden hh JOIN groups g ON g.id = hh.group_id
+          WHERE hh.user_id = $1 ORDER BY hh.created_at DESC`,
+        [req.userId]
+      ).catch(() => ({ rows: [] })),
     ]);
 
     res.json({
@@ -1150,6 +1158,7 @@ export const exportData = async (req, res) => {
       poll_votes: pollVotesRes.rows,
       event_photos: photosRes.rows,
       hall_of_fame_kept_events: hofRes.rows,
+      hall_of_fame_hidden_events: hofHiddenRes.rows,
     });
   } catch (error) {
     console.error('exportData error:', error);

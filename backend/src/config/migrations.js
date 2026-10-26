@@ -1854,6 +1854,37 @@ const runStartupMigrations = async () => {
     console.log(`   [club-type] backfilled ${r.rowCount} existing clubs as 'community'`);
   });
 
+  // ── Memories ausblenden (Tina, 22.10.2026; built 26.10.) ─────────────────
+  //   hall_of_fame_hidden: events a person took out of their PROFILE's
+  //   Memories grid („Entfernen“ in the edit mode). Only the profile list and
+  //   its count read it — the Explore feeds keep the event (Tobi 26.10.).
+  //   Starts empty, no backfill. Migrations-only like its sister tables
+  //   (hall_of_fame_entries / event_photos), never schema.sql (Tobi 26.10.).
+  //   CASCADE on both FKs: account deletion and a group's hard delete must
+  //   never trip over it (the reviewed_by lesson). The user-leading PK serves
+  //   the anti-join. Missing table → the profile list and stats fall back to
+  //   showing everything, hide/unhide answer 503 until the next boot.
+  await migrate('hall_of_fame_hidden (2026-10)', async () => {
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS hall_of_fame_hidden (
+          user_id    INTEGER     NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
+          group_id   INTEGER     NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (user_id, group_id)
+        )`);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+  });
+
   // ── Post-migration schema assertion ────────────────────────────────────
   // The server accepts traffic BEFORE migrations finish (listen → migrate),
   // so health stays green during the boot window; only a PROVEN-broken
