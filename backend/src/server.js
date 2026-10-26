@@ -782,7 +782,10 @@ cron.schedule('*/15 * * * *', async () => {
         ev.owner_id,
         '📸 Teile deinen JAMIE Moment',
         `Wie war ${ev.name}? Lade jetzt dein Erinnerungsfoto hoch und hol's in die Hall of Fame.`,
-        '/explore',
+        // The new Explore sends ?share=1 on to „Warst du dabei..“ (its feed no
+        // longer shows photoless cards); old bundles read only ?tab and land
+        // on their wall, where the owner's upload card still is (22.10.2026).
+        '/explore?share=1',
       ).catch(err => console.error(`[cron] moment push failed for group ${ev.id}:`, err.message))
     ));
     if (claimed.rowCount > 0) {
