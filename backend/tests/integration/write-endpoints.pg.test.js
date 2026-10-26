@@ -4382,6 +4382,178 @@ suite('write endpoints against real Postgres', () => {
     });
   });
 
+  // ── Memories + Friends (Tina, 22.10.2026) ─────────────────────────────────
+  // What a db-mocking test cannot see: photos_only against the real wall, the
+  // 21-day Vienna window and the own-photo rules of „Warst du dabei..", the
+  // friends feed's four participation sources with its private / block /
+  // picture filters, and the people search's lateral, filters and ranking.
+  describe('Memories + Friends (Tina, 22.10.2026)', () => {
+    let H, G, U;
+    let O, P, V, Fr, Wx, X, Z, Half;
+    let photoless, withCover, old, future, cancelled, privCover, blockedOwner, friendNoPicture, friendLeft, friendReviewed;
+    let incomingReq;
+    const photo = (n) => `https://app.jamie-app.com/media/uploads/mem-${n}.webp`;
+    const ids = (res) => res.body.map((r) => r.id);
+    const sorted = (arr) => [...arr].sort((x, y) => x - y);
+
+    beforeAll(async () => {
+      H = await import('../../src/controllers/hallOfFameController.js');
+      G = await import('../../src/controllers/groupController.js');
+      U = await import('../../src/controllers/userController.js');
+      // Complete profiles (18+, gender, three interests, photo) unless noted.
+      const mk = async (email, name, { av = avatar, bio = null } = {}) => (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider, interests, bio)
+         VALUES ($1, $2, '1995-01-01', 'female', $3, TRUE, 'email', '["Wandern","Kaffee","Kino"]'::jsonb, $4) RETURNING id`,
+        [email, name, av, bio])).rows[0].id;
+      O = await mk('smoke-mem-o@x.com', 'Memoria Owner');
+      P = await mk('smoke-mem-p@x.com', 'Memoria Teilnehmer');
+      V = await mk('smoke-mem-v@x.com', 'Viewer Vau');
+      Fr = await mk('smoke-mem-f@x.com', 'Memoria Freundin');
+      Wx = await mk('smoke-mem-w@x.com', 'Memoria Abgelehnt');
+      X = await mk('smoke-mem-x@x.com', 'Memoria Blockiert');
+      Z = await mk('smoke-mem-z@x.com', 'Memoria Eingefroren');
+      await mk('smoke-mem-full@x.com', 'Memoria Komplett', { bio: 'x'.repeat(200) });
+      Half = await mk('smoke-mem-half@x.com', 'Memoria Aaa Halb', { av: null });
+      await db.query('UPDATE users SET is_active = FALSE WHERE id = $1', [Z]);
+
+      // Relative dates only (never coupled to the real calendar); everybody
+      // joined well before the event, so joinedInTimeSql holds.
+      const mkGroup = async (name, { daysAgo = 2, owner = O, image = avatar, isPrivate = false, members = [] } = {}) => {
+        const id = (await db.query(
+          `INSERT INTO groups (name, type, date, owner_id, category, location, max_members, is_private, image_url)
+           VALUES ($1, 'group', NOW() - ($2 || ' days')::interval, $3, 'Sport', 'Wien', 10, $4, $5) RETURNING id`,
+          [name, String(daysAgo), owner, isPrivate, image])).rows[0].id;
+        for (const [uid, role] of [[owner, 'owner'], ...members.map((m) => [m, 'member'])]) {
+          await db.query(
+            `INSERT INTO group_members (group_id, user_id, role, joined_at) VALUES ($1, $2, $3, NOW() - INTERVAL '40 days')`,
+            [id, uid, role]);
+        }
+        return id;
+      };
+      photoless = await mkGroup('Mem fotolos', { daysAgo: 3, image: null, members: [P] });
+      withCover = await mkGroup('Mem mit Cover', { members: [P, Fr] });
+      old = await mkGroup('Mem zu alt', { daysAgo: 25, image: null, members: [P] });
+      future = await mkGroup('Mem Zukunft', { daysAgo: -3, image: null, members: [P] });
+      cancelled = await mkGroup('Mem abgesagt', { daysAgo: 3, image: null, members: [P] });
+      await db.query('UPDATE groups SET is_active = FALSE WHERE id = $1', [cancelled]);
+      privCover = await mkGroup('Mem privat', { isPrivate: true, members: [Fr] });
+      blockedOwner = await mkGroup('Mem Block-Owner', { owner: X, members: [Fr] });
+      friendNoPicture = await mkGroup('Mem Freundin ohne Bild', { image: null, members: [Fr] });
+      // The friend left after the meetup (entry only) / only answered the
+      // review round — both still count as having been there.
+      friendLeft = await mkGroup('Mem Freundin ausgetreten', { daysAgo: 4 });
+      friendReviewed = await mkGroup('Mem Freundin per Review', { daysAgo: 5 });
+      await db.query('INSERT INTO hall_of_fame_entries (user_id, group_id) VALUES ($1, $2)', [Fr, friendLeft]);
+      await db.query(
+        'INSERT INTO event_reviews (group_id, reviewer_id, reviewed_user_id, was_present) VALUES ($1, $2, $3, TRUE)',
+        [friendReviewed, Fr, O]);
+
+      const friendship = (a, b, status) => db.query(
+        'INSERT INTO friendships (requester_id, addressee_id, status) VALUES ($1, $2, $3) RETURNING id', [a, b, status]);
+      await friendship(V, Fr, 'accepted');
+      await friendship(V, P, 'pending');
+      incomingReq = (await friendship(O, V, 'pending')).rows[0].id;
+      await friendship(Wx, V, 'rejected');
+      await friendship(X, V, 'blocked');
+    });
+
+    it('photos_only keeps the cards with a picture; the default wall keeps the upload entry points', async () => {
+      const dflt = await call(G.getHallOfFame, { userId: O, query: { limit: '60' } });
+      ok(dflt);
+      expect(ids(dflt)).toContain(photoless);
+      const only = await call(G.getHallOfFame, { userId: O, query: { limit: '60', photos_only: '1' } });
+      ok(only);
+      expect(ids(only)).toContain(withCover);
+      expect(ids(only)).not.toContain(photoless);
+      expect(ids(only)).not.toContain(friendNoPicture);
+      // Plain date order — no own-photoless-first prefix.
+      const dates = only.body.map((c) => new Date(c.date).getTime());
+      expect([...dates].sort((x, y) => y - x)).toEqual(dates);
+
+      // The participant: the 30-day arm only in the default wall; the feed
+      // card still lets them add a photo.
+      expect(ids(await call(G.getHallOfFame, { userId: P, query: { limit: '60' } }))).toContain(photoless);
+      const pOnly = await call(G.getHallOfFame, { userId: P, query: { limit: '60', photos_only: '1' } });
+      expect(ids(pOnly)).not.toContain(photoless);
+      expect(pOnly.body.find((c) => c.id === withCover)).toMatchObject({ is_participant: true, can_add_photo: true });
+    });
+
+    it('„Warst du dabei.." lists own events of the last three weeks without the caller\'s photo', async () => {
+      const o = await call(H.getMemoryPrompts, { userId: O });
+      ok(o);
+      expect(ids(o)).toEqual(expect.arrayContaining([photoless, withCover]));
+      for (const gone of [old, future, cancelled]) expect(ids(o)).not.toContain(gone);
+
+      const p = await call(H.getMemoryPrompts, { userId: P });
+      ok(p);
+      expect(sorted(ids(p))).toEqual(sorted([photoless, withCover]));
+      expect(p.body.find((r) => r.id === photoless)).toMatchObject({ owner_id: O, image_url: null, moment_photo_url: null });
+
+      expect((await call(H.getMemoryPrompts, { userId: V })).body).toEqual([]);
+    });
+
+    it('the owner\'s moment ends the owner\'s prompt, not the participant\'s; an own photo ends either', async () => {
+      await db.query('UPDATE groups SET moment_photo_url = $1 WHERE id = $2', [photo('moment'), photoless]);
+      expect(ids(await call(H.getMemoryPrompts, { userId: O }))).not.toContain(photoless);
+      expect(ids(await call(H.getMemoryPrompts, { userId: P }))).toContain(photoless);
+
+      const byP = await call(H.addEventPhoto, { userId: P, params: { id: String(photoless) }, body: { url: photo('p1') } });
+      expect(byP.statusCode, JSON.stringify(byP.body)).toBe(201);
+      expect(ids(await call(H.getMemoryPrompts, { userId: P }))).not.toContain(photoless);
+
+      const byO = await call(H.addEventPhoto, { userId: O, params: { id: String(withCover) }, body: { url: photo('o1') } });
+      expect(byO.statusCode, JSON.stringify(byO.body)).toBe(201);
+      expect(ids(await call(H.getMemoryPrompts, { userId: O }))).not.toContain(withCover);
+    });
+
+    it('the friends feed: public events a friend took part in — every source — with a picture', async () => {
+      const res = await call(H.getHallOfFameFriends, { userId: V, query: {} });
+      ok(res);
+      // Not the private one, not across the block, not without a picture,
+      // not one the friend never attended.
+      expect(sorted(ids(res))).toEqual(sorted([withCover, friendLeft, friendReviewed]));
+      const c = res.body.find((r) => r.id === withCover);
+      expect(c).toMatchObject({ owner_name: 'Memoria Owner', is_participant: false, can_add_photo: false, photo_count: 1 });
+      expect(c.photos.map((x) => x.url)).toEqual([photo('o1')]);
+
+      // A participant viewing through a friend may still add a photo.
+      await db.query(`UPDATE friendships SET status = 'accepted' WHERE requester_id = $1 AND addressee_id = $2`, [V, P]);
+      const asP = await call(H.getHallOfFameFriends, { userId: P, query: {} });
+      expect(asP.body).toEqual([]); // V, P's new friend, took part in nothing
+      await db.query(`UPDATE friendships SET status = 'pending' WHERE requester_id = $1 AND addressee_id = $2`, [V, P]);
+    });
+
+    it('no accepted friends → an empty feed (a rejected request is no friendship)', async () => {
+      expect((await call(H.getHallOfFameFriends, { userId: Wx, query: {} })).body).toEqual([]);
+    });
+
+    it('the people search: state per direction, frozen and blocked hidden, a bio excerpt, incomplete last', async () => {
+      const res = await call(U.searchUsers, { userId: V, query: { q: 'Memoria' } });
+      ok(res);
+      const by = Object.fromEntries(res.body.map((u) => [u.name, u]));
+      expect(by['Memoria Freundin']).toMatchObject({ friend_status: 'accepted', age: expect.any(Number) });
+      expect(by['Memoria Teilnehmer']).toMatchObject({ friend_status: 'pending_out' });
+      expect(by['Memoria Owner']).toMatchObject({ friend_status: 'pending_in', friendship_id: incomingReq });
+      expect(by['Memoria Abgelehnt']).toMatchObject({ friend_status: 'none', friendship_id: null });
+      expect(by['Memoria Komplett']).toMatchObject({ friend_status: 'none', friendship_id: null });
+      expect(by['Memoria Komplett'].bio).toHaveLength(160);
+      expect(by['Memoria Eingefroren']).toBeUndefined();
+      expect(by['Memoria Blockiert']).toBeUndefined();
+      // Alphabetically first, ranked last: no profile photo.
+      expect(res.body.at(-1).id).toBe(Half);
+
+      // The block hides the blocker from the blocked side too.
+      const fromX = await call(U.searchUsers, { userId: X, query: { q: 'Viewer' } });
+      ok(fromX);
+      expect(fromX.body.some((u) => u.id === V)).toBe(false);
+    });
+
+    it('the reviewer arm has its index', async () => {
+      const idx = await db.query(`SELECT 1 FROM pg_indexes WHERE indexname = 'idx_event_reviews_reviewer'`);
+      expect(idx.rowCount).toBe(1);
+    });
+  });
+
   // ── Community / Club split (Tina, 22.10.2026) ─────────────────────────────
   // The pieces a db-mocking test cannot see: the real column and its CHECK, the
   // one-shot backfill, the segment filter against NULL rows, the featured_clubs
