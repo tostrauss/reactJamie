@@ -684,15 +684,7 @@
       "privateLabel": "Evento privato",
       "privateHint": "Partecipazione solo su richiesta: sei tu a confermare chi c’è"
     },
-    "confirmLeave": "Vuoi davvero lasciare il club? Puoi entrare in questo club al massimo due volte in totale.",
-    "proInfo": {
-      "title": "Più visibilità con JAMIE Pro",
-      "boostTitle": "Metti in evidenza il club",
-      "boostBody": "24 ore in cima a Scopri, tutte le volte che vuoi",
-      "ticketsTitle": "Promuovi i biglietti",
-      "ticketsBody": "Eventi a pagamento con pulsante biglietti verso il tuo shop",
-      "cta": "Scopri JAMIE Pro"
-    }
+    "confirmLeave": "Vuoi davvero lasciare il club? Puoi entrare in questo club al massimo due volte in totale."
   },
   "clubMembers": {
     "title": "Membri",
@@ -1072,8 +1064,6 @@
     },
     "progressFmt": "Profilo completo al {{percent}}%",
     "bioCardTitle": "Su di te!",
-    "proCardTitle": "JAMIE Pro",
-    "proCardSub": "Offerte esclusive e consigli a Vienna",
     "friendsBtn": "Amici e richieste",
     "favoritesTitle": "Preferiti",
     "clubBadge": "Club",
@@ -1607,8 +1597,6 @@
       "seeMembersDesc": "Vedi tutti i partecipanti in gruppi e club",
       "topPlacement": "Posizione in alto",
       "topPlacementDesc": "Sempre in cima alla lista Scopri",
-      "deals": "Per te – offerte esclusive",
-      "dealsDesc": "Sconti e promozioni dai partner a Vienna",
       "paidEvents": "Crea eventi a pagamento",
       "paidEventsDesc": "Vendi biglietti tramite il tuo link",
       "reviewRequests": "Strumenti richieste",

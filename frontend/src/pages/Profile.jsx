@@ -5,9 +5,6 @@ import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { auth, subscription as subscriptionApi, groups as groupsApi, clubs as clubsApi, friends as friendsApi, reviews as reviewsApi, users as usersApi } from '../utils/api';
 import SpotifySongPicker from '../components/SpotifySongPicker';
-import { ProModal } from '../components/ProModal';
-import { purchasesEnabled } from '../utils/platform';
-import { usePaymentsConfig } from '../utils/paymentsConfig';
 import { shareLink } from '../utils/share';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { ProfilePhotoCarousel } from '../components/ProfilePhotoCarousel';
@@ -53,7 +50,6 @@ export const Profile = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const { t } = useTranslation();
-  usePaymentsConfig(); // re-render when the runtime payments config arrives
   // Tab held in the URL (?tab=halloffame) so opening a past event from Hall of
   // Fame and swiping back restores the tab. replace:true so tab clicks don't
   // pile up history entries.
@@ -68,8 +64,9 @@ export const Profile = () => {
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const [pinnwandLightboxIndex, setPinnwandLightboxIndex] = useState(null);
   const [savingSong, setSavingSong] = useState(false);
+  // Only for the 👑 next to the name — a status badge for paying users, not
+  // an upsell. The profile has no Pro card any more (Tina, 22.10.2026).
   const [isPro, setIsPro] = useState(false);
-  const [showProModal, setShowProModal] = useState(false);
   const [pastEvents, setPastEvents] = useState([]);
   const [hofLoading, setHofLoading] = useState(false);
   const [favItems, setFavItems] = useState([]);
@@ -291,18 +288,6 @@ export const Profile = () => {
             </div>
           )}
 
-          {/* Pro CTA — only where a purchase is possible (purchasesEnabled: web, or the iOS/Play app with store billing live). No dead-end upsell. */}
-          {!isPro && purchasesEnabled() && (
-            <button className="pro-cta-card" onClick={() => setShowProModal(true)}>
-              <div className="pro-card-icon">👑</div>
-              <div className="pro-card-body">
-                <div className="pro-card-title">{t('profile.proCardTitle')}</div>
-                <div className="pro-card-sub">{t('profile.proCardSub')}</div>
-              </div>
-              <div className="pro-card-arrow">→</div>
-            </button>
-          )}
-
           {/* Friends shortcut */}
           <button className="profile-friends-btn" onClick={() => navigate('/friends?tab=pending')}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -450,13 +435,6 @@ export const Profile = () => {
 
         </div>
       </div>
-
-      {showProModal && (
-        <ProModal
-          onClose={() => setShowProModal(false)}
-          onSuccess={() => { setIsPro(true); setShowProModal(false); }}
-        />
-      )}
 
       <PhotoLightbox
         photos={galleryPhotos}

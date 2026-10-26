@@ -165,13 +165,14 @@ function Spinner() {
 }
 
 // ── Feature rows ─────────────────────────────────────────────────────────
+// No deals row any more (Tobi, 26.10.2026): deals are free for everyone
+// since 09.06., so "Für Dich – exklusive Deals" promised nothing Pro gives.
 const FEATURE_KEYS = [
   { icon:'♾️', titleKey:'unlimitedJoins', descKey:'unlimitedJoinsDesc' },
   { icon:'⚡', titleKey:'boostGroups',   descKey:'boostGroupsDesc' },
   { icon:'🏆', titleKey:'boostClubs',    descKey:'boostClubsDesc' },
   { icon:'👥', titleKey:'seeMembers',    descKey:'seeMembersDesc' },
   { icon:'🔝', titleKey:'topPlacement', descKey:'topPlacementDesc' },
-  { icon:'⭐', titleKey:'deals',         descKey:'dealsDesc' },
 ];
 
 // Context-specific rows, prepended when the modal is opened from the feature

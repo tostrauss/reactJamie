@@ -829,35 +829,16 @@ export const ClubDetail = () => {
           {/* Owner actions */}
           {isOwner && (
             <div className="cd-owner-actions">
-              {/* Tina 30.09.2026: no bare "Boost" button for non-Pro owners —
-                  instead say what Pro gives a club and why: boosting + ticket
-                  promotion (paid events). Pro owners keep the boost itself,
-                  it's their feature. iOS without a purchase path shows
-                  neither pitch nor button (Apple 3.1.1). */}
-              {isPro ? (
+              {/* Boost for every owner, like on GroupDetail (Tobi 26.10.2026,
+                  Tina's "Pro raus aus Clubs"): the Pro info card that stood
+                  here for non-Pro owners since 30.09. is gone; the button
+                  opens the BoostModal, which tells a non-Pro owner in context
+                  that boosts are part of Pro. iOS without a purchase path
+                  still shows a non-Pro owner nothing (Apple 3.1.1). */}
+              {(isPro || proUpsellAllowed()) && (
                 <button className="cd-boost-btn" onClick={() => setShowBoostModal(true)}>
                   🚀 {t('clubDetail.actions.boost')}
                 </button>
-              ) : proUpsellAllowed() && (
-                <div className="cd-pro-info">
-                  <div className="cd-pro-info-title">👑 {t('clubDetail.proInfo.title')}</div>
-                  <ul className="cd-pro-info-list">
-                    <li>
-                      <strong>🚀 {t('clubDetail.proInfo.boostTitle')}</strong>
-                      <span>{t('clubDetail.proInfo.boostBody')}</span>
-                    </li>
-                    <li>
-                      <strong>🎟️ {t('clubDetail.proInfo.ticketsTitle')}</strong>
-                      <span>{t('clubDetail.proInfo.ticketsBody')}</span>
-                    </li>
-                  </ul>
-                  <button
-                    className="cd-pro-info-btn"
-                    onClick={() => window.dispatchEvent(new CustomEvent('jamie:open-pro-modal', { detail: { feature: null } }))}
-                  >
-                    {t('clubDetail.proInfo.cta')}
-                  </button>
-                </div>
               )}
               <button className="cd-btn cd-btn-danger" onClick={handleDelete}>
                 {t('clubDetail.actions.delete')}
