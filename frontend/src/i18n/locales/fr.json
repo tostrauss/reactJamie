@@ -555,7 +555,7 @@
     },
     "moment": {
       "cta": "📸 Partage ton JAMIE Moment",
-      "hint": "Ajoute une photo de l'événement — elle deviendra la couverture dans ton Hall of Fame.",
+      "hint": "Ajoute une photo de l'événement — elle deviendra la couverture dans tes Memories.",
       "tooLarge": "L'image est trop grande (max. 10 Mo).",
       "uploadError": "La photo n'a pas pu être téléversée.",
       "saveError": "La photo n'a pas pu être enregistrée.",
@@ -1099,7 +1099,7 @@
     },
     "tabs": {
       "pinnwand": "Tableau",
-      "halloffame": "Hall of Fame"
+      "halloffame": "Memories"
     },
     "addPhoto": "Ajouter une photo",
     "savingSong": "Enregistrement…",
@@ -1112,7 +1112,7 @@
       "error": "Le profil n'a pas pu être partagé"
     },
     "hof": {
-      "title": "Ton Hall of Fame",
+      "title": "Tes Memories",
       "hint": "Rejoins des événements – ils apparaîtront ici après leur date"
     }
   },
@@ -1123,7 +1123,7 @@
     "bioCardTitle": "À propos de toi !",
     "tabs": {
       "pinnwand": "Tableau",
-      "halloffame": "Hall of Fame"
+      "halloffame": "Memories"
     },
     "emptyPhotos": "Pas d'autres photos",
     "emptyHof": "Rien ici pour l'instant",
@@ -1197,8 +1197,8 @@
       "labelUnread": "Notifications, {{n}} nouvelles"
     },
     "hofLike": {
-      "text": "{{name}} aime « {{event}} » dans le Hall of Fame",
-      "textAnonymous": "Quelqu’un aime « {{event}} » dans le Hall of Fame"
+      "text": "{{name}} aime « {{event}} » dans les Memories",
+      "textAnonymous": "Quelqu’un aime « {{event}} » dans les Memories"
     }
   },
   "profileEdit": {

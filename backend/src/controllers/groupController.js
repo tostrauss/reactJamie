@@ -1795,7 +1795,10 @@ async function notifyHofLikeInApp(req, groupId, eventName) {
   const rows = await insertHofLikeNotifications(db, {
     groupId,
     likerId: req.userId,
-    title: `${likerName} gefällt „${eventName}“ in der Hall of Fame`.slice(0, 255),
+    // The stored German fallback (old bundles, a deleted event); the bell
+    // renders notifications.hofLike in the reader's language. „Memories"
+    // since 26.10.2026.
+    title: `${likerName} gefällt „${eventName}“ in den Memories`.slice(0, 255),
   });
   const io = req.app?.get('io');
   if (io) {

@@ -555,7 +555,7 @@
     },
     "moment": {
       "cta": "📸 Share your JAMIE moment",
-      "hint": "Upload a photo from the event — it becomes the cover in your Hall of Fame.",
+      "hint": "Upload a photo from the event — it becomes the cover in your Memories.",
       "tooLarge": "Image is too large (max 10 MB).",
       "uploadError": "Couldn't upload the photo.",
       "saveError": "Couldn't save the photo.",
@@ -1099,7 +1099,7 @@
     },
     "tabs": {
       "pinnwand": "Wall",
-      "halloffame": "Hall of Fame"
+      "halloffame": "Memories"
     },
     "addPhoto": "Add photo",
     "savingSong": "Saving…",
@@ -1112,7 +1112,7 @@
       "error": "Could not share profile"
     },
     "hof": {
-      "title": "Your Hall of Fame",
+      "title": "Your Memories",
       "hint": "Join events — they show up here after their date"
     }
   },
@@ -1123,7 +1123,7 @@
     "bioCardTitle": "About you!",
     "tabs": {
       "pinnwand": "Wall",
-      "halloffame": "Hall of Fame"
+      "halloffame": "Memories"
     },
     "emptyPhotos": "No additional photos",
     "emptyHof": "Nothing here yet",
@@ -1197,8 +1197,8 @@
       "labelUnread": "Notifications, {{n}} new"
     },
     "hofLike": {
-      "text": "{{name}} likes “{{event}}” in the Hall of Fame",
-      "textAnonymous": "Someone likes “{{event}}” in the Hall of Fame"
+      "text": "{{name}} likes “{{event}}” in Memories",
+      "textAnonymous": "Someone likes “{{event}}” in Memories"
     }
   },
   "profileEdit": {

@@ -555,7 +555,7 @@
     },
     "moment": {
       "cta": "📸 Condividi il tuo JAMIE Moment",
-      "hint": "Carica una foto dell'evento — diventerà la copertina nella tua Hall of Fame.",
+      "hint": "Carica una foto dell'evento — diventerà la copertina nelle tue Memories.",
       "tooLarge": "L'immagine è troppo grande (max 10 MB).",
       "uploadError": "Impossibile caricare la foto.",
       "saveError": "Impossibile salvare la foto.",
@@ -1099,7 +1099,7 @@
     },
     "tabs": {
       "pinnwand": "Bacheca",
-      "halloffame": "Hall of Fame"
+      "halloffame": "Memories"
     },
     "addPhoto": "Aggiungi foto",
     "savingSong": "Salvataggio…",
@@ -1112,7 +1112,7 @@
       "error": "Impossibile condividere il profilo"
     },
     "hof": {
-      "title": "La tua Hall of Fame",
+      "title": "Le tue Memories",
       "hint": "Partecipa agli eventi – appariranno qui dopo la data"
     }
   },
@@ -1123,7 +1123,7 @@
     "bioCardTitle": "Su di te!",
     "tabs": {
       "pinnwand": "Bacheca",
-      "halloffame": "Hall of Fame"
+      "halloffame": "Memories"
     },
     "emptyPhotos": "Nessun'altra foto",
     "emptyHof": "Ancora niente qui",
@@ -1197,8 +1197,8 @@
       "labelUnread": "Notifiche, {{n}} nuove"
     },
     "hofLike": {
-      "text": "A {{name}} piace «{{event}}» nella Hall of Fame",
-      "textAnonymous": "A qualcuno piace «{{event}}» nella Hall of Fame"
+      "text": "A {{name}} piace «{{event}}» nelle Memories",
+      "textAnonymous": "A qualcuno piace «{{event}}» nelle Memories"
     }
   },
   "profileEdit": {

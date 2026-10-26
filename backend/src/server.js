@@ -781,7 +781,9 @@ cron.schedule('*/15 * * * *', async () => {
       sendPushToUser(
         ev.owner_id,
         '📸 Teile deinen JAMIE Moment',
-        `Wie war ${ev.name}? Lade jetzt dein Erinnerungsfoto hoch und hol's in die Hall of Fame.`,
+        // „Memories" since 26.10.2026 (Tina/Tobi), like the Explore tab and
+        // the profile — the push names the same place the app shows.
+        `Wie war ${ev.name}? Lade jetzt dein Erinnerungsfoto hoch und hol's in deine Memories.`,
         // The new Explore sends ?share=1 on to „Warst du dabei..“ (its feed no
         // longer shows photoless cards); old bundles read only ?tab and land
         // on their wall, where the owner's upload card still is (22.10.2026).

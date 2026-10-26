@@ -145,7 +145,7 @@ describe('toggleLike — in-app notification', () => {
     expect(res.body).toEqual({ liked: true, like_count: 4 });
     await flush(); await flush();
     const notify = calls.find(c => c.sql.includes('hof-like-notify'));
-    expect(notify.params).toEqual(['7', 9, 'Lea gefällt „Wandern“ in der Hall of Fame']);
+    expect(notify.params).toEqual(['7', 9, 'Lea gefällt „Wandern“ in den Memories']);
     expect(emitted).toEqual([['user_2', 'new_notification', 11], ['user_5', 'new_notification', 12]]);
   });
 

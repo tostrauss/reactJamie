@@ -84,7 +84,7 @@ describe('Notifications — rendering by type', () => {
 
   it('hof_like: ❤️ and the sentence in the reader’s language — not the stored German fallback', async () => {
     await renderList([LIKE]);
-    const text = 'Anna gefällt „Laufen im Prater“ in der Hall of Fame';
+    const text = 'Anna gefällt „Laufen im Prater“ in den Memories';
     const row = rowOf(text);
     expect(row.textContent).toContain('❤️');
     expect(screen.queryByText(/Fallback/)).toBeNull();
@@ -94,7 +94,7 @@ describe('Notifications — rendering by type', () => {
 
   it('hof_like from an account that no longer exists reads „Jemandem gefällt …“', async () => {
     await renderList([{ ...LIKE, sender: null }]);
-    expect(screen.getByText('Jemandem gefällt „Laufen im Prater“ in der Hall of Fame')).toBeTruthy();
+    expect(screen.getByText('Jemandem gefällt „Laufen im Prater“ in den Memories')).toBeTruthy();
   });
 
   it('hof_like whose event is gone falls back to the stored text', async () => {
