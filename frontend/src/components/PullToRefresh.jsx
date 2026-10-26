@@ -19,7 +19,7 @@ import { useLocation } from 'react-router-dom';
 
 // Routes with a useOnPullRefresh listener. The gesture is inert elsewhere so
 // the indicator can never show a refresh that no page performs.
-const PTR_ROUTES = new Set(['/home', '/explore', '/chats', '/friends', '/notifications']);
+const PTR_ROUTES = new Set(['/home', '/explore', '/explore/share', '/chats', '/friends', '/notifications']);
 
 const START_SLOP = 8;   // px of downward travel before we treat it as a pull
 const THRESHOLD = 64;   // dampened px that arm a refresh on release

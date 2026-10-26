@@ -40,6 +40,7 @@ const Onboarding = lazyWithReload(() => import('./pages/Onboarding'));
 const OnboardingClubs = lazyWithReload(loadOnboardingClubs);
 const Home = lazyWithReload(() => import('./pages/Home'));
 const Explore = lazyWithReload(() => import('./pages/Explore'));
+const ShareMoments = lazyWithReload(() => import('./pages/ShareMoments'));
 const Profile = lazyWithReload(() => import('./pages/Profile'));
 const ProfileEdit = lazyWithReload(() => import('./pages/ProfileEdit'));
 const SettingsPage = lazyWithReload(() => import('./pages/SettingsPage'));
@@ -965,6 +966,8 @@ function AppRoutes() {
           {/* Main */}
           <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
           <Route path="/explore" element={<ProtectedRoute><Explore /></ProtectedRoute>} />
+          {/* „Warst du dabei..“ — own past meetups waiting for a photo (Tina, 22.10.2026) */}
+          <Route path="/explore/share" element={<ProtectedRoute><ShareMoments /></ProtectedRoute>} />
           <Route path="/favorites" element={<Navigate to="/explore" replace />} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="/profile/edit" element={<ProtectedRoute><ProfileEdit /></ProtectedRoute>} />
