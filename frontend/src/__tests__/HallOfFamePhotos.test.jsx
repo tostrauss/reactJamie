@@ -13,6 +13,7 @@ vi.mock('../hooks/useOnPullRefresh', () => ({ default: () => {} }));
 vi.mock('../utils/api', () => ({
   groups: {
     getHallOfFame: vi.fn(),
+    getHallOfFameFriends: vi.fn(async () => ({ data: [] })),
     getMyLikes: vi.fn(async () => ({ data: [] })),
     toggleLike: vi.fn(),
     update: vi.fn(),
@@ -20,7 +21,8 @@ vi.mock('../utils/api', () => ({
     getPhotos: vi.fn(),
     deletePhoto: vi.fn(async () => ({ data: { deleted: true } })),
   },
-  deals: { getAll: vi.fn(async () => ({ data: [] })) },
+  users: { search: vi.fn(async () => ({ data: [] })) },
+  friends: { sendRequest: vi.fn(), respondRequest: vi.fn() },
   upload: { image: vi.fn(async () => ({ data: { url: '/media/new.jpg' } })) },
 }));
 const { groups, upload } = await import('../utils/api');
@@ -54,8 +56,10 @@ describe('Explore Hall of Fame — participant photos', () => {
       data: { id: 7, url: '/media/new.jpg', user_id: 9, user_name: 'Lea', can_delete: true },
     });
     await renderExplore([card()]);
+    // Memories (22.10.2026): the feed asks for cards with a picture only.
+    expect(groups.getHallOfFame).toHaveBeenCalledWith({ limit: 30, photosOnly: true });
     const add = screen.getByRole('button', { name: /Warst du dabei\? Teile dein Foto\./ });
-    const input = add.closest('.ef-card').querySelectorAll('input[type="file"]')[1];
+    const input = add.closest('.ef-card').querySelector('input[type="file"]');
     const file = new File(['x'], 'p.jpg', { type: 'image/jpeg' });
     await act(async () => { fireEvent.change(input, { target: { files: [file] } }); });
 
@@ -67,19 +71,24 @@ describe('Explore Hall of Fame — participant photos', () => {
     expect(screen.getByRole('button', { name: /^Foto teilen$/ })).toBeTruthy();
   });
 
-  it('shows no share button to somebody who was not there, and only the moment prompt on the owner\'s empty card', async () => {
+  it('shows no share button to somebody who was not there; the owner\'s card carries no moment prompt any more', async () => {
     await renderExplore([
-      card({ id: 1, is_participant: false, can_add_photo: false }),
-      card({ id: 2, owner_id: 9, moment_photo_url: null }),
+      card({ id: 1, name: 'Fremdes Treffen', is_participant: false, can_add_photo: false }),
+      card({ id: 2, name: 'Eigenes Treffen', owner_id: 9, moment_photo_url: null }),
     ]);
-    expect(screen.queryByRole('button', { name: /Teile dein Foto|Foto teilen/ })).toBeNull();
-    expect(screen.getByText('📸 Teile deinen JAMIE Moment')).toBeTruthy();
+    const foreign = screen.getByText('Fremdes Treffen').closest('.ef-card');
+    expect(foreign.querySelector('.ef-add-photo')).toBeNull();
+    // The moment upload moved to „Warst du dabei..“; the owner took part, so
+    // the card offers a photo like it does to any participant.
+    expect(screen.queryByText('📸 Teile deinen JAMIE Moment')).toBeNull();
+    const own = screen.getByText('Eigenes Treffen').closest('.ef-card');
+    expect(own.querySelector('.ef-add-photo')).toBeTruthy();
   });
 
   it('explains the limit when the server refuses', async () => {
     vi.mocked(groups.addPhoto).mockRejectedValueOnce({ response: { data: { code: 'USER_LIMIT' } } });
     await renderExplore([card()]);
-    const input = document.querySelectorAll('.ef-card input[type="file"]')[1];
+    const input = document.querySelector('.ef-card input[type="file"]');
     await act(async () => { fireEvent.change(input, { target: { files: [new File(['x'], 'p.jpg')] } }); });
     expect(toast.error).toHaveBeenCalledWith('Du hast für dieses Event schon 5 Fotos geteilt.');
   });

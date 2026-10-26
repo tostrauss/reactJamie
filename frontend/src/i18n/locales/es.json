@@ -478,8 +478,37 @@
   },
   "explore": {
     "tabs": {
-      "hallOfFame": "Hall of Fame",
-      "deals": "Ofertas"
+      "memories": "Memories",
+      "friends": "Friends"
+    },
+    "shareBanner": {
+      "title": "¿Estuviste allí?",
+      "subtitle": "Comparte tus mejores momentos con la comunidad."
+    },
+    "share": {
+      "title": "¿Estuviste allí?",
+      "back": "atrás",
+      "photoCta": "📸 Comparte tu foto",
+      "photoHint": "Aparecerá en las Memories de este encuentro.",
+      "empty": "Ahora mismo no hay ningún encuentro pendiente — tras tu próximo evento lo encontrarás aquí.",
+      "loadError": "No se pudieron cargar tus encuentros."
+    },
+    "friends": {
+      "title": "Friends",
+      "searchPlaceholder": "Buscar por nombre…",
+      "searchClear": "Borrar búsqueda",
+      "searchEmpty": "Sin resultados",
+      "searchLimited": "Demasiadas búsquedas – espera un momento.",
+      "feedEmpty": "Aún no hay memories de tus amigos",
+      "feedEmptyHint": "Encuentra amigos con la búsqueda y envíales una solicitud.",
+      "loginRequired": "Inicia sesión para encontrar amigos.",
+      "btnRequest": "+ Añadir",
+      "btnRequested": "Solicitado",
+      "btnFriends": "Amigos",
+      "btnAccept": "Aceptar",
+      "requestError": "No se pudo enviar la solicitud.",
+      "accepted": "¡Ya sois amigos! 🎉",
+      "acceptError": "No se pudo aceptar la solicitud."
     },
     "dealsInfo": {
       "explainer": "Muestra la oferta en el local y toca «Canjear ahora» delante del personal. Atención: a menudo solo se puede canjear una vez.",
@@ -513,7 +542,7 @@
       "reasonSimilar": "Intereses similares"
     },
     "empty": {
-      "hallOfFame": "Aún no hay eventos pasados",
+      "memories": "Aún no hay memories",
       "deals": "No hay ofertas disponibles ahora mismo"
     },
     "loginToFavorite": "Inicia sesión para guardar favoritos.",

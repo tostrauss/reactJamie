@@ -478,8 +478,37 @@
   },
   "explore": {
     "tabs": {
-      "hallOfFame": "Hall of Fame",
-      "deals": "Offres"
+      "memories": "Memories",
+      "friends": "Friends"
+    },
+    "shareBanner": {
+      "title": "Tu y étais ?",
+      "subtitle": "Partage tes plus beaux moments avec la communauté."
+    },
+    "share": {
+      "title": "Tu y étais..",
+      "back": "retour",
+      "photoCta": "📸 Partage ta photo",
+      "photoHint": "Elle apparaîtra dans les Memories de cette rencontre.",
+      "empty": "Aucune rencontre en attente pour le moment — après ton prochain événement, tu la trouveras ici.",
+      "loadError": "Impossible de charger tes rencontres."
+    },
+    "friends": {
+      "title": "Friends",
+      "searchPlaceholder": "Rechercher par nom…",
+      "searchClear": "Effacer la recherche",
+      "searchEmpty": "Aucun résultat",
+      "searchLimited": "Trop de recherches – patiente un instant.",
+      "feedEmpty": "Pas encore de memories de tes amis",
+      "feedEmptyHint": "Trouve des amis avec la recherche et envoie-leur une demande.",
+      "loginRequired": "Connecte-toi pour trouver des amis.",
+      "btnRequest": "+ Ajouter",
+      "btnRequested": "Demandé",
+      "btnFriends": "Amis",
+      "btnAccept": "Accepter",
+      "requestError": "Impossible d'envoyer la demande.",
+      "accepted": "Vous êtes maintenant amis 🎉",
+      "acceptError": "Impossible d'accepter la demande."
     },
     "dealsInfo": {
       "explainer": "Montre l'offre sur place et appuie sur « Utiliser maintenant » devant le personnel. Attention : souvent utilisable une seule fois.",
@@ -513,7 +542,7 @@
       "reasonSimilar": "Centres d'intérêt similaires"
     },
     "empty": {
-      "hallOfFame": "Pas encore d'événements passés",
+      "memories": "Pas encore de memories",
       "deals": "Aucune offre disponible pour le moment"
     },
     "loginToFavorite": "Connecte-toi pour enregistrer des favoris.",

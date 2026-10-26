@@ -478,8 +478,37 @@
   },
   "explore": {
     "tabs": {
-      "hallOfFame": "Hall of Fame",
-      "deals": "Deals"
+      "memories": "Memories",
+      "friends": "Friends"
+    },
+    "shareBanner": {
+      "title": "Were you there?",
+      "subtitle": "Share your best moments with the community."
+    },
+    "share": {
+      "title": "Were you there..",
+      "back": "back",
+      "photoCta": "📸 Share your photo",
+      "photoHint": "It shows up in this meetup's Memories.",
+      "empty": "No meetup waiting right now — after your next event you'll find it here.",
+      "loadError": "Couldn't load your meetups."
+    },
+    "friends": {
+      "title": "Friends",
+      "searchPlaceholder": "Search by name…",
+      "searchClear": "Clear search",
+      "searchEmpty": "No matches",
+      "searchLimited": "Too many searches – please wait a moment.",
+      "feedEmpty": "No memories from friends yet",
+      "feedEmptyHint": "Find friends with the search and send them a request.",
+      "loginRequired": "Log in to find friends.",
+      "btnRequest": "+ Add",
+      "btnRequested": "Requested",
+      "btnFriends": "Friends",
+      "btnAccept": "Accept",
+      "requestError": "Couldn't send the request.",
+      "accepted": "You're friends now 🎉",
+      "acceptError": "Couldn't accept the request."
     },
     "dealsInfo": {
       "explainer": "Show the deal on site and tap “Redeem now” in front of the staff. Note: often redeemable only once.",
@@ -513,7 +542,7 @@
       "reasonSimilar": "Similar interests"
     },
     "empty": {
-      "hallOfFame": "No past events yet",
+      "memories": "No memories yet",
       "deals": "No cooperations available right now"
     },
     "loginToFavorite": "Please log in to save favorites.",

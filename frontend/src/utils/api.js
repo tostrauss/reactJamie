@@ -417,9 +417,17 @@ export const groups = {
   // Get user's favorites
   // Explore's Hall of Fame — a dedicated server query. The page used to pull
   // the 50 newest groups and filter for PAST ones client-side, an intersection
-  // that empties out as creation volume rises (finding 22).
-  getHallOfFame: ({ limit = 30, offset = 0 } = {}) =>
-    axiosInstance.get('/groups/hall-of-fame', { params: { limit, offset } }),
+  // that empties out as creation volume rises (finding 22). photosOnly: the
+  // Memories feed — only cards with a picture (Tina, 22.10.2026).
+  getHallOfFame: ({ limit = 30, offset = 0, photosOnly = false } = {}) =>
+    axiosInstance.get('/groups/hall-of-fame', {
+      params: { limit, offset, ...(photosOnly ? { photos_only: 1 } : {}) },
+    }),
+  // „Warst du dabei..“: own past events still waiting for the caller's photo.
+  getMemoryPrompts: () => axiosInstance.get('/groups/hall-of-fame/prompts'),
+  // The Friends tab: the same cards, only events a friend took part in.
+  getHallOfFameFriends: ({ limit = 30, offset = 0 } = {}) =>
+    axiosInstance.get('/groups/hall-of-fame/friends', { params: { limit, offset } }),
 
   getFavorites: () =>
     axiosInstance.get('/groups/user/favorites'),

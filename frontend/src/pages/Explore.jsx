@@ -1,26 +1,18 @@
 import { useState, useEffect, useContext, useCallback, useRef, memo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useTranslation, Trans } from 'react-i18next';
-import { groups, deals as dealsApi, upload as uploadApi } from '../utils/api';
-import { CATEGORY_HIERARCHY } from '../utils/categories';
+import { useTranslation } from 'react-i18next';
+import { groups, upload as uploadApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { DealCard } from '../components/DealCard';
 import { UserName } from '../components/UserName';
 import { JamieWordmark } from '../components/JamieWordmark';
 import { PhotoLightbox } from '../components/PhotoLightbox';
+import { FriendSearch } from '../components/FriendSearch';
 import useOnPullRefresh from '../hooks/useOnPullRefresh';
+import {
+  getCategoryIcon, MAX_MEMORY_BYTES, withAddedPhoto, withoutPhoto, photoErrorText,
+} from '../utils/memories';
 import '../styles/explore.css';
-
-const getCategoryIcon = (catName) => {
-  if (!catName) return '✨';
-  for (const cat of CATEGORY_HIERARCHY) {
-    if (cat.label === catName || cat.id === catName) return cat.icon;
-    const sub = cat.subs?.find(s => s.name === catName);
-    if (sub) return sub.icon;
-  }
-  return '✨';
-};
 
 // i18n-aware: takes the page's `t` so English users don't see German labels
 // on Hall of Fame card timestamps. Keys live under explore.timeAgo.* and use
@@ -47,86 +39,40 @@ const formatCameraDate = (dateStr) => {
 const seedColor = (id, offset = 0) =>
   `hsl(${((id + offset) * 137) % 360}, 55%, 52%)`;
 
-// Mirrors backend utils/hallOfFame.js — only for the optimistic card state
-// after an add/delete; the server enforces both.
-const MAX_PHOTOS_PER_USER = 5;
-const MAX_PHOTOS_PER_EVENT = 40;
-const CARD_PHOTOS = 8; // photos the wall sends per card (preview)
-
-const withAddedPhoto = (g, photo) => {
-  const photoCount = (g.photo_count || 0) + 1;
-  const mine = (g.my_photo_count || 0) + 1;
-  return {
-    ...g,
-    photos: [photo, ...(g.photos || [])].slice(0, CARD_PHOTOS),
-    photo_count: photoCount,
-    my_photo_count: mine,
-    can_add_photo: mine < MAX_PHOTOS_PER_USER && photoCount < MAX_PHOTOS_PER_EVENT,
-  };
-};
-
-const withoutPhoto = (g, photo, myId) => {
-  const photoCount = Math.max(0, (g.photo_count || 0) - 1);
-  const mine = Math.max(0, (g.my_photo_count || 0) - (Number(photo.user_id) === Number(myId) ? 1 : 0));
-  return {
-    ...g,
-    photos: (g.photos || []).filter(p => p.id !== photo.id),
-    photo_count: photoCount,
-    my_photo_count: mine,
-    can_add_photo: !!g.is_participant && mine < MAX_PHOTOS_PER_USER && photoCount < MAX_PHOTOS_PER_EVENT,
-  };
-};
-
-// ─── Hall-of-Fame card ───────────────────────────────────────────────────────
+// ─── Memory card ─────────────────────────────────────────────────────────────
 // Read-only "polaroid" of a past event. The outer is a <div> (NOT a <button>)
-// for both owners and viewers — nested interactive elements (heart, "Moment"
-// upload prompt) inside a <button> is invalid HTML. We give the owner card
+// for both owners and viewers — nested interactive elements (heart, photo
+// button) inside a <button> is invalid HTML. We give the owner card
 // role="button" + keyboard handler so it stays accessible and tappable for
-// navigation, while preserving the heart and Moment-upload sub-buttons.
+// navigation, while preserving the heart and photo sub-buttons.
 //
 // The displayed image is moment_photo_url ?? newest participant photo ??
-// image_url. When the viewer is the owner AND moment_photo_url is null, a
-// BeReal-style upload prompt sits over the media. The prompt persists across
-// days — owners can fill it in whenever they want.
+// image_url. The feeds ask for cards with a picture only (Memories, Tina
+// 22.10.2026), so the grey placeholder is just a defensive fallback; the
+// owner's moment upload moved to „Warst du dabei..“ (pages/ShareMoments.jsx).
 //
 // Participants add photos too (Lea, 18.10.2026: „als Teilnehmer nicht"):
 // can_add_photo comes from the server (took part + below the limits), the
 // „📷 n Fotos" chip opens the gallery of everything shared for the event.
 
-const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadMoment, onAddPhoto, onOpenGallery, uploading, navigate, t }) => {
+const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onAddPhoto, onOpenGallery, uploading, navigate, t }) => {
   const icon = getCategoryIcon(item.category);
   const timeAgo = formatTimeAgo(item.created_at, t);
-  const fileInputRef = useRef(null);
   const photoInputRef = useRef(null);
   // Timestamp of the last picker selection. iOS synthesizes a "ghost" click on
   // whatever sits under the finger after a native picker/sheet dismisses — which
-  // lands on the (now prompt-free) owner card and navigated to the group page
-  // right after uploading a moment. Swallow any card navigation fired right
-  // after a pick so the user stays on Hall of Fame (Tobi, 2026-07-23).
+  // lands on the owner card and navigated to the group page right after
+  // uploading. Swallow any card navigation fired right after a pick so the
+  // user stays on the feed (Tobi, 2026-07-23).
   const lastPickRef = useRef(0);
 
   const displayPhoto = item.moment_photo_url || item.photos?.[0]?.url || item.image_url;
-  const showMomentPrompt = isOwner && !item.moment_photo_url;
-  // The owner's empty card already shows the moment prompt — one call to
-  // action at a time.
-  const canAddPhoto = !!item.can_add_photo && !showMomentPrompt;
+  const canAddPhoto = !!item.can_add_photo;
   const photoTotal = (item.moment_photo_url ? 1 : 0) + (item.photo_count || 0);
 
   const handleLike = (e) => {
     e.stopPropagation();
     onToggleLike(item);
-  };
-
-  const openPicker = (e) => {
-    e.stopPropagation();
-    fileInputRef.current?.click();
-  };
-
-  const handleFileSelected = (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // reset so picking the same file again re-fires onChange
-    lastPickRef.current = Date.now();
-    if (file) onUploadMoment(item, file);
   };
 
   const openPhotoPicker = (e) => {
@@ -136,7 +82,7 @@ const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadM
 
   const handlePhotoSelected = (e) => {
     const file = e.target.files?.[0];
-    e.target.value = '';
+    e.target.value = ''; // reset so picking the same file again re-fires onChange
     lastPickRef.current = Date.now();
     if (file) onAddPhoto(item, file);
   };
@@ -147,8 +93,8 @@ const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadM
   };
 
   const handleNavigate = () => {
-    // Ignore the post-picker ghost click so uploading a moment keeps the user
-    // on Hall of Fame instead of bouncing to the group page.
+    // Ignore the post-picker ghost click so uploading keeps the user on the
+    // feed instead of bouncing to the group page.
     if (Date.now() - lastPickRef.current < 1000) return;
     if (isOwner) navigate(`/group/${item.id}`);
   };
@@ -209,40 +155,15 @@ const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadM
           </button>
         )}
 
-        {/* Moment upload prompt — owner only, until moment_photo_url is set.
-            BeReal-style: full-card frosted overlay with a single CTA. */}
-        {showMomentPrompt && (
-          <button type="button" className="ef-moment-prompt" onClick={openPicker}>
-            <span className="ef-moment-icon" aria-hidden="true">
-              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-              </svg>
-            </span>
-            <span className="ef-moment-title">{t('explore.moment.cta')}</span>
-            <span className="ef-moment-sub">{t('explore.moment.hint')}</span>
-          </button>
-        )}
-
-        {/* Hidden file input — driven by the prompt button.
+        {/* Hidden file input — driven by the "Foto teilen" button.
             No `capture` attribute: with just accept="image/*", iOS/Android show
             the full picker (photo library OR camera). `capture="environment"`
             forced the rear camera and hid the gallery entirely (Arno, 2026-07-23).
-            stopPropagation on the input's own click: fileInputRef.current.click()
+            stopPropagation on the input's own click: photoInputRef.current.click()
             dispatches a real click on this input that bubbles up to the card's
             onClick and navigated to the group page the instant the picker opened.
-            Stop it here so opening the picker keeps the user on Hall of Fame
+            Stop it here so opening the picker keeps the user on the feed
             (Tobi, 2026-07-23). */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          style={{ display: 'none' }}
-          onClick={(e) => e.stopPropagation()}
-          onChange={handleFileSelected}
-        />
-        {/* Same picker rules for participant photos. */}
         <input
           ref={photoInputRef}
           type="file"
@@ -288,6 +209,9 @@ const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadM
             <p className="ef-user-name">
               <UserName name={item.owner_name || 'Unbekannt'} age={item.owner_age} />
             </p>
+            {/* The meetup itself, more prominent than the small time line
+                (Tina, 22.10.2026). */}
+            <p className="ef-event-title">{item.name}</p>
             <p className="ef-user-time">{timeAgo}</p>
           </div>
         </div>
@@ -318,110 +242,104 @@ const HofCard = memo(({ item, isOwner, liked, likeCount, onToggleLike, onUploadM
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
-const TABS = { hall: 'hall', deals: 'deals' };
+// Memories | Friends (Tina, 22.10.2026) — the deals moved to the club list.
+const TABS = { memories: 'memories', friends: 'friends' };
 
 export const Explore = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { user } = useContext(AuthContext);
   const toast = useToast();
+  const isAuthed = !!user && !user.isGuest;
 
-  // Tab held in the URL (?tab=deals) so navigating into a detail page and
+  // Tab held in the URL (?tab=friends) so navigating into a detail page and
   // swiping back restores the tab. replace:true keeps tab switches off the
-  // back stack.
+  // back stack. Anything else — an old ?tab=deals link included — is Memories.
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = searchParams.get('tab') === TABS.deals ? TABS.deals : TABS.hall;
+  const tab = searchParams.get('tab') === TABS.friends ? TABS.friends : TABS.memories;
   const setTab = (next) => setSearchParams(prev => {
     const sp = new URLSearchParams(prev);
-    if (next === TABS.hall) sp.delete('tab');
+    if (next === TABS.memories) sp.delete('tab');
     else sp.set('tab', next);
     return sp;
   }, { replace: true });
+
+  // The moment cron's push opens /explore?share=1 — its target is „Warst du
+  // dabei..“. Old bundles read only ?tab and keep their own upload card.
+  const toShare = searchParams.get('share') === '1';
+  useEffect(() => {
+    if (toShare) navigate('/explore/share', { replace: true });
+  }, [toShare, navigate]);
+
   const [loading, setLoading]         = useState(true);
   const [hallItems, setHallItems]     = useState([]);
-  const [dealList, setDealList]       = useState([]);
+  // The Friends tab's feed; null until its first visit (only who opens the
+  // tab pays for the query).
+  const [friendItems, setFriendItems] = useState(null);
   const [likedIds, setLikedIds]       = useState(() => new Set());
-  const [showDealsInfo, setShowDealsInfo] = useState(false);
   const [uploadingId, setUploadingId] = useState(null);
   // Hall-of-Fame gallery: { item, photos: [{ id?, url, user_id?, user_name, can_delete }], index }
   const [gallery, setGallery] = useState(null);
+  const friendsAskedRef = useRef(false);
 
   // Shared by the mount effect and pull-to-refresh (which skips the full-page
   // loading state — the top spinner is the feedback there).
   const loadData = useCallback(async () => {
-    const isAuthed = user && !user.isGuest;
-    const [hallRes, dealsRes, likesRes] = await Promise.all([
+    const authed = user && !user.isGuest;
+    const [hallRes, likesRes] = await Promise.all([
       // Server-side query (finding 22). The old shape — "the 50 newest groups,
       // then keep the past ones" — is an intersection that shrinks as creation
       // rate rises: at 10-50x volume the newest 50 span hours and are all
-      // future-dated, so the wall renders its empty state for everyone and the
-      // "Teile deinen JAMIE Moment" push lands on a page with nothing to act
-      // on. The server also excludes weekly-recurring groups, whose stored
-      // date is their first occurrence and therefore permanently "past".
-      groups.getHallOfFame({ limit: 30 }).catch(() => ({ data: [] })),
-      dealsApi.getAll().catch(() => ({ data: [] })),
-      isAuthed ? groups.getMyLikes().catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+      // future-dated, so the wall renders its empty state for everyone. The
+      // server also excludes weekly-recurring groups, whose stored date is
+      // their first occurrence and therefore permanently "past". photosOnly:
+      // Memories shows only cards with a picture; uploading for a photoless
+      // event happens on „Warst du dabei..“.
+      groups.getHallOfFame({ limit: 30, photosOnly: true }).catch(() => ({ data: [] })),
+      authed ? groups.getMyLikes().catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
     ]);
-    // The same rule the server now applies (see getHallOfFame): past events
-    // whose creator added a photo — moment_photo_url or the group's own
-    // image_url — plus the caller's OWN photoless past events, because this
-    // card is the ONLY entry point for uploading a moment (showMomentPrompt
-    // below) and the 15-min cron pushes owners here for exactly that.
     setHallItems(hallRes.data || []);
-    setDealList(dealsRes.data || []);
-    // getMyLikes returns a bare array of group ids the caller has liked.
+    // getMyLikes returns a bare array of group ids the caller has liked —
+    // over every group, so it serves the friends feed as well.
     setLikedIds(new Set(likesRes.data || []));
   }, [user?.id]);
 
+  const loadFriends = useCallback(async () => {
+    const res = await groups.getHallOfFameFriends({ limit: 30 }).catch(() => ({ data: [] }));
+    setFriendItems(res.data || []);
+  }, []);
+
   useEffect(() => {
+    if (toShare) return undefined;
     let cancelled = false;
     setLoading(true);
     loadData().catch(() => { /* silent */ }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [loadData]);
+  }, [loadData, toShare]);
 
-  useOnPullRefresh(loadData);
+  useEffect(() => {
+    if (tab !== TABS.friends || !isAuthed || friendsAskedRef.current) return;
+    friendsAskedRef.current = true;
+    loadFriends();
+  }, [tab, isAuthed, loadFriends]);
 
-  // Upload the JAMIE Moment photo for one of the owner's past events. Two-step:
-  //   1. POST /api/upload → returns the public URL for the file
-  //   2. PUT /api/groups/:id  with { moment_photo_url } → persists it
-  // Optimistic UI: we replace the card image as soon as step 1 returns so the
-  // owner doesn't have to wait for the DB roundtrip to see their picture.
-  const handleUploadMoment = useCallback(async (item, file) => {
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error(t('explore.moment.tooLarge'));
-      return;
-    }
-    let uploadedUrl;
-    try {
-      const res = await uploadApi.image(file);
-      uploadedUrl = res.data?.url;
-      if (!uploadedUrl) throw new Error('no url');
-    } catch {
-      toast.error(t('explore.moment.uploadError'));
-      return;
-    }
-    // Optimistic state update
-    setHallItems(prev => prev.map(g =>
-      g.id === item.id ? { ...g, moment_photo_url: uploadedUrl } : g
-    ));
-    try {
-      await groups.update(item.id, { moment_photo_url: uploadedUrl });
-      toast.success(t('explore.moment.savedToast'));
-    } catch {
-      // Revert if persisting failed
-      setHallItems(prev => prev.map(g =>
-        g.id === item.id ? { ...g, moment_photo_url: item.moment_photo_url ?? null } : g
-      ));
-      toast.error(t('explore.moment.saveError'));
-    }
-  }, [toast, t]);
+  useOnPullRefresh(() => (tab === TABS.friends && isAuthed
+    ? Promise.all([loadData(), loadFriends()])
+    : loadData()));
 
-  // A participant's photo for an event's card (Lea, 18.10.2026). Same two-step
-  // upload as the moment (the file passes POST /api/upload and its moderation),
-  // then the URL is attached; the card updates from the server's row.
+  // The same event can sit in both feeds — every card update goes to both
+  // lists, or a like or photo count would jump back on a tab switch.
+  const patchItem = useCallback((id, fn) => {
+    const apply = (list) => (list ? list.map(g => (g.id === id ? fn(g) : g)) : list);
+    setHallItems(apply);
+    setFriendItems(apply);
+  }, []);
+
+  // A participant's photo for an event's card (Lea, 18.10.2026). Two-step
+  // upload (the file passes POST /api/upload and its moderation), then the
+  // URL is attached; the card updates from the server's row.
   const handleAddPhoto = useCallback(async (item, file) => {
-    if (file.size > 10 * 1024 * 1024) {
+    if (file.size > MAX_MEMORY_BYTES) {
       toast.error(t('explore.moment.tooLarge'));
       return;
     }
@@ -431,18 +349,14 @@ export const Explore = () => {
       const url = up.data?.url;
       if (!url) throw new Error('no url');
       const res = await groups.addPhoto(item.id, url);
-      setHallItems(prev => prev.map(g => (g.id === item.id ? withAddedPhoto(g, res.data) : g)));
+      patchItem(item.id, g => withAddedPhoto(g, res.data));
       toast.success(t('explore.photos.added'));
     } catch (err) {
-      const code = err?.response?.data?.code;
-      if (code === 'USER_LIMIT') toast.error(t('explore.photos.limitUser', { count: MAX_PHOTOS_PER_USER }));
-      else if (code === 'EVENT_LIMIT') toast.error(t('explore.photos.limitEvent'));
-      else if (code === 'NOT_PARTICIPANT') toast.error(t('explore.photos.notParticipant'));
-      else toast.error(t('explore.photos.error'));
+      toast.error(photoErrorText(err, t));
     } finally {
       setUploadingId(null);
     }
-  }, [toast, t]);
+  }, [toast, t, patchItem]);
 
   // Opens with what the card already has, then swaps in the full list (with
   // per-photo delete rights). The owner's moment photo leads, never deletable
@@ -471,25 +385,24 @@ export const Explore = () => {
         const photos = prev.photos.filter(p => p.key === 'moment' || p.id !== photo.id);
         return photos.length ? { ...prev, photos, index: Math.min(prev.index, photos.length - 1) } : null;
       });
-      setHallItems(prev => prev.map(g => (g.id === item.id ? withoutPhoto(g, photo, user?.id) : g)));
+      patchItem(item.id, g => withoutPhoto(g, photo, user?.id));
       toast.success(t('explore.photos.deleted'));
     } catch {
       toast.error(t('explore.photos.deleteError'));
     }
-  }, [gallery, toast, t, user?.id]);
+  }, [gallery, toast, t, user?.id, patchItem]);
 
   // Optimistic public-like toggle with rollback. Hall-of-Fame items are all
   // type='group' (clubs have no date), so groups.toggleLike covers every card.
   // The card count updates immediately, then syncs to the server's authoritative
   // count on response.
-  const adjustCount = (id, delta) => setHallItems(prev => prev.map(g =>
-    g.id === id ? { ...g, like_count: Math.max(0, (g.like_count || 0) + delta) } : g));
-
   const handleToggleLike = useCallback(async (item) => {
     if (!user || user.isGuest) {
       toast.error(t('explore.loginToLike'));
       return;
     }
+    const adjustCount = (id, delta) => patchItem(id, g =>
+      ({ ...g, like_count: Math.max(0, (g.like_count || 0) + delta) }));
     const wasLiked = likedIds.has(item.id);
     setLikedIds(prev => {
       const next = new Set(prev);
@@ -501,7 +414,7 @@ export const Explore = () => {
       const res = await groups.toggleLike(item.id);
       if (res?.data) {
         // Sync to the authoritative count + liked state from the server.
-        setHallItems(prev => prev.map(g => g.id === item.id ? { ...g, like_count: res.data.like_count } : g));
+        patchItem(item.id, g => ({ ...g, like_count: res.data.like_count }));
         setLikedIds(prev => {
           const next = new Set(prev);
           res.data.liked ? next.add(item.id) : next.delete(item.id);
@@ -517,7 +430,29 @@ export const Explore = () => {
       adjustCount(item.id, wasLiked ? 1 : -1);
       toast.error(t('explore.likeError'));
     }
-  }, [user, toast, t, likedIds]);
+  }, [user, toast, t, likedIds, patchItem]);
+
+  const spinner = <div className="explore-loading"><div className="explore-spinner" /></div>;
+
+  const renderCards = (items) => (
+    <div className="ef-feed">
+      {items.map(item => (
+        <HofCard
+          key={`hof-${item.id}`}
+          item={item}
+          isOwner={isAuthed && Number(item.owner_id) === Number(user.id)}
+          liked={likedIds.has(item.id)}
+          likeCount={item.like_count || 0}
+          onToggleLike={handleToggleLike}
+          onAddPhoto={handleAddPhoto}
+          onOpenGallery={handleOpenGallery}
+          uploading={uploadingId === item.id}
+          navigate={navigate}
+          t={t}
+        />
+      ))}
+    </div>
+  );
 
   return (
     <div className="explore-container">
@@ -534,129 +469,72 @@ export const Explore = () => {
           <div className="ef-tabs" role="tablist">
             <button
               role="tab"
-              aria-selected={tab === TABS.hall}
-              className={`ef-tab${tab === TABS.hall ? ' is-active' : ''}`}
-              onClick={() => setTab(TABS.hall)}
+              aria-selected={tab === TABS.memories}
+              className={`ef-tab${tab === TABS.memories ? ' is-active' : ''}`}
+              onClick={() => setTab(TABS.memories)}
             >
-              {t('explore.tabs.hallOfFame')}
+              {t('explore.tabs.memories')}
             </button>
             <button
               role="tab"
-              aria-selected={tab === TABS.deals}
-              className={`ef-tab${tab === TABS.deals ? ' is-active' : ''}`}
-              onClick={() => setTab(TABS.deals)}
+              aria-selected={tab === TABS.friends}
+              className={`ef-tab${tab === TABS.friends ? ' is-active' : ''}`}
+              onClick={() => setTab(TABS.friends)}
             >
-              {t('explore.tabs.deals')}
+              {t('explore.tabs.friends')}
             </button>
           </div>
         </div>
 
-        {loading ? (
-          <div className="explore-loading"><div className="explore-spinner" /></div>
-        ) : tab === TABS.hall ? (
-          hallItems.length === 0 ? (
+        {tab === TABS.friends ? (
+          !isAuthed ? (
             <div className="explore-empty">
-              <div className="explore-empty-icon">🏆</div>
-              <p>{t('explore.empty.hallOfFame')}</p>
+              <div className="explore-empty-icon">👋</div>
+              <p>{t('explore.friends.loginRequired')}</p>
             </div>
           ) : (
-            <div className="ef-feed">
-              {hallItems.map(item => (
-                <HofCard
-                  key={`hof-${item.id}`}
-                  item={item}
-                  isOwner={user && !user.isGuest && Number(item.owner_id) === Number(user.id)}
-                  liked={likedIds.has(item.id)}
-                  likeCount={item.like_count || 0}
-                  onToggleLike={handleToggleLike}
-                  onUploadMoment={handleUploadMoment}
-                  onAddPhoto={handleAddPhoto}
-                  onOpenGallery={handleOpenGallery}
-                  uploading={uploadingId === item.id}
-                  navigate={navigate}
-                  t={t}
-                />
-              ))}
+            <div className="ef-friends">
+              <h2 className="ef-friends-title">{t('explore.friends.title')}</h2>
+              {/* The search replaces the feed while a query is typed. Accepting
+                  a request makes a new friend — their memories belong here. */}
+              <FriendSearch onAccepted={loadFriends}>
+                {loading || friendItems === null ? spinner
+                  : friendItems.length === 0 ? (
+                    <div className="explore-empty">
+                      <div className="explore-empty-icon">📸</div>
+                      <p>{t('explore.friends.feedEmpty')}</p>
+                      <span className="ef-friends-empty-hint">{t('explore.friends.feedEmptyHint')}</span>
+                    </div>
+                  ) : renderCards(friendItems)}
+              </FriendSearch>
             </div>
           )
-        ) : (
+        ) : loading ? spinner : (
           <>
-            {/* Compact explainer directly under the Deals tab (Tina 2026-08-27).
-                Coral copy + bold underlined "Mehr Infos?" opens the details modal. */}
-            <div className="ef-deals-explainer">
-              <p className="ef-deals-explainer-text">
-                {t('explore.dealsInfo.explainer')}{' '}
-                <button
-                  type="button"
-                  className="ef-deals-explainer-link"
-                  onClick={() => setShowDealsInfo(true)}
-                >
-                  {t('explore.dealsInfo.moreInfo')}
-                </button>
-              </p>
-            </div>
-            {dealList.length === 0 ? (
-              <div className="explore-empty">
-                <div className="explore-empty-icon">🤝</div>
-                <p>{t('explore.empty.deals')}</p>
-              </div>
-            ) : (
-              <div className="ef-deal-feed">
-                {dealList.map(deal => (
-                  <DealCard key={`deal-${deal.id}`} deal={deal} variant="explore" />
-                ))}
-              </div>
+            {/* „Warst du dabei?" (Tina, 22.10.2026) — the way to share a photo
+                of an own past meetup; the feed itself shows pictures only. */}
+            {isAuthed && (
+              <button type="button" className="ef-share-banner" onClick={() => navigate('/explore/share')}>
+                <span className="ef-share-banner-text">
+                  <span className="ef-share-banner-title">{t('explore.shareBanner.title')}</span>
+                  <span className="ef-share-banner-sub">{t('explore.shareBanner.subtitle')}</span>
+                </span>
+                <svg className="ef-share-banner-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </button>
             )}
+            {hallItems.length === 0 ? (
+              <div className="explore-empty">
+                <div className="explore-empty-icon">🏆</div>
+                <p>{t('explore.empty.memories')}</p>
+              </div>
+            ) : renderCards(hallItems)}
           </>
         )}
 
       </div>
-
-      {showDealsInfo && (
-        <div className="modal-overlay" onClick={() => setShowDealsInfo(false)}>
-          <div className="modal-content ef-deals-modal" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              className="ef-deals-modal-close"
-              onClick={() => setShowDealsInfo(false)}
-              aria-label={t('explore.dealsInfo.close')}
-            >
-              ×
-            </button>
-
-            <div className="ef-deals-modal-scroll">
-              <h3 className="ef-deals-h">{t('explore.dealsInfo.whatTitle')}</h3>
-              <p className="ef-deals-p">{t('explore.dealsInfo.whatBody')}</p>
-
-              <h3 className="ef-deals-h">{t('explore.dealsInfo.howTitle')}</h3>
-              <ol className="ef-deals-steps">
-                <li>{t('explore.dealsInfo.step1')}</li>
-                <li>{t('explore.dealsInfo.step2')}</li>
-                <li>{t('explore.dealsInfo.step3')}</li>
-                <li>{t('explore.dealsInfo.step4')}</li>
-              </ol>
-
-              <p className="ef-deals-p ef-deals-disclaimer">{t('explore.dealsInfo.disclaimer')}</p>
-
-              <h3 className="ef-deals-h">{t('explore.dealsInfo.missingTitle')}</h3>
-              <p className="ef-deals-p">
-                <Trans
-                  i18nKey="explore.dealsInfo.missingBody"
-                  components={{ mail: <a className="ef-deals-mail" href="mailto:office@jamie-app.com" /> }}
-                />
-              </p>
-            </div>
-
-            <button
-              type="button"
-              className="ef-deals-cta"
-              onClick={() => setShowDealsInfo(false)}
-            >
-              {t('explore.dealsInfo.cta')}
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Hall-of-Fame gallery: who shared each photo, delete where allowed. */}
       <PhotoLightbox

@@ -478,8 +478,37 @@
   },
   "explore": {
     "tabs": {
-      "hallOfFame": "Hall of Fame",
-      "deals": "Deals"
+      "memories": "Memories",
+      "friends": "Friends"
+    },
+    "shareBanner": {
+      "title": "Eri presente?",
+      "subtitle": "Condividi i tuoi momenti più belli con la community."
+    },
+    "share": {
+      "title": "Eri presente..",
+      "back": "indietro",
+      "photoCta": "📸 Condividi la tua foto",
+      "photoHint": "Apparirà nelle Memories di questo incontro.",
+      "empty": "Al momento nessun incontro in attesa — dopo il tuo prossimo evento lo troverai qui.",
+      "loadError": "Impossibile caricare i tuoi incontri."
+    },
+    "friends": {
+      "title": "Friends",
+      "searchPlaceholder": "Cerca per nome…",
+      "searchClear": "Cancella ricerca",
+      "searchEmpty": "Nessun risultato",
+      "searchLimited": "Troppe ricerche – attendi un attimo.",
+      "feedEmpty": "Ancora nessuna memory dai tuoi amici",
+      "feedEmptyHint": "Trova amici con la ricerca e invia loro una richiesta.",
+      "loginRequired": "Accedi per trovare amici.",
+      "btnRequest": "+ Aggiungi",
+      "btnRequested": "Richiesto",
+      "btnFriends": "Amici",
+      "btnAccept": "Accetta",
+      "requestError": "Impossibile inviare la richiesta.",
+      "accepted": "Ora siete amici 🎉",
+      "acceptError": "Impossibile accettare la richiesta."
     },
     "dealsInfo": {
       "explainer": "Mostra il deal sul posto e tocca “Riscatta ora” davanti al personale. Attenzione: spesso riscattabile una sola volta.",
@@ -513,7 +542,7 @@
       "reasonSimilar": "Interessi simili"
     },
     "empty": {
-      "hallOfFame": "Ancora nessun evento passato",
+      "memories": "Ancora nessuna memory",
       "deals": "Al momento non ci sono offerte disponibili"
     },
     "loginToFavorite": "Accedi per salvare i preferiti.",

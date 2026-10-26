@@ -478,8 +478,37 @@
   },
   "explore": {
     "tabs": {
-      "hallOfFame": "Hall of Fame",
-      "deals": "Deals"
+      "memories": "Memories",
+      "friends": "Friends"
+    },
+    "shareBanner": {
+      "title": "Warst du dabei?",
+      "subtitle": "Teile deine schönsten Momente mit der Community."
+    },
+    "share": {
+      "title": "Warst du dabei..",
+      "back": "zurück",
+      "photoCta": "📸 Teile dein Foto",
+      "photoHint": "Es erscheint bei den Memories dieses Treffens.",
+      "empty": "Gerade ist kein Treffen offen — nach deinem nächsten Event findest du es hier.",
+      "loadError": "Deine Treffen konnten nicht geladen werden."
+    },
+    "friends": {
+      "title": "Friends",
+      "searchPlaceholder": "Nach Namen suchen…",
+      "searchClear": "Suche löschen",
+      "searchEmpty": "Keine Treffer",
+      "searchLimited": "Zu viele Suchanfragen – bitte warte kurz.",
+      "feedEmpty": "Noch keine Memories von Freunden",
+      "feedEmptyHint": "Finde Freunde über die Suche und schick ihnen eine Anfrage.",
+      "loginRequired": "Melde dich an, um Freunde zu finden.",
+      "btnRequest": "+ Anfragen",
+      "btnRequested": "Angefragt",
+      "btnFriends": "Befreundet",
+      "btnAccept": "Annehmen",
+      "requestError": "Anfrage konnte nicht gesendet werden.",
+      "accepted": "Ihr seid jetzt befreundet 🎉",
+      "acceptError": "Anfrage konnte nicht angenommen werden."
     },
     "dealsInfo": {
       "explainer": "Zeig den Deal vor Ort und tippe vor dem Personal auf „Jetzt einlösen“. Achtung: Oft nur 1× einlösbar.",
@@ -513,7 +542,7 @@
       "reasonSimilar": "Ähnliche Interessen"
     },
     "empty": {
-      "hallOfFame": "Noch keine vergangenen Events",
+      "memories": "Noch keine Memories",
       "deals": "Aktuell sind keine Kooperationen verfügbar"
     },
     "loginToFavorite": "Bitte melde dich an, um Favoriten zu speichern.",

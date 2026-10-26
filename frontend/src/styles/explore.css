@@ -1852,3 +1852,325 @@
   text-overflow: ellipsis;
   max-width: 110px;
 }
+
+/* ══ Memories | Friends (Tina, 22.10.2026) ═══════════════════════════ */
+
+/* Form fields inside the Explore scroller stay editable: the
+   user-select:none at the top of this file (.explore-content *, 0,1,0)
+   outranks global.css's input rule (0,0,1), and on iOS an unselectable
+   input cannot be typed into. */
+.explore-content input,
+.explore-content textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* The meetup on a Memory card, between the owner's name and the small time
+   line — more prominent than that line and the category chip. */
+.ef-event-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--text-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* „Warst du dabei?" — the way into the share page, above the feed. */
+.ef-share-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: calc(100% - 32px);
+  margin: 14px 16px 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(253, 118, 102, 0.35);
+  border-radius: 18px;
+  background: rgba(253, 118, 102, 0.1);
+  color: var(--text-white);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform 0.15s, background 0.15s;
+}
+.ef-share-banner:active {
+  transform: scale(0.98);
+  background: rgba(253, 118, 102, 0.16);
+}
+.ef-share-banner-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ef-share-banner-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-white);
+}
+.ef-share-banner-sub {
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text-light);
+}
+.ef-share-banner-chevron {
+  flex-shrink: 0;
+  color: var(--accent-coral);
+}
+
+/* ── Friends tab: heading, people search, result rows ─────────────── */
+.ef-friends {
+  padding-top: 14px;
+}
+.ef-friends-title {
+  margin: 0 16px 12px;
+  font-size: 22px;
+  font-weight: 900;
+  font-family: 'Archivo', sans-serif;
+  letter-spacing: -0.3px;
+  color: var(--text-white);
+}
+/* Same pill as the /friends search (friends.css .fr-search-wrap). */
+.ef-friends-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 16px 4px;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.ef-friends-search:focus-within {
+  border-color: rgba(253, 118, 102, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+}
+.ef-friends-search-icon {
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+}
+.ef-friends-search-input {
+  flex: 1;
+  min-width: 0;
+  /* The !important set of .fr-search-input: global.css's input:not(...)
+     selector (0,3,1) beats a single class, and WebKit would draw its own
+     field box inside the pill. font-size is left at global's 16px — it also
+     prevents the iOS zoom-on-focus. */
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  color: var(--text-white);
+  font-family: inherit;
+  padding: 11px 0 !important;
+  outline: none;
+}
+.ef-friends-search-input::placeholder { color: rgba(255, 255, 255, 0.4); }
+.ef-friends-search-clear {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ef-friends-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+.ef-friends-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+}
+.ef-friends-person {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ef-friends-av {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg-card);
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--accent-coral);
+}
+.ef-friends-av img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ef-friends-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ef-friends-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ef-friends-bio {
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ef-friends-btn {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.ef-friends-btn--primary {
+  background: var(--accent-coral);
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.ef-friends-btn--primary:active { transform: scale(0.95); }
+.ef-friends-btn--primary:disabled { opacity: 0.6; cursor: default; transform: none; }
+.ef-friends-btn--done {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-light);
+}
+.ef-friends-empty-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ── „Warst du dabei.." page (pages/ShareMoments.jsx) ─────────────────
+   Reuses .explore-container/.explore-content and the feed cards; the header
+   stays above the scroller and clears the iOS status bar like .fr-header. */
+.sm-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px 12px;
+  background: var(--bg-primary);
+}
+.sm-back {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 14px 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: var(--bg-card);
+  color: var(--text-white);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.sm-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+  color: var(--text-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sm-card {
+  cursor: default;
+}
+.sm-card .ef-moment-prompt:disabled {
+  cursor: default;
+}
+/* Solid coral — the feed's .ef-moment-icon predates the no-gradient rule. */
+.sm-cta-icon {
+  width: 60px;
+  height: 60px;
+  margin-bottom: 4px;
+  border-radius: 50%;
+  background: var(--accent-coral);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 18px rgba(253, 118, 102, 0.45);
+}
+.sm-meta {
+  padding: 11px 4px 13px;
+}
+.sm-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sm-when {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
