@@ -4044,11 +4044,13 @@ suite('write endpoints against real Postgres', () => {
   });
 
 
-  // Tina 12.10.2026, decided with Tobi: free accounts join at most 3 plain
-  // GROUPS per rolling week (utils/weeklyJoinLimit.js). Real Postgres because
-  // the rule lives in the count query (distinct groups, rejected requests
-  // excluded) and in the join path's ordering.
-  describe('weekly group-join limit for free accounts (12.10.2026)', () => {
+  // Tina + Tobi 28.10.2026 (supersedes the weekly rule from 12.10.): free
+  // accounts join at most 3 groups OR CLUB EVENTS per VIENNA calendar day —
+  // clubs/communities never count — and create at most 1 plain group per day
+  // (utils/dailyLimits.js). Real Postgres because the rules live in the count
+  // queries (Vienna day window, distinct groups, rejected requests excluded,
+  // soft-deleted creations still counted) and in the join path's ordering.
+  describe('daily free-account limits (28.10.2026)', () => {
     const mkUser = async (email, isAdmin = false) => (await db.query(
       `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider, is_admin)
        VALUES ($1, 'Wk', '1995-01-01', 'female', $2, TRUE, 'email', $3) RETURNING id`,
@@ -4058,61 +4060,108 @@ suite('write endpoints against real Postgres', () => {
        VALUES ($1, $2, $3, 'Sport', 'Wien', 20, $4, $5, NOW() + INTERVAL '3 days', 'approved') RETURNING id`,
       [name, type, A, isPrivate, parent])).rows[0].id;
     const join = (u, g) => call(C.joinGroup, { userId: u, params: { id: String(g) }, body: {} });
+    const futureDay = () => new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+    const create = (u, name) => call(C.createGroup, { userId: u, body: {
+      name, description: 'desc', type: 'group', category: 'Sport',
+      date: futureDay(), time: '18:00', location: 'Wien', max_members: 10 } });
 
-    it('3 groups, then WEEKLY_JOIN_LIMIT; a rejoin, a club event and a club cost nothing', async () => {
-      const U = await mkUser('smoke-weekly-u@x.com');
-      const [g1, g2, g3, g4] = [await mkGroup('Wk 1'), await mkGroup('Wk 2'), await mkGroup('Wk 3'), await mkGroup('Wk 4')];
+    it('3 joins (a club event counts), then DAILY_JOIN_LIMIT; a rejoin and a club cost nothing; Vienna DAY window', async () => {
+      const U = await mkUser('smoke-daily-u@x.com');
+      const club = await mkGroup('Dl Club', { type: 'club' });
+      const ev = await mkGroup('Dl Event', { type: 'event', parent: club });
+      const [g1, g2, g3] = [await mkGroup('Dl 1'), await mkGroup('Dl 2'), await mkGroup('Dl 3')];
       ok(await join(U, g1));
       ok(await join(U, g2));
-      ok(await join(U, g3));
-      const blocked = await join(U, g4);
+      ok(await join(U, ev));                                   // slot 3 — club events count now (Tina 28.10.)
+      const blocked = await join(U, g3);
       expect(blocked.statusCode).toBe(403);
-      expect(blocked.body.code).toBe('WEEKLY_JOIN_LIMIT');
+      expect(blocked.body.code).toBe('DAILY_JOIN_LIMIT');
       expect(blocked.body.limit).toBe(3);
-      expect(blocked.body.resets_on).toMatch(/^\d{2}\.\d{2}\.$/);
+      expect(blocked.body.resets_at).toBeTruthy();
       expect(blocked.body.error).not.toMatch(/Pro/);          // old iOS bundles show it verbatim (3.1.1)
-      expect((await db.query('SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2', [g4, U])).rows).toHaveLength(0);
+      expect((await db.query('SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2', [g3, U])).rows).toHaveLength(0);
 
       // Left and joining the same group again: already counted, no second slot.
       await db.query('DELETE FROM group_members WHERE group_id=$1 AND user_id=$2', [g1, U]);
       ok(await join(U, g1));
 
-      // Clubs and club events stay free.
-      const club = await mkGroup('Wk Club', { type: 'club' });
-      const ev = await mkGroup('Wk Event', { type: 'event', parent: club });
-      ok(await join(U, ev));
+      // Clubs (and communities) stay free even at the limit.
+      ok(await join(U, club));
+
+      // A Vienna DAY window, not a rolling week: age the log one day → free again.
+      await db.query(`UPDATE group_join_log SET created_at = created_at - INTERVAL '1 day' WHERE user_id = $1`, [U]);
+      ok(await join(U, g3));
     });
 
     it('a rejected request gives the slot back', async () => {
-      const V = await mkUser('smoke-weekly-v@x.com');
-      const [a, b, c] = [await mkGroup('Wk V1'), await mkGroup('Wk V2'), await mkGroup('Wk V3')];
-      const priv = await mkGroup('Wk V private', { isPrivate: true });
+      const V = await mkUser('smoke-daily-v@x.com');
+      const [a, b, c] = [await mkGroup('Dl V1'), await mkGroup('Dl V2'), await mkGroup('Dl V3')];
+      const priv = await mkGroup('Dl V private', { isPrivate: true });
       ok(await join(V, a));
       ok(await join(V, b));
       const sent = await join(V, priv);                        // the request is slot 3
       ok(sent);
       expect(sent.body.status).toBe('pending');
-      expect((await join(V, c)).body.code).toBe('WEEKLY_JOIN_LIMIT');
+      expect((await join(V, c)).body.code).toBe('DAILY_JOIN_LIMIT');
       const reqId = (await db.query('SELECT id FROM group_join_requests WHERE group_id=$1 AND user_id=$2', [priv, V])).rows[0].id;
       ok(await call(C.handleJoinRequest, { userId: A, params: { id: String(priv), requestId: String(reqId) }, body: { action: 'reject' } }));
       ok(await join(V, c));
     });
 
-    it('JAMIE Pro and app admins are unlimited; FREE_WEEKLY_GROUP_JOINS=0 switches it off', async () => {
-      const P = await mkUser('smoke-weekly-pro@x.com');
+    it('JAMIE Pro and app admins are unlimited; FREE_DAILY_GROUP_JOINS=0 switches it off', async () => {
+      const P = await mkUser('smoke-daily-pro@x.com');
       await db.query(
         `INSERT INTO subscriptions (user_id, status, current_period_end) VALUES ($1, 'active', NOW() + INTERVAL '30 days')`, [P]);
-      const Adm = await mkUser('smoke-weekly-admin@x.com', true);
-      const W = await mkUser('smoke-weekly-off@x.com');
+      const Adm = await mkUser('smoke-daily-admin@x.com', true);
+      const W = await mkUser('smoke-daily-off@x.com');
       const gs = [];
-      for (let i = 0; i < 4; i += 1) gs.push(await mkGroup(`Wk X${i}`));
+      for (let i = 0; i < 4; i += 1) gs.push(await mkGroup(`Dl X${i}`));
       for (const g of gs) ok(await join(P, g));
       for (const g of gs) ok(await join(Adm, g));
-      process.env.FREE_WEEKLY_GROUP_JOINS = '0';
+      process.env.FREE_DAILY_GROUP_JOINS = '0';
       try {
         for (const g of gs) ok(await join(W, g));
       } finally {
-        delete process.env.FREE_WEEKLY_GROUP_JOINS;
+        delete process.env.FREE_DAILY_GROUP_JOINS;
+      }
+    });
+
+    it('free accounts create 1 group per Vienna day; soft-delete keeps the slot used', async () => {
+      const Cu = await mkUser('smoke-daily-create@x.com');
+      const first = await create(Cu, 'Dl Create 1');
+      expect(first.statusCode, JSON.stringify(first.body)).toBe(201);
+      const second = await create(Cu, 'Dl Create 2');
+      expect(second.statusCode).toBe(403);
+      expect(second.body.code).toBe('DAILY_CREATE_LIMIT');
+      expect(second.body.limit).toBe(1);
+      expect(second.body.error).not.toMatch(/Pro/);           // old iOS bundles show it verbatim (3.1.1)
+
+      // create → delete → create must not refill the budget.
+      await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [first.body.id]);
+      expect((await create(Cu, 'Dl Create 3')).body.code).toBe('DAILY_CREATE_LIMIT');
+
+      // Yesterday's creation does not count against today (Vienna day window).
+      await db.query(`UPDATE groups SET created_at = created_at - INTERVAL '1 day' WHERE owner_id = $1 AND type = 'group'`, [Cu]);
+      const again = await create(Cu, 'Dl Create 4');
+      expect(again.statusCode, JSON.stringify(again.body)).toBe(201);
+    });
+
+    it('Pro and app admins create freely; FREE_DAILY_GROUP_CREATES=0 switches it off', async () => {
+      const P = await mkUser('smoke-daily-create-pro@x.com');
+      await db.query(
+        `INSERT INTO subscriptions (user_id, status, current_period_end) VALUES ($1, 'active', NOW() + INTERVAL '30 days')`, [P]);
+      const Adm = await mkUser('smoke-daily-create-admin@x.com', true);
+      expect((await create(P, 'Dl P1')).statusCode).toBe(201);
+      expect((await create(P, 'Dl P2')).statusCode).toBe(201);
+      expect((await create(Adm, 'Dl A1')).statusCode).toBe(201);
+      expect((await create(Adm, 'Dl A2')).statusCode).toBe(201);
+      const W = await mkUser('smoke-daily-create-off@x.com');
+      process.env.FREE_DAILY_GROUP_CREATES = '0';
+      try {
+        expect((await create(W, 'Dl W1')).statusCode).toBe(201);
+        expect((await create(W, 'Dl W2')).statusCode).toBe(201);
+      } finally {
+        delete process.env.FREE_DAILY_GROUP_CREATES;
       }
     });
   });

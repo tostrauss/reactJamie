@@ -1596,7 +1596,7 @@ const runStartupMigrations = async () => {
   });
 
   // Weekly group-join limit for free accounts (Tina 12.10.2026,
-  // utils/weeklyJoinLimit.js). Its own log because leaving deletes the
+  // utils/dailyLimits.js). Its own log because leaving deletes the
   // membership row. Same tx + lock_timeout shape as featured_clubs: the FKs
   // briefly lock users/groups on first creation; on an existing table this is
   // a no-op. Missing table → the limit fails open until the next boot retries.

@@ -1697,7 +1697,8 @@
       "paidEvents": "Create your paid event now!",
       "reviewRequests": "Manage your join requests like a pro!",
       "boosts": "Boost your group to the top now!",
-      "joins": "Join as many groups as you like!"
+      "joins": "Join as many groups as you like!",
+      "creates": "Create as many meet-ups as you like!"
     },
     "trialHeadlineDays_one": "🎁 Start with {{count}} day free",
     "trialHeadlineDays_other": "🎁 Start with {{count}} days free",
@@ -2622,6 +2623,21 @@
     "JOIN_REQUEST_PENDING": "Your request to join is still waiting for an answer.",
     "CLUB_FULL": "This club is full.",
     "JOIN_CAP_REACHED": "You’ve already joined this club twice and can’t join it again.",
-    "WEEKLY_JOIN_LIMIT": "You’ve already joined {{limit}} groups this week. From {{resets_on}} you can join a new group again."
+    "DAILY_JOIN_LIMIT": "You’ve already joined {{limit}} groups today. Tomorrow you can join a new group again.",
+    "DAILY_CREATE_LIMIT": "You’ve already created a meet-up today. From tomorrow you can create a new one."
+  },
+  "dailyLimit": {
+    "title": "Daily limit reached",
+    "bodyJoin": "This keeps JAMIE active, personal and relevant. Take a close look at groups and join the activities that really fit you.",
+    "bodyCreate": "You’ve already created a meet-up today. This keeps JAMIE active, personal and relevant – give your meet-up your full attention.",
+    "proHeading": "Want more? Go Pro.",
+    "b1T": "Join unlimited groups",
+    "b1D": "No more daily limits.",
+    "b2T": "Create more groups",
+    "b2D": "Bring your own ideas into the community faster.",
+    "b3T": "More visibility",
+    "b3D": "Your groups reach more people.",
+    "cta": "Discover JAMIE Pro",
+    "later": "Back tomorrow"
   }
 }

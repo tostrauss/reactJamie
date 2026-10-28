@@ -1697,7 +1697,8 @@
       "paidEvents": "¡Crea ahora tu evento de pago!",
       "reviewRequests": "¡Gestiona tus solicitudes como un profesional!",
       "boosts": "¡Impulsa tu grupo a lo más alto ahora!",
-      "joins": "¡Únete a todos los grupos que quieras!"
+      "joins": "¡Únete a todos los grupos que quieras!",
+      "creates": "¡Crea tantos encuentros como quieras!"
     },
     "trialHeadlineDays_one": "🎁 Empieza con {{count}} día gratis",
     "trialHeadlineDays_other": "🎁 Empieza con {{count}} días gratis",
@@ -2622,6 +2623,21 @@
     "JOIN_REQUEST_PENDING": "Tu solicitud para unirte aún está pendiente de respuesta.",
     "CLUB_FULL": "Este club está completo.",
     "JOIN_CAP_REACHED": "Ya te has unido a este club dos veces y no puedes volver a unirte.",
-    "WEEKLY_JOIN_LIMIT": "Esta semana ya te has unido a {{limit}} grupos. A partir del {{resets_on}} podrás unirte de nuevo a un grupo."
+    "DAILY_JOIN_LIMIT": "Hoy ya te has unido a {{limit}} grupos. Mañana podrás unirte de nuevo a un grupo.",
+    "DAILY_CREATE_LIMIT": "Hoy ya has creado un encuentro. A partir de mañana podrás crear uno nuevo."
+  },
+  "dailyLimit": {
+    "title": "Límite diario alcanzado",
+    "bodyJoin": "Así JAMIE se mantiene activo, personal y relevante. Mira bien los grupos y únete a las actividades que de verdad encajan contigo.",
+    "bodyCreate": "Hoy ya has creado un encuentro. Así JAMIE se mantiene activo, personal y relevante: dale toda tu atención a tu encuentro.",
+    "proHeading": "¿Más? Entonces Pro.",
+    "b1T": "Únete a grupos sin límite",
+    "b1D": "Se acabaron los límites diarios.",
+    "b2T": "Crea más grupos",
+    "b2D": "Lleva tus ideas a la comunidad más rápido.",
+    "b3T": "Mayor visibilidad",
+    "b3D": "Tus grupos llegan a más gente.",
+    "cta": "Descubre JAMIE Pro",
+    "later": "Mañana de nuevo"
   }
 }

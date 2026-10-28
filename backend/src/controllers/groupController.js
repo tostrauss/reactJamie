@@ -9,9 +9,9 @@ import { parentClubGateSql } from '../utils/clubGate.js';
 import { postSystemMessage, SYSTEM_TEXTS } from '../utils/systemMessage.js';
 import { isUserPro } from './subscriptionController.js';
 import {
-  freeWeeklyGroupJoins, countsTowardWeeklyLimit, weeklyJoinState, logGroupJoin,
-  weeklyLimitExempt, weeklyLimitBody,
-} from '../utils/weeklyJoinLimit.js';
+  freeDailyGroupJoins, freeDailyGroupCreates, countsTowardJoinLimit, dailyJoinState,
+  dailyCreateState, logGroupJoin, limitExempt, dailyJoinLimitBody, dailyCreateLimitBody,
+} from '../utils/dailyLimits.js';
 import { normalizeCategories } from '../utils/normalizeCategories.js';
 import { checkImageField } from '../utils/safeUrl.js';
 import { distanceKmSql } from '../utils/geoRadius.js';
@@ -372,6 +372,19 @@ export const createGroup = async (req, res) => {
     );
     if (parseInt(dailyCount.rows[0].count) >= 10) {
       return res.status(429).json({ error: 'Du kannst maximal 10 Gruppen pro Tag erstellen.' });
+    }
+
+    // Free accounts: 1 plain group per Vienna day (Tina + Tobi 28.10.2026,
+    // utils/dailyLimits.js — "die Nachricht kommt dann, wenn man am selben Tag
+    // eine 2. erstellen will"). Pro and app admins skip this and keep only the
+    // 10/24h spam cap above. Soft-deleted rows count (create → delete → create
+    // must not refill the budget).
+    const createLimit = freeDailyGroupCreates();
+    if (createLimit > 0 && !(await limitExempt(db, userId, isUserPro))) {
+      const day = await dailyCreateState(db, userId);
+      if (day.used >= createLimit) {
+        return res.status(403).json(dailyCreateLimitBody(createLimit, day.resetsAt));
+      }
     }
 
     const textToCheck = [name, description].filter(Boolean).join('\n');
@@ -1510,19 +1523,20 @@ export const joinGroup = async (req, res) => {
       return res.status(400).json({ error: 'Die Gruppe ist bereits voll' });
     }
 
-    // Weekly limit for free accounts (Tina 12.10.2026, utils/weeklyJoinLimit.js):
-    // plain groups only, 3 per rolling week, Pro/admins unlimited. After the
-    // capacity check on purpose — a full group answers "voll" (and offers the
-    // waitlist) instead of upselling a seat that does not exist. A group this
-    // week's log already holds (left and joining again, a re-sent request) is
-    // never refused: it costs no second slot. Not race-proof across two
-    // DIFFERENT groups tapped at the same instant — accepted, it can at most
-    // let one extra join through.
-    const weeklyLimit = countsTowardWeeklyLimit(g) ? freeWeeklyGroupJoins() : 0;
-    if (weeklyLimit > 0 && !(await weeklyLimitExempt(db, req.userId, isUserPro))) {
-      const week = await weeklyJoinState(db, req.userId, id);
-      if (!week.alreadyCounted && week.used >= weeklyLimit) {
-        return res.status(403).json(weeklyLimitBody(weeklyLimit, week.resetsAt));
+    // Daily limit for free accounts (Tina + Tobi 28.10.2026, utils/dailyLimits.js —
+    // supersedes the weekly rule from 12.10.): groups AND club events, 3 per
+    // Vienna calendar day, clubs/communities never count, Pro/admins unlimited.
+    // After the capacity check on purpose — a full group answers "voll" (and
+    // offers the waitlist) instead of upselling a seat that does not exist. A
+    // group today's log already holds (left and joining again, a re-sent
+    // request) is never refused: it costs no second slot. Not race-proof across
+    // two DIFFERENT groups tapped at the same instant — accepted, it can at
+    // most let one extra join through.
+    const joinLimit = countsTowardJoinLimit(g) ? freeDailyGroupJoins() : 0;
+    if (joinLimit > 0 && !(await limitExempt(db, req.userId, isUserPro))) {
+      const day = await dailyJoinState(db, req.userId, id);
+      if (!day.alreadyCounted && day.used >= joinLimit) {
+        return res.status(403).json(dailyJoinLimitBody(joinLimit, day.resetsAt));
       }
     }
 
@@ -1552,8 +1566,8 @@ export const joinGroup = async (req, res) => {
       if (upserted.rowCount === 0) {
         return res.status(403).json(joinBlockedBody());
       }
-      // A sent request costs a weekly slot (a rejection gives it back).
-      if (countsTowardWeeklyLimit(g)) logGroupJoin(db, req.userId, Number(id), 'request');
+      // A sent request costs a daily slot (a rejection gives it back).
+      if (countsTowardJoinLimit(g)) logGroupJoin(db, req.userId, Number(id), 'request');
       // Notify owner about the new join request (fire-and-forget)
       if (g.owner_id && Number(g.owner_id) !== Number(req.userId)) {
         notifyJoinRequest(req.userId, g.owner_id, g.name || '', id).catch(() => {});
@@ -1614,10 +1628,10 @@ export const joinGroup = async (req, res) => {
       client.release();
     }
 
-    // Weekly-limit log — after COMMIT, never inside the transaction: in the
+    // Daily-limit log — after COMMIT, never inside the transaction: in the
     // boot window the table may not exist yet, and that must not roll back
     // the join itself.
-    if (didJoin && countsTowardWeeklyLimit(g)) logGroupJoin(db, req.userId, Number(id), 'join');
+    if (didJoin && countsTowardJoinLimit(g)) logGroupJoin(db, req.userId, Number(id), 'join');
 
     // Notify group owner (fire-and-forget), gated on a real join.
     if (didJoin && g.owner_id && Number(g.owner_id) !== Number(req.userId)) {

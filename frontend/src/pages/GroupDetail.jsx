@@ -14,6 +14,7 @@ import VerifiedBadge from '../components/VerifiedBadge';
 import { AttendanceTierBadge } from '../components/AttendanceTierBadge';
 import { EventReviewModal } from '../components/EventReviewModal';
 import AvatarGateModal from '../components/AvatarGateModal';
+import DailyLimitModal from '../components/DailyLimitModal';
 import { nextOccurrence, utcDayStart, viennaTodayUTC } from '../utils/recurrence';
 import { shareLink } from '../utils/share';
 import { openCalendar } from '../utils/calendarExport';
@@ -184,6 +185,8 @@ export const GroupDetail = () => {
   const [showReportModal, setShowReportModal] = useState(false);
   const [showBoostModal, setShowBoostModal] = useState(false);
   const [showAvatarGate, setShowAvatarGate] = useState(false);
+  // 'join' | null — the "Tageslimit erreicht" sheet (Tina 28.10.2026).
+  const [dailyLimitVariant, setDailyLimitVariant] = useState(null);
   // Post-event attendance review, re-openable from the event page (the auto-
   // popup is one-shot; this is the way back in after skipping/closing).
   const [reviewPayload, setReviewPayload] = useState(null);
@@ -353,12 +356,13 @@ export const GroupDetail = () => {
       // miss a stale `user` (avatar removed on another device) — the backend
       // 403s with requiresAvatar, route that into the same prompt.
       if (error.response?.data?.requiresAvatar) { setShowAvatarGate(true); return; }
-      // Weekly limit for free accounts (3 groups per week, utils/weeklyJoinLimit.js
-      // on the server). Where Pro can be bought, the Pro sheet leads with the
-      // "Unbegrenzt Gruppen beitreten" bubble; elsewhere (iOS without in-app
-      // purchase — App Review 3.1.1) only the neutral sentence with the date.
-      if (error.response?.data?.code === 'WEEKLY_JOIN_LIMIT' && proUpsellAllowed()) {
-        window.dispatchEvent(new CustomEvent('jamie:open-pro-modal', { detail: { feature: 'joins' } }));
+      // Daily limit for free accounts (3 groups/events per Vienna day,
+      // utils/dailyLimits.js on the server). Tina 28.10.2026: the "Tageslimit
+      // erreicht" sheet comes FIRST — info before any upsell, so nobody reads
+      // the refusal as "I can never join groups again". The sheet itself shows
+      // the Pro section only where buying is possible (App Review 3.1.1).
+      if (error.response?.data?.code === 'DAILY_JOIN_LIMIT') {
+        setDailyLimitVariant('join');
         return;
       }
       // Page was open before the owner used up our last attempt - flip to the
@@ -1182,6 +1186,9 @@ export const GroupDetail = () => {
         </Suspense>
       )}
       <AvatarGateModal isOpen={showAvatarGate} onClose={() => setShowAvatarGate(false)} />
+      {dailyLimitVariant && (
+        <DailyLimitModal variant={dailyLimitVariant} onClose={() => setDailyLimitVariant(null)} />
+      )}
     </div>
   );
 };

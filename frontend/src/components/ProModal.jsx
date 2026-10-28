@@ -229,8 +229,10 @@ const CONTEXT_FEATURE = {
   boosts: { icon:'🚀', titleKey:'boostGroups', descKey:'boostGroupsDesc' },
   paidEvents: { icon:'🎟️', titleKey:'paidEvents', descKey:'paidEventsDesc' },
   reviewRequests: { icon:'🗂️', titleKey:'reviewRequests', descKey:'reviewRequestsDesc' },
-  // GroupDetail after a 403 WEEKLY_JOIN_LIMIT (free: 3 groups per week).
+  // DailyLimitModal CTA after a 403 DAILY_JOIN_LIMIT (free: 3 per Vienna day).
   joins: { icon:'♾️', titleKey:'unlimitedJoins', descKey:'joinsLimitReached' },
+  // DailyLimitModal CTA after a 403 DAILY_CREATE_LIMIT (free: 1 create per day).
+  creates: { icon:'✨', titleKey:'unlimitedJoins', descKey:'unlimitedJoinsDesc' },
 };
 
 // ── Confetti piece ───────────────────────────────────────────────────────

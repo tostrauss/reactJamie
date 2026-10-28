@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { groups, map as mapApi, api as axiosInstance } from '../utils/api';
 import { useToast } from '../context/ToastContext';
+import DailyLimitModal from '../components/DailyLimitModal';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import { loadGoogleMaps, onGoogleMapsReady, createPlacesAutocomplete } from '../utils/googleMaps';
 import { ALLOWED_COUNTRIES } from '../utils/regions';
@@ -37,6 +38,8 @@ export const CreateGroup = () => {
   // State — declared before all useEffects
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  // "Tageslimit erreicht" sheet after a 403 DAILY_CREATE_LIMIT (Tina 28.10.2026).
+  const [showDailyLimit, setShowDailyLimit] = useState(false);
   const [error, setError] = useState('');
   // Location-verify fallback state (when Google Places shows no dropdown).
   const [locationChecking, setLocationChecking] = useState(false);
@@ -233,6 +236,12 @@ export const CreateGroup = () => {
       // back on the new group's page should lead home, not into the wizard.
       navigate(`/group/${response.data.id}`, { replace: true });
     } catch (err) {
+      // Daily free-create limit (1/day, Tina + Tobi 28.10.2026): the info
+      // sheet comes first — no raw error toast for an intended refusal.
+      if (err.response?.data?.code === 'DAILY_CREATE_LIMIT') {
+        setShowDailyLimit(true);
+        return;
+      }
       const msg = err.response?.data?.error || err.message || t('createGroup.createError');
       setError(msg);
       toast.error(msg);
@@ -297,6 +306,10 @@ export const CreateGroup = () => {
     // .create-header inside adds another — stacked, that pushed the header
     // ~150pt down the screen (huge dead band above "Gruppe erstellen").
     <div className="create-page">
+
+      {showDailyLimit && (
+        <DailyLimitModal variant="create" onClose={() => setShowDailyLimit(false)} />
+      )}
 
       {/* Header */}
       <div className="create-header">
