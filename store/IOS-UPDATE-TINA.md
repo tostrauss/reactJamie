@@ -1,6 +1,8 @@
-# iOS-Update für Tina — Version 1.4.4 (iOS-27-Fix, JAMIE Pro, neue Anmeldung, Chat-Profilbilder)
+# iOS-Update für Tina — Version 1.4.4 (iOS-27-Fix, JAMIE Pro, großes Community-Update)
 
-Stand: **11.10.2026** · Ziel: **Version 1.4.4** mit den drei Pro-Abos in den App Store bringen.
+Stand: **28.10.2026** (aktualisiert — dein neues Abo-Design und das komplette Update aus
+deinem Feedback-Dokument sind jetzt drin) · Ziel: **Version 1.4.4** mit den drei
+Pro-Abos in den App Store bringen.
 
 > ### ⚠️ Neu am 11.10.: 1.4.4 mit **Xcode 26** bauen — nicht mit Xcode 27
 > **1.4.3 (Build 12) öffnet sich auf iPhones mit iOS 27 überhaupt nicht** (Meldungen vom
@@ -11,27 +13,21 @@ Stand: **11.10.2026** · Ziel: **Version 1.4.4** mit den drei Pro-Abos in den Ap
 > Xcode 26 ein; das Prüf-Skript in Schritt 2 bricht ab, solange noch Xcode 27 aktiv ist.
 > 1.4.4 ist damit **dringend**: Es repariert JAMIE für alle iPhones mit iOS 27.
 
-**Außerdem neu in 1.4.4** (dein Feedback vom 08.10.): Im Gruppenchat steht neben der ersten
-Nachricht jeder Person ihr **Profilbild** (antippen → Profil), wie bei WhatsApp. Und
-**Chats von Club-Events** (z. B. „JAMIE x Mon Ami Halloween") stehen jetzt in der
-Chatliste und im roten Zähler — bisher wurden sie dort komplett ausgeblendet.
-
-**Und aus dem Feedback vom 10.10.** (Elli per Instagram, du):
-- **Fotos nachträglich umreihen:** Profil → Bearbeiten → Foto antippen → nach vorne,
-  nach hinten oder „Als Profilbild". Bei der Pinnwand genauso.
-- **Eine Interessen-Liste** für Start-Fragebogen und Profil (25 Stück, „Mode" und
-  „Brettspiele" jetzt überall).
-- **Profil bearbeiten** sagt oben, was zum Gruppen-Beitritt noch fehlt.
-- **Club-Events nachträglich vergrößern:** „Max. Teilnehmer" geht bis 500 (bisher war bei
-  20 Schluss).
-
-**Und deine Onboarding-Checkliste (live im Browser/Android seit 11.10.):** Registrierung in
-4 Seiten, „Was trifft zu?“ als erster Schritt, Fotos als letzter Schritt mit dem
-Achtung-Fenster, danach die Seite „Clubs für dich“.
-
-Dass ein im Profil ausgefülltes Profil **sofort** zum Beitritt reicht, ist ein Server-Fix:
-Der wirkt nach Tobis Push in **jeder** App-Version, auch in 1.4.3 — dafür braucht es 1.4.4
-nicht. Die Event-Größe kannst du bis 1.4.4 im Browser (app.jamie-app.com) ändern.
+**Außerdem neu in 1.4.4** (alles seit 1.4.3 — im Browser/Android ist das meiste schon
+live, aufs iPhone kommt es mit diesem Build):
+- **Dein Abo-Fenster vom 27.10.:** „MORE PEOPLE. / MORE PLACES." mit dem Herz-Foto,
+  drei Vorteile, „Alle Vorteile ansehen", Tarife, **„Weiter"**-Knopf. Die alte
+  Checkbox gibt es **nicht mehr**.
+- **Dein Feedback-Dokument komplett:** Plus-Menü mit den drei Optionen (nur Clubs
+  brauchen Freigabe), Entdecken heißt **„Community"** mit Communities & Clubs getrennt
+  (inkl. deiner Sortierung aus dem Admin), die Compass-Seite ist jetzt
+  **Memories | Friends** mit „Warst du dabei?"-Seite und Freunde-Suche, das Profil hat
+  Meet-ups / Friends / Memories, Memories-Bearbeiten und „Meine Gruppen & Clubs".
+- **Mitgliederlisten:** Wer in einer Gruppe oder einem Club drin ist, sieht wieder
+  **alle** Mitglieder.
+- **Gruppenchat-Profilbilder**, **Club-Event-Chats in der Chatliste**, **Fotos
+  umreihen**, die **kürzere Anmeldung** mit „Clubs für dich" — und der
+  **iOS-27-Start-Fix** (der Hauptgrund für dieses Update).
 
 **Was passiert ist:** In 1.4.3 (Build 12) steckt ein Fehler in **unserer** Kauf-Anbindung,
 nicht in deinen Einstellungen: Das Pro-Fenster lädt endlos, darum hast du in TestFlight
@@ -40,17 +36,14 @@ der Server bietet Build 12 nie einen Kauf an. **1.4.4 bringt den Fix**, und die 
 **mit dieser Version** zur Prüfung: Die **ersten** Abos einer App prüft Apple nur zusammen
 mit einer App-Version, getrennt einreichen geht beim ersten Mal nicht.
 
-**Vorher (Tobi), genau in dieser Reihenfolge:**
-1. Pushen und warten, bis auf Railway (Projekt `incredible-radiance`) der Deploy mit
-   **genau diesem Commit** aktiv ist. Bei ausgeschaltetem Schalter sieht der alte
-   Server-Code von außen gleich aus — nur der Commit beweist, dass die Sperre live ist.
-2. **Erst dann** `IOS_IAP_ENABLED=true` (+ `PAYMENTS_ENABLED=true`) setzen und deployen.
-3. Beide Adressen im Browser prüfen:
-   - https://app.jamie-app.com/api/iap/config muss `"ios_iap_enabled":false` zeigen
-     (so bleibt 1.4.3 / Build 12 ohne Kauf). Steht dort `true`, läuft noch der alte
-     Server-Code → sofort `IOS_IAP_ENABLED=false`, deployen, zurück zu 1.
-   - https://app.jamie-app.com/api/iap/config?iap_client=2 muss `true` zeigen.
-Erst wenn Tobi „gepusht + live + Schalter an" sagt, geht es hier los.
+**Vorher (Tobi): ✅ ERLEDIGT am 28.10.** — alles ist gepusht und live (Commit
+`7d9b135`), die Schalter stehen richtig; beide Adressen wurden am 28.10. geprüft:
+- https://app.jamie-app.com/api/iap/config zeigt `"ios_iap_enabled":false`
+  (alte Builds bleiben ohne Kauf) ✓
+- https://app.jamie-app.com/api/iap/config?iap_client=2 zeigt `true` ✓
+
+Du kannst also **direkt loslegen**. (Wenn du magst, öffne die zwei Adressen kurz
+selbst im Browser — sie müssen genau das zeigen; sonst Tobi.)
 
 Android muss **nichts** tun (läuft über den Web-Deploy).
 
@@ -150,6 +143,13 @@ git log --oneline -3
   ```
 
   Sie muss eine Zahl **größer als 0** ausgeben. **0** → **STOPP, Tobi.**
+- Und diese (dein neues Abo-Design vom 27.10. ist da):
+
+  ```bash
+  grep -c "heroTitle1" frontend/src/i18n/locales/de.json
+  ```
+
+  Sie muss eine Zahl **größer als 0** ausgeben. **0** → **STOPP, Tobi.**
 - Und diese (die neue Anmeldung und der iOS-27-Schutz sind da):
 
   ```bash
@@ -232,9 +232,12 @@ Der Build erscheint **15–45 Minuten** nach dem Upload. App Store Connect →
 schon drin) → am iPhone **TestFlight-App** → JAMIE → **Installieren**.
 
 **h) JAMIE Pro — der Haupttest.** In TestFlight kostet der Kauf **nichts**.
-1. **Profil** → Karte **„JAMIE Pro"**. Nach ein, zwei Sekunden stehen dort drei
-   Tarife mit **Euro-Preisen**: groß der Betrag, der abgebucht wird (6,99 € /
-   29,99 € / 49,99 €), klein darunter „≈ … pro Monat".
+1. **Einstellungen → „JAMIE Pro"** (die Pro-Karte im Profil gibt es seit dem Update
+   **nicht mehr** — das ist richtig so). Es öffnet sich **dein** Abo-Fenster: oben
+   „MORE PEOPLE. / MORE PLACES." mit dem Herz-Foto, die drei Vorteile,
+   „Alle Vorteile ansehen", darunter nach ein, zwei Sekunden die drei Tarife mit
+   **Euro-Preisen**: groß der Betrag, der abgebucht wird (6,99 € / 29,99 € /
+   49,99 €), klein darunter „≈ … pro Monat".
    - **Dreht sich der Ladekreis länger als 10 Sekunden** → **STOPP, Tobi**
      (Uhrzeit dazu).
    - **„JAMIE Pro ist auf dem iPhone derzeit nicht verfügbar"** → Apple liefert die
@@ -243,19 +246,20 @@ schon drin) → am iPhone **TestFlight-App** → JAMIE → **Installieren**.
      Änderung ist noch keine Stunde alt. Erst das prüfen, dann JAMIE komplett
      schließen und neu öffnen. Bleibt es → Screenshot an Tobi (er sieht in Sentry,
      welches Abo fehlt).
-   - **Gar keine Pro-Karte** → der Fix fehlt im Build (Schritt 1) oder Tobis Schalter
-     ist aus → Tobi.
+   - **Kein „JAMIE Pro"-Eintrag in den Einstellungen** → der Fix fehlt im Build
+     (Schritt 1) oder Tobis Schalter ist aus → Tobi.
 2. Ganz unten im Pro-Fenster **„AGB"** und **„Datenschutz"** antippen — beide müssen
    die Seite in Safari öffnen.
-3. **Screenshots für Apple (optional):** ganz nach oben scrollen, sodass Krone,
-   „JAMIE Pro" und alle drei Tarife mit Preisen zu sehen sind (wie auf Tobis Bildern).
-   Knopf und Abo-Text passen nicht mit aufs Bild — das ist normal und für Apple nicht
-   nötig. Je einen Screenshot mit „1 Monat", „6 Monate" und „1 Jahr" angetippt.
+3. **Screenshots für Apple (optional):** ganz nach oben scrollen, sodass
+   „MORE PEOPLE. / MORE PLACES.", die drei Vorteile und alle drei Tarife mit Preisen
+   zu sehen sind. Knopf und Abo-Text passen nicht mit aufs Bild — das ist normal und
+   für Apple nicht nötig. Je einen Screenshot mit „1 Monat", „6 Monate" und „1 Jahr" angetippt.
    Willst du Tobis Bilder damit ersetzen: **gleich jetzt** unter **Monetarisierung →
    Abonnements** beim passenden Abo den Review-Screenshot tauschen und **Sichern**
    (nach dem Einreichen geht das nicht mehr, und in Schritt 7 kostet jeder
    Seitenwechsel ungesicherte Eingaben).
-4. 6 Monate gewählt → Häkchen → **Jetzt starten** → Apple-Kaufbogen bestätigen.
+4. „6 Monate" angetippt → **„Weiter"** (eine Checkbox gibt es **nicht mehr** — der
+   Knopf ist sofort aktiv) → Apple-Kaufbogen bestätigen.
 5. Krone mit **Konfetti**; in den **Einstellungen** steht **„JAMIE Pro · Aktiv"**
    und **„Abo im App Store verwalten"** (kein JAMIE-Kündigen-Knopf, richtig so).
 6. **„Käufe wiederherstellen"** → „1 Kauf wiederhergestellt".
@@ -335,34 +339,34 @@ Auf https://appstoreconnect.apple.com → **Meine Apps → JAMIE → Vertrieb**:
 2. **„Was ist neu"** einfügen — **Deutsch**:
 
    ```
-   • JAMIE Pro jetzt auch auf dem iPhone: alle Mitglieder sehen, Gruppen und Clubs boosten und mehr – als Abo über Apple, jederzeit kündbar
-   • Gruppen-Chat: Profilbilder neben den Nachrichten – antippen öffnet das Profil
-   • Chats von Club-Events stehen jetzt in deiner Chatliste
-   • Neue, kürzere Anmeldung: in wenigen Schritten zu deinem Profil und zu den ersten Clubs
+   • Großes Update: Entdecken heißt jetzt „Community“ mit Communities & Clubs, und die Compass-Seite wird zu Memories | Friends – teile Fotos vergangener Treffen und finde Freunde
+   • Neues Profil: Meet-ups, Friends & Memories auf einen Blick, Memories bearbeiten und „Meine Gruppen & Clubs“ verwalten
+   • Als Mitglied siehst du jetzt wieder alle Mitglieder deiner Gruppen & Clubs
+   • JAMIE Pro jetzt auch auf dem iPhone – als Abo über Apple, jederzeit kündbar
+   • Gruppen-Chat mit Profilbildern, Club-Event-Chats in der Chatliste, kürzere Anmeldung
    • Behebt einen Fehler, durch den sich JAMIE auf iOS 27 nicht öffnen ließ
-   • Kleine Verbesserungen und Fehlerbehebungen
    ```
 
    **Englisch**:
 
    ```
-   • JAMIE Pro now on iPhone: see all members, boost groups and clubs and more – as a subscription through Apple, cancel anytime
-   • Group chats: profile pictures next to messages – tap to open the profile
-   • Club event chats now show up in your chat list
-   • New, shorter sign-up: a few steps to your profile and your first clubs
+   • Big update: Discover is now “Community” with communities & clubs, and the compass page becomes Memories | Friends – share photos of past meet-ups and find friends
+   • New profile: meet-ups, friends & memories at a glance, edit your memories and manage “My groups & clubs”
+   • As a member you can now see all members of your groups & clubs again
+   • JAMIE Pro now on iPhone – as a subscription through Apple, cancel anytime
+   • Group chats with profile pictures, club event chats in your chat list, shorter sign-up
    • Fixes an issue that kept JAMIE from opening on iOS 27
-   • Small improvements and bug fixes
    ```
 
    **Italienisch** (falls das Feld da ist):
 
    ```
-   • JAMIE Pro ora anche su iPhone: vedi tutti i membri, dai visibilità a gruppi e club e altro – abbonamento tramite Apple, disdici quando vuoi
-   • Chat di gruppo: foto profilo accanto ai messaggi – toccala per aprire il profilo
-   • Le chat degli eventi dei club ora compaiono nell’elenco delle chat
-   • Nuova registrazione più breve: pochi passi per il tuo profilo e i primi club
+   • Grande aggiornamento: Scopri ora si chiama “Community” con communities & club, e la pagina bussola diventa Memories | Friends – condividi le foto dei meet-up passati e trova amici
+   • Nuovo profilo: meet-up, amici e memories a colpo d’occhio, modifica le tue memories e gestisci “I miei gruppi & club”
+   • Come membro ora vedi di nuovo tutti i membri dei tuoi gruppi & club
+   • JAMIE Pro ora anche su iPhone – abbonamento tramite Apple, disdici quando vuoi
+   • Chat di gruppo con foto profilo, chat degli eventi dei club nell’elenco, registrazione più breve
    • Risolto un problema per cui JAMIE non si apriva su iOS 27
-   • Piccoli miglioramenti e correzioni
    ```
 
    (Frankreich/Spanien: englischen Text einsetzen.)
@@ -387,12 +391,13 @@ Auf https://appstoreconnect.apple.com → **Meine Apps → JAMIE → Vertrieb**:
    https://app.jamie-app.com/privacy. Bei Abos verlangt Apple beides. Schon drin → nichts tun.
 9. **App-Review-Informationen**: Anmelden erforderlich = **Ja**, Demo-Account
    `playreview@jamie-app.com` + Passwort. Vorher einmal in der TestFlight-App mit dem
-   Demo-Account anmelden: Unter **Profil** muss die Karte **„JAMIE Pro"** stehen (fehlt
-   sie, hat der Demo-Account schon Pro → **STOPP, Tobi**). Dabei **nicht** „Käufe
+   Demo-Account anmelden: **Einstellungen → „JAMIE Pro"** muss das Abo-Fenster mit den
+   drei Tarifen öffnen (steht dort stattdessen „JAMIE Pro · Aktiv", hat der
+   Demo-Account schon Pro → **STOPP, Tobi**). Dabei **nicht** „Käufe
    wiederherstellen" tippen (das würde dein Test-Abo aus h auf den Demo-Account
    übertragen). Danach abmelden und wieder mit deinem Account anmelden.
    Notiz:
-   `Login via e-mail only on iOS. This version adds JAMIE Pro, three auto-renewable subscriptions submitted with this version: Profile tab → "JAMIE Pro" card, or Settings → "JAMIE Pro". "Restore Purchases" is in the same sheet and in Settings. The demo account has no subscription.`
+   `Login via e-mail only on iOS. This version adds JAMIE Pro, three auto-renewable subscriptions submitted with this version: Settings → "JAMIE Pro". "Restore Purchases" is in the same sheet and in Settings. The demo account has no subscription.`
 10. **Veröffentlichung der Version**: automatisch, **phasenweise Veröffentlichung AUS**.
 11. Oben rechts noch einmal **„Sichern"**. **Letzter Blick vor dem Einreichen:** Steht
     unter **Build** dein 1.4.4-Build, und stehen unter **„In-App-Käufe und
@@ -430,7 +435,8 @@ wird automatisch veröffentlicht. **Dann Tobi Bescheid sagen.**
 | Build taucht in TestFlight nicht auf | 45 Min. warten, Mail prüfen |
 | Pro-Fenster: Ladekreis hört nicht auf | **STOPP, Tobi** (Uhrzeit dazu) |
 | Pro-Fenster: „derzeit nicht verfügbar" | Vertrag, Gruppen-Lokalisierung, Abo-Pflichtfelder (Vorab 1–3), bis zu 1 Stunde warten, App neu öffnen. Sonst Tobi |
-| Gar keine Pro-Karte im Profil | Fix fehlt im Build (Schritt 1), oder Kauf-Schalter in Railway aus → Tobi |
+| Kein „JAMIE Pro"-Eintrag in den Einstellungen | Fix fehlt im Build (Schritt 1), oder Kauf-Schalter in Railway aus → Tobi |
+| Pro-Fenster sieht noch alt aus (Krone statt „MORE PEOPLE.") | `git pull` hat nicht geklappt (Schritt 1, heroTitle1-Check) → nicht einreichen |
 | Kein ⊕ für 1.4.4 in Schritt 7 | 1.4.3 ist noch nicht im App Store → warten. Abgelehnt → Begründung an Tobi |
 | Apple-Review lehnt ab | Begründung als Screenshot an Tobi |
 
