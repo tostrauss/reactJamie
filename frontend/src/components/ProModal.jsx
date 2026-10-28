@@ -10,6 +10,12 @@ import { subscribePro, restorePurchases, getIosProducts } from '../utils/iap';
 import { purchasePlaySubscription, restorePlayPurchases } from '../utils/playBilling';
 import { useToast } from '../context/ToastContext';
 import { InterestButton } from './InterestButton';
+import { JamieWordmark } from './JamieWordmark';
+// Tina's heart-mask hero (27.10.2026). The PNG she sent has NO alpha channel —
+// the area around the heart is pure black. mix-blend-mode:lighten on the img
+// melts that black into the dark sheet gradient (max per channel), so the
+// photo needs no transparent cut-out. Keep the sheet background dark.
+import proHero from '../assets/pro-hero.webp';
 
 // The public web app — where Terms and Privacy live for every client.
 const PUBLIC_WEB_ORIGIN = 'https://app.jamie-app.com';
@@ -165,15 +171,54 @@ function Spinner() {
 }
 
 // ── Feature rows ─────────────────────────────────────────────────────────
-// No deals row any more (Tobi, 26.10.2026): deals are free for everyone
-// since 09.06., so "Für Dich – exklusive Deals" promised nothing Pro gives.
-const FEATURE_KEYS = [
-  { icon:'♾️', titleKey:'unlimitedJoins', descKey:'unlimitedJoinsDesc' },
-  { icon:'⚡', titleKey:'boostGroups',   descKey:'boostGroupsDesc' },
-  { icon:'🏆', titleKey:'boostClubs',    descKey:'boostClubsDesc' },
-  { icon:'👥', titleKey:'seeMembers',    descKey:'seeMembersDesc' },
-  { icon:'🔝', titleKey:'topPlacement', descKey:'topPlacementDesc' },
+// Tina's paywall design (27.10.2026): three hero benefits with coral LINE
+// icons (no emojis — her "Burger King crown" complaint), the rest behind
+// "Alle Vorteile ansehen". No deals row (free for everyone since 09.06.).
+const PRIMARY_FEATURES = [
+  { svg:'people', titleKey:'unlimitedJoins', descKey:'unlimitedJoinsDesc' },
+  { svg:'eye',    titleKey:'seeMembers',     descKey:'seeMembersDesc' },
+  { svg:'bolt',   titleKey:'boostGroups',    descKey:'boostGroupsDesc' },
 ];
+const EXTRA_FEATURES = [
+  { svg:'trophy', titleKey:'boostClubs',   descKey:'boostClubsDesc' },
+  { svg:'top',    titleKey:'topPlacement', descKey:'topPlacementDesc' },
+];
+
+// Coral stroke icons in the 44px tile — matches Tina's mock.
+function FeatureIcon({ name }) {
+  const common = { width:22, height:22, viewBox:'0 0 24 24', fill:'none',
+    stroke:'#FD7666', strokeWidth:2, strokeLinecap:'round', strokeLinejoin:'round' };
+  switch (name) {
+    case 'people': return (
+      <svg {...common}>
+        <circle cx="9" cy="8" r="3.2" />
+        <path d="M2.8 19c.7-3 3.2-4.6 6.2-4.6s5.5 1.6 6.2 4.6" />
+        <circle cx="17" cy="9" r="2.4" />
+        <path d="M15.4 14.6c2.6.1 4.8 1.5 5.6 4.1" />
+      </svg>);
+    case 'eye': return (
+      <svg {...common}>
+        <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z" />
+        <circle cx="12" cy="12" r="2.8" fill="#FD7666" stroke="none" />
+      </svg>);
+    case 'bolt': return (
+      <svg {...common}>
+        <path d="M13 2 4.5 13.5h6L11 22l8.5-11.5h-6L13 2Z" />
+      </svg>);
+    case 'trophy': return (
+      <svg {...common}>
+        <path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" />
+        <path d="M7 5H4.5a2.5 2.5 0 0 0 2.6 3.4M17 5h2.5a2.5 2.5 0 0 1-2.6 3.4" />
+        <path d="M12 14v3M8.5 20h7M10 17h4" />
+      </svg>);
+    case 'top': return (
+      <svg {...common}>
+        <path d="M12 19V6M6.5 11 12 5.5 17.5 11" />
+        <path d="M5 21h14" />
+      </svg>);
+    default: return null;
+  }
+}
 
 // Context-specific rows, prepended when the modal is opened from the feature
 // the user just bumped into — so the first bubble answers "why am I seeing
@@ -262,9 +307,9 @@ function PlanTile({ plan, selected, onSelect, t }) {
       {/* Badge */}
       {badge && (
         <span style={{
-          position: 'absolute', top: '-10px', left: '14px',
+          position: 'absolute', top: '-10px', right: '14px',
           padding: '3px 10px', borderRadius: '20px',
-          background: 'linear-gradient(135deg, #FD7666, #e5574a)',
+          background: '#FD7666',
           color: '#fff', fontSize: '11px', fontWeight: '800',
           letterSpacing: '0.2px', whiteSpace: 'nowrap',
           boxShadow: '0 4px 12px rgba(253,118,102,0.4)',
@@ -323,7 +368,7 @@ function PlanTile({ plan, selected, onSelect, t }) {
           <span style={{
             display: 'inline-block', marginTop: '5px',
             padding: '2px 8px', borderRadius: '20px',
-            background: 'rgba(34,197,94,0.18)', color: '#4ade80',
+            background: 'rgba(253,118,102,0.18)', color: '#FD7666',
             fontSize: '11px', fontWeight: '800',
           }}>
             {t('pro.plans.savePct', { pct: plan.savings })}
@@ -347,6 +392,9 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
   const [paymentMode,   setPaymentMode]   = useState('payment');
   const [trialDays,     setTrialDays]     = useState(0);
   const [loading,       setLoading]       = useState(false);
+  // "Alle Vorteile ansehen" — Tina's mock keeps three hero benefits visible
+  // and tucks the rest behind this toggle.
+  const [showAllBenefits, setShowAllBenefits] = useState(false);
   // No §18 FAGG consent checkbox any more (26.10.2026): it belonged to the
   // web sale, where JAMIE itself was the seller. The sheet now only sells
   // through a store (Apple/Google are the seller and run the withdrawal
@@ -437,10 +485,10 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
     : trialDaysStore ? t('pro.trialHeadlineDays', { count: trialDaysStore })
     : trialMonthsStore ? t('pro.trialHeadlineMonths', { count: trialMonthsStore })
     : t('pro.trialHeadlineGeneric');
-  // App Store: the button never sells the trial. Apple 3.1.2(c) rejects a
-  // "kostenlos starten" button that outshines the billed amount — the trial
-  // length and the price after it stand right above the button instead.
-  const trialCta = !iosIap ? t('pro.ctaTrialStart') : t('pro.ctaSubscribe');
+  // The CTA is a neutral "Weiter →" (Tina's design, 27.10.2026) and never
+  // sells the trial — Apple 3.1.2(c) rejects a "kostenlos starten" button
+  // that outshines the billed amount. Trial length and the price after it
+  // stand right above the button instead.
   // iOS without loadable products → nothing to buy; show the neutral line.
   const iosNotReady = iosIap && !iosProducts;
 
@@ -621,61 +669,122 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
           {/* ── FEATURES ────────────────────────── */}
           {step === 'features' && (
             <>
-              {/* Close */}
-              <button onClick={onClose} style={{
-                position:'absolute', top:'20px', right:'20px',
-                width:'32px', height:'32px', borderRadius:'50%',
-                background:'rgba(255,255,255,0.07)',
-                border:'1px solid rgba(255,255,255,0.1)',
-                color:'rgba(255,255,255,0.5)', cursor:'pointer',
-                display:'flex', alignItems:'center', justifyContent:'center',
-                fontSize:'16px', lineHeight:1,
-              }}>
-                ✕
-              </button>
-
-              {/* Header */}
-              <div style={{ textAlign:'center', marginBottom:'22px' }}>
-                <div style={{
-                  fontSize:'52px', marginBottom:'12px',
-                  animation:'pm-crown 0.5s cubic-bezier(.34,1.56,.64,1) both',
-                  display:'inline-block',
+              {/* Top bar: brand wordmark left, close right (Tina's paywall
+                  design, 27.10.2026 — replaces the centered 👑 header she
+                  read as "Burger King"). */}
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'4px' }}>
+                <JamieWordmark size="header" />
+                <button onClick={onClose} aria-label={t('pro.later')} style={{
+                  width:'32px', height:'32px', borderRadius:'50%',
+                  background:'rgba(255,255,255,0.07)',
+                  border:'1px solid rgba(255,255,255,0.1)',
+                  color:'rgba(255,255,255,0.5)', cursor:'pointer',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  fontSize:'16px', lineHeight:1, flexShrink:0,
                 }}>
-                  👑
-                </div>
-                <h2 style={{ fontSize:'28px', fontWeight:'900', color:'#fff', margin:'0 0 8px' }}>
-                  {t('pro.title')}
-                </h2>
-                {/* Context call-out: when the modal was opened from a specific
-                    locked feature, name that feature right under the title in
-                    coral so it reads as "this is what you came for", not a
-                    generic upsell. Pairs with the matching first feature bubble
-                    below (Tina/Tobi 2026-09-03). */}
-                {CONTEXT_FEATURE[feature] && (
-                  <p style={{ margin:'0 0 10px', fontSize:'13.5px', fontWeight:'800', color:'#FD7666' }}>
-                    {t(`pro.contextCta.${feature}`)}
-                  </p>
-                )}
-                {/* "NEU – Spare bis zu XX%" pill — nur wenn auch wirklich kaufbar.
-                    Im "Bald verfügbar"-Zustand wäre ein Spar-Versprechen irreführend. */}
-                {/* Web only: on the App Store a savings claim must sit below
-                    the billed amounts (3.1.2), the per-tile chip does that. */}
-                {purchasesEnabled() && !iosNotReady && !iosIap && maxSavings > 0 && (
-                  <div style={{ display:'inline-flex', alignItems:'center', gap:'6px',
-                    background:'rgba(34,197,94,0.14)', border:'1px solid rgba(34,197,94,0.35)',
-                    borderRadius:'24px', padding:'7px 16px',
-                  }}>
-                    <span style={{ fontSize:'13px', fontWeight:'900', color:'#4ade80', letterSpacing:'0.3px' }}>
-                      {t('pro.newSaveBadge', { pct: maxSavings })}
-                    </span>
-                  </div>
-                )}
-                {purchasesEnabled() && showTrialOffer && !iosIap && (
-                  <p style={{ margin:'12px 0 0', fontSize:'13.5px', fontWeight:'800', color:'#4ade80' }}>
-                    {trialHeadline}
-                  </p>
-                )}
+                  ✕
+                </button>
               </div>
+
+              {/* Hero: headline left, Tina's heart photo bleeding off the
+                  right sheet edge (blend melts its black ground, see import). */}
+              <div style={{ position:'relative', isolation:'isolate', marginBottom:'16px' }}>
+                <img src={proHero} alt="" aria-hidden="true" draggable={false} style={{
+                  position:'absolute', top:'-10px', right:'-22px',
+                  width:'54%', maxWidth:'235px',
+                  mixBlendMode:'lighten', pointerEvents:'none', userSelect:'none',
+                }} />
+                <h2 style={{ margin:'10px 0 10px', fontWeight:'900', fontSize:'29px',
+                  lineHeight:1.08, letterSpacing:'0.4px', position:'relative', maxWidth:'62%' }}>
+                  <span style={{ display:'block', color:'#fff' }}>{t('pro.heroTitle1')}</span>
+                  <span style={{ display:'block', color:'#FD7666' }}>{t('pro.heroTitle2')}</span>
+                </h2>
+                <p style={{ margin:'0 0 4px', maxWidth:'58%', color:'rgba(255,255,255,0.72)',
+                  fontSize:'14px', lineHeight:1.5, position:'relative' }}>
+                  {t('pro.heroSub1')}{' '}
+                  <strong style={{ color:'#fff' }}>{t('pro.heroSub2')}</strong>
+                </p>
+              </div>
+
+              {/* Context call-out: when the modal was opened from a specific
+                  locked feature, name that feature up front in coral so it
+                  reads as "this is what you came for", not a generic upsell.
+                  Pairs with the matching first feature row below
+                  (Tina/Tobi 2026-09-03). */}
+              {CONTEXT_FEATURE[feature] && (
+                <p style={{ margin:'0 0 12px', fontSize:'13.5px', fontWeight:'800', color:'#FD7666' }}>
+                  {t(`pro.contextCta.${feature}`)}
+                </p>
+              )}
+              {/* "NEU – Spare bis zu XX%" pill — nur wenn auch wirklich kaufbar.
+                  Im "Bald verfügbar"-Zustand wäre ein Spar-Versprechen irreführend. */}
+              {/* Web only: on the App Store a savings claim must sit below
+                  the billed amounts (3.1.2), the per-tile chip does that. */}
+              {purchasesEnabled() && !iosNotReady && !iosIap && maxSavings > 0 && (
+                <div style={{ display:'inline-flex', alignItems:'center', gap:'6px',
+                  background:'rgba(253,118,102,0.12)', border:'1px solid rgba(253,118,102,0.35)',
+                  borderRadius:'24px', padding:'7px 16px', marginBottom:'10px',
+                }}>
+                  <span style={{ fontSize:'13px', fontWeight:'900', color:'#FD7666', letterSpacing:'0.3px' }}>
+                    {t('pro.newSaveBadge', { pct: maxSavings })}
+                  </span>
+                </div>
+              )}
+              {purchasesEnabled() && showTrialOffer && !iosIap && (
+                <p style={{ margin:'0 0 12px', fontSize:'13.5px', fontWeight:'800', color:'#FD7666' }}>
+                  {trialHeadline}
+                </p>
+              )}
+
+              {/* Feature rows — Tina's order: three hero benefits, the rest
+                  behind "Alle Vorteile ansehen". A context row that is ALSO in
+                  the list is shown once, at the top — not twice. */}
+              <div style={{ display:'flex', flexDirection:'column', gap:'14px', margin:'4px 0 14px' }}>
+                {[...(CONTEXT_FEATURE[feature] ? [CONTEXT_FEATURE[feature]] : []),
+                  ...PRIMARY_FEATURES.filter(f => f.titleKey !== CONTEXT_FEATURE[feature]?.titleKey),
+                  ...(showAllBenefits
+                    ? EXTRA_FEATURES.filter(f => f.titleKey !== CONTEXT_FEATURE[feature]?.titleKey)
+                    : [])].map((f, i) => (
+                  <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:'14px' }}>
+                    <div style={{
+                      width:'44px', height:'44px', borderRadius:'12px', flexShrink:0,
+                      background:'rgba(253,118,102,0.12)',
+                      border:'1px solid rgba(253,118,102,0.22)',
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      fontSize:'20px', color:'#FD7666',
+                    }}>
+                      {f.svg ? <FeatureIcon name={f.svg} /> : f.icon}
+                    </div>
+                    <div style={{ paddingTop:'2px' }}>
+                      <div style={{ color:'#fff', fontWeight:'800', fontSize:'15px', lineHeight:1.25, marginBottom:'3px' }}>
+                        {t(`pro.features.${f.titleKey}`)}
+                      </div>
+                      <div style={{ color:'rgba(255,255,255,0.5)', fontSize:'12.5px', lineHeight:1.45 }}>
+                        {t(`pro.features.${f.descKey}`)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* "Alle Vorteile ansehen" toggle (Tina's mock) */}
+              <button
+                type="button"
+                onClick={() => setShowAllBenefits(v => !v)}
+                aria-expanded={showAllBenefits}
+                style={{
+                  display:'flex', alignItems:'center', gap:'7px', margin:'0 auto 16px',
+                  background:'none', border:'none', cursor:'pointer',
+                  color:'rgba(255,255,255,0.75)', fontSize:'13.5px', fontWeight:'700',
+                }}
+              >
+                {t('pro.seeAllBenefits')}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                  style={{ transform: showAllBenefits ? 'rotate(180deg)' : 'none', transition:'transform .15s' }}>
+                  <polyline points="6,9 12,15 18,9" />
+                </svg>
+              </button>
 
               {/* Plan tiles — 1 Monat (Anker), 6 Monate default ("Beliebt"), 1 Jahr "Bestes Angebot".
                   Nur zeigen, wenn Käufe möglich sind: im Coming-Soon-Zustand sind die
@@ -695,51 +804,6 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                 </div>
               )}
 
-              {/* Feature cards */}
-              <div style={{ display:'flex', flexDirection:'column', gap:'10px', marginBottom:'22px' }}>
-                {[...(CONTEXT_FEATURE[feature] ? [CONTEXT_FEATURE[feature]] : []),
-                  // A context row that is ALSO in the generic list (boosts) is
-                  // shown once, at the top — not twice.
-                  ...FEATURE_KEYS.filter(f => f.titleKey !== CONTEXT_FEATURE[feature]?.titleKey)].map((f, i) => (
-                  <div key={i} style={{
-                    display:'flex', alignItems:'center', gap:'14px',
-                    background:'rgba(255,255,255,0.04)',
-                    border:'1px solid rgba(255,255,255,0.09)',
-                    borderRadius:'16px', padding:'14px 16px',
-                  }}>
-                    <div style={{
-                      width:'44px', height:'44px', borderRadius:'12px', flexShrink:0,
-                      background:'rgba(253,118,102,0.12)',
-                      border:'1px solid rgba(253,118,102,0.22)',
-                      display:'flex', alignItems:'center', justifyContent:'center',
-                      fontSize: f.icon === '∞' ? '22px' : '22px',
-                      fontWeight:'900', color:'#FD7666',
-                    }}>
-                      {f.icon}
-                    </div>
-                    <div>
-                      <div style={{ color:'#fff', fontWeight:'700', fontSize:'15px', lineHeight:1.2, marginBottom:'3px' }}>
-                        {t(`pro.features.${f.titleKey}`)}
-                      </div>
-                      <div style={{ color:'rgba(255,255,255,0.45)', fontSize:'12px', lineHeight:1.4 }}>
-                        {t(`pro.features.${f.descKey}`)}
-                      </div>
-                    </div>
-                    {/* Checkmark */}
-                    <div style={{
-                      marginLeft:'auto', width:'22px', height:'22px', borderRadius:'50%',
-                      background:'rgba(253,118,102,0.15)', flexShrink:0,
-                      display:'flex', alignItems:'center', justifyContent:'center',
-                    }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                        stroke="#FD7666" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20,6 9,17 4,12" />
-                      </svg>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
               {/* Kauf-Flow nur zeigen, wenn Käufe verfügbar sind. Auf iOS ohne
                   fertiges StoreKit-IAP zeigen wir stattdessen eine neutrale Info
                   (KEIN Hinweis auf Web/Android-Kauf — Apple-Anti-Steering 3.1.1). */}
@@ -754,7 +818,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                       in the 11 px fine print below (Apple 3.1.2). */}
                   {iosIap && showTrialOffer && iosProducts?.[activePlan] && (
                     <div style={{ margin: '0 0 10px', textAlign: 'center', lineHeight: 1.35 }}>
-                      <div style={{ fontSize: '13px', fontWeight: '700', color: '#4ade80' }}>
+                      <div style={{ fontSize: '13px', fontWeight: '700', color: '#FD7666' }}>
                         {trialHeadline}
                       </div>
                       <div style={{ fontSize: '17px', fontWeight: '900', color: '#fff', marginTop: '2px' }}>
@@ -772,11 +836,8 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                     disabled={loading}
                     style={{
                       width:'100%', padding:'19px', borderRadius:'18px', border:'none',
-                      background: loading
-                        ? 'rgba(253,118,102,0.25)'
-                        : 'linear-gradient(270deg, #FD7666, #e5574a, #FD7666)',
-                      backgroundSize:'200% auto',
-                      animation: loading ? 'none' : 'pm-shimmer 2.5s linear infinite',
+                      // Flat brand coral — Brand-Regel: kein Gradient.
+                      background: loading ? 'rgba(253,118,102,0.25)' : '#FD7666',
                       color: loading ? 'rgba(255,255,255,0.4)' : '#fff',
                       fontSize:'17px', fontWeight:'900', letterSpacing:'0.2px',
                       cursor: loading ? 'not-allowed' : 'pointer',
@@ -787,7 +848,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                   >
                     {loading
                       ? <><Spinner /> {t('pro.loading')}</>
-                      : showTrialOffer ? trialCta : t('pro.ctaSubscribe')}
+                      : <>{t('pro.ctaContinue')} <span aria-hidden="true">→</span></>}
                   </button>
                 </>
               ) : paymentsComingSoon() ? (
@@ -841,10 +902,13 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
               {isStoreBillingActive() && (
                 <p style={{
                   fontSize:'11px', lineHeight:1.45,
-                  color:'rgba(255,255,255,0.4)',
+                  color:'rgba(255,255,255,0.55)',
                   margin:'0 0 10px', textAlign:'center',
                   padding:'0 4px',
                 }}>
+                  {/* Leading asterisk + white-ish text: Tina's mock ("der Text
+                      mit Sternchen und in weiß", 27.10.2026). */}
+                  {'* '}
                   {isPlayBillingActive()
                     ? t('pro.playTerms', { defaultValue:
                       'JAMIE Pro verlängert sich automatisch zum gewählten Preis am Ende jeder Laufzeit. Abrechnung über Google Play; kündbar jederzeit in Google Play → Abos.' })
@@ -856,16 +920,23 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                   {iosTrial && iosProducts?.[activePlan] && (
                     <>{' '}{t('pro.storeTrialTerms', { price: iosProducts[activePlan].priceString })}</>
                   )}
-                  {' '}
-                  {/* Absolute URLs: inside the iOS app a relative target=_blank
-                      link resolves to capacitor://…/terms, which nothing can
-                      open — the tap did nothing (3.1.2 wants working links).
-                      An https URL goes to Safari; web and TWA are unchanged. */}
-                  <a href={`${PUBLIC_WEB_ORIGIN}/terms`} target="_blank" rel="noopener noreferrer" style={{ color:'#FD7666', textDecoration:'underline' }}>
+                </p>
+              )}
+
+              {/* AGB | Datenschutz as their own centered row (Tina's mock).
+                  Absolute URLs: inside the iOS app a relative target=_blank
+                  link resolves to capacitor://…/terms, which nothing can
+                  open — the tap did nothing (3.1.2 wants working links).
+                  An https URL goes to Safari; web and TWA are unchanged. */}
+              {isStoreBillingActive() && (
+                <p style={{ margin:'0 0 8px', textAlign:'center', fontSize:'12px' }}>
+                  <a href={`${PUBLIC_WEB_ORIGIN}/terms`} target="_blank" rel="noopener noreferrer"
+                    style={{ color:'rgba(255,255,255,0.65)', textDecoration:'none', fontWeight:'600' }}>
                     {t('pro.terms', { defaultValue: 'AGB' })}
                   </a>
-                  {' · '}
-                  <a href={`${PUBLIC_WEB_ORIGIN}/privacy`} target="_blank" rel="noopener noreferrer" style={{ color:'#FD7666', textDecoration:'underline' }}>
+                  <span style={{ color:'rgba(255,255,255,0.3)', padding:'0 10px' }}>|</span>
+                  <a href={`${PUBLIC_WEB_ORIGIN}/privacy`} target="_blank" rel="noopener noreferrer"
+                    style={{ color:'rgba(255,255,255,0.65)', textDecoration:'none', fontWeight:'600' }}>
                     {t('pro.privacy', { defaultValue: 'Datenschutz' })}
                   </a>
                 </p>

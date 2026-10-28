@@ -47,7 +47,8 @@ const storeProducts = (trial = null) => ({
 
 // The purchase button. A direct lookup: role queries with an accessible name
 // scan the whole sheet and pushed these tests past 5 s in the parallel run.
-const ctaButton = () => screen.getByText(/Jetzt starten/).closest('button');
+// Since Tina's paywall redesign (27.10.2026) the CTA is a neutral "Weiter →".
+const ctaButton = () => screen.getByText(/Weiter/).closest('button');
 
 const renderModal = async (props = {}) => {
   render(<ProModal onClose={() => {}} {...props} />);
@@ -145,6 +146,29 @@ describe('ProModal paywall — App Store (3.1.2)', () => {
   });
 });
 
+describe('ProModal paywall — Tina-Redesign 27.10.2026', () => {
+  it('hero headline, three hero benefits, the rest behind "Alle Vorteile ansehen"', async () => {
+    await renderModal();
+    expect(screen.getByText('MORE PEOPLE.')).toBeTruthy();
+    expect(screen.getByText('MORE PLACES.')).toBeTruthy();
+    expect(screen.getByText('Entdecke JAMIE Pro.')).toBeTruthy();
+    // the three hero benefits with Tina's wording
+    expect(screen.getByText('Unbegrenzt Gruppen')).toBeTruthy();
+    expect(screen.getByText('Alle vorab sehen, wer in der Gruppe ist')).toBeTruthy();
+    expect(screen.getByText('Gruppen boosten')).toBeTruthy();
+    // the rest is collapsed until the toggle is tapped
+    expect(screen.queryByText('Clubs boosten')).toBeNull();
+    expect(screen.queryByText('Top-Platzierung')).toBeNull();
+    const toggle = screen.getByText('Alle Vorteile ansehen').closest('button');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    await act(async () => { fireEvent.click(toggle); });
+    expect(screen.getByText('Clubs boosten')).toBeTruthy();
+    expect(screen.getByText('Top-Platzierung')).toBeTruthy();
+    // no emoji feature icons any more — the "Burger King" crown is gone
+    expect(screen.queryByText('👑')).toBeNull();
+  });
+});
+
 describe('ProModal paywall — the Play app keeps the per-month headline', () => {
   it('per-month price big, billed amount secondary, baseline struck through', async () => {
     platform.ios = false;
@@ -164,7 +188,7 @@ describe('ProModal — the web browser sells nothing since 26.10.2026', () => {
   it('shows "Bald verfügbar" instead of plans, button or checkbox — no Stripe checkout', async () => {
     await renderModal();
     expect(screen.getByText('Pro ist in Kürze verfügbar')).toBeTruthy();
-    expect(screen.queryByText(/Jetzt starten/)).toBeNull();
+    expect(screen.queryByText(/Weiter/)).toBeNull();
     expect(screen.queryByText('29,99 € alle 6 Monate')).toBeNull();
     expect(document.querySelector('input[type="checkbox"]')).toBeNull();
     expect(subscription.create).not.toHaveBeenCalled();
