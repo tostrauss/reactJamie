@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Paywall Shot</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #171233; height: 100%; }
+    :root { --nav-safe-bottom: 0px; }
+    * { font-family: -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+    /* The app's global stylesheet is not loaded in the harness — size the
+       wordmark like .jamie-wordmark--header does in the real app. */
+    .jamie-wordmark { height: 30px; width: auto; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/shot/main.jsx"></script>
+</body>
+</html>

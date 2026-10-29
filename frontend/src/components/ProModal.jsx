@@ -688,24 +688,28 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                 </button>
               </div>
 
-              {/* Hero: headline left, Tina's heart photo bleeding off the
-                  right sheet edge (blend melts its black ground, see import). */}
-              <div style={{ position:'relative', isolation:'isolate', marginBottom:'16px' }}>
+              {/* Hero: headline left, Tina's heart photo right — a real flex
+                  pair, NOT absolutely positioned: the photo's box then can
+                  never overlap the feature rows below (TestFlight 1.4.5 build
+                  14 showed exactly that overlap, Tina 29.10.). The blend melts
+                  the photo's black ground, see the import note. */}
+              <div style={{ display:'flex', alignItems:'flex-start', gap:'6px', marginBottom:'14px' }}>
+                <div style={{ flex:'1 1 55%', minWidth:0 }}>
+                  <h2 style={{ margin:'10px 0 10px', fontWeight:'900',
+                    fontSize:'clamp(20px, 7vw, 28px)', lineHeight:1.08, letterSpacing:'0.3px' }}>
+                    <span style={{ display:'block', color:'#fff', whiteSpace:'nowrap' }}>{t('pro.heroTitle1')}</span>
+                    <span style={{ display:'block', color:'#FD7666', whiteSpace:'nowrap' }}>{t('pro.heroTitle2')}</span>
+                  </h2>
+                  <p style={{ margin:0, color:'rgba(255,255,255,0.72)', fontSize:'14px', lineHeight:1.5 }}>
+                    {t('pro.heroSub1')}{' '}
+                    <strong style={{ color:'#fff' }}>{t('pro.heroSub2')}</strong>
+                  </p>
+                </div>
                 <img src={proHero} alt="" aria-hidden="true" draggable={false} style={{
-                  position:'absolute', top:'-10px', right:'-22px',
-                  width:'54%', maxWidth:'235px',
+                  flex:'0 0 auto', width:'45%', maxWidth:'215px', height:'auto',
+                  marginRight:'-22px', marginTop:'-4px',
                   mixBlendMode:'lighten', pointerEvents:'none', userSelect:'none',
                 }} />
-                <h2 style={{ margin:'10px 0 10px', fontWeight:'900', fontSize:'29px',
-                  lineHeight:1.08, letterSpacing:'0.4px', position:'relative', maxWidth:'62%' }}>
-                  <span style={{ display:'block', color:'#fff' }}>{t('pro.heroTitle1')}</span>
-                  <span style={{ display:'block', color:'#FD7666' }}>{t('pro.heroTitle2')}</span>
-                </h2>
-                <p style={{ margin:'0 0 4px', maxWidth:'58%', color:'rgba(255,255,255,0.72)',
-                  fontSize:'14px', lineHeight:1.5, position:'relative' }}>
-                  {t('pro.heroSub1')}{' '}
-                  <strong style={{ color:'#fff' }}>{t('pro.heroSub2')}</strong>
-                </p>
               </div>
 
               {/* Context call-out: when the modal was opened from a specific
