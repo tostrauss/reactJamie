@@ -622,6 +622,9 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
             alignItems: isSuccess ? 'center' : undefined,
             justifyContent: isSuccess ? 'center' : undefined,
             overflowY:'auto',
+            // The hero photo bleeds past the right padding (marginRight -22px)
+            // — clip it here so the sheet never widens the page (31.10.2026).
+            overflowX:'hidden',
             animation: isSuccess ? 'none' : 'pm-slide-up 0.38s cubic-bezier(.25,.8,.25,1) both',
           }}
         >

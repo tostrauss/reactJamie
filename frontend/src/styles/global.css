@@ -521,6 +521,11 @@ select:focus-visible {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Never pan the whole app sideways: body has this guard, but the APP
+     scrolls in THIS container — without it, a single child a few px too
+     wide let iOS drag the entire screen horizontally (Tina, 31.10.2026,
+     Gruppen- und Clubs-Feed). */
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
 }
