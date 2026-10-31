@@ -930,7 +930,10 @@ export const GroupDetail = () => {
             {/* Owner actions */}
             {isJoined && (
               <div className="gd-owner-actions">
-                {isOwner && !isEvent && (
+                {/* Boost: owner — and app admins since 31.10.2026, also for
+                    EVENTS (the server authorizes owner || is_admin and takes
+                    target_type 'event'; the feeds sort boosted events). */}
+                {(isOwner || user?.is_admin) && (
                   <button className="gd-boost-btn" onClick={() => setShowBoostModal(true)}>
                     {t('groups.detail.actions.boost')}
                   </button>
@@ -1178,7 +1181,7 @@ export const GroupDetail = () => {
       {showBoostModal && (
         <Suspense fallback={null}>
           <BoostModal
-            targetType={isClub ? 'club' : 'group'}
+            targetType={isEvent ? 'event' : isClub ? 'club' : 'group'}
             targetId={parseInt(id)}
             targetName={group.name || group.category || ''}
             onClose={() => setShowBoostModal(false)}

@@ -131,8 +131,11 @@ export const applyBoost = async (req, res) => {
   if (!target_type || !target_id) {
     return res.status(400).json({ error: 'target_type and target_id required' });
   }
-  if (!['group', 'club'].includes(target_type)) {
-    return res.status(400).json({ error: 'target_type must be group or club' });
+  // 'event' since 31.10.2026 (Tina/Tobi: das JAMIE-Halloween-Event nach oben)
+  // — the feeds already sort boosted events: is_boosted matches
+  // b.target_type = g.type, so an 'event' row needs an 'event' boost.
+  if (!['group', 'club', 'event'].includes(target_type)) {
+    return res.status(400).json({ error: 'target_type must be group, club or event' });
   }
   // Validate & clamp client-supplied duration: one credit buys at most 24h.
   // Without this a user could send hours=100000 for an ~11-year boost.
@@ -142,20 +145,33 @@ export const applyBoost = async (req, res) => {
   }
 
   try {
-    // Verify ownership first (cheap check, no lock needed)
+    // Verify ownership first (cheap check, no lock needed). App admins may
+    // boost anything since 31.10.2026 — the team pushes its own official
+    // events (JAMIE x Mon Ami) without juggling the creator's login.
     const ownerRes = await db.query(
       `SELECT owner_id FROM groups WHERE id = $1 AND type = $2`,
       [target_id, target_type]
     );
-    if (!ownerRes.rows.length || Number(ownerRes.rows[0].owner_id) !== Number(req.userId)) {
+    if (!ownerRes.rows.length) {
+      return res.status(403).json({ error: 'Du kannst nur deine eigenen Gruppen/Clubs boosten' });
+    }
+    const isTargetOwner = Number(ownerRes.rows[0].owner_id) === Number(req.userId);
+    let isAdmin = false;
+    if (!isTargetOwner) {
+      const adm = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);
+      isAdmin = adm.rows[0]?.is_admin === true;
+    }
+    if (!isTargetOwner && !isAdmin) {
       return res.status(403).json({ error: 'Du kannst nur deine eigenen Gruppen/Clubs boosten' });
     }
 
     const isPro = await isUserPro(req.userId);
+    // Admins boost comped like Pro (same exemption family as the daily limits).
+    const comped = isPro || isAdmin;
     const boostedUntil = new Date(Date.now() + hoursNum * 60 * 60 * 1000);
 
     await withTransaction(async (client) => {
-      if (!isPro) {
+      if (!comped) {
         // Lock the row and re-check balance atomically — prevents race conditions
         const balanceRes = await client.query(
           'SELECT credits FROM boost_credits WHERE user_id = $1 FOR UPDATE',
@@ -175,7 +191,7 @@ export const applyBoost = async (req, res) => {
       await client.query(
         `INSERT INTO boosts (user_id, target_type, target_id, credits_spent, boosted_until)
          VALUES ($1, $2, $3, $4, $5)`,
-        [req.userId, target_type, target_id, isPro ? 0 : 1, boostedUntil]
+        [req.userId, target_type, target_id, comped ? 0 : 1, boostedUntil]
       );
     });
 
@@ -184,7 +200,7 @@ export const applyBoost = async (req, res) => {
     invalidatePrefix('groups:');
     invalidatePrefix('clubs:');
 
-    res.json({ success: true, boosted_until: boostedUntil, pro_boost: isPro });
+    res.json({ success: true, boosted_until: boostedUntil, pro_boost: comped });
   } catch (err) {
     if (err.message === 'INSUFFICIENT_CREDITS') {
       return res.status(402).json({ error: 'Boosts sind Teil von JAMIE Pro.', code: 'PRO_REQUIRED' });
