@@ -47,13 +47,32 @@ let config = (() => {
   }
 })();
 
+// Load state of the config (03.11.2026, App-Review-Ablehnung 3.1.2):
+// fail-closed alone was not enough — on a FRESH install the default is
+// all-off until the first fetch lands, and in that window native iOS hid the
+// Settings entry point and the paywall showed "nicht verfügbar". The review
+// note said "Settings → JAMIE Pro", so the reviewer may have found nothing.
+// 'pending' until the first fetch settles; a cached config from an earlier
+// start counts as ready immediately. The UI shows a spinner while 'pending'
+// or 'error' on native iOS instead of pretending purchases are off.
+let status = config === DEFAULT_PAYMENTS_CONFIG ? 'pending' : 'ready';
+
 const listeners = new Set();
 
 export const getPaymentsConfig = () => config;
+export const getPaymentsConfigStatus = () => status;
 
 export function setPaymentsConfig(raw) {
   config = normalize(raw);
+  status = 'ready';
   safeStorage.setItem(CACHE_KEY, JSON.stringify(config));
+  listeners.forEach((l) => l());
+}
+
+/** Both fetch attempts failed (utils/iap.js) — the UI may offer a retry. */
+export function markPaymentsConfigError() {
+  if (status === 'ready') return;
+  status = 'error';
   listeners.forEach((l) => l());
 }
 
@@ -68,3 +87,8 @@ const subscribe = (listener) => {
  * so a config that arrives after mount still shows the purchase UI.
  */
 export const usePaymentsConfig = () => useSyncExternalStore(subscribe, getPaymentsConfig, getPaymentsConfig);
+
+/** Re-renders when the LOAD STATE changes ('pending' | 'ready' | 'error') —
+ *  the config snapshot itself stays identical when a fetch merely fails. */
+export const usePaymentsConfigStatus = () =>
+  useSyncExternalStore(subscribe, getPaymentsConfigStatus, getPaymentsConfigStatus);

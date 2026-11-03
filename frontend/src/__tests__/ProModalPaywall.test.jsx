@@ -10,6 +10,7 @@ import { render, screen, act, fireEvent } from '@testing-library/react';
 // any more (Apple/Google are the seller). Real German i18n.
 const platform = { ios: true, play: false };
 vi.mock('../utils/platform', () => ({
+  isNativeIOS: () => platform.ios,
   isIosIapActive: () => platform.ios,
   isStoreBillingActive: () => platform.ios || platform.play,
   isPlayBillingActive: () => platform.play,
@@ -17,12 +18,17 @@ vi.mock('../utils/platform', () => ({
   purchasesEnabled: () => platform.ios || platform.play,
   paymentsComingSoon: () => !(platform.ios || platform.play),
 }));
-vi.mock('../utils/paymentsConfig', () => ({ usePaymentsConfig: () => {} }));
+const payCfg = { status: 'ready' };
+vi.mock('../utils/paymentsConfig', () => ({
+  usePaymentsConfig: () => {},
+  usePaymentsConfigStatus: () => payCfg.status,
+}));
 const products = { value: null };
 vi.mock('../utils/iap', () => ({
   getIosProducts: vi.fn(async () => products.value),
   subscribePro: vi.fn(),
   restorePurchases: vi.fn(),
+  loadPaymentsConfig: vi.fn(async () => {}),
 }));
 vi.mock('../utils/playBilling', () => ({ purchasePlaySubscription: vi.fn(), restorePlayPurchases: vi.fn() }));
 vi.mock('../utils/api', () => ({
@@ -55,7 +61,7 @@ const renderModal = async (props = {}) => {
   await act(async () => {});
 };
 
-beforeEach(() => { platform.ios = true; platform.play = false; products.value = storeProducts(); });
+beforeEach(() => { platform.ios = true; platform.play = false; products.value = storeProducts(); payCfg.status = 'ready'; });
 
 describe('ProModal paywall — App Store (3.1.2)', () => {
   it('the BILLED amount is the headline of each tile; the per-month figure is a secondary "≈" line', async () => {
@@ -133,6 +139,26 @@ describe('ProModal paywall — App Store (3.1.2)', () => {
     expect(pressed[0].textContent).toContain('1 Monat');
     await act(async () => { fireEvent.click(ctaButton()); });
     expect(subscribePro).toHaveBeenCalledWith('monthly');
+  });
+
+  // 03.11.2026 (3.1.2-Ablehnung): on native iOS, an UNLOADED config must show
+  // a spinner — never "nicht verfügbar" or the coming-soon teaser the
+  // reviewer may have hit on a fresh install.
+  it('while the payments config is still loading, native iOS shows a spinner — no dead end', async () => {
+    payCfg.status = 'pending';
+    await renderModal();
+    expect(screen.queryByText(/derzeit nicht verfügbar/)).toBeNull();
+    expect(screen.queryByText('Pro ist in Kürze verfügbar')).toBeNull();
+    expect(screen.queryByText(/Weiter/)).toBeNull();
+    const { loadPaymentsConfig } = await import('../utils/iap');
+    expect(loadPaymentsConfig).toHaveBeenCalled();
+  });
+
+  it('products that failed to load get a retry button instead of a dead sentence', async () => {
+    products.value = null;
+    await renderModal();
+    expect(screen.getByText(/derzeit nicht verfügbar/)).toBeTruthy();
+    expect(screen.getByText('Erneut versuchen')).toBeTruthy();
   });
 
   // 26.10.2026: Apple is the seller and runs the withdrawal rules; the §18

@@ -21,7 +21,7 @@
 
 import { isNativeIOS } from './platform';
 import { iap as iapApi } from './api';
-import { getPaymentsConfig, setPaymentsConfig } from './paymentsConfig';
+import { getPaymentsConfig, setPaymentsConfig, markPaymentsConfigError } from './paymentsConfig';
 import { captureException } from './sentry';
 
 // Subscriptions only. The boost_* consumables were dropped on 21.09.2026
@@ -69,6 +69,10 @@ export async function loadPaymentsConfig() {
       if (attempt === 0) await new Promise((r) => setTimeout(r, 1500));
     }
   }
+  // Both attempts failed: flip the load state so the UI can show a spinner /
+  // retry instead of silently pretending purchases are off (3.1.2-Ablehnung
+  // 03.11.2026 — der Reviewer darf nie in einer "aus"-Attrappe landen).
+  markPaymentsConfigError();
   return getPaymentsConfig();
 }
 

@@ -13,7 +13,7 @@ import {
   unsubscribeFromPush,
 } from '../utils/pushNotifications';
 import { isNativeIOS, isPlayBillingActive, isStoreBillingActive, proUpsellAllowed, isIOSWeb, isIOSWebStandalone, pushSettingsLocation } from '../utils/platform';
-import { usePaymentsConfig } from '../utils/paymentsConfig';
+import { usePaymentsConfig, usePaymentsConfigStatus } from '../utils/paymentsConfig';
 import { restorePlayPurchases, PLAY_SUBSCRIPTIONS_URL } from '../utils/playBilling';
 import { RADIUS_OPTIONS_KM } from '../utils/geo';
 import { restorePurchases, openAppleSubscriptions } from '../utils/iap';
@@ -31,6 +31,9 @@ export const SettingsPage = () => {
   const appVersion = useAppVersion();
   // Re-render when the runtime payments config arrives (Pro entry, restore).
   usePaymentsConfig();
+  // 'pending' | 'ready' | 'error' — on native iOS the Pro row must not vanish
+  // just because the config has not ARRIVED yet (3.1.2-Ablehnung 03.11.2026).
+  const payConfigStatus = usePaymentsConfigStatus();
 
   // Pull fresh profile data whenever Settings opens. Server-side flags like
   // is_admin can change while the app is still running (admins are flipped on
@@ -483,8 +486,12 @@ export const SettingsPage = () => {
             Hidden in the iOS app while iOS sales are off (Apple 3.1.1
             forbids an entry point without an in-app purchase path).
             Elsewhere the modal shows the "bald verfügbar" teaser while
-            payments are off, so this is safe either way. */}
-        {!sub?.is_pro && proUpsellAllowed() && (
+            payments are off, so this is safe either way.
+            3.1.2-Härtung (03.11.2026): while the config is still loading (or
+            its fetch failed) on native iOS, the row STAYS — the modal shows a
+            spinner and refetches. Only a LOADED config with iOS sales off
+            hides it (then proUpsellAllowed is false and status is 'ready'). */}
+        {!sub?.is_pro && (proUpsellAllowed() || (isNativeIOS() && payConfigStatus !== 'ready')) && (
           <div
             className="settings-row"
             onClick={() => window.dispatchEvent(new Event('jamie:open-pro-modal'))}

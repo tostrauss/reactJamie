@@ -4,9 +4,9 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { subscription as subscriptionApi } from '../utils/api';
 import { PRO_PLANS, DEFAULT_PLAN_KEY, BASELINE_MONTHLY } from '../utils/proPlans';
-import { isIosIapActive, isPlayBillingActive, isStoreBillingActive, purchasesEnabled, paymentsComingSoon } from '../utils/platform';
-import { usePaymentsConfig } from '../utils/paymentsConfig';
-import { subscribePro, restorePurchases, getIosProducts } from '../utils/iap';
+import { isNativeIOS, isIosIapActive, isPlayBillingActive, isStoreBillingActive, purchasesEnabled, paymentsComingSoon } from '../utils/platform';
+import { usePaymentsConfig, usePaymentsConfigStatus } from '../utils/paymentsConfig';
+import { subscribePro, restorePurchases, getIosProducts, loadPaymentsConfig } from '../utils/iap';
 import { purchasePlaySubscription, restorePlayPurchases } from '../utils/playBilling';
 import { useToast } from '../context/ToastContext';
 import { InterestButton } from './InterestButton';
@@ -422,6 +422,16 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
   // currency + Apple's free-trial eligibility). undefined = loading,
   // null = could not load (then no purchase CTA, see below).
   usePaymentsConfig();
+  // 3.1.2-Härtung (03.11.2026): on native iOS, before the FIRST config has
+  // arrived (or after a failed fetch), show a spinner — never the "nicht
+  // verfügbar"/coming-soon dead end the reviewer may have hit. The sheet also
+  // re-requests the config itself.
+  const payConfigStatus = usePaymentsConfigStatus();
+  const configPending = isNativeIOS() && payConfigStatus !== 'ready';
+  useEffect(() => {
+    if (isNativeIOS() && payConfigStatus !== 'ready') loadPaymentsConfig();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const iosIap = isIosIapActive();
   const [iosProducts, setIosProducts] = useState(undefined);
   useEffect(() => {
@@ -816,7 +826,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
               {/* Kauf-Flow nur zeigen, wenn Käufe verfügbar sind. Auf iOS ohne
                   fertiges StoreKit-IAP zeigen wir stattdessen eine neutrale Info
                   (KEIN Hinweis auf Web/Android-Kauf — Apple-Anti-Steering 3.1.1). */}
-              {purchasesEnabled() && iosIap && iosProducts === undefined ? (
+              {configPending || (purchasesEnabled() && iosIap && iosProducts === undefined) ? (
                 <div style={{ display:'flex', justifyContent:'center', padding:'18px 0', color:'rgba(255,255,255,0.6)' }}>
                   <Spinner />
                 </div>
@@ -875,12 +885,29 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                   <InterestButton feature="pro" />
                 </div>
               ) : (
-                <p style={{
-                  fontSize:'13px', lineHeight:1.5, textAlign:'center',
-                  color:'rgba(255,255,255,0.6)', margin:'4px 0 14px', padding:'0 4px',
-                }}>
-                  {t('pro.iosUnavailable', { defaultValue: 'JAMIE Pro ist auf dem iPhone derzeit nicht verfügbar.' })}
-                </p>
+                <div style={{ textAlign:'center', margin:'4px 0 14px', padding:'0 4px' }}>
+                  <p style={{ fontSize:'13px', lineHeight:1.5, color:'rgba(255,255,255,0.6)', margin:'0 0 10px' }}>
+                    {t('pro.iosUnavailable', { defaultValue: 'JAMIE Pro ist auf dem iPhone derzeit nicht verfügbar.' })}
+                  </p>
+                  {/* Never a dead end (3.1.2, 03.11.2026): re-request config +
+                      StoreKit products right here. */}
+                  <button
+                    onClick={() => {
+                      loadPaymentsConfig();
+                      setIosProducts(undefined);
+                      getIosProducts()
+                        .then(p => setIosProducts(Object.keys(p).length ? p : null))
+                        .catch(() => setIosProducts(null));
+                    }}
+                    style={{
+                      padding:'10px 18px', borderRadius:'12px',
+                      background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.12)',
+                      color:'rgba(255,255,255,0.8)', fontSize:'13px', fontWeight:'600', cursor:'pointer',
+                    }}
+                  >
+                    {t('pro.retry', { defaultValue: 'Erneut versuchen' })}
+                  </button>
+                </div>
               )}
 
               {/* iOS-only: Apple Review 3.1.1 wants Restore Purchases visible

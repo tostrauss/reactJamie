@@ -8,4 +8,7 @@ const CONFIG = Object.freeze({
 export const DEFAULT_PAYMENTS_CONFIG = CONFIG;
 export const getPaymentsConfig = () => CONFIG;
 export const setPaymentsConfig = () => {};
+export const markPaymentsConfigError = () => {};
+export const getPaymentsConfigStatus = () => 'ready';
 export const usePaymentsConfig = () => CONFIG;
+export const usePaymentsConfigStatus = () => 'ready';
