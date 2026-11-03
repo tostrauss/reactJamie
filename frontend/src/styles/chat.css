@@ -1413,6 +1413,16 @@
   overflow-wrap: anywhere;
 }
 
+/* Tappable URLs in chat text (Tim via Instagram, 03.11.2026). color:inherit
+   keeps them white in sent (coral) bubbles and dark in received ones — the
+   underline alone marks them; wrapping comes from .message-content above. */
+.message-content a.message-link {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
    NEUBAU CHATSEITE 2026-08-04 (Tina/Tobi meeting)
    Chats (Filter-Bubbles) · Anfragen (Swipe-Deck) · Verwalten

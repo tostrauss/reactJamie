@@ -23,6 +23,8 @@ import { dayKey, daySeparatorLabel } from '../utils/chatDate';
 import { useChatViewport } from '../hooks/useChatViewport';
 import useSwipeBack from '../hooks/useSwipeBack';
 import { dropVanished, quoteIdOf } from '../utils/chatMerge';
+import { linkifyText } from '../utils/linkify';
+import { copyText } from '../utils/clipboard';
 import '../styles/chat.css';
 
 export const DirectMessagePage = () => {
@@ -550,7 +552,7 @@ export const DirectMessagePage = () => {
                 ) : msg.message_type === 'image' ? (
                   <ImageMessage url={mediaUrl(msg)} mine={msg.sender_id === user.id} onOpen={setLightbox} onLoad={handleMediaLoad} />
                 ) : (
-                  <div className="message-content">{msg.content}</div>
+                  <div className="message-content">{linkifyText(msg.content)}</div>
                 )}
                 <div className="message-time">
                   {msg._failed
@@ -627,6 +629,20 @@ export const DirectMessagePage = () => {
                 <button className="msg-sheet-btn" onClick={() => { setReplyTo(actionMsg); setActionMsg(null); }}>
                   {t('chat.reply.action')}
                 </button>
+                {/* Copy as a sheet action — see ChatPage. */}
+                {!!actionMsg.content && actionMsg.message_type !== 'voice' && actionMsg.message_type !== 'image' && (
+                  <button
+                    className="msg-sheet-btn"
+                    onClick={async () => {
+                      const ok = await copyText(actionMsg.content);
+                      setActionMsg(null);
+                      if (ok) toast.success(t('chat.copy.done'));
+                      else toast.error(t('chat.copy.error'));
+                    }}
+                  >
+                    {t('chat.copy.action')}
+                  </button>
+                )}
                 {actionMsg.sender_id !== user?.id && (
                   <button
                     className="msg-sheet-btn msg-sheet-btn--danger"

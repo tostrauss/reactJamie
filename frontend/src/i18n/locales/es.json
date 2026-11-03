@@ -966,6 +966,11 @@
       "unknownAuthor": "Desconocido",
       "deleted": "Mensaje eliminado"
     },
+    "copy": {
+      "action": "Copiar",
+      "done": "Mensaje copiado",
+      "error": "No se ha podido copiar"
+    },
     "reactions": {
       "more": "Más emojis",
       "chipAria": "Reacción {{emoji}}, {{count}}×",

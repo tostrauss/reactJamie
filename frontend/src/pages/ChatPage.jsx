@@ -27,6 +27,8 @@ import { PollMessage } from '../components/PollMessage';
 import { PollComposerSheet } from '../components/PollComposerSheet';
 import { usePollVotes } from '../hooks/usePollVotes';
 import { isRenderablePoll, mergePoll } from '../utils/polls';
+import { linkifyText } from '../utils/linkify';
+import { copyText } from '../utils/clipboard';
 import '../styles/chat.css';
 
 // The sender's profile picture beside a received group message, like
@@ -843,7 +845,7 @@ export const ChatPage = () => {
                       onVote={(choices) => pollVotes.vote(msg, choices)}
                     />
                   ) : (
-                    <div className="message-content">{msg.content}</div>
+                    <div className="message-content">{linkifyText(msg.content)}</div>
                   )}
                   <div className="message-time">
                     {msg._failed
@@ -947,6 +949,22 @@ export const ChatPage = () => {
                 >
                   {t('chat.reply.action')}
                 </button>
+                {/* Copy lives here, not in iOS text selection: the long-press
+                    that would start a selection opens this sheet instead
+                    (Tim via Instagram, 03.11.2026). */}
+                {!!actionMsg.content && actionMsg.message_type !== 'voice' && actionMsg.message_type !== 'image' && (
+                  <button
+                    className="msg-sheet-btn"
+                    onClick={async () => {
+                      const ok = await copyText(actionMsg.content);
+                      setActionMsg(null);
+                      if (ok) toast.success(t('chat.copy.done'));
+                      else toast.error(t('chat.copy.error'));
+                    }}
+                  >
+                    {t('chat.copy.action')}
+                  </button>
+                )}
                 {actionMsg.user_id !== user?.id && (
                   <button
                     className="msg-sheet-btn msg-sheet-btn--danger"
