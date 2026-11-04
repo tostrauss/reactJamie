@@ -1693,7 +1693,7 @@
     "unexpectedStatus": "That didn't work. Please try again.",
     "restoreNone": "No purchases found to restore",
     "restoreError": "Restore failed",
-    "iosUnavailable": "JAMIE Pro is currently not available on iPhone.",
+    "iosUnavailable": "JAMIE Pro is currently not available on this device.",
     "restoreBtn": "Restore purchases",
     "iosTerms": "JAMIE Pro renews automatically at the price shown for the selected period unless you cancel at least 24 hours before it ends. Cancel anytime in your iPhone Settings: tap your name at the top → Subscriptions.",
     "playTerms": "JAMIE Pro renews automatically at the selected price at the end of each period. Billed by Google Play; cancel anytime in Google Play → Subscriptions.",

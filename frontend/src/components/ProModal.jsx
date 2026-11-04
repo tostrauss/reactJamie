@@ -887,7 +887,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
               ) : (
                 <div style={{ textAlign:'center', margin:'4px 0 14px', padding:'0 4px' }}>
                   <p style={{ fontSize:'13px', lineHeight:1.5, color:'rgba(255,255,255,0.6)', margin:'0 0 10px' }}>
-                    {t('pro.iosUnavailable', { defaultValue: 'JAMIE Pro ist auf dem iPhone derzeit nicht verfügbar.' })}
+                    {t('pro.iosUnavailable', { defaultValue: 'JAMIE Pro ist auf diesem Gerät derzeit nicht verfügbar.' })}
                   </p>
                   {/* Never a dead end (3.1.2, 03.11.2026): re-request config +
                       StoreKit products right here. */}
