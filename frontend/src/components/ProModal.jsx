@@ -11,10 +11,11 @@ import { purchasePlaySubscription, restorePlayPurchases } from '../utils/playBil
 import { useToast } from '../context/ToastContext';
 import { InterestButton } from './InterestButton';
 import { JamieWordmark } from './JamieWordmark';
-// Tina's heart-mask hero (27.10.2026). The PNG she sent has NO alpha channel —
-// the area around the heart is pure black. mix-blend-mode:lighten on the img
-// melts that black into the dark sheet gradient (max per channel), so the
-// photo needs no transparent cut-out. Keep the sheet background dark.
+// Tina's heart-mask hero (27.10.2026). Her PNG had no alpha (black around the
+// heart); the mix-blend-mode:lighten workaround melted that black into the
+// sheet in Chromium but NOT in the iOS WKWebView (TestFlight showed a black
+// box — Tina, 05.11.2026), so the cut-out is now baked into the asset itself
+// (border-connected black flood-filled to alpha). No blend mode needed.
 import proHero from '../assets/pro-hero.webp';
 
 // The public web app — where Terms and Privacy live for every client.
@@ -721,7 +722,7 @@ export const ProModal = ({ onClose, onSuccess, feature = null }) => {
                 <img src={proHero} alt="" aria-hidden="true" draggable={false} style={{
                   flex:'0 0 auto', width:'45%', maxWidth:'215px', height:'auto',
                   marginRight:'-22px', marginTop:'-4px',
-                  mixBlendMode:'lighten', pointerEvents:'none', userSelect:'none',
+                  pointerEvents:'none', userSelect:'none',
                 }} />
               </div>
 
