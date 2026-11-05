@@ -104,12 +104,15 @@ export async function geocodeAllowedRegion(location) {
   return promise;
 }
 
-async function _fetchNominatim(location, countrycodes = null) {
+async function _fetchNominatim(location, countrycodes = null, viewbox = null) {
   // addressdetails=1 is always requested (not just for the country-restricted
   // variant) so the resolved `country_code` is available to the region gate in
   // resolveCreateLocation() even on an unrestricted lookup.
+  // viewbox + bounded=1 restricts hits to that box (left,top,right,bottom) —
+  // used by resolveClubEventLocation to prefer places near the parent club.
   const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1&addressdetails=1`
-    + (countrycodes ? `&countrycodes=${countrycodes}` : '');
+    + (countrycodes ? `&countrycodes=${countrycodes}` : '')
+    + (viewbox ? `&viewbox=${viewbox}&bounded=1` : '');
 
   return nominatimSlot.run(async () => {
   const controller = new AbortController();
@@ -161,6 +164,61 @@ async function _fetchNominatim(location, countrycodes = null) {
     clearTimeout(timeout);
   }
   });
+}
+
+// Cache + inflight-dedup around one lookup — the same discipline the two
+// exported geocoders implement inline. A rejected fetch resolves to null and
+// skips the cache, exactly like their catch paths.
+function cachedLookup(key, doFetch) {
+  const cached = _cache.get(key);
+  if (cached && Date.now() < cached.expiresAt) return Promise.resolve(cached.result);
+  if (_inflight.has(key)) return _inflight.get(key);
+  const promise = doFetch().then((result) => {
+    _cache.set(key, { result, expiresAt: Date.now() + (result ? TTL_MS : NEG_TTL_MS) });
+    _inflight.delete(key);
+    return result;
+  }).catch(() => {
+    _inflight.delete(key);
+    return null;
+  });
+  _inflight.set(key, promise);
+  return promise;
+}
+
+/**
+ * Club-event geocode: a custom event location is almost always NEAR its club
+ * ("6. Bezirk", a bare street, a venue name). The old unrestricted lookup sent
+ * exactly such a string to Tehran's "District 6" (Tina, 05.11.2026) — and a pin
+ * outside the caller's market box hides the event from EVERY logged-in Gruppen
+ * feed (same-country box filter) while anonymous requests still see it.
+ *
+ * Chain: (1) bounded lookup in a ~35 km box around the club's own pin,
+ * (2) resolveCreateLocation (strict market countrycodes, then loose lookup
+ * gated on the resolved country). Same return shape as resolveCreateLocation.
+ */
+export async function resolveClubEventLocation(location, clubLat, clubLng) {
+  if (!location || typeof location !== 'string' || !location.trim()) {
+    return { ok: true, coords: null };
+  }
+
+  const lat = Number(clubLat);
+  const lng = Number(clubLng);
+  if (clubLat != null && clubLng != null && Number.isFinite(lat) && Number.isFinite(lng)) {
+    const dLat = 35 / 111;
+    // cos clamped so a (nonsensical) polar club can't blow the box up to the
+    // whole globe; 0.2 caps the widening at ×5.
+    const dLng = 35 / (111 * Math.max(Math.cos((lat * Math.PI) / 180), 0.2));
+    // Nominatim viewbox order: left, top, right, bottom.
+    const viewbox = [
+      (lng - dLng).toFixed(4), (lat + dLat).toFixed(4),
+      (lng + dLng).toFixed(4), (lat - dLat).toFixed(4),
+    ].join(',');
+    const key = `near:${viewbox}:${location.trim().toLowerCase()}`;
+    const near = await cachedLookup(key, () => _fetchNominatim(location.trim(), null, viewbox));
+    if (near) return { ok: true, coords: near };
+  }
+
+  return resolveCreateLocation(location);
 }
 
 /**

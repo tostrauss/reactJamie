@@ -68,6 +68,7 @@ vi.mock('../../src/config/moderation.js', () => ({
 vi.mock('../../src/utils/geocode.js', () => ({
   geocodeLocation: vi.fn(async () => null),
   resolveCreateLocation: vi.fn(async () => ({ ok: true, coords: { lat: 48.2, lng: 16.3 } })),
+  resolveClubEventLocation: vi.fn(async () => ({ ok: true, coords: { lat: 48.2, lng: 16.3 } })),
 }));
 vi.mock('../../src/utils/systemMessage.js', async (importOriginal) => ({
   // The real SYSTEM_TEXTS (pure functions) — only the DB write is stubbed.

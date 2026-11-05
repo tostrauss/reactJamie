@@ -42,6 +42,7 @@ if (SMOKE_URL) {
 // Mock external geocoding so the create/update paths never hit the network.
 vi.mock('../../src/utils/geocode.js', () => ({
   resolveCreateLocation: vi.fn(async () => ({ ok: true, coords: { lat: 48.2, lng: 16.37 } })),
+  resolveClubEventLocation: vi.fn(async () => ({ ok: true, coords: { lat: 48.2, lng: 16.37 } })),
   geocodeAllowedRegion: vi.fn(async () => ({ lat: 48.2, lng: 16.37, country: 'AT' })),
   geocodeLocation: vi.fn(async () => ({ lat: 48.2, lng: 16.37 })),
 }));

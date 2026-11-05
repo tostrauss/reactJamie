@@ -3,7 +3,7 @@ import {
   MAX_JOIN_ATTEMPTS, joinAttemptsExhausted, joinBlockedBody,
 } from '../utils/joinAttempts.js';
 import { clubAliveSql } from '../utils/clubGate.js';
-import { geocodeLocation, resolveCreateLocation } from '../utils/geocode.js';
+import { resolveCreateLocation, resolveClubEventLocation } from '../utils/geocode.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
 import { postSystemMessage, SYSTEM_TEXTS } from '../utils/systemMessage.js';
@@ -1797,16 +1797,26 @@ export const createClubEvent = async (req, res) => {
     // just geocoded: otherwise the event renders without any address line.
     const eventLocation = (location && location.trim()) || club.rows[0].location || null;
     // Inherited (or identical) location → inherit the club's pin too: no
-    // Nominatim call, no drift between club pin and event pin. Only a custom
-    // location still geocodes (unrestricted, as before — club events carry no
-    // region gate by design).
+    // Nominatim call, no drift between club pin and event pin.
     const inheritsClubPin =
       eventLocation != null &&
       eventLocation === club.rows[0].location &&
       club.rows[0].lat != null;
-    const coords = inheritsClubPin
-      ? { lat: club.rows[0].lat, lng: club.rows[0].lng }
-      : await geocodeLocation(eventLocation);
+    let coords = null;
+    if (inheritsClubPin) {
+      coords = { lat: club.rows[0].lat, lng: club.rows[0].lng };
+    } else {
+      // A custom location resolves NEAR THE CLUB first, then through the market
+      // gate — the old unrestricted lookup sent "6. Bezirk" to Tehran's
+      // District 6, and an out-of-market pin hides the event from every
+      // logged-in Gruppen feed (same-country box) while anonymous requests
+      // still see it (Tina, 05.11.2026).
+      const geo = await resolveClubEventLocation(eventLocation, club.rows[0].lat, club.rows[0].lng);
+      if (!geo.ok) {
+        return res.status(400).json({ error: 'Dieser Ort liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien, Frankreich, Spanien).' });
+      }
+      coords = geo.coords;
+    }
 
     // An event inherits its parent club's privacy: a PRIVATE club's events are
     // private too, so joinGroup routes joins through owner approval instead of an
@@ -2007,7 +2017,7 @@ export const updateClubEvent = async (req, res) => {
     );
     if (event.rows.length === 0) return res.status(404).json({ error: 'Veranstaltung nicht gefunden' });
 
-    const club = await db.query('SELECT owner_id, location, is_private FROM groups WHERE id = $1', [id]);
+    const club = await db.query('SELECT owner_id, location, is_private, lat, lng FROM groups WHERE id = $1', [id]);
     const isEventOwner = Number(event.rows[0].owner_id) === Number(userId);
     const canManage = await userManagesClub(id, club.rows[0]?.owner_id, userId);
     if (!canManage && !isEventOwner) {
@@ -2056,7 +2066,12 @@ export const updateClubEvent = async (req, res) => {
     let coords = null;
     if (location !== undefined) {
       eventLocation = (location && location.trim()) || club.rows[0]?.location || null;
-      coords = await geocodeLocation(eventLocation);
+      // Near-club-first + market gate, same as createClubEvent (Tina, 05.11.2026).
+      const geo = await resolveClubEventLocation(eventLocation, club.rows[0]?.lat, club.rows[0]?.lng);
+      if (!geo.ok) {
+        return res.status(400).json({ error: 'Dieser Ort liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien, Frankreich, Spanien).' });
+      }
+      coords = geo.coords;
     }
 
     const result = await db.query(
