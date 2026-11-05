@@ -33,6 +33,7 @@ export const GroupEdit = () => {
   const [favoriteBusy, setFavoriteBusy] = useState(false);
   const [formData, setFormData]     = useState({
     name: '', description: '', max_members: 10, date: '', time: '', image_url: null,
+    location: '',
     categories: [], mainCategory: '',
     target_age_min: '', target_age_max: '',
     chat_only_owner: false, events_owner_only: false,
@@ -96,6 +97,10 @@ export const GroupEdit = () => {
           : (g.date ? g.date.slice(0, 10) : ''),
         time: isEventType && validDt ? `${pad(dt.getUTCHours())}:${pad(dt.getUTCMinutes())}` : '',
         image_url: g.image_url || null,
+        // Editable since 05.11.2026 (Tina): a mistyped Ort was unfixable after
+        // creation — "6. Bezirk" geocoded to Tehran and the event vanished from
+        // every logged-in Gruppen feed, with no way to correct it in the app.
+        location: g.location || '',
         categories: (Array.isArray(g.categories) && g.categories.length) ? g.categories : (g.category ? [g.category] : []),
         mainCategory: mainCategoryOf((Array.isArray(g.categories) && g.categories[0]) || g.category),
         target_age_min: g.target_age_min ?? '',
@@ -167,6 +172,12 @@ export const GroupEdit = () => {
       const isClubType = group?.type === 'club';
       const isEventType = group?.type === 'event';
 
+      // Ort: only sent when actually changed to something non-empty — sending
+      // it unchanged would re-geocode on every save, and an emptied field must
+      // not silently blank a group's address (COALESCE skips NULL, not '').
+      const locTrimmed = (formData.location || '').trim();
+      const locToSend = locTrimmed && locTrimmed !== (group?.location || '') ? locTrimmed : undefined;
+
       if (isEventType && group?.parent_club_id) {
         // Club events use the dedicated endpoint: correct permissions (club
         // owner/manager OR event creator) + cache busting (club page, discover
@@ -176,6 +187,7 @@ export const GroupEdit = () => {
           description: formData.description || undefined,
           date: formData.date || undefined,
           time: formData.time || undefined,
+          location: locToSend,
           max_members: formData.max_members,
           is_recurring_weekly: formData.is_recurring_weekly,
           image_url: formData.image_url || undefined,
@@ -194,9 +206,11 @@ export const GroupEdit = () => {
         const payload = {
           ...formData,
           date: dateValue,
+          location: locToSend,
           target_age_min: formData.target_age_min === '' ? null : formData.target_age_min,
           target_age_max: formData.target_age_max === '' ? null : formData.target_age_max,
         };
+        if (locToSend === undefined) delete payload.location;
         if (isClubType) {
           await clubs.update(id, { ...payload, category_label: formData.category_label ?? '' });
         } else {
@@ -654,6 +668,22 @@ export const GroupEdit = () => {
                   </div>
                 </>
               )}
+            </div>
+
+            {/* Ort — editable since 05.11.2026 (Tina): a mistyped location was
+                unfixable after creation ("6. Bezirk" → Tehran, event invisible
+                in every logged-in Gruppen feed). Saving a changed Ort
+                re-geocodes server-side behind the market gate. */}
+            <div className="ge-divider" />
+            <div className="ge-field">
+              <label className="ge-label">{t('groupEdit.fields.location')}</label>
+              <input
+                className="ge-input"
+                placeholder={t('groupEdit.fields.locationPlaceholder')}
+                value={formData.location}
+                onChange={e => setFormData(p => ({ ...p, location: e.target.value }))}
+              />
+              <p className="ge-hint">{t('groupEdit.fields.locationHint')}</p>
             </div>
 
             {/* Visibility (public ⇄ private) — editable after creation for
