@@ -1,6 +1,6 @@
 import db from '../config/database.js';
 import { sendAdminReportEmail } from '../utils/email.js';
-import { sendPushToAdmins } from './pushController.js';
+import { sendPushToAdmins, sendPushToUser } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 import { resolveReportTargets, loadReportContext, describeTarget } from '../utils/reportContext.js';
 
@@ -213,13 +213,17 @@ export const updateReportStatus = async (req, res) => {
     // failure that 500'd every profile save for two days in August. Caught
     // here by the real-Postgres smoke suite; a mocked db.query cannot see it.
     const clearing = status === 'pending';
+    // The CTE snapshots the PRE-update status, so the reporter ack below fires
+    // only on the transition into 'resolved' — re-saving it must not re-ping.
     const result = await db.query(
-      `UPDATE reports
+      `WITH old AS (SELECT status FROM reports WHERE id = $4)
+       UPDATE reports
           SET status      = $1,
               reviewed_by = CASE WHEN $2 THEN NULL ELSE $3::int END,
               reviewed_at = CASE WHEN $2 THEN NULL ELSE NOW() END
         WHERE id = $4
-        RETURNING id, status, reviewed_at`,
+        RETURNING id, status, reviewed_at, reporter_id,
+                  (SELECT status FROM old) AS old_status`,
       [status, clearing, req.userId, reportId]
     );
 
@@ -227,7 +231,29 @@ export const updateReportStatus = async (req, res) => {
       return res.status(404).json({ error: 'Meldung nicht gefunden' });
     }
 
-    res.json({ success: true, report: result.rows[0] });
+    // Melder-Ack (Tina, 07.11.2026): the reporter hears back when their report
+    // is RESOLVED — in the app and as a push, in their language. Resolve only
+    // (a dismissed report stays silent — "we did nothing" invites arguments),
+    // and strictly best-effort: the status change itself has happened.
+    const row = result.rows[0];
+    if (row.status === 'resolved' && row.old_status !== 'resolved' && row.reporter_id) {
+      db.query(
+        `SELECT (to_jsonb(users) ->> 'locale') AS locale FROM users WHERE id = $1`,
+        [row.reporter_id]
+      ).then(({ rows }) => {
+        const text = pushTexts('reportResolved')(rows[0]?.locale);
+        return db.query(
+          `INSERT INTO notifications (user_id, type, title, message, reference_type)
+           VALUES ($1, 'report_resolved', $2, $3, 'report')`,
+          [row.reporter_id, text.title, text.body]
+        );
+      }).catch((err) => console.error('report ack notification failed:', err.message));
+      Promise.resolve()
+        .then(() => sendPushToUser(row.reporter_id, pushTexts('reportResolved'), null, '/notifications'))
+        .catch((err) => console.error('report ack push failed:', err.message));
+    }
+
+    res.json({ success: true, report: { id: row.id, status: row.status, reviewed_at: row.reviewed_at } });
   } catch (error) {
     // The partial unique index added with the open-only dedupe allows exactly
     // ONE pending report per (reporter, type, target). Re-opening an old

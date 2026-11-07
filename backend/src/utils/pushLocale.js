@@ -381,6 +381,17 @@ const PUSH_TEXTS = {
     fr: () => ({ title: 'Ta photo de profil a été retirée', body: 'Ajoute une vraie photo de toi – les dessins, logos ou mèmes ne sont pas acceptés comme photo de profil. Avec une photo, tu pourras de nouveau rejoindre des groupes et des clubs.' }),
     es: () => ({ title: 'Se ha eliminado tu foto de perfil', body: 'Sube una foto real tuya: dibujos, logos o memes no valen como foto de perfil. Con una foto podrás volver a unirte a grupos y clubes.' }),
   },
+  // Melder-Ack (Tina, 07.11.2026): the reporter hears back once their report is
+  // resolved — closing the loop is what makes people keep using „Melden".
+  // Deliberately says nothing about WHAT was done (no „user banned") and fires
+  // only on resolve, never on dismiss.
+  reportResolved: {
+    de: () => ({ title: 'Deine Meldung wurde geprüft ✅', body: 'Danke, dass du JAMIE sicher hältst – unser Team hat deine Meldung bearbeitet.' }),
+    en: () => ({ title: 'Your report was reviewed ✅', body: 'Thanks for keeping JAMIE safe – our team has handled your report.' }),
+    it: () => ({ title: 'La tua segnalazione è stata esaminata ✅', body: 'Grazie per rendere JAMIE più sicura: il nostro team ha gestito la tua segnalazione.' }),
+    fr: () => ({ title: 'Ton signalement a été traité ✅', body: 'Merci de contribuer à la sécurité de JAMIE – notre équipe a traité ton signalement.' }),
+    es: () => ({ title: 'Tu denuncia ha sido revisada ✅', body: 'Gracias por mantener JAMIE segura: nuestro equipo ha gestionado tu denuncia.' }),
+  },
   pushTest: {
     de: () => ({ title: 'JAMIE Test-Benachrichtigung', body: 'Wenn du das siehst, kommen Benachrichtigungen auf diesem Gerät an. ✅' }),
     en: () => ({ title: 'JAMIE test notification', body: 'If you can see this, notifications reach this device. ✅' }),

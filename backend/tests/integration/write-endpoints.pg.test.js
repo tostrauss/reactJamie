@@ -1366,6 +1366,33 @@ suite('write endpoints against real Postgres', () => {
     expect((await call(C.updateReportStatus, { userId: A, params: { id: '99999999' }, body: { status: 'resolved' } })).statusCode).toBe(404);
   });
 
+  it('resolving a report notifies the reporter ONCE — on the transition, not on dismiss or re-save (Tina 07.11.)', async () => {
+    const first = await call(C.getReports, { userId: A, query: { limit: '5' } });
+    const rep = first.body.reports[0];
+    const ackCount = async () => (await db.query(
+      `SELECT COUNT(*)::int AS c FROM notifications WHERE user_id = $1 AND type = 'report_resolved'`,
+      [rep.reporter_id])).rows[0].c;
+    const settle = () => new Promise(r => setTimeout(r, 50)); // fire-and-forget chain
+    await db.query(`DELETE FROM notifications WHERE user_id = $1 AND type = 'report_resolved'`, [rep.reporter_id]);
+
+    // Dismiss → silence.
+    ok(await call(C.updateReportStatus, { userId: A, params: { id: String(rep.id) }, body: { status: 'dismissed' } }));
+    await settle();
+    expect(await ackCount()).toBe(0);
+
+    // Resolve → exactly one ack row for the reporter.
+    ok(await call(C.updateReportStatus, { userId: A, params: { id: String(rep.id) }, body: { status: 'resolved' } }));
+    await settle();
+    expect(await ackCount()).toBe(1);
+
+    // Re-saving "resolved" is not a transition → no second ping.
+    ok(await call(C.updateReportStatus, { userId: A, params: { id: String(rep.id) }, body: { status: 'resolved' } }));
+    await settle();
+    expect(await ackCount()).toBe(1);
+
+    ok(await call(C.updateReportStatus, { userId: A, params: { id: String(rep.id) }, body: { status: 'pending' } }));
+  });
+
   // ── join / accept / kick (the FOR-UPDATE transaction cores) ──────────────
   // Pins the riskiest duplicated tx logic ahead of the planned extraction
   // into services/entityLifecycle.js (audit 2026-09-02, phase 6).
