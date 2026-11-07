@@ -1448,6 +1448,84 @@ suite('write endpoints against real Postgres', () => {
     });
   });
 
+  // Tina 07.11.2026: Friends — 5 requests per Vienna day for free accounts,
+  // and „Von deinen letzten Events" suggestions for the ⊕ sheet.
+  describe('friend requests: daily limit + suggestions', () => {
+    let fr;
+    const mk = async (tag, admin = false) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider, is_admin)
+       VALUES ($1, $2, '1996-04-04', 'female', $3, TRUE, 'email', $4) RETURNING id`,
+      [`fr-${tag}-${Date.now()}@x.com`, `Fr ${tag}`, avatar, admin])).rows[0].id;
+    const send = (from, to) => call(C.sendFriendRequest, { userId: from, body: { userId: to } });
+
+    beforeAll(async () => {
+      fr = await import('../../src/controllers/friendshipController.js');
+    });
+
+    it('a free account may ask 5 people per day; the 6th is refused with DAILY_FRIEND_LIMIT', async () => {
+      const sender = await mk('sender');
+      const targets = [];
+      for (let i = 0; i < 6; i++) targets.push(await mk(`t${i}`));
+      for (let i = 0; i < 5; i++) ok(await send(sender, targets[i]));
+      const sixth = await send(sender, targets[5]);
+      expect(sixth.statusCode).toBe(403);
+      expect(sixth.body.code).toBe('DAILY_FRIEND_LIMIT');
+      expect(sixth.body.limit).toBe(5);
+      expect(sixth.body.error).not.toMatch(/Pro/);
+      // No friendship row was written for the refused request.
+      expect((await db.query(
+        'SELECT 1 FROM friendships WHERE requester_id = $1 AND addressee_id = $2', [sender, targets[5]])).rowCount).toBe(0);
+      // „Already pending" stays a free 400, never a limit refusal.
+      expect((await send(sender, targets[0])).statusCode).toBe(400);
+    });
+
+    it('re-asking a person after a rejection reuses the row and counts once per day', async () => {
+      const sender = await mk('reask');
+      const target = await mk('reask-t');
+      ok(await send(sender, target));
+      await db.query(`UPDATE friendships SET status = 'rejected' WHERE requester_id = $1 AND addressee_id = $2`, [sender, target]);
+      ok(await send(sender, target));
+      const used = (await db.query(
+        'SELECT COUNT(DISTINCT target_id)::int AS c FROM friend_request_log WHERE user_id = $1', [sender])).rows[0].c;
+      expect(used).toBe(1);
+    });
+
+    it('app admins are not limited', async () => {
+      const admin = await mk('admin', true);
+      for (let i = 0; i < 6; i++) ok(await send(admin, await mk(`a${i}`)));
+    });
+
+    it('suggests co-members of recent past events — never friends, blocks or people who said no', async () => {
+      const me = await mk('me');
+      const pal = await mk('pal');        // was at my event → suggested
+      const friend = await mk('friend');  // already a friend → hidden
+      const nope = await mk('nope');      // rejected my request → hidden
+      const blocked = await mk('blocked'); // blocked → hidden
+      const asked = await mk('asked');    // open request from me → listed as pending_out
+      const ev = (await db.query(
+        `INSERT INTO groups (name, type, date, owner_id, category, location, max_members)
+         VALUES ('Spieleabend Test', 'group', NOW() - INTERVAL '3 days', $1, 'Spiele', 'Wien', 20) RETURNING id`,
+        [me])).rows[0].id;
+      for (const u of [me, pal, friend, nope, blocked, asked]) {
+        await db.query('INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, $3)',
+          [ev, u, u === me ? 'owner' : 'member']);
+      }
+      await db.query(`INSERT INTO friendships (requester_id, addressee_id, status) VALUES
+        ($1, $2, 'accepted'), ($1, $3, 'rejected'), ($1, $4, 'blocked'), ($1, $5, 'pending')`,
+        [me, friend, nope, blocked, asked]);
+
+      const res = await call(fr.getFriendSuggestions, { userId: me });
+      ok(res);
+      const byId = Object.fromEntries(res.body.map(r => [r.id, r]));
+      expect(byId[pal]).toMatchObject({ event_name: 'Spieleabend Test', friend_status: 'none' });
+      expect(byId[asked]).toMatchObject({ friend_status: 'pending_out' });
+      expect(byId[friend]).toBeUndefined();
+      expect(byId[nope]).toBeUndefined();
+      expect(byId[blocked]).toBeUndefined();
+      expect(byId[me]).toBeUndefined();
+    });
+  });
+
   // ── join / accept / kick (the FOR-UPDATE transaction cores) ──────────────
   // Pins the riskiest duplicated tx logic ahead of the planned extraction
   // into services/entityLifecycle.js (audit 2026-09-02, phase 6).

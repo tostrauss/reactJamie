@@ -154,6 +154,61 @@ export function dailyJoinLimitBody(limit, resetsAt) {
   };
 }
 
+// ── Friend requests (Tina, 07.11.2026) ─────────────────────────────────────
+// „Man sollte pro Tag nur 5 Leute anfragen können, sonst Pro-Abo." Counted
+// from their own log (friend_request_log): sendFriendRequest RE-USES the
+// friendships row of a rejected/expired pair, and a removed friendship is
+// deleted, so the friendships table cannot say how many requests went out
+// today. Distinct addressees: asking the same person twice in a day (after
+// an expiry, say) costs one slot. A rejection does NOT refund the slot —
+// unlike join requests, the asker never learns of it.
+export const DEFAULT_DAILY_FRIEND_REQUESTS = 5;
+
+/** The daily friend-request allowance; FREE_DAILY_FRIEND_REQUESTS=0 switches it off. */
+export function freeDailyFriendRequests(env = process.env) {
+  const raw = env.FREE_DAILY_FRIEND_REQUESTS;
+  if (raw === undefined || raw === '') return DEFAULT_DAILY_FRIEND_REQUESTS;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_DAILY_FRIEND_REQUESTS;
+}
+
+export async function dailyFriendRequestState(db, userId, targetId) {
+  try {
+    const { rows } = await db.query(
+      `SELECT COUNT(DISTINCT target_id)::int                  AS used,
+              COALESCE(BOOL_OR(target_id = $2), FALSE)        AS already_counted,
+              ${VIENNA_NEXT_DAY}                              AS resets_at
+         FROM friend_request_log
+        WHERE user_id = $1
+          AND created_at >= ${VIENNA_DAY_START}`,
+      [userId, targetId]
+    );
+    const row = rows[0] || {};
+    return { used: row.used || 0, alreadyCounted: !!row.already_counted, resetsAt: row.resets_at || null };
+  } catch (err) {
+    if (isSchemaMissing(err)) return { used: 0, alreadyCounted: false, resetsAt: null };
+    throw err;
+  }
+}
+
+/** Record a sent friend request. Best-effort: never fails the request itself. */
+export async function logFriendRequest(db, userId, targetId) {
+  try {
+    await db.query('INSERT INTO friend_request_log (user_id, target_id) VALUES ($1, $2)', [userId, targetId]);
+  } catch (err) {
+    if (!isSchemaMissing(err)) console.error('[daily-friend-limit] log failed:', err.message);
+  }
+}
+
+export function dailyFriendLimitBody(limit, resetsAt) {
+  return {
+    error: `Du hast heute schon ${limit} Freundschaftsanfragen geschickt. Ab morgen kannst du wieder neue Leute anfragen.`,
+    code: 'DAILY_FRIEND_LIMIT',
+    limit,
+    resets_at: resetsAt ? new Date(resetsAt).toISOString() : null,
+  };
+}
+
 export function dailyCreateLimitBody(limit, resetsAt) {
   return {
     error: limit === 1

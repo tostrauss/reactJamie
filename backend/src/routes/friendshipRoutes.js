@@ -4,6 +4,7 @@ import {
   respondFriendRequest,
   getPendingRequests,
   getSentRequests,
+  getFriendSuggestions,
   getFriends,
   removeFriend,
   checkFriendship,
@@ -28,6 +29,9 @@ router.get('/requests/sent', authenticate, getSentRequests);
 
 // Friends list
 router.get('/', authenticate, getFriends);
+// „Von deinen letzten Events" — registered before '/status/:userId' and
+// '/:friendId' style routes so the literal path is never read as an id.
+router.get('/suggestions', authenticate, getFriendSuggestions);
 
 // Check & manage friendship
 router.get('/status/:userId', authenticate, checkFriendship);

@@ -2,6 +2,23 @@ import db from '../config/database.js';
 import { sendPushToUser } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 import { attachAttendanceTiers } from '../utils/attendanceTiers.js';
+import { isUserPro } from './subscriptionController.js';
+import {
+  freeDailyFriendRequests, dailyFriendRequestState, logFriendRequest,
+  dailyFriendLimitBody, limitExempt,
+} from '../utils/dailyLimits.js';
+
+// Free accounts: 5 friend requests per Vienna day (Tina, 07.11.2026). Pro and
+// app admins are exempt. Checked only once the request would really go out —
+// the 400s for "already friends/pending" cost nothing.
+async function friendLimitRefusal(userId, targetId) {
+  const limit = freeDailyFriendRequests();
+  if (limit <= 0) return null;
+  const state = await dailyFriendRequestState(db, userId, targetId);
+  if (state.alreadyCounted || state.used < limit) return null;
+  if (await limitExempt(db, userId, isUserPro)) return null;
+  return dailyFriendLimitBody(limit, state.resetsAt);
+}
 
 // Live signal for the Anfragen deck on the chat page, which shows incoming
 // friend requests next to join requests since Lea's feedback (18.10.2026:
@@ -46,6 +63,13 @@ export const sendFriendRequest = async (req, res) => {
       }
       if (f.status === 'accepted') return res.status(400).json({ error: 'Already friends' });
       if (f.status === 'pending') return res.status(400).json({ error: 'Friend request already pending' });
+    }
+
+    const refusal = await friendLimitRefusal(req.userId, userId);
+    if (refusal) return res.status(403).json(refusal);
+
+    if (existing.rows.length > 0) {
+      const f = existing.rows[0];
       // Any other status ('rejected', cron-minted 'expired', future values) →
       // re-request by reusing the row. Falling through to the INSERT instead
       // would collide with uniq_friend_pair (23505) and permanently lock the
@@ -56,6 +80,7 @@ export const sendFriendRequest = async (req, res) => {
          WHERE id = $3`,
         [req.userId, userId, f.id]
       );
+      await logFriendRequest(db, req.userId, userId);
       notifyFriendRequest(req.userId, userId).catch(() => {});
       pingFriendRequests(req, userId, 'received');
       return res.json({ message: 'Friend request sent', status: 'pending' });
@@ -77,11 +102,69 @@ export const sendFriendRequest = async (req, res) => {
       throw e;
     }
 
+    await logFriendRequest(db, req.userId, userId);
     notifyFriendRequest(req.userId, userId).catch(() => {});
     pingFriendRequests(req, userId, 'received');
     res.status(201).json({ message: 'Friend request sent' });
   } catch (error) {
     console.error('Error sending friend request:', error);
+    res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+};
+
+// ==========================================
+// FRIEND SUGGESTIONS — „Von deinen letzten Events"
+// ==========================================
+// Tina, 07.11.2026: the ⊕ sheet and the empty Friends tab suggest people the
+// caller was actually out with — co-members of the caller's own past
+// groups/events (last 120 days, newest event first, each person once under
+// their most recent shared event). Never suggested: friends, blocks in either
+// direction, frozen accounts, and anyone with a REJECTED request between the
+// two („wer nicht akzeptiert hat, erscheint vorerst nicht mehr" — the name
+// search still finds them, and asking again re-uses the row). An open request
+// stays listed with its state, so the sheet can show „Angefragt"/„Annehmen".
+export const getFriendSuggestions = async (req, res) => {
+  try {
+    const result = await db.query(
+      `WITH my_events AS (
+         SELECT g.id, g.name, g.date
+           FROM group_members gm
+           JOIN groups g ON g.id = gm.group_id
+          WHERE gm.user_id = $1
+            AND g.type IN ('group', 'event')
+            AND g.deleted_at IS NULL
+            AND g.date IS NOT NULL
+            AND g.date < NOW()
+            AND g.date > NOW() - INTERVAL '120 days'
+       ),
+       co AS (
+         SELECT DISTINCT ON (gm.user_id) gm.user_id, me.name AS event_name, me.date AS event_date
+           FROM my_events me
+           JOIN group_members gm ON gm.group_id = me.id
+          WHERE gm.user_id <> $1
+          ORDER BY gm.user_id, me.date DESC
+       )
+       SELECT u.id, u.name, u.avatar_url,
+              EXTRACT(YEAR FROM AGE(u.date_of_birth))::int AS age,
+              co.event_name,
+              CASE WHEN f.status = 'pending' AND f.requester_id = $1 THEN 'pending_out'
+                   WHEN f.status = 'pending' THEN 'pending_in'
+                   ELSE 'none' END AS friend_status,
+              CASE WHEN f.status = 'pending' THEN f.id END AS friendship_id
+         FROM co
+         JOIN users u ON u.id = co.user_id
+         LEFT JOIN friendships f
+                ON (f.requester_id = $1 AND f.addressee_id = u.id)
+                OR (f.requester_id = u.id AND f.addressee_id = $1)
+        WHERE u.is_active IS DISTINCT FROM FALSE
+          AND (f.id IS NULL OR f.status NOT IN ('accepted', 'blocked', 'rejected'))
+        ORDER BY co.event_date DESC, u.id
+        LIMIT 20`,
+      [req.userId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching friend suggestions:', error);
     res.status(500).json({ error: 'Interner Serverfehler' });
   }
 };

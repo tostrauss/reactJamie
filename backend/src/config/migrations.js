@@ -1321,6 +1321,22 @@ const runStartupMigrations = async () => {
   // calendar month the count belongs to; a stale key means a fresh month.
   // Immediate pushes AND the 18:00 digest both draw from it — see
   // utils/categoryPushBudget.js.
+  // Friend-request daily limit (Tina, 07.11.2026: 5 per Vienna day, free).
+  // A log of its own — see utils/dailyLimits.js for why friendships can't
+  // be counted directly.
+  await migrate('friend_request_log', async () => {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS friend_request_log (
+        id         SERIAL PRIMARY KEY,
+        user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        target_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.query(`CREATE INDEX IF NOT EXISTS idx_friend_request_log_user_time
+                      ON friend_request_log (user_id, created_at)`);
+  });
+
   await migrate('category_push_state.month_budget', () =>
     db.query(`
       ALTER TABLE category_push_state
