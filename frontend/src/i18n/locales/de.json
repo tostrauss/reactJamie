@@ -904,7 +904,8 @@
         "empty": "Keine Anfragen",
         "allDone": "Alle Anfragen bearbeitet!",
         "accept": "Annehmen",
-        "decline": "Ablehnen"
+        "decline": "Ablehnen",
+        "skip": "Überspringen"
       }
     },
     "page": {

@@ -904,7 +904,8 @@
         "empty": "Nessuna richiesta",
         "allDone": "Tutte le richieste gestite!",
         "accept": "Accetta",
-        "decline": "Rifiuta"
+        "decline": "Rifiuta",
+        "skip": "Salta"
       }
     },
     "page": {

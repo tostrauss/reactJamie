@@ -60,6 +60,11 @@ export const ChatList = () => {
   const [friendRequests, setFriendRequests] = useState([]);
   const [requestsLoading, setRequestsLoading] = useState(true);
   const [processedIds, setProcessedIds]   = useState(() => new Set());
+  // "Überspringen" (Tina, 07.11.2026): park a card at the END of the deck
+  // without deciding — declining just to see the next person costs the asker
+  // one of their two request attempts (join_attempt budget), so the deck needs
+  // a third way out. Session-local only; a reload shows the card first again.
+  const [skippedKeys, setSkippedKeys]     = useState(() => new Set());
   const [processing, setProcessing]       = useState(false);
   const [dragX, setDragX]                 = useState(0);
   const dragStartX                        = useRef(null);
@@ -320,10 +325,17 @@ export const ChatList = () => {
   // Friend requests lead because they are what went unnoticed (Lea), there
   // are only ever a few, and a swipe each costs a club owner nothing; behind
   // a backlog of 30 join requests they would be buried again.
-  const deck = useMemo(
-    () => [...friendCards, ...requests].filter(r => !processedIds.has(reqKey(r))),
-    [friendCards, requests, processedIds]
-  );
+  const deck = useMemo(() => {
+    const base = [...friendCards, ...requests].filter(r => !processedIds.has(reqKey(r)));
+    if (!skippedKeys.size) return base;
+    // Skipped cards go to the back, in skip order (Set keeps insertion order);
+    // re-skipping the same card moves it to the end again, so the deck rotates.
+    const fresh = base.filter(r => !skippedKeys.has(reqKey(r)));
+    const parked = [...skippedKeys]
+      .map(k => base.find(r => reqKey(r) === k))
+      .filter(Boolean);
+    return [...fresh, ...parked];
+  }, [friendCards, requests, processedIds, skippedKeys]);
   const current = deck[0];
   const nextReq = deck[1];
   const sessionDone = processedIds.size;
@@ -376,6 +388,19 @@ export const ChatList = () => {
     } finally {
       setProcessing(false);
     }
+  };
+
+  // No API call, no effect on the asker — purely reorders the local deck.
+  const deckSkip = () => {
+    if (processing || !current || deck.length < 2) return;
+    const k = reqKey(current);
+    setSkippedKeys(prev => {
+      const next = new Set(prev);
+      next.delete(k); // re-add moves it to the end → full rotation
+      next.add(k);
+      return next;
+    });
+    resetDrag();
   };
 
   const deckDecline = async () => {
@@ -826,6 +851,15 @@ export const ChatList = () => {
                       <path d="M18 6L6 18M6 6l12 12"/>
                     </svg>
                   </button>
+                  {/* Überspringen (Tina, 07.11.2026) — only when there IS a next
+                      card; deciding later must not cost the asker anything. */}
+                  {deck.length > 1 && (
+                    <button className="action-btn skip" onClick={deckSkip} disabled={processing} aria-label={t('chat.list.requestsModal.skip')}>
+                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M5 17l5-5-5-5M13 17l5-5-5-5"/>
+                      </svg>
+                    </button>
+                  )}
                   <button className="action-btn accept" onClick={deckAccept} disabled={processing} aria-label={t('chat.list.requestsModal.accept')}>
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                       <polyline points="20,6 9,17 4,12"/>

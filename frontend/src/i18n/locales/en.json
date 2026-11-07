@@ -904,7 +904,8 @@
         "empty": "No requests",
         "allDone": "All requests handled!",
         "accept": "Accept",
-        "decline": "Decline"
+        "decline": "Decline",
+        "skip": "Skip"
       }
     },
     "page": {

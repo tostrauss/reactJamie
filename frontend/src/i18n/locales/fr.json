@@ -904,7 +904,8 @@
         "empty": "Aucune demande",
         "allDone": "Toutes les demandes traitées !",
         "accept": "Accepter",
-        "decline": "Refuser"
+        "decline": "Refuser",
+        "skip": "Passer"
       }
     },
     "page": {

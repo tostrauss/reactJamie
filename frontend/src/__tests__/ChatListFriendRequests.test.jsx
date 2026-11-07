@@ -181,3 +181,26 @@ describe('ChatList — friend requests in the Anfragen deck', () => {
     expect(groups.getAllRequests.mock.calls.length).toBe(joinFetches);
   });
 });
+
+// „Überspringen“ (Tina, 07.11.2026): a third way out of the deck — ablehnen nur
+// zum Weiterblättern kostet den Anfragenden eines seiner zwei Anfrage-Budgets.
+describe('ChatList — Überspringen im Anfragen-Deck', () => {
+  it('stellt die Karte ans Deck-Ende, ruft keine API und rotiert beim zweiten Skip zurück', async () => {
+    await renderList({ joinRows: [
+      joinReq(),
+      joinReq({ id: 32, user_id: 56, user_name: 'Mia', created_at: '2026-10-11T10:00:00Z', updated_at: '2026-10-18T10:00:00Z' }),
+    ] });
+    expect(screen.getByText('Max, 30')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Überspringen' }));
+    expect(screen.getByText('Mia, 30')).toBeTruthy();
+    expect(groups.handleRequest).not.toHaveBeenCalled();
+    expect(friends.respondRequest).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Überspringen' }));
+    expect(screen.getByText('Max, 30')).toBeTruthy();
+  });
+
+  it('zeigt den Knopf nicht, wenn es keine zweite Karte gibt', async () => {
+    await renderList({ joinRows: [joinReq()] });
+    expect(screen.queryByRole('button', { name: 'Überspringen' })).toBeNull();
+  });
+});

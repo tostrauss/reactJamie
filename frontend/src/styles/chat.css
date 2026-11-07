@@ -798,6 +798,10 @@
 .requests-actions .action-btn.decline:not(:disabled):hover { background: var(--status-busy); color: white; box-shadow: 0 4px 20px rgba(255,59,48,0.4); }
 .requests-actions .action-btn.accept { background: var(--accent-green); color: white; box-shadow: 0 4px 20px rgba(76,217,100,0.4); }
 .requests-actions .action-btn.accept:not(:disabled):hover { box-shadow: 0 6px 25px rgba(76,217,100,0.5); }
+/* Überspringen (Tina, 07.11.2026): deliberately smaller and quieter than the
+   two decisions — it defers, it doesn't decide. */
+.requests-actions .action-btn.skip { width: 52px; height: 52px; background: var(--bg-input); color: var(--text-muted); align-self: center; }
+.requests-actions .action-btn.skip:not(:disabled):hover { color: var(--text-light); }
 
 /* Blurred peek of the NEXT request card under the current one. Lived only in
    GroupRequests.jsx's inline <style> (a global leak the chat-list modal also
