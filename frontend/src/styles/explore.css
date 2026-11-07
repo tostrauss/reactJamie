@@ -2095,6 +2095,161 @@
   color: var(--text-muted);
 }
 
+/* ── Friends tab rebuild (Tina, 07.11.2026) ───────────────────────────
+   Heading row with the orange ⊕, „Befreundet" chip, empty state with
+   suggestions, and the „Friends hinzufügen" bottom sheet. */
+.ef-friends-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 16px 12px;
+}
+.ef-friends-head .ef-friends-title { margin: 0; }
+.ef-friends-add {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent-coral);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(253, 118, 102, 0.35);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.ef-friends-add:active { transform: scale(0.94); }
+.ef-friends-add:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.ef-friends-btn { gap: 6px; }
+.ef-friends-btn--friends {
+  background: transparent;
+  border: 1.5px solid var(--accent-coral);
+  color: var(--accent-coral);
+}
+.ef-friends-empty {
+  text-align: center;
+  padding: 28px 24px 8px;
+}
+.ef-friends-empty-icon {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  background: rgba(253, 118, 102, 0.12);
+  color: var(--accent-coral);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ef-friends-empty-title {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-white);
+}
+.ef-friends-empty-text {
+  margin: 0 auto;
+  max-width: 300px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.ef-friends-suggest { margin-top: 18px; }
+.ef-friends-section-title {
+  margin: 0 16px 2px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-white);
+}
+.ef-friends-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: calc(100% - 32px);
+  margin: 10px 16px 0;
+  padding: 14px 0 6px;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: none;
+  color: var(--accent-coral);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Bottom sheet. Below DailyLimitModal (z 10000), which can open from inside
+   it; above the status-bar scrim (z 150). Bottom padding clears the nav
+   like every other fixed element above it (project invariant). */
+.afs-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.afs-sheet {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 24px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: linear-gradient(175deg, #2E2455 0%, #1A1433 60%);
+  border: 1px solid rgba(253, 118, 102, 0.18);
+  border-bottom: none;
+  border-radius: 24px 24px 0 0;
+  padding: 10px 0 calc(60px + var(--nav-safe-bottom) + 16px);
+}
+.afs-handle {
+  width: 40px;
+  height: 4px;
+  margin: 0 auto 12px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.25);
+}
+.afs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 16px 12px;
+}
+.afs-title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--text-white);
+}
+.afs-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 15px;
+  cursor: pointer;
+}
+.afs-hint {
+  margin: 10px 16px 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.afs-hint--empty { text-align: center; padding: 16px 0; }
+.afs-divider {
+  height: 1px;
+  margin: 14px 16px 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+
 /* ── „Warst du dabei.." page (pages/ShareMoments.jsx) ─────────────────
    Reuses .explore-container/.explore-content and the feed cards; the header
    stays above the scroller and clears the iOS status bar like .fr-header. */

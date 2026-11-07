@@ -752,6 +752,11 @@ export const friends = {
   getAll: () =>
     axiosInstance.get('/friends'),
 
+  // People from the caller's recent events who aren't friends yet — the
+  // „Von deinen letzten Events" suggestions (Tina, 07.11.2026).
+  getSuggestions: () =>
+    axiosInstance.get('/friends/suggestions'),
+
   // Send friend request
   sendRequest: (userId) =>
     axiosInstance.post('/friends/request', { userId }),

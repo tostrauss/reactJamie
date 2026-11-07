@@ -7,7 +7,7 @@ import { useToast } from '../context/ToastContext';
 import { UserName } from '../components/UserName';
 import { JamieWordmark } from '../components/JamieWordmark';
 import { PhotoLightbox } from '../components/PhotoLightbox';
-import { FriendSearch } from '../components/FriendSearch';
+import { FriendsTab } from '../components/FriendsTab';
 import useOnPullRefresh from '../hooks/useOnPullRefresh';
 import {
   getCategoryIcon, MAX_MEMORY_BYTES, withAddedPhoto, withoutPhoto, photoErrorText,
@@ -273,14 +273,12 @@ export const Explore = () => {
 
   const [loading, setLoading]         = useState(true);
   const [hallItems, setHallItems]     = useState([]);
-  // The Friends tab's feed; null until its first visit (only who opens the
-  // tab pays for the query).
-  const [friendItems, setFriendItems] = useState(null);
+  // Bumped by pull-to-refresh so the Friends tab refetches its lists.
+  const [friendsReloadKey, setFriendsReloadKey] = useState(0);
   const [likedIds, setLikedIds]       = useState(() => new Set());
   const [uploadingId, setUploadingId] = useState(null);
   // Hall-of-Fame gallery: { item, photos: [{ id?, url, user_id?, user_name, can_delete }], index }
   const [gallery, setGallery] = useState(null);
-  const friendsAskedRef = useRef(false);
 
   // Shared by the mount effect and pull-to-refresh (which skips the full-page
   // loading state — the top spinner is the feedback there).
@@ -299,15 +297,9 @@ export const Explore = () => {
       authed ? groups.getMyLikes().catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
     ]);
     setHallItems(hallRes.data || []);
-    // getMyLikes returns a bare array of group ids the caller has liked —
-    // over every group, so it serves the friends feed as well.
+    // getMyLikes returns a bare array of group ids the caller has liked.
     setLikedIds(new Set(likesRes.data || []));
   }, [user?.id]);
-
-  const loadFriends = useCallback(async () => {
-    const res = await groups.getHallOfFameFriends({ limit: 30 }).catch(() => ({ data: [] }));
-    setFriendItems(res.data || []);
-  }, []);
 
   useEffect(() => {
     if (toShare) return undefined;
@@ -317,22 +309,13 @@ export const Explore = () => {
     return () => { cancelled = true; };
   }, [loadData, toShare]);
 
-  useEffect(() => {
-    if (tab !== TABS.friends || !isAuthed || friendsAskedRef.current) return;
-    friendsAskedRef.current = true;
-    loadFriends();
-  }, [tab, isAuthed, loadFriends]);
+  useOnPullRefresh(() => {
+    if (tab === TABS.friends && isAuthed) setFriendsReloadKey(k => k + 1);
+    return loadData();
+  });
 
-  useOnPullRefresh(() => (tab === TABS.friends && isAuthed
-    ? Promise.all([loadData(), loadFriends()])
-    : loadData()));
-
-  // The same event can sit in both feeds — every card update goes to both
-  // lists, or a like or photo count would jump back on a tab switch.
   const patchItem = useCallback((id, fn) => {
-    const apply = (list) => (list ? list.map(g => (g.id === id ? fn(g) : g)) : list);
-    setHallItems(apply);
-    setFriendItems(apply);
+    setHallItems(list => list.map(g => (g.id === id ? fn(g) : g)));
   }, []);
 
   // A participant's photo for an event's card (Lea, 18.10.2026). Two-step
@@ -493,21 +476,7 @@ export const Explore = () => {
               <p>{t('explore.friends.loginRequired')}</p>
             </div>
           ) : (
-            <div className="ef-friends">
-              <h2 className="ef-friends-title">{t('explore.friends.title')}</h2>
-              {/* The search replaces the feed while a query is typed. Accepting
-                  a request makes a new friend — their memories belong here. */}
-              <FriendSearch onAccepted={loadFriends}>
-                {loading || friendItems === null ? spinner
-                  : friendItems.length === 0 ? (
-                    <div className="explore-empty">
-                      <div className="explore-empty-icon">📸</div>
-                      <p>{t('explore.friends.feedEmpty')}</p>
-                      <span className="ef-friends-empty-hint">{t('explore.friends.feedEmptyHint')}</span>
-                    </div>
-                  ) : renderCards(friendItems)}
-              </FriendSearch>
-            </div>
+            <FriendsTab reloadKey={friendsReloadKey} />
           )
         ) : loading ? spinner : (
           <>

@@ -5,8 +5,9 @@ import { AuthContext } from '../context/AuthContext';
 
 // Explore (Tina, 22.10.2026): tabs Memories | Friends instead of Hall of Fame |
 // Deals, the „Warst du dabei?" banner, the meetup title on the card, and the
-// Friends tab — people search with the friendship button in the row and the
-// memories of accepted friends. Real German i18n.
+// Friends tab — since 07.11.2026 (Tina) the FRIENDS themselves, an orange ⊕
+// opening „Friends hinzufügen" with suggestions „Von deinen letzten Events",
+// and the people search with the friendship button in the row. Real German i18n.
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), info: vi.fn() }));
 vi.mock('../context/ToastContext', () => ({ useToast: () => toast }));
 vi.mock('../hooks/useOnPullRefresh', () => ({ default: () => {} }));
@@ -21,7 +22,7 @@ vi.mock('../utils/api', () => ({
     deletePhoto: vi.fn(),
   },
   users: { search: vi.fn() },
-  friends: { sendRequest: vi.fn(), respondRequest: vi.fn() },
+  friends: { getAll: vi.fn(), getSuggestions: vi.fn(), sendRequest: vi.fn(), respondRequest: vi.fn() },
   upload: { image: vi.fn() },
 }));
 const { groups, users, friends } = await import('../utils/api');
@@ -39,9 +40,10 @@ const Where = () => {
   return <output data-testid="where">{loc.pathname + loc.search}</output>;
 };
 
-const renderAt = async (path, { user = { id: 9 }, hall = [card()], friendFeed = [] } = {}) => {
+const renderAt = async (path, { user = { id: 9 }, hall = [card()], friendList = [], suggestions = [] } = {}) => {
   vi.mocked(groups.getHallOfFame).mockResolvedValue({ data: hall });
-  vi.mocked(groups.getHallOfFameFriends).mockResolvedValue({ data: friendFeed });
+  vi.mocked(friends.getAll).mockResolvedValue({ data: friendList });
+  vi.mocked(friends.getSuggestions).mockResolvedValue({ data: suggestions });
   render(
     <AuthContext.Provider value={{ user }}>
       <MemoryRouter initialEntries={[path]}>
@@ -74,8 +76,8 @@ describe('Explore — Memories | Friends', () => {
     expect(screen.queryByRole('tab', { name: /Deals|Hall of Fame/ })).toBeNull();
     expect(groups.getHallOfFame).toHaveBeenCalledWith({ limit: 30, photosOnly: true });
     expect(screen.getByText('Wandern am Kahlenberg').className).toBe('ef-event-title');
-    // Lazy: nobody pays for the friends feed until they open the tab.
-    expect(groups.getHallOfFameFriends).not.toHaveBeenCalled();
+    // Lazy: nobody pays for the friends lists until they open the tab.
+    expect(friends.getAll).not.toHaveBeenCalled();
   });
 
   it('an old ?tab=deals link falls back to Memories', async () => {
@@ -100,29 +102,62 @@ describe('Explore — Memories | Friends', () => {
     expect(screen.queryByText('Warst du dabei?')).toBeNull();
     fireEvent.click(tab('Friends'));
     expect(screen.getByText('Melde dich an, um Freunde zu finden.')).toBeTruthy();
-    expect(groups.getHallOfFameFriends).not.toHaveBeenCalled();
+    expect(friends.getAll).not.toHaveBeenCalled();
     expect(screen.queryByPlaceholderText('Nach Namen suchen…')).toBeNull();
   });
 });
 
-describe('Explore — Friends tab', () => {
-  it('loads the friends\' memories once, on the first visit, under the heading and the search', async () => {
-    await renderAt('/explore', { friendFeed: [card({ id: 8, name: 'Bar-Abend' })] });
-    fireEvent.click(tab('Friends'));
-    await act(async () => {});
-    expect(screen.getByTestId('where').textContent).toBe('/explore?tab=friends');
+describe('Explore — Friends tab (Tina 07.11.2026)', () => {
+  const friendRow = (o = {}) => ({ friendship_id: 1, friend_id: 21, name: 'Niklas', age: 26, location: 'Wien', avatar_url: null, ...o });
+  const sugg = (o = {}) => ({ id: 31, name: 'Sophie', age: 24, event_name: 'Spieleabend', friend_status: 'none', ...o });
+
+  it('shows the FRIENDS (not event memories) under the heading with the orange ⊕', async () => {
+    await renderAt('/explore?tab=friends', { friendList: [friendRow(), friendRow({ friend_id: 22, name: 'Laura', location: 'Graz' })] });
     expect(screen.getByRole('heading', { name: 'Friends' })).toBeTruthy();
-    expect(screen.getByText('Bar-Abend')).toBeTruthy();
-    fireEvent.click(tab('Memories'));
-    fireEvent.click(tab('Friends'));
-    await act(async () => {});
-    expect(groups.getHallOfFameFriends).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Friends hinzufügen' })).toBeTruthy();
+    expect(screen.getByText('Niklas')).toBeTruthy();
+    expect(screen.getByText('Laura')).toBeTruthy();
+    expect(groups.getHallOfFameFriends).not.toHaveBeenCalled();
+    expect(screen.queryByText('Hier fehlen noch deine Friends!')).toBeNull();
+    fireEvent.click(screen.getByText('Niklas'));
+    expect(screen.getByText('PROFILE')).toBeTruthy();
   });
 
-  it('says how to find friends when the feed is empty', async () => {
-    await renderAt('/explore?tab=friends');
-    expect(screen.getByText('Noch keine Memories von Freunden')).toBeTruthy();
-    expect(screen.getByText('Finde Freunde über die Suche und schick ihnen eine Anfrage.')).toBeTruthy();
+  it('without friends: the empty state with suggestions from recent events and „Weitere Personen entdecken"', async () => {
+    await renderAt('/explore?tab=friends', { suggestions: [sugg(), sugg({ id: 32, name: 'Laura', event_name: 'Coffee Meetup', friend_status: 'pending_out' })] });
+    expect(screen.getByText('Hier fehlen noch deine Friends!')).toBeTruthy();
+    expect(screen.getByText('Ihr wart schon gemeinsam unterwegs. Zeit, euch zu vernetzen!')).toBeTruthy();
+    expect(screen.getByText('Von deinen letzten Events')).toBeTruthy();
+    const row = (name) => screen.getByText(name).closest('.ef-friends-row');
+    expect(within(row('Sophie')).getByText('Spieleabend')).toBeTruthy();
+    expect(within(row('Sophie')).getByRole('button', { name: '+ Anfragen' })).toBeTruthy();
+    expect(within(row('Laura')).getByText('Angefragt')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Weitere Personen entdecken/ }));
+    expect(screen.getByRole('dialog', { name: 'Friends hinzufügen' })).toBeTruthy();
+  });
+
+  it('the ⊕ sheet: hint, suggestions, and asking a suggestion is optimistic', async () => {
+    vi.mocked(friends.sendRequest).mockResolvedValueOnce({ data: { message: 'Friend request sent' } });
+    await renderAt('/explore?tab=friends', { friendList: [friendRow()], suggestions: [sugg()] });
+    fireEvent.click(screen.getByRole('button', { name: 'Friends hinzufügen' }));
+    const sheet = screen.getByRole('dialog', { name: 'Friends hinzufügen' });
+    expect(within(sheet).getByText('Personen suchen und Freundschaftsanfragen senden.')).toBeTruthy();
+    await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: '+ Anfragen' })); });
+    expect(friends.sendRequest).toHaveBeenCalledWith(31);
+    expect(within(sheet).getByText('Angefragt')).toBeTruthy();
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Schließen' }));
+    expect(screen.queryByRole('dialog', { name: 'Friends hinzufügen' })).toBeNull();
+  });
+
+  it('the 6th request of the day opens „Tageslimit erreicht" and rolls the row back', async () => {
+    vi.mocked(friends.sendRequest).mockRejectedValueOnce({ response: { status: 403, data: {
+      code: 'DAILY_FRIEND_LIMIT', limit: 5, error: 'Du hast heute schon 5 Freundschaftsanfragen geschickt.' } } });
+    await renderAt('/explore?tab=friends', { suggestions: [sugg()] });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: '+ Anfragen' })); });
+    expect(screen.getByRole('dialog', { name: 'Tageslimit erreicht' })).toBeTruthy();
+    expect(screen.getByText(/Du hast heute schon 5 Leute angefragt/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: '+ Anfragen' })).toBeTruthy();
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it('search rows: avatar, name, bio line and the button for every friendship state', async () => {
@@ -132,7 +167,7 @@ describe('Explore — Friends tab', () => {
       { id: 6, name: 'Lea', friend_status: 'accepted' },
       { id: 7, name: 'Len', friend_status: 'pending_out' },
     ] });
-    await renderAt('/explore?tab=friends');
+    await renderAt('/explore?tab=friends', { friendList: [friendRow()] });
     await typeSearch('Le');
     await waitFor(() => expect(screen.getByText('Lena')).toBeTruthy());
     expect(users.search).toHaveBeenCalledWith('Le', expect.objectContaining({ signal: expect.anything() }));
@@ -143,11 +178,8 @@ describe('Explore — Friends tab', () => {
     expect(within(row('Leo')).getByRole('button', { name: 'Annehmen' })).toBeTruthy();
     expect(within(row('Lea')).getByText('Befreundet')).toBeTruthy();
     expect(within(row('Len')).getByText('Angefragt')).toBeTruthy();
-    // The search replaces the feed while it is open.
-    expect(screen.queryByText('Noch keine Memories von Freunden')).toBeNull();
-
-    fireEvent.click(screen.getByText('Lena'));
-    expect(screen.getByText('PROFILE')).toBeTruthy();
+    // The search replaces the friends list while it is open.
+    expect(screen.queryByText('Niklas')).toBeNull();
   });
 
   it('„Anfragen" is optimistic, a failure rolls it back', async () => {
@@ -158,12 +190,10 @@ describe('Explore — Friends tab', () => {
     await renderAt('/explore?tab=friends');
     await typeSearch('Len');
     await waitFor(() => expect(screen.getByRole('button', { name: '+ Anfragen' })).toBeTruthy());
-
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: '+ Anfragen' })); });
     expect(friends.sendRequest).toHaveBeenCalledWith(4);
     expect(screen.getByText('Angefragt')).toBeTruthy();
 
-    // A second search finds her un-asked again (e.g. the request expired).
     await typeSearch('Lena');
     await waitFor(() => expect(screen.getByRole('button', { name: '+ Anfragen' })).toBeTruthy());
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: '+ Anfragen' })); });
@@ -171,18 +201,18 @@ describe('Explore — Friends tab', () => {
     expect(toast.error).toHaveBeenCalledWith('Anfrage konnte nicht gesendet werden.');
   });
 
-  it('„Annehmen" accepts the request and reloads the friends\' memories', async () => {
+  it('„Annehmen" accepts the request and reloads the friends list', async () => {
     vi.mocked(users.search).mockResolvedValue({ data: [{ id: 5, name: 'Leo', friend_status: 'pending_in', friendship_id: 12 }] });
     vi.mocked(friends.respondRequest).mockResolvedValueOnce({ data: { status: 'accepted' } });
     await renderAt('/explore?tab=friends');
-    expect(groups.getHallOfFameFriends).toHaveBeenCalledTimes(1);
+    expect(friends.getAll).toHaveBeenCalledTimes(1);
     await typeSearch('Leo');
     await waitFor(() => expect(screen.getByRole('button', { name: 'Annehmen' })).toBeTruthy());
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Annehmen' })); });
     expect(friends.respondRequest).toHaveBeenCalledWith(12, 'accept');
     expect(screen.getByText('Befreundet')).toBeTruthy();
     expect(toast.success).toHaveBeenCalledWith('Ihr seid jetzt befreundet 🎉');
-    expect(groups.getHallOfFameFriends).toHaveBeenCalledTimes(2);
+    expect(friends.getAll).toHaveBeenCalledTimes(2);
   });
 
   it('says so when the search is rate-limited', async () => {
@@ -190,21 +220,5 @@ describe('Explore — Friends tab', () => {
     await renderAt('/explore?tab=friends');
     await typeSearch('Lena');
     await waitFor(() => expect(screen.getByText('Zu viele Suchanfragen – bitte warte kurz.')).toBeTruthy());
-  });
-
-  it('a like counts on the card in both feeds', async () => {
-    const shared = card({ id: 5, like_count: 2 });
-    vi.mocked(groups.toggleLike).mockResolvedValueOnce({ data: { liked: true, like_count: 3 } });
-    await renderAt('/explore', { hall: [shared], friendFeed: [shared] });
-    fireEvent.click(tab('Friends'));
-    await act(async () => {});
-    fireEvent.click(tab('Memories'));
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Gefällt mir' })); });
-    expect(screen.getByRole('button', { name: 'Gefällt mir nicht mehr' }).textContent).toBe('3');
-
-    fireEvent.click(tab('Friends'));
-    const heart = screen.getByRole('button', { name: 'Gefällt mir nicht mehr' });
-    expect(heart.textContent).toBe('3');
-    expect(groups.getHallOfFameFriends).toHaveBeenCalledTimes(1);
   });
 });

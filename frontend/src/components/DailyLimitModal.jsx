@@ -9,7 +9,8 @@ import { proUpsellAllowed } from '../utils/platform';
 // off native iOS without IAP); the sheet itself works everywhere and always
 // offers "Morgen wieder dabei".
 //
-// variant: 'join' | 'create' — same sheet, different body line.
+// variant: 'join' | 'create' | 'friend' — same sheet, different body line.
+// 'friend' (07.11.2026): 5 friend requests per Vienna day for free accounts.
 
 const CORAL = '#FD7666';
 
@@ -77,7 +78,7 @@ export const DailyLimitModal = ({ variant = 'join', onClose }) => {
   const openPro = () => {
     onClose?.();
     window.dispatchEvent(new CustomEvent('jamie:open-pro-modal', {
-      detail: { feature: variant === 'create' ? 'creates' : 'joins' },
+      detail: { feature: variant === 'create' ? 'creates' : variant === 'friend' ? 'friends' : 'joins' },
     }));
   };
 
@@ -127,7 +128,9 @@ export const DailyLimitModal = ({ variant = 'join', onClose }) => {
             margin: '0 auto 18px', maxWidth: '320px',
             color: 'rgba(255,255,255,0.65)', fontSize: '14.5px', lineHeight: 1.55,
           }}>
-            {variant === 'create' ? t('dailyLimit.bodyCreate') : t('dailyLimit.bodyJoin')}
+            {variant === 'create' ? t('dailyLimit.bodyCreate')
+              : variant === 'friend' ? t('dailyLimit.bodyFriend')
+              : t('dailyLimit.bodyJoin')}
           </p>
         </div>
 

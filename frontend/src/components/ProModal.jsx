@@ -234,6 +234,8 @@ const CONTEXT_FEATURE = {
   joins: { icon:'♾️', titleKey:'unlimitedJoins', descKey:'joinsLimitReached' },
   // DailyLimitModal CTA after a 403 DAILY_CREATE_LIMIT (free: 1 create per day).
   creates: { icon:'✨', titleKey:'unlimitedJoins', descKey:'unlimitedJoinsDesc' },
+  // DailyLimitModal CTA after a 403 DAILY_FRIEND_LIMIT (free: 5 requests per day).
+  friends: { icon:'🤝', titleKey:'unlimitedFriendRequests', descKey:'unlimitedFriendRequestsDesc' },
 };
 
 // ── Confetti piece ───────────────────────────────────────────────────────
