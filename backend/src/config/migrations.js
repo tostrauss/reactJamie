@@ -1316,6 +1316,18 @@ const runStartupMigrations = async () => {
       )
     `));
 
+  // Monthly budget for category pushes (Tina, 07.11.2026: „2× im Monat, eh wie
+  // wir's haben, aber nicht so oft"). month_key = first day of the Vienna
+  // calendar month the count belongs to; a stale key means a fresh month.
+  // Immediate pushes AND the 18:00 digest both draw from it — see
+  // utils/categoryPushBudget.js.
+  await migrate('category_push_state.month_budget', () =>
+    db.query(`
+      ALTER TABLE category_push_state
+        ADD COLUMN IF NOT EXISTS month_key  DATE,
+        ADD COLUMN IF NOT EXISTS month_sent INTEGER NOT NULL DEFAULT 0
+    `));
+
   // Offsite-backup audit trail (BACKUP-KONZEPT.md): one row per backup run,
   // written by jobs/backup.js + jobs/mediaBackupSync.js. Doubles as (1) the
   // cross-replica "already ran today" marker and (2) the insurer-facing

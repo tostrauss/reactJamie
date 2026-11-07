@@ -15,7 +15,7 @@
 // Without SMOKE_DATABASE_URL the whole suite is skipped, so plain
 // `vitest run` / CI without a database stays green.
 // ─────────────────────────────────────────────────────────────────────────────
-import { describe, it, beforeAll, afterAll, expect, vi } from 'vitest';
+import { describe, it, beforeAll, beforeEach, afterAll, expect, vi } from 'vitest';
 import { distanceKmSql, distanceKm } from '../../src/utils/geoRadius.js';
 import { MOTIVATION_KEYS } from '../../src/utils/motivations.js';
 import fs from 'fs';
@@ -1391,6 +1391,61 @@ suite('write endpoints against real Postgres', () => {
     expect(await ackCount()).toBe(1);
 
     ok(await call(C.updateReportStatus, { userId: A, params: { id: String(rep.id) }, body: { status: 'pending' } }));
+  });
+
+  // Tina 07.11.2026: category pushes „2× im Monat". Immediate pushes and the
+  // 18:00 digest share one budget per VIENNA calendar month. Time is injected
+  // — never coupled to the real NOW().
+  describe('category push monthly budget', () => {
+    let budget;
+    const NOV_3 = '2026-11-03T10:00:00+01:00';
+    const NOV_20 = '2026-11-20T10:00:00+01:00';
+    const DEC_1_VIENNA = '2026-11-30T23:30:00Z'; // 00:30 on 1 Dec in Vienna
+    const state = async (uid) => (await db.query(
+      'SELECT month_key::text AS mk, month_sent, pending_count FROM category_push_state WHERE user_id = $1', [uid])).rows[0];
+
+    beforeAll(async () => {
+      budget = await import('../../src/utils/categoryPushBudget.js');
+    });
+    beforeEach(async () => {
+      await db.query('DELETE FROM category_push_state WHERE user_id IN ($1, $2)', [B, D]);
+    });
+
+    it('spends at most 2 immediate pushes per month; the third is refused', async () => {
+      expect(await budget.claimImmediate([B], { now: NOV_3, cap: 2 })).toEqual([B]);
+      expect(await budget.claimImmediate([B], { now: NOV_20, cap: 2 })).toEqual([B]);
+      expect(await budget.claimImmediate([B], { now: NOV_20, cap: 2 })).toEqual([]);
+      expect(await state(B)).toMatchObject({ mk: '2026-11-01', month_sent: 2 });
+    });
+
+    it('a new Vienna month resets the budget (UTC still says November)', async () => {
+      await budget.claimImmediate([B], { now: NOV_3, cap: 2 });
+      await budget.claimImmediate([B], { now: NOV_20, cap: 2 });
+      expect(await budget.claimImmediate([B], { now: DEC_1_VIENNA, cap: 2 })).toEqual([B]);
+      expect(await state(B)).toMatchObject({ mk: '2026-12-01', month_sent: 1 });
+    });
+
+    it('the digest spends from the same budget and skips users who are out of it', async () => {
+      const sent = [];
+      const send = (ids) => sent.push(...ids);
+      // B: one immediate this month, then a suppressed match → digest allowed.
+      await budget.claimImmediate([B], { now: NOV_3, cap: 2 });
+      await budget.bumpPending([B], { now: NOV_3, cap: 2 });
+      // D: budget already spent → the bump is not even recorded.
+      await budget.claimImmediate([D], { now: NOV_3, cap: 2 });
+      await budget.claimImmediate([D], { now: NOV_3, cap: 2 });
+      await budget.bumpPending([D], { now: NOV_3, cap: 2 });
+      expect((await state(D)).pending_count).toBe(0);
+
+      expect(await budget.runCategoryDigest({ now: NOV_3, cap: 2, send })).toBe(1);
+      expect(sent).toEqual([B]);
+      expect(await state(B)).toMatchObject({ month_sent: 2, pending_count: 0 });
+
+      // Budget spent → no further digest this month, pending is dropped.
+      await db.query('UPDATE category_push_state SET pending_count = 3 WHERE user_id = $1', [B]);
+      expect(await budget.runCategoryDigest({ now: NOV_20, cap: 2, send })).toBe(0);
+      expect(await state(B)).toMatchObject({ month_sent: 2, pending_count: 0 });
+    });
   });
 
   // ── join / accept / kick (the FOR-UPDATE transaction cores) ──────────────

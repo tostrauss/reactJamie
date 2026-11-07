@@ -168,8 +168,8 @@ import { stripeWebhook as boostStripeWebhook } from './controllers/boostControll
 import { appleServerNotification } from './controllers/iapController.js';
 import { revenueCatWebhook } from './controllers/revenueCatController.js';
 import { googleRtdn } from './controllers/googleIapController.js';
-import { sendPushToUser, sendPushToUsers } from './controllers/pushController.js';
-import { categoryDigestText } from './utils/pushLocale.js';
+import { sendPushToUser } from './controllers/pushController.js';
+import { runCategoryDigest } from './utils/categoryPushBudget.js';
 import boostRoutes from './routes/boostRoutes.js';
 import iapRoutes from './routes/iapRoutes.js';
 import mapRoutes from './routes/mapRoutes.js';
@@ -707,34 +707,11 @@ cron.schedule('0 3 * * *', async () => {
 // day's creations are in. The atomic UPDATE...RETURNING claims the rows, so a
 // second Railway instance can never double-send, and a crash after claiming
 // loses at worst one digest (never spams twice).
+// Since 07.11.2026 the digest also draws from the monthly category budget
+// (utils/categoryPushBudget.js — Tina: „2× im Monat").
 cron.schedule('0 18 * * *', async () => {
   try {
-    // NB: RETURNING sees the post-UPDATE row (pending_count = 0), so the
-    // pre-claim count must come from a self-join alias (`old`) — the standard
-    // Postgres pattern for reading old values out of an UPDATE.
-    const { rows } = await db.query(`
-      UPDATE category_push_state s
-      SET pending_count = 0, updated_at = CURRENT_TIMESTAMP
-      FROM category_push_state old
-      JOIN users u ON u.id = old.user_id
-      WHERE old.user_id = s.user_id AND old.pending_count > 0
-      RETURNING s.user_id, old.pending_count AS claimed_count, u.locale
-    `);
-    if (!rows.length) return;
-    // Bucket by (locale, count) — identical text shares one bulk send.
-    const buckets = new Map();
-    for (const r of rows) {
-      const key = `${r.locale || 'de'}:${r.claimed_count}`;
-      if (!buckets.has(key)) buckets.set(key, { locale: r.locale, count: r.claimed_count, ids: [] });
-      buckets.get(key).ids.push(r.user_id);
-    }
-    let sent = 0;
-    for (const { locale, count, ids } of buckets.values()) {
-      if (!count || count < 1) continue;
-      const { title, body } = categoryDigestText(locale, count);
-      sendPushToUsers(ids, title, body, '/home');
-      sent += ids.length;
-    }
+    const sent = await runCategoryDigest();
     if (sent) console.log(`[cron] category digest sent to ${sent} users`);
   } catch (err) {
     console.error('[cron] category digest failed:', err.message);

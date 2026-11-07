@@ -6,6 +6,7 @@ import { expandMatchTerms } from '../utils/categoryFanout.js';
 import { normalizeLocale, categoryPushText, joinRequestText, pushTexts } from '../utils/pushLocale.js';
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
 import { parentClubGateSql } from '../utils/clubGate.js';
+import { claimImmediate, bumpPending } from '../utils/categoryPushBudget.js';
 import { postSystemMessage, SYSTEM_TEXTS } from '../utils/systemMessage.js';
 import { isUserPro } from './subscriptionController.js';
 import {
@@ -273,32 +274,28 @@ async function notifyCategoryMatches(group, catList, countryCode, creatorId) {
   );
   if (!matches.rows.length) return;
 
-  const immediate = matches.rows.filter(r => !r.recently_pushed);
   const suppressed = matches.rows.filter(r => r.recently_pushed);
 
-  // Suppressed → count towards today's digest.
+  // Suppressed → count towards today's digest (only while the user still has
+  // monthly budget — utils/categoryPushBudget.js).
   if (suppressed.length) {
-    await db.query(
-      `INSERT INTO category_push_state (user_id, pending_count, updated_at)
-       SELECT unnest($1::int[]), 1, CURRENT_TIMESTAMP
-       ON CONFLICT (user_id) DO UPDATE
-         SET pending_count = category_push_state.pending_count + 1,
-             updated_at = CURRENT_TIMESTAMP`,
-      [suppressed.map(r => r.id)]
-    ).catch(() => {});
+    await bumpPending(suppressed.map(r => r.id))
+      .catch((err) => console.error('category push: pending bump failed:', err.message));
   }
 
-  if (!immediate.length) return;
-
-  // Stamp BEFORE sending: two near-simultaneous creations must not both count
-  // as "first of the day" for the same user.
-  await db.query(
-    `INSERT INTO category_push_state (user_id, last_immediate_at, updated_at)
-     SELECT unnest($1::int[]), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-     ON CONFLICT (user_id) DO UPDATE
-       SET last_immediate_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP`,
-    [immediate.map(r => r.id)]
-  ).catch(() => {});
+  // Spend one unit of the monthly budget per user AND stamp the 24 h marker
+  // BEFORE sending, in one atomic statement: two near-simultaneous creations
+  // must not both count as "first of the day", nor both spend the last unit.
+  let claimedIds = [];
+  try {
+    claimedIds = await claimImmediate(matches.rows.filter(r => !r.recently_pushed).map(r => r.id));
+  } catch (err) {
+    console.error('category push: budget claim failed:', err.message);
+    return;
+  }
+  if (!claimedIds.length) return;
+  const claimed = new Set(claimedIds);
+  const immediate = matches.rows.filter(r => claimed.has(r.id));
 
   // One bulk send per locale bucket (identical text within a bucket).
   const buckets = new Map();
