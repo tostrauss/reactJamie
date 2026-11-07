@@ -555,6 +555,8 @@
     },
     "moment": {
       "cta": "📸 Comparte tu JAMIE Moment",
+      "ctaFmt": "📷 ¿Estuviste en «{{name}}»?",
+      "shareHint": "¡Comparte tu foto del recuerdo!",
       "hint": "Sube una foto del evento — será la portada en tus Memories.",
       "tooLarge": "La imagen es demasiado grande (máx. 10 MB).",
       "uploadError": "La foto no se pudo subir.",

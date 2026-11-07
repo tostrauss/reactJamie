@@ -49,15 +49,18 @@ beforeEach(() => {
 });
 
 describe('ShareMoments — „Warst du dabei..“', () => {
-  it('has its title and „zurück", and asks owner and participant differently', async () => {
+  it('has its title and „zurück", and asks per event by name (Tina 07.11.2026)', async () => {
     await renderPage([prompt(), prompt({ id: 2, name: 'Wandern', owner_id: 2, image_url: '/media/w.jpg' })]);
     expect(screen.getByRole('heading', { name: 'Warst du dabei..' })).toBeTruthy();
     expect(screen.getByRole('button', { name: /zurück/ })).toBeTruthy();
     expect(screen.queryByRole('tab')).toBeNull();
+    // Same copy for owner and participant since 07.11.2026 — the prompt names
+    // the event instead of explaining cover vs. gallery.
     const own = screen.getByText('Bar-Abend').closest('.ef-card');
-    expect(own.textContent).toContain('📸 Teile deinen JAMIE Moment');
+    expect(own.textContent).toContain('Warst du dabei „Bar-Abend“?');
+    expect(own.textContent).toContain('Teile dein Erinnerungsfoto!');
     const theirs = screen.getByText('Wandern').closest('.ef-card');
-    expect(theirs.textContent).toContain('📸 Teile dein Foto');
+    expect(theirs.textContent).toContain('Warst du dabei „Wandern“?');
     expect(theirs.querySelector('img').getAttribute('src')).toBe('/media/w.jpg');
   });
 

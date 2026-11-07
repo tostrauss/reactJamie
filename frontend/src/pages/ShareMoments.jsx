@@ -164,14 +164,17 @@ export const ShareMoments = () => {
                           <circle cx="12" cy="13" r="4" />
                         </svg>
                       </span>
+                      {/* Tina 07.11.2026: the prompt asks about THIS event by
+                          name — „Warst du dabei ‚X‘?" — same copy for owner and
+                          participants. */}
                       <span className="ef-moment-title">
                         {uploading
                           ? t('explore.photos.uploading')
-                          : (owner ? t('explore.moment.cta') : t('explore.share.photoCta'))}
+                          : t('explore.moment.ctaFmt', { name: item.name })}
                       </span>
                       {!uploading && (
                         <span className="ef-moment-sub">
-                          {owner ? t('explore.moment.hint') : t('explore.share.photoHint')}
+                          {t('explore.moment.shareHint')}
                         </span>
                       )}
                     </button>

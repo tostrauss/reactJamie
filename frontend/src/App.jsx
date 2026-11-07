@@ -106,10 +106,12 @@ const HomeIcon = ({ active }) => (
   </svg>
 );
 
+// Camera since 07.11.2026 (Tina): the tab is Memories/Friends now, the old
+// compass meant „Entdecken" and no longer matched what's behind it.
 const ExploreIcon = ({ active }) => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#FD7666" : "#9BA2B0"} strokeWidth="2">
-    <circle cx="12" cy="12" r="10"/>
-    <polygon points="16.24,7.76 14.12,14.12 7.76,16.24 9.88,9.88" fill={active ? "#FD7666" : "none"} stroke={active ? "#FD7666" : "#9BA2B0"}/>
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={active ? "#FD7666" : "#9BA2B0"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+    <circle cx="12" cy="13" r="4" fill={active ? "#FD7666" : "none"}/>
   </svg>
 );
 
@@ -205,14 +207,9 @@ const CreateModal = ({ isOpen, onClose }) => {
                 <div className="modal-option-arrow">→</div>
               </button>
 
-              <button className="modal-option" onClick={() => handleOption('/friends')}>
-                <div className="modal-option-icon">🔍</div>
-                <div className="modal-option-text">
-                  <h3>{t('app.createModal.friendsTitle')}</h3>
-                  <p>{t('app.createModal.friendsDesc')}</p>
-                </div>
-                <div className="modal-option-arrow">→</div>
-              </button>
+              {/* „Freunde finden" left this sheet 07.11.2026 (Tina: „Beim +
+                  nur 3 Spalten"): finding people lives in Explore → Friends
+                  now; /friends stays routed for deep links. */}
             </div>
 
             <button className="modal-close-btn" onClick={onClose}>

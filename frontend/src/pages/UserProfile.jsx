@@ -245,14 +245,16 @@ export const UserProfile = () => {
       default:
         // Admins can DM any user without befriending them first (backend allows
         // admin-involved threads). Non-admins see only the friend-request CTA.
+        // Since 07.11.2026 (Tina): the friend request is the coral PRIMARY here
+        // too — connecting comes first, the admin DM is the secondary tool.
         if (currentUser?.is_admin) {
           return (
             <div className="up-cta-row">
-              <button className="up-cta-btn" onClick={() => navigate(`/dm/${id}`)}>
-                {t('userProfile.actions.message')}
-              </button>
-              <button className="up-cta-btn up-cta-ghost" onClick={handleSendFriendRequest}>
+              <button className="up-cta-btn" onClick={handleSendFriendRequest}>
                 {t('userProfile.actions.sendRequest')}
+              </button>
+              <button className="up-cta-btn up-cta-ghost" onClick={() => navigate(`/dm/${id}`)}>
+                {t('userProfile.actions.message')}
               </button>
             </div>
           );
