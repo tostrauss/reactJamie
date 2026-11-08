@@ -25,6 +25,11 @@ export const SYSTEM_TEXTS = Object.freeze({
   welcomeEvent: (name) => `Willkommen bei ${name}! Stell dich kurz vor 👋`,
   joined: (name) => `${name} ist der Gruppe beigetreten 🎉`,
   left: (name) => `${name} hat die Gruppe verlassen 👋`,
+  // Tina's „wenn gar nichts funktioniert, auf lustig" lines (03.11.2026) for a
+  // chat nobody has written in yet — jobs/engagementNudges.js picks one.
+  silenceEarly: ['Hallooo? Ist hier jemand? 👀', 'Fun Fact: Gruppen, die vorher schreiben, haben mehr Spaß.'],
+  silenceEve: ['Morgen ist es so weit! Oder?', 'Hallooo, das Treffen ist bald! Wollt ihr nicht schon mal klären, wo ihr euch findet? 📍'],
+  silenceSoon: 'Hallooo, das Treffen ist bald! Wollt ihr nicht schon mal klären, wo ihr euch findet? 📍',
 });
 
 /**

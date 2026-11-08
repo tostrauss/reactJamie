@@ -162,13 +162,13 @@ import { runDailyRollup, backfillIfEmpty } from './jobs/analyticsRollup.js';
 import { runDbBackup, isBackupConfigured, missingBackupEnv, getBackupConfig } from './jobs/backup.js';
 import { runMediaBackupSync } from './jobs/mediaBackupSync.js';
 import { runEventReminders } from './jobs/eventReminders.js';
+import { runEngagementNudges } from './jobs/engagementNudges.js';
 import { runAnalyticsPurge } from './jobs/analyticsPurge.js';
 import { PERMISSIONS_POLICY } from './config/securityHeaders.js';
 import { stripeWebhook as boostStripeWebhook } from './controllers/boostController.js';
 import { appleServerNotification } from './controllers/iapController.js';
 import { revenueCatWebhook } from './controllers/revenueCatController.js';
 import { googleRtdn } from './controllers/googleIapController.js';
-import { sendPushToUser } from './controllers/pushController.js';
 import { runCategoryDigest } from './utils/categoryPushBudget.js';
 import boostRoutes from './routes/boostRoutes.js';
 import iapRoutes from './routes/iapRoutes.js';
@@ -718,60 +718,16 @@ cron.schedule('0 18 * * *', async () => {
   }
 }, { timezone: 'Europe/Vienna' });
 
-// JAMIE Moment push prompt: every 15 min, claim past events whose owner
-// hasn't uploaded a moment photo yet and send them a one-shot reminder.
-//
-// Window: 2 h ≤ now − date ≤ 24 h
-//   • For timed events (e.g. 18:00 start): fires 2h after — they're 1h into
-//     the second drink, perfect "share your moment" timing.
-//   • For date-only events (stored at midnight): fires later in the day; if
-//     that falls into night, the OS quiet-hours handling defers delivery.
-//
-// Atomic UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED) claims
-// the rows so two Railway instances never fire the same push. The
-// moment_prompt_sent_at flag stays set forever once written — even if the
-// owner uploads + deletes, we never re-spam.
+// Engagement nudges every 15 min — jobs/engagementNudges.js (Tina's
+// notification concept, decided 08.11.2026): the photo push after an event
+// (now to every participant — this slot used to be the creator-only moment
+// prompt), „Sag kurz Hallo", the funny lines in a silent chat, and the
+// cover-photo reminder for communities. `io` lets the chat lines appear live.
 cron.schedule('*/15 * * * *', async () => {
   try {
-    const claimed = await db.query(`
-      UPDATE groups
-      SET moment_prompt_sent_at = NOW()
-      WHERE id IN (
-        SELECT id FROM groups
-        WHERE type = 'group'
-          AND date IS NOT NULL
-          AND moment_photo_url IS NULL
-          AND moment_prompt_sent_at IS NULL
-          AND deleted_at IS NULL
-          AND date + INTERVAL '2 hours' <= NOW()
-          AND date + INTERVAL '24 hours' >= NOW()
-        FOR UPDATE SKIP LOCKED
-        LIMIT 200
-      )
-      RETURNING id, owner_id, name
-    `);
-    // sendPushToUser awaits its real network sends now (risk-#8 fix) — run the
-    // owners in parallel; the push semaphore provides the backpressure the old
-    // sequential loop was improvising, and one slow APNs round trip no longer
-    // serializes the whole 200-row tick.
-    await Promise.all(claimed.rows.map(ev =>
-      sendPushToUser(
-        ev.owner_id,
-        '📸 Teile deinen JAMIE Moment',
-        // „Memories" since 26.10.2026 (Tina/Tobi), like the Explore tab and
-        // the profile — the push names the same place the app shows.
-        `Wie war ${ev.name}? Lade jetzt dein Erinnerungsfoto hoch und hol's in deine Memories.`,
-        // The new Explore sends ?share=1 on to „Warst du dabei..“ (its feed no
-        // longer shows photoless cards); old bundles read only ?tab and land
-        // on their wall, where the owner's upload card still is (22.10.2026).
-        '/explore?share=1',
-      ).catch(err => console.error(`[cron] moment push failed for group ${ev.id}:`, err.message))
-    ));
-    if (claimed.rowCount > 0) {
-      console.log(`[cron] moment prompts sent: ${claimed.rowCount}`);
-    }
+    await runEngagementNudges({ io });
   } catch (err) {
-    console.error('[cron] moment prompt cron failed:', err.message);
+    console.error('[cron] engagement nudges failed:', err.message);
   }
 });
 

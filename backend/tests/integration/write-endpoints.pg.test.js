@@ -3827,6 +3827,157 @@ suite('write endpoints against real Postgres', () => {
   });
 
 
+  // ── Engagement nudges (Tina's notification concept, decided 08.11.2026) ──
+  // jobs/engagementNudges.js against real Postgres with an INJECTED clock —
+  // fixtures live in 2027, so nothing here depends on the real NOW().
+  describe('engagement nudges (08.11.2026)', () => {
+    let en;
+    const sent = [];
+    const send = (ids, builder, _body, url) => { sent.push({ ids: [...ids].sort((a, b) => a - b), title: builder('de').title, url }); };
+    const posted = [];
+    const post = async (groupId, text) => { posted.push({ groupId, text }); };
+    const mkU = async (tag, extra = {}) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider, push_reminders)
+       VALUES ($1, $2, '1996-04-04', 'female', $3, TRUE, 'email', $4) RETURNING id`,
+      [`en-${tag}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@x.com`, `En ${tag}`, avatar,
+        extra.reminders ?? true])).rows[0].id;
+    const mkG = async (owner, { name = 'Spieleabend', type = 'group', date, createdAt = '2027-03-01 12:00' } = {}) => {
+      const id = (await db.query(
+        `INSERT INTO groups (name, type, date, owner_id, category, location, max_members, created_at)
+         VALUES ($1, $2, $3, $4, 'Spiele', 'Wien', 20, $5) RETURNING id`,
+        [name, type, date, owner, createdAt])).rows[0].id;
+      await db.query(`INSERT INTO group_members (group_id, user_id, role, joined_at) VALUES ($1, $2, 'owner', $3)`,
+        [id, owner, createdAt]);
+      return id;
+    };
+    const join = (g, u, { at = '2027-03-01 13:00', muted = false } = {}) => db.query(
+      `INSERT INTO group_members (group_id, user_id, role, joined_at, notifications_muted) VALUES ($1, $2, 'member', $3, $4)`,
+      [g, u, at, muted]);
+
+    beforeAll(async () => { en = await import('../../src/jobs/engagementNudges.js'); });
+    beforeEach(() => { sent.length = 0; posted.length = 0; });
+
+    it('photo push: every participant after a timed event — not before, not twice, minus muted/opted-out/already-shared', async () => {
+      const o = await mkU('o'); const p1 = await mkU('p1');
+      const off = await mkU('off', { reminders: false }); const mute = await mkU('mute'); const shared = await mkU('shared');
+      const g = await mkG(o, { name: 'Bowling', date: '2027-03-10 19:00' });
+      for (const u of [p1, off, shared]) await join(g, u);
+      await join(g, mute, { muted: true });
+      await db.query(`INSERT INTO event_photos (group_id, user_id, url) VALUES ($1, $2, $3)`, [g, shared, avatar]);
+
+      await en.runMomentPrompts({ now: '2027-03-10T21:30:00+01:00', send });   // start + 2.5 h
+      expect(sent.filter(s => s.url === '/explore?share=1')).toHaveLength(0);
+      await en.runMomentPrompts({ now: '2027-03-10T22:30:00+01:00', send });   // start + 3.5 h, 22:30 local
+      const mine = sent.find(s => s.title === '📷 Wie war Bowling?');
+      expect(mine.ids).toEqual([o, p1].sort((a, b) => a - b));
+      sent.length = 0;
+      await en.runMomentPrompts({ now: '2027-03-10T22:45:00+01:00', send });
+      expect(sent.find(s => s.title === '📷 Wie war Bowling?')).toBeUndefined();
+    });
+
+    it('photo push: a date-only meetup gets it the same evening from 21:00, never the next morning', async () => {
+      const o = await mkU('do'); const p = await mkU('dp');
+      const g = await mkG(o, { name: 'Picknick', date: '2027-03-12 00:00' });
+      await join(g, p);
+      await en.runMomentPrompts({ now: '2027-03-12T20:00:00+01:00', send });
+      expect(sent.find(s => s.title === '📷 Wie war Picknick?')).toBeUndefined();
+      await en.runMomentPrompts({ now: '2027-03-12T21:15:00+01:00', send });
+      expect(sent.find(s => s.title === '📷 Wie war Picknick?').ids).toEqual([o, p].sort((a, b) => a - b));
+      const g2 = await mkG(o, { name: 'Zu spät', date: '2027-03-12 00:00' });
+      await join(g2, p);
+      await en.runMomentPrompts({ now: '2027-03-13T10:00:00+01:00', send });
+      expect(sent.find(s => s.title === '📷 Wie war Zu spät?')).toBeUndefined();
+    });
+
+    it('„Sag kurz Hallo": a member who joined ≥ 3 h ago and never wrote — once; never the creator, the writer or at night', async () => {
+      const o = await mkU('ho'); const quiet = await mkU('hq'); const writer = await mkU('hw'); const fresh = await mkU('hf');
+      const g = await mkG(o, { name: 'Laufen', date: '2027-03-20 18:00', createdAt: '2027-03-15 09:00' });
+      await join(g, quiet, { at: '2027-03-15 10:00' });
+      await join(g, writer, { at: '2027-03-15 10:00' });
+      await join(g, fresh, { at: '2027-03-15 13:30' });
+      await db.query(`INSERT INTO messages (group_id, user_id, content) VALUES ($1, $2, 'Hi!')`, [g, writer]);
+
+      await en.runSayHello({ now: '2027-03-15T23:30:00+01:00', send });       // night → nothing
+      expect(sent.filter(s => s.url === `/chat/${g}`)).toHaveLength(0);
+      // joined_at is a naive UTC wall clock (session zone) — 10:00 UTC = 11:00 Vienna.
+      await en.runSayHello({ now: '2027-03-16T15:00:00+01:00', send });
+      const hello = sent.find(s => s.url === `/chat/${g}`);
+      expect(hello.title).toBe('Sag kurz Hallo 👋');
+      expect(hello.ids).toEqual([quiet, fresh].sort((a, b) => a - b));
+      sent.length = 0;
+      await en.runSayHello({ now: '2027-03-16T16:00:00+01:00', send });
+      expect(sent.filter(s => s.url === `/chat/${g}`)).toHaveLength(0);
+    });
+
+    it('silent chat: stage 1 a day after creation, stage 2 on the eve — each once, never once someone wrote', async () => {
+      const o = await mkU('so'); const m = await mkU('sm');
+      const g = await mkG(o, { name: 'Brunch', date: '2027-04-10 11:00', createdAt: '2027-04-01 10:00' });
+      await join(g, m, { at: '2027-04-01 11:00' });
+      const talky = await mkG(o, { name: 'Talky', date: '2027-04-10 11:00', createdAt: '2027-04-01 10:00' });
+      await join(talky, m, { at: '2027-04-01 11:00' });
+      await db.query(`INSERT INTO messages (group_id, user_id, content) VALUES ($1, $2, 'Wer kommt?')`, [talky, m]);
+      // The welcome line is a system message — it must not count as "someone wrote".
+      await db.query(`INSERT INTO messages (group_id, user_id, content, message_type) VALUES ($1, NULL, 'Willkommen', 'system')`, [g]);
+
+      await en.runSilenceNudges({ now: '2027-04-01T20:00:00+02:00', post });  // < 24 h old
+      expect(posted.filter(p => p.groupId === g)).toHaveLength(0);
+      await en.runSilenceNudges({ now: '2027-04-03T12:00:00+02:00', post });
+      expect(posted.filter(p => p.groupId === g).map(p => p.text)).toEqual([en.pickLine(1, g)]);
+      expect(posted.filter(p => p.groupId === talky)).toHaveLength(0);
+      await en.runSilenceNudges({ now: '2027-04-04T12:00:00+02:00', post });
+      expect(posted.filter(p => p.groupId === g)).toHaveLength(1);
+      // The eve (D-1 from 10:00, Vienna — CEST here).
+      await en.runSilenceNudges({ now: '2027-04-09T12:00:00+02:00', post });
+      const lines = posted.filter(p => p.groupId === g).map(p => p.text);
+      expect(lines).toHaveLength(2);
+      expect(lines[1]).toBe(en.pickLine(2, g, true));
+      expect(['Morgen ist es so weit! Oder?', 'Hallooo, das Treffen ist bald! Wollt ihr nicht schon mal klären, wo ihr euch findet? 📍']).toContain(lines[1]);
+      await en.runSilenceNudges({ now: '2027-04-09T15:00:00+02:00', post });
+      expect(posted.filter(p => p.groupId === g)).toHaveLength(2);
+    });
+
+    it('cover reminder: a community with 5 members and no picture — first, then 7 days later the second, then never; not for clubs or with a cover', async () => {
+      const o = await mkU('co'); const co = await mkU('cm');
+      const mkClub = async (name, { clubType = null, image = null } = {}) => {
+        const id = (await db.query(
+          `INSERT INTO groups (name, type, owner_id, category, location, max_members, approval_status, club_type, image_url)
+           VALUES ($1, 'club', $2, 'Sport', 'Wien', 100, 'approved', $3, $4) RETURNING id`,
+          [name, o, clubType, image])).rows[0].id;
+        await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'owner'), ($1, $3, 'admin')`, [id, o, co]);
+        for (let i = 0; i < 3; i++) await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, [id, await mkU(`c${i}`)]);
+        return id;
+      };
+      const plain = await mkClub('Laufrunde');
+      const withCover = await mkClub('Mit Bild', { image: avatar });
+      const official = await mkClub('Offizieller Club', { clubType: 'official' });
+      const titles = () => sent.map(s => s.title);
+
+      await en.runCoverNags({ now: '2027-05-01T12:00:00+02:00', send });
+      const first = sent.find(s => s.title === 'Laufrunde');
+      expect(first.ids).toEqual([o, co].sort((a, b) => a - b));
+      expect(first.url).toBe(`/club/${plain}/edit`);
+      expect(titles()).not.toContain('Mit Bild');
+      expect(titles()).not.toContain('Offizieller Club');
+      const bell = await db.query(
+        `SELECT message FROM notifications WHERE user_id = $1 AND type = 'community_cover' AND reference_id = $2`, [o, plain]);
+      expect(bell.rows[0].message).toMatch(/^Hey! Deine Community hat schon 5 Mitglieder!/);
+
+      sent.length = 0;
+      await en.runCoverNags({ now: '2027-05-05T12:00:00+02:00', send });
+      expect(titles()).not.toContain('Laufrunde');
+      await en.runCoverNags({ now: '2027-05-08T12:30:00+02:00', send });
+      expect(sent.filter(s => s.title === 'Laufrunde')).toHaveLength(1);
+      const second = await db.query(
+        `SELECT message FROM notifications WHERE user_id = $1 AND type = 'community_cover' AND reference_id = $2 ORDER BY id DESC LIMIT 1`, [o, plain]);
+      expect(second.rows[0].message).toMatch(/^Huch! Deine Community hat noch kein Coverbild/);
+      sent.length = 0;
+      await en.runCoverNags({ now: '2027-05-20T12:00:00+02:00', send });
+      expect(titles()).not.toContain('Laufrunde');
+      expect(withCover && official).toBeTruthy();
+    });
+  });
+
+
   // ── Onboarding-Umbau (Tina's checklist, 2026-10) ─────────────────────────
   // Gender moved to the sign-up, "Was trifft zu?" (users.motivations) became
   // onboarding step 1, and admins curate the clubs new users see right after

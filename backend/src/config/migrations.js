@@ -1337,6 +1337,38 @@ const runStartupMigrations = async () => {
                       ON friend_request_log (user_id, created_at)`);
   });
 
+  // Tina's notification concept (03.11.2026) — one marker table per nudge so
+  // every push / chat line goes out at most once. All claimed atomically by
+  // INSERT … ON CONFLICT DO NOTHING RETURNING (jobs/engagementNudges.js).
+  await migrate('engagement_nudge_tables', async () => {
+    // „Sag kurz Hallo 👋" — a member who joined and never wrote, once per membership.
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS chat_hello_nudges (
+        group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+        user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        sent_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (group_id, user_id)
+      )
+    `);
+    // The funny JAMIE lines in a chat nobody has written in yet (stage 1, 2).
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS chat_silence_nudges (
+        group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+        stage    SMALLINT NOT NULL,
+        sent_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (group_id, stage)
+      )
+    `);
+    // Cover-photo reminder for communities without a picture (two messages).
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS community_cover_nags (
+        group_id       INTEGER PRIMARY KEY REFERENCES groups(id) ON DELETE CASCADE,
+        first_sent_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        second_sent_at TIMESTAMPTZ
+      )
+    `);
+  });
+
   await migrate('category_push_state.month_budget', () =>
     db.query(`
       ALTER TABLE category_push_state

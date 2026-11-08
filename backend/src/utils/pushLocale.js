@@ -370,6 +370,40 @@ const PUSH_TEXTS = {
     fr: (p) => ({ title: `Comment était « ${p.groupName} » ?`, body: 'Note les participants 🌟' }),
     es: (p) => ({ title: `¿Qué tal "${p.groupName}"?`, body: 'Valora a quienes asistieron 🌟' }),
   },
+  // Tina's notification concept (03.11.) + To-Do (04.11.), decided 08.11.:
+  // the photo push right after an event — to EVERY participant now, not only
+  // the creator. Her sentence, split into title + body.
+  momentPrompt: {
+    de: (p) => ({ title: `📷 Wie war ${p.groupName}?`, body: 'Lade ein Foto hoch und halte den Moment fest!' }),
+    en: (p) => ({ title: `📷 How was ${p.groupName}?`, body: 'Upload a photo and keep the moment!' }),
+    it: (p) => ({ title: `📷 Com'è andata ${p.groupName}?`, body: 'Carica una foto e conserva il momento!' }),
+    fr: (p) => ({ title: `📷 C'était comment, ${p.groupName} ?`, body: 'Ajoute une photo et garde ce moment !' }),
+    es: (p) => ({ title: `📷 ¿Qué tal ${p.groupName}?`, body: '¡Sube una foto y guarda el momento!' }),
+  },
+  // „Sag kurz Hallo 👋 Die anderen in [Gruppe] freuen sich auf dich!" — to a
+  // member who joined a few hours ago and has not written yet.
+  sayHello: {
+    de: (p) => ({ title: 'Sag kurz Hallo 👋', body: `Die anderen in ${p.groupName} freuen sich auf dich!` }),
+    en: (p) => ({ title: 'Say a quick hello 👋', body: `The others in ${p.groupName} are looking forward to you!` }),
+    it: (p) => ({ title: 'Fai un breve saluto 👋', body: `Gli altri in ${p.groupName} non vedono l'ora di conoscerti!` }),
+    fr: (p) => ({ title: 'Dis vite bonjour 👋', body: `Les autres de ${p.groupName} ont hâte de te rencontrer !` }),
+    es: (p) => ({ title: 'Di un breve hola 👋', body: `¡Los demás en ${p.groupName} tienen ganas de conocerte!` }),
+  },
+  // Cover-photo reminder for a community without a picture (Tina's texts).
+  coverNagFirst: {
+    de: (p) => ({ title: p.groupName, body: `Hey! Deine Community hat schon ${p.count} Mitglieder! Lade jetzt ein Coverbild hoch, um mehr Sichtbarkeit zu erreichen` }),
+    en: (p) => ({ title: p.groupName, body: `Hey! Your community already has ${p.count} members! Upload a cover photo now to get more visibility` }),
+    it: (p) => ({ title: p.groupName, body: `Ehi! La tua community ha già ${p.count} membri! Carica ora un'immagine di copertina per avere più visibilità` }),
+    fr: (p) => ({ title: p.groupName, body: `Hey ! Ta communauté compte déjà ${p.count} membres ! Ajoute une photo de couverture pour gagner en visibilité` }),
+    es: (p) => ({ title: p.groupName, body: `¡Hey! Tu comunidad ya tiene ${p.count} miembros. Sube ahora una foto de portada para ganar visibilidad` }),
+  },
+  coverNagSecond: {
+    de: (p) => ({ title: p.groupName, body: 'Huch! Deine Community hat noch kein Coverbild, lade jetzt eines hoch, um sichtbar zu bleiben!' }),
+    en: (p) => ({ title: p.groupName, body: 'Oops! Your community still has no cover photo — upload one now to stay visible!' }),
+    it: (p) => ({ title: p.groupName, body: 'Ops! La tua community non ha ancora un’immagine di copertina, caricane una ora per restare visibile!' }),
+    fr: (p) => ({ title: p.groupName, body: 'Oups ! Ta communauté n’a toujours pas de photo de couverture, ajoute-en une pour rester visible !' }),
+    es: (p) => ({ title: p.groupName, body: '¡Uy! Tu comunidad aún no tiene foto de portada, sube una ahora para seguir siendo visible.' }),
+  },
   // Admin → Nutzer → "Test-Push senden" (support tool, 06.10.2026). Says what it
   // is, so a tester who receives it knows push reaches this device.
   // To the USER: an admin removed a profile picture that shows no real person
