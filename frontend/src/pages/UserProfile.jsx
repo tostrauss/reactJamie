@@ -220,11 +220,10 @@ export const UserProfile = () => {
       case 'accepted':
         return (
           <div className="up-cta-row">
-            {/* "Nachricht senden" now uses the brand-standard coral .up-cta-btn
-                (was a one-off purple gradient that stood out) — matches the
-                Freund-anfrage / Accept buttons throughout the rest of the app. */}
+            {/* „Nachricht senden" in the club purple (Tina 07.11.2026): coral
+                is reserved for connecting — friend request, accept. */}
             <button
-              className="up-cta-btn"
+              className="up-cta-btn up-cta-purple"
               onClick={() => navigate(`/dm/${id}`)}
             >
               {t('userProfile.actions.message')}
@@ -253,7 +252,7 @@ export const UserProfile = () => {
               <button className="up-cta-btn" onClick={handleSendFriendRequest}>
                 {t('userProfile.actions.sendRequest')}
               </button>
-              <button className="up-cta-btn up-cta-ghost" onClick={() => navigate(`/dm/${id}`)}>
+              <button className="up-cta-btn up-cta-purple" onClick={() => navigate(`/dm/${id}`)}>
                 {t('userProfile.actions.message')}
               </button>
             </div>

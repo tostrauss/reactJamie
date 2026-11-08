@@ -99,7 +99,7 @@ export const getSuggestions = async (req, res) => {
                  FROM group_members gm
                  JOIN users u2 ON gm.user_id = u2.id
                  WHERE gm.group_id = g.id
-                 ORDER BY gm.joined_at ASC
+                 ORDER BY CASE WHEN gm.role = 'owner' THEN 0 ELSE 1 END, gm.joined_at ASC
                  LIMIT 3
                ) sub
              ) AS member_previews

@@ -3807,6 +3807,22 @@ suite('write endpoints against real Postgres', () => {
       expect(below.statusCode).toBe(400);
       expect(below.body.error).toMatch(/bereits \d+ Teilnehmer/);
       expect(await stored()).toBe(80);
+
+      // „ab 18" on club events (Tina 05.11.2026): only „von" is stored and
+      // „bis" stays open; an edit that doesn't send the fields keeps them;
+      // '' clears. The edit page always showed these fields — they were dropped.
+      const age = (body) => call(C.updateClubEvent, { userId: host,
+        params: { id: String(club), eventId: String(ev) }, body });
+      const ages = async () => (await db.query(
+        'SELECT target_age_min AS mn, target_age_max AS mx FROM groups WHERE id = $1', [ev])).rows[0];
+      ok(await age({ target_age_min: '18', target_age_max: null }));
+      expect(await ages()).toEqual({ mn: 18, mx: null });
+      ok(await age({ max_members: 80 }));
+      expect(await ages()).toEqual({ mn: 18, mx: null });
+      expect((await age({ target_age_min: 30, target_age_max: 20 })).statusCode).toBe(400);
+      expect((await age({ target_age_min: 12 })).statusCode).toBe(400);
+      ok(await age({ target_age_min: '', target_age_max: '' }));
+      expect(await ages()).toEqual({ mn: null, mx: null });
     });
   });
 

@@ -193,6 +193,9 @@ export const GroupEdit = () => {
           image_url: formData.image_url || undefined,
           // Sent only where the toggle exists (event of a public club).
           is_private: group?.parent_club_private === false ? !!formData.is_private : undefined,
+          // „ab 18" = only „von" filled; an empty field clears it (Tina 05.11.).
+          target_age_min: formData.target_age_min === '' ? null : formData.target_age_min,
+          target_age_max: formData.target_age_max === '' ? null : formData.target_age_max,
         });
       } else {
         // Strip empty strings for nullable backend fields. Postgres can't cast

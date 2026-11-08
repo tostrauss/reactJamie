@@ -2040,7 +2040,7 @@
       "weeklyOn": "Event happens every week on the same weekday",
       "weeklyOff": "One-off event",
       "targetAge": "Target age range",
-      "targetAgeHint": "Only users in this age range can see the group (empty = everyone)",
+      "targetAgeHint": "Only users in this age range can see the group. Fill in only “from” for “this age and up” (empty = everyone)",
       "targetAgeFromPlaceholder": "from",
       "targetAgeToPlaceholder": "to",
       "chatPermissions": "Chat permissions",
@@ -2663,5 +2663,14 @@
     "b3D": "Your groups reach more people.",
     "cta": "Discover JAMIE Pro",
     "later": "Back tomorrow"
+  },
+  "chatNudge": {
+    "createdTitle": "Your group is ready! 🎉",
+    "createdBody": "Write a short welcome now so everyone feels at home.",
+    "createdCta": "Write the first message",
+    "joinedTitle": "You’re in for {{name}}!",
+    "joinedBody": "Say a quick hello 👋",
+    "joinedCta": "Say hello",
+    "later": "Later"
   }
 }

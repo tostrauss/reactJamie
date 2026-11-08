@@ -1143,7 +1143,7 @@ export const getClubMembers = async (req, res) => {
            FROM friendships
            WHERE status = 'blocked' AND (requester_id = $2 OR addressee_id = $2)
          )
-       ORDER BY gm.joined_at ASC`,
+       ORDER BY CASE WHEN gm.role = 'owner' THEN 0 ELSE 1 END, gm.joined_at ASC`,
       [id, req.userId]
     );
     const total = result.rows.length;
@@ -1982,7 +1982,7 @@ export const deleteClubEvent = async (req, res) => {
 // the discover feed, and the map all reflect the edit immediately.
 export const updateClubEvent = async (req, res) => {
   const { id, eventId } = req.params;
-  const { name, description, date, time, location, max_members, is_recurring_weekly, image_url, ticket_url, is_private } = req.body;
+  const { name, description, date, time, location, max_members, is_recurring_weekly, image_url, ticket_url, is_private, target_age_min, target_age_max } = req.body;
   const userId = req.userId;
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
@@ -1990,6 +1990,29 @@ export const updateClubEvent = async (req, res) => {
   if (is_private !== undefined && typeof is_private !== 'boolean') {
     return res.status(400).json({ error: 'is_private muss true oder false sein' });
   }
+  // „Für welches Alter?" on club events (Tina 05.11.2026): the edit form has
+  // shown the fields all along, but this endpoint ignored them. Same rules as
+  // updateGroup — undefined keeps, ''/null clears, an open „bis" is allowed
+  // („ab 18"). 14–99.
+  const ageKeep = (v) => {
+    if (v === undefined) return undefined;
+    if (v === null || v === '') return null;
+    const n = parseInt(v, 10);
+    return Number.isNaN(n) ? NaN : n;
+  };
+  const ageMinU = ageKeep(target_age_min);
+  const ageMaxU = ageKeep(target_age_max);
+  if (Number.isNaN(ageMinU) || Number.isNaN(ageMaxU)) {
+    return res.status(400).json({ error: 'Ungültige Altersangabe' });
+  }
+  if ((typeof ageMinU === 'number' && (ageMinU < 14 || ageMinU > 99)) ||
+      (typeof ageMaxU === 'number' && (ageMaxU < 14 || ageMaxU > 99))) {
+    return res.status(400).json({ error: 'Alter muss zwischen 14 und 99 liegen' });
+  }
+  if (typeof ageMinU === 'number' && typeof ageMaxU === 'number' && ageMinU > ageMaxU) {
+    return res.status(400).json({ error: 'Mindestalter darf nicht größer als Maximalalter sein' });
+  }
+  const ageParam = (v) => (v === undefined ? '__keep__' : (v === null ? '__null__' : String(v)));
   {
     const bad = checkImageField(image_url);
     if (bad) return res.status(400).json({ error: bad });
@@ -2096,6 +2119,8 @@ export const updateClubEvent = async (req, res) => {
                                         ELSE $11::text END,
              lat = CASE WHEN $4 IS NOT NULL THEN $7 ELSE lat END,
              lng = CASE WHEN $4 IS NOT NULL THEN $8 ELSE lng END,
+             target_age_min = CASE WHEN $13::text = '__keep__' THEN target_age_min ELSE NULLIF($13::text, '__null__')::int END,
+             target_age_max = CASE WHEN $14::text = '__keep__' THEN target_age_max ELSE NULLIF($14::text, '__null__')::int END,
              updated_at = CURRENT_TIMESTAMP
        WHERE id = $9
        RETURNING *`,
@@ -2113,6 +2138,8 @@ export const updateClubEvent = async (req, res) => {
         ticketUrl,
         // Private club → its events stay private whatever the client sends.
         is_private === undefined ? null : (club.rows[0]?.is_private ? true : is_private),
+        ageParam(ageMinU),
+        ageParam(ageMaxU),
       ]
     );
 

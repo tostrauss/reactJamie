@@ -808,7 +808,9 @@ export const getGroups = async (req, res) => {
                  FROM group_members gm
                  JOIN users u2 ON gm.user_id = u2.id
                  WHERE gm.group_id = g.id
-                 ORDER BY gm.joined_at ASC
+                 -- Creator first, then join order (Tina/Tobi 08.11.2026) —
+                 -- the same rule in every member list and preview.
+                 ORDER BY CASE WHEN gm.role = 'owner' THEN 0 ELSE 1 END, gm.joined_at ASC
                  LIMIT ${previewLimit}
                ) sub
              ) AS member_previews,
@@ -1917,7 +1919,7 @@ export const getGroupMembers = async (req, res) => {
            FROM friendships
            WHERE status = 'blocked' AND (requester_id = $2 OR addressee_id = $2)
          )
-       ORDER BY gm.joined_at ASC`,
+       ORDER BY CASE WHEN gm.role = 'owner' THEN 0 ELSE 1 END, gm.joined_at ASC`,
       [id, req.userId]
     );
     const total = fullList.rows.length;
@@ -2779,7 +2781,7 @@ export const getGroupMemberAvatars = async (req, res) => {
          FROM group_members gm
          JOIN users u ON gm.user_id = u.id
          WHERE gm.group_id = $1
-         ORDER BY gm.joined_at ASC
+         ORDER BY CASE WHEN gm.role = 'owner' THEN 0 ELSE 1 END, gm.joined_at ASC
          LIMIT $2`,
         [id, limit]
       );
@@ -2792,7 +2794,7 @@ export const getGroupMemberAvatars = async (req, res) => {
        FROM group_members gm
        JOIN users u ON gm.user_id = u.id
        WHERE gm.group_id = $1
-       ORDER BY gm.joined_at ASC
+       ORDER BY CASE WHEN gm.role = 'owner' THEN 0 ELSE 1 END, gm.joined_at ASC
        LIMIT $2`,
       [id, limit]
     );

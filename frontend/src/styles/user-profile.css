@@ -415,6 +415,13 @@
   cursor: default;
 }
 
+/* „Nachricht senden" (Tina 07.11.2026): the club purple, so the coral stays
+   the colour of connecting (friend request / accept). */
+.up-cta-purple {
+  background: var(--accent-club);
+  box-shadow: 0 6px 20px rgba(var(--accent-club-rgb), 0.35);
+  color: #fff;
+}
 .up-cta-ghost {
   background: rgba(255,255,255,0.08);
   border: 1.5px solid rgba(255,255,255,0.15);
