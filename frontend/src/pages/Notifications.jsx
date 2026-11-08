@@ -11,6 +11,8 @@ const typeIcon = (type) => {
   if (type === 'hof_like') return '❤️';
   if (type === 'join_request') return '👋';
   if (type === 'request_accepted') return '✅';
+  if (type === 'report_resolved') return '🛡️';
+  if (type === 'community_cover') return '📸';
   return '📢';
 };
 

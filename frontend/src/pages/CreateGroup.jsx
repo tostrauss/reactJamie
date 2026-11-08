@@ -234,7 +234,9 @@ export const CreateGroup = () => {
       const response = await groups.create(payload);
       // replace, don't push: the create flow must not stay in the history —
       // back on the new group's page should lead home, not into the wizard.
-      navigate(`/group/${response.data.id}`, { replace: true });
+      // justCreated → GroupDetail opens „Deine Gruppe ist bereit! 🎉" with
+      // „Erste Nachricht schreiben" (Tina's notification concept, 03.11.2026).
+      navigate(`/group/${response.data.id}`, { replace: true, state: { justCreated: true } });
     } catch (err) {
       // Daily free-create limit (1/day, Tina + Tobi 28.10.2026): the info
       // sheet comes first — no raw error toast for an intended refusal.

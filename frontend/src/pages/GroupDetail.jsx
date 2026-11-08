@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, Suspense } from 'react';
-import { useParams, useNavigate, Navigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { serverErrorMessage } from '../utils/apiError';
 import { GoogleMap, Marker, useLoadScript } from '@react-google-maps/api';
@@ -15,6 +15,7 @@ import { AttendanceTierBadge } from '../components/AttendanceTierBadge';
 import { EventReviewModal } from '../components/EventReviewModal';
 import AvatarGateModal from '../components/AvatarGateModal';
 import DailyLimitModal from '../components/DailyLimitModal';
+import { ChatNudgeSheet } from '../components/ChatNudgeSheet';
 import { nextOccurrence, utcDayStart, viennaTodayUTC } from '../utils/recurrence';
 import { shareLink } from '../utils/share';
 import { openCalendar } from '../utils/calendarExport';
@@ -187,6 +188,22 @@ export const GroupDetail = () => {
   const [showAvatarGate, setShowAvatarGate] = useState(false);
   // 'join' | null — the "Tageslimit erreicht" sheet (Tina 28.10.2026).
   const [dailyLimitVariant, setDailyLimitVariant] = useState(null);
+  // 'created' | 'joined' | null — Tina's „bring them into the chat" sheet
+  // (notification concept 03.11.2026). 'created' arrives via router state from
+  // CreateGroup; 'joined' follows a direct join of a group or event.
+  const [chatNudge, setChatNudge] = useState(null);
+  const routerLocation = useLocation();
+  // CreateGroup hands over { justCreated: true }. Consumed once and wiped from
+  // the history entry, so back/forward or a reload never shows it again.
+  useEffect(() => {
+    if (!routerLocation.state?.justCreated) return;
+    setChatNudge('created');
+    navigate(routerLocation.pathname, { replace: true, state: null });
+  }, [routerLocation.state, routerLocation.pathname, navigate]);
+  const closeChatNudge = () => {
+    if (chatNudge === 'joined') window.dispatchEvent(new Event('jamie:push-prompt-after-join'));
+    setChatNudge(null);
+  };
   // Post-event attendance review, re-openable from the event page (the auto-
   // popup is one-shot; this is the way back in after skipping/closing).
   const [reviewPayload, setReviewPayload] = useState(null);
@@ -339,12 +356,17 @@ export const GroupDetail = () => {
         await refreshMembers(isClub);
       } else {
         const res = isClub ? await clubs.join(id) : await groups.join(id);
-        window.dispatchEvent(new Event('jamie:push-prompt-after-join')); // contextual push ask (NotificationPrompt)
+        // A direct join of a group/event first shows „Sag kurz Hallo"; the
+        // contextual push ask (NotificationPrompt) then waits until that sheet
+        // closes, so the two never stack.
+        const helloSheet = !isClub && res.data?.status !== 'pending';
+        if (!helloSheet) window.dispatchEvent(new Event('jamie:push-prompt-after-join'));
         if (res.data?.status === 'pending') {
           setJoinRequestStatus('pending');
           toast.success(t('groups.detail.toast.requestSent'));
         } else {
           setIsJoined(true);
+          if (helloSheet) setChatNudge('joined');
           setMembers(prev => [...prev, { id: user.id, name: user.name, avatar_url: user.avatar_url }]);
           const response = isClub ? await clubs.getById(id) : await groups.getById(id);
           setGroup(response.data);
@@ -1191,6 +1213,14 @@ export const GroupDetail = () => {
       <AvatarGateModal isOpen={showAvatarGate} onClose={() => setShowAvatarGate(false)} />
       {dailyLimitVariant && (
         <DailyLimitModal variant={dailyLimitVariant} onClose={() => setDailyLimitVariant(null)} />
+      )}
+      {chatNudge && group && (
+        <ChatNudgeSheet
+          variant={chatNudge}
+          groupName={group.name || group.title}
+          onChat={() => { closeChatNudge(); navigate(`/chat/${group.id}`); }}
+          onClose={closeChatNudge}
+        />
       )}
     </div>
   );
