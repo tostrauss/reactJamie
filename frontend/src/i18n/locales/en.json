@@ -1539,8 +1539,8 @@
       "cancel": "Later"
     },
     "avatarNudge": {
-      "title": "Add a profile photo?",
-      "text": "With a real photo you're more likely to get invited to groups and people will recognise you. It only takes a moment.",
+      "title": "Hey! Great to have you here 👋",
+      "text": "Upload a profile photo now to join activities.",
       "cta": "Add profile photo",
       "cancel": "Later"
     },

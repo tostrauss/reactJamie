@@ -1,7 +1,7 @@
 // ==========================================
 // Soft avatar nudge — may it show right now?
 // ==========================================
-// The „Magst du ein Profilbild ergänzen?" sheet (App.jsx, AvatarGateModal
+// The „Hey! Schön, dass du dabei bist 👋" sheet (App.jsx, AvatarGateModal
 // soft) is for members who FINISHED onboarding and still have no picture —
 // joining needs one (server 403 requiresAvatar).
 //

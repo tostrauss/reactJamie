@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { shouldNudge, isNudgeQuietRoute, AVATAR_NUDGE_KEY, AVATAR_NUDGE_SNOOZE_MS } from '../utils/avatarNudge';
 
-// The soft „Magst du ein Profilbild ergänzen?" sheet. App.jsx asks this rule
+// The soft „Hey! Schön, dass du dabei bist" sheet. App.jsx asks this rule
 // when arming its timer AND at render time; the arm-time check alone let the
 // sheet open over onboarding step 1 (Tina, 10.10.2026: „Profilbild-Schritt
 // vom Anfang weg").
