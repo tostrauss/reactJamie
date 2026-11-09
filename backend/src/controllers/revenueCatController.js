@@ -26,14 +26,16 @@ import { Sentry } from '../config/sentry.js';
 import * as rc from '../utils/revenueCat.js';
 import { isGooglePlayConfigured } from '../utils/googlePlay.js';
 
-// Product ids RevenueCat may report. Same catalogue as App Store Connect,
-// Play Console and frontend/src/utils/iap.js. Anything else (for example a
+// Product ids RevenueCat may report — App Store Connect (frontend
+// utils/iap.js) and Play Console (utils/playBilling.js). Only the 6-month id
+// differs: `pro_6month` at Apple, `pro_sixmonth` at Google. Anything else (for example a
 // promotional grant from the RC dashboard) still counts, because the
 // ENTITLEMENT is what grants Pro, not the product. This list only feeds the
 // ledger's plan label.
 const RC_PRODUCTS = Object.freeze({
   pro_monthly:  { plan: 'monthly'  },
-  pro_sixmonth: { plan: 'sixmonth' },
+  pro_6month:   { plan: 'sixmonth' },   // App Store
+  pro_sixmonth: { plan: 'sixmonth' },   // Google Play
   pro_yearly:   { plan: 'yearly'   },
 });
 

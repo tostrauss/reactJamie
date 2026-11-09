@@ -26,15 +26,19 @@ import { captureException } from './sentry';
 
 // Subscriptions only. The boost_* consumables were dropped on 21.09.2026
 // ("Boosts bleiben, nur keine Einzelkäufe"): boosting is a Pro feature.
+// The ids are App Store Connect's. The 6-month one is `pro_6month` there —
+// NOT `pro_sixmonth` like on Play (playBilling.js). Asking StoreKit for
+// pro_sixmonth left the 6-month tile out of every iOS paywall (App Review
+// 2.1(b) „IAP products were not available", ASC screenshot 09.11.2026).
 export const IAP_PRODUCTS = {
   pro_monthly:   { type: 'subscription',  plan: 'monthly'  },
-  pro_sixmonth:  { type: 'subscription',  plan: 'sixmonth' },
+  pro_6month:    { type: 'subscription',  plan: 'sixmonth' },
   pro_yearly:    { type: 'subscription',  plan: 'yearly'   },
 };
 
 export const PRO_PLAN_TO_PRODUCT_ID = {
   monthly:  'pro_monthly',
-  sixmonth: 'pro_sixmonth',
+  sixmonth: 'pro_6month',
   yearly:   'pro_yearly',
 };
 

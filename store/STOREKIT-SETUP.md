@@ -46,7 +46,7 @@ Create one Subscription Group first ("JAMIE Pro"), then these three subscription
 | Product ID | Duration | Price | Per month | Note |
 |---|---|---|---|---|
 | `pro_monthly` | 1 Month | 6,99 € | 6,99 € | baseline (anchor, struck through on the others) |
-| `pro_sixmonth` | 6 Months | 29,99 € | 5,00 € | "28% sparen", default, badge "Beliebt" |
+| `pro_6month` | 6 Months | 29,99 € | 5,00 € | "28% sparen", default, badge "Beliebt" |
 | `pro_yearly` | 1 Year | 49,99 € | 4,17 € | "40% sparen", badge "Bestes Angebot" |
 
 These match the backend `subscriptionController.js` `PRO_PLANS` (amount_cents 699 month/1, 2999 month/6, 4999 year/1) and the frontend `frontend/src/utils/proPlans.js`. (Repriced 2026-09-21 to 6,99/29,99/49,99 — Meeting Tina/Tobi/Arno; on 2026-09-17 the weekly tier was dropped and a yearly one added, see proPlans.js for why. This table had been stale since the 2026-08-03 repricing and is now back in sync with the code.)
@@ -119,7 +119,7 @@ For the Pro subscriptions: create the Subscription Group "JAMIE Pro" first, then
 
 1. Subscription Group Localization (German + English group title).
 2. Subscription Localization per product.
-3. Subscription Level inside the group: `pro_monthly` = Level 1, `pro_sixmonth` = Level 2, `pro_yearly` = Level 3 (higher = upgrade).
+3. Subscription Level inside the group: `pro_monthly` = Level 1, `pro_6month` = Level 2, `pro_yearly` = Level 3 (higher = upgrade).
 4. Subscription Terms link: `https://app.jamie-app.com/terms`
 5. Privacy Policy link: `https://app.jamie-app.com/privacy`
 6. Review Notes: "Auto-renewable Pro subscription unlocks the JAMIE Pro feature set."

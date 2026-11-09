@@ -153,10 +153,11 @@ describe('platform.js — Play Billing detection (real module)', () => {
 });
 
 describe('playBilling.js', () => {
-  it('product ids mirror the Apple ids exactly — one catalogue across stores', async () => {
+  it('product ids: same plans as Apple, ids equal except the 6-month one', async () => {
     const { PRO_PLAN_TO_PLAY_PRODUCT_ID, PLAY_BILLING_METHOD, PLAY_SUBSCRIPTIONS_URL } = await import('../utils/playBilling');
     const { PRO_PLAN_TO_PRODUCT_ID } = await import('../utils/iap');
-    expect(PRO_PLAN_TO_PLAY_PRODUCT_ID).toEqual(PRO_PLAN_TO_PRODUCT_ID);
+    // App Store Connect named it pro_6month (ASC 09.11.2026), Play pro_sixmonth.
+    expect(PRO_PLAN_TO_PRODUCT_ID).toEqual({ monthly: 'pro_monthly', sixmonth: 'pro_6month', yearly: 'pro_yearly' });
     expect(PRO_PLAN_TO_PLAY_PRODUCT_ID).toEqual({ monthly: 'pro_monthly', sixmonth: 'pro_sixmonth', yearly: 'pro_yearly' });
     expect(Object.keys(PRO_PLAN_TO_PLAY_PRODUCT_ID).sort()).toEqual(['monthly', 'sixmonth', 'yearly']);
     expect(PLAY_BILLING_METHOD).toBe('https://play.google.com/billing');

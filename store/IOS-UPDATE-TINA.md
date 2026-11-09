@@ -58,7 +58,7 @@ Fixe Werte (nur zum Abgleichen, nichts ändern):
 | Bundle ID | `com.jamie-app.app` |
 | Team-ID | `RTJNBK94F8` |
 | Neue Version / Build | **1.4.4** / **13** (falls 13 schon vergeben: die nächste freie Nummer — siehe Kurzhilfe) |
-| Abos (Gruppe „JAMIE Pro") | `pro_monthly` 6,99 € · `pro_sixmonth` 29,99 € · `pro_yearly` 49,99 € |
+| Abos (Gruppe „JAMIE Pro") | `pro_monthly` 6,99 € · `pro_6month` 29,99 € · `pro_yearly` 49,99 € — die 6-Monats-ID heißt bei Apple `pro_6month` (bei Google Play `pro_sixmonth`) |
 | Test-Account für Apple-Review | `playreview@jamie-app.com` |
 
 > **Vorab in App Store Connect (geht schon jetzt, auch während 1.4.3 in Prüfung ist):**
@@ -374,7 +374,7 @@ Auf https://appstoreconnect.apple.com → **Meine Apps → JAMIE → Vertrieb**:
    in Schritt 5 getestet hast (normal 13, nach einem Neubau höher). Das Datum ist egal:
    Gebaut hast du ihn vielleicht schon vor Tagen.
 4. Gleich darunter Abschnitt **„In-App-Käufe und Abonnements"**: die drei Abos
-   `pro_monthly`, `pro_sixmonth`, `pro_yearly` auswählen — **Pflicht**. Ohne diesen
+   `pro_monthly`, `pro_6month`, `pro_yearly` auswählen — **Pflicht**. Ohne diesen
    Schritt prüft Apple die Abos nicht, und im App Store steht später „JAMIE Pro ist auf
    dem iPhone derzeit nicht verfügbar". Die Abo-**Gruppe** „JAMIE Pro" kommt dabei mit.
    Fehlt der Abschnitt oder ist ein Abo nicht auswählbar (meist fehlt noch ein
@@ -401,7 +401,7 @@ Auf https://appstoreconnect.apple.com → **Meine Apps → JAMIE → Vertrieb**:
 10. **Veröffentlichung der Version**: automatisch, **phasenweise Veröffentlichung AUS**.
 11. Oben rechts noch einmal **„Sichern"**. **Letzter Blick vor dem Einreichen:** Steht
     unter **Build** dein 1.4.4-Build, und stehen unter **„In-App-Käufe und
-    Abonnements"** (bzw. in der Einreichung) alle drei: `pro_monthly`, `pro_sixmonth`,
+    Abonnements"** (bzw. in der Einreichung) alle drei: `pro_monthly`, `pro_6month`,
     `pro_yearly`? Apple meckert nicht, wenn sie fehlen — dann gingen die Abos wieder
     nicht mit. Fehlt etwas → **STOPP, Tobi**. Sonst **„Zur Prüfung hinzufügen" / „Bei
     App-Review einreichen"**.

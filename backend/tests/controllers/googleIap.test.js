@@ -103,9 +103,10 @@ describe('GOOGLE_PRODUCTS catalogue', () => {
     expect(Object.keys(GOOGLE_PRODUCTS).sort()).toEqual(['pro_monthly', 'pro_sixmonth', 'pro_yearly']);
     for (const p of Object.values(GOOGLE_PRODUCTS)) expect(p.type).toBe('subscription');
   });
-  it('uses the same product ids as the Apple catalogue', async () => {
+  it('uses the Apple catalogue ids — except the 6-month one (Apple: pro_6month)', async () => {
     const src = (await import('fs')).readFileSync(new URL('../../src/controllers/iapController.js', import.meta.url), 'utf8');
-    for (const id of Object.keys(GOOGLE_PRODUCTS)) expect(src).toContain(`${id}:`);
+    const appleId = { pro_sixmonth: 'pro_6month' };   // ASC 09.11.2026
+    for (const id of Object.keys(GOOGLE_PRODUCTS)) expect(src).toContain(`${appleId[id] || id}:`);
   });
   it('keys the subscriptions row as google:<token>', () => {
     expect(googleSubId('t')).toBe('google:t');

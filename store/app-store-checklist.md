@@ -172,7 +172,7 @@ Create these 6 products in App Store Connect. Product IDs must match the code (`
 |---|---|---|
 | `pro_weekly` | 1 week | 4,99 € |
 | `pro_monthly` | 1 month | 14,99 € (≈ 3,46 €/Woche, DEFAULT) |
-| `pro_sixmonth` | 6 months | 29,99 € (≈ 1,15 €/Woche) |
+| `pro_6month` | 6 months | 29,99 € (≈ 1,15 €/Woche) |
 
 Prices above are authoritative (from `subscriptionController.js` and `iap.js`). Note: `STRIPE-MEETING-CHECKLIST.md` lists different boost/Pro prices and a different 3rd boost credit count (12 vs 15) — those are stale; this table and STOREKIT-SETUP are correct.
 

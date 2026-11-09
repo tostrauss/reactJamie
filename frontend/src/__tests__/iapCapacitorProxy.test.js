@@ -69,7 +69,7 @@ beforeEach(() => {
   native.logInError = null;
   native.products = [
     storeProduct('pro_monthly', 6.99, '6,99 €'),
-    storeProduct('pro_sixmonth', 29.99, '29,99 €'),
+    storeProduct('pro_6month', 29.99, '29,99 €'),
     storeProduct('pro_yearly', 49.99, '49,99 €'),
   ];
   setPaymentsConfig({ payments_enabled: true, ios_iap_enabled: true, revenuecat: { ios_api_key: 'appl_test' } });
@@ -92,7 +92,7 @@ describe('utils/iap.js through the real Capacitor plugin proxy', () => {
     expect(await settles(result)).toBe('settled');
     const byPlan = await result;
     expect(Object.keys(byPlan).sort()).toEqual(['monthly', 'sixmonth', 'yearly']);
-    expect(byPlan.sixmonth).toMatchObject({ productId: 'pro_sixmonth', priceString: '29,99 €' });
+    expect(byPlan.sixmonth).toMatchObject({ productId: 'pro_6month', priceString: '29,99 €' });
   });
 
   it('subscribePro settles, buys the chosen StoreKit product and asks the server', async () => {
@@ -102,7 +102,7 @@ describe('utils/iap.js through the real Capacitor plugin proxy', () => {
     expect(await settles(result)).toBe('settled');
     expect(await result).toMatchObject({ is_pro: true });
     expect(native.calls).toContainEqual(
-      ['purchaseStoreProduct', { product: expect.objectContaining({ identifier: 'pro_sixmonth' }) }]);
+      ['purchaseStoreProduct', { product: expect.objectContaining({ identifier: 'pro_6month' }) }]);
     expect(api.iap.syncRevenueCat).toHaveBeenCalled();
   });
 

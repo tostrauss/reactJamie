@@ -47,7 +47,7 @@ const { subscription } = await import('../utils/api');
 
 const storeProducts = (trial = null) => ({
   monthly: { productId: 'pro_monthly', price: 6.99, priceString: '6,99 €', pricePerMonth: 6.99, pricePerMonthString: '6,99 €', currencyCode: 'EUR', freeTrial: trial },
-  sixmonth: { productId: 'pro_sixmonth', price: 29.99, priceString: '29,99 €', pricePerMonth: 5.0, pricePerMonthString: '5,00 €', currencyCode: 'EUR', freeTrial: trial },
+  sixmonth: { productId: 'pro_6month', price: 29.99, priceString: '29,99 €', pricePerMonth: 5.0, pricePerMonthString: '5,00 €', currencyCode: 'EUR', freeTrial: trial },
   yearly: { productId: 'pro_yearly', price: 49.99, priceString: '49,99 €', pricePerMonth: 4.17, pricePerMonthString: '4,17 €', currencyCode: 'EUR', freeTrial: trial },
 });
 
@@ -130,7 +130,7 @@ describe('ProModal paywall — App Store (3.1.2)', () => {
 
   it('a plan StoreKit did not return is never the selection the button would buy', async () => {
     const all = storeProducts();
-    products.value = { monthly: all.monthly, yearly: all.yearly };   // pro_sixmonth not in this storefront
+    products.value = { monthly: all.monthly, yearly: all.yearly };   // pro_6month not in this storefront
     subscribePro.mockClear();
     await renderModal();
     expect(screen.queryByText('29,99 €')).toBeNull();

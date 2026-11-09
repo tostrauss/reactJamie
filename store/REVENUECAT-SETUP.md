@@ -14,7 +14,7 @@ Stand: **23.09.2026**. Für **Tina** (App Store Connect + RevenueCat) und
 | Bundle ID | `com.jamie-app.app` |
 | Abo-Gruppe (App Store Connect) | `JAMIE Pro` |
 | Produkt-ID 1 Monat | `pro_monthly`: 6,99 €, Stufe (Level) 3 |
-| Produkt-ID 6 Monate | `pro_sixmonth`: 29,99 €, Stufe 2 |
+| Produkt-ID 6 Monate | `pro_6month`: 29,99 €, Stufe 2 |
 | Produkt-ID 1 Jahr | `pro_yearly`: 49,99 €, Stufe 1 |
 | Entitlement in RevenueCat | `pro` (klein geschrieben) |
 | Webhook-URL | `https://app.jamie-app.com/api/iap/revenuecat/webhook` |
@@ -110,7 +110,7 @@ Projekt **JAMIE** → **Apps & providers** → **+ App Store**:
 ### B2. Produkte und Entitlement
 
 1. **Product catalog → Products** → die drei Produkte aus App Store Connect
-   importieren (`pro_monthly`, `pro_sixmonth`, `pro_yearly`).
+   importieren (`pro_monthly`, `pro_6month`, `pro_yearly`).
 2. **Entitlements → + New** → Identifier **`pro`**. Alle **drei** Produkte
    anhängen. Das Entitlement entscheidet, wer Pro ist. Ein Produkt ohne
    Entitlement verkauft, schaltet aber nichts frei.

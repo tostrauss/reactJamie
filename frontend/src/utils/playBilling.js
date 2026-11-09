@@ -29,7 +29,8 @@ import { iap as iapApi } from './api';
 
 export const PLAY_BILLING_METHOD = 'https://play.google.com/billing';
 
-// Same IDs as App Store Connect / backend googleIapController.GOOGLE_PRODUCTS.
+// Same IDs as backend googleIapController.GOOGLE_PRODUCTS — and as App Store
+// Connect, except the 6-month one: Apple's is `pro_6month` (utils/iap.js).
 export const PRO_PLAN_TO_PLAY_PRODUCT_ID = Object.freeze({
   monthly:  'pro_monthly',
   sixmonth: 'pro_sixmonth',

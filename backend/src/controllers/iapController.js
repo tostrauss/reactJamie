@@ -32,7 +32,7 @@ import { paymentsEnabled } from '../config/features.js';
 // See features.js BOOST_SINGLE_PURCHASES_ENABLED.
 const APPLE_PRODUCTS = {
   pro_monthly:   { type: 'subscription', plan: 'monthly'  },
-  pro_sixmonth:  { type: 'subscription', plan: 'sixmonth' },
+  pro_6month:    { type: 'subscription', plan: 'sixmonth' },   // ASC id — Play's is pro_sixmonth
   pro_yearly:    { type: 'subscription', plan: 'yearly'   },
 };
 
