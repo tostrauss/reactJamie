@@ -27,6 +27,7 @@ vi.mock('../../src/utils/systemMessage.js', async (importOriginal) => ({
 
 const {
   runLivePhotoPrompts, runMomentPrompts, pickLiveVariant, LIVE_PHOTO_VARIANTS, LIVE_PUSH_OPTS,
+  LIVE_PUSH_FROM_MIN, LIVE_PUSH_UNTIL_MIN,
 } = await import('../../src/jobs/engagementNudges.js');
 
 const NOW = new Date('2027-03-10T19:00:00Z');
@@ -61,7 +62,9 @@ describe('pickLiveVariant', () => {
 });
 
 describe('runLivePhotoPrompts (push WHILE the event runs)', () => {
-  it('claims timed events only, from start+60 to start+120 min, with someone besides the creator, by day, re-armed by a move', async () => {
+  it('claims timed events only, from start+120 to start+180 min, with someone besides the creator, by day, re-armed by a move', async () => {
+    // Tina 16.11.2026: „lieber nach 2h" — the first build said start+60.
+    expect([LIVE_PUSH_FROM_MIN, LIVE_PUSH_UNTIL_MIN]).toEqual([120, 180]);
     program();
     await runLivePhotoPrompts({ now: NOW, send: vi.fn() });
     const claim = claimOf('live_prompt_sent_for');
@@ -72,8 +75,9 @@ describe('runLivePhotoPrompts (push WHILE the event runs)', () => {
     expect(sql).toContain('(x.live_prompt_sent_for IS NULL OR x.live_prompt_sent_for <> x.date)');
     expect(sql).toContain("x.date::time <> '00:00'");
     expect(sql).toContain('x.members_count > 1');
-    expect(sql).toMatch(/AT TIME ZONE 'Europe\/Vienna'\) \+ INTERVAL '60 minutes'\s+<= \$1::timestamptz/);
-    expect(sql).toMatch(/AT TIME ZONE 'Europe\/Vienna'\) \+ INTERVAL '120 minutes' >\s+\$1::timestamptz/);
+    expect(sql).toMatch(/AT TIME ZONE 'Europe\/Vienna'\) \+ INTERVAL '120 minutes'\s+<= \$1::timestamptz/);
+    expect(sql).toMatch(/AT TIME ZONE 'Europe\/Vienna'\) \+ INTERVAL '180 minutes' >\s+\$1::timestamptz/);
+    expect(sql).not.toContain("INTERVAL '60 minutes'");
     expect(sql).toContain('BETWEEN 9 AND 22');
     expect(sql).toContain('x.is_recurring_weekly IS NOT TRUE');
     expect(sql).toContain('FOR UPDATE OF x SKIP LOCKED');

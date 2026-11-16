@@ -11,8 +11,8 @@
 //   4. coverNag     — communities without a cover photo: at 5 members
 //      „Hey! Deine Community hat schon X Mitglieder…", 7 days later
 //      „Huch! …um sichtbar zu bleiben!" — then never again.
-//   5. livePhotoPrompt — ONE push WHILE a timed event runs, start+60 to
-//      start+120 min, one of Tina's three lines (S2, 16.11.2026): „Wie
+//   5. livePhotoPrompt — ONE push WHILE a timed event runs, start+120 to
+//      start+180 min, one of Tina's three lines (S2, 16.11.2026): „Wie
 //      gefällt's dir bei X? Schnapp dir ein Foto für deine Memories! 📸"
 //
 // Every nudge is claimed in ONE statement (UPDATE … SKIP LOCKED / INSERT … ON
@@ -326,19 +326,24 @@ export async function runCoverNags({ now = new Date(), limit = 100, send = sendP
 
 // ── 5. Photo push WHILE the event runs (S2, Tina 16.11.2026) ──────────────
 // Tina wants people to think of photos during the meetup, so more memories
-// exist the next day. ONE push per event, start+60 to start+120 min: there is
-// no end time (end_date is never written), so this is an estimate that suits
-// evening events. Timed events only — a date-only meetup (every plain group
-// since 09.06.) has no „during" — and only once somebody besides the creator
-// is in (like the reminders; not claimed → re-checked next tick). Inside
-// DAYTIME: a start from 22:00 gets none. Same recipients as the push the day
-// after (photoPushRecipients) and the same deep link, so on web/Android that
-// push later replaces this one if it is still unread.
+// exist the next day. ONE push per event, start+120 to start+180 min — Tina
+// the same day: „lieber nach 2h" (the first build sent it from start+60).
+// There is no end time (end_date is never written), so this is an estimate:
+// two hours in, an evening event is in full swing; a short meetup may be over
+// by then. Timed events only — a date-only meetup (every plain group since
+// 09.06.) has no „during" — and only once somebody besides the creator is in
+// (like the reminders; not claimed → re-checked next tick). Inside DAYTIME: a
+// start after 20:45 gets none (its first tick in the window is 23:00 or
+// later). Same recipients as the push the day after (photoPushRecipients) and
+// the same deep link, so on web/Android that push later replaces this one if
+// it is still unread.
 //
 // The marker holds a COPY of groups.date like the reminder markers: moving
 // the event re-arms it. The line rotates per event (pickLiveVariant), so all
 // members of one event read the same one and the locale cache in
 // sendPushToUsers keeps working.
+export const LIVE_PUSH_FROM_MIN = 120;
+export const LIVE_PUSH_UNTIL_MIN = 180;
 export const LIVE_PHOTO_VARIANTS = 3;
 export const pickLiveVariant = (groupId) => Number(groupId) % LIVE_PHOTO_VARIANTS;
 // Only worth anything while it is happening: urgency 'high' (Web Push defaults
@@ -358,8 +363,8 @@ export async function runLivePhotoPrompts({ now = new Date(), limit = 200, send 
            AND x.members_count > 1
            AND (x.live_prompt_sent_for IS NULL OR x.live_prompt_sent_for <> x.date)
            AND ${DAYTIME('$1')}
-           AND ${START('x')} + INTERVAL '60 minutes'  <= $1::timestamptz
-           AND ${START('x')} + INTERVAL '120 minutes' >  $1::timestamptz
+           AND ${START('x')} + INTERVAL '${LIVE_PUSH_FROM_MIN} minutes'  <= $1::timestamptz
+           AND ${START('x')} + INTERVAL '${LIVE_PUSH_UNTIL_MIN} minutes' >  $1::timestamptz
          FOR UPDATE OF x SKIP LOCKED
          LIMIT $2
       )
