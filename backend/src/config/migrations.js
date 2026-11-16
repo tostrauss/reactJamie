@@ -1945,6 +1945,130 @@ const runStartupMigrations = async () => {
     }
   });
 
+  // ── Welle 1 (Tina 16.11.2026): ONE backend release, ONE restore drill ────
+  // Four pieces bundled on purpose so the insurance-mandated restore drill
+  // runs once (it also covers the 07./08.11. migrations still waiting for it).
+  // All optional like the onboarding ones: only here (never schema.sql), no
+  // CRITICAL_SCHEMA_PROBE, no backfill. Until they exist every read degrades
+  // and only the writes that need them answer 503 — or, for the push marker,
+  // the one job that reads it logs and the next tick retries.
+  //
+  // S2 — the photo push WHILE an event runs (jobs/engagementNudges.js
+  // runLivePhotoPrompts). TIMESTAMP (naive) like the reminder markers above:
+  // it holds a COPY of groups.date as of the send, so moving the event re-arms
+  // the push for the new date. Probed first, then ALTERed under a short
+  // lock_timeout: groups is read by every feed (reasoning of groups.club_type).
+  await migrate('groups.live_prompt_sent_for (2026-11)', async () => {
+    const { rows } = await db.query(
+      `SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'groups' AND column_name = 'live_prompt_sent_for'`
+    );
+    if (rows.length) return;
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS live_prompt_sent_for TIMESTAMP`);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // no push during events until the next boot
+    } finally {
+      client.release();
+    }
+  });
+
+  // PR3 — the profile's „Clubs & Communities“: the order a person gave the
+  // clubs they JOINED (PUT /api/users/me/clubs/order). Their own clubs always
+  // lead and are never sorted. NULL = never sorted. A column rather than a side
+  // table: the position leaves with the membership (leaving deletes the row),
+  // no extra JOIN, no ON CONFLICT, and the UPDATE never fires trg_member_count
+  // (INSERT/DELETE only). SMALLINT, no default — a metadata-only change.
+  // Probed + lock_timeout: group_members is read on every chat open.
+  await migrate('group_members.profile_position (2026-11)', async () => {
+    const { rows } = await db.query(
+      `SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'group_members' AND column_name = 'profile_position'`
+    );
+    if (rows.length) return;
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`ALTER TABLE group_members ADD COLUMN IF NOT EXISTS profile_position SMALLINT`);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // the profile keeps the newest-first order, saving answers 503 until the next boot
+    } finally {
+      client.release();
+    }
+  });
+
+  // P4 v2 groundwork (Tobi 16.11.2026): a club's OWN deals, created by its
+  // managers with Pro. Not built yet — both columns stay unused — but they
+  // ride in this release so v2 needs no second restore drill.
+  //   club_id    CASCADE: a club that is really deleted takes its deals along
+  //              (SET NULL would silently turn them into global admin deals).
+  //   created_by SET NULL: an FK without ON DELETE once broke account
+  //              deletion (group_join_requests.reviewed_by).
+  // Probed, and under lock_timeout: the two FKs lock groups and users briefly
+  // (SHARE ROW EXCLUSIVE) while they are added.
+  await migrate('deals.club_id + created_by (2026-11)', async () => {
+    const { rows } = await db.query(
+      `SELECT column_name FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'deals'
+          AND column_name IN ('club_id', 'created_by')`
+    );
+    if (rows.length === 2) return;
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`ALTER TABLE deals
+        ADD COLUMN IF NOT EXISTS club_id    INTEGER REFERENCES groups(id) ON DELETE CASCADE,
+        ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id)  ON DELETE SET NULL`);
+      await client.query('CREATE INDEX IF NOT EXISTS idx_deals_club ON deals (club_id) WHERE club_id IS NOT NULL');
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // nothing reads them yet
+    } finally {
+      client.release();
+    }
+  });
+
+  // P4 v1 — a deal on an event (Tina 16.11.2026): an admin hangs ONE deal on
+  // an event or meetup (PK group_id), one deal may hang on many events (index
+  // on deal_id for the admin list). A side table, not groups.deal_id: no DDL on
+  // the hottest table, nothing new in every `SELECT g.*`, and the reads catch
+  // 42P01 as „no deal“. Placed after the deals block (deals is not in
+  // schema.sql, so this FK only exists on the migrations path). CASCADE on both
+  // ends: a group's or a deal's hard delete never trips over it; attached_by
+  // SET NULL for account deletion (the reviewed_by lesson). Same tx +
+  // lock_timeout shape as featured_clubs — the FKs lock on first creation only.
+  await migrate('event_deals (2026-11)', async () => {
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS event_deals (
+          group_id    INTEGER     PRIMARY KEY REFERENCES groups(id) ON DELETE CASCADE,
+          deal_id     INTEGER     NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+          attached_by INTEGER     REFERENCES users(id) ON DELETE SET NULL,
+          created_at  TIMESTAMPTZ DEFAULT NOW()
+        )`);
+      await client.query('CREATE INDEX IF NOT EXISTS idx_event_deals_deal ON event_deals (deal_id)');
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // events show no deal and attaching answers 503 until the next boot
+    } finally {
+      client.release();
+    }
+  });
+
   // ── Post-migration schema assertion ────────────────────────────────────
   // The server accepts traffic BEFORE migrations finish (listen → migrate),
   // so health stays green during the boot window; only a PROVEN-broken
