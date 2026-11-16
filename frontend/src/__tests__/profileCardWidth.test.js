@@ -1,0 +1,41 @@
+import { describe, it, expect } from 'vitest';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Own profile: every card under „Über Dich!" is exactly as wide as that card
+// (Tina 16.11.2026, PR1). Friends button, the groups/clubs hub and Favoriten
+// carried an extra `calc(100% - 40px)` + 20px side margins on top of
+// .profile-info-section's padding — 20px narrower per side since 21.04.
+// jsdom has no layout, so pin the declarations (cf. pageScrollGuard.test.js).
+const STYLES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../styles');
+const profileCss = fs.readFileSync(path.join(STYLES, 'profile.css'), 'utf8');
+
+const block = (source, selector) => {
+  const re = new RegExp(`(^|\\n)${selector.replaceAll('.', '\\.')}\\s*\\{([^}]*)\\}`);
+  const m = source.match(re);
+  if (!m) throw new Error(`${selector} not found`);
+  return Object.fromEntries(m[2].split(';')
+    .map((d) => d.replace(/\/\*[\s\S]*?\*\//g, '').trim())
+    .filter(Boolean)
+    .map((d) => {
+      const i = d.indexOf(':');
+      return [d.slice(0, i).trim(), d.slice(i + 1).trim()];
+    }));
+};
+
+describe('profile cards are as wide as „Über Dich!"', () => {
+  it('the bio card itself has no side margin (the reference)', () => {
+    const bio = block(profileCss, '.profile-bio-card');
+    expect(bio.width).toBeUndefined();
+    expect(bio.margin).toBeUndefined();
+  });
+
+  for (const selector of ['.profile-friends-btn', '.profile-manage', '.profile-favs']) {
+    it(`${selector}: full width, no side margins`, () => {
+      const decl = block(profileCss, selector);
+      expect(decl.width).toBe('100%');
+      expect(decl.margin).toBe('0 0 16px');
+    });
+  }
+});

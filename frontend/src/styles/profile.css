@@ -204,8 +204,8 @@
 }
 
 /* "Mein Profil teilen" — sits below the favorite song picker.
-   Visually matches profile-friends-btn but stays inside the tab content
-   container, so it uses 100% width without the 20px side margins. */
+   Visually matches profile-friends-btn and, like it since 16.11.2026 (PR1),
+   uses 100% width without side margins. */
 .profile-share-btn {
   display: flex;
   align-items: center;
@@ -2007,8 +2007,11 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  width: calc(100% - 40px);
-  margin: 0 20px 16px;
+  /* Exactly as wide as „Über Dich!" (.profile-bio-card) above it — the extra
+     20px side margins on top of .profile-info-section's padding made every
+     card under the bio narrower (Tina 16.11.2026, PR1). */
+  width: 100%;
+  margin: 0 0 16px;
   padding: 14px 16px;
   background: var(--bg-card);
   border: 1px solid rgba(255,255,255,0.08);
@@ -2094,8 +2097,9 @@
 
 /* ── „Meine Gruppen & Clubs" hub (Tina 22.10.2026) ── */
 .profile-manage {
-  width: calc(100% - 40px);
-  margin: 0 20px 16px;
+  /* Full width like .profile-bio-card (PR1, see .profile-friends-btn). */
+  width: 100%;
+  margin: 0 0 16px;
   padding: 12px 0 14px;
   background: var(--bg-card);
   border: 1px solid rgba(255, 255, 255, 0.07);
@@ -2320,8 +2324,9 @@
 
 /* ── Favoriten section ── */
 .profile-favs {
-  width: calc(100% - 40px);
-  margin: 0 20px 16px;
+  /* Full width like .profile-bio-card (PR1, see .profile-friends-btn). */
+  width: 100%;
+  margin: 0 0 16px;
   background: var(--bg-card);
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 20px;
