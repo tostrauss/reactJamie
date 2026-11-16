@@ -313,7 +313,7 @@ describe('ChatList — Typ klar erkennbar (Ziel 4)', () => {
     await renderList({ joinRows: [joinReq()] });
     fireEvent.click(screen.getByRole('button', { name: DECLINE_MAX }));
     await waitFor(() => expect(toast.showUndo).toHaveBeenCalledWith(
-      'Anfrage von Max für „Laufen (easy)“ abgelehnt – das war die letzte Anfrage', expect.any(Function), 'Rückgängig'));
+      'Anfrage von Max für „Laufen (easy)“ abgelehnt – eine weitere Anfrage ist nicht mehr möglich', expect.any(Function), 'Rückgängig'));
   });
 
   it('a club request goes to the club endpoint and the toast names the club', async () => {

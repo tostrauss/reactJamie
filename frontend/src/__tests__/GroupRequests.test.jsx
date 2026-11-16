@@ -121,7 +121,7 @@ describe('GroupRequests — review-all overview', () => {
     await screen.findByText(/Anna, 24/);
     fireEvent.click(screen.getAllByLabelText('Ablehnen')[0]);
     await waitFor(() => expect(toast.showUndo).toHaveBeenCalledWith(
-      'Anna wurde abgelehnt – das war die letzte Anfrage', expect.any(Function), 'Rückgängig'));
+      'Anna wurde abgelehnt – eine weitere Anfrage ist nicht mehr möglich', expect.any(Function), 'Rückgängig'));
   });
 
   it('…and an ordinary decline stays the short toast', async () => {
