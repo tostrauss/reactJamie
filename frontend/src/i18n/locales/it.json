@@ -1090,14 +1090,37 @@
       "friends": "Friends",
       "memories": "Memories"
     },
-    "manage": {
-      "title": "I miei gruppi e club",
-      "all": "Tutti",
-      "edit": "Gestisci",
+    "clubs": {
+      "title": "Club e community",
+      "sort": "Ordina",
+      "done": "Fatto",
+      "sortHint": "Toccane uno, poi spostalo con le frecce.",
+      "pickAria": "Seleziona «{{name}}» per spostarlo",
+      "moveAria": "Sposta «{{name}}»",
+      "moveEarlier": "Sposta di un posto prima",
+      "moveLater": "Sposta di un posto dopo",
+      "positionFmt": "Ora al posto {{n}} di {{total}}",
+      "ownAria": "Creato da te",
+      "partnerAria": "Partner JAMIE",
+      "pendingAria": "Ancora in verifica",
+      "requestsAria_one": "{{count}} richiesta aperta",
+      "requestsAria_other": "{{count}} richieste aperte",
+      "ownLockedClub": "Hai creato tu questo club! Lascialo visibile",
+      "ownLockedCommunity": "Hai creato tu questa community! Lasciala visibile",
+      "saveError": "Impossibile salvare l’ordine: riprova"
+    },
+    "upcoming": {
+      "title": "Prossimi appuntamenti",
+      "edit": "Modifica eventi",
+      "done": "Fatto",
+      "editHint": "Tocca un evento per modificarlo.",
       "typeGroup": "Gruppo",
-      "typeClub": "Club",
-      "requests_one": "{{count}} richiesta",
-      "requests_other": "{{count}} richieste"
+      "typeCommunity": "Community",
+      "toChat": "Vai alla chat",
+      "chatAria": "Vai alla chat di «{{name}}»",
+      "editAria": "Modifica «{{name}}»",
+      "locked": "Solo chi ha creato questo evento può modificarlo",
+      "showAll": "Vedi tutti ({{count}})"
     },
     "memories": {
       "edit": "Modifica",

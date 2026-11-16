@@ -1090,14 +1090,37 @@
       "friends": "Friends",
       "memories": "Memories"
     },
-    "manage": {
-      "title": "Meine Gruppen & Clubs",
-      "all": "Alle",
-      "edit": "Verwalten",
+    "clubs": {
+      "title": "Clubs & Communities",
+      "sort": "Sortieren",
+      "done": "Fertig",
+      "sortHint": "Antippen, dann mit den Pfeilen verschieben.",
+      "pickAria": "„{{name}}“ zum Verschieben auswählen",
+      "moveAria": "„{{name}}“ verschieben",
+      "moveEarlier": "Einen Platz nach vorne",
+      "moveLater": "Einen Platz nach hinten",
+      "positionFmt": "Jetzt an Platz {{n}} von {{total}}",
+      "ownAria": "Von dir erstellt",
+      "partnerAria": "JAMIE-Partner",
+      "pendingAria": "Wird noch geprüft",
+      "requestsAria_one": "{{count}} offene Anfrage",
+      "requestsAria_other": "{{count}} offene Anfragen",
+      "ownLockedClub": "Diesen Club hast du erstellt! Lass ihn sichtbar",
+      "ownLockedCommunity": "Diese Community hast du erstellt! Lass sie sichtbar",
+      "saveError": "Reihenfolge konnte nicht gespeichert werden – bitte versuch es nochmal"
+    },
+    "upcoming": {
+      "title": "Demnächst dabei",
+      "edit": "Events bearbeiten",
+      "done": "Fertig",
+      "editHint": "Tippe auf ein Event, um es zu bearbeiten.",
       "typeGroup": "Gruppe",
-      "typeClub": "Club",
-      "requests_one": "{{count}} Anfrage",
-      "requests_other": "{{count}} Anfragen"
+      "typeCommunity": "Community",
+      "toChat": "Zum Chat",
+      "chatAria": "Zum Chat von „{{name}}“",
+      "editAria": "„{{name}}“ bearbeiten",
+      "locked": "Dieses Event kann nur bearbeiten, wer es erstellt hat",
+      "showAll": "Alle anzeigen ({{count}})"
     },
     "memories": {
       "edit": "Bearbeiten",

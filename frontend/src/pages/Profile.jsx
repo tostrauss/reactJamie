@@ -7,7 +7,6 @@ import { auth, subscription as subscriptionApi, groups as groupsApi, clubs as cl
 import SpotifySongPicker from '../components/SpotifySongPicker';
 import { shareLink } from '../utils/share';
 import { MAX_MEMORY_BYTES, photoErrorText } from '../utils/memories';
-import { thumbUrl } from '../utils/images';
 import { PhotoLightbox } from '../components/PhotoLightbox';
 import { ProfilePhotoCarousel } from '../components/ProfilePhotoCarousel';
 import { PinnwandMasonry } from '../components/PinnwandMasonry';
@@ -15,6 +14,8 @@ import { HallOfFameGrid } from '../components/HallOfFameGrid';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { AttendanceTierBadge } from '../components/AttendanceTierBadge';
 import { AttendanceTiersCard } from '../components/AttendanceTiersCard';
+import ProfileClubBubbles from '../components/ProfileClubBubbles';
+import ProfileUpcomingEvents from '../components/ProfileUpcomingEvents';
 import { tierEmoji, tierMinEvents } from '../utils/attendanceTiers';
 import { safeStorage } from '../utils/safeStorage';
 import '../styles/home.css';
@@ -52,13 +53,6 @@ const translateInterest = (i) => INTEREST_DE[i] ?? i;
 // source. One switch, so a "no" later is a one-line change.
 const SHOW_MEMORY_PROMPT_BANNER = true;
 
-// „Meine Gruppen & Clubs" (Tina 22.10.2026: management was „sehr versteckt").
-// Exactly the set of Chats → Verwalten — what the user OWNS, without club
-// events (those are managed on their own page) — open join requests first.
-const manageableEntities = (rows) => (Array.isArray(rows) ? rows : [])
-  .filter((g) => g.role === 'owner' && g.type !== 'event')
-  .sort((a, b) => (b.pending_request_count || 0) - (a.pending_request_count || 0));
-
 export const Profile = () => {
   const { user, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -94,7 +88,11 @@ export const Profile = () => {
   // Stats row „Meet-ups | Friends | Memories" (Tina 22.10.2026). null =
   // unknown or unavailable → no row at all, never a row of frustrating zeros.
   const [profileStats, setProfileStats] = useState(null);
-  const [ownedEntities, setOwnedEntities] = useState([]);
+  // „Sortieren" of the club bubbles and „Events bearbeiten" of „Demnächst
+  // dabei" — ONE mode for the card, so the two can never wiggle at once
+  // (Tina/Tobi 16.11.2026): null | 'sort' | 'events'. A tab switch ends it,
+  // and leaving the page does anyway.
+  const [cardMode, setCardMode] = useState(null);
   const [memoryPrompts, setMemoryPrompts] = useState([]);
   // Memories edit mode. Every change is saved the moment it happens; „Fertig"
   // only ends the mode (and says so, loudly — Tina).
@@ -204,16 +202,6 @@ export const Profile = () => {
   }, []);
   useEffect(() => { loadProfileStats(); }, [loadProfileStats]);
 
-  // „Meine Gruppen & Clubs": the chat list's own read (role +
-  // pending_request_count included), no extra endpoint.
-  useEffect(() => {
-    let cancelled = false;
-    groupsApi.getJoined()
-      .then(res => { if (!cancelled) setOwnedEntities(manageableEntities(res.data)); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
   // „Warst du dabei?": S2's prompts (21 days, an owner's moment counts as
   // their photo) — read when the Memories tab opens, never re-derived here.
   useEffect(() => {
@@ -227,6 +215,8 @@ export const Profile = () => {
 
   // Leaving the Memories tab ends the edit mode.
   useEffect(() => { if (activeTab !== 'halloffame') setEditMode(false); }, [activeTab]);
+  // Any tab switch ends the cards' mode (the bubbles save their new order).
+  useEffect(() => { setCardMode(null); }, [activeTab]);
 
   // „Fertig" has to be impossible to miss (Tina): a toast plus a short check
   // pop on the button (no motion under prefers-reduced-motion, see CSS).
@@ -484,47 +474,21 @@ export const Profile = () => {
             </svg>
           </button>
 
-          {/* Meine Gruppen & Clubs — management one tap from the profile. */}
-          {ownedEntities.length > 0 && (
-            <section className="profile-manage" aria-labelledby="profile-manage-title">
-              <div className="profile-manage-head">
-                <h3 id="profile-manage-title" className="profile-manage-title">{t('profile.manage.title')}</h3>
-                <button type="button" className="profile-manage-all" onClick={() => navigate('/chats?tab=verwalten')}>
-                  {t('profile.manage.all')}
-                </button>
-              </div>
-              <div className="profile-manage-rail">
-                {ownedEntities.map((g) => {
-                  const isClub = g.type === 'club';
-                  const base = isClub ? `/club/${g.id}` : `/group/${g.id}`;
-                  const pending = g.pending_request_count || 0;
-                  return (
-                    <div key={g.id} className="profile-manage-card">
-                      <button type="button" className="profile-manage-open" onClick={() => navigate(base)}>
-                        <span className="profile-manage-img">
-                          {g.image_url
-                            ? <img src={thumbUrl(g.image_url)} alt="" loading="lazy" decoding="async" />
-                            : <span aria-hidden="true">{(g.name || '?')[0].toUpperCase()}</span>}
-                        </span>
-                        <span className="profile-manage-name">{g.name}</span>
-                        <span className="profile-manage-type">
-                          {isClub ? t('profile.manage.typeClub') : t('profile.manage.typeGroup')}
-                        </span>
-                      </button>
-                      <button type="button" className="profile-manage-chip" onClick={() => navigate(`${base}/edit`)}>
-                        {t('profile.manage.edit')}
-                      </button>
-                      {pending > 0 && (
-                        <button type="button" className="profile-manage-requests" onClick={() => navigate('/chats?tab=anfragen')}>
-                          {t('profile.manage.requests', { count: pending })}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
+          {/* „Clubs & Communities" + „Demnächst dabei" (Tina 16.11.2026) —
+              one card in place of the „Meine Gruppen & Clubs" hub; managing
+              stays under Chats → Verwalten, open requests behind the coral
+              counters. Each part hides itself when empty, and the card with
+              them (CSS :empty). */}
+          <div className="profile-hub">
+            <ProfileClubBubbles
+              sorting={cardMode === 'sort'}
+              onSortingChange={(on) => setCardMode(on ? 'sort' : null)}
+            />
+            <ProfileUpcomingEvents
+              editing={cardMode === 'events'}
+              onEditingChange={(on) => setCardMode(on ? 'events' : null)}
+            />
+          </div>
 
           {/* Favoriten */}
           {favItems.length > 0 && (

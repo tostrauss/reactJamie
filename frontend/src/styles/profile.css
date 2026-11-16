@@ -2095,8 +2095,9 @@
   letter-spacing: 0.2px;
 }
 
-/* ── „Meine Gruppen & Clubs" hub (Tina 22.10.2026) ── */
-.profile-manage {
+/* ── The card of „Clubs & Communities" + „Demnächst dabei" (Tina
+   16.11.2026, PR2–PR5), in place of the „Meine Gruppen & Clubs" hub ── */
+.profile-hub {
   /* Full width like .profile-bio-card (PR1, see .profile-friends-btn). */
   width: 100%;
   margin: 0 0 16px;
@@ -2106,111 +2107,36 @@
   border-radius: 20px;
 }
 
-.profile-manage-head {
+/* Both parts render nothing while loading or when there is nothing to show —
+   the card then goes too, never an empty frame. */
+.profile-hub:empty { display: none; }
+
+/* Each part's head: title left, the mode button right. */
+.profile-section-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 0 8px 0 16px;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
-.profile-manage-title {
+.profile-section-title {
+  min-width: 0;
   margin: 0;
   font-size: 15px;
   font-weight: 700;
   color: var(--text-white);
 }
 
-.profile-manage-all {
-  min-height: 44px;
-  padding: 0 8px;
-  background: none;
-  border: none;
-  color: var(--accent-coral);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.profile-manage-rail {
-  display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  padding: 0 16px 2px;
-  scroll-snap-type: x proximity;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.profile-manage-rail::-webkit-scrollbar { display: none; }
-
-.profile-manage-card {
-  flex: 0 0 136px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  scroll-snap-align: start;
-}
-
-.profile-manage-open {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  min-width: 0;
-  padding: 0;
-  background: none;
-  border: none;
-  color: var(--text-white);
-  font-family: inherit;
-  text-align: left;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.profile-manage-img {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  border-radius: 14px;
-  background: var(--bg-input);
-  color: var(--text-muted);
-  font-size: 26px;
-  font-weight: 800;
-}
-
-.profile-manage-img img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-.profile-manage-name {
-  width: 100%;
-  font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.profile-manage-type {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.profile-manage-chip,
-.profile-manage-requests {
+.profile-section-action {
+  flex-shrink: 0;
   min-height: 44px;
   padding: 0 10px;
-  border-radius: 12px;
+  background: none;
+  border: none;
+  border-radius: 22px;
+  color: var(--accent-coral);
   font-family: inherit;
   font-size: 13px;
   font-weight: 700;
@@ -2219,16 +2145,435 @@
   touch-action: manipulation;
 }
 
-.profile-manage-chip {
+/* In a mode it reads „Fertig" — as unmissable as the Memories one. */
+.profile-section-action.is-active {
+  padding: 0 18px;
+  background: var(--accent-coral);
+  color: #fff;
+}
+
+/* ── „Clubs & Communities" bubbles (PR2/PR3) ── */
+.profile-clubs {
+  /* Containing block of its .sr-only live region (the .pe-order-bar lesson:
+     placed against the page, the 1px box made the document taller). */
+  position: relative;
+}
+
+/* One row that scrolls sideways; in „Sortieren" a grid with every bubble in
+   view, so no sideways scroll gets in the way of picking. */
+.profile-clubs-rail {
+  display: flex;
+  gap: 12px;
+  margin: 0;
+  padding: 8px 16px 4px;
+  list-style: none;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.profile-clubs-rail::-webkit-scrollbar { display: none; }
+
+.profile-clubs-rail.is-sorting {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  row-gap: 14px;
+  overflow: visible;
+}
+
+.profile-club {
+  --wiggle-deg: 2deg;
+  position: relative;
+  flex: 0 0 72px;
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+.profile-club-open {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-white);
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.profile-club-avatar {
+  position: relative;
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+}
+
+/* Rings as a double box-shadow like the chat list's avatar rings: no layout
+   shift, and the gap in the card colour lets the ring float. Joined clubs
+   neutral grey, own ones the partner yellow at full strength — a thin ring at
+   55 % vanishes on the dark lilac. */
+.profile-club-bubble {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 50%;
   background: var(--bg-input);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-muted);
+  font-size: 24px;
+  font-weight: 800;
+  box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 3.5px rgba(255, 255, 255, 0.22);
+  transition: box-shadow 0.15s;
+}
+
+.profile-club-bubble img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-club.is-own .profile-club-bubble {
+  box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4.5px var(--accent-partner);
+}
+
+/* An own club still in review: there, but not live yet. */
+.profile-club.is-pending .profile-club-bubble { opacity: 0.5; }
+
+/* ☆ — an official club, a Partner: bottom right, over the ring. */
+.profile-club-star {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--partner-line);
+  border-radius: 50%;
+  background: var(--bg-card);
+  color: var(--partner-text);
+}
+
+.profile-club-name {
+  display: block;
+  max-width: 100%;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Open requests of an own club or event — the hub's „N Anfragen" chip as a
+   counter on the bubble or the date tile, still the way into the Anfragen
+   deck. The tap area reaches past the 20px dot. */
+.profile-club-requests,
+.profile-upcoming-requests {
+  position: absolute;
+  top: -4px;
+  right: 0;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border: 2px solid var(--bg-card);
+  border-radius: 10px;
+  background: var(--accent-coral);
+  color: #fff;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 16px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.profile-club-requests::after,
+.profile-upcoming-requests::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+/* The iPhone home-screen wiggle of the card's two modes — the joined bubbles
+   in „Sortieren", the editable rows in „Events bearbeiten". Negative delays
+   start the items mid-swing, out of step with each other; --wiggle-deg sets
+   how far an item swings (a wide row much less than a bubble). */
+.profile-club.is-wiggling,
+.profile-upcoming-row.is-wiggling {
+  animation: profile-wiggle 0.32s ease-in-out infinite;
+}
+.profile-club.is-wiggling:nth-child(2n),
+.profile-upcoming-row.is-wiggling:nth-child(2n) { animation-delay: -0.16s; }
+.profile-club.is-wiggling:nth-child(3n),
+.profile-upcoming-row.is-wiggling:nth-child(3n) { animation-delay: -0.08s; animation-duration: 0.36s; }
+
+@keyframes profile-wiggle {
+  0%, 100% { transform: rotate(calc(var(--wiggle-deg, 1.5deg) * -1)); }
+  50%      { transform: rotate(var(--wiggle-deg, 1.5deg)); }
+}
+
+/* The bubble picked for moving holds still and steps forward, ringed white. */
+.profile-club.is-wiggling.is-picked {
+  animation: none;
+  transform: scale(1.06);
+}
+.profile-club.is-picked .profile-club-bubble {
+  box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4.5px var(--text-white);
+}
+
+.profile-clubs-hint,
+.profile-upcoming-hint {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.profile-clubs-hint { margin: 10px 16px 0; }
+
+.profile-clubs-move {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 16px 0;
+}
+
+.profile-clubs-move-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── „Demnächst dabei" (PR4/PR5): under the bubbles, in the same card ── */
+.profile-clubs + .profile-upcoming {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.profile-upcoming-hint { margin: 0 16px 2px; }
+
+.profile-upcoming-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 12px 0;
+  list-style: none;
+}
+
+.profile-upcoming-row {
+  --wiggle-deg: 0.6deg;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+}
+
+/* Own entries: framed in the partner yellow — a line, so the 55 % token. */
+.profile-upcoming-row.is-own { border-color: var(--partner-line); }
+
+/* „Events bearbeiten": what the user may not edit steps back. */
+.profile-upcoming-row.is-locked { opacity: 0.45; }
+
+.profile-upcoming-open {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-white);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* The date tile — day over month, like the club page's event list, without
+   its gradient (brand rule: no gradients). */
+.profile-upcoming-tile {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 50px;
+  border-radius: 12px;
+  background: var(--bg-input);
   color: var(--text-white);
 }
 
-.profile-manage-requests {
-  background: var(--accent-coral);
-  border: 1px solid var(--accent-coral);
-  color: #fff;
+.profile-upcoming-day {
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.profile-upcoming-month {
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.profile-upcoming-tile.is-empty .profile-upcoming-day { color: var(--text-muted); }
+
+/* Today: the tile ringed in coral, „Heute" beside the title. */
+.profile-upcoming-row.is-today .profile-upcoming-tile { box-shadow: inset 0 0 0 1.5px var(--accent-coral); }
+.profile-upcoming-row.is-today .profile-upcoming-day { color: var(--accent-coral); }
+
+.profile-upcoming-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.profile-upcoming-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.profile-upcoming-name {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent-coral);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-upcoming-today {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-light);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.profile-upcoming-sub {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* „☆ Partner": text and star at full strength (global.css tokens). */
+.profile-upcoming-partner {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--partner-text);
+  font-weight: 600;
+}
+
+/* The counter on the date tile's top right corner: the tile ends 8 + 46 =
+   54px in, the 20px counter overlaps its edge by 14. */
+.profile-upcoming-requests {
+  top: 2px;
+  right: auto;
+  left: 40px;
+}
+
+.profile-upcoming-chat {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 14px;
+  background: var(--bg-input);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  color: var(--text-white);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 0.15s;
+}
+
+.profile-upcoming-chat:active { background: var(--bg-hover); }
+
+/* „Events bearbeiten": the edit glyph where „Zum Chat" was. */
+.profile-upcoming-pencil {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  color: var(--accent-coral);
+}
+
+.profile-upcoming-more {
+  display: block;
+  min-height: 44px;
+  margin: 4px auto 0;
+  padding: 0 16px;
+  background: none;
+  border: none;
+  color: var(--accent-coral);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* global.css cuts every animation short under prefers-reduced-motion, so the
+   modes would not show at all: a dashed outline stands in for the wiggle
+   (the rows keep their edit glyph as well). */
+@media (prefers-reduced-motion: reduce) {
+  .profile-club.is-wiggling,
+  .profile-upcoming-row.is-wiggling { animation: none; }
+  .profile-club.is-wiggling .profile-club-bubble {
+    outline: 2px dashed rgba(255, 255, 255, 0.55);
+    outline-offset: 5px;
+  }
+  .profile-upcoming-row.is-wiggling {
+    outline: 2px dashed rgba(255, 255, 255, 0.55);
+    outline-offset: 2px;
+  }
 }
 
 /* ── Memories tab: „Warst du dabei?" + edit mode ── */

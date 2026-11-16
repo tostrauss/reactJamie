@@ -1090,14 +1090,37 @@
       "friends": "Friends",
       "memories": "Memories"
     },
-    "manage": {
-      "title": "Mes groupes et clubs",
-      "all": "Tous",
-      "edit": "Gérer",
+    "clubs": {
+      "title": "Clubs et communautés",
+      "sort": "Trier",
+      "done": "Terminé",
+      "sortHint": "Touche-en un, puis déplace-le avec les flèches.",
+      "pickAria": "Sélectionner « {{name}} » pour le déplacer",
+      "moveAria": "Déplacer « {{name}} »",
+      "moveEarlier": "Avancer d'une place",
+      "moveLater": "Reculer d'une place",
+      "positionFmt": "Maintenant à la place {{n}} sur {{total}}",
+      "ownAria": "Créé par toi",
+      "partnerAria": "Partenaire JAMIE",
+      "pendingAria": "En cours de vérification",
+      "requestsAria_one": "{{count}} demande en attente",
+      "requestsAria_other": "{{count}} demandes en attente",
+      "ownLockedClub": "Tu as créé ce club ! Laisse-le visible",
+      "ownLockedCommunity": "Tu as créé cette communauté ! Laisse-la visible",
+      "saveError": "Impossible d'enregistrer l'ordre – réessaie"
+    },
+    "upcoming": {
+      "title": "À venir",
+      "edit": "Modifier les événements",
+      "done": "Terminé",
+      "editHint": "Touche un événement pour le modifier.",
       "typeGroup": "Groupe",
-      "typeClub": "Club",
-      "requests_one": "{{count}} demande",
-      "requests_other": "{{count}} demandes"
+      "typeCommunity": "Communauté",
+      "toChat": "Ouvrir le chat",
+      "chatAria": "Ouvrir le chat de « {{name}} »",
+      "editAria": "Modifier « {{name}} »",
+      "locked": "Seule la personne qui a créé cet événement peut le modifier",
+      "showAll": "Tout afficher ({{count}})"
     },
     "memories": {
       "edit": "Modifier",

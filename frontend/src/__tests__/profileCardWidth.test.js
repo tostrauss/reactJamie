@@ -6,7 +6,9 @@ import { fileURLToPath } from 'url';
 // Own profile: every card under „Über Dich!" is exactly as wide as that card
 // (Tina 16.11.2026, PR1). Friends button, the groups/clubs hub and Favoriten
 // carried an extra `calc(100% - 40px)` + 20px side margins on top of
-// .profile-info-section's padding — 20px narrower per side since 21.04.
+// .profile-info-section's padding — 20px narrower per side since 21.04. The
+// hub's successor, the card of „Clubs & Communities" + „Demnächst dabei",
+// keeps the rule.
 // jsdom has no layout, so pin the declarations (cf. pageScrollGuard.test.js).
 const STYLES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../styles');
 const profileCss = fs.readFileSync(path.join(STYLES, 'profile.css'), 'utf8');
@@ -31,11 +33,17 @@ describe('profile cards are as wide as „Über Dich!"', () => {
     expect(bio.margin).toBeUndefined();
   });
 
-  for (const selector of ['.profile-friends-btn', '.profile-manage', '.profile-favs']) {
+  for (const selector of ['.profile-friends-btn', '.profile-hub', '.profile-favs']) {
     it(`${selector}: full width, no side margins`, () => {
       const decl = block(profileCss, selector);
       expect(decl.width).toBe('100%');
       expect(decl.margin).toBe('0 0 16px');
     });
   }
+
+  // Bubbles and „Demnächst dabei" each render nothing when empty; the card
+  // must not stay behind as an empty frame (ProfileMemories.test pins :empty).
+  it('.profile-hub hides itself when it is empty', () => {
+    expect(block(profileCss, '.profile-hub:empty').display).toBe('none');
+  });
 });

@@ -4,22 +4,25 @@ import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
 // The own profile after Tina's rework (22.10.2026, built 26.10.): the stats
-// row „Meet-ups | Friends | Memories", the „Meine Gruppen & Clubs" hub, the
-// Memories edit mode (remove with undo, swap the cover photo, a loud
-// „Fertig") and the „Warst du dabei?" banner — and no Pro card any more.
-// Real German i18n.
+// row „Meet-ups | Friends | Memories", the card of „Clubs & Communities" +
+// „Demnächst dabei" (16.11.2026, in place of the „Meine Gruppen & Clubs"
+// hub), the Memories edit mode (remove with undo, swap the cover photo, a
+// loud „Fertig") and the „Warst du dabei?" banner — and no Pro card any more.
+// Real German i18n. Every api call Profile makes must be in this mock: one
+// missing throws in its effect and takes the whole suite down.
 const api = vi.hoisted(() => ({
   auth: { updateProfile: vi.fn() },
   subscription: { getStatus: vi.fn() },
   groups: {
-    getFavorites: vi.fn(), getJoined: vi.fn(), getMemoryPrompts: vi.fn(),
+    getFavorites: vi.fn(), getJoined: vi.fn(), getUpcoming: vi.fn(), getMemoryPrompts: vi.fn(),
     deletePhoto: vi.fn(), addPhoto: vi.fn(),
   },
-  clubs: { getFavorites: vi.fn() },
+  clubs: { getFavorites: vi.fn(), getJoined: vi.fn() },
   friends: { getPending: vi.fn() },
   reviews: { getMyAttendance: vi.fn() },
   users: {
     getHallOfFame: vi.fn(), getProfileStats: vi.fn(), hideMemory: vi.fn(), unhideMemory: vi.fn(),
+    setMyClubOrder: vi.fn(),
   },
   upload: { image: vi.fn() },
 }));
@@ -62,8 +65,11 @@ beforeEach(() => {
   api.subscription.getStatus.mockResolvedValue({ data: { is_pro: false } });
   api.groups.getFavorites.mockResolvedValue({ data: [] });
   api.groups.getJoined.mockResolvedValue({ data: [] });
+  api.groups.getUpcoming.mockResolvedValue({ data: [] });
   api.groups.getMemoryPrompts.mockResolvedValue({ data: [] });
   api.clubs.getFavorites.mockResolvedValue({ data: [] });
+  api.clubs.getJoined.mockResolvedValue({ data: [] });
+  api.users.setMyClubOrder.mockResolvedValue({ data: [] });
   api.friends.getPending.mockResolvedValue({ data: [] });
   api.reviews.getMyAttendance.mockResolvedValue({ data: { available: false } });
   api.users.getProfileStats.mockResolvedValue({ data: { available: true, meetups: 2, friends: 5, memories: 7 } });
@@ -116,43 +122,83 @@ describe('Profile — stats row', () => {
   });
 });
 
-describe('Profile — Meine Gruppen & Clubs', () => {
-  const JOINED = [
-    { id: 1, name: 'Laufgruppe', type: 'group', role: 'owner', pending_request_count: 0 },
-    { id: 2, name: 'Tennisclub', type: 'club', role: 'owner', pending_request_count: 3 },
-    { id: 3, name: 'Fremde Gruppe', type: 'group', role: 'member', pending_request_count: 0 },
-    { id: 4, name: 'Club-Abend', type: 'event', role: 'owner', pending_request_count: 0 },
+describe('Profile — „Clubs & Communities" + „Demnächst dabei"', () => {
+  const club = (id, name, over = {}) => ({
+    id, name, type: 'club', club_type: 'community', approval_status: 'approved', is_active: true,
+    is_own: false, role: 'member', profile_position: null, joined_at: '2026-11-01T10:00:00.000Z',
+    pending_request_count: 0, image_url: null, ...over,
+  });
+  const CLUBS = [
+    club(5, 'Brettspiel-Treff', { joined_at: '2026-11-10T10:00:00.000Z' }),
+    club(2, 'Tennisclub', { is_own: true, role: 'owner', pending_request_count: 3 }),
+    club(6, 'Café Soleá', { club_type: 'official', joined_at: '2026-10-01T10:00:00.000Z' }),
   ];
+  const UPCOMING = [
+    { id: 41, name: 'Spieleabend', type: 'event', date: '2026-11-20T19:00:00.000Z', next_at: '2026-11-20T19:00:00.000Z',
+      members_count: 8, max_members: 20, is_own: true, can_edit: true, is_partner: true, kind: 'partner', pending_request_count: 0 },
+    { id: 42, name: 'Laufrunde', type: 'group', date: '2026-11-21T00:00:00.000Z', next_at: '2026-11-21T00:00:00.000Z',
+      members_count: 1, max_members: 20, is_own: false, can_edit: false, is_partner: false, kind: 'group', pending_request_count: 0 },
+  ];
+  const withBoth = () => {
+    api.clubs.getJoined.mockResolvedValue({ data: CLUBS });
+    api.groups.getUpcoming.mockResolvedValue({ data: UPCOMING });
+  };
 
-  it('shows what the user owns — no memberships, no club events — open requests first', async () => {
-    api.groups.getJoined.mockResolvedValue({ data: JOINED });
+  it('one card in place of the old hub: the bubbles, then what is coming up — the chat list is not read for it', async () => {
+    withBoth();
     await renderProfile();
-    const hub = screen.getByRole('region', { name: 'Meine Gruppen & Clubs' });
-    const names = [...hub.querySelectorAll('.profile-manage-name')].map((n) => n.textContent);
-    expect(names).toEqual(['Tennisclub', 'Laufgruppe']);
-    expect(within(hub).getByText('Club')).toBeTruthy();
-    expect(within(hub).getByText('Gruppe')).toBeTruthy();
+    const card = document.querySelector('.profile-hub');
+    expect([...card.children].map((el) => el.className)).toEqual(['profile-clubs', 'profile-upcoming']);
+    expect(within(card).getByRole('region', { name: 'Clubs & Communities' })).toBeTruthy();
+    expect(within(card).getByRole('region', { name: 'Demnächst dabei' })).toBeTruthy();
+    expect(screen.queryByText('Meine Gruppen & Clubs')).toBeNull();
+    expect(api.groups.getJoined).not.toHaveBeenCalled();
+    // Right under the friends button, as the hub was.
+    expect(document.querySelector('.profile-friends-btn').nextElementSibling).toBe(card);
   });
 
-  it('the requests badge leads to the requests tab', async () => {
-    api.groups.getJoined.mockResolvedValue({ data: JOINED });
+  it('the open requests of an own club still lead to the Anfragen deck', async () => {
+    withBoth();
     await renderProfile();
-    fireEvent.click(screen.getByRole('button', { name: '3 Anfragen' }));
+    fireEvent.click(screen.getByRole('button', { name: '3 offene Anfragen' }));
     expect(where()).toBe('/chats?tab=anfragen');
   });
 
-  it('„Verwalten" opens the edit page of that group', async () => {
-    api.groups.getJoined.mockResolvedValue({ data: JOINED });
+  it('neither clubs nor anything coming up → the card is :empty, which hides it (profile.css)', async () => {
     await renderProfile();
-    const card = screen.getByText('Laufgruppe').closest('.profile-manage-card');
-    fireEvent.click(within(card).getByRole('button', { name: 'Verwalten' }));
-    expect(where()).toBe('/group/1/edit');
+    expect(document.querySelector('.profile-hub').matches(':empty')).toBe(true);
   });
 
-  it('no section when the user owns nothing', async () => {
-    api.groups.getJoined.mockResolvedValue({ data: [JOINED[2]] });
+  it('ONE mode for the card: „Events bearbeiten" ends „Sortieren" — which saves the new order — and back', async () => {
+    withBoth();
+    api.users.setMyClubOrder.mockImplementation((ids) => Promise.resolve({
+      data: CLUBS.map((c) => ({ ...c, profile_position: ids.includes(c.id) ? ids.indexOf(c.id) + 1 : null })),
+    }));
     await renderProfile();
-    expect(screen.queryByText('Meine Gruppen & Clubs')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Sortieren' }));
+    fireEvent.click(screen.getByRole('button', { name: '„Café Soleá“ zum Verschieben auswählen' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Einen Platz nach vorne' }));
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Events bearbeiten' })); });
+    expect(api.users.setMyClubOrder).toHaveBeenCalledWith([6, 5]);
+    expect(document.querySelector('.profile-clubs-rail.is-sorting')).toBeNull();
+    expect(document.querySelector('.profile-club.is-wiggling')).toBeNull();
+    expect([...document.querySelectorAll('.profile-upcoming-row.is-wiggling')]).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sortieren' }));
+    expect(document.querySelector('.profile-upcoming-row.is-wiggling')).toBeNull();
+    expect(document.querySelector('.profile-clubs-rail.is-sorting')).toBeTruthy();
+    expect(api.users.setMyClubOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it('a tab switch ends the mode', async () => {
+    withBoth();
+    await renderProfile();
+    fireEvent.click(screen.getByRole('button', { name: 'Events bearbeiten' }));
+    expect(document.querySelector('.profile-upcoming-row.is-wiggling')).toBeTruthy();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Memories' })); });
+    expect(document.querySelector('.profile-upcoming-row.is-wiggling')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Events bearbeiten' }).getAttribute('aria-pressed')).toBe('false');
   });
 });
 

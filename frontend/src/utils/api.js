@@ -372,6 +372,10 @@ export const users = {
   // (the Explore feeds keep the event); unhide is the undo.
   hideMemory: (groupId) => axiosInstance.post(`/users/me/hall-of-fame/${groupId}/hide`),
   unhideMemory: (groupId) => axiosInstance.delete(`/users/me/hall-of-fame/${groupId}/hide`),
+  // „Sortieren“ of the profile's club bubbles (Tina 16.11.2026): the JOINED
+  // clubs in bubble order — own ones and unknown ids are skipped server-side.
+  // Answers with the list as clubs.getJoined returns it.
+  setMyClubOrder: (clubIds) => axiosInstance.put('/users/me/clubs/order', { clubIds }),
 };
 
 // ==========================================
@@ -455,6 +459,12 @@ export const groups = {
   // badge, which must reflect read markers immediately.
   getJoined: (fresh = false) =>
     axiosInstance.get('/groups/user/joined', { params: fresh ? { fresh: '1' } : {} }),
+
+  // „Demnächst dabei“ in the own profile (Tina 16.11.2026): meetups and club
+  // events the user created or was let into, next first, with is_own,
+  // can_edit, is_partner and kind — never cached server-side.
+  getUpcoming: () =>
+    axiosInstance.get('/groups/user/upcoming'),
 
   // Hide/unhide a group-or-club chat from the chat list (per-user)
   archiveChat: (id, archived) =>
@@ -577,7 +587,9 @@ export const clubs = {
   getFavorites: () =>
     axiosInstance.get('/clubs/user/favorites'),
 
-  // Get user's joined clubs
+  // Get user's joined clubs — newest first. Also the profile's „Clubs &
+  // Communities“ bubbles (16.11.2026), with is_own, profile_position and
+  // pending_request_count; the profile orders them itself.
   getJoined: () =>
     axiosInstance.get('/clubs/user/joined'),
 
