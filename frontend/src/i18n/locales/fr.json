@@ -2305,7 +2305,24 @@
       "newRoundDateLabel": "Nouvelle date de fin",
       "newRoundDateHint": "Vide = sans expiration",
       "newRoundHint": "{{count}} utilisations précédentes restent dans les statistiques.",
-      "newRoundStartBtn": "Lancer la série"
+      "newRoundStartBtn": "Lancer la série",
+      "events": {
+        "attachBtn": "Lier à un événement",
+        "inputLabel": "ID ou lien de l'événement",
+        "inputPlaceholder": "p. ex. 527 ou …/group/527",
+        "inputHint": "L'ID figure dans le lien de la page de l'événement. Si un autre partenariat y est déjà lié, il est remplacé.",
+        "attachSubmit": "Lier",
+        "detachBtn": "Délier",
+        "hiddenNote": "Pas visible sur l'événement pour le moment (expiré, inactif ou limite atteinte)",
+        "toast": {
+          "attached": "Le partenariat est maintenant lié à l'événement #{{id}}",
+          "attachedHidden": "Lié à l'événement #{{id}} – mais pas visible là-bas pour le moment (expiré, inactif ou limite atteinte)",
+          "detached": "Partenariat délié de « {{name}} »",
+          "invalidId": "Saisis un ID d'événement ou le lien de l'événement",
+          "attachError": "Échec de la liaison",
+          "detachError": "Échec de la suppression du lien"
+        }
+      }
     },
     "refresh": "Actualiser",
     "errorAccess": "Pas d'accès admin. Connecte-toi avec un compte admin.",

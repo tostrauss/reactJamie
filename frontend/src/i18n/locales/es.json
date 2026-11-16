@@ -2305,7 +2305,24 @@
       "newRoundDateLabel": "Nueva fecha de fin",
       "newRoundDateHint": "Vacío = sin caducidad",
       "newRoundHint": "{{count}} canjes anteriores se mantienen en las estadísticas.",
-      "newRoundStartBtn": "Iniciar ronda"
+      "newRoundStartBtn": "Iniciar ronda",
+      "events": {
+        "attachBtn": "Vincular a un evento",
+        "inputLabel": "ID o enlace del evento",
+        "inputPlaceholder": "p. ej. 527 o …/group/527",
+        "inputHint": "El ID está en el enlace de la página del evento. Si ya hay otra colaboración vinculada, se reemplaza.",
+        "attachSubmit": "Vincular",
+        "detachBtn": "Desvincular",
+        "hiddenNote": "Ahora no se ve en el evento (caducada, inactiva o límite alcanzado)",
+        "toast": {
+          "attached": "La colaboración ahora está vinculada al evento #{{id}}",
+          "attachedHidden": "Vinculada al evento #{{id}}, pero ahora no se ve allí (caducada, inactiva o límite alcanzado)",
+          "detached": "Colaboración desvinculada de «{{name}}»",
+          "invalidId": "Introduce un ID de evento o el enlace al evento",
+          "attachError": "No se pudo vincular",
+          "detachError": "No se pudo desvincular"
+        }
+      }
     },
     "refresh": "Actualizar",
     "errorAccess": "Sin acceso de administrador. Inicia sesión con una cuenta de administrador.",

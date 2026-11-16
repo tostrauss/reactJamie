@@ -32,6 +32,23 @@ const emptyForm = () => ({
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
+// The event a deal is hung on, as an admin pastes it: the bare ID or the
+// event page's link (…/group/527, also with a slash, query or hash behind).
+// → the id, or null for anything else.
+const parseEventId = (input) => {
+  const s = String(input || '').trim();
+  const m = s.match(/^#?(\d+)$/) || s.match(/\/group\/(\d+)(?:[/?#]|$)/);
+  const n = m ? Number(m[1]) : NaN;
+  return Number.isInteger(n) && n > 0 && n <= 2147483647 ? n : null;
+};
+
+// An event's day as its creator typed it: the stored Vienna wall-clock comes
+// back tagged UTC, so it is read in UTC (utils/eventDate.js).
+const eventDay = (iso) => {
+  const d = iso ? new Date(iso) : null;
+  return d && !isNaN(d) ? d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }) : null;
+};
+
 // ISO weekday chips for the "nur an bestimmten Tagen einlösbar" picker.
 const WEEKDAYS = [
   { n: 1, label: 'Mo' }, { n: 2, label: 'Di' }, { n: 3, label: 'Mi' },
@@ -266,6 +283,55 @@ export const AdminDealsSection = () => {
       toast.error(err.response?.data?.error || t('admin.deals.toast.newRoundError'));
     } finally {
       setRoundSaving(false);
+    }
+  };
+
+  // „An Event hängen“ (P4 v1, Tina 16.11.2026): a deal shows on an event's
+  // head card once an admin hangs it there — by the event's ID or simply its
+  // link, pasted from the page. Club events and meetups, also a café's deal
+  // that belongs to no club. One deal per event: another one replaces it.
+  // The server answers deal=null when the deal is attached but not visible
+  // right now (expired, inactive or at its limit) — then the toast says so.
+  const [attachFor, setAttachFor] = useState(null);      // deal.id with the panel open
+  const [attachInput, setAttachInput] = useState('');
+  const [attachBusy, setAttachBusy] = useState(false);
+  const [detachingKey, setDetachingKey] = useState(null); // `${dealId}:${eventId}`
+  const openAttach = (deal) => {
+    setAttachInput('');
+    setAttachFor(deal.id);
+  };
+  const submitAttach = async (deal) => {
+    if (attachBusy) return;
+    const eventId = parseEventId(attachInput);
+    if (!eventId) {
+      toast.error(t('admin.deals.events.toast.invalidId'));
+      return;
+    }
+    setAttachBusy(true);
+    try {
+      const res = await dealsApi.setEventDeal(eventId, deal.id);
+      if (res.data?.deal) toast.success(t('admin.deals.events.toast.attached', { id: eventId }));
+      else toast.warning(t('admin.deals.events.toast.attachedHidden', { id: eventId }));
+      setAttachFor(null);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.error || t('admin.deals.events.toast.attachError'));
+    } finally {
+      setAttachBusy(false);
+    }
+  };
+  const detach = async (deal, ev) => {
+    const key = `${deal.id}:${ev.id}`;
+    if (detachingKey) return;
+    setDetachingKey(key);
+    try {
+      await dealsApi.setEventDeal(ev.id, null);
+      toast.success(t('admin.deals.events.toast.detached', { name: ev.name }));
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.error || t('admin.deals.events.toast.detachError'));
+    } finally {
+      setDetachingKey(null);
     }
   };
 
@@ -542,6 +608,8 @@ export const AdminDealsSection = () => {
           const cap = deal.max_redemptions ?? null; // null = unlimited
           const capReached = isOnce && cap != null && roundRedemptions >= cap;
           const dimmed = isExpired || isInactive || capReached;
+          // [{ id, name, date }] — a server before 16.11.2026 sends none.
+          const events = Array.isArray(deal.events) ? deal.events : [];
           return (
             <div key={deal.id} style={{ ...cardStyle, opacity: dimmed ? 0.55 : 1, flexWrap: 'wrap' }}>
               <div style={{ width: 56, height: 56, borderRadius: 10, overflow: 'hidden', background: '#1a1a2e', flexShrink: 0 }}>
@@ -649,6 +717,69 @@ export const AdminDealsSection = () => {
                       {roundSaving ? '…' : `↻ ${t('admin.deals.newRoundStartBtn')}`}
                     </button>
                   </div>
+                </div>
+              )}
+              {/* The events this deal hangs on, each with „Lösen“, and „An
+                  Event hängen“ (P4 v1, 16.11.2026). A dimmed deal still hangs
+                  there — the event page just does not show it. */}
+              {(events.length > 0 || !isInactive) && (
+                <div style={{ flexBasis: '100%', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                  {events.map(ev => {
+                    const day = eventDay(ev.date);
+                    const busy = detachingKey === `${deal.id}:${ev.id}`;
+                    return (
+                      <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                        <a
+                          href={`/group/${ev.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ flex: 1, minWidth: 0, color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        >
+                          📍 {ev.name}{day ? ` · ${day}` : ''} <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>#{ev.id}</span>
+                        </a>
+                        <button type="button" onClick={() => detach(deal, ev)} disabled={busy} style={{ ...btnGhost, padding: '6px 10px', fontSize: 12, flexShrink: 0 }}>
+                          {busy ? '…' : t('admin.deals.events.detachBtn')}
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {dimmed && events.length > 0 && (
+                    <p style={{ color: '#ff7a7a', fontSize: 11, fontWeight: 600, margin: 0 }}>
+                      {t('admin.deals.events.hiddenNote')}
+                    </p>
+                  )}
+                  {isInactive ? null : attachFor === deal.id ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 10 }}>
+                      <div style={{ flex: '1 1 200px' }}>
+                        <label style={labelStyle} htmlFor={`deal-${deal.id}-event`}>{t('admin.deals.events.inputLabel')}</label>
+                        <input
+                          id={`deal-${deal.id}-event`}
+                          type="text"
+                          autoComplete="off"
+                          value={attachInput}
+                          onChange={e => setAttachInput(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submitAttach(deal); } }}
+                          placeholder={t('admin.deals.events.inputPlaceholder')}
+                          style={inputStyle}
+                        />
+                        <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4 }}>
+                          {t('admin.deals.events.inputHint')}
+                        </p>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button type="button" onClick={() => setAttachFor(null)} style={{ ...btnGhost, padding: '8px 12px', fontSize: 12 }}>
+                          {t('common.cancel')}
+                        </button>
+                        <button type="button" onClick={() => submitAttach(deal)} disabled={attachBusy} style={{ ...btnPrimary, padding: '8px 14px', fontSize: 12 }}>
+                          {attachBusy ? '…' : t('admin.deals.events.attachSubmit')}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => openAttach(deal)} style={{ ...btnGhost, padding: '6px 10px', fontSize: 12, alignSelf: 'flex-start' }}>
+                      + {t('admin.deals.events.attachBtn')}
+                    </button>
+                  )}
                 </div>
               )}
             </div>

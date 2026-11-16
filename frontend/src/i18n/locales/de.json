@@ -2305,7 +2305,24 @@
       "newRoundDateLabel": "Neu gültig bis",
       "newRoundDateHint": "Leer = ohne Ablaufdatum",
       "newRoundHint": "{{count}} bisherige Einlösungen bleiben in der Statistik.",
-      "newRoundStartBtn": "Runde starten"
+      "newRoundStartBtn": "Runde starten",
+      "events": {
+        "attachBtn": "An Event hängen",
+        "inputLabel": "Event-ID oder Link zum Event",
+        "inputPlaceholder": "z. B. 527 oder …/group/527",
+        "inputHint": "Die ID steht im Link der Event-Seite. Hängt dort schon ein anderer Deal, wird er ersetzt.",
+        "attachSubmit": "Anhängen",
+        "detachBtn": "Lösen",
+        "hiddenNote": "Am Event gerade nicht sichtbar (abgelaufen, inaktiv oder Limit erreicht)",
+        "toast": {
+          "attached": "Deal hängt jetzt am Event #{{id}}",
+          "attachedHidden": "Am Event #{{id}} angehängt – dort aber gerade nicht sichtbar (abgelaufen, inaktiv oder Limit erreicht)",
+          "detached": "Deal von „{{name}}“ gelöst",
+          "invalidId": "Bitte eine Event-ID oder den Link zum Event eingeben",
+          "attachError": "Anhängen fehlgeschlagen",
+          "detachError": "Lösen fehlgeschlagen"
+        }
+      }
     },
     "refresh": "Aktualisieren",
     "errorAccess": "Kein Admin-Zugriff. Bitte melde dich mit einem Admin-Account an.",

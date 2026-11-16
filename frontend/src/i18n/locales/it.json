@@ -2305,7 +2305,24 @@
       "newRoundDateLabel": "Nuova data di fine",
       "newRoundDateHint": "Vuoto = senza scadenza",
       "newRoundHint": "{{count}} riscatti precedenti restano nelle statistiche.",
-      "newRoundStartBtn": "Avvia turno"
+      "newRoundStartBtn": "Avvia turno",
+      "events": {
+        "attachBtn": "Collega a un evento",
+        "inputLabel": "ID o link dell'evento",
+        "inputPlaceholder": "es. 527 o …/group/527",
+        "inputHint": "L'ID è nel link della pagina dell'evento. Se lì c'è già un'altra collaborazione, viene sostituita.",
+        "attachSubmit": "Collega",
+        "detachBtn": "Scollega",
+        "hiddenNote": "Al momento non visibile all'evento (scaduta, inattiva o limite raggiunto)",
+        "toast": {
+          "attached": "La collaborazione ora è collegata all'evento #{{id}}",
+          "attachedHidden": "Collegata all'evento #{{id}} – ma al momento lì non è visibile (scaduta, inattiva o limite raggiunto)",
+          "detached": "Collaborazione scollegata da «{{name}}»",
+          "invalidId": "Inserisci un ID evento o il link all'evento",
+          "attachError": "Collegamento non riuscito",
+          "detachError": "Scollegamento non riuscito"
+        }
+      }
     },
     "refresh": "Aggiorna",
     "errorAccess": "Nessun accesso admin. Accedi con un account admin.",

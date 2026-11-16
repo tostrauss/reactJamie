@@ -2305,7 +2305,24 @@
       "newRoundDateLabel": "New end date",
       "newRoundDateHint": "Empty = no expiry",
       "newRoundHint": "{{count}} previous redemptions stay in the stats.",
-      "newRoundStartBtn": "Start round"
+      "newRoundStartBtn": "Start round",
+      "events": {
+        "attachBtn": "Attach to an event",
+        "inputLabel": "Event ID or event link",
+        "inputPlaceholder": "e.g. 527 or …/group/527",
+        "inputHint": "The ID is in the event page's link. If another cooperation hangs there already, it is replaced.",
+        "attachSubmit": "Attach",
+        "detachBtn": "Detach",
+        "hiddenNote": "Not visible on the event right now (expired, inactive or limit reached)",
+        "toast": {
+          "attached": "The cooperation now hangs on event #{{id}}",
+          "attachedHidden": "Attached to event #{{id}} – but not visible there right now (expired, inactive or limit reached)",
+          "detached": "Cooperation detached from “{{name}}”",
+          "invalidId": "Please enter an event ID or the link to the event",
+          "attachError": "Attaching failed",
+          "detachError": "Detaching failed"
+        }
+      }
     },
     "refresh": "Refresh",
     "errorAccess": "No admin access. Please sign in with an admin account.",

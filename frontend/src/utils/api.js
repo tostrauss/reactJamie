@@ -1111,6 +1111,10 @@ export const deals = {
   // "Neue Runde starten": everyone may redeem a 'once' deal again; old
   // redemptions stay in the stats.
   newRound: (id, body = {}) => axiosInstance.post(`/deals/admin/${id}/new-round`, body),
+  // Hang a deal on an event (club event or meetup) — dealId null takes it
+  // off (P4 v1, 16.11.2026). One deal per event: a second one replaces it.
+  // → { group_id, deal_id, deal }; deal null = attached, not visible now.
+  setEventDeal: (groupId, dealId) => axiosInstance.put(`/deals/event/${groupId}`, { deal_id: dealId }),
   create: (data)    => axiosInstance.post('/deals', data),
   update: (id, data)=> axiosInstance.put(`/deals/${id}`, data),
   remove: (id)      => axiosInstance.delete(`/deals/${id}`),
