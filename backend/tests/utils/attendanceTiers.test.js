@@ -7,7 +7,7 @@ import {
   TIER_MIN_EVENTS, TIER_MIN_CONFIRMERS, countableEventSql, reviewableEventSql, ATTENDANCE_SQL,
   eventStandsSql, reviewRoundOpenSql, joinedInTimeSql, blockedWithSql, REVIEW_WINDOW_DAYS,
   LEGACY_STEPS, legacyTierOf, legacyNextStepFor,
-  REVIEW_MAX_PARTICIPANTS, REVIEW_PUSH_MIN_PARTICIPANTS, participantsAtEventSql,
+  REVIEW_MAX_PARTICIPANTS, REVIEW_PUSH_MIN_PARTICIPANTS, participantsAtEventSql, remainingParticipantsSql,
 } from '../../src/utils/attendanceTiers.js';
 
 // Abzeichen-Stufen (tester 06.10.2026): from 5 confirmed meetups 🏅, from 10 🏆,
@@ -186,6 +186,17 @@ describe('SQL', () => {
       expect(sql).not.toContain(routed);
     }
     expect(() => participantsAtEventSql('x) OR (1=1')).toThrow();
+  });
+
+  it('remainingParticipantsSql: only who is still in it — the people the prompt lists, never who left', () => {
+    const sql = remainingParticipantsSql('x');
+    expect(sql).toContain('FROM group_members pm WHERE pm.group_id = x.id');
+    expect(sql).toContain(joinedInTimeSql('pm', 'x'));           // a late joiner never counts
+    expect(sql).not.toContain('hall_of_fame_entries');
+    for (const routed of ['FROM group_members gm', 'event_reviews', 'review_nudge_sent_for']) {
+      expect(sql).not.toContain(routed);
+    }
+    expect(() => remainingParticipantsSql('x) OR (1=1')).toThrow();
   });
 
   it('reviewableEventSql (prompts, re-open, write gate) carries the size gate; the count never does', () => {

@@ -99,7 +99,10 @@ export const REVIEW_WINDOW_DAYS = 14;
 export const REVIEW_MAX_PARTICIPANTS = 8;
 // The review PUSH also needs somebody besides the owner — a push about an
 // empty list is noise. The prompt itself stays for a solo owner: the modal is
-// their only way to „Hat nicht stattgefunden“.
+// their only way to „Hat nicht stattgefunden“. Counted on who is still IN it
+// (remainingParticipantsSql), not on participantsAtEventSql: somebody who left
+// keeps counting toward the size gate but is in nobody's list (review
+// 16.11.2026: owner + one who left made 2 — and a push about an empty list).
 export const REVIEW_PUSH_MIN_PARTICIPANTS = 2;
 
 const ALIAS = /^[a-z_][a-z0-9_]*$/i;
@@ -178,6 +181,15 @@ export const participantsAtEventSql = (a) => {
   return `(SELECT COUNT(*) FROM (SELECT pm.user_id FROM group_members pm`
     + ` WHERE pm.group_id = ${g}.id AND ${joinedInTimeSql('pm', g)}`
     + ` UNION SELECT hf.user_id FROM hall_of_fame_entries hf WHERE hf.group_id = ${g}.id) p)`;
+};
+
+// Of those participants, the ones still IN the meetup: members by the end of
+// its day who have not left. Exactly who the prompt lists (getPendingReviews
+// reads group_members only) and whom the review push reaches — the floor
+// REVIEW_PUSH_MIN_PARTICIPANTS is taken on this. Alias pm, like above.
+export const remainingParticipantsSql = (a) => {
+  const g = alias(a);
+  return `(SELECT COUNT(*) FROM group_members pm WHERE pm.group_id = ${g}.id AND ${joinedInTimeSql('pm', g)})`;
 };
 
 // Everybody in a 'blocked' friendship with the user in parameter `p`, either

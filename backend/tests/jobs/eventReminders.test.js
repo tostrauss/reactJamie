@@ -32,7 +32,9 @@ vi.mock('../../src/controllers/pushController.js', () => ({
 const {
   runEventReminders, reminderParams, nudgeParams, APP_TZ, NUDGE_MIN_OTHERS,
 } = await import('../../src/jobs/eventReminders.js');
-const { participantsAtEventSql, joinedInTimeSql } = await import('../../src/utils/attendanceTiers.js');
+const {
+  participantsAtEventSql, remainingParticipantsSql, joinedInTimeSql,
+} = await import('../../src/utils/attendanceTiers.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 // No fake timers in this repo: `now` is injected explicitly.
@@ -321,7 +323,11 @@ describe('review nudge (Batch 3)', () => {
     const claim = claimOf('review_nudge_sent_for').text;
     // The prompt's own count (reviewableEventSql: <= 8) — plus a floor of 2
     // for the push alone: a solo owner keeps the modal but gets no push.
-    expect(claim).toContain(`${participantsAtEventSql('x')} BETWEEN 2 AND 8`);
+    expect(claim).toContain(`${participantsAtEventSql('x')} <= 8`);
+    // The floor counts who is still IN it (review 16.11.2026): owner + one
+    // who left counts 2 above, but the owner's list would be empty.
+    expect(claim).toContain(`${remainingParticipantsSql('x')} >= 2`);
+    expect(claim).not.toContain('BETWEEN 2 AND 8');
     expect(claim).toContain("EXTRACT(HOUR FROM ($1::timestamptz AT TIME ZONE 'Europe/Vienna')) BETWEEN 9 AND 22");
     // The reminders before an event are not gated by size.
     for (const m of ['reminder_day_sent_for', 'reminder_hour_sent_for', 'owner_nudge_sent_for']) {

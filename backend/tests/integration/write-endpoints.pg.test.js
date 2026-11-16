@@ -5844,13 +5844,18 @@ suite('write endpoints against real Postgres', () => {
     });
 
     it('the push: 2–8 people only, 09:00–22:59 Vienna only, never to a late joiner', async () => {
-      // Pre-claim every dated row so far, so only the three meetups below can fire.
+      // Pre-claim every dated row so far, so only the four meetups below can fire.
       await db.query(`UPDATE groups SET reminder_day_sent_for = date, reminder_hour_sent_for = date,
                                         owner_nudge_sent_for = date, review_nudge_sent_for = date WHERE date IS NOT NULL`);
       const eight = await mkMeetup(P.slice(0, 7), 'Push Acht');
       await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, [eight, P[7]]); // late
       const nine = await mkMeetup(P, 'Push Neun');
       const solo = await mkMeetup([], 'Push Solo');
+      // Owner + one who left after the meetup: 2 participants, but the owner's
+      // list is empty — no push about it (review 16.11.2026).
+      const deserted = await mkMeetup([P[0]], 'Push Verlassen');
+      ok(await call(C.leaveGroup, { userId: P[0], params: { id: String(deserted) } }));
+      expect((await db.query('SELECT 1 FROM hall_of_fame_entries WHERE group_id = $1 AND user_id = $2', [deserted, P[0]])).rowCount).toBe(1);
       // The day after the meetups, as a true instant (Vienna wall-clock).
       const dayAfter = async (hhmm) => (await db.query(
         `SELECT (((date::date + 1)::timestamp + $2::time) AT TIME ZONE 'Europe/Vienna') AS t FROM groups WHERE id = $1`,
@@ -5864,7 +5869,11 @@ suite('write endpoints against real Postgres', () => {
       // 11:00: the 8-person meetup only, to its 8 — the late joiner not among them.
       expect(await C.runEventReminders({ now: await dayAfter('11:00') }))
         .toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 1, pushes: 8 });
-      expect([await claimed(eight), await claimed(nine), await claimed(solo)]).toEqual([true, false, false]);
+      expect([await claimed(eight), await claimed(nine), await claimed(solo), await claimed(deserted)])
+        .toEqual([true, false, false, false]);
+      // …while its owner still gets the prompt itself, with nobody to tick.
+      const prompt = (await call(C.getPendingReviews, { userId: O })).body.find((r) => r.group_id === deserted);
+      expect(prompt.members).toEqual([]);
     });
   });
 

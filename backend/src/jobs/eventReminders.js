@@ -34,7 +34,8 @@ import db from '../config/database.js';
 import { sendPushToUser, sendPushToUsers } from '../controllers/pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 import {
-  participantsAtEventSql, joinedInTimeSql, REVIEW_MAX_PARTICIPANTS, REVIEW_PUSH_MIN_PARTICIPANTS,
+  participantsAtEventSql, remainingParticipantsSql, joinedInTimeSql,
+  REVIEW_MAX_PARTICIPANTS, REVIEW_PUSH_MIN_PARTICIPANTS,
 } from '../utils/attendanceTiers.js';
 
 export const APP_TZ = 'Europe/Vienna';
@@ -107,19 +108,22 @@ const NUDGE_WINDOW = `
 // (bounded burst), and a missed 15-min tick still lands inside the window.
 // GROUP events only (club events have no review flow — mirrors getPendingReviews);
 // LIVE_EVENT already excludes cancelled/deleted/did-not-take-place/recurring.
-// Since 16.11.2026 (Tina): only meetups of 2 to REVIEW_MAX_PARTICIPANTS people,
-// counted exactly like the prompt (participantsAtEventSql), so the push never
-// announces a question the app will not ask — and a solo owner gets no push
-// about an empty list (the prompt itself stays theirs). And only 09:00–22:59
-// Vienna, the rule engagementNudges' DAYTIME keeps for every nudge: a late
-// claim at 23:xx simply does not happen, and the window closes at midnight.
+// Since 16.11.2026 (Tina): only meetups of at most REVIEW_MAX_PARTICIPANTS
+// people, counted exactly like the prompt (participantsAtEventSql), so the
+// push never announces a question the app will not ask — and with at least
+// REVIEW_PUSH_MIN_PARTICIPANTS still in it (remainingParticipantsSql): a solo
+// owner, or one whose only companion has left, gets no push about an empty
+// list (the prompt itself stays theirs). And only 09:00–22:59 Vienna, the
+// rule engagementNudges' DAYTIME keeps for every nudge: a late claim at 23:xx
+// simply does not happen, and the window closes at midnight.
 // Not claimed → re-evaluated next tick, like the member-facing windows above.
 const REVIEW_WINDOW = `
            x.type = 'group'
            AND ((x.date::date + 1)::timestamp + TIME '10:00') AT TIME ZONE '${APP_TZ}' <= $1::timestamptz
            AND ((x.date::date + 2)::timestamp) AT TIME ZONE '${APP_TZ}' > $1::timestamptz
            AND EXTRACT(HOUR FROM ($1::timestamptz AT TIME ZONE '${APP_TZ}')) BETWEEN 9 AND 22
-           AND ${participantsAtEventSql('x')} BETWEEN ${REVIEW_PUSH_MIN_PARTICIPANTS} AND ${REVIEW_MAX_PARTICIPANTS}`;
+           AND ${participantsAtEventSql('x')} <= ${REVIEW_MAX_PARTICIPANTS}
+           AND ${remainingParticipantsSql('x')} >= ${REVIEW_PUSH_MIN_PARTICIPANTS}`;
 
 // Pure: SQL row → pushTexts params. Exported for tests. `time_hhmm` is
 // formatted in SQL with to_char on the raw column so the naive wall-clock is
