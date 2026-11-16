@@ -25,6 +25,8 @@ vi.mock('../utils/api', () => ({
   reviews: {
     getForGroup: vi.fn(() => Promise.reject(new Error('404'))),
     notHeld: vi.fn(() => Promise.resolve({ data: { success: true, not_held: true } })),
+    submit: vi.fn(() => Promise.resolve({ data: { success: true, counted: true } })),
+    dismiss: vi.fn(() => Promise.resolve({ data: { success: true } })),
   },
 }));
 
@@ -194,10 +196,16 @@ describe('GroupDetail — „Hat nicht stattgefunden" for the owner of a big pas
     confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
   });
   afterEach(() => { confirmSpy.mockRestore(); });
+  // The pill waits for the review check (reviews.getForGroup) to settle —
+  // an absence only means something once it has.
+  const settled = async () => {
+    await waitFor(() => expect(reviews.getForGroup).toHaveBeenCalled());
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+  };
 
   it('9 people: the pill, a confirm naming the meetup, the flag — then the page says so', async () => {
     await renderPage(meetup());
-    fireEvent.click(screen.getByRole('button', { name: NOT_HELD }));
+    fireEvent.click(await screen.findByRole('button', { name: NOT_HELD }));
     expect(confirmSpy).toHaveBeenCalledWith(
       '„Laufen“ hat nicht stattgefunden? Dann verschwindet das Treffen für alle aus den Memories. Das lässt sich nicht rückgängig machen.',
     );
@@ -210,22 +218,50 @@ describe('GroupDetail — „Hat nicht stattgefunden" for the owner of a big pas
   it('cancelling the confirm sends nothing', async () => {
     confirmSpy.mockReturnValue(false);
     await renderPage(meetup());
-    fireEvent.click(screen.getByRole('button', { name: NOT_HELD }));
+    fireEvent.click(await screen.findByRole('button', { name: NOT_HELD }));
     expect(reviews.notHeld).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: NOT_HELD })).toBeInTheDocument();
   });
 
-  it('a refusal keeps the pill and says why (the server\'s reason)', async () => {
+  // Review 16.11.2026: submitReview turns away a second answer (409) before
+  // its not_held branch — so an owner who has answered gets no pill at all.
+  it('the owner has answered „Wer war dabei?“ already (has_reviewed): no pill the server would refuse', async () => {
+    await renderPage(meetup({ has_reviewed: true }));
+    await settled();
+    expect(screen.queryByRole('button', { name: NOT_HELD })).not.toBeInTheDocument();
+  });
+
+  it('a 409 all the same (answered in another tab): the pill goes, the server\'s reason shows', async () => {
     reviews.notHeld.mockRejectedValueOnce({ response: { status: 409, data: { error: 'Bereits bewertet' } } });
     await renderPage(meetup());
-    fireEvent.click(screen.getByRole('button', { name: NOT_HELD }));
+    fireEvent.click(await screen.findByRole('button', { name: NOT_HELD }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Bereits bewertet'));
+    expect(screen.queryByRole('button', { name: NOT_HELD })).not.toBeInTheDocument();
+    expect(screen.queryByText(STATE)).not.toBeInTheDocument();
+  });
+
+  it('any other failure keeps the pill for another try and says why', async () => {
+    reviews.notHeld.mockRejectedValueOnce({ response: { status: 500, data: { error: 'Interner Serverfehler' } } });
+    await renderPage(meetup());
+    fireEvent.click(await screen.findByRole('button', { name: NOT_HELD }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Interner Serverfehler'));
     expect(screen.getByRole('button', { name: NOT_HELD })).toBeInTheDocument();
     expect(screen.queryByText(STATE)).not.toBeInTheDocument();
   });
 
+  it('not before the review check has settled — no pill that turns into „Wer war dabei?“', async () => {
+    let answer;
+    reviews.getForGroup.mockImplementationOnce(() => new Promise((_, reject) => { answer = reject; }));
+    await renderPage(meetup());
+    await waitFor(() => expect(reviews.getForGroup).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: NOT_HELD })).not.toBeInTheDocument();
+    await act(async () => { answer(new Error('404')); });
+    expect(await screen.findByRole('button', { name: NOT_HELD })).toBeInTheDocument();
+  });
+
   it('8 people — „Wer war dabei?“ covers it — no pill', async () => {
     await renderPage(meetup({ members_count: 8 }));
+    await settled();
     expect(screen.queryByRole('button', { name: NOT_HELD })).not.toBeInTheDocument();
   });
 
@@ -233,6 +269,19 @@ describe('GroupDetail — „Hat nicht stattgefunden" for the owner of a big pas
     reviews.getForGroup.mockResolvedValueOnce({ data: { group_id: 42, group_name: 'Laufen', members: [{ id: 5, name: 'Mia' }] } });
     await renderPage(meetup());
     expect(await screen.findByRole('button', { name: /Wer war dabei/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: NOT_HELD })).not.toBeInTheDocument();
+  });
+
+  // 9 members today, at most 8 on the event day (the server counts that day):
+  // the review was offered, and once answered the owner's answer is on record.
+  it('…nor after that review\'s modal has closed', async () => {
+    reviews.getForGroup.mockResolvedValueOnce({ data: { group_id: 42, group_name: 'Laufen', members: [{ id: 5, name: 'Mia' }] } });
+    await renderPage(meetup());
+    fireEvent.click(await screen.findByRole('button', { name: /Wer war dabei/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Fertig' }));
+    await waitFor(() => expect(reviews.submit).toHaveBeenCalledWith(42, []));
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Wer war dabei/ })).not.toBeInTheDocument());
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
     expect(screen.queryByRole('button', { name: NOT_HELD })).not.toBeInTheDocument();
   });
 
@@ -245,6 +294,7 @@ describe('GroupDetail — „Hat nicht stattgefunden" for the owner of a big pas
       { date: dayAt19(3) },                                    // ahead
     ]) {
       await renderPage(meetup(over));
+      await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
       expect(screen.queryByRole('button', { name: NOT_HELD })).not.toBeInTheDocument();
       cleanup();
     }

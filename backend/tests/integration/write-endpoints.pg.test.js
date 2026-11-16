@@ -5834,6 +5834,24 @@ suite('write endpoints against real Postgres', () => {
       expect((await db.query('SELECT did_not_take_place FROM groups WHERE id = $1', [gid])).rows[0].did_not_take_place).toBe(true);
     });
 
+    // Review 16.11.2026: the owner's „Hat nicht stattgefunden“ pill needs to
+    // know whether their answer is already on record — not_held after one is
+    // turned away (409) before its own branch.
+    it('the event page tells its owner (only) whether their answer is on record', async () => {
+      const gid = await mkMeetup(P.slice(0, 7));
+      const page = async (uid) => {
+        const res = await call(C.getGroupById, { userId: uid, params: { id: String(gid) } });
+        ok(res);
+        return res.body;
+      };
+      expect((await page(O)).has_reviewed).toBe(false);
+      expect((await page(P[0])).has_reviewed).toBeUndefined();
+      ok(await call(C.submitReview, { userId: O, body: {
+        group_id: gid, attendances: [{ user_id: P[0], was_present: true }] } }));
+      expect((await page(O)).has_reviewed).toBe(true);
+      expect((await call(C.submitReview, { userId: O, body: { group_id: gid, not_held: true } })).statusCode).toBe(409);
+    });
+
     it('a late joiner does not count: 8 in time plus one afterwards is still asked', async () => {
       const gid = await mkMeetup(P.slice(0, 7));
       await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, [gid, P[7]]); // joined NOW

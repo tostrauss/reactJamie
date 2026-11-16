@@ -199,6 +199,11 @@ export const GroupDetail = () => {
   // popup is one-shot; this is the way back in after skipping/closing).
   const [reviewPayload, setReviewPayload] = useState(null);
   const [reviewOpen, setReviewOpen] = useState(false);
+  // Which group the review check below has settled for, and whether it
+  // offered a review. The not-held pill waits for it (no flash while it
+  // loads), and stays away for good once a review was offered — after its
+  // modal closes too (review 16.11.2026).
+  const [reviewCheck, setReviewCheck] = useState({ groupId: null, offered: false });
   // The owner's „Hat nicht stattgefunden“ on a big past meetup is on its way.
   const [notHeldBusy, setNotHeldBusy] = useState(false);
 
@@ -274,12 +279,22 @@ export const GroupDetail = () => {
     const ended = group?.date && (new Date(group.date).getTime() + 6 * 60 * 60 * 1000 < Date.now());
     if (!group || group.type !== 'group' || !isJoined || group.is_recurring_weekly || !ended) {
       setReviewPayload(null);
+      setReviewCheck({ groupId: group?.id ?? null, offered: false });
       return;
     }
     let cancelled = false;
     reviews.getForGroup(group.id)
-      .then(r => { if (!cancelled) setReviewPayload(r.data); })
-      .catch(() => { if (!cancelled) setReviewPayload(null); });
+      .then(r => {
+        if (cancelled) return;
+        setReviewPayload(r.data);
+        setReviewCheck({ groupId: group.id, offered: true });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setReviewPayload(null);
+        // A re-run after the review was answered 404s — it was offered all the same.
+        setReviewCheck(c => (c.groupId === group.id ? c : { groupId: group.id, offered: false }));
+      });
     return () => { cancelled = true; };
   }, [group, isJoined]);
 
@@ -300,6 +315,9 @@ export const GroupDetail = () => {
       setGroup(g => ({ ...g, did_not_take_place: true }));
       toast.success(t('groups.detail.notHeld.done'));
     } catch (error) {
+      // 409: the server already has the owner's answer (another tab, another
+      // device) — the pill cannot work any more, so it goes.
+      if (error?.response?.status === 409) setGroup(g => ({ ...g, has_reviewed: true }));
       toast.error(serverErrorMessage(error, t, 'errors.generic'));
     } finally {
       setNotHeldBusy(false);
@@ -609,9 +627,13 @@ export const GroupDetail = () => {
     && !!group.date && utcDayStart(new Date(group.date)) < utcDayStart(new Date())
     && new Date(group.date).getTime() + 6 * 60 * 60 * 1000 <= Date.now();
   // Only where „Wer war dabei?“ is not asked: more than REVIEW_MAX_PARTICIPANTS
-  // people (the owner counts, like on the card) — and never next to a review
-  // the server still offers, whose modal carries the same button.
-  const offerNotHeld = ownPastMeetup && !group.did_not_take_place && !reviewPayload
+  // people (the owner counts, like on the card) — and never where the server
+  // offered a review (its modal carries the same button; after the modal the
+  // owner's answer is on record), nor before that check has settled. Not
+  // once the owner has answered (has_reviewed): submitReview refuses a second
+  // answer, this one included, with 409.
+  const offerNotHeld = ownPastMeetup && !group.did_not_take_place && !group.has_reviewed
+    && reviewCheck.groupId === group.id && !reviewCheck.offered
     && (group.members_count || 0) > REVIEW_MAX_PARTICIPANTS;
 
   return (

@@ -1084,6 +1084,18 @@ export const getGroupById = async (req, res) => {
         );
         group.pending_request_count = pend.rows[0]?.c || 0;
       }
+      // Owner of a meetup only: is their answer to „Wer war dabei?“ already
+      // on record (the event_reviews sentinel)? submitReview then refuses any
+      // second one with 409 — „Hat nicht stattgefunden“ too, its branch runs
+      // after that check — so the event page must not offer that pill to an
+      // owner who has answered (review 16.11.2026).
+      if (group.type === 'group' && Number(group.owner_id) === Number(req.userId)) {
+        const reviewed = await db.query(
+          'SELECT 1 FROM event_reviews WHERE group_id = $1 AND reviewer_id = $2 LIMIT 1',
+          [id, req.userId]
+        );
+        group.has_reviewed = reviewed.rows.length > 0;
+      }
     }
 
     res.json(group);
