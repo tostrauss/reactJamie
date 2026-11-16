@@ -368,7 +368,9 @@
       "weeklyTitle": "Evento semanal recurrente",
       "joinAria": "Unirse",
       "publicBadge": "Público",
-      "privateBadge": "Privado"
+      "privateBadge": "Privado",
+      "partnerBadge": "Partner",
+      "partnerAria": "Evento de un partner de JAMIE"
     },
     "detail": {
       "loading": "Cargando...",

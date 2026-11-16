@@ -7,6 +7,7 @@ import { connectSpotify } from '../utils/spotifyAuth';
 import { isNativeIOS } from '../utils/platform';
 import { useToast } from '../context/ToastContext';
 import SpotifySongPicker from '../components/SpotifySongPicker';
+import StarIcon from '../components/StarIcon';
 import { ImageCropModal } from '../components/ImageCropModal';
 import { downscaleImageFile } from '../utils/images';
 import { movePhoto, joinProfilePhotos, splitProfilePhotos } from '../utils/photoOrder';
@@ -576,9 +577,7 @@ export const ProfileEdit = () => {
         {/* Interessen */}
         <div className="settings-section">
           <h3 className="settings-section-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-            </svg>
+            <StarIcon />
             {t('profileEdit.sections.interests')}
             <span className="pe-interest-count">{t('profileEdit.interestsCountFmt', { count: formData.interests.length })}</span>
           </h3>

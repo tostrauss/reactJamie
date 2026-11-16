@@ -20,6 +20,7 @@ import { restorePurchases, openAppleSubscriptions } from '../utils/iap';
 import { PasswordInput } from '../components/PasswordInput';
 import { FeedbackModal } from '../components/FeedbackModal';
 import { NewsPushToggle } from '../components/NewsPushToggle';
+import StarIcon from '../components/StarIcon';
 import { useAppVersion } from '../hooks/useAppVersion';
 import '../styles/profile.css';
 
@@ -497,9 +498,7 @@ export const SettingsPage = () => {
             onClick={() => window.dispatchEvent(new Event('jamie:open-pro-modal'))}
           >
             <div className="settings-row-left">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-coral)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-              </svg>
+              <StarIcon size={18} stroke="var(--accent-coral)" strokeLinecap="round" strokeLinejoin="round" />
               <div className="settings-row-stacked">
                 <span style={{ color: 'var(--accent-coral)', fontWeight: 600 }}>
                   {t('settings.account.proTitle')}
@@ -603,9 +602,7 @@ export const SettingsPage = () => {
       {sub?.is_pro && (
         <div className="settings-section">
           <h3 className="settings-section-title">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-            </svg>
+            <StarIcon />
             {t('settings.sections.subscription')}
           </h3>
 
@@ -867,9 +864,7 @@ export const SettingsPage = () => {
       {/* Favoriten */}
       <div className="settings-section">
         <h3 className="settings-section-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-          </svg>
+          <StarIcon />
           {t('settings.sections.favorites')}
         </h3>
 

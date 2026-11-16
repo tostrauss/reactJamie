@@ -11,6 +11,7 @@ import { ReportModal } from '../components/ReportModal';
 import { MapsChooser } from '../components/MapsChooser';
 import { UserName } from '../components/UserName';
 import VerifiedBadge from '../components/VerifiedBadge';
+import StarIcon from '../components/StarIcon';
 import { AttendanceTierBadge } from '../components/AttendanceTierBadge';
 import { EventReviewModal } from '../components/EventReviewModal';
 import AvatarGateModal from '../components/AvatarGateModal';
@@ -861,9 +862,7 @@ export const GroupDetail = () => {
             <div className="gd-info-row">
               {group.skill_level && group.skill_level !== 'Alle Levels' && (
                 <span className="gd-info-item">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="#FD7666" stroke="none">
-                    <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
-                  </svg>
+                  <StarIcon size={13} fill="#FD7666" stroke="none" />
                   {t('groups.detail.info.level', { level: group.skill_level })}
                 </span>
               )}

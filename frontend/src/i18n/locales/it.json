@@ -368,7 +368,9 @@
       "weeklyTitle": "Evento ricorrente settimanale",
       "joinAria": "Unisciti",
       "publicBadge": "Pubblico",
-      "privateBadge": "Privato"
+      "privateBadge": "Privato",
+      "partnerBadge": "Partner",
+      "partnerAria": "Evento di un partner JAMIE"
     },
     "detail": {
       "loading": "Caricamento...",

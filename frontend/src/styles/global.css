@@ -194,6 +194,16 @@
   --accent-club: #a855f7;
   --accent-club-light: #c084fc;   /* text/rings on dark backgrounds */
   --accent-club-rgb: 168, 85, 247; /* for rgba(var(--accent-club-rgb), α) */
+  /* Partner accent (Tina 16.11.2026): pastel yellow for „☆ Partner" — an
+     official club's own events (backend utils/clubGate.js partnerSql). Lines
+     and borders at 55 % (on --bg-card that reads #9B8974), text and star at
+     100 % (≈ 12:1); never a yellow fill, at most a ~10 % tint — 55 % as a
+     fill or text colour is exactly the khaki of the rejected Mock 1. Profile
+     rings at 100 %. Always these tokens, never a literal. */
+  --accent-partner: #F9E296;
+  --accent-partner-rgb: 249, 226, 150; /* for rgba(var(--accent-partner-rgb), α) */
+  --partner-line: rgba(var(--accent-partner-rgb), 0.55);
+  --partner-text: var(--accent-partner);
   /* Alias — lots of pages reference var(--coral); without this it resolves
      to nothing and the elements silently inherit their parent color. */
   --coral: var(--accent-coral);
@@ -345,6 +355,57 @@ select:focus-visible {
   text-transform: uppercase;
   color: #d0ac52;
   white-space: nowrap;
+}
+
+/* „☆ Partner" badge (components/PartnerBadge.jsx, Tina 16.11.2026): outline
+   and text in the partner yellow, never a yellow fill (see the
+   --accent-partner tokens). Global: feed card, event page and profile share
+   it. Shrinks with an ellipsis rather than widening its row. */
+.partner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--partner-text);
+  font-weight: 700;
+  white-space: nowrap;
+}
+.partner-badge-star { flex-shrink: 0; }
+.partner-badge-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Bottom-left tab on a Gruppen-feed card — the mirror image of the date badge
+   top right (.card-badge, home.css): same 10px type, the card's own
+   background instead of a fill, a 55 % line on its two inner edges; the
+   card's partner border draws the outer two. */
+.partner-badge--tab {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 10;
+  padding: 2px 8px 2px 7px;
+  font-size: 10px;
+  line-height: 12px;
+  background: var(--bg-card);
+  border-top: 1px solid var(--partner-line);
+  border-right: 1px solid var(--partner-line);
+  border-radius: 0 var(--radius-full) 0 19px;
+  pointer-events: none;
+}
+
+/* Pill next to the category on the event page (.gd-category-eyebrow): same
+   height and corner, a ~8 % tint at most. */
+.partner-badge--pill {
+  padding: 3px 10px 3px 8px;
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  border: 1px solid var(--partner-line);
+  border-radius: 8px;
+  background: rgba(var(--accent-partner-rgb), 0.08);
 }
 
 /* Google Places Autocomplete dropdown — inject-on-body element. Lift it above

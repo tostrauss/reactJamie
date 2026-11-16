@@ -368,7 +368,9 @@
       "weeklyTitle": "Wöchentlich wiederkehrendes Event",
       "joinAria": "Beitreten",
       "publicBadge": "Öffentlich",
-      "privateBadge": "Privat"
+      "privateBadge": "Privat",
+      "partnerBadge": "Partner",
+      "partnerAria": "Event eines JAMIE-Partners"
     },
     "detail": {
       "loading": "Laden...",
