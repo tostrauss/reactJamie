@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
 import AvatarGateModal from '../components/AvatarGateModal';
 import { nextOccurrence } from '../utils/recurrence';
+import { formatEventDate, eventDateLocale } from '../utils/eventDate';
 import { shareLink } from '../utils/share';
 import { serverErrorMessage } from '../utils/apiError';
 import { openCalendar } from '../utils/calendarExport';
@@ -24,21 +25,7 @@ const nowTime = () => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-const formatEventDate = (dateStr, locale) => {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (isNaN(d)) return null;
-  // Event start times are stored as a naive wall-clock (`${date}T${time}`, e.g.
-  // 10:00). On a UTC server that value round-trips to the client tagged UTC, so
-  // formatting in the device's local zone shifted it +1/+2h (CEST) — "10 Uhr"
-  // showed as "12 Uhr" after saving. Format in UTC so the displayed time/day
-  // equals exactly what the creator typed.
-  return {
-    day: d.getUTCDate(),
-    month: d.toLocaleDateString(locale, { month: 'short', timeZone: 'UTC' }),
-    time: d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
-  };
-};
+// formatEventDate (UTC, the stored wall-clock) lives in utils/eventDate.js.
 
 // Google Calendar export — see utils/calendarExport.js for the +2h fix.
 
@@ -49,7 +36,7 @@ export const ClubDetail = () => {
   const toast = useToast();
   const { t, i18n } = useTranslation();
   usePaymentsConfig(); // re-render when the runtime payments config arrives
-  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : ((i18n.resolvedLanguage || i18n.language || 'de').startsWith('fr') ? 'fr-FR' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('es') ? 'es-ES' : 'de-AT');
+  const dateLocale = eventDateLocale(i18n.resolvedLanguage || i18n.language);
 
   const [club, setClub] = useState(null);
   const [members, setMembers] = useState([]);

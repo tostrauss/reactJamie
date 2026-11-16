@@ -19,6 +19,7 @@ import AvatarGateModal from '../components/AvatarGateModal';
 import DailyLimitModal from '../components/DailyLimitModal';
 import { ChatNudgeSheet } from '../components/ChatNudgeSheet';
 import { nextOccurrence, utcDayStart, viennaTodayUTC } from '../utils/recurrence';
+import { formatEventDate, eventDateLocale } from '../utils/eventDate';
 import { shareLink } from '../utils/share';
 import { openCalendar } from '../utils/calendarExport';
 import { proUpsellAllowed } from '../utils/platform';
@@ -104,7 +105,7 @@ function GroupMiniMap({ lat, lng }) {
 // (Tina, 2026-06-12) — same behavior the Home cards already have. Reuses the
 // groups.card.* keys so card and detail page always say the same word.
 // UTC on both sides — `d` is a Vienna wall-clock value tagged UTC, exactly as
-// formatEventDate below already assumes. Reading it with the local getters put
+// formatEventDate already assumes. Reading it with the local getters put
 // a 22:00 event on the next calendar day, so this header said "Morgen" while
 // the info row four lines down said "15. Sep, 22:00" — two contradictory days
 // on one screen (finding 18).
@@ -136,20 +137,6 @@ const formatShortDate = (dateStr, t) => {
   return `${d.getUTCDate()}.${d.getUTCMonth() + 1}.`;
 };
 
-const formatEventDate = (dateStr, locale) => {
-  if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (isNaN(d)) return null;
-  // Event start times are stored as a naive wall-clock; on the UTC server that
-  // value round-trips tagged UTC, so formatting in the device's local zone
-  // shifted it +1/+2h (CEST) — same bug as ClubDetail's formatEventDate.
-  // Format in UTC so the displayed time equals exactly what was typed.
-  const day = d.getUTCDate();
-  const month = d.toLocaleDateString(locale, { month: 'short', timeZone: 'UTC' });
-  const time = d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
-  return { day, month, time };
-};
-
 const today = () => {
   const d = new Date();
   return d.toISOString().split('T')[0];
@@ -166,7 +153,7 @@ export const GroupDetail = () => {
   const toast = useToast();
   const { t, i18n } = useTranslation();
   usePaymentsConfig(); // re-render when the runtime payments config arrives
-  const dateLocale = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en-US' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('it') ? 'it-IT' : ((i18n.resolvedLanguage || i18n.language || 'de').startsWith('fr') ? 'fr-FR' : (i18n.resolvedLanguage || i18n.language || 'de').startsWith('es') ? 'es-ES' : 'de-AT');
+  const dateLocale = eventDateLocale(i18n.resolvedLanguage || i18n.language);
 
   const [group, setGroup] = useState(null);
   const [members, setMembers] = useState([]);
