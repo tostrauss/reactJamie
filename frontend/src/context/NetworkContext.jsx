@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import useSwipeDismiss from '../hooks/useSwipeDismiss';
 
@@ -36,11 +36,16 @@ export const NetworkProvider = ({ children }) => {
 // often not announced at all by VoiceOver/TalkBack. Empty while online; once
 // per offline spell it reads „Keine Internetverbindung“, whatever happens to
 // the banner. Visually hidden (global.css .offline-status).
+// The text only ever comes after the region is in the page — also on a cold
+// start without a network, where isOnline is false from the first render and
+// the region used to arrive together with its text after all.
 const OfflineStatus = ({ isOnline }) => {
   const { t } = useTranslation();
+  const [text, setText] = useState('');
+  useEffect(() => { setText(isOnline ? '' : t('app.connection.offline')); }, [isOnline, t]);
   return (
     <div className="sr-only offline-status" role="status" aria-live="polite">
-      {isOnline ? '' : t('app.connection.offline')}
+      {text}
     </div>
   );
 };
@@ -54,6 +59,10 @@ const OfflineBanner = () => {
   // every auth consumer on a swipe.
   const [dismissed, setDismissed] = useState(false);
   const { ref, handlers } = useSwipeDismiss({ onDismiss: () => setDismissed(true) });
+  // Where the focus was before it came onto the banner (Tab, Shift+Tab):
+  // closing it by keyboard hands it back there instead of dropping it onto
+  // <body>, where the next Tab starts over at the top (review 16.11.2026).
+  const focusFrom = useRef(null);
 
   // While it shows, the toasts start below it instead of covering it: its
   // measured height goes onto <html> (global.css, :root[data-offline-banner]).
@@ -90,10 +99,12 @@ const OfflineBanner = () => {
       {...handlers}
       // A tap works too — the one-finger alternative to the swipe.
       onClick={() => setDismissed(true)}
+      onFocus={(e) => { focusFrom.current = e.relatedTarget; }}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           setDismissed(true);
+          if (focusFrom.current?.isConnected) focusFrom.current.focus();
         }
       }}
     >

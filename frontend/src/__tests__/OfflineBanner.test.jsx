@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { useLayoutEffect } from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { NetworkProvider } from '../context/NetworkContext';
 
@@ -58,6 +59,26 @@ describe('offline banner', () => {
     expect(region).toBeEmptyDOMElement();
   });
 
+  // Review 16.11.2026: offline from the first render (a PWA or the iOS
+  // bundle started in flight mode) — the region came with its text.
+  it('a cold start without a network: the region is mounted empty first, its text follows', () => {
+    Object.defineProperty(window.navigator, 'onLine', { configurable: true, get: () => false });
+    try {
+      let atFirstCommit = null;
+      const Probe = () => {
+        // Layout effects run once this commit's DOM is in place.
+        useLayoutEffect(() => { atFirstCommit = document.querySelector('.offline-status').textContent; }, []);
+        return null;
+      };
+      render(<NetworkProvider><Probe /></NetworkProvider>);
+      expect(atFirstCommit).toBe('');
+      expect(screen.getByRole('status')).toHaveTextContent(OFFLINE);
+      expect(banner()).toHaveTextContent(OFFLINE);
+    } finally {
+      delete window.navigator.onLine;   // the prototype's getter again
+    }
+  });
+
   it('is a button that says what it does — Enter or Space hides it', () => {
     render(<NetworkProvider><div /></NetworkProvider>);
     goOffline();
@@ -72,6 +93,19 @@ describe('offline banner', () => {
     goOffline();
     fireEvent.keyDown(banner(), { key: ' ' });
     expect(banner()).toBeNull();
+  });
+
+  // Review 16.11.2026: closed by keyboard, the focus went to <body>.
+  it('closed by keyboard, the focus goes back where it came from', () => {
+    render(<NetworkProvider><button type="button">Davor</button></NetworkProvider>);
+    goOffline();
+    const before = screen.getByRole('button', { name: 'Davor' });
+    before.focus();
+    fireEvent.focus(banner(), { relatedTarget: before });   // Tab onto the banner
+    banner().focus();
+    fireEvent.keyDown(banner(), { key: 'Enter' });
+    expect(banner()).toBeNull();
+    expect(document.activeElement).toBe(before);
   });
 
   it('other keys leave it alone', () => {
