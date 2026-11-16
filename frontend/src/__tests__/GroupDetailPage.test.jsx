@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, act, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { render, screen, act, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
@@ -10,10 +10,11 @@ import { AuthContext } from '../context/AuthContext';
 // now does, a club's co-manager on a member's event no longer gets a button
 // that only 403'd. Real German i18n.
 const state = vi.hoisted(() => ({ group: null }));
+const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), info: vi.fn() }));
 
 vi.mock('../utils/platform', () => ({ proUpsellAllowed: () => false }));
 vi.mock('../utils/paymentsConfig', () => ({ usePaymentsConfig: () => {} }));
-vi.mock('../context/ToastContext', () => ({ useToast: () => ({ error: vi.fn(), success: vi.fn(), info: vi.fn() }) }));
+vi.mock('../context/ToastContext', () => ({ useToast: () => toast }));
 vi.mock('../utils/api', () => ({
   groups: {
     getById: vi.fn(() => Promise.resolve({ data: state.group })),
@@ -21,9 +22,13 @@ vi.mock('../utils/api', () => ({
     getFavorites: vi.fn(() => Promise.resolve({ data: [] })),
   },
   clubs: {},
-  reviews: { getForGroup: vi.fn(() => Promise.reject(new Error('404'))) },
+  reviews: {
+    getForGroup: vi.fn(() => Promise.reject(new Error('404'))),
+    notHeld: vi.fn(() => Promise.resolve({ data: { success: true, not_held: true } })),
+  },
 }));
 
+const { reviews } = await import('../utils/api');
 const { GroupDetail } = await import('../pages/GroupDetail');
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -169,5 +174,85 @@ describe('GroupDetail — „Anfragen ansehen" only for who may open the list', 
       type: 'group', parent_club_id: null, is_private: true, joins_by_request: true, pending_request_count: 1,
     }));
     expect(screen.getByRole('button', { name: 'Anfragen ansehen (1)' })).toBeInTheDocument();
+  });
+});
+
+// Decision 4 (Tina 16.11.2026): „Wer war dabei?“ — until now the only way to
+// „Hat nicht stattgefunden“ — is asked only about meetups of at most 8
+// people. The owner of a bigger past one gets a quiet pill on the event page
+// instead; the server's not_held branch runs before its size gate.
+describe('GroupDetail — „Hat nicht stattgefunden" for the owner of a big past meetup', () => {
+  const NOT_HELD = 'Hat nicht stattgefunden';
+  const STATE = '✓ Als „nicht stattgefunden“ gemeldet';
+  const meetup = (over = {}) => clubEvent({
+    type: 'group', name: 'Laufen', parent_club_id: null, is_manager: true,
+    members_count: 9, date: dayAt19(-3), ...over,
+  });
+  let confirmSpy;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  });
+  afterEach(() => { confirmSpy.mockRestore(); });
+
+  it('9 people: the pill, a confirm naming the meetup, the flag — then the page says so', async () => {
+    await renderPage(meetup());
+    fireEvent.click(screen.getByRole('button', { name: NOT_HELD }));
+    expect(confirmSpy).toHaveBeenCalledWith(
+      '„Laufen“ hat nicht stattgefunden? Dann verschwindet das Treffen für alle aus den Memories. Das lässt sich nicht rückgängig machen.',
+    );
+    await waitFor(() => expect(reviews.notHeld).toHaveBeenCalledWith(42));
+    expect(await screen.findByText(STATE)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: NOT_HELD })).not.toBeInTheDocument();
+    expect(toast.success).toHaveBeenCalledWith('Danke – das Treffen ist jetzt als „nicht stattgefunden“ markiert.');
+  });
+
+  it('cancelling the confirm sends nothing', async () => {
+    confirmSpy.mockReturnValue(false);
+    await renderPage(meetup());
+    fireEvent.click(screen.getByRole('button', { name: NOT_HELD }));
+    expect(reviews.notHeld).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: NOT_HELD })).toBeInTheDocument();
+  });
+
+  it('a refusal keeps the pill and says why (the server\'s reason)', async () => {
+    reviews.notHeld.mockRejectedValueOnce({ response: { status: 409, data: { error: 'Bereits bewertet' } } });
+    await renderPage(meetup());
+    fireEvent.click(screen.getByRole('button', { name: NOT_HELD }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Bereits bewertet'));
+    expect(screen.getByRole('button', { name: NOT_HELD })).toBeInTheDocument();
+    expect(screen.queryByText(STATE)).not.toBeInTheDocument();
+  });
+
+  it('8 people — „Wer war dabei?“ covers it — no pill', async () => {
+    await renderPage(meetup({ members_count: 8 }));
+    expect(screen.queryByRole('button', { name: NOT_HELD })).not.toBeInTheDocument();
+  });
+
+  it('never next to a review the server still offers (its modal has the same button)', async () => {
+    reviews.getForGroup.mockResolvedValueOnce({ data: { group_id: 42, group_name: 'Laufen', members: [{ id: 5, name: 'Mia' }] } });
+    await renderPage(meetup());
+    expect(await screen.findByRole('button', { name: /Wer war dabei/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: NOT_HELD })).not.toBeInTheDocument();
+  });
+
+  it('only the owner, only a one-off meetup that is over', async () => {
+    for (const over of [
+      { owner_id: 99, is_manager: false },                    // a member
+      { type: 'event', parent_club_id: 7 },                    // a club event
+      { is_recurring_weekly: true },                           // a weekly series
+      { date: dayAt19(0) },                                    // tonight
+      { date: dayAt19(3) },                                    // ahead
+    ]) {
+      await renderPage(meetup(over));
+      expect(screen.queryByRole('button', { name: NOT_HELD })).not.toBeInTheDocument();
+      cleanup();
+    }
+  });
+
+  it('already flagged: the state, no pill', async () => {
+    await renderPage(meetup({ did_not_take_place: true }));
+    expect(screen.getByText(STATE)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: NOT_HELD })).not.toBeInTheDocument();
   });
 });

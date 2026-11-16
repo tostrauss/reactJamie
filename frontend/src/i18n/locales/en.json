@@ -381,6 +381,11 @@
       "calendar": "Calendar",
       "shareLinkCopied": "Link copied!",
       "reviewAttendance": "Who was there?",
+      "notHeld": {
+        "confirm": "“{{name}}” didn't take place? Then the meetup disappears from everyone's Memories. This can't be undone.",
+        "done": "Thanks – the meetup is now marked as “didn't take place”.",
+        "state": "Reported as “didn't take place”"
+      },
       "actions": {
         "joinPublic": "Join",
         "joinPrivate": "Request to join",

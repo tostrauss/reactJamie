@@ -381,6 +381,11 @@
       "calendar": "Calendrier",
       "shareLinkCopied": "Lien copié !",
       "reviewAttendance": "Qui était là ?",
+      "notHeld": {
+        "confirm": "« {{name}} » n'a pas eu lieu ? La rencontre disparaîtra alors des Memories de tout le monde. C'est irréversible.",
+        "done": "Merci – la rencontre est maintenant marquée « n'a pas eu lieu ».",
+        "state": "Signalée comme « n'a pas eu lieu »"
+      },
       "actions": {
         "joinPublic": "Rejoindre",
         "joinPrivate": "Demander à rejoindre",

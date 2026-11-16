@@ -644,6 +644,26 @@
 .gd-action-pill:active { background: var(--bg-hover); transform: scale(0.96); }
 .gd-action-pill.active { color: var(--accent-coral); }
 
+/* „Hat nicht stattgefunden“ for the owner of a past meetup of more than 8
+   people (Tina 16.11.2026): smaller and without a fill — a correction, not
+   an action anyone should be drawn to. Afterwards the same row says so. */
+.gd-action-pill--quiet {
+  height: 40px;
+  padding: 0 18px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.gd-action-pill--quiet:disabled { opacity: 0.6; cursor: default; }
+.gd-not-held-state {
+  flex-basis: 100%;
+  margin: 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
 /* Club cover image (replaces photo grid for clubs that have image_url) */
 .gd-club-cover {
   border-radius: 20px;

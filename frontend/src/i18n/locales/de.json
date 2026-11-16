@@ -381,6 +381,11 @@
       "calendar": "Kalender",
       "shareLinkCopied": "Link kopiert!",
       "reviewAttendance": "Wer war dabei?",
+      "notHeld": {
+        "confirm": "„{{name}}“ hat nicht stattgefunden? Dann verschwindet das Treffen für alle aus den Memories. Das lässt sich nicht rückgängig machen.",
+        "done": "Danke – das Treffen ist jetzt als „nicht stattgefunden“ markiert.",
+        "state": "Als „nicht stattgefunden“ gemeldet"
+      },
       "actions": {
         "joinPublic": "Beitreten",
         "joinPrivate": "Beitritt anfragen",

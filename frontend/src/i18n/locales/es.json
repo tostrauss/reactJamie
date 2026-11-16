@@ -381,6 +381,11 @@
       "calendar": "Calendario",
       "shareLinkCopied": "¡Enlace copiado!",
       "reviewAttendance": "¿Quién estuvo?",
+      "notHeld": {
+        "confirm": "¿«{{name}}» no se realizó? Entonces el encuentro desaparece de las Memories de todos. No se puede deshacer.",
+        "done": "Gracias: el encuentro ahora está marcado como «no se realizó».",
+        "state": "Marcado como «no se realizó»"
+      },
       "actions": {
         "joinPublic": "Unirse",
         "joinPrivate": "Solicitar unirse",

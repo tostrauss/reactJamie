@@ -381,6 +381,11 @@
       "calendar": "Calendario",
       "shareLinkCopied": "Link copiato!",
       "reviewAttendance": "Chi c'era?",
+      "notHeld": {
+        "confirm": "«{{name}}» non si è svolto? Allora l'incontro sparisce dalle Memories di tutti. Non si può annullare.",
+        "done": "Grazie – l'incontro ora è segnato come «non si è svolto».",
+        "state": "Segnalato come «non si è svolto»"
+      },
       "actions": {
         "joinPublic": "Unisciti",
         "joinPrivate": "Richiedi di entrare",

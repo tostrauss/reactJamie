@@ -21,6 +21,7 @@ import DailyLimitModal from '../components/DailyLimitModal';
 import { ChatNudgeSheet } from '../components/ChatNudgeSheet';
 import { nextOccurrence, utcDayStart, viennaTodayUTC } from '../utils/recurrence';
 import { formatEventDate, eventDateLocale } from '../utils/eventDate';
+import { REVIEW_MAX_PARTICIPANTS } from '../utils/attendanceTiers';
 import { shareLink } from '../utils/share';
 import { openCalendar } from '../utils/calendarExport';
 import { proUpsellAllowed } from '../utils/platform';
@@ -198,6 +199,8 @@ export const GroupDetail = () => {
   // popup is one-shot; this is the way back in after skipping/closing).
   const [reviewPayload, setReviewPayload] = useState(null);
   const [reviewOpen, setReviewOpen] = useState(false);
+  // The owner's „Hat nicht stattgefunden“ on a big past meetup is on its way.
+  const [notHeldBusy, setNotHeldBusy] = useState(false);
 
   // Club events state
   const [events, setEvents] = useState([]);
@@ -279,6 +282,29 @@ export const GroupDetail = () => {
       .catch(() => { if (!cancelled) setReviewPayload(null); });
     return () => { cancelled = true; };
   }, [group, isJoined]);
+
+  // „Hat nicht stattgefunden“ straight from the event page (Tina 16.11.2026,
+  // decision 4): „Wer war dabei?“ — the review modal, the only way to this
+  // flag until now — is asked only about meetups of at most
+  // REVIEW_MAX_PARTICIPANTS people, so the owner of a bigger one had no way
+  // to say it never happened, and it stayed in Memories and the Hall of Fame.
+  // The server's not_held branch runs before its size gate (reviewController
+  // submitReview); an owner's report flags the meetup for everyone. No undo
+  // exists — hence the confirm.
+  const handleNotHeld = async () => {
+    if (notHeldBusy) return;
+    if (!window.confirm(t('groups.detail.notHeld.confirm', { name: group?.name || group?.title || '' }))) return;
+    setNotHeldBusy(true);
+    try {
+      await reviews.notHeld(group.id);
+      setGroup(g => ({ ...g, did_not_take_place: true }));
+      toast.success(t('groups.detail.notHeld.done'));
+    } catch (error) {
+      toast.error(serverErrorMessage(error, t, 'errors.generic'));
+    } finally {
+      setNotHeldBusy(false);
+    }
+  };
 
   const handleFavoriteToggle = async () => {
     const wasFav = isFavorited;
@@ -575,6 +601,18 @@ export const GroupDetail = () => {
   // own past-check (CURRENT_DATE on Railway) runs on the UTC day; the up to
   // 2 h between the two only decide when after midnight the pill goes.
   const dayOver = !!displayDateISO && utcDayStart(new Date(displayDateISO)) < viennaTodayUTC();
+  // The owner's own one-off meetup, over by the server's rule for the flag
+  // (submitReview: its date before the server's day — UTC on Railway — and
+  // 6 h past its start; earlier the server answers 400). Then the page may
+  // offer „Hat nicht stattgefunden“ (handleNotHeld) or show that it was.
+  const ownPastMeetup = group.type === 'group' && isOwner && isJoined && !group.is_recurring_weekly
+    && !!group.date && utcDayStart(new Date(group.date)) < utcDayStart(new Date())
+    && new Date(group.date).getTime() + 6 * 60 * 60 * 1000 <= Date.now();
+  // Only where „Wer war dabei?“ is not asked: more than REVIEW_MAX_PARTICIPANTS
+  // people (the owner counts, like on the card) — and never next to a review
+  // the server still offers, whose modal carries the same button.
+  const offerNotHeld = ownPastMeetup && !group.did_not_take_place && !reviewPayload
+    && (group.members_count || 0) > REVIEW_MAX_PARTICIPANTS;
 
   return (
     <div className="gd-page">
@@ -1195,6 +1233,22 @@ export const GroupDetail = () => {
                 </svg>
                 {t('groups.detail.reviewAttendance')}
               </button>
+            )}
+
+            {/* Owner of a big past meetup (Tina 16.11.2026): quieter than the
+                pills beside it — a correction, not an invitation. */}
+            {offerNotHeld && (
+              <button
+                type="button"
+                className="gd-action-pill gd-action-pill--quiet"
+                onClick={handleNotHeld}
+                disabled={notHeldBusy}
+              >
+                {t('eventReview.notHeld')}
+              </button>
+            )}
+            {ownPastMeetup && group.did_not_take_place && (
+              <p className="gd-not-held-state">✓ {t('groups.detail.notHeld.state')}</p>
             )}
           </div>
         </div>
