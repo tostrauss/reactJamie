@@ -4,20 +4,20 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { GroupRequests } from '../pages/GroupRequests';
 
-// Mock the API — the overview reads groups.getRequests and acts via
-// groups.handleRequest. No real network in tests.
+// Mock the API — the overview reads groups.getRequests (plus groups.getById
+// for the header) and acts via groups.handleRequest. No real network in tests.
 vi.mock('../utils/api', () => ({
   groups: {
     getRequests: vi.fn(),
+    getById: vi.fn(),
     handleRequest: vi.fn().mockResolvedValue({ data: {} }),
     acceptAllRequests: vi.fn().mockResolvedValue({ data: { acceptedIds: [11, 12], skippedNoAvatar: 0, skippedFull: 0 } }),
   },
 }));
 
-// Toast is a no-op in tests (showUndo swallows the undo callback).
-vi.mock('../context/ToastContext', () => ({
-  useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), showUndo: vi.fn() }),
-}));
+// Toast records its calls (showUndo swallows the undo callback).
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), showUndo: vi.fn() }));
+vi.mock('../context/ToastContext', () => ({ useToast: () => toast }));
 
 import { groups } from '../utils/api';
 
@@ -41,6 +41,7 @@ describe('GroupRequests — review-all overview', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     groups.getRequests.mockResolvedValue({ data: REQUESTS });
+    groups.getById.mockResolvedValue({ data: { id: 1, type: 'event', name: 'Punsch Night' } });
     groups.handleRequest.mockResolvedValue({ data: {} });
     groups.acceptAllRequests.mockResolvedValue({ data: { acceptedIds: [11, 12], skippedNoAvatar: 0, skippedFull: 0 } });
   });
@@ -97,6 +98,38 @@ describe('GroupRequests — review-all overview', () => {
     expect(screen.getByRole('img', { name: /mindestens 10-mal bestätigt/ })).toBeInTheDocument();
     // Ben has no step → nothing rendered for him
     expect(screen.getAllByRole('img', { name: /bestätigt dabei/ })).toHaveLength(1);
+  });
+
+  // Ziel 4 (16.11.2026): the owner's push lands here — the header says for
+  // WHICH group or event, and a decline says when it was the last attempt.
+  it('the header names the event, the count under it', async () => {
+    renderPage();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Punsch Night' })).toBeInTheDocument();
+    expect(screen.getByText('2 Anfragen')).toBeInTheDocument();
+  });
+
+  it('without the name (lookup failed) the header stays the count', async () => {
+    groups.getById.mockRejectedValue({ response: { status: 500 } });
+    renderPage();
+    await screen.findByText(/Anna, 24/);
+    expect(screen.getByRole('heading', { level: 1, name: '2 Anfragen' })).toBeInTheDocument();
+  });
+
+  it('a decline that used up the asker\'s last attempt says so (attempts_left 0)', async () => {
+    groups.handleRequest.mockResolvedValue({ data: { status: 'rejected', attempts_left: 0 } });
+    renderPage();
+    await screen.findByText(/Anna, 24/);
+    fireEvent.click(screen.getAllByLabelText('Ablehnen')[0]);
+    await waitFor(() => expect(toast.showUndo).toHaveBeenCalledWith(
+      'Anna wurde abgelehnt – das war die letzte Anfrage', expect.any(Function), 'Rückgängig'));
+  });
+
+  it('…and an ordinary decline stays the short toast', async () => {
+    groups.handleRequest.mockResolvedValue({ data: { status: 'rejected', attempts_left: 1 } });
+    renderPage();
+    await screen.findByText(/Anna, 24/);
+    fireEvent.click(screen.getAllByLabelText('Ablehnen')[0]);
+    await waitFor(() => expect(toast.showUndo).toHaveBeenCalledWith('Anna wurde abgelehnt', expect.any(Function), 'Rückgängig'));
   });
 
   it('"Verifizierte zuerst" ranks a higher Abzeichen-Stufe first among verified applicants (Pro)', async () => {

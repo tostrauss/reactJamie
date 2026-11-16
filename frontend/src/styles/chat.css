@@ -681,6 +681,15 @@
 .swipe-decline { left: -20px; color: var(--status-busy); }
 .swipe-decline span:first-child { background: var(--status-busy); color: white; }
 .swipe-indicator.visible { opacity: 1; }
+/* What the swipe does, under the circle (Ziel 4, Tina 16.11.2026): „Aufnehmen“
+   / „Befreunden“ / „Ablehnen“. On the card's own background so it stays
+   readable over the photo. */
+.swipe-indicator-label {
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--bg-card);
+  white-space: nowrap;
+}
 
 .request-card {
   background: var(--bg-card);
@@ -706,6 +715,109 @@
   aspect-ratio: auto;
   height: 34vh;
   max-height: 300px;
+}
+
+/* The card's type, IN the card so it moves with the swipe (Ziel 4, Tina
+   16.11.2026, RequestCard): a 2px frame and a band on top in the type's
+   colour — coral = group/event, purple = club/community (the avatar rings
+   of the chat list), the partner yellow for a partner's event (its line at
+   55 %, its text at 100 %, like everywhere), neutral for a friend request.
+   Tokens only. */
+.request-card--typed { border: 2px solid var(--request-tone); }
+.request-card--group   { --request-tone: var(--accent-coral); }
+.request-card--club    { --request-tone: var(--accent-club-light); }
+.request-card--partner { --request-tone: var(--partner-line); --request-tone-text: var(--partner-text); }
+.request-card--friend  { --request-tone: var(--text-muted); --request-tone-text: var(--text-white); }
+
+.request-type-band {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--request-tone);
+  text-align: left;
+}
+.request-type-band-thumb {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-input);
+  color: var(--request-tone-text, var(--request-tone));
+  font-size: 16px;
+  font-weight: 800;
+}
+.request-type-band-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.request-type-band-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.request-type-band-top,
+.request-type-band-bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.request-type-band-kind {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--request-tone-text, var(--request-tone));
+}
+.request-type-band-top .chat-type-badge { flex-shrink: 0; margin-top: 0; }
+/* „☆ Partner“ at the size of the type chips beside it. */
+.request-type-band-top .partner-badge--pill {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-radius: var(--radius-full);
+}
+.request-type-band-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-white);
+}
+.request-type-band-date {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.request-type-band-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The band takes ~60px — the photo gives them back, so ✓ / ✕ stay where the
+   31.07. fix put them, above the nav on small phones too. */
+.request-card--typed .request-image-tall {
+  height: max(120px, calc(34vh - 60px));
+  max-height: 240px;
 }
 
 /* Scalloped verified seal (VerifiedBadge) — the SVG is the shape. */
@@ -1495,14 +1607,6 @@
   border: 1px solid rgba(253, 118, 102, 0.3);
 }
 
-/* Friend request in the Anfragen deck (18.10.2026): white like the plain
-   friends' DMs in the list (coral = Gruppe, lila = Club). */
-.friend-badge {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--text-white);
-  border: 1px solid rgba(255, 255, 255, 0.24);
-}
-
 /* ── Skeleton loaders ("Ladezeit überbrücken") ── */
 @keyframes skeleton-pulse {
   0%, 100% { opacity: 0.45; }
@@ -1579,22 +1683,6 @@
   background: var(--accent-coral);
   border-radius: var(--radius-full);
   transition: width 0.35s cubic-bezier(.25,.8,.25,1);
-}
-
-.requests-deck-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-  max-width: 340px;
-}
-.requests-deck-group-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-white);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .next-card-preview-ph {

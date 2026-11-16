@@ -847,7 +847,11 @@
         "freunde": "Freunde",
         "ungelesen": "Ungelesen",
         "clubOne": "Club",
-        "groupOne": "Gruppe"
+        "groupOne": "Gruppe",
+        "communityOne": "Community",
+        "eventOne": "Event",
+        "clubEventOne": "Club-Event",
+        "communityEventOne": "Community-Event"
       },
       "requestsTab": {
         "remaining": "{{count}} offen",
@@ -856,7 +860,18 @@
         "doneText_other": "Du hast {{count}} Anfragen bearbeitet 🎉",
         "emptyTitle": "Keine offenen Anfragen",
         "emptyText": "Neue Freundschaftsanfragen und Beitrittsanfragen für deine Gruppen und Clubs landen hier.",
-        "friendLabel": "Freundschaftsanfrage"
+        "friendLabel": "Freundschaftsanfrage",
+        "friendSub": "möchte mit dir befreundet sein",
+        "joinLabel": "Beitrittsanfrage",
+        "swipeAdmit": "Aufnehmen",
+        "swipeBefriend": "Befreunden",
+        "segmentsAria": "Anfragen filtern",
+        "segmentAll": "Alle",
+        "segmentJoins": "Beitritte",
+        "segmentFriends": "Freunde",
+        "segmentEmptyJoins": "Keine offenen Beitrittsanfragen",
+        "segmentEmptyFriends": "Keine offenen Freundschaftsanfragen",
+        "segmentShowAll": "Alle Anfragen zeigen ({{count}})"
       },
       "manage": {
         "edit": "Bearbeiten",
@@ -901,9 +916,10 @@
       },
       "toast": {
         "requestsLoadError": "Anfragen konnten nicht geladen werden",
-        "requestAccepted": "{{name}} wurde angenommen!",
+        "requestAccepted": "{{name}} ist jetzt bei „{{group}}“ dabei 🎉",
         "requestAcceptError": "Fehler beim Annehmen",
-        "requestDeclined": "{{name}} wurde abgelehnt",
+        "requestDeclined": "Anfrage von {{name}} für „{{group}}“ abgelehnt",
+        "requestDeclinedLast": "Anfrage von {{name}} für „{{group}}“ abgelehnt – das war die letzte Anfrage",
         "requestDeclineError": "Fehler beim Ablehnen",
         "friendAccepted": "Du und {{name}} seid jetzt befreundet!",
         "friendDeclined": "Freundschaftsanfrage von {{name}} abgelehnt",
@@ -917,7 +933,11 @@
         "allDone": "Alle Anfragen bearbeitet!",
         "accept": "Annehmen",
         "decline": "Ablehnen",
-        "skip": "Überspringen"
+        "skip": "Überspringen",
+        "acceptJoinAria": "{{name}} in „{{group}}“ aufnehmen",
+        "acceptFriendAria": "Freundschaftsanfrage von {{name}} annehmen",
+        "declineJoinAria": "Anfrage von {{name}} für „{{group}}“ ablehnen",
+        "declineFriendAria": "Freundschaftsanfrage von {{name}} ablehnen"
       }
     },
     "page": {
@@ -1845,6 +1865,7 @@
     "acceptedToast": "{{name}} wurde angenommen!",
     "acceptError": "Fehler beim Annehmen",
     "declinedToast": "{{name}} wurde abgelehnt",
+    "declinedLastToast": "{{name}} wurde abgelehnt – das war die letzte Anfrage",
     "declineError": "Fehler beim Ablehnen",
     "requestedOnFmt": "Angefragt {{date}}",
     "title": "Anfragen",

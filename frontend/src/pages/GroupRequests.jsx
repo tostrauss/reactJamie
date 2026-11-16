@@ -41,6 +41,11 @@ export const GroupRequests = () => {
 
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Whose requests these are — the header names the group or event (Ziel 4,
+  // 16.11.2026): the owner's push lands here, and „3 Anfragen“ alone did
+  // not say for what. Its own fetch and non-fatal: without it the header
+  // stays as it was.
+  const [groupName, setGroupName] = useState('');
   const [processingId, setProcessingId] = useState(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [confirmAll, setConfirmAll] = useState(false);
@@ -75,6 +80,14 @@ export const GroupRequests = () => {
     load();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    groups.getById(id)
+      .then(res => { if (!cancelled) setGroupName(res.data?.name || res.data?.title || ''); })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, [id]);
 
   const openProModal = useCallback(() => {
@@ -117,11 +130,13 @@ export const GroupRequests = () => {
     if (processingId || bulkBusy) return;
     setProcessingId(req.id);
     try {
-      await groups.handleRequest(id, req.id, 'reject');
+      const res = await groups.handleRequest(id, req.id, 'reject');
       setRequests(prev => prev.filter(r => r.id !== req.id));
       // Undoable — a mis-tapped reject can be reverted (has no side effects).
+      // attempts_left 0: their second rejection, they cannot ask again
+      // (utils/joinAttempts.js) — said while the undo is still there.
       toast.showUndo(
-        t('groupRequests.declinedToast', { name: req.user_name }),
+        t(res?.data?.attempts_left === 0 ? 'groupRequests.declinedLastToast' : 'groupRequests.declinedToast', { name: req.user_name }),
         async () => {
           try {
             await groups.handleRequest(id, req.id, 'undo');
@@ -181,6 +196,7 @@ export const GroupRequests = () => {
   }
 
   const total = requests.length;
+  const countLine = total > 0 ? t('groupRequests.countFmt', { count: total }) : t('groupRequests.title');
 
   return (
     <div className="page reqov-page">
@@ -190,9 +206,11 @@ export const GroupRequests = () => {
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
         </button>
-        <h1 className="reqov-title">
-          {total > 0 ? t('groupRequests.countFmt', { count: total }) : t('groupRequests.title')}
-        </h1>
+        {/* „Punsch Night“ over „3 Anfragen“ once the name is there. */}
+        <div className="reqov-title-wrap">
+          <h1 className="reqov-title">{groupName || countLine}</h1>
+          {groupName && <p className="reqov-subtitle">{countLine}</p>}
+        </div>
         <div style={{ width: 40 }} />
       </div>
 
@@ -311,7 +329,9 @@ export const GroupRequests = () => {
         .reqov-page { display: flex; flex-direction: column; min-height: 100vh; padding-top: 0; padding-bottom: calc(60px + var(--nav-safe-bottom) + 16px); }
         .reqov-header { display: flex; align-items: center; justify-content: space-between; padding: 16px; padding-top: calc(env(safe-area-inset-top, 20px) + 16px); position: sticky; top: 0; z-index: 5; background: var(--bg-dark, #14101f); }
         .back-btn { background: none; border: none; color: var(--text-white); cursor: pointer; padding: 8px; }
-        .reqov-title { font-size: 18px; font-weight: 700; color: var(--text-white); }
+        .reqov-title-wrap { flex: 1; min-width: 0; text-align: center; }
+        .reqov-title { font-size: 18px; font-weight: 700; color: var(--text-white); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .reqov-subtitle { font-size: 13px; color: var(--text-muted); margin: 2px 0 0; }
         .reqov-hint { color: var(--text-muted); font-size: 13px; line-height: 1.4; margin: 0 16px 12px; text-align: center; }
 
         .reqov-tools { margin: 0 16px 14px; padding: 12px; background: var(--bg-card); border-radius: var(--radius-lg); border: 1px solid rgba(253,118,102,0.18); }

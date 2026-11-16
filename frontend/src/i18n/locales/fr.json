@@ -847,7 +847,11 @@
         "freunde": "Amis",
         "ungelesen": "Non lus",
         "clubOne": "Club",
-        "groupOne": "Groupe"
+        "groupOne": "Groupe",
+        "communityOne": "Communauté",
+        "eventOne": "Événement",
+        "clubEventOne": "Événement du club",
+        "communityEventOne": "Événement de la communauté"
       },
       "requestsTab": {
         "remaining": "{{count}} en attente",
@@ -856,7 +860,18 @@
         "doneText_other": "Tu as traité {{count}} demandes 🎉",
         "emptyTitle": "Aucune demande en attente",
         "emptyText": "Les nouvelles demandes d'amitié et les demandes d'adhésion à tes groupes et clubs apparaîtront ici.",
-        "friendLabel": "Demande d'amitié"
+        "friendLabel": "Demande d'amitié",
+        "friendSub": "veut devenir ton ami·e",
+        "joinLabel": "Demande d'adhésion",
+        "swipeAdmit": "Accueillir",
+        "swipeBefriend": "Devenir amis",
+        "segmentsAria": "Filtrer les demandes",
+        "segmentAll": "Toutes",
+        "segmentJoins": "Adhésions",
+        "segmentFriends": "Amis",
+        "segmentEmptyJoins": "Aucune demande d'adhésion en attente",
+        "segmentEmptyFriends": "Aucune demande d'amitié en attente",
+        "segmentShowAll": "Voir toutes les demandes ({{count}})"
       },
       "manage": {
         "edit": "Modifier",
@@ -901,9 +916,10 @@
       },
       "toast": {
         "requestsLoadError": "Les demandes n'ont pas pu être chargées",
-        "requestAccepted": "{{name}} a été accepté·e !",
+        "requestAccepted": "{{name}} fait maintenant partie de « {{group}} » 🎉",
         "requestAcceptError": "Erreur lors de l'acceptation",
-        "requestDeclined": "{{name}} a été refusé·e",
+        "requestDeclined": "Demande de {{name}} pour « {{group}} » refusée",
+        "requestDeclinedLast": "Demande de {{name}} pour « {{group}} » refusée – c'était sa dernière demande",
         "requestDeclineError": "Erreur lors du refus",
         "friendAccepted": "{{name}} et toi êtes maintenant amis !",
         "friendDeclined": "Demande d'amitié de {{name}} refusée",
@@ -917,7 +933,11 @@
         "allDone": "Toutes les demandes traitées !",
         "accept": "Accepter",
         "decline": "Refuser",
-        "skip": "Passer"
+        "skip": "Passer",
+        "acceptJoinAria": "Accueillir {{name}} dans « {{group}} »",
+        "acceptFriendAria": "Accepter la demande d'amitié de {{name}}",
+        "declineJoinAria": "Refuser la demande de {{name}} pour « {{group}} »",
+        "declineFriendAria": "Refuser la demande d'amitié de {{name}}"
       }
     },
     "page": {
@@ -1845,6 +1865,7 @@
     "acceptedToast": "{{name}} a été accepté·e !",
     "acceptError": "Erreur lors de l'acceptation",
     "declinedToast": "{{name}} a été refusé·e",
+    "declinedLastToast": "{{name}} a été refusé·e – c'était sa dernière demande",
     "declineError": "Erreur lors du refus",
     "requestedOnFmt": "Demandé le {{date}}",
     "title": "Demandes",

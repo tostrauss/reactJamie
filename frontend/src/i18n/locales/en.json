@@ -847,7 +847,11 @@
         "freunde": "Friends",
         "ungelesen": "Unread",
         "clubOne": "Club",
-        "groupOne": "Group"
+        "groupOne": "Group",
+        "communityOne": "Community",
+        "eventOne": "Event",
+        "clubEventOne": "Club event",
+        "communityEventOne": "Community event"
       },
       "requestsTab": {
         "remaining": "{{count}} open",
@@ -856,7 +860,18 @@
         "doneText_other": "You handled {{count}} requests 🎉",
         "emptyTitle": "No open requests",
         "emptyText": "New friend requests and join requests for your groups and clubs will show up here.",
-        "friendLabel": "Friend request"
+        "friendLabel": "Friend request",
+        "friendSub": "wants to be friends with you",
+        "joinLabel": "Join request",
+        "swipeAdmit": "Let in",
+        "swipeBefriend": "Add friend",
+        "segmentsAria": "Filter requests",
+        "segmentAll": "All",
+        "segmentJoins": "Join requests",
+        "segmentFriends": "Friends",
+        "segmentEmptyJoins": "No open join requests",
+        "segmentEmptyFriends": "No open friend requests",
+        "segmentShowAll": "Show all requests ({{count}})"
       },
       "manage": {
         "edit": "Edit",
@@ -901,9 +916,10 @@
       },
       "toast": {
         "requestsLoadError": "Could not load requests",
-        "requestAccepted": "{{name}} accepted!",
+        "requestAccepted": "{{name}} is now in “{{group}}” 🎉",
         "requestAcceptError": "Could not accept",
-        "requestDeclined": "{{name}} declined",
+        "requestDeclined": "{{name}}'s request for “{{group}}” declined",
+        "requestDeclinedLast": "{{name}}'s request for “{{group}}” declined – that was their last request",
         "requestDeclineError": "Could not decline",
         "friendAccepted": "You and {{name}} are now friends!",
         "friendDeclined": "Friend request from {{name}} declined",
@@ -917,7 +933,11 @@
         "allDone": "All requests handled!",
         "accept": "Accept",
         "decline": "Decline",
-        "skip": "Skip"
+        "skip": "Skip",
+        "acceptJoinAria": "Let {{name}} into “{{group}}”",
+        "acceptFriendAria": "Accept {{name}}'s friend request",
+        "declineJoinAria": "Decline {{name}}'s request for “{{group}}”",
+        "declineFriendAria": "Decline {{name}}'s friend request"
       }
     },
     "page": {
@@ -1845,6 +1865,7 @@
     "acceptedToast": "{{name}} was accepted!",
     "acceptError": "Could not accept",
     "declinedToast": "{{name}} was declined",
+    "declinedLastToast": "{{name}} was declined – that was their last request",
     "declineError": "Could not decline",
     "requestedOnFmt": "Requested {{date}}",
     "title": "Requests",

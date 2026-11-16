@@ -16,10 +16,14 @@ import '../styles/profile.css';
 //               Alle · Gruppen · Clubs · Freunde · Ungelesen
 //   Anfragen  — aggregated join-request swipe deck across every owned/managed
 //               group+club ("swipen soll süchtig machen" — Tina), plus the
-//               incoming friend requests (Lea, 18.10.2026)
+//               incoming friend requests (Lea, 18.10.2026); segments
+//               Alle · Beitritte · Freunde since 16.11.2026 (Ziel 4)
 //   Verwalten — the caller's own groups/clubs with edit + request shortcuts
 const MAIN_TABS = ['chats', 'anfragen', 'verwalten'];
 const FILTERS = ['alle', 'gruppen', 'clubs', 'freunde', 'ungelesen'];
+// Segments over the Anfragen deck (Ziel 4, Tina 16.11.2026): every card, only
+// the join requests, only the friend requests.
+const REQUEST_KINDS = ['alle', 'beitritte', 'freunde'];
 // Old deep links / back-navigation used ?tab=gruppen|clubs|freunde — map them
 // onto the Chats tab with the matching filter bubble so nothing 404s.
 const LEGACY_TAB_TO_FILTER = { gruppen: 'gruppen', clubs: 'clubs', freunde: 'freunde' };
@@ -31,12 +35,15 @@ export const ChatList = () => {
   const filter = FILTERS.includes(searchParams.get('filter'))
     ? searchParams.get('filter')
     : (LEGACY_TAB_TO_FILTER[rawTab] || 'alle');
-  // Tab + filter live in the URL so swiping back from a chat restores the exact
-  // view. replace:true keeps the back stack clean.
+  const requestKind = REQUEST_KINDS.includes(searchParams.get('kind')) ? searchParams.get('kind') : 'alle';
+  // Tab + filter (Chats) or segment (Anfragen, ?kind=) live in the URL so
+  // swiping back from a chat or a profile restores the exact view.
+  // replace:true keeps the back stack clean.
   const setParams = (tab, nextFilter) => setSearchParams(() => {
     const sp = new URLSearchParams();
     if (tab !== 'chats') sp.set('tab', tab);
     if (tab === 'chats' && nextFilter && nextFilter !== 'alle') sp.set('filter', nextFilter);
+    if (tab === 'anfragen' && nextFilter && nextFilter !== 'alle') sp.set('kind', nextFilter);
     return sp;
   }, { replace: true });
 
@@ -325,7 +332,7 @@ export const ChatList = () => {
   // Friend requests lead because they are what went unnoticed (Lea), there
   // are only ever a few, and a swipe each costs a club owner nothing; behind
   // a backlog of 30 join requests they would be buried again.
-  const deck = useMemo(() => {
+  const deckAll = useMemo(() => {
     const base = [...friendCards, ...requests].filter(r => !processedIds.has(reqKey(r)));
     if (!skippedKeys.size) return base;
     // Skipped cards go to the back, in skip order (Set keeps insertion order);
@@ -336,6 +343,14 @@ export const ChatList = () => {
       .filter(Boolean);
     return [...fresh, ...parked];
   }, [friendCards, requests, processedIds, skippedKeys]);
+  // The segment's share of it (Ziel 4, 16.11.2026) — same order, so skipping
+  // inside a segment rotates within it. The tab dot, the counts and the
+  // progress always read the whole deck.
+  const deck = useMemo(() => (requestKind === 'alle'
+    ? deckAll
+    : deckAll.filter(r => (r.kind === 'friend') === (requestKind === 'freunde'))), [deckAll, requestKind]);
+  const friendCount = deckAll.filter(r => r.kind === 'friend').length;
+  const joinCount = deckAll.length - friendCount;
   const current = deck[0];
   const nextReq = deck[1];
   const sessionDone = processedIds.size;
@@ -379,9 +394,11 @@ export const ChatList = () => {
       markProcessed(reqKey(r));
       if (!isFriend(r)) decrementChatChip(r.group_id);
       resetDrag();
+      // A join toast names the group or event (Ziel 4, 16.11.2026) — with
+      // several of them in the deck „Max wurde angenommen!“ left open where.
       toast.success(isFriend(r)
         ? t('chat.list.toast.friendAccepted', { name: r.user_name })
-        : t('chat.list.toast.requestAccepted', { name: r.user_name }));
+        : t('chat.list.toast.requestAccepted', { name: r.user_name, group: r.group_name }));
     } catch (err) {
       if (isFriend(r)) friendRequestFailed(err, 'chat.list.toast.requestAcceptError');
       else toast.error(err.response?.data?.error || t('chat.list.toast.requestAcceptError'));
@@ -408,15 +425,20 @@ export const ChatList = () => {
     const r = current;
     setProcessing(true);
     try {
-      await respond(r, 'reject');
+      const res = await respond(r, 'reject');
       markProcessed(reqKey(r));
       if (!isFriend(r)) decrementChatChip(r.group_id);
       resetDrag();
+      // attempts_left 0: that was the asker's second rejection, so they can
+      // never ask for this group again (utils/joinAttempts.js) — the toast
+      // says so while „Rückgängig“ can still take it back (Ziel 4, 16.11.).
+      const lastAttempt = !isFriend(r) && res?.data?.attempts_left === 0;
       // Undoable — revert a mis-swipe (established pattern, Tobi 2026-07-31).
       toast.showUndo(
         isFriend(r)
           ? t('chat.list.toast.friendDeclined', { name: r.user_name })
-          : t('chat.list.toast.requestDeclined', { name: r.user_name }),
+          : t(lastAttempt ? 'chat.list.toast.requestDeclinedLast' : 'chat.list.toast.requestDeclined',
+            { name: r.user_name, group: r.group_name }),
         async () => {
           try {
             await respond(r, 'undo');
@@ -683,7 +705,7 @@ export const ChatList = () => {
             onClick={() => setParams('anfragen')}
           >
             {t('chat.list.mainTabs.requests')}
-            {deck.length > 0 && <span className="tab-dot" aria-hidden="true" />}
+            {deckAll.length > 0 && <span className="tab-dot" aria-hidden="true" />}
           </button>
           <button
             className={`tab ${activeTab === 'verwalten' ? 'active' : ''}`}
@@ -709,6 +731,31 @@ export const ChatList = () => {
                 aria-selected={filter === b.key}
                 className={`chat-filter-bubble ${filter === b.key ? 'active' : ''}`}
                 onClick={() => setParams('chats', b.key)}
+              >
+                {b.label}
+                {b.count > 0 && <span className="chat-filter-bubble-count">{b.count > 99 ? '99+' : b.count}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Anfragen segments (Ziel 4, Tina 16.11.2026) — the chat filters'
+            look, the count of open cards of each kind. Shown while anything
+            waits, and while a segment is picked so the way back stays. The
+            tab itself keeps only its dot (Tobi 05.08.). */}
+        {activeTab === 'anfragen' && !requestsLoading && (deckAll.length > 0 || requestKind !== 'alle') && (
+          <div className="chat-filter-bubbles" role="tablist" aria-label={t('chat.list.requestsTab.segmentsAria')}>
+            {[
+              { key: 'alle',      label: t('chat.list.requestsTab.segmentAll') },
+              { key: 'beitritte', label: t('chat.list.requestsTab.segmentJoins'),   count: joinCount },
+              { key: 'freunde',   label: t('chat.list.requestsTab.segmentFriends'), count: friendCount },
+            ].map(b => (
+              <button
+                key={b.key}
+                role="tab"
+                aria-selected={requestKind === b.key}
+                className={`chat-filter-bubble ${requestKind === b.key ? 'active' : ''}`}
+                onClick={() => setParams('anfragen', b.key)}
               >
                 {b.label}
                 {b.count > 0 && <span className="chat-filter-bubble-count">{b.count > 99 ? '99+' : b.count}</span>}
@@ -802,25 +849,14 @@ export const ChatList = () => {
                 <div className="requests-progress-bar">
                   <div
                     className="requests-progress-fill"
-                    style={{ width: `${(sessionDone / (sessionDone + deck.length)) * 100}%` }}
+                    style={{ width: `${(sessionDone / (sessionDone + deckAll.length)) * 100}%` }}
                   />
                 </div>
 
-                {/* WHICH group/club the request is for — or, in place of the
-                    group badge, that it is a friend request. */}
-                <div className="requests-deck-group">
-                  {isFriend(current) ? (
-                    <span className="chat-type-badge friend-badge">{t('chat.list.requestsTab.friendLabel')}</span>
-                  ) : (
-                    <>
-                      <span className={`chat-type-badge ${current.group_type === 'club' ? 'club-badge' : 'group-badge'}`}>
-                        {current.group_type === 'club' ? t('chat.list.filters.clubOne') : t('chat.list.filters.groupOne')}
-                      </span>
-                      <span className="requests-deck-group-name">{current.group_name}</span>
-                    </>
-                  )}
-                </div>
-
+                {/* WHICH group/event/club a request is for — or that it is a
+                    friend request — now sits in the card's own band, so it
+                    moves with the swipe (RequestCard, Ziel 4, 16.11.2026);
+                    the line above the card stood still. */}
                 <div
                   className="request-card-wrapper"
                   onPointerDown={onCardDown}
@@ -833,8 +869,18 @@ export const ChatList = () => {
                     transition: dragStartX.current == null ? 'transform 0.25s cubic-bezier(.25,.8,.25,1)' : 'none',
                   }}
                 >
-                  <div className={`swipe-indicator swipe-accept${dragX > 40 ? ' visible' : ''}`}><span>✓</span></div>
-                  <div className={`swipe-indicator swipe-decline${dragX < -40 ? ' visible' : ''}`}><span>✕</span></div>
+                  {/* What the swipe does, in words under the ✓ / ✕ — per type
+                      (Ziel 4): „Aufnehmen“ into a group, „Befreunden“ a person. */}
+                  <div className={`swipe-indicator swipe-accept${dragX > 40 ? ' visible' : ''}`}>
+                    <span>✓</span>
+                    <span className="swipe-indicator-label">
+                      {isFriend(current) ? t('chat.list.requestsTab.swipeBefriend') : t('chat.list.requestsTab.swipeAdmit')}
+                    </span>
+                  </div>
+                  <div className={`swipe-indicator swipe-decline${dragX < -40 ? ' visible' : ''}`}>
+                    <span>✕</span>
+                    <span className="swipe-indicator-label">{t('chat.list.requestsModal.decline')}</span>
+                  </div>
                   <RequestCard request={current} />
                   {nextReq && (
                     <div className="next-card-preview">
@@ -845,8 +891,16 @@ export const ChatList = () => {
                   )}
                 </div>
 
+                {/* Icon-only buttons: the name says whom and what for. */}
                 <div className="requests-actions" style={{ padding: '20px 0 0' }}>
-                  <button className="action-btn decline" onClick={deckDecline} disabled={processing} aria-label={t('chat.list.requestsModal.decline')}>
+                  <button
+                    className="action-btn decline"
+                    onClick={deckDecline}
+                    disabled={processing}
+                    aria-label={isFriend(current)
+                      ? t('chat.list.requestsModal.declineFriendAria', { name: current.user_name })
+                      : t('chat.list.requestsModal.declineJoinAria', { name: current.user_name, group: current.group_name })}
+                  >
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M18 6L6 18M6 6l12 12"/>
                     </svg>
@@ -860,13 +914,31 @@ export const ChatList = () => {
                       </svg>
                     </button>
                   )}
-                  <button className="action-btn accept" onClick={deckAccept} disabled={processing} aria-label={t('chat.list.requestsModal.accept')}>
+                  <button
+                    className="action-btn accept"
+                    onClick={deckAccept}
+                    disabled={processing}
+                    aria-label={isFriend(current)
+                      ? t('chat.list.requestsModal.acceptFriendAria', { name: current.user_name })
+                      : t('chat.list.requestsModal.acceptJoinAria', { name: current.user_name, group: current.group_name })}
+                  >
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                       <polyline points="20,6 9,17 4,12"/>
                     </svg>
                   </button>
                 </div>
               </>
+            ) : deckAll.length > 0 ? (
+              // This segment is done, the other kind still waits.
+              <div className="empty-state">
+                <div className="empty-icon" aria-hidden="true">{requestKind === 'freunde' ? '👋' : '🔒'}</div>
+                <p>{requestKind === 'freunde'
+                  ? t('chat.list.requestsTab.segmentEmptyFriends')
+                  : t('chat.list.requestsTab.segmentEmptyJoins')}</p>
+                <button className="empty-hint" onClick={() => setParams('anfragen')}>
+                  {t('chat.list.requestsTab.segmentShowAll', { count: deckAll.length })}
+                </button>
+              </div>
             ) : sessionDone > 0 ? (
               // Celebration — every request of the session handled.
               <div className="empty-state requests-celebration">
