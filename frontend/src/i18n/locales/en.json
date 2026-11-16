@@ -2379,7 +2379,9 @@
       "reject": "Reject",
       "rejectConfirm": "Really reject club \"{{name}}\"?",
       "approveError": "Approval failed",
-      "rejectError": "Rejection failed"
+      "rejectError": "Rejection failed",
+      "typeClub": "Club",
+      "typeCommunity": "Community"
     },
     "classify": {
       "title": "Reclassify clubs",

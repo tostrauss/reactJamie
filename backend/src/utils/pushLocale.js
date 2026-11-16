@@ -366,13 +366,15 @@ const PUSH_TEXTS = {
     fr: (p) => ({ title: 'Club non validé', body: `« ${p.groupName} » n'a pas été validé.` }),
     es: (p) => ({ title: 'Club no aprobado', body: `"${p.groupName}" no ha sido aprobado.` }),
   },
-  // To ADMINS: a new club is waiting for review.
+  // To ADMINS: a new club is waiting for review. `isCommunity` names the type
+  // like the queue does (Tina 16.11.2026): a community from an old bundle
+  // (no type sent → still queued) instead of an official club.
   clubPendingAdmin: {
-    de: (p) => ({ title: 'Neuer Club wartet auf Freigabe', body: `"${p.groupName}" möchte freigeschaltet werden` }),
-    en: (p) => ({ title: 'New club awaiting approval', body: `"${p.groupName}" is waiting for review` }),
-    it: (p) => ({ title: 'Nuovo club in attesa', body: `"${p.groupName}" attende l'approvazione` }),
-    fr: (p) => ({ title: 'Nouveau club à valider', body: `« ${p.groupName} » attend une validation` }),
-    es: (p) => ({ title: 'Nuevo club pendiente', body: `"${p.groupName}" espera aprobación` }),
+    de: (p) => ({ title: p.isCommunity ? 'Neue Community wartet auf Freigabe' : 'Neuer Club wartet auf Freigabe', body: `"${p.groupName}" möchte freigeschaltet werden` }),
+    en: (p) => ({ title: p.isCommunity ? 'New community awaiting approval' : 'New club awaiting approval', body: `"${p.groupName}" is waiting for review` }),
+    it: (p) => ({ title: p.isCommunity ? 'Nuova community in attesa' : 'Nuovo club in attesa', body: `"${p.groupName}" attende l'approvazione` }),
+    fr: (p) => ({ title: p.isCommunity ? 'Nouvelle communauté à valider' : 'Nouveau club à valider', body: `« ${p.groupName} » attend une validation` }),
+    es: (p) => ({ title: p.isCommunity ? 'Nueva comunidad pendiente' : 'Nuevo club pendiente', body: `"${p.groupName}" espera aprobación` }),
   },
   // To ADMINS: a new report came in.
   //

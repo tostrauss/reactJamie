@@ -512,11 +512,15 @@ export const getUserOrigins = async (_req, res) => {
 // ==========================================
 // PENDING CLUBS (admin approval queue)
 // ==========================================
+// club_type labels each entry „Club“ or „Community“ (Tina 16.11.2026: „im
+// Admin auch als Club … und Community als Community“). Since the 22.10. split
+// only an official club is created pending — plus a community from an old
+// bundle (iOS 1.4.1 sends no type: stored 'community', still queued).
 export const getPendingClubs = async (_req, res) => {
   try {
     const result = await db.query(`
       SELECT g.id, g.name, g.description, g.category, g.location,
-             g.image_url, g.created_at,
+             g.image_url, g.created_at, g.club_type,
              u.id AS owner_id, u.name AS owner_name, u.email AS owner_email
       FROM groups g
       LEFT JOIN users u ON g.owner_id = u.id

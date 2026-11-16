@@ -188,6 +188,7 @@ suite('write endpoints against real Postgres', () => {
       createReport: rp.createReport, getReports: rp.getReports,
       updateReportStatus: rp.updateReportStatus,
       setUserActive: ad.setUserActive, rejectClub: ad.rejectClub,
+      getPendingClubs: ad.getPendingClubs,                                 // „Club“/„Community“ label (16.11.2026)
       removeUserAvatar: ad.removeUserAvatar,
       getUserDetail: ad.getUserDetail, sendUserTestPush: ad.sendUserTestPush,
       getMyAttendance: rv.getMyAttendance, getReviewForGroup: rv.getReviewForGroup, getUserById: us.getUserById,
@@ -5129,6 +5130,16 @@ suite('write endpoints against real Postgres', () => {
         expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
         const r = await db.query('SELECT club_type, approval_status FROM groups WHERE id=$1', [res.body.id]);
         expect(r.rows[0]).toEqual({ club_type: 'community', approval_status: 'pending' });
+      });
+
+      // Tina 16.11.2026: „im Admin auch als Club … und Community als
+      // Community“ — the queue carries the type its label is made from.
+      it('the admin queue says which one is a club and which a community', async () => {
+        const res = await call(C.getPendingClubs, { userId: adminUser });
+        ok(res);
+        const typeOf = (name) => res.body.find((c) => c.name === name)?.club_type;
+        expect(typeOf('Smoke Official')).toBe('official');
+        expect(typeOf('Old Bundle Club')).toBe('community');
       });
 
       it('the 4th community within 24 h is refused with 429', async () => {

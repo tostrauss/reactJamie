@@ -250,12 +250,17 @@ export const createClub = async (req, res) => {
     postSystemMessage(newClub.id, SYSTEM_TEXTS.welcomeClub(newClub.name)).catch(() => {});
 
     // Notify admins a new club is waiting for review — email (existing) AND a
-    // device push (Batch 3): the team isn't always in the inbox.
+    // device push (Batch 3): the team isn't always in the inbox. Both name
+    // the type, like the queue does (Tina 16.11.2026): an official club, or a
+    // community from an old bundle (stored 'community', still pending).
     if (approval === 'pending') {
       import('../utils/email.js')
         .then(({ sendAdminClubPendingEmail }) => sendAdminClubPendingEmail?.(newClub, req.userId))
         .catch(() => {});
-      sendPushToAdmins(pushTexts('clubPendingAdmin', { groupName: newClub.name || '' }), null, '/admin');
+      sendPushToAdmins(pushTexts('clubPendingAdmin', {
+        groupName: newClub.name || '',
+        isCommunity: newClub.club_type !== 'official',
+      }), null, '/admin');
     }
 
     invalidatePrefix('clubs:');

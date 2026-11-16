@@ -130,6 +130,8 @@ describe('createClub — who needs approval', () => {
     expect(scenario.createdWith.params[14]).toBe('pending');
     expect(scenario.createdWith.params[16]).toBe('official');
     expect(sendPushToAdmins).toHaveBeenCalled();
+    // …as a club (Tina 16.11.2026: the admin sees which one waits).
+    expect(vi.mocked(sendPushToAdmins).mock.calls[0][0]('de').title).toBe('Neuer Club wartet auf Freigabe');
   });
 
   // The reason club_type is read explicitly rather than defaulted: an old
@@ -140,6 +142,8 @@ describe('createClub — who needs approval', () => {
     expect(scenario.createdWith.params[14]).toBe('pending');
     expect(scenario.createdWith.params[16]).toBe('community');
     expect(sendPushToAdmins).toHaveBeenCalled();
+    // What that old form creates is a community — and the admin push says so.
+    expect(vi.mocked(sendPushToAdmins).mock.calls[0][0]('de').title).toBe('Neue Community wartet auf Freigabe');
   });
 
   it('an unknown club_type is treated as "not sent", not as official', async () => {

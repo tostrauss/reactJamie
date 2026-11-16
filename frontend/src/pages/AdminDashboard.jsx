@@ -351,6 +351,24 @@ export const AdminDashboard = () => {
                 <div key={club.id} style={{ background: 'var(--bg-card, #1e2235)', borderRadius: 16, padding: 16 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
                     <div style={{ minWidth: 0, flex: 1 }}>
+                      {/* „Club“ or „Community“ (Tina 16.11.2026: „Es müsste im
+                          Admin auch als Club kommen und Community als
+                          Community“). Since the 22.10. split only an official
+                          club is created pending — plus a community from an
+                          old bundle that sends no type; anything but
+                          'official' is a community, the server's rule. A
+                          club in the partner yellow, outline only. No field
+                          (an older server) → no tag rather than a wrong one. */}
+                      {club.club_type !== undefined && (
+                        <span style={{
+                          display: 'inline-block', marginBottom: 6, padding: '2px 10px', borderRadius: 999,
+                          fontSize: 11, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase',
+                          border: `1px solid ${club.club_type === 'official' ? 'var(--partner-line)' : 'rgba(255,255,255,0.3)'}`,
+                          color: club.club_type === 'official' ? 'var(--partner-text)' : 'rgba(255,255,255,0.75)',
+                        }}>
+                          {club.club_type === 'official' ? t('admin.pendingClubs.typeClub') : t('admin.pendingClubs.typeCommunity')}
+                        </span>
+                      )}
                       <div style={{ fontSize: 16, fontWeight: 700, color: '#FD7666' }}>{club.name}</div>
                       <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 2 }}>
                         {club.category || t('admin.pendingClubs.noCategory')} · {club.location || t('admin.pendingClubs.noPlace')} · {new Date(club.created_at).toLocaleDateString(dateLocale)}

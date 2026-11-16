@@ -277,16 +277,21 @@ export const sendAdminClubPendingEmail = async (club, ownerUserId) => {
   const adminEmail = process.env.ADMIN_EMAIL;
   if (!adminEmail || !club) return;
   const adminUrl = `${FRONTEND_URL()}/admin#clubs-pending`;
+  // The type, as the queue labels it (Tina 16.11.2026): an official club, or
+  // a community from an old bundle (no type sent → still queued).
+  const isClub = club.club_type === 'official';
+  const what = isClub ? 'Neuer Club' : 'Neue Community';
   return sendEmail({
     to: adminEmail,
-    subject: `[JAMIE] Neuer Club wartet auf Freischaltung: ${club.name || '#' + club.id}`,
+    subject: `[JAMIE] ${what} wartet auf Freischaltung: ${club.name || '#' + club.id}`,
     html: `
       <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:32px 20px;">
-        <h2 style="color:#FD7666;margin:0 0 8px;">Neuer Club wartet auf Freischaltung</h2>
+        <h2 style="color:#FD7666;margin:0 0 8px;">${what} wartet auf Freischaltung</h2>
         <p style="color:#555;line-height:1.55;">
-          Ein User hat einen Club erstellt. Bitte prüfen und freigeben oder ablehnen.
+          Ein User hat ${isClub ? 'einen Club' : 'eine Community'} erstellt. Bitte prüfen und freigeben oder ablehnen.
         </p>
         <table style="border-collapse:collapse;margin:18px 0;">
+          <tr><td style="padding:4px 8px;color:#888;">Typ:</td><td style="padding:4px 8px;font-weight:600;">${isClub ? 'Club' : 'Community'}</td></tr>
           <tr><td style="padding:4px 8px;color:#888;">Name:</td><td style="padding:4px 8px;font-weight:600;">${escapeHtml(club.name || '')}</td></tr>
           <tr><td style="padding:4px 8px;color:#888;">Kategorie:</td><td style="padding:4px 8px;">${escapeHtml(club.category || '–')}</td></tr>
           <tr><td style="padding:4px 8px;color:#888;">Ort:</td><td style="padding:4px 8px;">${escapeHtml(club.location || '–')}</td></tr>

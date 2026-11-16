@@ -2379,7 +2379,9 @@
       "reject": "Rechazar",
       "rejectConfirm": "¿Seguro que quieres rechazar el club «{{name}}»?",
       "approveError": "Error al aprobar",
-      "rejectError": "Error al rechazar"
+      "rejectError": "Error al rechazar",
+      "typeClub": "Club",
+      "typeCommunity": "Comunidad"
     },
     "classify": {
       "title": "Reclasificar clubes",

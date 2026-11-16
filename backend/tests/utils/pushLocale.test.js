@@ -258,6 +258,23 @@ describe('pushTexts', () => {
       expect(pushTexts('clubPendingAdmin', { groupName: 'Club X' })('de').title).toBe('Neuer Club wartet auf Freigabe');
     });
 
+    // Tina 16.11.2026: the admin sees whether a club or a community waits
+    // (a community only queues from an old bundle that sends no type).
+    it('clubPendingAdmin names a community as one, per locale — the body unchanged', () => {
+      const club = pushTexts('clubPendingAdmin', { groupName: 'Lauftreff', isCommunity: false });
+      const community = pushTexts('clubPendingAdmin', { groupName: 'Lauftreff', isCommunity: true });
+      expect(club('de')).toEqual({ title: 'Neuer Club wartet auf Freigabe', body: '"Lauftreff" möchte freigeschaltet werden' });
+      expect(community('de')).toEqual({ title: 'Neue Community wartet auf Freigabe', body: '"Lauftreff" möchte freigeschaltet werden' });
+      expect(community('en').title).toBe('New community awaiting approval');
+      expect(community('it').title).toBe('Nuova community in attesa');
+      expect(community('fr').title).toBe('Nouvelle communauté à valider');
+      expect(community('es').title).toBe('Nueva comunidad pendiente');
+      for (const l of ['de', 'en', 'it', 'fr', 'es']) {
+        expect(community(l).title, l).not.toBe(club(l).title);
+        expect(community(l).body, l).toBe(club(l).body);
+      }
+    });
+
     // reportAdmin used to be a constant ("Eine neue Meldung ist eingegangen"),
     // which told an admin that something happened but never what. It now names
     // the reason and the reported target.

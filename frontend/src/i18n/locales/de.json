@@ -2379,7 +2379,9 @@
       "reject": "Ablehnen",
       "rejectConfirm": "Club \"{{name}}\" wirklich ablehnen?",
       "approveError": "Freigabe fehlgeschlagen",
-      "rejectError": "Ablehnung fehlgeschlagen"
+      "rejectError": "Ablehnung fehlgeschlagen",
+      "typeClub": "Club",
+      "typeCommunity": "Community"
     },
     "classify": {
       "title": "Clubs umklassifizieren",

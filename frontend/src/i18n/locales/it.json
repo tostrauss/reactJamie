@@ -2379,7 +2379,9 @@
       "reject": "Rifiuta",
       "rejectConfirm": "Rifiutare davvero il club \"{{name}}\"?",
       "approveError": "Approvazione non riuscita",
-      "rejectError": "Rifiuto non riuscito"
+      "rejectError": "Rifiuto non riuscito",
+      "typeClub": "Club",
+      "typeCommunity": "Community"
     },
     "classify": {
       "title": "Riclassifica i club",

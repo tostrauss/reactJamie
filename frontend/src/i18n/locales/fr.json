@@ -2379,7 +2379,9 @@
       "reject": "Refuser",
       "rejectConfirm": "Vraiment refuser le club « {{name}} » ?",
       "approveError": "Échec de la validation",
-      "rejectError": "Échec du refus"
+      "rejectError": "Échec du refus",
+      "typeClub": "Club",
+      "typeCommunity": "Communauté"
     },
     "classify": {
       "title": "Reclasser les clubs",
