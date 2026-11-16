@@ -27,13 +27,16 @@
 // deleting it before that new date, or ticking „wöchentlich“ afterwards must
 // not take a meetup that already happened out of everyone's count. Who may
 // vote at all (members by the end of the event day, never across a block,
-// only while the round is open) is decided ONCE, at write time, in
+// only while the round is open, only about a meetup of at most
+// REVIEW_MAX_PARTICIPANTS people) is decided ONCE, at write time, in
 // submitReview — the read never re-judges it.
 //
 // Every step also needs a floor of DISTINCT people who confirmed you. Without
 // it two accounts could farm 🏆 within days (createGroup allows 10 groups a
 // day) by creating events and ticking each other — the badge would then be
-// weaker evidence than the seal. Real meetups of 4–20 people pass naturally.
+// weaker evidence than the seal. Real meetups pass naturally — since
+// 16.11.2026 only meetups of up to 8 people are asked about, so one of them
+// brings at most 7 confirmers and the higher floors (🎆: 10) take several.
 //
 // Computed at READ time from the existing review rows, deliberately not stored:
 //   - the read IS the backfill: every confirmation ever given counts from the
@@ -87,6 +90,18 @@ export const LEGACY_STEPS = [1, 2, 5];
 // whose note explains the wait.
 export const REVIEW_WINDOW_DAYS = 14;
 
+// „Wer war dabei?“ only for small meetups (Tina, 16.11.2026): asked when at
+// most this many people took part, the owner included — the count the card
+// shows as „8/20“; max_members plays no part. Bigger events get no prompt and
+// no push, and answers about them are not recorded (S5 „Connect“ is meant for
+// those, once Tina has specified it). The server alone decides; changing it is
+// a deploy, never an app build. MIRRORED in frontend/src/utils/attendanceTiers.js.
+export const REVIEW_MAX_PARTICIPANTS = 8;
+// The review PUSH also needs somebody besides the owner — a push about an
+// empty list is noise. The prompt itself stays for a solo owner: the modal is
+// their only way to „Hat nicht stattgefunden“.
+export const REVIEW_PUSH_MIN_PARTICIPANTS = 2;
+
 const ALIAS = /^[a-z_][a-z0-9_]*$/i;
 const alias = (a) => {
   if (!ALIAS.test(a)) throw new Error(`attendanceTiers: bad SQL alias ${a}`);
@@ -116,9 +131,14 @@ export const eventStandsSql = (a) => {
 // ticked „wöchentlich“ on a past group keep counting.
 export const countableEventSql = (a) => `(${eventStandsSql(a)} AND ${alias(a)}.is_recurring_weekly IS NOT TRUE)`;
 
-// What the review prompts may ask about: countable, and not deleted — deleting
-// a group already told its members the event is gone.
-export const reviewableEventSql = (a) => `(${countableEventSql(a)} AND ${alias(a)}.deleted_at IS NULL)`;
+// What the review prompts may ask about: countable, not deleted — deleting a
+// group already told its members the event is gone — and small enough
+// (REVIEW_MAX_PARTICIPANTS, Tina 16.11.2026). The prompts, the manual re-open
+// and the write gate all read this, so a 9-person meetup is never asked about
+// and a crafted answer about it records nothing. Deliberately NOT part of
+// eventStandsSql / ATTENDANCE_SQL: answers given before keep counting.
+export const reviewableEventSql = (a) => `(${countableEventSql(a)} AND ${alias(a)}.deleted_at IS NULL`
+  + ` AND ${participantsAtEventSql(a)} <= ${REVIEW_MAX_PARTICIPANTS})`;
 
 // The event's review round is still open: within REVIEW_WINDOW_DAYS of its
 // date, and no answer about it is older than that — moving a past group to a
@@ -141,6 +161,23 @@ export const joinedInTimeSql = (m, a) => {
   const gm = alias(m);
   return `(${gm}.joined_at IS NULL`
     + ` OR (${gm}.joined_at::timestamptz AT TIME ZONE 'Europe/Vienna') < ${alias(a)}.date::date + 1)`;
+};
+
+// How many people took part in event `a` — on the event DAY, counted live
+// (there is no snapshot): everyone who was a member by the end of that day
+// (joinedInTimeSql, so never somebody who joined the past event afterwards),
+// plus everyone who LEFT once the day had begun (hall_of_fame_entries, written
+// by leaveGroup — also somebody who left on the morning of an evening event).
+// The owner has a membership row and counts. UNION, so nobody counts twice.
+// After the day the number can only drop — a kick (no history row) or a
+// deleted account (CASCADE) — never rise. No block filter: the threshold must
+// be the same whoever looks. Aliases pm / hf / p on purpose: unit-test mocks
+// route on 'FROM group_members gm'.
+export const participantsAtEventSql = (a) => {
+  const g = alias(a);
+  return `(SELECT COUNT(*) FROM (SELECT pm.user_id FROM group_members pm`
+    + ` WHERE pm.group_id = ${g}.id AND ${joinedInTimeSql('pm', g)}`
+    + ` UNION SELECT hf.user_id FROM hall_of_fame_entries hf WHERE hf.group_id = ${g}.id) p)`;
 };
 
 // Everybody in a 'blocked' friendship with the user in parameter `p`, either

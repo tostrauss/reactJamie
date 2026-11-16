@@ -33,6 +33,9 @@
 import db from '../config/database.js';
 import { sendPushToUser, sendPushToUsers } from '../controllers/pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
+import {
+  participantsAtEventSql, joinedInTimeSql, REVIEW_MAX_PARTICIPANTS, REVIEW_PUSH_MIN_PARTICIPANTS,
+} from '../utils/attendanceTiers.js';
 
 export const APP_TZ = 'Europe/Vienna';
 // Owner nudge fires while fewer than this many OTHER people have joined.
@@ -104,10 +107,19 @@ const NUDGE_WINDOW = `
 // (bounded burst), and a missed 15-min tick still lands inside the window.
 // GROUP events only (club events have no review flow — mirrors getPendingReviews);
 // LIVE_EVENT already excludes cancelled/deleted/did-not-take-place/recurring.
+// Since 16.11.2026 (Tina): only meetups of 2 to REVIEW_MAX_PARTICIPANTS people,
+// counted exactly like the prompt (participantsAtEventSql), so the push never
+// announces a question the app will not ask — and a solo owner gets no push
+// about an empty list (the prompt itself stays theirs). And only 09:00–22:59
+// Vienna, the rule engagementNudges' DAYTIME keeps for every nudge: a late
+// claim at 23:xx simply does not happen, and the window closes at midnight.
+// Not claimed → re-evaluated next tick, like the member-facing windows above.
 const REVIEW_WINDOW = `
            x.type = 'group'
            AND ((x.date::date + 1)::timestamp + TIME '10:00') AT TIME ZONE '${APP_TZ}' <= $1::timestamptz
-           AND ((x.date::date + 2)::timestamp) AT TIME ZONE '${APP_TZ}' > $1::timestamptz`;
+           AND ((x.date::date + 2)::timestamp) AT TIME ZONE '${APP_TZ}' > $1::timestamptz
+           AND EXTRACT(HOUR FROM ($1::timestamptz AT TIME ZONE '${APP_TZ}')) BETWEEN 9 AND 22
+           AND ${participantsAtEventSql('x')} BETWEEN ${REVIEW_PUSH_MIN_PARTICIPANTS} AND ${REVIEW_MAX_PARTICIPANTS}`;
 
 // Pure: SQL row → pushTexts params. Exported for tests. `time_hhmm` is
 // formatted in SQL with to_char on the raw column so the naive wall-clock is
@@ -176,7 +188,9 @@ async function reminderRecipients(groupIds) {
 
 // Review-nudge recipients: same opt-out gates as reminders, PLUS skip anyone who
 // already reviewed or dismissed this event (mirrors getPendingReviews) so the
-// nudge only lands on people who still have something to do.
+// nudge only lands on people who still have something to do — and, since
+// 16.11.2026, anyone who joined after the event's day: getPendingReviews never
+// asks them, so their push used to open the app onto nothing.
 async function reviewNudgeRecipients(groupIds) {
   const byGroup = new Map();
   if (!groupIds.length) return byGroup;
@@ -184,9 +198,11 @@ async function reviewNudgeRecipients(groupIds) {
     `SELECT gm.group_id, gm.user_id
      FROM group_members gm
      JOIN users u ON u.id = gm.user_id
+     JOIN groups g ON g.id = gm.group_id
      WHERE gm.group_id = ANY($1::int[])
        AND gm.notifications_muted = FALSE
        AND u.push_reminders = TRUE
+       AND ${joinedInTimeSql('gm', 'g')}
        AND NOT EXISTS (SELECT 1 FROM event_reviews er
                        WHERE er.group_id = gm.group_id AND er.reviewer_id = gm.user_id)
        AND NOT EXISTS (SELECT 1 FROM event_review_dismissals d

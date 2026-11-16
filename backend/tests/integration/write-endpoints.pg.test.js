@@ -199,6 +199,7 @@ suite('write endpoints against real Postgres', () => {
       createClubEvent: c.createClubEvent, updateClubEvent: c.updateClubEvent,
       deleteDM: dm.deleteDM,
       joinGroup: g.joinGroup, handleJoinRequest: g.handleJoinRequest, kickMember: g.kickMember,
+      leaveGroup: g.leaveGroup, bulkAcceptJoinRequests: g.bulkAcceptJoinRequests,
       joinWaitlist: g.joinWaitlist, joinClub: c.joinClub,
       handleClubJoinRequest: c.handleClubJoinRequest,
       getGroups: g.getGroups, getClubs: c.getClubs, getClubById: c.getClubById,
@@ -2162,7 +2163,11 @@ suite('write endpoints against real Postgres', () => {
         `INSERT INTO groups (name, type, owner_id, category, location, max_members, date, is_active, is_recurring_weekly)
          VALUES ('Review Me','group',$1,'Sport','Wien',10,'2026-10-01 19:00:00', TRUE, FALSE) RETURNING id`, [A]);
       const RG = r.rows[0].id;
-      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner'),($1,$3,'member')`, [RG, A, B]);
+      // Members since BEFORE the event (16.11.2026): the push now counts the
+      // participants like the prompt (joined by the end of the event day), and
+      // the DB default joined_at = NOW() would make both of them late joiners.
+      await db.query(`INSERT INTO group_members (group_id, user_id, role, joined_at)
+                       VALUES ($1,$2,'owner','2026-09-25 00:00:00'),($1,$3,'member','2026-09-25 00:00:00')`, [RG, A, B]);
       await db.query(`UPDATE groups SET reminder_day_sent_for = date, reminder_hour_sent_for = date, owner_nudge_sent_for = date WHERE id = $1`, [RG]);
       const revMarker = async () => (await db.query(`SELECT to_char(review_nudge_sent_for,'YYYY-MM-DD HH24:MI:SS') AS m FROM groups WHERE id = $1`, [RG])).rows[0].m;
 
@@ -5659,6 +5664,118 @@ suite('write endpoints against real Postgres', () => {
         err.mockRestore();
       }
       expect((await pro()).active).toBeGreaterThan(0);
+    });
+  });
+
+  // ── „Wer war dabei?“ only for small meetups (Tina, 16.11.2026) ──────────
+  // At most 8 people INCLUDING the owner, counted on the event DAY: members by
+  // its end (joinedInTimeSql) ∪ whoever left once it had begun
+  // (hall_of_fame_entries). Prompt, re-open pill and write gate share it via
+  // reviewableEventSql; the D+1 push also needs 2 people and daytime. A
+  // correlated UNION subquery inside four different statements — real SQL.
+  describe('„Wer war dabei?“ only up to 8 participants (S4, 16.11.2026)', () => {
+    let O, P; // the owner + eight others
+    const mkU = async (email, name) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+       VALUES ($1,$2,'1994-04-04','female',$3, TRUE, 'email') RETURNING id`, [email, name, avatar])).rows[0].id;
+    // A past one-off meetup at 19:00 Vienna three days ago (its day is over on
+    // any clock, its round still open), everybody a member since long before.
+    const mkMeetup = async (others, name = 'Größen-Treffen') => {
+      const id = (await db.query(
+        `INSERT INTO groups (name, type, date, owner_id, category, location, max_members)
+         VALUES ($1, 'group',
+                 date_trunc('day', NOW() AT TIME ZONE 'Europe/Vienna') - INTERVAL '3 days' + INTERVAL '19 hours',
+                 $2, 'Sport', 'Wien', 20) RETURNING id`, [name, O])).rows[0].id;
+      await db.query(
+        `INSERT INTO group_members (group_id, user_id, role, joined_at)
+         SELECT $1, u, CASE WHEN u = $2 THEN 'owner' ELSE 'member' END, NOW() - INTERVAL '40 days'
+           FROM unnest($3::int[]) AS u`, [id, O, [O, ...others]]);
+      return id;
+    };
+    const pendingIds = async (uid) => {
+      const res = await call(C.getPendingReviews, { userId: uid });
+      ok(res);
+      return res.body.map((r) => r.group_id);
+    };
+
+    beforeAll(async () => {
+      O = await mkU('smoke-s4-owner@x.com', 'Olga');
+      P = [];
+      for (let i = 1; i <= 8; i++) P.push(await mkU(`smoke-s4-p${i}@x.com`, `Pia ${i}`));
+    });
+
+    it('8 people including the owner: asked, everyone listed, answers count', async () => {
+      const gid = await mkMeetup(P.slice(0, 7));
+      expect(await pendingIds(P[0])).toContain(gid);
+      const reopen = await call(C.getReviewForGroup, { userId: P[0], params: { groupId: String(gid) } });
+      ok(reopen);
+      expect(reopen.body.members).toHaveLength(7); // everyone but the asker
+      const res = await call(C.submitReview, { userId: P[0], body: {
+        group_id: gid, attendances: [{ user_id: P[1], was_present: true }] } });
+      expect(res.body).toEqual({ success: true, counted: true });
+    });
+
+    it('9 people: no popup, the re-open pill 404s, a crafted answer records only the sentinel', async () => {
+      const gid = await mkMeetup(P);
+      expect(await pendingIds(P[0])).not.toContain(gid);
+      expect(await pendingIds(O)).not.toContain(gid);
+      const reopen = await call(C.getReviewForGroup, { userId: P[0], params: { groupId: String(gid) } });
+      expect(reopen.statusCode).toBe(404);
+      const res = await call(C.submitReview, { userId: P[0], body: {
+        group_id: gid, attendances: [{ user_id: P[1], was_present: true }] } });
+      expect(res.body).toEqual({ success: true, counted: false });
+      expect((await db.query('SELECT reviewed_user_id, was_present FROM event_reviews WHERE group_id = $1', [gid])).rows)
+        .toEqual([{ reviewed_user_id: P[0], was_present: false }]);
+      // …and its owner can still say it never happened: not_held runs before the gate.
+      ok(await call(C.submitReview, { userId: O, body: { group_id: gid, not_held: true } }));
+      expect((await db.query('SELECT did_not_take_place FROM groups WHERE id = $1', [gid])).rows[0].did_not_take_place).toBe(true);
+    });
+
+    it('a late joiner does not count: 8 in time plus one afterwards is still asked', async () => {
+      const gid = await mkMeetup(P.slice(0, 7));
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, [gid, P[7]]); // joined NOW
+      expect(await pendingIds(P[0])).toContain(gid);
+      expect(await pendingIds(P[7])).not.toContain(gid);
+    });
+
+    it('leaving once the event day has begun still counts (9 stay 9); a kick leaves no history', async () => {
+      const gid = await mkMeetup(P);
+      ok(await call(C.leaveGroup, { userId: P[7], params: { id: String(gid) } }));
+      expect((await db.query('SELECT 1 FROM hall_of_fame_entries WHERE group_id = $1 AND user_id = $2', [gid, P[7]])).rowCount).toBe(1);
+      expect(await pendingIds(P[0])).not.toContain(gid); // 8 members + the one who left
+      ok(await call(C.kickMember, { userId: O, params: { id: String(gid), userId: String(P[6]) } }));
+      expect(await pendingIds(P[0])).toContain(gid);     // 7 members + the one who left = 8
+    });
+
+    it('a solo owner keeps the prompt — the modal is their way to „Hat nicht stattgefunden“', async () => {
+      const gid = await mkMeetup([]);
+      const res = await call(C.getPendingReviews, { userId: O });
+      ok(res);
+      expect(res.body.find((r) => r.group_id === gid).members).toEqual([]);
+    });
+
+    it('the push: 2–8 people only, 09:00–22:59 Vienna only, never to a late joiner', async () => {
+      // Pre-claim every dated row so far, so only the three meetups below can fire.
+      await db.query(`UPDATE groups SET reminder_day_sent_for = date, reminder_hour_sent_for = date,
+                                        owner_nudge_sent_for = date, review_nudge_sent_for = date WHERE date IS NOT NULL`);
+      const eight = await mkMeetup(P.slice(0, 7), 'Push Acht');
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, [eight, P[7]]); // late
+      const nine = await mkMeetup(P, 'Push Neun');
+      const solo = await mkMeetup([], 'Push Solo');
+      // The day after the meetups, as a true instant (Vienna wall-clock).
+      const dayAfter = async (hhmm) => (await db.query(
+        `SELECT (((date::date + 1)::timestamp + $2::time) AT TIME ZONE 'Europe/Vienna') AS t FROM groups WHERE id = $1`,
+        [eight, hhmm])).rows[0].t;
+      const claimed = async (id) => (await db.query(
+        'SELECT review_nudge_sent_for IS NOT NULL AS c FROM groups WHERE id = $1', [id])).rows[0].c;
+
+      // 23:30: inside the D+1 window, outside the day — nothing.
+      expect(await C.runEventReminders({ now: await dayAfter('23:30') }))
+        .toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 0, pushes: 0 });
+      // 11:00: the 8-person meetup only, to its 8 — the late joiner not among them.
+      expect(await C.runEventReminders({ now: await dayAfter('11:00') }))
+        .toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 1, pushes: 8 });
+      expect([await claimed(eight), await claimed(nine), await claimed(solo)]).toEqual([true, false, false]);
     });
   });
 

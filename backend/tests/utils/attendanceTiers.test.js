@@ -7,6 +7,7 @@ import {
   TIER_MIN_EVENTS, TIER_MIN_CONFIRMERS, countableEventSql, reviewableEventSql, ATTENDANCE_SQL,
   eventStandsSql, reviewRoundOpenSql, joinedInTimeSql, blockedWithSql, REVIEW_WINDOW_DAYS,
   LEGACY_STEPS, legacyTierOf, legacyNextStepFor,
+  REVIEW_MAX_PARTICIPANTS, REVIEW_PUSH_MIN_PARTICIPANTS, participantsAtEventSql,
 } from '../../src/utils/attendanceTiers.js';
 
 // Abzeichen-Stufen (tester 06.10.2026): from 5 confirmed meetups 🏅, from 10 🏆,
@@ -32,6 +33,16 @@ describe('thresholds', () => {
     };
     expect(read('TIER_MIN_EVENTS')).toEqual(TIER_MIN_EVENTS);
     expect(read('TIER_MIN_CONFIRMERS')).toEqual(TIER_MIN_CONFIRMERS);
+  });
+
+  // „Wer war dabei?“ only for small meetups (Tina, 16.11.2026).
+  it('the review asks only up to 8 participants (owner included); the push needs 2', () => {
+    expect(REVIEW_MAX_PARTICIPANTS).toBe(8);
+    expect(REVIEW_PUSH_MIN_PARTICIPANTS).toBe(2);
+    const fe = fs.readFileSync(path.join(__dirname, '../../../frontend/src/utils/attendanceTiers.js'), 'utf8');
+    const m = fe.match(/export const REVIEW_MAX_PARTICIPANTS = (\d+);/);
+    expect(m, 'REVIEW_MAX_PARTICIPANTS missing in the frontend mirror').toBeTruthy();
+    expect(Number(m[1])).toBe(REVIEW_MAX_PARTICIPANTS);
   });
 });
 
@@ -159,6 +170,35 @@ describe('SQL', () => {
     expect(sql).toContain('m.joined_at IS NULL');
     expect(sql).toContain("(m.joined_at::timestamptz AT TIME ZONE 'Europe/Vienna') < x.date::date + 1");
     expect(() => joinedInTimeSql('m', 'x)--')).toThrow();
+  });
+
+  it('participantsAtEventSql: members by the end of the event day ∪ who left on/after it, nobody twice', () => {
+    const sql = participantsAtEventSql('x');
+    expect(sql).toContain('FROM group_members pm WHERE pm.group_id = x.id');
+    expect(sql).toContain(joinedInTimeSql('pm', 'x'));           // a late joiner never counts
+    expect(sql).toContain('UNION SELECT hf.user_id FROM hall_of_fame_entries hf WHERE hf.group_id = x.id');
+    expect(sql).not.toContain('UNION ALL');
+    // the same number for every viewer: no block filter
+    expect(sql).not.toContain('blocked');
+    // Substrings unit-test mocks route on must not appear in a fragment that
+    // is spliced into prompt, write-gate and cron queries.
+    for (const routed of ['FROM group_members gm', 'event_reviews', 'review_nudge_sent_for']) {
+      expect(sql).not.toContain(routed);
+    }
+    expect(() => participantsAtEventSql('x) OR (1=1')).toThrow();
+  });
+
+  it('reviewableEventSql (prompts, re-open, write gate) carries the size gate; the count never does', () => {
+    expect(reviewableEventSql('x')).toContain(`${participantsAtEventSql('x')} <= 8`);
+    expect(reviewableEventSql('x')).toContain(countableEventSql('x'));
+    // No lower bound in the prompt: a solo owner keeps the modal — their way
+    // to „Hat nicht stattgefunden“.
+    expect(reviewableEventSql('x')).not.toContain('BETWEEN');
+    // Answers already given keep counting — the recorded-vote side has no gate.
+    for (const s of [ATTENDANCE_SQL, eventStandsSql('g'), countableEventSql('g')]) {
+      expect(s).not.toContain('hall_of_fame_entries');
+      expect(s).not.toContain('<= 8');
+    }
   });
 
   it('blockedWithSql is two-way and takes only a bind parameter', () => {

@@ -19,6 +19,10 @@
 export const TIER_MIN_EVENTS = [5, 10, 25, 50, 100];
 export const TIER_MIN_CONFIRMERS = [2, 3, 5, 7, 10];
 export const TIER_EMOJI = ['🏅', '🏆', '🌟', '💎', '🎆'];
+// „Wer war dabei?“ is asked only about meetups of at most this many people,
+// the owner included (Tina, 16.11.2026) — so only those can be confirmed. The
+// server decides; mirrored for a text that explains the rule.
+export const REVIEW_MAX_PARTICIPANTS = 8;
 
 /** 1–5 pass through; anything else (0, '2', 6, null, NaN, undefined) is 0. */
 export const normalizeTier = (v) => (Number.isInteger(v) && v >= 1 && v <= TIER_EMOJI.length ? v : 0);

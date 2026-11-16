@@ -57,7 +57,10 @@ export const getPendingReviews = async (req, res) => {
        -- shared definition for prompts, the write gate and the Abzeichen
        -- count, so the app never asks about an event that can never count —
        -- no cancelled or deleted ones, none flagged „nicht stattgefunden“, no
-       -- club events. Ongoing weekly series are excluded there too: their
+       -- club events, and since 16.11.2026 none with more than 8 participants
+       -- (Tina: the question only for small meetups; a solo owner is still
+       -- asked — the modal is their way to „Hat nicht stattgefunden“).
+       -- Ongoing weekly series are excluded there too: their
        -- stored date is the FIRST occurrence, so without it every member got
        -- the "Wer war dabei?" modal one day after week one, for a series still
        -- running (and the answers wrote permanent trusted_count data).
@@ -173,8 +176,10 @@ export const submitReview = async (req, res) => {
     }
 
     // An event whose answers can never count — cancelled, deleted, flagged
-    // „nicht stattgefunden“, a weekly series or a club event — or a reviewer
-    // who joined after the event, or a round that has closed. The prompts no
+    // „nicht stattgefunden“, a weekly series, a club event or a meetup of more
+    // than 8 people (16.11.2026) — or a reviewer who joined after the event,
+    // or a round that has closed. (not_held above stays BEFORE this gate on
+    // purpose: the owner of a big meetup can still flag it.) The prompts no
     // longer ask about those, but an old modal or a crafted POST still can:
     // close this reviewer's prompt with the sentinel and record nothing else
     // (no ✓/✗ rows, no seal recompute). Deliberately a 2xx — old modals
@@ -306,8 +311,9 @@ export const dismissReview = async (req, res) => {
 // a member of, so they can open the review modal on demand — even after they
 // skipped it. Deliberately ignores dismissals (that's the whole point) but
 // still respects a real submission and the 6h-after-event window.
-// 404 when not eligible: not a member, not a past one-off group event, or
-// already submitted.
+// 404 when not eligible: not a member, not a past one-off group event, more
+// than 8 participants (16.11.2026 — the „Wer war dabei?“ pill then simply
+// disappears, in every app version), or already submitted.
 // ==========================================
 export const getReviewForGroup = async (req, res) => {
   const groupId = parseInt(req.params.groupId, 10);

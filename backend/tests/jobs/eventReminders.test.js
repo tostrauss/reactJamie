@@ -32,6 +32,7 @@ vi.mock('../../src/controllers/pushController.js', () => ({
 const {
   runEventReminders, reminderParams, nudgeParams, APP_TZ, NUDGE_MIN_OTHERS,
 } = await import('../../src/jobs/eventReminders.js');
+const { participantsAtEventSql, joinedInTimeSql } = await import('../../src/utils/attendanceTiers.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 // No fake timers in this repo: `now` is injected explicitly.
@@ -312,6 +313,34 @@ describe('review nudge (Batch 3)', () => {
     expect(pushUsersMock).toHaveBeenNthCalledWith(2, [9], expect.any(Function), null, '/');
     expect(pushUsersMock.mock.calls[0][1]('de')).toEqual({ title: 'Wie war "Bar Abend"?', body: 'Bewerte, wer dabei war 🌟' });
     expect(out).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 2, pushes: 3 });
+  });
+
+  // „Wer war dabei?“ only for small meetups (Tina, 16.11.2026).
+  it('claims only meetups of 2–8 people, counted like the prompt, and only 09:00–22:59 Vienna', async () => {
+    await runEventReminders({ now: NOW });
+    const claim = claimOf('review_nudge_sent_for').text;
+    // The prompt's own count (reviewableEventSql: <= 8) — plus a floor of 2
+    // for the push alone: a solo owner keeps the modal but gets no push.
+    expect(claim).toContain(`${participantsAtEventSql('x')} BETWEEN 2 AND 8`);
+    expect(claim).toContain("EXTRACT(HOUR FROM ($1::timestamptz AT TIME ZONE 'Europe/Vienna')) BETWEEN 9 AND 22");
+    // The reminders before an event are not gated by size.
+    for (const m of ['reminder_day_sent_for', 'reminder_hour_sent_for', 'owner_nudge_sent_for']) {
+      expect(claimOf(m).text).not.toContain('hall_of_fame_entries');
+    }
+    // …and the count's subquery never reads as the roster SELECT the mocks route on.
+    expect(membersSelects()).toHaveLength(0);
+  });
+
+  it('recipients are members by the end of the event day — a late joiner is never asked, so never pushed', async () => {
+    program({
+      review: [{ id: 41, owner_id: 1, name: 'Bar Abend', location: null, members_count: 5, time_hhmm: '19:00' }],
+      reviewMembers: [{ group_id: 41, user_id: 7 }],
+    });
+    await runEventReminders({ now: NOW });
+    const revSel = statements.find(s => s.text.includes('event_reviews'));
+    expect(revSel.text).toContain('JOIN groups g ON g.id = gm.group_id');
+    expect(revSel.text).toContain(joinedInTimeSql('gm', 'g'));
+    expect(pushUsersMock).toHaveBeenCalledWith([7], expect.any(Function), null, '/');
   });
 
   it('re-arms the marker (NULL) if the recipient lookup fails after the claim', async () => {

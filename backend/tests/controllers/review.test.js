@@ -10,7 +10,7 @@ const txnStatements = [];
 const memberSet = new Set(); // user_ids that ARE in the group
 // What the reviewer-membership query says about the event (B2 write gate):
 // undefined = an old row shape without the column (today's behaviour).
-const scenario = { countable: undefined, dayOver: undefined, tierFail: false, tierRows: [] };
+const scenario = { countable: undefined, dayOver: undefined, tierFail: false, tierRows: [], ownerId: undefined };
 const outerQueries = [];
 
 vi.mock('../../src/config/database.js', () => {
@@ -54,7 +54,7 @@ vi.mock('../../src/config/database.js', () => {
         // the past so submitReview's "event must have ended" guard passes.
         if (text.includes('FROM group_members gm') && text.includes('JOIN groups g')) {
           return { rows: [{ date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-            countable: scenario.countable, day_over: scenario.dayOver }] };
+            countable: scenario.countable, day_over: scenario.dayOver, owner_id: scenario.ownerId }] };
         }
         // group_members membership check for the REVIEWER (outside the txn)
         if (text.includes('SELECT 1 FROM group_members')) return { rows: [{ '?column?': 1 }] };
@@ -71,6 +71,7 @@ vi.mock('../../src/config/sentry.js', () => ({ initSentry: vi.fn(), Sentry: { ca
 vi.mock('../../src/config/redis.js', () => ({ redisClient: null, redisSubscriber: null }));
 
 const reviewMod = await import('../../src/controllers/reviewController.js');
+const { participantsAtEventSql, REVIEW_MAX_PARTICIPANTS } = await import('../../src/utils/attendanceTiers.js');
 
 const makeRes = () => {
   const res = {};
@@ -87,6 +88,7 @@ beforeEach(() => {
   scenario.dayOver = undefined;
   scenario.tierFail = false;
   scenario.tierRows = [];
+  scenario.ownerId = undefined;
 });
 
 // ── Abzeichen-Stufen (B2, 06.10.2026) ────────────────────────────────────
@@ -193,6 +195,46 @@ describe('review prompts only ask about events that can count', () => {
     expect(sql).toContain('all_gm.joined_at');
     expect(sql).toContain("status = 'blocked'");
     expect(sql).toContain('rr.created_at'); // a closed round is final — no re-open
+  });
+});
+
+// „Wer war dabei?“ only for meetups of up to 8 people, owner included (Tina,
+// 16.11.2026) — one fragment in reviewableEventSql, so the auto-popup, the
+// re-open pill and the write gate can never disagree.
+describe('size gate: at most 8 participants', () => {
+  const GATE = `${participantsAtEventSql('g')} <= ${REVIEW_MAX_PARTICIPANTS}`;
+
+  it('the popup, the re-open and the write gate all carry it', async () => {
+    await reviewMod.getPendingReviews({ userId: 1 }, makeRes());
+    await reviewMod.getReviewForGroup({ userId: 1, params: { groupId: '10' } }, makeRes());
+    scenario.countable = true;
+    await reviewMod.submitReview({ userId: 1, body: { group_id: 10, attendances: [] } }, makeRes());
+    const [pending, reopen] = outerQueries;
+    const gate = outerQueries.find((q) => q.text.includes('AS countable')).text;
+    for (const sql of [pending.text, reopen.text, gate]) {
+      expect(sql).toContain(GATE);
+      expect(sql).toContain('hall_of_fame_entries hf');
+    }
+    // Counted from the event, not from who is looking: no block filter in it.
+    expect(GATE).not.toContain('blocked');
+  });
+
+  it('a big meetup: an answer records only the sentinel and says {counted:false}', async () => {
+    scenario.countable = false; // what the gate makes of 9 people
+    memberSet.add(2);
+    const res = makeRes();
+    await reviewMod.submitReview({ userId: 1, body: { group_id: 10, attendances: [{ user_id: 2, was_present: true }] } }, res);
+    expect(res.json).toHaveBeenCalledWith({ success: true, counted: false });
+    expect(txnStatements.some((x) => x.text.includes('VALUES ($1, $2, $3, $4)'))).toBe(false);
+  });
+
+  it('…but its owner can still flag „Hat nicht stattgefunden“ — not_held runs BEFORE the gate', async () => {
+    scenario.countable = false;
+    scenario.ownerId = 1;
+    const res = makeRes();
+    await reviewMod.submitReview({ userId: 1, body: { group_id: 10, not_held: true } }, res);
+    expect(res.json).toHaveBeenCalledWith({ success: true, not_held: true });
+    expect(txnStatements.some((x) => x.text.includes('SET did_not_take_place = TRUE'))).toBe(true);
   });
 });
 
