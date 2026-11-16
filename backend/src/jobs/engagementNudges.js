@@ -1,8 +1,9 @@
 // Engagement nudges — Tina's notification concept (03.11.2026) and To-Do
 // (04.11.2026), decided with Tobi on 08.11.2026. Runs every 15 min (server.js).
 //
-//   1. momentPrompt — „📷 Wie war X? Lade ein Foto hoch und halte den Moment
-//      fest!" to EVERY participant after the event (was: the creator only).
+//   1. momentPrompt — „📷 Deine Memory von X — Lade ein Foto hoch und halte
+//      den Moment fest!" to EVERY participant the day AFTER the event (was:
+//      the creator only; since 16.11.2026 D+1 from 12:00, was the same day).
 //   2. sayHello     — „Sag kurz Hallo 👋 Die anderen in X freuen sich auf
 //      dich!" to a member who joined ≥ 3 h ago and has not written yet.
 //   3. silence      — JAMIE's funny chat lines when nobody has written at all:
@@ -10,6 +11,9 @@
 //   4. coverNag     — communities without a cover photo: at 5 members
 //      „Hey! Deine Community hat schon X Mitglieder…", 7 days later
 //      „Huch! …um sichtbar zu bleiben!" — then never again.
+//   5. livePhotoPrompt — ONE push WHILE a timed event runs, start+60 to
+//      start+120 min, one of Tina's three lines (S2, 16.11.2026): „Wie
+//      gefällt's dir bei X? Schnapp dir ein Foto für deine Memories! 📸"
 //
 // Every nudge is claimed in ONE statement (UPDATE … SKIP LOCKED / INSERT … ON
 // CONFLICT DO NOTHING RETURNING), so two Railway replicas never double-send,
@@ -56,13 +60,38 @@ const byGroup = (rows, key = 'group_id') => {
   return m;
 };
 
-// ── 1. Photo push after the event ─────────────────────────────────────────
-// Window: a timed event from start+3 h (the review push follows the next
-// morning, so this lands the same evening) up to start+30 h; a date-only
-// event the evening of its day, 21:00–24:00 (we don't know when it ended,
-// and D+1 10:00 belongs to the review push). Recipients: every member with
-// reminders on and the chat not muted — minus whoever already shared a photo
-// of it, and minus the creator once the moment photo is set.
+// Who gets a photo push for these events — the one after it (1.) and the
+// one while it runs (5.) alike: every member with reminders on and the chat
+// not muted, minus whoever already shared a photo of it, and minus the
+// creator once the moment photo is set. → Map(group_id → rows).
+async function photoPushRecipients(groupIds) {
+  const { rows } = await db.query(
+    `SELECT gm.group_id, gm.user_id
+       FROM group_members gm
+       JOIN users u ON u.id = gm.user_id
+       JOIN groups g ON g.id = gm.group_id
+      WHERE gm.group_id = ANY($1::int[])
+        AND gm.notifications_muted = FALSE
+        AND u.push_reminders = TRUE
+        AND NOT (gm.user_id = g.owner_id AND g.moment_photo_url IS NOT NULL)
+        AND NOT EXISTS (SELECT 1 FROM event_photos ep
+                         WHERE ep.group_id = gm.group_id AND ep.user_id = gm.user_id)`,
+    [groupIds]
+  );
+  return byGroup(rows);
+}
+
+// ── 1. Photo push the day after the event ─────────────────────────────────
+// D+1 from 12:00 until midnight, timed and date-only events alike (Tina
+// 16.11.2026, decided by Tobi): the photo is now asked for WHILE the event
+// runs (5.), and this push turns it into the memory the next day — „morgen
+// wird's deine Memory". Until then it came the SAME day (timed: start+3 h,
+// date-only: 21:00, because D+1 10:00 belonged to the review push; Tobi
+// 08.11.); 12:00 keeps two hours to that review push (D+1 10:05) and its own
+// title keeps the two apart. A meetup its owner marks „Hat nicht
+// stattgefunden“ in the review drops out by itself (LIVE). Inside DAYTIME, so
+// effectively 12:00–22:59. The marker is a sent-at that never re-arms.
+// Recipients: photoPushRecipients.
 export async function runMomentPrompts({ now = new Date(), limit = 200, send = sendPushToUsers } = {}) {
   const claimed = await db.query(
     `UPDATE groups g SET moment_prompt_sent_at = $1::timestamptz
@@ -72,14 +101,8 @@ export async function runMomentPrompts({ now = new Date(), limit = 200, send = s
            AND x.date IS NOT NULL
            AND x.moment_prompt_sent_at IS NULL
            AND ${DAYTIME('$1')}
-           AND (
-                (x.date::time <> '00:00'
-                 AND ${START('x')} + INTERVAL '3 hours'  <= $1::timestamptz
-                 AND ${START('x')} + INTERVAL '30 hours' >  $1::timestamptz)
-             OR (x.date::time = '00:00'
-                 AND ((x.date::date)::timestamp + TIME '21:00') AT TIME ZONE '${TZ}' <= $1::timestamptz
-                 AND ((x.date::date + 1)::timestamp) AT TIME ZONE '${TZ}' > $1::timestamptz)
-           )
+           AND ((x.date::date + 1)::timestamp + TIME '12:00') AT TIME ZONE '${TZ}' <= $1::timestamptz
+           AND ((x.date::date + 2)::timestamp) AT TIME ZONE '${TZ}' > $1::timestamptz
          FOR UPDATE OF x SKIP LOCKED
          LIMIT $2
       )
@@ -90,20 +113,7 @@ export async function runMomentPrompts({ now = new Date(), limit = 200, send = s
 
   let recipients;
   try {
-    const { rows } = await db.query(
-      `SELECT gm.group_id, gm.user_id
-         FROM group_members gm
-         JOIN users u ON u.id = gm.user_id
-         JOIN groups g ON g.id = gm.group_id
-        WHERE gm.group_id = ANY($1::int[])
-          AND gm.notifications_muted = FALSE
-          AND u.push_reminders = TRUE
-          AND NOT (gm.user_id = g.owner_id AND g.moment_photo_url IS NOT NULL)
-          AND NOT EXISTS (SELECT 1 FROM event_photos ep
-                           WHERE ep.group_id = gm.group_id AND ep.user_id = gm.user_id)`,
-      [claimed.rows.map(e => e.id)]
-    );
-    recipients = byGroup(rows);
+    recipients = await photoPushRecipients(claimed.rows.map(e => e.id));
   } catch (err) {
     // Re-arm OUR stamp only, so the next tick retries instead of never.
     console.error('[cron] moment prompt: recipient lookup failed, re-arming:', err.message);
@@ -314,7 +324,79 @@ export async function runCoverNags({ now = new Date(), limit = 100, send = sendP
   return { first: first.rowCount, second: second.rowCount, pushes };
 }
 
-// One tick for all four. Each is isolated: a failure (e.g. a missing table in
+// ── 5. Photo push WHILE the event runs (S2, Tina 16.11.2026) ──────────────
+// Tina wants people to think of photos during the meetup, so more memories
+// exist the next day. ONE push per event, start+60 to start+120 min: there is
+// no end time (end_date is never written), so this is an estimate that suits
+// evening events. Timed events only — a date-only meetup (every plain group
+// since 09.06.) has no „during" — and only once somebody besides the creator
+// is in (like the reminders; not claimed → re-checked next tick). Inside
+// DAYTIME: a start from 22:00 gets none. Same recipients as the push the day
+// after (photoPushRecipients) and the same deep link, so on web/Android that
+// push later replaces this one if it is still unread.
+//
+// The marker holds a COPY of groups.date like the reminder markers: moving
+// the event re-arms it. The line rotates per event (pickLiveVariant), so all
+// members of one event read the same one and the locale cache in
+// sendPushToUsers keeps working.
+export const LIVE_PHOTO_VARIANTS = 3;
+export const pickLiveVariant = (groupId) => Number(groupId) % LIVE_PHOTO_VARIANTS;
+// Only worth anything while it is happening: urgency 'high' (Web Push defaults
+// to 'normal', and Android in Doze holds those until its next maintenance
+// window — possibly after the event) and a one-hour TTL (the web default is
+// four weeks: „Wie läuft's?" must never arrive tomorrow). APNs gets the same hour.
+export const LIVE_PUSH_OPTS = Object.freeze({ urgency: 'high', ttl: 60 * 60 });
+
+export async function runLivePhotoPrompts({ now = new Date(), limit = 200, send = sendPushToUsers } = {}) {
+  const { rows: claimed } = await db.query(
+    `UPDATE groups g SET live_prompt_sent_for = g.date
+      WHERE g.id IN (
+        SELECT x.id FROM groups x
+         WHERE ${LIVE('x')}
+           AND x.date IS NOT NULL
+           AND x.date::time <> '00:00'
+           AND x.members_count > 1
+           AND (x.live_prompt_sent_for IS NULL OR x.live_prompt_sent_for <> x.date)
+           AND ${DAYTIME('$1')}
+           AND ${START('x')} + INTERVAL '60 minutes'  <= $1::timestamptz
+           AND ${START('x')} + INTERVAL '120 minutes' >  $1::timestamptz
+         FOR UPDATE OF x SKIP LOCKED
+         LIMIT $2
+      )
+      RETURNING g.id, g.name, to_char(g.date, 'YYYY-MM-DD HH24:MI:SS') AS claimed_date`,
+    [now, limit]
+  );
+  if (!claimed.length) return { events: 0, pushes: 0 };
+
+  let recipients;
+  try {
+    recipients = await photoPushRecipients(claimed.map(e => e.id));
+  } catch (err) {
+    // Undo only OUR stamp (eventReminders' fanOut): if the event was moved
+    // and claimed again for its new date meanwhile, that marker must survive.
+    console.error('[cron] live photo prompt: recipient lookup failed, re-arming:', err.message);
+    await db.query(
+      `UPDATE groups g SET live_prompt_sent_for = NULL
+         FROM unnest($1::int[], $2::timestamp[]) AS c(id, d)
+        WHERE g.id = c.id AND g.live_prompt_sent_for = c.d`,
+      [claimed.map(e => e.id), claimed.map(e => e.claimed_date)]
+    ).catch(() => {});
+    return { events: 0, pushes: 0 };
+  }
+
+  let pushes = 0;
+  await Promise.all(claimed.map(ev => {
+    const ids = (recipients.get(ev.id) || []).map(r => r.user_id);
+    if (!ids.length) return null;
+    pushes += ids.length;
+    const texts = pushTexts('livePhotoPrompt', { groupName: ev.name || '', variant: pickLiveVariant(ev.id) });
+    return Promise.resolve(send(ids, texts, null, '/explore?share=1', LIVE_PUSH_OPTS))
+      .catch(err => console.error(`[cron] live photo prompt failed for group ${ev.id}:`, err.message));
+  }));
+  return { events: claimed.length, pushes };
+}
+
+// One tick for all five. Each is isolated: a failure (e.g. a missing table in
 // the boot window before the migration landed) logs, and the next still runs.
 export async function runEngagementNudges({ now = new Date(), io } = {}) {
   const out = {};
@@ -323,6 +405,7 @@ export async function runEngagementNudges({ now = new Date(), io } = {}) {
     ['hello', () => runSayHello({ now })],
     ['silence', () => runSilenceNudges({ now, io })],
     ['cover', () => runCoverNags({ now })],
+    ['live', () => runLivePhotoPrompts({ now })],
   ]) {
     try {
       out[name] = await fn();

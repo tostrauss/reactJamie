@@ -3840,7 +3840,7 @@ suite('write endpoints against real Postgres', () => {
   describe('engagement nudges (08.11.2026)', () => {
     let en;
     const sent = [];
-    const send = (ids, builder, _body, url) => { sent.push({ ids: [...ids].sort((a, b) => a - b), title: builder('de').title, url }); };
+    const send = (ids, builder, _body, url, opts) => { sent.push({ ids: [...ids].sort((a, b) => a - b), title: builder('de').title, url, opts }); };
     const posted = [];
     const post = async (groupId, text) => { posted.push({ groupId, text }); };
     const mkU = async (tag, extra = {}) => (await db.query(
@@ -3861,39 +3861,113 @@ suite('write endpoints against real Postgres', () => {
       `INSERT INTO group_members (group_id, user_id, role, joined_at, notifications_muted) VALUES ($1, $2, 'member', $3, $4)`,
       [g, u, at, muted]);
 
-    beforeAll(async () => { en = await import('../../src/jobs/engagementNudges.js'); });
+    let pushTexts;
+    beforeAll(async () => {
+      en = await import('../../src/jobs/engagementNudges.js');
+      ({ pushTexts } = await import('../../src/utils/pushLocale.js'));
+    });
     beforeEach(() => { sent.length = 0; posted.length = 0; });
 
-    it('photo push: every participant after a timed event — not before, not twice, minus muted/opted-out/already-shared', async () => {
+    // S2 (Tina 16.11.2026): the memory push moved from the same day to D+1
+    // from 12:00 — two hours behind the review push, with its own title. These
+    // two used to pin the same-day timing; rewritten on purpose, not „greened".
+    it('memory push: every participant the day AFTER a timed event — not that evening, not before 12:00, not twice, minus muted/opted-out/already-shared', async () => {
       const o = await mkU('o'); const p1 = await mkU('p1');
       const off = await mkU('off', { reminders: false }); const mute = await mkU('mute'); const shared = await mkU('shared');
       const g = await mkG(o, { name: 'Bowling', date: '2027-03-10 19:00' });
       for (const u of [p1, off, shared]) await join(g, u);
       await join(g, mute, { muted: true });
       await db.query(`INSERT INTO event_photos (group_id, user_id, url) VALUES ($1, $2, $3)`, [g, shared, avatar]);
+      const memory = () => sent.find(s => s.title === '📷 Deine Memory von Bowling');
 
-      await en.runMomentPrompts({ now: '2027-03-10T21:30:00+01:00', send });   // start + 2.5 h
-      expect(sent.filter(s => s.url === '/explore?share=1')).toHaveLength(0);
-      await en.runMomentPrompts({ now: '2027-03-10T22:30:00+01:00', send });   // start + 3.5 h, 22:30 local
-      const mine = sent.find(s => s.title === '📷 Wie war Bowling?');
-      expect(mine.ids).toEqual([o, p1].sort((a, b) => a - b));
+      await en.runMomentPrompts({ now: '2027-03-10T22:30:00+01:00', send });   // start + 3.5 h: the old slot
+      expect(memory()).toBeUndefined();
+      await en.runMomentPrompts({ now: '2027-03-11T11:45:00+01:00', send });   // D+1 before noon
+      expect(memory()).toBeUndefined();
+      await en.runMomentPrompts({ now: '2027-03-11T12:00:00+01:00', send });
+      expect(memory().ids).toEqual([o, p1].sort((a, b) => a - b));
+      expect(memory().url).toBe('/explore?share=1');
       sent.length = 0;
-      await en.runMomentPrompts({ now: '2027-03-10T22:45:00+01:00', send });
-      expect(sent.find(s => s.title === '📷 Wie war Bowling?')).toBeUndefined();
+      await en.runMomentPrompts({ now: '2027-03-11T12:15:00+01:00', send });
+      expect(memory()).toBeUndefined();
     });
 
-    it('photo push: a date-only meetup gets it the same evening from 21:00, never the next morning', async () => {
+    it('memory push: a date-only meetup the day after from 12:00 too — never its own evening, never two days later', async () => {
       const o = await mkU('do'); const p = await mkU('dp');
       const g = await mkG(o, { name: 'Picknick', date: '2027-03-12 00:00' });
       await join(g, p);
-      await en.runMomentPrompts({ now: '2027-03-12T20:00:00+01:00', send });
-      expect(sent.find(s => s.title === '📷 Wie war Picknick?')).toBeUndefined();
       await en.runMomentPrompts({ now: '2027-03-12T21:15:00+01:00', send });
-      expect(sent.find(s => s.title === '📷 Wie war Picknick?').ids).toEqual([o, p].sort((a, b) => a - b));
+      expect(sent.find(s => s.title === '📷 Deine Memory von Picknick')).toBeUndefined();
+      await en.runMomentPrompts({ now: '2027-03-13T12:00:00+01:00', send });
+      expect(sent.find(s => s.title === '📷 Deine Memory von Picknick').ids).toEqual([o, p].sort((a, b) => a - b));
       const g2 = await mkG(o, { name: 'Zu spät', date: '2027-03-12 00:00' });
       await join(g2, p);
-      await en.runMomentPrompts({ now: '2027-03-13T10:00:00+01:00', send });
-      expect(sent.find(s => s.title === '📷 Wie war Zu spät?')).toBeUndefined();
+      await en.runMomentPrompts({ now: '2027-03-14T12:00:00+01:00', send });
+      expect(sent.find(s => s.title === '📷 Deine Memory von Zu spät')).toBeUndefined();
+    });
+
+    // S2 (Tina 16.11.2026): ONE push WHILE a timed event runs — start+60 to
+    // start+120 min, one of her three lines per event. The claim is global,
+    // so every assert picks its push by title (the line names the event and
+    // depends on its id — pickLiveVariant). June fixtures (CEST, +02:00), so
+    // no other test's clock lands in their windows.
+    const live = (g, name) => pushTexts('livePhotoPrompt', { groupName: name, variant: en.pickLiveVariant(g) })('de').title;
+
+    it('live push: once per event from start+60 min, to the participants minus muted/opted-out/already-shared — urgent, gone after an hour', async () => {
+      const o = await mkU('lo'); const p = await mkU('lp');
+      const off = await mkU('loff', { reminders: false }); const mute = await mkU('lmute'); const shared = await mkU('lshared');
+      const g = await mkG(o, { name: 'Quizabend', date: '2027-06-10 19:00' });
+      for (const u of [p, off, shared]) await join(g, u);
+      await join(g, mute, { muted: true });
+      await db.query(`INSERT INTO event_photos (group_id, user_id, url) VALUES ($1, $2, $3)`, [g, shared, avatar]);
+      const mine = () => sent.filter(s => s.title === live(g, 'Quizabend'));
+
+      await en.runLivePhotoPrompts({ now: '2027-06-10T19:45:00+02:00', send });   // start + 45 min
+      expect(mine()).toHaveLength(0);
+      await en.runLivePhotoPrompts({ now: '2027-06-10T20:00:00+02:00', send });   // start + 60 min
+      expect(mine()).toHaveLength(1);
+      expect(mine()[0]).toMatchObject({
+        ids: [o, p].sort((a, b) => a - b), url: '/explore?share=1', opts: { urgency: 'high', ttl: 3600 },
+      });
+      await en.runLivePhotoPrompts({ now: '2027-06-10T20:15:00+02:00', send });
+      expect(mine()).toHaveLength(1);                                              // not twice
+      // …and the memory push the next day still comes: its own marker.
+      await en.runMomentPrompts({ now: '2027-06-11T12:00:00+02:00', send });
+      expect(sent.find(s => s.title === '📷 Deine Memory von Quizabend').ids).toEqual([o, p].sort((a, b) => a - b));
+    });
+
+    it('live push: never for a date-only meetup or a start from 22:00, never at night; a solo creator\'s event only once someone joined', async () => {
+      const o = await mkU('lno'); const p = await mkU('lnp');
+      const allDay = await mkG(o, { name: 'Ganztags', date: '2027-06-12 00:00' });
+      await join(allDay, p);
+      const solo = await mkG(o, { name: 'Allein', date: '2027-06-12 15:00' });
+      const late = await mkG(o, { name: 'Spät', date: '2027-06-12 22:00' });
+      await join(late, p);
+      for (const now of ['2027-06-12T01:00:00+02:00', '2027-06-12T10:00:00+02:00', '2027-06-12T16:00:00+02:00',
+        '2027-06-12T16:30:00+02:00', '2027-06-12T23:00:00+02:00', '2027-06-12T23:45:00+02:00', '2027-06-13T09:00:00+02:00']) {
+        await en.runLivePhotoPrompts({ now, send });
+      }
+      for (const [g, name] of [[allDay, 'Ganztags'], [solo, 'Allein'], [late, 'Spät']]) {
+        expect(sent.filter(s => s.title === live(g, name)), name).toHaveLength(0);
+      }
+      // Not claimed while alone → asked again on the next tick, once someone is in.
+      await join(solo, p);
+      await en.runLivePhotoPrompts({ now: '2027-06-12T16:45:00+02:00', send });
+      expect(sent.filter(s => s.title === live(solo, 'Allein'))).toHaveLength(1);
+    });
+
+    it('live push: a moved event is asked about again on its new date', async () => {
+      const o = await mkU('lmo'); const p = await mkU('lmp');
+      const g = await mkG(o, { name: 'Verschoben', date: '2027-06-14 18:00' });
+      await join(g, p);
+      await en.runLivePhotoPrompts({ now: '2027-06-14T19:00:00+02:00', send });
+      expect(sent.filter(s => s.title === live(g, 'Verschoben'))).toHaveLength(1);
+      await db.query(`UPDATE groups SET date = '2027-06-21 18:00' WHERE id = $1`, [g]);
+      await en.runLivePhotoPrompts({ now: '2027-06-21T19:15:00+02:00', send });
+      expect(sent.filter(s => s.title === live(g, 'Verschoben'))).toHaveLength(2);
+      const marker = await db.query(
+        `SELECT to_char(live_prompt_sent_for, 'YYYY-MM-DD HH24:MI') AS m FROM groups WHERE id = $1`, [g]);
+      expect(marker.rows[0].m).toBe('2027-06-21 18:00');
     });
 
     it('„Sag kurz Hallo": a member who joined ≥ 3 h ago and never wrote — once; never the creator, the writer or at night', async () => {

@@ -290,6 +290,54 @@ describe('pushTexts', () => {
     });
   });
 
+  // S2 (Tina, 16.11.2026): the memory push moved to the day after the event,
+  // two hours behind the review push „Wie war "X"?“ — so it no longer asks
+  // „Wie war X?“ itself. The body stays.
+  describe('momentPrompt', () => {
+    it('names the memory, never „Wie war“, in all five languages', () => {
+      const b = pushTexts('momentPrompt', { groupName: 'Punsch Night' });
+      expect(b('de')).toEqual({ title: '📷 Deine Memory von Punsch Night', body: 'Lade ein Foto hoch und halte den Moment fest!' });
+      expect(b('en')).toEqual({ title: '📷 Your Memory of Punsch Night', body: 'Upload a photo and keep the moment!' });
+      expect(b('it')).toEqual({ title: '📷 La tua Memory di Punsch Night', body: 'Carica una foto e conserva il momento!' });
+      expect(b('fr')).toEqual({ title: '📷 Ta Memory de Punsch Night', body: 'Ajoute une photo et garde ce moment !' });
+      expect(b('es')).toEqual({ title: '📷 Tu Memory de Punsch Night', body: '¡Sube una foto y guarda el momento!' });
+      expect(b('pt').title).toBe('📷 Deine Memory von Punsch Night');
+      expect(b('de').title).not.toBe(pushTexts('reviewNudge', { groupName: 'Punsch Night' })('de').title);
+    });
+  });
+
+  // S2 (Tina, 16.11.2026): ONE push while the event runs — her three lines,
+  // the variant picked per event by the job (pickLiveVariant).
+  describe('livePhotoPrompt', () => {
+    const line = (variant, l) => pushTexts('livePhotoPrompt', { groupName: 'Bowling', variant })(l);
+
+    it('Tina\'s three German lines, the event name in every title', () => {
+      expect(line(0, 'de')).toEqual({ title: "Wie gefällt's dir bei Bowling?", body: 'Schnapp dir ein Foto für deine Memories! 📸' });
+      expect(line(1, 'de')).toEqual({ title: "Na, wie läuft's bei Bowling? 📸", body: 'Halt den Moment fest!' });
+      expect(line(2, 'de')).toEqual({ title: 'Gute Stimmung bei Bowling?', body: "Mach schnell ein Foto, morgen wird's deine Memory ✨" });
+    });
+
+    it('three different lines in every language, each naming the event', () => {
+      for (const l of ['de', 'en', 'it', 'fr', 'es']) {
+        const titles = [0, 1, 2].map((v) => line(v, l).title);
+        expect(new Set(titles).size, l).toBe(3);
+        for (const t of titles) expect(t, l).toContain('Bowling');
+        for (const v of [0, 1, 2]) expect(line(v, l).body, `${l} ${v}`).toBeTruthy();
+      }
+      expect(line(0, 'en')).toEqual({ title: 'Enjoying Bowling?', body: 'Grab a photo for your Memories! 📸' });
+      expect(line(1, 'it').title).toBe('Allora, come va a Bowling? 📸');
+      expect(line(2, 'fr').body).toBe('Prends vite une photo, demain ce sera ta Memory ✨');
+      expect(line(2, 'es').title).toBe('¿Buen ambiente en Bowling?');
+    });
+
+    it('falls back to German and wraps a variant it does not know instead of sending nothing', () => {
+      expect(line(1, 'pt')).toEqual(line(1, 'de'));
+      expect(line(3, 'de')).toEqual(line(0, 'de'));
+      expect(line(undefined, 'de')).toEqual(line(0, 'de'));
+      expect(pushTexts('livePhotoPrompt', { variant: 0 })('de').title).not.toContain('undefined');
+    });
+  });
+
   // Ziel 4 (Tina, 16.11.2026): being let into a private event is the moment
   // „anfragen“ pays off — as celebratory as the host's „🎉 X will dabei sein!“.
   describe('joinAccepted', () => {

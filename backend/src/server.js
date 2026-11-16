@@ -719,10 +719,12 @@ cron.schedule('0 18 * * *', async () => {
 }, { timezone: 'Europe/Vienna' });
 
 // Engagement nudges every 15 min — jobs/engagementNudges.js (Tina's
-// notification concept, decided 08.11.2026): the photo push after an event
-// (now to every participant — this slot used to be the creator-only moment
-// prompt), „Sag kurz Hallo", the funny lines in a silent chat, and the
-// cover-photo reminder for communities. `io` lets the chat lines appear live.
+// notification concept, decided 08.11.2026): the photo push the day after an
+// event (now to every participant — this slot used to be the creator-only
+// moment prompt; D+1 from 12:00 since 16.11.2026), one photo push WHILE a
+// timed event runs (16.11.2026), „Sag kurz Hallo", the funny lines in a silent
+// chat, and the cover-photo reminder for communities. `io` lets the chat lines
+// appear live.
 cron.schedule('*/15 * * * *', async () => {
   try {
     await runEngagementNudges({ io });

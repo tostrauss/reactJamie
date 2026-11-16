@@ -126,6 +126,41 @@ const reportAdminTexts = () => Object.fromEntries(
 // "19:00 · 6 dabei · Prater" — time and location only when present.
 const reminderBody = (p, l) => dots(p.time, GOING[l](p.count), p.location);
 
+// The three lines of the push WHILE an event runs (livePhotoPrompt below), in
+// Tina's order. A variant outside 0–2 wraps instead of sending nothing.
+const LIVE_PHOTO_LINES = {
+  de: [
+    (n) => ({ title: `Wie gefällt's dir bei ${n}?`, body: 'Schnapp dir ein Foto für deine Memories! 📸' }),
+    (n) => ({ title: `Na, wie läuft's bei ${n}? 📸`, body: 'Halt den Moment fest!' }),
+    (n) => ({ title: `Gute Stimmung bei ${n}?`, body: "Mach schnell ein Foto, morgen wird's deine Memory ✨" }),
+  ],
+  en: [
+    (n) => ({ title: `Enjoying ${n}?`, body: 'Grab a photo for your Memories! 📸' }),
+    (n) => ({ title: `So, how's ${n} going? 📸`, body: 'Capture the moment!' }),
+    (n) => ({ title: `Good vibes at ${n}?`, body: 'Snap a quick photo – tomorrow it becomes your Memory ✨' }),
+  ],
+  it: [
+    (n) => ({ title: `Ti stai divertendo a ${n}?`, body: 'Scatta una foto per le tue Memories! 📸' }),
+    (n) => ({ title: `Allora, come va a ${n}? 📸`, body: 'Immortala il momento!' }),
+    (n) => ({ title: `Bella atmosfera a ${n}?`, body: 'Scatta subito una foto, domani diventerà la tua Memory ✨' }),
+  ],
+  fr: [
+    (n) => ({ title: `Ça te plaît, ${n} ?`, body: 'Prends une photo pour tes Memories ! 📸' }),
+    (n) => ({ title: `Alors, comment ça se passe à ${n} ? 📸`, body: 'Immortalise le moment !' }),
+    (n) => ({ title: `Bonne ambiance à ${n} ?`, body: 'Prends vite une photo, demain ce sera ta Memory ✨' }),
+  ],
+  es: [
+    (n) => ({ title: `¿Qué tal lo pasas en ${n}?`, body: '¡Haz una foto para tus Memories! 📸' }),
+    (n) => ({ title: `¿Qué tal va ${n}? 📸`, body: '¡Captura el momento!' }),
+    (n) => ({ title: `¿Buen ambiente en ${n}?`, body: 'Haz una foto rápida, mañana será tu Memory ✨' }),
+  ],
+};
+const livePhotoLine = (p, l) => {
+  const lines = LIVE_PHOTO_LINES[l];
+  const i = Math.abs(Math.trunc(Number(p.variant) || 0)) % lines.length;
+  return lines[i](p.groupName || '');
+};
+
 // ── Batch 2 (2026-09-07): lifecycle pushes — edit, cancel, close ──────────
 // Only the fields that ACTUALLY changed are passed (when when the date/time
 // moved, location when the place moved), so the body names exactly what the
@@ -374,14 +409,29 @@ const PUSH_TEXTS = {
     es: (p) => ({ title: `¿Qué tal "${p.groupName}"?`, body: 'Valora a quienes asistieron 🌟' }),
   },
   // Tina's notification concept (03.11.) + To-Do (04.11.), decided 08.11.:
-  // the photo push right after an event — to EVERY participant now, not only
-  // the creator. Her sentence, split into title + body.
+  // the photo push after an event — to EVERY participant now, not only the
+  // creator. Her sentence, split into title + body. Since 16.11. it comes the
+  // day AFTER (D+1 12:00) and its title names the memory: „📷 Wie war X?“
+  // landed two hours after the review push „Wie war "X"?“ and read the same.
+  // „Memory“ stays the product word in every language, as in the app.
   momentPrompt: {
-    de: (p) => ({ title: `📷 Wie war ${p.groupName}?`, body: 'Lade ein Foto hoch und halte den Moment fest!' }),
-    en: (p) => ({ title: `📷 How was ${p.groupName}?`, body: 'Upload a photo and keep the moment!' }),
-    it: (p) => ({ title: `📷 Com'è andata ${p.groupName}?`, body: 'Carica una foto e conserva il momento!' }),
-    fr: (p) => ({ title: `📷 C'était comment, ${p.groupName} ?`, body: 'Ajoute une photo et garde ce moment !' }),
-    es: (p) => ({ title: `📷 ¿Qué tal ${p.groupName}?`, body: '¡Sube una foto y guarda el momento!' }),
+    de: (p) => ({ title: `📷 Deine Memory von ${p.groupName}`, body: 'Lade ein Foto hoch und halte den Moment fest!' }),
+    en: (p) => ({ title: `📷 Your Memory of ${p.groupName}`, body: 'Upload a photo and keep the moment!' }),
+    it: (p) => ({ title: `📷 La tua Memory di ${p.groupName}`, body: 'Carica una foto e conserva il momento!' }),
+    fr: (p) => ({ title: `📷 Ta Memory de ${p.groupName}`, body: 'Ajoute une photo et garde ce moment !' }),
+    es: (p) => ({ title: `📷 Tu Memory de ${p.groupName}`, body: '¡Sube una foto y guarda el momento!' }),
+  },
+  // WHILE the event runs (S2, Tina 16.11.2026): one push per event, one of her
+  // three lines — `variant` (0–2) is picked per event by the job
+  // (engagementNudges.js pickLiveVariant), so everybody at one event reads the
+  // same line. The name moved into the title: her „Wie ist die …?“ needed an
+  // article no free event name can promise, and line 3 named no event at all.
+  livePhotoPrompt: {
+    de: (p) => livePhotoLine(p, 'de'),
+    en: (p) => livePhotoLine(p, 'en'),
+    it: (p) => livePhotoLine(p, 'it'),
+    fr: (p) => livePhotoLine(p, 'fr'),
+    es: (p) => livePhotoLine(p, 'es'),
   },
   // „Sag kurz Hallo 👋 Die anderen in [Gruppe] freuen sich auf dich!" — to a
   // member who joined a few hours ago and has not written yet.
