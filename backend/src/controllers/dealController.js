@@ -2,6 +2,10 @@ import db from '../config/database.js';
 import { sendPushToUsers } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 import { resolveCreateLocation } from '../utils/geocode.js';
+import { clubAliveSql } from '../utils/clubGate.js';
+import { checkTextSafety } from '../config/moderation.js';
+import { checkImageField } from '../utils/safeUrl.js';
+import { isUserPro } from './subscriptionController.js';
 
 // Try to extract the city from a free-form address. Most DACH addresses end in
 // "PLZ City" (e.g. "Hauptstraße 1, 1010 Wien"). We take the last comma-separated
@@ -91,6 +95,31 @@ function validateDealInputs({ lat, lng, booking_url, photos, name, deal_label, d
   return null;
 }
 
+// ── A club's deal in every reader (P4 v2, Tina/Tobi 16.11.2026) ───────────
+// A club's own deal (deals.club_id) shows wherever a JAMIE deal shows — the
+// feed, the deal page, at events („die dann genau so aussehen“) — but only
+// while its club is a live OFFICIAL club: closed, in review, rejected,
+// deleted or reclassified as a community, its deals go dark with it, the
+// moment partnerSql stops calling its events „☆ Partner“. JAMIE's own deals
+// (club_id NULL) are not touched. Alias `d`, like PERIOD_KEY_SQL below.
+const CLUB_DEAL_LIVE_SQL = `(d.club_id IS NULL OR EXISTS (
+          SELECT 1 FROM groups c
+           WHERE c.id = d.club_id
+             AND ${clubAliveSql('c')}
+             AND c.club_type = 'official'))`;
+
+// Runs a deals read with that condition. Before the deals.club_id migration
+// has run (boot window, 42703) no club deal can exist yet, so the same read
+// without it is exact — the feed must not 500 for those seconds.
+const queryWithClubGate = async (build, params) => {
+  try {
+    return await db.query(build(CLUB_DEAL_LIVE_SQL), params);
+  } catch (err) {
+    if (err?.code !== '42703') throw err;
+    return db.query(build('TRUE'), params);
+  }
+};
+
 // ==========================================
 // LIST DEALS  (visible to everyone, filtered by visible_until)
 // ==========================================
@@ -99,7 +128,7 @@ function validateDealInputs({ lat, lng, booking_url, photos, name, deal_label, d
 // (admin-set expiry) instead of subscription status.
 export const getDeals = async (req, res) => {
   try {
-    const result = await db.query(
+    const result = await queryWithClubGate((clubLive) =>
       `SELECT id, name, category, deal_label, description, address, lat, lng, photos, booking_url, visible_until, created_at
        FROM deals d
        WHERE is_active = TRUE
@@ -110,6 +139,7 @@ export const getDeals = async (req, res) => {
          AND (max_redemptions IS NULL
               OR (SELECT COUNT(*) FROM deal_redemptions dr
                    WHERE dr.deal_id = d.id AND dr.period_key = (${PERIOD_KEY_SQL})) < max_redemptions)
+         AND ${clubLive}
        ORDER BY created_at DESC`
     );
     res.json(result.rows);
@@ -125,11 +155,12 @@ export const getDeals = async (req, res) => {
 export const getDeal = async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await db.query(
+    const result = await queryWithClubGate((clubLive) =>
       `SELECT id, name, category, deal_label, description, address, lat, lng, photos, booking_url, visible_until, created_at
-       FROM deals
+       FROM deals d
        WHERE id = $1 AND is_active = TRUE
-         AND (visible_until IS NULL OR visible_until > NOW())`,
+         AND (visible_until IS NULL OR visible_until > NOW())
+         AND ${clubLive}`,
       [id]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Deal not found' });
@@ -350,9 +381,10 @@ const DEAL_VISIBLE_SQL = `d.is_active = TRUE
 /**
  * The visible deal of each event, in ONE query for a whole list (the event
  * page asks for one id, the club's event list for all of its events).
- * → Map(group_id → { id, name, deal_label, photo, verified }). Every JAMIE
- * deal is put up by an admin, so all count as checked („Geprüfter Partner“) —
- * club-made deals (v2) will have to earn `verified`. Never throws: a missing
+ * → Map(group_id → { id, name, deal_label, photo, verified }). Every deal
+ * shown counts as checked („Geprüfter Partner“): a JAMIE deal is put up by an
+ * admin, a club's own deal (P4 v2) only shows while JAMIE has its club
+ * classified as an official club (CLUB_DEAL_LIVE_SQL). Never throws: a missing
  * table (boot window, 42P01) is simply „no deal“, anything else is logged and
  * the page still loads without one.
  */
@@ -361,12 +393,13 @@ export async function getDealsForEvents(groupIds) {
   const ids = [...new Set((groupIds || []).map(Number).filter(Boolean))];
   if (!ids.length) return deals;
   try {
-    const { rows } = await db.query(
+    const { rows } = await queryWithClubGate((clubLive) =>
       `SELECT ed.group_id, d.id, d.name, d.deal_label, d.photos->>0 AS photo
          FROM event_deals ed
          JOIN deals d ON d.id = ed.deal_id
         WHERE ed.group_id = ANY($1::int[])
-          AND ${DEAL_VISIBLE_SQL}`,
+          AND ${DEAL_VISIBLE_SQL}
+          AND ${clubLive}`,
       [ids]
     );
     for (const r of rows) {
@@ -378,18 +411,21 @@ export async function getDealsForEvents(groupIds) {
   return deals;
 }
 
-// The events each deal hangs on, for the admin list. Soft-deleted events drop
-// out (their link stays behind but nothing shows it); a missing table (boot
-// window) reads as none. → Map(deal_id → [{ id, name, date }]).
-async function attachedEventsByDeal() {
+// The events each deal hangs on, for the admin list — or only for the deals
+// given (a club's list, P4 v2). Soft-deleted events drop out (their link
+// stays behind but nothing shows it); a missing table (boot window) reads as
+// none. → Map(deal_id → [{ id, name, date }]).
+async function attachedEventsByDeal(dealIds = null) {
   const byDeal = new Map();
+  if (dealIds && !dealIds.length) return byDeal;
   try {
     const { rows } = await db.query(
       `SELECT ed.deal_id, g.id, g.name, g.date
          FROM event_deals ed
          JOIN groups g ON g.id = ed.group_id
-        WHERE g.deleted_at IS NULL
-        ORDER BY g.date ASC NULLS LAST, g.id`
+        WHERE g.deleted_at IS NULL${dealIds ? '\n          AND ed.deal_id = ANY($1::int[])' : ''}
+        ORDER BY g.date ASC NULLS LAST, g.id`,
+      dealIds ? [dealIds] : undefined
     );
     for (const r of rows) {
       if (!byDeal.has(r.deal_id)) byDeal.set(r.deal_id, []);
@@ -397,6 +433,24 @@ async function attachedEventsByDeal() {
     }
   } catch (err) {
     if (err?.code !== '42P01') console.error('[deals] attached events lookup failed:', err.message);
+  }
+  return byDeal;
+}
+
+// The club that put each deal up (P4 v2), for the admin list — so JAMIE can
+// tell the clubs' deals from its own. Before the deals.club_id migration
+// (boot window, 42703) there are none. → Map(deal_id → { id, name }).
+async function clubsByDeal() {
+  const byDeal = new Map();
+  try {
+    const { rows } = await db.query(
+      `SELECT d.id AS deal_id, c.id, c.name
+         FROM deals d
+         JOIN groups c ON c.id = d.club_id`
+    );
+    for (const r of rows) byDeal.set(r.deal_id, { id: r.id, name: r.name });
+  } catch (err) {
+    if (err?.code !== '42703') console.error('[deals] club lookup failed:', err.message);
   }
   return byDeal;
 }
@@ -545,7 +599,8 @@ export const redeemDeal = async (req, res) => {
 // needs to see every deal that ever existed plus how many users have redeemed
 // each. The LEFT JOIN keeps zero-redemption rows in the result.
 // Since 16.11.2026 each row also carries `events` — the events the deal hangs
-// on ([{ id, name, date }], P4 v1), additive for the dashboard.
+// on ([{ id, name, date }], P4 v1) — and `club`, the club that put it up
+// ({ id, name } or null for JAMIE's own, P4 v2), additive for the dashboard.
 export const getDealsForAdmin = async (_req, res) => {
   try {
     const result = await db.query(
@@ -568,8 +623,8 @@ export const getDealsForAdmin = async (_req, res) => {
        ) r ON r.deal_id = d.id
        ORDER BY d.created_at DESC`
     );
-    const events = await attachedEventsByDeal();
-    res.json(result.rows.map((d) => ({ ...d, events: events.get(d.id) || [] })));
+    const [events, clubs] = await Promise.all([attachedEventsByDeal(), clubsByDeal()]);
+    res.json(result.rows.map((d) => ({ ...d, events: events.get(d.id) || [], club: clubs.get(d.id) || null })));
   } catch (err) {
     console.error('getDealsForAdmin error:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -577,7 +632,7 @@ export const getDealsForAdmin = async (_req, res) => {
 };
 
 // ==========================================
-// ADMIN — DEAL AT AN EVENT   PUT /api/deals/event/:groupId   body: { deal_id }
+// DEAL AT AN EVENT   PUT /api/deals/event/:groupId   body: { deal_id }
 // ==========================================
 // P4 v1 (Tina 16.11.2026): a JAMIE admin hangs ONE deal on an event — a club
 // event or a meetup, also a café's deal that belongs to no club at all (Café
@@ -587,6 +642,13 @@ export const getDealsForAdmin = async (_req, res) => {
 // what the event page shows right now — null for one attached but not
 // visible (expired, inactive, sold out), so the dashboard can say so.
 // No cache to bust: neither reader is cached, and no feed carries the deal.
+//
+// P4 v2 (Tobi 16.11.2026): a club's owner and co-managers do the same for
+// their OWN club's events with their OWN club's deals, behind the club-deal
+// gate below (hanging one on needs Pro or an app admin, taking it off does
+// not). What JAMIE hung on such an event — a deal that is not the club's —
+// stays: only an admin moves it (409 DEAL_SET_BY_JAMIE). Admins may still do
+// everything, which is why the route has no requireAdmin any more.
 const toPositiveInt = (v) => {
   let n = null;
   if (typeof v === 'number') n = v;
@@ -595,6 +657,7 @@ const toPositiveInt = (v) => {
 };
 
 export const setEventDeal = async (req, res) => {
+  if (!req.userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   const groupId = toPositiveInt(req.params.groupId);
   if (!groupId) return res.status(400).json({ error: 'Ungültige Event-ID' });
   const rawDealId = req.body?.deal_id;
@@ -603,16 +666,46 @@ export const setEventDeal = async (req, res) => {
     return res.status(400).json({ error: 'deal_id muss eine Deal-ID oder null sein' });
   }
   try {
-    const event = await db.query('SELECT type FROM groups WHERE id = $1 AND deleted_at IS NULL', [groupId]);
+    const event = await db.query('SELECT type, parent_club_id FROM groups WHERE id = $1 AND deleted_at IS NULL', [groupId]);
     if (!event.rows.length) return res.status(404).json({ error: 'Event nicht gefunden' });
     if (event.rows[0].type !== 'event' && event.rows[0].type !== 'group') {
       return res.status(400).json({ error: 'Deals hängen an Events und Treffen, nicht an Clubs.', code: 'NOT_AN_EVENT' });
     }
+    const caller = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);
+    const isAdmin = !!caller.rows[0]?.is_admin;
+    if (!isAdmin) {
+      // A club's own manager: only an event of that club…
+      const clubId = event.rows[0].type === 'event' ? event.rows[0].parent_club_id : null;
+      if (!clubId) return res.status(403).json({ error: 'Keine Berechtigung', code: 'NOT_CLUB_MANAGER' });
+      const access = await clubDealAccess(clubId, req.userId, { needPro: dealId !== null });
+      if (!access.club) return res.status(access.status).json(access.body);
+      // …only one of the club's own live deals…
+      if (dealId !== null) {
+        const deal = await db.query('SELECT club_id, is_active FROM deals WHERE id = $1', [dealId]);
+        if (!deal.rows.length || !deal.rows[0].is_active) return res.status(404).json({ error: 'Deal not found' });
+        if (Number(deal.rows[0].club_id) !== Number(clubId)) {
+          return res.status(403).json({ error: 'Du kannst nur Deals deines Clubs anhängen.', code: 'NOT_OWN_DEAL' });
+        }
+      }
+      // …and never over a deal JAMIE hung there.
+      const current = await db.query(
+        `SELECT d.club_id FROM event_deals ed JOIN deals d ON d.id = ed.deal_id WHERE ed.group_id = $1`,
+        [groupId]
+      );
+      if (current.rows.length && Number(current.rows[0].club_id) !== Number(clubId)) {
+        return res.status(409).json({
+          error: 'An diesem Event hängt ein Deal von JAMIE. Den kann nur das JAMIE-Team ändern.',
+          code: 'DEAL_SET_BY_JAMIE',
+        });
+      }
+    }
     if (dealId === null) {
       await db.query('DELETE FROM event_deals WHERE group_id = $1', [groupId]);
     } else {
-      const deal = await db.query('SELECT 1 FROM deals WHERE id = $1', [dealId]);
-      if (!deal.rows.length) return res.status(404).json({ error: 'Deal not found' });
+      if (isAdmin) {
+        const deal = await db.query('SELECT 1 FROM deals WHERE id = $1', [dealId]);
+        if (!deal.rows.length) return res.status(404).json({ error: 'Deal not found' });
+      }
       // One deal per event: hanging another one replaces it.
       await db.query(
         `INSERT INTO event_deals (group_id, deal_id, attached_by) VALUES ($1, $2, $3)
@@ -622,11 +715,11 @@ export const setEventDeal = async (req, res) => {
       );
     }
     const shown = await getDealsForEvents([groupId]);
-    console.log(`[admin] user ${req.userId} ${dealId ? `attached deal ${dealId} to` : 'took the deal off'} group ${groupId}`);
+    console.log(`[${isAdmin ? 'admin' : 'deals'}] user ${req.userId} ${dealId ? `attached deal ${dealId} to` : 'took the deal off'} group ${groupId}`);
     res.json({ group_id: groupId, deal_id: dealId, deal: shown.get(groupId) || null });
   } catch (err) {
-    if (err?.code === '42P01') {
-      // Boot window: event_deals is not there yet.
+    // Boot window: event_deals (42P01) or deals.club_id (42703) is not there yet.
+    if (err?.code === '42P01' || err?.code === '42703') {
       return res.status(503).json({
         error: 'Deals an Events sind gleich wieder verfügbar. Bitte versuche es in einer Minute erneut.',
         code: 'EVENT_DEALS_UNAVAILABLE',
@@ -635,6 +728,284 @@ export const setEventDeal = async (req, res) => {
     // The event or the deal was hard-deleted between the check and the write.
     if (err?.code === '23503') return res.status(404).json({ error: 'Event oder Deal nicht gefunden' });
     console.error('setEventDeal error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// CLUB DEALS   /api/deals/club/:clubId[/:dealId]   (P4 v2, Tina/Tobi 16.11.2026)
+// ==========================================
+// Tina: „Deals: Paid!! Wenn man als Club einen Deal anlegen will selbst, kann
+// man das nur mit Pro Abo.“ The owner and the co-managers (group_members.role
+// = 'admin', the userManagesClub rule) of a live OFFICIAL club keep the
+// club's own deals (deals.club_id, created_by). They show exactly like a
+// JAMIE deal (feed, deal page, at events — CLUB_DEAL_LIVE_SQL); only the city
+// push stays with JAMIE's deals: a club deal never sends one.
+//
+// The paid part is putting something up: creating, editing, hanging a deal
+// on an event need JAMIE Pro (isUserPro) or an app admin — unlike the ticket
+// link (isUserPro only): the JAMIE team runs official clubs without a
+// subscription of its own. Reading the list, deleting and taking a deal off
+// an event stay free, so a club can always take down what it published, also
+// after its subscription ended. A community never gets deals: no venue
+// behind it, and it goes live without review.
+//
+// visible_until is required and at most CLUB_DEAL_MAX_DAYS ahead, so a deal
+// does not outlive the subscription it was put up with; renewing it is an
+// edit, and an edit needs Pro again. Texts go through checkTextSafety, photos
+// through the image allowlist (checkImageField) — JAMIE's own deals do not,
+// their admins are trusted. Nothing to clear afterwards: like the admin
+// endpoints, nothing that shows a deal is cached.
+export const CLUB_DEAL_MAX_DAYS = 180;
+
+const CLUB_DEALS_UNAVAILABLE = {
+  error: 'Deals sind gleich wieder verfügbar. Bitte versuche es in einer Minute erneut.',
+  code: 'CLUB_DEALS_UNAVAILABLE',
+};
+
+// Who may do what with a club's deals → { club } or { status, body }. In
+// this order, so nobody learns more than they may: an unknown club 404, a
+// non-manager 403 (with Pro, too), a community 403 OFFICIAL_CLUB_REQUIRED, a
+// club that is not live (in review, rejected, closed) 403 CLUB_NOT_LIVE, and
+// only then, where `needPro`, the paid part: 403 PRO_REQUIRED.
+async function clubDealAccess(clubId, userId, { needPro }) {
+  const { rows } = await db.query(
+    `SELECT c.id, c.club_type, c.location, c.lat, c.lng,
+            (${clubAliveSql('c')}) AS is_live,
+            (c.owner_id = $2 OR EXISTS (
+               SELECT 1 FROM group_members gm
+                WHERE gm.group_id = c.id AND gm.user_id = $2 AND gm.role = 'admin')) AS is_manager,
+            COALESCE((SELECT u.is_admin FROM users u WHERE u.id = $2), FALSE) AS caller_is_admin
+       FROM groups c
+      WHERE c.id = $1 AND c.type = 'club' AND c.deleted_at IS NULL`,
+    [clubId, userId]
+  );
+  const club = rows[0];
+  if (!club) return { status: 404, body: { error: 'Club nicht gefunden' } };
+  if (!club.is_manager) return { status: 403, body: { error: 'Keine Berechtigung', code: 'NOT_CLUB_MANAGER' } };
+  if (club.club_type !== 'official') {
+    return { status: 403, body: { error: 'Deals gibt es nur für offizielle Clubs, nicht für Communities.', code: 'OFFICIAL_CLUB_REQUIRED' } };
+  }
+  if (!club.is_live) {
+    return { status: 403, body: { error: 'Dein Club ist gerade nicht freigegeben.', code: 'CLUB_NOT_LIVE' } };
+  }
+  if (needPro && !club.caller_is_admin && !(await isUserPro(userId))) {
+    return { status: 403, body: { error: 'Deals für deinen Club sind ein Pro-Feature.', code: 'PRO_REQUIRED' } };
+  }
+  return { club };
+}
+
+// visible_until of a club deal: required, in the future, at most
+// CLUB_DEAL_MAX_DAYS ahead — plus a day of slack for the time zones, as the
+// form sends a bare date (midnight UTC). → { iso } or { error }.
+function parseClubDealUntil(value) {
+  if (value === undefined || value === null || value === '') return { error: '„Sichtbar bis“ ist ein Pflichtfeld.' };
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return { error: 'visible_until ist kein gültiges Datum' };
+  if (d.getTime() <= Date.now()) return { error: '„Sichtbar bis“ muss in der Zukunft liegen.' };
+  if (d.getTime() > Date.now() + (CLUB_DEAL_MAX_DAYS + 1) * 24 * 3600 * 1000) {
+    return { error: `„Sichtbar bis“ darf höchstens ${CLUB_DEAL_MAX_DAYS} Tage in der Zukunft liegen.` };
+  }
+  return { iso: d.toISOString() };
+}
+
+// The columns a club may write, from a create body (everything, with the
+// required fields) or an edit body (`partial`: only what was sent) →
+// { fields } or { status, error }. JAMIE keeps category, is_active and lat/lng
+// to itself: a club deal's pin comes from its address — an empty address is
+// the club's own, pin included.
+async function clubDealFields(body, club, { partial }) {
+  const b = body || {};
+  const has = (k) => !partial || b[k] !== undefined;
+  const invalid = validateDealInputs({
+    name: b.name, deal_label: b.deal_label, description: b.description,
+    address: b.address, booking_url: b.booking_url, photos: b.photos,
+  });
+  if (invalid) return { status: 400, error: invalid };
+
+  const fields = {};
+  if (has('name') || has('deal_label')) {
+    if ((has('name') && !b.name?.trim()) || (has('deal_label') && !b.deal_label?.trim())) {
+      return { status: 400, error: 'Name und Überschrift sind Pflichtfelder.' };
+    }
+    if (has('name')) fields.name = b.name.trim();
+    if (has('deal_label')) fields.deal_label = b.deal_label.trim();
+  }
+  if (has('visible_until')) {
+    const until = parseClubDealUntil(b.visible_until);
+    if (until.error) return { status: 400, error: until.error };
+    fields.visible_until = until.iso;
+  }
+  if (b.description !== undefined) fields.description = b.description?.trim() || null;
+  if (b.booking_url !== undefined) fields.booking_url = (typeof b.booking_url === 'string' && b.booking_url.trim()) || null;
+  if (b.photos !== undefined || !partial) {
+    const photos = Array.isArray(b.photos) ? b.photos : [];
+    for (const p of photos) {
+      const bad = checkImageField(p, 'Foto-URL');
+      if (bad) return { status: 400, error: bad };
+    }
+    fields.photos = JSON.stringify(photos);
+  }
+  if (b.redeem_interval !== undefined || !partial) {
+    if (b.redeem_interval !== undefined && !REDEEM_INTERVALS.includes(b.redeem_interval)) {
+      return { status: 400, error: 'redeem_interval muss once, daily oder weekly sein' };
+    }
+    fields.redeem_interval = b.redeem_interval || 'once';
+  }
+  if (b.redeem_days !== undefined) fields.redeem_days = parseRedeemDays(b.redeem_days);
+  // Global cap like JAMIE's deals: unsent → 100 on create, ''/null → unlimited.
+  if (b.max_redemptions !== undefined) {
+    if (b.max_redemptions === null || b.max_redemptions === '') {
+      fields.max_redemptions = null;
+    } else {
+      const n = parseInt(b.max_redemptions, 10);
+      if (Number.isNaN(n) || n < 1) return { status: 400, error: 'max_redemptions muss eine positive Zahl sein' };
+      fields.max_redemptions = n;
+    }
+  }
+
+  const textToCheck = [fields.name, fields.deal_label, fields.description].filter(Boolean).join('\n');
+  if (textToCheck) {
+    const { safe, reason } = await checkTextSafety(textToCheck);
+    if (!safe) return { status: 422, error: reason };
+  }
+
+  if (b.address !== undefined || !partial) {
+    const address = typeof b.address === 'string' ? b.address.trim() : '';
+    if (!address) {
+      fields.address = club.location || null;
+      fields.lat = club.lat ?? null;
+      fields.lng = club.lng ?? null;
+    } else {
+      // Region gate, like JAMIE's deals: an address outside the markets is refused.
+      const geo = await resolveCreateLocation(address);
+      if (!geo.ok) {
+        return { status: 400, error: 'Diese Adresse liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien, Frankreich, Spanien).' };
+      }
+      fields.address = address;
+      fields.lat = geo.coords?.lat ?? null;
+      fields.lng = geo.coords?.lng ?? null;
+    }
+  }
+  return { fields };
+}
+
+// The ids of a club-deal route → { clubId, dealId } or null.
+const clubDealIds = (params, { withDeal }) => {
+  const clubId = toPositiveInt(params.clubId);
+  const dealId = withDeal ? toPositiveInt(params.dealId) : null;
+  return clubId && (!withDeal || dealId) ? { clubId, dealId } : null;
+};
+
+// GET /api/deals/club/:clubId — the club's live deals (deleted ones drop
+// out), with redemption counts and the events each hangs on. No Pro needed.
+export const getClubDeals = async (req, res) => {
+  if (!req.userId) return res.status(401).json({ error: 'Nicht autorisiert' });
+  const ids = clubDealIds(req.params, { withDeal: false });
+  if (!ids) return res.status(400).json({ error: 'Ungültige Club-ID' });
+  try {
+    const access = await clubDealAccess(ids.clubId, req.userId, { needPro: false });
+    if (!access.club) return res.status(access.status).json(access.body);
+    const { rows } = await db.query(
+      `SELECT d.id, d.name, d.deal_label, d.description, d.address, d.photos, d.booking_url,
+              d.visible_until, d.max_redemptions, d.redeem_interval, d.redeem_days,
+              COALESCE(d.redeem_round, 0)::int AS redeem_round, d.created_at, d.updated_at,
+              (SELECT COUNT(*)::int FROM deal_redemptions dr WHERE dr.deal_id = d.id) AS redemption_count,
+              (SELECT COUNT(*)::int FROM deal_redemptions dr
+                WHERE dr.deal_id = d.id AND dr.period_key = (${PERIOD_KEY_SQL})) AS round_redemption_count
+         FROM deals d
+        WHERE d.club_id = $1 AND d.is_active = TRUE
+        ORDER BY d.created_at DESC`,
+      [ids.clubId]
+    );
+    const events = await attachedEventsByDeal(rows.map((d) => d.id));
+    res.json(rows.map((d) => ({ ...d, events: events.get(d.id) || [] })));
+  } catch (err) {
+    if (err?.code === '42703') return res.status(503).json(CLUB_DEALS_UNAVAILABLE);
+    console.error('getClubDeals error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// POST /api/deals/club/:clubId — a new deal of the club. Pro (or app admin).
+export const createClubDeal = async (req, res) => {
+  if (!req.userId) return res.status(401).json({ error: 'Nicht autorisiert' });
+  const ids = clubDealIds(req.params, { withDeal: false });
+  if (!ids) return res.status(400).json({ error: 'Ungültige Club-ID' });
+  try {
+    const access = await clubDealAccess(ids.clubId, req.userId, { needPro: true });
+    if (!access.club) return res.status(access.status).json(access.body);
+    const parsed = await clubDealFields(req.body, access.club, { partial: false });
+    if (parsed.error) return res.status(parsed.status).json({ error: parsed.error });
+    const row = { ...parsed.fields, club_id: ids.clubId, created_by: req.userId };
+    const cols = Object.keys(row); // fixed allowlist above — not user input
+    const result = await db.query(
+      `INSERT INTO deals (${cols.join(', ')})
+       VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
+      cols.map((k) => row[k])
+    );
+    // Deliberately no notifyNearbyUsersAboutDeal: the city push is JAMIE's.
+    console.log(`[deals] club ${ids.clubId}: user ${req.userId} created deal ${result.rows[0].id}`);
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    if (err?.code === '42703') return res.status(503).json(CLUB_DEALS_UNAVAILABLE);
+    console.error('createClubDeal error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// PUT /api/deals/club/:clubId/:dealId — partial edit, like updateDeal: only
+// what was sent changes. Pro (or app admin) — renewing visible_until is an edit.
+export const updateClubDeal = async (req, res) => {
+  if (!req.userId) return res.status(401).json({ error: 'Nicht autorisiert' });
+  const ids = clubDealIds(req.params, { withDeal: true });
+  if (!ids) return res.status(400).json({ error: 'Ungültige ID' });
+  try {
+    const access = await clubDealAccess(ids.clubId, req.userId, { needPro: true });
+    if (!access.club) return res.status(access.status).json(access.body);
+    const own = await db.query(
+      'SELECT 1 FROM deals WHERE id = $1 AND club_id = $2 AND is_active = TRUE', [ids.dealId, ids.clubId]
+    );
+    if (!own.rows.length) return res.status(404).json({ error: 'Deal not found' });
+    const parsed = await clubDealFields(req.body, access.club, { partial: true });
+    if (parsed.error) return res.status(parsed.status).json({ error: parsed.error });
+    const keys = Object.keys(parsed.fields); // fixed allowlist above — not user input
+    if (!keys.length) return res.status(400).json({ error: 'Keine Änderungen übergeben' });
+    const result = await db.query(
+      `UPDATE deals SET ${keys.map((k, i) => `${k}=$${i + 1}`).join(', ')}, updated_at=CURRENT_TIMESTAMP
+        WHERE id=$${keys.length + 1} AND club_id=$${keys.length + 2} RETURNING *`,
+      [...keys.map((k) => parsed.fields[k]), ids.dealId, ids.clubId]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Deal not found' });
+    console.log(`[deals] club ${ids.clubId}: user ${req.userId} edited deal ${ids.dealId}`);
+    res.json(result.rows[0]);
+  } catch (err) {
+    if (err?.code === '42703') return res.status(503).json(CLUB_DEALS_UNAVAILABLE);
+    console.error('updateClubDeal error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// DELETE /api/deals/club/:clubId/:dealId — soft, like deleteDeal: the deal
+// goes dark everywhere, its redemptions stay in the stats. No Pro needed.
+export const deleteClubDeal = async (req, res) => {
+  if (!req.userId) return res.status(401).json({ error: 'Nicht autorisiert' });
+  const ids = clubDealIds(req.params, { withDeal: true });
+  if (!ids) return res.status(400).json({ error: 'Ungültige ID' });
+  try {
+    const access = await clubDealAccess(ids.clubId, req.userId, { needPro: false });
+    if (!access.club) return res.status(access.status).json(access.body);
+    const result = await db.query(
+      `UPDATE deals SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1 AND club_id = $2 AND is_active = TRUE RETURNING id`,
+      [ids.dealId, ids.clubId]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'Deal not found' });
+    console.log(`[deals] club ${ids.clubId}: user ${req.userId} deleted deal ${ids.dealId}`);
+    res.json({ message: 'Deal deactivated' });
+  } catch (err) {
+    if (err?.code === '42703') return res.status(503).json(CLUB_DEALS_UNAVAILABLE);
+    console.error('deleteClubDeal error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

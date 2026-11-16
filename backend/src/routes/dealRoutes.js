@@ -3,6 +3,7 @@ import {
   getDeals, getDeal, createDeal, updateDeal, deleteDeal,
   getRedemptionStatus, redeemDeal,
   getDealsForAdmin, getDealRedemptions, startNewRound, setEventDeal,
+  getClubDeals, createClubDeal, updateClubDeal, deleteClubDeal,
 } from '../controllers/dealController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 
@@ -13,8 +14,16 @@ const router = express.Router();
 router.get('/admin/list',           authenticate, requireAdmin, getDealsForAdmin);
 router.get('/admin/:id/redemptions', authenticate, requireAdmin, getDealRedemptions);
 router.post('/admin/:id/new-round',  authenticate, requireAdmin, startNewRound);
-// Hang a deal on an event / take it off (P4 v1, 16.11.2026) — admins only.
-router.put('/event/:groupId',       authenticate, requireAdmin, setEventDeal);
+// Hang a deal on an event / take it off (P4 v1, 16.11.2026) — admins, and
+// since P4 v2 a club's managers for their own events and deals. The handler
+// decides who may, so no requireAdmin here.
+router.put('/event/:groupId',       authenticate, setEventDeal);
+// A club's own deals (P4 v2, 16.11.2026) — its owner and co-managers; the
+// handlers check the club and, to put something up, JAMIE Pro.
+router.get('/club/:clubId',            authenticate, getClubDeals);
+router.post('/club/:clubId',           authenticate, createClubDeal);
+router.put('/club/:clubId/:dealId',    authenticate, updateClubDeal);
+router.delete('/club/:clubId/:dealId', authenticate, deleteClubDeal);
 router.post('/',    authenticate, requireAdmin, createDeal);
 router.put('/:id',  authenticate, requireAdmin, updateDeal);
 router.delete('/:id', authenticate, requireAdmin, deleteDeal);

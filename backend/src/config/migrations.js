@@ -2005,8 +2005,8 @@ const runStartupMigrations = async () => {
     }
   });
 
-  // P4 v2 groundwork (Tobi 16.11.2026): a club's OWN deals, created by its
-  // managers with Pro. Not built yet — both columns stay unused — but they
+  // P4 v2 (Tobi 16.11.2026): a club's OWN deals, created by its managers
+  // with Pro (dealController, CLUB DEALS — built the same day). The columns
   // ride in this release so v2 needs no second restore drill.
   //   club_id    CASCADE: a club that is really deleted takes its deals along
   //              (SET NULL would silently turn them into global admin deals).
@@ -2032,7 +2032,7 @@ const runStartupMigrations = async () => {
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
-      throw err; // nothing reads them yet
+      throw err; // the readers skip the club condition (42703), club deals answer 503 until the next boot
     } finally {
       client.release();
     }

@@ -10,13 +10,15 @@ process.env.NODE_ENV = 'test';
 // events. Queries are dispatched on SQL text; each test programs `scenario`.
 // The real SQL (incl. the sold-out 'once' rule) runs in the smoke test.
 const scenario = {
-  eventRow: { type: 'event' },  // SELECT type FROM groups …
+  eventRow: { type: 'event' },  // SELECT type, parent_club_id FROM groups …
+  isAdmin: true,                // the caller (P4 v2: the route no longer has requireAdmin)
   dealExists: true,
   embedRows: [],                // the event_deals ⨝ deals SELECT
   embedFail: null,
   adminRows: [],                // getDealsForAdmin's main SELECT
   attachedRows: [],             // the admin list's events per deal
   attachedFail: null,
+  clubRows: [],                 // the admin list's club per deal (P4 v2)
   writeFail: null,              // INSERT/DELETE on event_deals
 };
 const queries = [];
@@ -25,7 +27,8 @@ vi.mock('../../src/config/database.js', () => ({
   default: {
     query: vi.fn(async (text, params) => {
       queries.push({ text, params });
-      if (text.startsWith('SELECT type FROM groups')) return { rows: scenario.eventRow ? [scenario.eventRow] : [] };
+      if (text.startsWith('SELECT type, parent_club_id FROM groups')) return { rows: scenario.eventRow ? [scenario.eventRow] : [] };
+      if (text.startsWith('SELECT is_admin FROM users')) return { rows: [{ is_admin: scenario.isAdmin }] };
       if (text.startsWith('SELECT 1 FROM deals')) return { rows: scenario.dealExists ? [{}] : [] };
       if (/^\s*(INSERT INTO|DELETE FROM) event_deals/.test(text)) {
         if (scenario.writeFail) throw scenario.writeFail;
@@ -39,6 +42,7 @@ vi.mock('../../src/config/database.js', () => ({
         if (scenario.attachedFail) throw scenario.attachedFail;
         return { rows: scenario.attachedRows };
       }
+      if (text.includes('JOIN groups c ON c.id = d.club_id')) return { rows: scenario.clubRows };
       if (text.includes('FROM deals d\n       LEFT JOIN')) return { rows: scenario.adminRows };
       throw new Error(`unexpected SQL in test: ${text.slice(0, 80)}`);
     }),
@@ -66,8 +70,8 @@ const embedRow = { group_id: 5, id: 3, name: 'Café Soleá', deal_label: '2 für
 let logSpy;
 beforeEach(() => {
   Object.assign(scenario, {
-    eventRow: { type: 'event' }, dealExists: true, embedRows: [], embedFail: null,
-    adminRows: [], attachedRows: [], attachedFail: null, writeFail: null,
+    eventRow: { type: 'event' }, isAdmin: true, dealExists: true, embedRows: [], embedFail: null,
+    adminRows: [], attachedRows: [], attachedFail: null, clubRows: [], writeFail: null,
   });
   queries.length = 0;
   logSpy?.mockRestore();
@@ -175,11 +179,19 @@ describe('GET /api/deals/admin/list (getDealsForAdmin)', () => {
     const res = makeRes();
     await getDealsForAdmin({}, res);
     expect(res.body).toEqual([
-      { id: 3, name: 'Café Soleá', events: [
+      { id: 3, name: 'Café Soleá', club: null, events: [
         { id: 5, name: 'Punsch Night', date: '2026-12-01T19:00:00.000Z' }, { id: 8, name: 'Quiz', date: null }] },
-      { id: 4, name: 'Bar', events: [] },
+      { id: 4, name: 'Bar', club: null, events: [] },
     ]);
     expect(queries.find((q) => q.text.includes('JOIN groups g')).text).toContain('g.deleted_at IS NULL');
+  });
+
+  it('a club\'s own deal names its club (P4 v2), JAMIE\'s own none', async () => {
+    scenario.adminRows = [{ id: 3, name: 'Café Soleá' }, { id: 4, name: 'Bar' }];
+    scenario.clubRows = [{ deal_id: 4, id: 70, name: 'Bar Neun Club' }];
+    const res = makeRes();
+    await getDealsForAdmin({}, res);
+    expect(res.body.map((d) => d.club)).toEqual([null, { id: 70, name: 'Bar Neun Club' }]);
   });
 
   it('without the table the list still loads, every deal with no events', async () => {
@@ -188,6 +200,6 @@ describe('GET /api/deals/admin/list (getDealsForAdmin)', () => {
     const res = makeRes();
     await getDealsForAdmin({}, res);
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual([{ id: 3, events: [] }]);
+    expect(res.body).toEqual([{ id: 3, club: null, events: [] }]);
   });
 });
