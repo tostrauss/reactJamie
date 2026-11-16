@@ -395,6 +395,25 @@
   color: var(--text-light);
 }
 
+/* Eyebrow row: category pill + „☆ Partner" (GroupDetailPills, P2, Tina
+   16.11.2026). min-width:0 and an ellipsis on the category — the row never
+   gets wider than the card (S3). */
+.gd-pill-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-bottom: 8px;
+}
+.gd-pill-row .gd-category-eyebrow {
+  margin-bottom: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gd-pill-row .partner-badge { flex-shrink: 0; }
+
 /* Category eyebrow — small uppercase label above the title */
 .gd-category-eyebrow {
   display: inline-block;
@@ -573,6 +592,12 @@
   border-radius: 20px;
   padding: 18px 16px 16px;
   margin-bottom: 16px;
+}
+
+/* Partner event (Tina 16.11.2026, P2): the head card's frame in the partner
+   yellow at 55 % instead of the lilac-grey default — a line, never a fill. */
+.gd-content-card--partner {
+  border-color: var(--partner-line);
 }
 
 /* Bottom share/fav pills */

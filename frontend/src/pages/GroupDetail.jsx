@@ -12,6 +12,7 @@ import { MapsChooser } from '../components/MapsChooser';
 import { UserName } from '../components/UserName';
 import VerifiedBadge from '../components/VerifiedBadge';
 import StarIcon from '../components/StarIcon';
+import GroupDetailPills from '../components/GroupDetailPills';
 import { AttendanceTierBadge } from '../components/AttendanceTierBadge';
 import { EventReviewModal } from '../components/EventReviewModal';
 import AvatarGateModal from '../components/AvatarGateModal';
@@ -857,7 +858,9 @@ export const GroupDetail = () => {
         })()}
 
         <div className="gd-body">
-          <div className="gd-content-card">
+          {/* Partner event (server flag, backend utils/clubGate.js partnerSql):
+              the head card is framed in the partner yellow (Tina 16.11.2026). */}
+          <div className={`gd-content-card${group.is_partner ? ' gd-content-card--partner' : ''}`}>
             {/* Info row */}
             <div className="gd-info-row">
               {group.skill_level && group.skill_level !== 'Alle Levels' && (
@@ -910,10 +913,9 @@ export const GroupDetail = () => {
             {/* Category eyebrow above the title — the title is now the
                 user-entered name (see below), so the category is surfaced here
                 as its own label (kept visible per product spec, mirrors the map
-                popup's category chip). */}
-            {group.category && (
-              <span className="gd-category-eyebrow">{group.category}</span>
-            )}
+                popup's category chip). A partner event gets „☆ Partner" next
+                to it, also without a category (Tina 16.11.2026, P2). */}
+            <GroupDetailPills category={group.category} isPartner={!!group.is_partner} />
 
             {/* Group title — the user-entered title (max 15 chars). Falls back
                 to the category only for legacy groups created before titles
