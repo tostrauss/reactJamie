@@ -5,7 +5,7 @@ import { sendPushToUser, sendPushToUsers } from './pushController.js';
 import { expandMatchTerms } from '../utils/categoryFanout.js';
 import { normalizeLocale, categoryPushText, joinRequestText, pushTexts } from '../utils/pushLocale.js';
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
-import { parentClubGateSql } from '../utils/clubGate.js';
+import { parentClubGateSql, partnerSql } from '../utils/clubGate.js';
 import { claimImmediate, bumpPending } from '../utils/categoryPushBudget.js';
 import { postSystemMessage, SYSTEM_TEXTS } from '../utils/systemMessage.js';
 import { isUserPro } from './subscriptionController.js';
@@ -822,7 +822,11 @@ export const getGroups = async (req, res) => {
              -- rule in JS — one definition, no chance of the header and the
              -- server order disagreeing (Home.jsx).
              page.is_imminent,
-             (SELECT COUNT(*) FROM event_likes el WHERE el.group_id = g.id)::int AS like_count
+             (SELECT COUNT(*) FROM event_likes el WHERE el.group_id = g.id)::int AS like_count,
+             -- „☆ Partner“ (Tina 16.11.2026): an official club's own event
+             -- (utils/clubGate.js partnerSql). Here in the decoration, so it
+             -- costs one PK lookup per row of the page, never per candidate.
+             ${partnerSql('g')} AS is_partner
       FROM page
       JOIN groups g ON g.id = page.id
       LEFT JOIN users u ON g.owner_id = u.id
@@ -974,7 +978,11 @@ export const getGroupById = async (req, res) => {
                 FROM group_members gm2
                 JOIN users u3 ON gm2.user_id = u3.id
                 WHERE gm2.group_id = g.id AND u3.date_of_birth IS NOT NULL
-              ) AS age_max
+              ) AS age_max,
+              -- „☆ Partner“ (Tina 16.11.2026, utils/clubGate.js). In the main
+              -- SELECT, not the logged-in block below: guests and share links
+              -- see the partner look too.
+              ${partnerSql('g')} AS is_partner
        FROM groups g
        LEFT JOIN users u ON g.owner_id = u.id
        WHERE g.id = $1 AND g.deleted_at IS NULL`,

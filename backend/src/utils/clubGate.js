@@ -49,3 +49,27 @@ export const parentClubGateSql = (row, opts) => `(
            WHERE pc.id = ${row}.parent_club_id
              AND ${clubAliveSql('pc', opts)}
         ))`;
+
+/**
+ * „☆ Partner“ (Tina 16.11.2026, rule decided by Tobi): a club EVENT that a
+ * live OFFICIAL club put up itself — its creator (the event's owner_id) is
+ * the club's owner or one of its co-managers (group_members.role = 'admin',
+ * the same people userManagesClub and getGroupById's is_manager let manage
+ * the club). Any member may create events where events_owner_only is off
+ * (the API default, and older clubs), and those are not the partner's.
+ *
+ * Always the PARENT club's club_type, compared with `= 'official'`: an event
+ * row's own club_type is NULL (the column is for clubs), and 'community' is
+ * set as well — so never `IS NOT NULL`, never a COALESCE. A club that is no
+ * longer live makes nobody a partner. A boolean, never NULL, for every row
+ * type. One definition for every surface (feed, event page, …).
+ */
+export const partnerSql = (row) => `(${row}.type = 'event' AND EXISTS (
+          SELECT 1 FROM groups pc
+           WHERE pc.id = ${row}.parent_club_id
+             AND ${clubAliveSql('pc')}
+             AND pc.club_type = 'official'
+             AND (pc.owner_id = ${row}.owner_id OR EXISTS (
+                   SELECT 1 FROM group_members mgr
+                    WHERE mgr.group_id = pc.id AND mgr.user_id = ${row}.owner_id AND mgr.role = 'admin'))
+        ))`;

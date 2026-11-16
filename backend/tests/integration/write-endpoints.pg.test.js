@@ -5779,4 +5779,86 @@ suite('write endpoints against real Postgres', () => {
     });
   });
 
+  // ── „☆ Partner“: an official club's own events (Tina/Tobi, 16.11.2026) ─
+  // utils/clubGate.js partnerSql: the parent is a live OFFICIAL club and the
+  // event's creator is its owner or a co-manager. One predicate for the feed
+  // (decoration SELECT) and the event page (main SELECT, guests included).
+  describe('„☆ Partner“ events (16.11.2026)', () => {
+    // A category nobody else uses: the feed returns exactly these rows — and
+    // still through the 30 s cache, which a reclassification has to bust.
+    const CAT = 'SmokePartner';
+    let host, coMgr, member, commHost, viewer;
+    let byHost, byCoMgr, byMember, inCommunity, plainGroup;
+    const mkU = async (email, name) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+       VALUES ($1,$2,'1994-04-04','male',$3, TRUE, 'email') RETURNING id`, [email, name, avatar])).rows[0].id;
+    const mkClub = async (name, owner, clubType) => (await db.query(
+      `INSERT INTO groups (name, type, owner_id, category, location, max_members, is_private, approval_status, club_type)
+       VALUES ($1,'club',$2,'Bar','Wien',100,FALSE,'approved',$3) RETURNING id`, [name, owner, clubType])).rows[0].id;
+    const mkEvent = async (name, clubId, owner) => (await db.query(
+      `INSERT INTO groups (name, type, owner_id, category, location, max_members, date, parent_club_id, is_private)
+       VALUES ($1,$2,$3,$4,'Wien',20, NOW() + INTERVAL '3 days', $5, FALSE) RETURNING id`,
+      [name, clubId ? 'event' : 'group', owner, CAT, clubId])).rows[0].id;
+    const feed = async () => {
+      const res = await call(C.getGroups, { userId: viewer,
+        query: { type: 'group', upcoming: 'true', include_club_events: 'true', category: CAT } });
+      ok(res);
+      return Object.fromEntries(res.body.map((r) => [r.id, r.is_partner]));
+    };
+
+    it('seed: an official club with owner, co-manager and member, a community, a plain group', async () => {
+      host = await mkU('smoke-partner-host@x.com', 'Paco');
+      coMgr = await mkU('smoke-partner-mgr@x.com', 'Mats');
+      member = await mkU('smoke-partner-member@x.com', 'Mo');
+      commHost = await mkU('smoke-partner-comm@x.com', 'Cem');
+      viewer = await mkU('smoke-partner-viewer@x.com', 'Vito');
+      const official = await mkClub('Smoke Café Partner', host, 'official');
+      const community = await mkClub('Smoke Community Partner', commHost, 'community');
+      await db.query(
+        `INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner'),($1,$3,'admin'),($1,$4,'member')`,
+        [official, host, coMgr, member]);
+      byHost = await mkEvent('Punsch Night', official, host);
+      byCoMgr = await mkEvent('Quiz vom Team', official, coMgr);
+      byMember = await mkEvent('Mitglieder-Abend', official, member); // events_owner_only off
+      inCommunity = await mkEvent('Community-Lauf', community, commHost);
+      plainGroup = await mkEvent('Normales Treffen', null, host);
+    });
+
+    it('the feed marks what the official club put up itself — nothing else', async () => {
+      expect(await feed()).toEqual({
+        [byHost]: true, [byCoMgr]: true, [byMember]: false, [inCommunity]: false, [plainGroup]: false,
+      });
+    });
+
+    it('the event page carries the same flag — for a guest (share link) too', async () => {
+      for (const [id, want] of [[byHost, true], [byCoMgr, true], [byMember, false], [inCommunity, false], [plainGroup, false]]) {
+        for (const userId of [0, viewer]) {
+          const res = await call(C.getGroupById, { userId, params: { id: String(id) } });
+          ok(res);
+          expect(res.body.is_partner, `group ${id} as user ${userId}`).toBe(want);
+        }
+      }
+    });
+
+    it('a club that is no longer live makes nobody a partner', async () => {
+      const gone = await mkClub('Smoke Partner zu', host, 'official');
+      const ev = await mkEvent('Letzter Abend', gone, host);
+      expect((await call(C.getGroupById, { userId: viewer, params: { id: String(ev) } })).body.is_partner).toBe(true);
+      await db.query('UPDATE groups SET deleted_at = NOW(), is_active = FALSE WHERE id = $1', [gone]);
+      expect((await call(C.getGroupById, { userId: viewer, params: { id: String(ev) } })).body.is_partner).toBe(false);
+    });
+
+    it('classifying a club shows in the feed at once — classify busts the 30 s cache', async () => {
+      const later = await mkClub('Smoke Bald Partner', host, 'community');
+      const ev = await mkEvent('Bald Partner-Event', later, host);
+      // Raw INSERTs bust nothing (the real create paths do) — start from a fresh read.
+      (await import('../../src/utils/cache.js')).invalidatePrefix('groups:');
+      expect((await feed())[ev]).toBe(false); // …which is cached now
+      ok(await call(C.classifyClub, { userId: A, params: { id: String(later) }, body: { club_type: 'official' } }));
+      expect((await feed())[ev]).toBe(true);
+      ok(await call(C.classifyClub, { userId: A, params: { id: String(later) }, body: { club_type: 'community' } }));
+      expect((await feed())[ev]).toBe(false);
+    });
+  });
+
 });

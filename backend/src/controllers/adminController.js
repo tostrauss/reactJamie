@@ -680,10 +680,16 @@ export const classifyClub = async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Club nicht gefunden' });
 
     // Every club listing is cached for 30 s, the onboarding list separately.
+    // 'groups:' and 'discover_events' since 16.11.2026: an official club's own
+    // events carry „☆ Partner“ (utils/clubGate.js partnerSql), and promoting
+    // or demoting a club must show in the Gruppen feed at once — not after a
+    // TTL — like approveClub does for its events.
     try {
       const { invalidatePrefix, deleteCached } = await import('../utils/cache.js');
       invalidatePrefix('clubs:');
       deleteCached('clubs:featured');
+      invalidatePrefix('groups:');
+      invalidatePrefix('discover_events');
     } catch { /* non-fatal */ }
 
     console.log(`[admin] user ${req.userId} classified club ${id} as ${result.rows[0].club_type}`);
