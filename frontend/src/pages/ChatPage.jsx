@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, useRef, useCallback, Fragment } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { groups, messages, upload } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
@@ -56,6 +56,7 @@ function SenderAvatar({ msg, label, onOpen }) {
 export const ChatPage = () => {
   const { groupId } = useParams();
   const navigate = useNavigate();
+  const routerLocation = useLocation();
   const [group, setGroup] = useState(null);
   const [messageList, setMessageList] = useState([]);
   const safeSetMessageList = (val) => setMessageList(Array.isArray(val) ? val : []);
@@ -220,7 +221,13 @@ export const ChatPage = () => {
   // Back / swipe-right → the chat list on the RIGHT tab (WhatsApp-style). Was
   // navigate(-1), which landed on whatever was in history (usually the Gruppen
   // tab) even when leaving a club chat. Navigate explicitly by type instead.
-  const goBackToList = () => navigate(group?.type === 'club' ? '/chats?filter=clubs' : '/chats');
+  // Only a chat opened with { from } in the router state goes back there —
+  // „Zum Chat“ in the profile's „Demnächst dabei“ (Tina 16.11.2026); push taps
+  // and the chat list hand over nothing.
+  const backTo = typeof routerLocation.state?.from === 'string' && routerLocation.state.from.startsWith('/')
+    ? routerLocation.state.from
+    : null;
+  const goBackToList = () => navigate(backTo || (group?.type === 'club' ? '/chats?filter=clubs' : '/chats'));
   useSwipeBack(chatPageRef, goBackToList, !loading && !!group);
 
   // Composer auto-grow moved into components/ChatComposer.jsx along with the
