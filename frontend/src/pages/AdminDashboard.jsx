@@ -16,15 +16,17 @@ import { UserName } from '../components/UserName';
 import { downloadCSV } from '../utils/csv';
 import { AttendanceTierBadge } from '../components/AttendanceTierBadge';
 
-const KPICard = ({ label, value, sub }) => (
+// `big`: the one headline figure of a section (Pro-Mitglieder aktiv) gets a
+// row of its own and a larger number.
+const KPICard = ({ label, value, sub, big = false }) => (
   <div style={{
     background: 'var(--bg-card, #1e2235)',
     borderRadius: 16,
     padding: '20px',
-    flex: '1 1 140px',
+    flex: big ? '1 1 100%' : '1 1 140px',
     minWidth: 140,
   }}>
-    <div style={{ fontSize: 28, fontWeight: 800, color: '#FD7666' }}>{value ?? '—'}</div>
+    <div style={{ fontSize: big ? 44 : 28, fontWeight: 800, color: '#FD7666' }}>{value ?? '—'}</div>
     <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', marginTop: 4 }}>{label}</div>
     {sub && <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{sub}</div>}
   </div>
@@ -200,6 +202,11 @@ export const AdminDashboard = () => {
   const g = stats?.groups || {};
 
   const d = stats?.deal_redemptions || {};
+  // null on an older server (no field) or without a subscriptions table.
+  const pro = stats?.pro || null;
+  // Number(): i18next only plural-resolves numeric counts.
+  const proTeam = Number(pro?.team_active) || 0;
+  const proSandbox = Number(pro?.sandbox_active) || 0;
 
   return (
     <div style={{
@@ -237,11 +244,45 @@ export const AdminDashboard = () => {
           </button>
         </div>
 
-        {/* Moderation queue FIRST — above every KPI and CRUD block. A report
-            is the only thing on this page with a person waiting on the other
-            end of it, and both the admin push and the admin e-mail deep-link
-            to #reports. (Until 2026-09-15 reports had no UI here at all: the
-            endpoint existed and nothing called it.) */}
+        {/* JAMIE Pro at the very top (Tobi, 16.11.2026: „wie viele Leute eine
+            Pro-Mitgliedschaft abgeschlossen haben (ganz oben)“). Team accounts
+            and store test purchases are not in the figures; the line under
+            the cards says how many were left out. Rides on the stats payload:
+            without `pro` (older server, no subscriptions table) nothing here
+            renders and the page looks as before. */}
+        {pro && (
+          <>
+            <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
+              {t('admin.sections.pro')}
+            </h2>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
+              <KPICard big label={t('admin.pro.active')} value={pro.active} />
+              <KPICard label={t('admin.pro.trialing')} value={pro.trialing} />
+              <KPICard label={t('admin.pro.canceling')} value={pro.canceling} />
+              <KPICard label={t('admin.pro.new7d')} value={pro.new_7d} />
+              <KPICard label={t('admin.pro.new30d')} value={pro.new_30d} />
+              <KPICard label={t('admin.pro.ever')} value={pro.ever} />
+            </div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.6, marginBottom: 32 }}>
+              <div>
+                {t('admin.pro.storesFmt', {
+                  apple: pro.by_store?.apple ?? 0,
+                  google: pro.by_store?.google ?? 0,
+                  web: pro.by_store?.web ?? 0,
+                })}
+              </div>
+              {proTeam > 0 && <div>{t('admin.pro.teamExcluded', { count: proTeam })}</div>}
+              {proSandbox > 0 && <div>{t('admin.pro.sandboxExcluded', { count: proSandbox })}</div>}
+            </div>
+          </>
+        )}
+
+        {/* Moderation queue right under the Pro block — above every other KPI
+            and CRUD block (only Pro sits higher, on Tobi's wish, 16.11.2026).
+            A report is the only thing on this page with a person waiting on
+            the other end of it, and both the admin push and the admin e-mail
+            deep-link to #reports. (Until 2026-09-15 reports had no UI here at
+            all: the endpoint existed and nothing called it.) */}
         <AdminReportsSection />
 
         <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>

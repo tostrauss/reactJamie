@@ -2293,7 +2293,8 @@
       "onlineNowFmt": "Online adesso ({{count}})",
       "growth": "Crescita e coorti",
       "feedbackFmt": "Feedback dall'app ({{count}})",
-      "reportsFmt": "Segnalazioni ({{count}} aperte)"
+      "reportsFmt": "Segnalazioni ({{count}} aperte)",
+      "pro": "JAMIE Pro"
     },
     "feedback": {
       "empty": "Ancora nessun feedback.",
@@ -2347,6 +2348,19 @@
       "redemptionsTotal": "Totale riscatti",
       "redemptionsTotalSub_one": "su {{count}} deal",
       "redemptionsTotalSub_other": "su {{count}} deal"
+    },
+    "pro": {
+      "active": "Membri Pro attivi",
+      "trialing": "di cui in prova gratuita",
+      "canceling": "disdetti, ancora attivi",
+      "new7d": "nuovi (7 giorni)",
+      "new30d": "nuovi (30 giorni)",
+      "ever": "abbonati almeno una volta",
+      "storesFmt": "Apple {{apple}} · Google {{google}} · Web {{web}}",
+      "teamExcluded_one": "+{{count}} account del team non conteggiato",
+      "teamExcluded_other": "+{{count}} account del team non conteggiati",
+      "sandboxExcluded_one": "+{{count}} acquisto di prova (sandbox) non conteggiato",
+      "sandboxExcluded_other": "+{{count}} acquisti di prova (sandbox) non conteggiati"
     },
     "motivations": {
       "title": "In cosa ti riconosci? (onboarding)",

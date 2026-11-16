@@ -14,7 +14,7 @@ import { MOTIVATION_KEYS } from '../utils/motivations.js';
 // ==========================================
 export const getStats = async (_req, res) => {
   try {
-    const [users, groups, events, suggestions, topScreens, churn, dealRedemptions, motivations] = await Promise.all([
+    const [users, groups, events, suggestions, topScreens, churn, dealRedemptions, motivations, pro] = await Promise.all([
       // User counts. Aliases match what AdminDashboard renders (`u.this_week`,
       // `u.this_month`) — earlier the SQL was using `week`/`month` and the
       // dashboard fell back to undefined → blank "-" cells.
@@ -115,8 +115,76 @@ export const getStats = async (_req, res) => {
         if (err?.code !== '42703') console.error('[admin-stats] motivations query failed:', err.message);
         return { rows: [] };
       }),
+      // JAMIE Pro, the block at the very top of the dashboard (Tobi,
+      // 16.11.2026: „wie viele Leute eine Pro-Mitgliedschaft abgeschlossen
+      // haben (ganz oben)“). Rows come from several channels (Stripe on the
+      // web, Apple/Google via RevenueCat or the direct store paths), so every
+      // figure counts DISTINCT users.
+      //   pro_now: isUserPro's rule (subscriptionController).
+      //   was_pro: the row granted Pro at some point. trialEligible's states
+      //     PLUS the store end states expired/revoked/paused, or every lapsed
+      //     Apple sub would drop out of „jemals“ again. Never 'pending',
+      //     'inactive' (abandoned checkouts) or 'duplicate' (paid twice,
+      //     counted via the other row). A Stripe checkout abandoned and then
+      //     deleted also ends as 'canceled'; the table cannot tell, and with
+      //     web sales off since 26.10. that offset no longer grows.
+      // Team accounts (is_admin) and store test purchases (TestFlight, App
+      // Review, Play test cards) stay out of the headline and come back as
+      // their own counts. Every store path logs its transactions in
+      // iap_receipts with the store's environment; the NEWEST receipt of a
+      // row's chain says what the row is now. Stripe rows have none: never
+      // sandbox. Own catch like motivations: no table (42P01) → `pro: null`.
+      db.query(`
+        WITH subs AS (
+          SELECT s.user_id, s.status, s.created_at,
+                 s.status IN ('active','trialing','canceling') AND s.current_period_end > NOW() AS pro_now,
+                 s.status IN ('active','trialing','canceling','canceled','past_due',
+                              'expired','revoked','paused')                                      AS was_pro,
+                 CASE WHEN s.stripe_customer_id LIKE 'apple:%'  THEN 'apple'
+                      WHEN s.stripe_customer_id LIKE 'google:%' THEN 'google'
+                      ELSE 'web' END                                                             AS store,
+                 u.is_admin                                                                      AS team,
+                 COALESCE(rx.environment <> 'Production', FALSE)                                 AS sandbox
+            FROM subscriptions s
+            JOIN users u ON u.id = s.user_id
+            LEFT JOIN LATERAL (
+              SELECT r.environment
+                FROM iap_receipts r
+               WHERE (s.stripe_customer_id LIKE 'apple:%' OR s.stripe_customer_id LIKE 'google:%')
+                 -- chain key: RevenueCat logs the row's own id ('revenuecat:<userId>'),
+                 -- the direct Apple/Google paths the id without its 'apple:'/'google:'
+                 AND r.original_transaction_id = CASE
+                       WHEN s.stripe_subscription_id LIKE 'revenuecat:%' THEN s.stripe_subscription_id
+                       ELSE substr(s.stripe_subscription_id, strpos(s.stripe_subscription_id, ':') + 1)
+                     END
+               ORDER BY r.id DESC
+               LIMIT 1
+            ) rx ON TRUE
+        ),
+        counted AS (SELECT * FROM subs WHERE NOT team AND NOT sandbox),
+        firsts  AS (SELECT MIN(created_at) AS first_at FROM counted WHERE was_pro GROUP BY user_id)
+        SELECT
+          COUNT(DISTINCT user_id) FILTER (WHERE pro_now)::int                             AS active,
+          COUNT(DISTINCT user_id) FILTER (WHERE pro_now AND status = 'trialing')::int     AS trialing,
+          COUNT(DISTINCT user_id) FILTER (WHERE pro_now AND status = 'canceling')::int    AS canceling,
+          COUNT(DISTINCT user_id) FILTER (WHERE pro_now AND store = 'apple')::int         AS apple,
+          COUNT(DISTINCT user_id) FILTER (WHERE pro_now AND store = 'google')::int        AS google,
+          COUNT(DISTINCT user_id) FILTER (WHERE pro_now AND store = 'web')::int           AS web,
+          (SELECT COUNT(*) FROM firsts)::int                                              AS ever,
+          -- new = the user's FIRST row that granted Pro is that recent
+          (SELECT COUNT(*) FROM firsts WHERE first_at >= NOW() - INTERVAL '7 days')::int  AS new_7d,
+          (SELECT COUNT(*) FROM firsts WHERE first_at >= NOW() - INTERVAL '30 days')::int AS new_30d,
+          (SELECT COUNT(DISTINCT user_id) FROM subs WHERE pro_now AND team)::int          AS team_active,
+          (SELECT COUNT(DISTINCT user_id) FROM subs WHERE pro_now AND sandbox AND NOT team)::int AS sandbox_active
+        FROM counted
+      `).catch((err) => {
+        if (err?.code !== '42P01') console.error('[admin-stats] pro query failed:', err.message);
+        return { rows: [] };
+      }),
     ]);
 
+    // The flat SQL row → the nested shape AdminDashboard reads.
+    const p = pro.rows[0];
     res.json({
       users: users.rows[0],
       groups: groups.rows[0],
@@ -126,6 +194,17 @@ export const getStats = async (_req, res) => {
       category_suggestions: suggestions.rows,
       deal_redemptions: dealRedemptions.rows[0],
       motivations: motivations.rows[0] || null,
+      pro: p ? {
+        active: p.active,
+        trialing: p.trialing,
+        canceling: p.canceling,
+        by_store: { apple: p.apple, google: p.google, web: p.web },
+        ever: p.ever,
+        new_7d: p.new_7d,
+        new_30d: p.new_30d,
+        team_active: p.team_active,
+        sandbox_active: p.sandbox_active,
+      } : null,
     });
   } catch (err) {
     console.error('Admin stats error:', err);

@@ -2293,7 +2293,8 @@
       "onlineNowFmt": "Online now ({{count}})",
       "growth": "Growth & cohorts",
       "feedbackFmt": "App feedback ({{count}})",
-      "reportsFmt": "Reports ({{count}} open)"
+      "reportsFmt": "Reports ({{count}} open)",
+      "pro": "JAMIE Pro"
     },
     "feedback": {
       "empty": "No feedback yet.",
@@ -2347,6 +2348,19 @@
       "redemptionsTotal": "Total redeemed",
       "redemptionsTotalSub_one": "across {{count}} deal",
       "redemptionsTotalSub_other": "across {{count}} deals"
+    },
+    "pro": {
+      "active": "Active Pro members",
+      "trialing": "of which in free trial",
+      "canceling": "canceled, still running",
+      "new7d": "new (7 days)",
+      "new30d": "new (30 days)",
+      "ever": "ever subscribed",
+      "storesFmt": "Apple {{apple}} · Google {{google}} · Web {{web}}",
+      "teamExcluded_one": "+{{count}} team account not counted",
+      "teamExcluded_other": "+{{count}} team accounts not counted",
+      "sandboxExcluded_one": "+{{count}} test purchase (sandbox) not counted",
+      "sandboxExcluded_other": "+{{count}} test purchases (sandbox) not counted"
     },
     "motivations": {
       "title": "What sounds like you? (onboarding)",

@@ -2293,7 +2293,8 @@
       "onlineNowFmt": "En ligne maintenant ({{count}})",
       "growth": "Croissance & cohortes",
       "feedbackFmt": "Avis sur l'app ({{count}})",
-      "reportsFmt": "Signalements ({{count}} ouverts)"
+      "reportsFmt": "Signalements ({{count}} ouverts)",
+      "pro": "JAMIE Pro"
     },
     "feedback": {
       "empty": "Aucun avis reçu pour l'instant.",
@@ -2347,6 +2348,19 @@
       "redemptionsTotal": "Total utilisé",
       "redemptionsTotalSub_one": "sur {{count}} offre",
       "redemptionsTotalSub_other": "sur {{count}} offres"
+    },
+    "pro": {
+      "active": "Membres Pro actifs",
+      "trialing": "dont en essai gratuit",
+      "canceling": "résiliés, encore en cours",
+      "new7d": "nouveaux (7 jours)",
+      "new30d": "nouveaux (30 jours)",
+      "ever": "abonnés au moins une fois",
+      "storesFmt": "Apple {{apple}} · Google {{google}} · Web {{web}}",
+      "teamExcluded_one": "+{{count}} compte de l'équipe non compté",
+      "teamExcluded_other": "+{{count}} comptes de l'équipe non comptés",
+      "sandboxExcluded_one": "+{{count}} achat test (sandbox) non compté",
+      "sandboxExcluded_other": "+{{count}} achats test (sandbox) non comptés"
     },
     "motivations": {
       "title": "Qu'est-ce qui te correspond ? (onboarding)",

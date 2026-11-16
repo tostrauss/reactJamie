@@ -5554,4 +5554,112 @@ suite('write endpoints against real Postgres', () => {
     });
   });
 
+  // ── Admin: JAMIE Pro at the top of the dashboard (Tobi, 16.11.2026) ──────
+  // The mocked unit test pins the rules written into the query; this runs it:
+  // the LATERAL receipt lookup per chain key, DISTINCT users across channels,
+  // the team and sandbox split, and „neu“ by the FIRST row that granted Pro.
+  // Deltas against a baseline: earlier blocks leave Pro rows of their own.
+  describe('admin stats: JAMIE Pro (16.11.2026)', () => {
+    const mkUser = async (email, isAdmin = false) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider, is_admin)
+       VALUES ($1, 'Pro', '1995-05-05', 'female', $2, TRUE, 'email', $3) RETURNING id`,
+      [email, avatar, isAdmin])).rows[0].id;
+    // A subscriptions row in the shape its writer leaves; days relative to NOW().
+    const sub = (userId, { status, endDays = null, createdDays = 0, subId, customer }) => db.query(
+      `INSERT INTO subscriptions (user_id, status, current_period_end, stripe_subscription_id, stripe_customer_id, created_at)
+       VALUES ($1, $2, CASE WHEN $3::int IS NULL THEN NULL ELSE NOW() + make_interval(days => $3::int) END,
+               $4, $5, NOW() - make_interval(days => $6::int))`,
+      [userId, status, endDays, subId, customer, createdDays]);
+    const receipt = (userId, { platform = 'apple', txId, origTxId, environment }) => db.query(
+      `INSERT INTO iap_receipts (user_id, platform, product_id, product_type, transaction_id,
+                                 original_transaction_id, environment, raw_receipt, payload)
+       VALUES ($1, $2, 'pro_monthly', 'subscription', $3, $4, $5, '', '{}'::jsonb)`,
+      [userId, platform, txId, origTxId, environment]);
+    const pro = async () => {
+      const res = await call(C.getStats, {});
+      ok(res);
+      expect(res.body.pro).not.toBeNull();
+      return res.body.pro;
+    };
+
+    it('DISTINCT users per channel; team and sandbox apart; „jemals“ keeps lapsed subs, „neu“ goes by the first Pro row', async () => {
+      const before = await pro();
+
+      // RevenueCat (Apple), live, bought today, production receipt
+      const apple = await mkUser('smoke-pro-apple@x.com');
+      await sub(apple, { status: 'active', endDays: 30, subId: `revenuecat:${apple}`, customer: `apple:${apple}` });
+      await receipt(apple, { txId: 'smoke-pro-tx-a', origTxId: `revenuecat:${apple}`, environment: 'Production' });
+      // Play (direct path, key without 'google:'), canceled but paid up, bought 20 days ago
+      const play = await mkUser('smoke-pro-play@x.com');
+      await sub(play, { status: 'canceling', endDays: 10, createdDays: 20,
+        subId: 'google:smoke-pro-token-play-0001', customer: `google:${play}` });
+      await receipt(play, { platform: 'google', txId: 'GPA.smoke-pro-1', origTxId: 'smoke-pro-token-play-0001', environment: 'Production' });
+      // web trial (Stripe), started today
+      const trial = await mkUser('smoke-pro-trial@x.com');
+      await sub(trial, { status: 'trialing', endDays: 14, subId: 'sub_smoke_pro_trial', customer: 'cus_smoke_pro_trial' });
+      // lapsed: an Apple sub in the store end state, and an 'active' row whose period ran out
+      const lapsed = await mkUser('smoke-pro-lapsed@x.com');
+      await sub(lapsed, { status: 'expired', endDays: -3, createdDays: 90, subId: `revenuecat:${lapsed}`, customer: `apple:${lapsed}` });
+      const ranOut = await mkUser('smoke-pro-ranout@x.com');
+      await sub(ranOut, { status: 'active', endDays: -1, createdDays: 100, subId: 'sub_smoke_pro_ranout', customer: 'cus_smoke_pro_ranout' });
+      // abandoned checkout: never Pro, never „jemals“
+      const pending = await mkUser('smoke-pro-pending@x.com');
+      await sub(pending, { status: 'pending', subId: 'sub_smoke_pro_pending', customer: 'cus_smoke_pro_pending' });
+      // came back: a canceled web sub from 60 days ago + a live Apple one → one user, and not „neu“
+      const back = await mkUser('smoke-pro-back@x.com');
+      await sub(back, { status: 'canceled', endDays: -30, createdDays: 60, subId: 'sub_smoke_pro_back', customer: 'cus_smoke_pro_back' });
+      await sub(back, { status: 'active', endDays: 30, createdDays: 2, subId: `revenuecat:${back}`, customer: `apple:${back}` });
+      // direct Apple path (key without 'apple:'): tried in the sandbox, then bought → the NEWEST receipt decides
+      const direct = await mkUser('smoke-pro-direct@x.com');
+      await sub(direct, { status: 'active', endDays: 30, subId: 'apple:2000000999000001', customer: `apple:${direct}` });
+      await receipt(direct, { txId: 'smoke-pro-tx-d1', origTxId: '2000000999000001', environment: 'Sandbox' });
+      await receipt(direct, { txId: 'smoke-pro-tx-d2', origTxId: '2000000999000001', environment: 'Production' });
+      // a team account with a live sub
+      const team = await mkUser('smoke-pro-team@x.com', true);
+      await sub(team, { status: 'active', endDays: 30, subId: 'sub_smoke_pro_team', customer: 'cus_smoke_pro_team' });
+      // TestFlight / App Review (RevenueCat sandbox) and a Play license tester ('Test')
+      const testflight = await mkUser('smoke-pro-testflight@x.com');
+      await sub(testflight, { status: 'active', endDays: 1, subId: `revenuecat:${testflight}`, customer: `apple:${testflight}` });
+      await receipt(testflight, { txId: 'smoke-pro-tx-tf', origTxId: `revenuecat:${testflight}`, environment: 'Sandbox' });
+      const tester = await mkUser('smoke-pro-tester@x.com');
+      await sub(tester, { status: 'active', endDays: 5, subId: 'google:smoke-pro-token-test-0001', customer: `google:${tester}` });
+      await receipt(tester, { platform: 'google', txId: 'GPA.smoke-pro-t', origTxId: 'smoke-pro-token-test-0001', environment: 'Test' });
+
+      const after = await pro();
+      const delta = (a, b) => Object.fromEntries(Object.keys(b).map((k) => [k, a[k] - b[k]]));
+      const { by_store: storesAfter, ...flatAfter } = after;
+      const { by_store: storesBefore, ...flatBefore } = before;
+      expect(delta(flatAfter, flatBefore)).toEqual({
+        active: 5,          // apple, play, trial, back, direct
+        trialing: 1,        // trial
+        canceling: 1,       // play
+        ever: 7,            // + lapsed, ranOut — never pending, team or the two test buyers
+        new_7d: 3,          // apple, trial, direct (back's first Pro row is 60 days old)
+        new_30d: 4,         // + play
+        team_active: 1,
+        sandbox_active: 2,  // testflight, tester
+      });
+      expect(delta(storesAfter, storesBefore)).toEqual({ apple: 3, google: 1, web: 1 });
+      for (const v of [...Object.values(flatAfter), ...Object.values(storesAfter)]) expect(Number.isInteger(v)).toBe(true);
+      // one live row per user (subscriptions_one_active_per_user) → the channels add up to the headline
+      expect(storesAfter.apple + storesAfter.google + storesAfter.web).toBe(after.active);
+    });
+
+    it('without the subscriptions table (boot window): pro is null, quietly, and the rest of the stats load', async () => {
+      const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        await db.query('ALTER TABLE subscriptions RENAME TO subscriptions_bootwin');
+        const res = await call(C.getStats, {});
+        ok(res);
+        expect(res.body.pro).toBe(null);
+        expect(res.body.users).toBeTruthy();
+        expect(err).not.toHaveBeenCalled();
+      } finally {
+        await db.query('ALTER TABLE IF EXISTS subscriptions_bootwin RENAME TO subscriptions');
+        err.mockRestore();
+      }
+      expect((await pro()).active).toBeGreaterThan(0);
+    });
+  });
+
 });

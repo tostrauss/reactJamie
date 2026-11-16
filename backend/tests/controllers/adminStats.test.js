@@ -67,3 +67,75 @@ describe('getStats — motivations', () => {
     err.mockRestore();
   });
 });
+
+// JAMIE Pro at the top of the dashboard (Tobi, 16.11.2026: „wie viele Leute
+// eine Pro-Mitgliedschaft abgeschlossen haben (ganz oben)“). The mock cannot
+// run the SQL (the real-Postgres smoke suite does): this pins the response
+// shape, the rules written into the query, and that it fails on its own.
+describe('getStats — pro', () => {
+  const isProQuery = (sql) => /FROM subscriptions s\b/.test(sql);
+  const armPro = (pro) => vi.mocked(db.query).mockImplementation(async (sql) => {
+    if (isProQuery(sql)) return pro();
+    return { rows: [{}] };
+  });
+  const proSql = () => vi.mocked(db.query).mock.calls.map(([sql]) => sql).find(isProQuery);
+
+  it('nests the flat row: by_store groups the three channels, every other figure passes through', async () => {
+    armPro(async () => ({ rows: [{
+      active: 12, trialing: 3, canceling: 2, apple: 9, google: 1, web: 2,
+      ever: 20, new_7d: 4, new_30d: 7, team_active: 3, sandbox_active: 1,
+    }] }));
+    const res = await run();
+    expect(res.statusCode).toBe(200);
+    expect(res.body.pro).toEqual({
+      active: 12, trialing: 3, canceling: 2,
+      by_store: { apple: 9, google: 1, web: 2 },
+      ever: 20, new_7d: 4, new_30d: 7, team_active: 3, sandbox_active: 1,
+    });
+  });
+
+  it('"Pro now" is isUserPro\'s rule; „jemals“ keeps lapsed store subs, never abandoned checkouts or double payments', async () => {
+    armPro(async () => ({ rows: [{}] }));
+    await run();
+    const sql = proSql();
+    expect(sql).toMatch(/s\.status IN \('active','trialing','canceling'\) AND s\.current_period_end > NOW\(\)\s+AS pro_now/);
+    const wasPro = sql.match(/s\.status IN \(([^)]*)\)\s+AS was_pro/)[1];
+    for (const s of ['active', 'trialing', 'canceling', 'canceled', 'past_due', 'expired', 'revoked', 'paused']) {
+      expect(wasPro).toContain(`'${s}'`);
+    }
+    for (const s of ['pending', 'inactive', 'duplicate']) expect(wasPro).not.toContain(`'${s}'`);
+  });
+
+  it('team accounts and store test purchases are left out of the headline, counted per DISTINCT user', async () => {
+    armPro(async () => ({ rows: [{}] }));
+    await run();
+    const sql = proSql();
+    expect(sql).toMatch(/u\.is_admin\s+AS team/);
+    expect(sql).toMatch(/COALESCE\(rx\.environment <> 'Production', FALSE\)\s+AS sandbox/);
+    expect(sql).toMatch(/counted AS \(SELECT \* FROM subs WHERE NOT team AND NOT sandbox\)/);
+    for (const k of ['active', 'trialing', 'canceling', 'apple', 'google', 'web']) {
+      expect(sql).toMatch(new RegExp(String.raw`COUNT\(DISTINCT user_id\) FILTER \(WHERE pro_now[^)]*\)::int\s+AS ${k}\b`));
+    }
+  });
+
+  it('no subscriptions table yet (42P01) → pro: null, not logged, the rest of the dashboard loads', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    armPro(async () => { throw Object.assign(new Error('relation "subscriptions" does not exist'), { code: '42P01' }); });
+    const res = await run();
+    expect(res.statusCode).toBe(200);
+    expect(res.body.pro).toBeNull();
+    expect(res.body).toHaveProperty('users');
+    expect(err).not.toHaveBeenCalled();
+    err.mockRestore();
+  });
+
+  it('any other failure is logged, pro: null, and the dashboard still loads', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    armPro(async () => { throw new Error('syntax error'); });
+    const res = await run();
+    expect(res.statusCode).toBe(200);
+    expect(res.body.pro).toBeNull();
+    expect(err).toHaveBeenCalledTimes(1);
+    err.mockRestore();
+  });
+});
