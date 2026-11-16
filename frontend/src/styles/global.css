@@ -1344,6 +1344,13 @@ select:focus {
   padding-top: 12px;
 }
 
+/* The offline banner is showing: toasts start below it instead of covering
+   it. OfflineBanner (context/NetworkContext.jsx) sets the attribute and its
+   measured height (safe-area inset included) on <html>. */
+:root[data-offline-banner] .toast-container {
+  top: var(--offline-banner-h, 36px);
+}
+
 .toast {
   display: flex;
   align-items: center;
@@ -1355,6 +1362,9 @@ select:focus {
   color: white;
   pointer-events: auto;
   cursor: pointer;
+  /* Swipe up to dismiss (hooks/useSwipeDismiss.js): the vertical drag is
+     ours — otherwise Android Chrome takes the pan and cancels the pointer. */
+  touch-action: none;
   animation: toastIn 0.3s ease;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(12px);
@@ -1440,6 +1450,9 @@ select:focus {
   font-size: 13px;
   font-weight: 600;
   text-align: center;
+  /* Swiped up or tapped away for this offline spell (Tina 16.11.2026). */
+  cursor: pointer;
+  touch-action: none;
   animation: slideDown 0.3s ease;
 }
 

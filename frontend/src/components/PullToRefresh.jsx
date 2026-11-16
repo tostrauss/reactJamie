@@ -25,8 +25,11 @@ const START_SLOP = 8;   // px of downward travel before we treat it as a pull
 const THRESHOLD = 64;   // dampened px that arm a refresh on release
 const MAX_PULL = 100;   // dampened px visual cap
 
-// Surfaces with their own pan/drag gestures — never hijack these.
-const EXCLUDE_SELECTOR = '.home-container--map, .map-container, .modal-overlay, .gm-style';
+// Surfaces with their own pan/drag gestures — never hijack these. Toasts and
+// the offline banner swipe up to dismiss (16.11.2026); a pull down on one of
+// them refreshed the page — even mid-list on a fixed-height page, where the
+// fallback scroller .app-viewport sits at scrollTop 0.
+const EXCLUDE_SELECTOR = '.home-container--map, .map-container, .modal-overlay, .gm-style, .toast-container, .offline-banner';
 
 function findScrollable(start) {
   let el = start instanceof Element ? start : null;

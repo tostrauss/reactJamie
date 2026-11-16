@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import useSwipeDismiss from '../hooks/useSwipeDismiss';
 
 const NetworkContext = createContext({ isOnline: true });
 
@@ -31,8 +32,46 @@ export const NetworkProvider = ({ children }) => {
 
 const OfflineBanner = () => {
   const { t } = useTranslation();
+  // Swiped up or tapped away (Tina 16.11.2026): gone for THIS offline spell
+  // only. The banner unmounts when the network is back, so the next spell
+  // starts with it showing again. Local state on purpose, not in the context
+  // value: AuthProvider reads that context, and a new value would re-render
+  // every auth consumer on a swipe.
+  const [dismissed, setDismissed] = useState(false);
+  const { ref, handlers } = useSwipeDismiss({ onDismiss: () => setDismissed(true) });
+
+  // While it shows, the toasts start below it instead of covering it: its
+  // measured height goes onto <html> (global.css, :root[data-offline-banner]).
+  // Measured, not a fixed 36px — the text wraps on narrow screens and in
+  // longer languages.
+  useEffect(() => {
+    const el = ref.current;
+    if (dismissed || !el) return;
+    const root = document.documentElement;
+    const measure = () => root.style.setProperty('--offline-banner-h', `${el.offsetHeight}px`);
+    measure();
+    root.setAttribute('data-offline-banner', '');
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    observer?.observe(el);
+    return () => {
+      observer?.disconnect();
+      root.removeAttribute('data-offline-banner');
+      root.style.removeProperty('--offline-banner-h');
+    };
+  }, [dismissed, ref]);
+
+  if (dismissed) return null;
+
   return (
-    <div className="offline-banner">
+    <div
+      ref={ref}
+      className="offline-banner"
+      role="status"
+      aria-live="polite"
+      {...handlers}
+      // A tap works too — the one-finger alternative to the swipe.
+      onClick={() => setDismissed(true)}
+    >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <line x1="1" y1="1" x2="23" y2="23"/>
         <path d="M16.72 11.06A10.94 10.94 0 0119 12.55"/>
