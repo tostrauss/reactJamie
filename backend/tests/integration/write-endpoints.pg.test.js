@@ -208,6 +208,7 @@ suite('write endpoints against real Postgres', () => {
       getGroupById: g.getGroupById,
       cancelGroup: g.cancelGroup, deleteGroup: g.deleteGroup,
       getUserClubs: c.getUserClubs, setMyClubOrder: c.setMyClubOrder,     // profile order (16.11.2026)
+      getMyUpcomingEvents: g.getMyUpcomingEvents,                         // „Demnächst dabei“ (16.11.2026)
     };
   }, 90000);
 
@@ -6128,6 +6129,120 @@ suite('write endpoints against real Postgres', () => {
       expect(Object.values(r).map((x) => x.profile_position).every((p) => p === null)).toBe(true);
       const bad = await call(C.setMyClubOrder, { userId: me, body: { clubIds: [K.a, K.a] } });
       expect(bad.statusCode).toBe(400);
+    });
+  });
+
+  // ── „Demnächst dabei“ (Tina 16.11.2026, PR4) ────────────────────────────
+  // GET /api/groups/user/upcoming against the edge cases of the briefing.
+  // The endpoint has no injectable clock, so every date is anchored to the
+  // real Vienna day and sits clearly inside or outside it.
+  describe('„Demnächst dabei“: the own coming meetups and club events (PR4, 16.11.2026)', () => {
+    const today = `date_trunc('day', NOW() AT TIME ZONE 'Europe/Vienna')`;
+    let me, host, peer;
+    const E = {};   // entities by case
+    const mkU = async (email, name) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+       VALUES ($1,$2,'1994-06-06','female',$3, TRUE, 'email') RETURNING id`, [email, name, avatar])).rows[0].id;
+    const mk = async ({ name, owner, type = 'group', at = null, recurring = false, active = true, parent = null,
+      clubType = null, approval = 'approved', notHeld = false }) => (await db.query(
+      `INSERT INTO groups (name, type, owner_id, category, location, max_members, date, is_recurring_weekly,
+                           is_active, parent_club_id, club_type, approval_status, did_not_take_place)
+       VALUES ($1,$2,$3,'Sport','Wien',20, ${at ? `${today} + INTERVAL '${at}'` : 'NULL'}, $4,$5,$6,$7,$8,$9) RETURNING id`,
+      [name, type, owner, recurring, active, parent, clubType, approval, notHeld])).rows[0].id;
+    const add = (gid, uid, role = 'member') => db.query(
+      `INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,$3)`, [gid, uid, role]);
+    // An entity of `owner` with `me` let in.
+    const theirs = async (spec) => {
+      const id = await mk({ owner: host, ...spec });
+      await add(id, spec.owner ?? host, 'owner');
+      if ((spec.owner ?? host) !== me) await add(id, me);
+      return id;
+    };
+    const upcoming = async () => {
+      const res = await call(C.getMyUpcomingEvents, { userId: me });
+      ok(res);
+      return res.body;
+    };
+
+    it('seed: one person and every case', async () => {
+      me = await mkU('smoke-up-me@x.com', 'Uma');
+      host = await mkU('smoke-up-host@x.com', 'Hugo');
+      peer = await mkU('smoke-up-peer@x.com', 'Pia');
+      const asker = await mkU('smoke-up-asker@x.com', 'Ari');
+      // listed, in this order
+      E.allDayToday = await theirs({ name: 'Up Heute ganztags', at: '0 minutes' });
+      E.timedToday = await theirs({ name: 'Up Heute 00:01', at: '1 minute' });
+      E.ownTomorrow = await theirs({ name: 'Up Mein Treffen', owner: me, at: '1 day' });
+      // First occurrence 20 days ago at 19:00 → next: tomorrow 19:00, whatever the time of day.
+      E.weekly = await theirs({ name: 'Up Wöchentlich', at: '-19 days -5 hours', recurring: true });
+      const official = await theirs({ name: 'Up Partner-Club', type: 'club', clubType: 'official' });
+      E.partner = await theirs({ name: 'Up Punsch Night', type: 'event', parent: official, at: '2 days 19 hours' });
+      await add(official, peer);
+      E.memberEvent = await mk({ name: 'Up Mitglieder-Abend', owner: peer, type: 'event', parent: official, at: '3 days 18 hours' });
+      await add(E.memberEvent, peer, 'owner');
+      await add(E.memberEvent, me);
+      const community = await mk({ name: 'Up Community', owner: host, type: 'club', clubType: 'community' });
+      await add(community, host, 'owner');
+      await add(community, me, 'admin');                 // co-manager
+      E.community = await theirs({ name: 'Up Community-Lauf', type: 'event', parent: community, at: '3 days 20 hours' });
+      const pending = await mk({ name: 'Up Club in Prüfung', owner: me, type: 'club', clubType: 'official', approval: 'pending' });
+      await add(pending, me, 'owner');
+      E.inPending = await theirs({ name: 'Up Event im Prüf-Club', owner: me, type: 'event', parent: pending, at: '4 days 12 hours' });
+      E.inFiveDays = await theirs({ name: 'Up In fünf Tagen', at: '5 days 19 hours' });
+      E.undated = await theirs({ name: 'Up Ohne Datum' });
+      // not listed
+      E.yesterday = await theirs({ name: 'Up Gestern', at: '-4 hours' });
+      E.cancelled = await theirs({ name: 'Up Abgesagt', at: '2 days', active: false });
+      E.deleted = await theirs({ name: 'Up Gelöscht', at: '2 days' });
+      await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [E.deleted]);
+      E.notHeld = await theirs({ name: 'Up Nicht stattgefunden', at: '1 minute', notHeld: true });
+      const dead = await mk({ name: 'Up Club weg', owner: host, type: 'club', clubType: 'community' });
+      await add(dead, host, 'owner');
+      E.deadEvent = await theirs({ name: 'Up Event ohne Club', type: 'event', parent: dead, at: '2 days' });
+      await db.query('UPDATE groups SET deleted_at = NOW(), is_active = FALSE WHERE id = $1', [dead]);
+      E.requested = await mk({ name: 'Up Nur angefragt', owner: host, at: '2 days' });
+      await add(E.requested, host, 'owner');
+      await db.query(`INSERT INTO group_join_requests (group_id, user_id, status) VALUES ($1,$2,'pending')`, [E.requested, me]);
+      E.waitlisted = await mk({ name: 'Up Warteliste', owner: host, at: '2 days' });
+      await add(E.waitlisted, host, 'owner');
+      await db.query(`INSERT INTO group_waitlist (group_id, user_id, position) VALUES ($1,$2,1)`, [E.waitlisted, me]);
+      E.official = official;
+      // someone asks to join my own meetup
+      await db.query(`INSERT INTO group_join_requests (group_id, user_id, status) VALUES ($1,$2,'pending')`, [E.ownTomorrow, asker]);
+    });
+
+    it('only what still happens, until the end of its Vienna day, next first, undated last', async () => {
+      const ids = (await upcoming()).map((r) => r.id);
+      expect(ids).toEqual([E.allDayToday, E.timedToday, E.ownTomorrow, E.weekly, E.partner, E.memberEvent,
+        E.community, E.inPending, E.inFiveDays, E.undated]);
+      for (const k of ['yesterday', 'cancelled', 'deleted', 'notHeld', 'deadEvent', 'requested', 'waitlisted', 'official']) {
+        expect(ids, k).not.toContain(E[k]);
+      }
+    });
+
+    it('a weekly series by its next occurrence', async () => {
+      const row = (await upcoming()).find((r) => r.id === E.weekly);
+      const want = (await db.query(`SELECT ${today} + INTERVAL '1 day 19 hours' AS t`)).rows[0].t;
+      expect(row.is_recurring_weekly).toBe(true);
+      expect(new Date(row.next_at).getTime()).toBe(want.getTime());
+      expect(new Date(row.date).getTime()).toBeLessThan(want.getTime());
+    });
+
+    it('own, editable, partner and the subline kind — per row', async () => {
+      const rows = Object.fromEntries((await upcoming()).map((r) => [r.id, r]));
+      expect(rows[E.ownTomorrow]).toMatchObject({ is_own: true, can_edit: true, pending_request_count: 1, kind: 'group', is_partner: false });
+      expect(rows[E.timedToday]).toMatchObject({ is_own: false, can_edit: false, pending_request_count: 0, kind: 'group' });
+      expect(rows[E.partner]).toMatchObject({
+        is_partner: true, kind: 'partner', can_edit: false, club_name: 'Up Partner-Club',
+        members_count: 2, max_members: 20, parent_club_id: E.official,
+      });
+      // a regular member's event in an official club is not the club's own
+      expect(rows[E.memberEvent]).toMatchObject({ is_partner: false, kind: 'community', can_edit: false });
+      // co-manager of the club → may edit its events (updateClubEvent's rule)
+      expect(rows[E.community]).toMatchObject({ is_own: false, can_edit: true, kind: 'community' });
+      // a founder's pending club hides nothing from them
+      expect(rows[E.inPending]).toMatchObject({ is_own: true, can_edit: true });
+      expect(rows[E.undated].next_at).toBeNull();
     });
   });
 

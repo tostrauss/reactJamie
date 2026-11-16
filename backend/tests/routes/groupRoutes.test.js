@@ -26,6 +26,7 @@ vi.mock('../../src/controllers/groupController.js', () => stubs([
   'updateGroup', 'deleteGroup', 'getCategories', 'kickMember', 'cancelGroup', 'joinWaitlist',
   'leaveWaitlist', 'getWaitlist', 'getUserWaitlistStatus', 'getGroupMemberAvatars',
   'inviteMember', 'setGroupChatArchived', 'setGroupNotifications', 'getHallOfFame',
+  'getMyUpcomingEvents',
 ]));
 vi.mock('../../src/controllers/hallOfFameController.js', () => stubs([
   'getEventPhotos', 'addEventPhoto', 'deleteEventPhoto', 'getMemoryPrompts', 'getHallOfFameFriends',
@@ -49,5 +50,15 @@ describe('group routes — Memories', () => {
     expect(await handlerOf(request(app).get('/api/groups/42'))).toBe('getGroupById');
     expect(await handlerOf(request(app).get('/api/groups/42/photos'))).toBe('getEventPhotos');
     expect(await handlerOf(request(app).get('/api/groups/likes/mine'))).toBe('getMyLikes');
+  });
+});
+
+// „Demnächst dabei“ in the own profile (16.11.2026): a literal /user/… path
+// in the user-specific block, next to /user/joined and /user/requests.
+describe('group routes — own profile', () => {
+  it('the upcoming events reach their own handler, the other /user paths keep theirs', async () => {
+    expect(await handlerOf(request(app).get('/api/groups/user/upcoming'))).toBe('getMyUpcomingEvents');
+    expect(await handlerOf(request(app).get('/api/groups/user/joined'))).toBe('getUserGroups');
+    expect(await handlerOf(request(app).get('/api/groups/user/requests'))).toBe('getAllJoinRequests');
   });
 });

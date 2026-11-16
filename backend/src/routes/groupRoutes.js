@@ -29,6 +29,7 @@ import {
   setGroupChatArchived,
   setGroupNotifications,
   getHallOfFame,
+  getMyUpcomingEvents,
 } from '../controllers/groupController.js';
 import {
   getEventPhotos,
@@ -67,6 +68,9 @@ router.get('/user/joined', authenticate, getUserGroups);
 // feeds the chat page's aggregated "Anfragen" swipe deck. Must stay above the
 // parameterised /:id routes so "user" is never parsed as a group id.
 router.get('/user/requests', authenticate, getAllJoinRequests);
+// „Demnächst dabei“ in the own profile (16.11.2026): the caller's coming
+// meetups and club events. Same rule: above every '/:id' route.
+router.get('/user/upcoming', authenticate, getMyUpcomingEvents);
 // Hide/unhide a group-or-club chat from the chat list (per-user)
 router.put('/:id/archive', authenticate, setGroupChatArchived);
 // Mute/unmute push notifications for this group (per-user) — chat-header bell

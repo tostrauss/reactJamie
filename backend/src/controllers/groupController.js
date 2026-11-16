@@ -2065,6 +2065,92 @@ export const getUserGroups = async (req, res) => {
 };
 
 // ==========================================
+// GET MY UPCOMING EVENTS  („Demnächst dabei“ in the own profile)
+// ==========================================
+// Tina 16.11.2026 (PR4/PR5): every meetup and club event the caller created
+// or was let into — a group_members row, so open requests and waitlist seats
+// never count, and every row is one whose chat the caller can open (getMessages
+// checks exactly that membership) — next one first, at most 30, never cached
+// (an edit through „Events bearbeiten“ has to show at once).
+//
+// Its own endpoint, not getUserGroups: that one is the nav badge's hot path,
+// has no date filter and fields like can_edit would cost every badge refresh.
+//
+// Rules:
+//   - only what still happens: active, not deleted, not „hat nicht
+//     stattgefunden“, and the parent club neither deleted nor closed — but NOT
+//     its approval (clubAliveSql): a founder's still-pending club must not hide
+//     their own events from them. A rejected club is closed (is_active FALSE).
+//   - shown until the END of its Vienna day (a running event keeps its „Zum
+//     Chat“). A weekly series shows its next occurrence (NEXT_AT_SQL, like the
+//     feed and its „Heute“ badge) — which rolls over at the START time, so a
+//     series running right now already shows next week. Undated legacy rows are
+//     ongoing (the feed's rule) and come last.
+//   - can_edit: the edit endpoints' own rule — updateGroup lets the owner,
+//     updateClubEvent also the club's owner and co-managers (role 'admin'), the
+//     same people getGroupById's is_manager names, without the club's approval.
+//   - is_partner: utils/clubGate.js partnerSql, the one rule of feed and event
+//     page. kind for the subline: 'partner' („☆ Partner“), every other club
+//     event 'community' (also a regular member's event in an official club —
+//     not the club's own), a meetup 'group'.
+//   - pending_request_count: open requests, own entries only (the coral counter).
+// Page first, decorate second (getGroups): the per-row lookups run for at
+// most 30 rows, never for every past membership.
+export const upcomingKind = (row) => (row.is_partner ? 'partner' : row.type === 'event' ? 'community' : 'group');
+
+export const getMyUpcomingEvents = async (req, res) => {
+  try {
+    const result = await db.query(
+      `WITH mine AS (
+         SELECT g.id, ${NEXT_AT_SQL} AS next_at
+           FROM group_members gm
+           JOIN groups g ON g.id = gm.group_id
+           LEFT JOIN groups pc ON pc.id = g.parent_club_id
+          WHERE gm.user_id = $1
+            AND g.type IN ('group', 'event')
+            AND g.is_active = TRUE
+            AND g.deleted_at IS NULL
+            AND g.did_not_take_place IS NOT TRUE
+            AND (g.parent_club_id IS NULL OR (pc.is_active = TRUE AND pc.deleted_at IS NULL))
+       ),
+       page AS (
+         SELECT m.id, m.next_at
+           FROM mine m
+          WHERE m.next_at IS NULL
+             OR m.next_at::date >= (NOW() AT TIME ZONE 'Europe/Vienna')::date
+          ORDER BY m.next_at ASC NULLS LAST, m.id
+          LIMIT 30
+       )
+       SELECT g.id, g.name, g.type, g.date, page.next_at, g.is_recurring_weekly,
+              g.image_url, g.location, g.members_count, g.max_members,
+              g.parent_club_id, pc.name AS club_name,
+              (g.owner_id = $1) AS is_own,
+              (g.owner_id = $1
+               OR (g.type = 'event' AND g.parent_club_id IS NOT NULL
+                   AND (pc.owner_id = $1 OR EXISTS (
+                         SELECT 1 FROM group_members cm
+                          WHERE cm.group_id = g.parent_club_id AND cm.user_id = $1 AND cm.role = 'admin')))
+              ) AS can_edit,
+              ${partnerSql('g')} AS is_partner,
+              CASE WHEN g.owner_id = $1
+                   THEN (SELECT COUNT(*)::int FROM group_join_requests jr
+                          WHERE jr.group_id = g.id AND jr.status = 'pending')
+                   ELSE 0 END AS pending_request_count
+         FROM page
+         JOIN groups g ON g.id = page.id
+         LEFT JOIN groups pc ON pc.id = g.parent_club_id
+        -- Re-stated: the JOIN above does not preserve the CTE's ordering.
+        ORDER BY page.next_at ASC NULLS LAST, g.id`,
+      [req.userId]
+    );
+    res.json(result.rows.map((row) => ({ ...row, kind: upcomingKind(row) })));
+  } catch (err) {
+    console.error('Error fetching upcoming events:', err);
+    res.status(500).json({ error: 'Termine konnten nicht geladen werden' });
+  }
+};
+
+// ==========================================
 // ARCHIVE / UNARCHIVE A GROUP-OR-CLUB CHAT (per-user "hide")
 // ==========================================
 export const setGroupChatArchived = async (req, res) => {
