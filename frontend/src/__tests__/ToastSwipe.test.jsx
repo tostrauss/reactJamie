@@ -184,6 +184,67 @@ describe('timers', () => {
     expect(screen.queryByText('Gespeichert')).not.toBeInTheDocument();
   });
 
+  // A mouse has no implicit capture, and ours starts only after the 8 px slop
+  // (review 16.11.2026): pressed near the edge, moved off and released
+  // elsewhere, the toast never heard the end — held for good.
+  it('a press that wanders off before the slop and ends elsewhere lets go of the toast', () => {
+    renderToasts();
+    act(() => { toast.success('Gespeichert'); });   // 3 s
+    const el = toastOf('Gespeichert');
+
+    advance(2500);
+    down(el, 100);
+    advance(5000);                       // held while pressed
+    expect(screen.getByText('Gespeichert')).toBeInTheDocument();
+    fireEvent.pointerUp(document.body, { pointerId: 1, clientX: 100, clientY: 300 });
+
+    advance(1400);                       // runs on for at least 1.5 s…
+    expect(screen.getByText('Gespeichert')).toBeInTheDocument();
+    advance(100);                        // …and then goes
+    expect(screen.queryByText('Gespeichert')).not.toBeInTheDocument();
+  });
+
+  it('…and it follows no hovering mouse afterwards, while a new swipe works', () => {
+    renderToasts();
+    act(() => { toast.showUndo('Anfrage abgelehnt', vi.fn(), 'Rückgängig'); });
+    const el = toastOf('Anfrage abgelehnt');
+
+    down(el, 100);
+    fireEvent.pointerCancel(document.body, { pointerId: 1, clientX: 100, clientY: 300 });
+    move(el, 40);                        // back over it, no button down
+    expect(el.style.transform).toBe('');
+
+    swipe(el, 100, 90, 40);
+    advance(180);
+    expect(screen.queryByText('Anfrage abgelehnt')).not.toBeInTheDocument();
+  });
+
+  it('watches the window only while a pointer is down — nothing left behind', () => {
+    const add = vi.spyOn(window, 'addEventListener');
+    const remove = vi.spyOn(window, 'removeEventListener');
+    // [type, listener] of every pointer-end watch (capture phase)
+    const ends = (spy) => spy.mock.calls
+      .filter(([type, , capture]) => (type === 'pointerup' || type === 'pointercancel') && capture === true)
+      .map(([type, fn]) => [type, fn]);
+    const { unmount } = renderToasts();
+    act(() => { toast.success('Sauber'); });
+    const el = toastOf('Sauber');
+
+    swipe(el, 100, 90);                  // pressed and released on the toast
+    down(el, 100);
+    fireEvent.pointerUp(document.body, { pointerId: 1 });   // released elsewhere
+    down(el, 100);
+    unmount();                           // gone mid-press: its watch goes with it
+    const added = ends(add);
+    const removed = ends(remove);
+    expect(added).toHaveLength(6);       // three presses × pointerup + pointercancel
+    for (const [type, fn] of added) {
+      expect(removed.some(([t, f]) => t === type && f === fn), type).toBe(true);
+    }
+    add.mockRestore();
+    remove.mockRestore();
+  });
+
   it('a plain toast still closes on a tap', () => {
     renderToasts();
     act(() => { toast.error('Fehler'); });

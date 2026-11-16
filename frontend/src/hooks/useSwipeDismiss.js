@@ -24,6 +24,12 @@ import { useEffect, useRef } from 'react';
 //    global rule cuts every transition to 0.01 ms (global.css).
 //  - touch-action: none on the element (global.css), else Android Chrome
 //    claims the vertical pan and cancels the pointer mid-swipe.
+//  - A mouse has no implicit capture, and ours starts only after the slop: a
+//    press that leaves the element before that ends where the element never
+//    hears of it. So while a pointer is down the window watches for its end
+//    (watchEnd) — else the gesture stayed open, the toast stayed held for
+//    good and every later press bounced off „one finger at a time" (review
+//    16.11.2026).
 //
 // onHold/onRelease bracket the finger being down, so a countdown can pause
 // (the toast must not vanish under the finger). onDismiss runs once the exit
@@ -47,8 +53,12 @@ export default function useSwipeDismiss({ onDismiss, onHold, onRelease } = {}) {
   const swallowClick = useRef(false);
   const leaving = useRef(false);
   const exitTimer = useRef(null);
+  const unwatch = useRef(null);         // drops watchEnd's window listeners
 
-  useEffect(() => () => clearTimeout(exitTimer.current), []);
+  useEffect(() => () => {
+    clearTimeout(exitTimer.current);
+    unwatch.current?.();
+  }, []);
 
   const paint = (dy, ms) => {
     const el = ref.current;
@@ -85,6 +95,7 @@ export default function useSwipeDismiss({ onDismiss, onHold, onRelease } = {}) {
     };
     swallowClick.current = false;
     callbacks.current.onHold?.();
+    watchEnd(e.pointerId);
   };
 
   const onPointerMove = (e) => {
@@ -150,6 +161,30 @@ export default function useSwipeDismiss({ onDismiss, onHold, onRelease } = {}) {
   const onLostPointerCapture = (e) => {
     if (e.target !== e.currentTarget) return;
     onPointerCancel(e);
+  };
+
+  // The end of the press wherever it happens (see the header): this
+  // pointer's pointerup / pointercancel on the window, in the capture phase
+  // so nothing on the way can stop it. An end ON the element is left to its
+  // own handlers — captured or not, the target is then inside it; an end
+  // anywhere else finishes the gesture here, exactly the same way. Either
+  // way the press is over, and the listeners go.
+  const watchEnd = (id) => {
+    unwatch.current?.();
+    const onEnd = (e) => {
+      if (e.pointerId !== id) return;
+      unwatch.current?.();
+      if (ref.current?.contains(e.target)) return;
+      if (e.type === 'pointercancel') onPointerCancel(e);
+      else onPointerUp(e);
+    };
+    window.addEventListener('pointerup', onEnd, true);
+    window.addEventListener('pointercancel', onEnd, true);
+    unwatch.current = () => {
+      window.removeEventListener('pointerup', onEnd, true);
+      window.removeEventListener('pointercancel', onEnd, true);
+      unwatch.current = null;
+    };
   };
 
   const onClickCapture = (e) => {
