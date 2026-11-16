@@ -223,11 +223,21 @@ export const ChatPage = () => {
   // tab) even when leaving a club chat. Navigate explicitly by type instead.
   // Only a chat opened with { from } in the router state goes back there —
   // „Zum Chat“ in the profile's „Demnächst dabei“ (Tina 16.11.2026); push taps
-  // and the chat list hand over nothing.
-  const backTo = typeof routerLocation.state?.from === 'string' && routerLocation.state.from.startsWith('/')
+  // and the chat list hand over nothing. An in-app path only: one slash, not
+  // „//host“ or „/\host“, which the browser reads as another site.
+  const backTo = typeof routerLocation.state?.from === 'string' && /^\/(?![/\\])/.test(routerLocation.state.from)
     ? routerLocation.state.from
     : null;
-  const goBackToList = () => navigate(backTo || (group?.type === 'club' ? '/chats?filter=clubs' : '/chats'));
+  // Back to { from } is a step BACK (review 16.11.2026): the entry before this
+  // one is where it came from — a push there left profile → chat → profile
+  // on the stack, and the hardware back button opened the chat again. Without
+  // in-app history (a reload, a fresh tab) it replaces this entry instead —
+  // the ShareMoments pattern.
+  const goBackToList = () => {
+    if (backTo && (window.history.state?.idx ?? 0) > 0) navigate(-1);
+    else if (backTo) navigate(backTo, { replace: true });
+    else navigate(group?.type === 'club' ? '/chats?filter=clubs' : '/chats');
+  };
   useSwipeBack(chatPageRef, goBackToList, !loading && !!group);
 
   // Composer auto-grow moved into components/ChatComposer.jsx along with the
