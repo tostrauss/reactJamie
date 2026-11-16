@@ -254,6 +254,12 @@
   z-index: 2;
 }
 
+/* The event creator's row with a third button („Anfragen ansehen (N)",
+   private events, 16.11.2026): 2 + 1 instead of past the screen edge (S3). */
+.gd-anfragen-row--wrap {
+  flex-wrap: wrap;
+}
+
 /* Teilnehmer-Bubbles-Teaser unter dem Action-Button (Meetup-Style, bewusst
    klein/dezent — Tina 2026-06-12). Für gated Viewer der aktive Pro-Tease:
    Tap öffnet das Pro-Modal, sonst die Teilnehmerliste. */

@@ -696,14 +696,25 @@ export const GroupDetail = () => {
           // side. Previously only Bearbeiten showed and the owner had no way
           // to reach their own event chat.
           if (isEvent && isOwner) {
+            // A private event (Beitritt per Anfrage, 30.09.) is answered by
+            // its creator — who had no way from here into the list
+            // (16.11.2026). The same button a private group's owner gets
+            // below; a third button wraps onto its own line.
+            const pendingCount = group.pending_request_count || 0;
+            const showRequests = !!group.joins_by_request && pendingCount > 0;
             return (
-              <div className="gd-anfragen-row" style={{ gap: 10 }}>
+              <div className={`gd-anfragen-row${showRequests ? ' gd-anfragen-row--wrap' : ''}`} style={{ gap: 10 }}>
                 <button className="gd-anfragen-btn joined" onClick={() => navigate(`/chat/${group.id}`)}>
                   {t('groups.detail.actions.openChat')}
                 </button>
                 <button className="gd-anfragen-btn joined" onClick={() => navigate(`/group/${group.id}/edit`)}>
                   {t('groups.detail.actions.editEvent')}
                 </button>
+                {showRequests && (
+                  <button className="gd-anfragen-btn joined" onClick={() => navigate(`/group/${group.id}/requests`)}>
+                    {t('groupRequests.manageCta')} ({pendingCount})
+                  </button>
+                )}
               </div>
             );
           }
@@ -722,7 +733,7 @@ export const GroupDetail = () => {
             );
           }
           if (isJoined) {
-            // A private group's owner/manager gets a second button into the
+            // A private group's owner gets a second button into the
             // review-all "Anfragen-Übersicht" (2026-09-07) — only while requests
             // are actually waiting (Tobi 2026-09-07: hide it at 0). Only private
             // groups have join requests; events join directly, so exclude them.
@@ -730,7 +741,11 @@ export const GroupDetail = () => {
             // Since 30.09.2026 also private events in a PUBLIC club (server flag
             // joins_by_request; an older server doesn't send it → groups only).
             const joinsByRequest = group.joins_by_request ?? (group.is_private && !isEvent);
-            const showRequests = (isOwner || group.is_manager) && joinsByRequest && pendingCount > 0;
+            // Owner only, like the list behind it (getJoinRequests). A club's
+            // owner/co-manager on a member's private EVENT has is_manager —
+            // edit and delete — but got a button that only 403'd „Keine
+            // Berechtigung" (16.11.2026). Groups have no co-managers.
+            const showRequests = isOwner && joinsByRequest && pendingCount > 0;
             return (
               <div className="gd-anfragen-row" style={showRequests ? { gap: 10 } : undefined}>
                 <button className="gd-anfragen-btn joined" onClick={() => navigate(`/chat/${group.id}`)}>
