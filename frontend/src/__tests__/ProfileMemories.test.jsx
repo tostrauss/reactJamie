@@ -160,7 +160,8 @@ describe('Profile — „Clubs & Communities" + „Demnächst dabei"', () => {
   it('the open requests of an own club still lead to the Anfragen deck', async () => {
     withBoth();
     await renderProfile();
-    fireEvent.click(screen.getByRole('button', { name: '3 offene Anfragen' }));
+    // named by its club: several own ones can carry one (review 16.11.2026)
+    fireEvent.click(screen.getByRole('button', { name: '3 offene Anfragen für „Tennisclub“' }));
     expect(where()).toBe('/chats?tab=anfragen');
   });
 
@@ -198,7 +199,8 @@ describe('Profile — „Clubs & Communities" + „Demnächst dabei"', () => {
     expect(document.querySelector('.profile-upcoming-row.is-wiggling')).toBeTruthy();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Memories' })); });
     expect(document.querySelector('.profile-upcoming-row.is-wiggling')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Events bearbeiten' }).getAttribute('aria-pressed')).toBe('false');
+    // The label carries the state — no aria-pressed besides (review 16.11.2026).
+    expect(screen.getByRole('button', { name: 'Events bearbeiten' }).hasAttribute('aria-pressed')).toBe(false);
   });
 });
 
