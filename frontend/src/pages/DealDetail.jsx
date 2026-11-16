@@ -53,8 +53,18 @@ function DealMiniMap({ lat, lng }) {
   );
 }
 
+// One page per deal (review 16.11.2026): the route is not keyed (App.jsx) and
+// a push tap from /deal/7 to /deal/9 keeps this page mounted — 'gone',
+// 'soldOut', the redemption status and an open dialog carried over to the
+// next deal (a 404 on 7 left 9's button grey, „Nicht mehr verfügbar“), and a
+// redeem still on its way for 7 landed on 9. Keyed by id, every deal starts
+// fresh and an answer for the old one reaches a page that is gone.
 export const DealDetail = () => {
   const { id } = useParams();
+  return <DealPage key={id} id={id} />;
+};
+
+function DealPage({ id }) {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
   const lang = (i18n.resolvedLanguage || i18n.language || 'de').startsWith('en') ? 'en'
@@ -463,6 +473,6 @@ export const DealDetail = () => {
       )}
     </div>
   );
-};
+}
 
 export default DealDetail;

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { MemoryRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
 // The deal page is where an event's deal row leads (P4 v1, 16.11.2026). A
@@ -88,5 +88,60 @@ describe('DealDetail — a deal that is gone says so', () => {
     renderPage();
     await confirmRedeem();
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Einlösen fehlgeschlagen. Bitte erneut versuchen.'));
+  });
+});
+
+// Review 16.11.2026: the route is not keyed (App.jsx) and a push tap
+// navigates from one deal to the next while the page stays mounted — what
+// the page had learnt about deal 7 must not stick to deal 9.
+describe('DealDetail — the next deal starts fresh', () => {
+  // A push tap: navigate() to another deal, the page stays where it is.
+  const PushTap = () => {
+    const navigate = useNavigate();
+    return <button type="button" onClick={() => navigate('/deal/9')}>Push-Tap</button>;
+  };
+  const renderAt7 = () => render(
+    <AuthContext.Provider value={{ user: { id: 1, is_admin: false } }}>
+      <MemoryRouter initialEntries={['/deal/7']}>
+        <PushTap />
+        <Routes>
+          <Route path="/deal/:id" element={<DealDetail />} />
+        </Routes>
+      </MemoryRouter>
+    </AuthContext.Provider>,
+  );
+  beforeEach(() => {
+    deals.getOne.mockImplementation(async (id) => ({ data: { ...DEAL, id: Number(id), name: `Deal ${id}` } }));
+  });
+
+  it('a 404 on deal 7 does not grey out deal 9', async () => {
+    deals.redeem.mockRejectedValueOnce({ response: { status: 404, data: { error: 'Deal not found' } } });
+    renderAt7();
+    expect(await screen.findByText('Deal 7')).toBeInTheDocument();
+    await confirmRedeem();
+    expect(await screen.findByRole('button', { name: 'Nicht mehr verfügbar' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Push-Tap' }));
+    expect(await screen.findByText('Deal 9')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Jetzt einlösen' })).toBeEnabled());
+    expect(screen.queryByRole('button', { name: 'Nicht mehr verfügbar' })).not.toBeInTheDocument();
+    expect(deals.getOne).toHaveBeenLastCalledWith('9');
+  });
+
+  it('a redeem of deal 7 still on its way does not mark deal 9 as redeemed', async () => {
+    let answer;
+    deals.redeem.mockImplementationOnce(() => new Promise((resolve) => { answer = resolve; }));
+    renderAt7();
+    expect(await screen.findByText('Deal 7')).toBeInTheDocument();
+    await confirmRedeem();
+    fireEvent.click(screen.getByRole('button', { name: 'Push-Tap' }));
+    expect(await screen.findByText('Deal 9')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Jetzt einlösen' })).toBeEnabled());
+    await act(async () => { answer({ data: { redeemed: true, count: 1, max: 1, redeemed_at: '2026-11-16T18:00:00.000Z' } }); });
+    expect(screen.getByRole('button', { name: 'Jetzt einlösen' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Bereits eingelöst' })).not.toBeInTheDocument();
+    expect(screen.getByText('0/1 mal eingelöst')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(deals.redeem).toHaveBeenCalledTimes(1);
+    expect(deals.redeem).toHaveBeenCalledWith('7');
   });
 });
