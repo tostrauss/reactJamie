@@ -16,6 +16,7 @@ import { checkImageField } from '../utils/safeUrl.js';
 import { createEntityWithOwner, notifyCancellationFanout } from '../services/entityLifecycle.js';
 import { attachAttendanceTiers } from '../utils/attendanceTiers.js';
 import { CLUB_CARD_SELECT } from '../utils/clubCards.js';
+import { getDealsForEvents } from './dealController.js';
 
 const CLUBS_TTL = 30_000; // 30 s
 const DISCOVER_EVENTS_KEY = 'discover_events';
@@ -1781,6 +1782,16 @@ export const getClubEvents = async (req, res) => {
       const memberSet = new Set(memberRows.rows.map(r => r.group_id));
       for (const event of result.rows) {
         event.is_member = memberSet.has(event.id);
+      }
+    }
+
+    // The deal an admin hung on each event (P4 v1, 16.11.2026) — ONE batch
+    // lookup for the whole list, null where none is visible. Backend only for
+    // now: the club page shows it once Tina's design for it is in.
+    if (result.rows.length > 0) {
+      const deals = await getDealsForEvents(result.rows.map(e => e.id));
+      for (const event of result.rows) {
+        event.deal = deals.get(event.id) || null;
       }
     }
 

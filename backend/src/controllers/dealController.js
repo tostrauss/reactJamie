@@ -332,6 +332,75 @@ const REDEEMABLE_TODAY_SQL = `(d.redeem_days IS NULL
     OR cardinality(d.redeem_days) = 0
     OR EXTRACT(ISODOW FROM now())::int = ANY(d.redeem_days))`;
 
+// ── Deals at events (P4 v1, Tina 16.11.2026) ──────────────────────────────
+// What an event may show: a deal that is live and can still be redeemed, by
+// exactly redeemDeal's rule — active, not past visible_until, and the cap of
+// the CURRENT round only for 'once' deals. A daily/weekly deal runs on its
+// schedule (redeemDeal never caps it), so it must not drop off the event when
+// one day's quota is used up — unlike the feed (getDeals), which hides any
+// deal at its period cap. A weekday restriction is no reason to hide it:
+// DealDetail shows the allowed days. Alias `d`, like PERIOD_KEY_SQL above.
+const DEAL_VISIBLE_SQL = `d.is_active = TRUE
+         AND (d.visible_until IS NULL OR d.visible_until > NOW())
+         AND (d.redeem_interval <> 'once'
+              OR (SELECT COUNT(*) FROM deal_redemptions dr
+                   WHERE dr.deal_id = d.id AND dr.period_key = (${PERIOD_KEY_SQL}))
+                 < COALESCE(d.max_redemptions, 2147483647))`;
+
+/**
+ * The visible deal of each event, in ONE query for a whole list (the event
+ * page asks for one id, the club's event list for all of its events).
+ * → Map(group_id → { id, name, deal_label, photo, verified }). Every JAMIE
+ * deal is put up by an admin, so all count as checked („Geprüfter Partner“) —
+ * club-made deals (v2) will have to earn `verified`. Never throws: a missing
+ * table (boot window, 42P01) is simply „no deal“, anything else is logged and
+ * the page still loads without one.
+ */
+export async function getDealsForEvents(groupIds) {
+  const deals = new Map();
+  const ids = [...new Set((groupIds || []).map(Number).filter(Boolean))];
+  if (!ids.length) return deals;
+  try {
+    const { rows } = await db.query(
+      `SELECT ed.group_id, d.id, d.name, d.deal_label, d.photos->>0 AS photo
+         FROM event_deals ed
+         JOIN deals d ON d.id = ed.deal_id
+        WHERE ed.group_id = ANY($1::int[])
+          AND ${DEAL_VISIBLE_SQL}`,
+      [ids]
+    );
+    for (const r of rows) {
+      deals.set(r.group_id, { id: r.id, name: r.name, deal_label: r.deal_label, photo: r.photo || null, verified: true });
+    }
+  } catch (err) {
+    if (err?.code !== '42P01') console.error('[deals] event deal lookup failed:', err.message);
+  }
+  return deals;
+}
+
+// The events each deal hangs on, for the admin list. Soft-deleted events drop
+// out (their link stays behind but nothing shows it); a missing table (boot
+// window) reads as none. → Map(deal_id → [{ id, name, date }]).
+async function attachedEventsByDeal() {
+  const byDeal = new Map();
+  try {
+    const { rows } = await db.query(
+      `SELECT ed.deal_id, g.id, g.name, g.date
+         FROM event_deals ed
+         JOIN groups g ON g.id = ed.group_id
+        WHERE g.deleted_at IS NULL
+        ORDER BY g.date ASC NULLS LAST, g.id`
+    );
+    for (const r of rows) {
+      if (!byDeal.has(r.deal_id)) byDeal.set(r.deal_id, []);
+      byDeal.get(r.deal_id).push({ id: r.id, name: r.name, date: r.date });
+    }
+  } catch (err) {
+    if (err?.code !== '42P01') console.error('[deals] attached events lookup failed:', err.message);
+  }
+  return byDeal;
+}
+
 export const getRedemptionStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -475,6 +544,8 @@ export const redeemDeal = async (req, res) => {
 // The public getDeals filters by is_active + visible_until; the admin view
 // needs to see every deal that ever existed plus how many users have redeemed
 // each. The LEFT JOIN keeps zero-redemption rows in the result.
+// Since 16.11.2026 each row also carries `events` — the events the deal hangs
+// on ([{ id, name, date }], P4 v1), additive for the dashboard.
 export const getDealsForAdmin = async (_req, res) => {
   try {
     const result = await db.query(
@@ -497,9 +568,73 @@ export const getDealsForAdmin = async (_req, res) => {
        ) r ON r.deal_id = d.id
        ORDER BY d.created_at DESC`
     );
-    res.json(result.rows);
+    const events = await attachedEventsByDeal();
+    res.json(result.rows.map((d) => ({ ...d, events: events.get(d.id) || [] })));
   } catch (err) {
     console.error('getDealsForAdmin error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// ADMIN — DEAL AT AN EVENT   PUT /api/deals/event/:groupId   body: { deal_id }
+// ==========================================
+// P4 v1 (Tina 16.11.2026): a JAMIE admin hangs ONE deal on an event — a club
+// event or a meetup, also a café's deal that belongs to no club at all (Café
+// Soleá at a JAMIE event). deal_id null takes it off again. The event page
+// (getGroupById) and the club's event list (getClubEvents) then embed it
+// while DEAL_VISIBLE_SQL holds. Answers { group_id, deal_id, deal }: `deal` is
+// what the event page shows right now — null for one attached but not
+// visible (expired, inactive, sold out), so the dashboard can say so.
+// No cache to bust: neither reader is cached, and no feed carries the deal.
+const toPositiveInt = (v) => {
+  let n = null;
+  if (typeof v === 'number') n = v;
+  else if (typeof v === 'string' && /^\d+$/.test(v)) n = Number(v);
+  return Number.isInteger(n) && n > 0 && n <= 2147483647 ? n : null;
+};
+
+export const setEventDeal = async (req, res) => {
+  const groupId = toPositiveInt(req.params.groupId);
+  if (!groupId) return res.status(400).json({ error: 'Ungültige Event-ID' });
+  const rawDealId = req.body?.deal_id;
+  const dealId = rawDealId === null ? null : toPositiveInt(rawDealId);
+  if (rawDealId !== null && !dealId) {
+    return res.status(400).json({ error: 'deal_id muss eine Deal-ID oder null sein' });
+  }
+  try {
+    const event = await db.query('SELECT type FROM groups WHERE id = $1 AND deleted_at IS NULL', [groupId]);
+    if (!event.rows.length) return res.status(404).json({ error: 'Event nicht gefunden' });
+    if (event.rows[0].type !== 'event' && event.rows[0].type !== 'group') {
+      return res.status(400).json({ error: 'Deals hängen an Events und Treffen, nicht an Clubs.', code: 'NOT_AN_EVENT' });
+    }
+    if (dealId === null) {
+      await db.query('DELETE FROM event_deals WHERE group_id = $1', [groupId]);
+    } else {
+      const deal = await db.query('SELECT 1 FROM deals WHERE id = $1', [dealId]);
+      if (!deal.rows.length) return res.status(404).json({ error: 'Deal not found' });
+      // One deal per event: hanging another one replaces it.
+      await db.query(
+        `INSERT INTO event_deals (group_id, deal_id, attached_by) VALUES ($1, $2, $3)
+         ON CONFLICT (group_id) DO UPDATE
+           SET deal_id = EXCLUDED.deal_id, attached_by = EXCLUDED.attached_by, created_at = NOW()`,
+        [groupId, dealId, req.userId]
+      );
+    }
+    const shown = await getDealsForEvents([groupId]);
+    console.log(`[admin] user ${req.userId} ${dealId ? `attached deal ${dealId} to` : 'took the deal off'} group ${groupId}`);
+    res.json({ group_id: groupId, deal_id: dealId, deal: shown.get(groupId) || null });
+  } catch (err) {
+    if (err?.code === '42P01') {
+      // Boot window: event_deals is not there yet.
+      return res.status(503).json({
+        error: 'Deals an Events sind gleich wieder verfügbar. Bitte versuche es in einer Minute erneut.',
+        code: 'EVENT_DEALS_UNAVAILABLE',
+      });
+    }
+    // The event or the deal was hard-deleted between the check and the write.
+    if (err?.code === '23503') return res.status(404).json({ error: 'Event oder Deal nicht gefunden' });
+    console.error('setEventDeal error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

@@ -209,6 +209,7 @@ suite('write endpoints against real Postgres', () => {
       cancelGroup: g.cancelGroup, deleteGroup: g.deleteGroup,
       getUserClubs: c.getUserClubs, setMyClubOrder: c.setMyClubOrder,     // profile order (16.11.2026)
       getMyUpcomingEvents: g.getMyUpcomingEvents,                         // „Demnächst dabei“ (16.11.2026)
+      getClubEvents: c.getClubEvents, setEventDeal: dl.setEventDeal,     // deals at events (16.11.2026)
     };
   }, 90000);
 
@@ -6243,6 +6244,142 @@ suite('write endpoints against real Postgres', () => {
       // a founder's pending club hides nothing from them
       expect(rows[E.inPending]).toMatchObject({ is_own: true, can_edit: true });
       expect(rows[E.undated].next_at).toBeNull();
+    });
+  });
+
+  // ── Deals at events (P4 v1, Tina 16.11.2026) ────────────────────────────
+  // An admin hangs a deal on an event (PUT /api/deals/event/:groupId through
+  // the real requireAdmin); the event page and the club's event list embed it
+  // while redeemDeal would still let you redeem it; the admin list names the
+  // events. Deals are seeded directly: no geocoding, no city push.
+  describe('deals at events (P4 v1, 16.11.2026)', () => {
+    let host, guest, club, event, sibling, meetup, requireAdmin;
+    const DL = {};  // deals by case
+    const photo = 'https://app.jamie-app.com/media/uploads/deal.webp';
+    const mkU = async (email, name) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+       VALUES ($1,$2,'1992-02-02','male',$3, TRUE, 'email') RETURNING id`, [email, name, avatar])).rows[0].id;
+    const mkDeal = async (name, { interval = 'once', max = 100, untilSql = 'NULL', active = true } = {}) => (await db.query(
+      `INSERT INTO deals (name, deal_label, photos, redeem_interval, max_redemptions, visible_until, is_active)
+       VALUES ($1, '2 für 1', $2::jsonb, $3, $4, ${untilSql}, $5) RETURNING id`,
+      [name, JSON.stringify([photo]), interval, max, active])).rows[0].id;
+    const mkGroup = async (name, type, parent = null) => {
+      const id = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, date, parent_club_id, club_type, approval_status)
+         VALUES ($1,$2,$3,'Bar','Wien',50, ${type === 'club' ? 'NULL' : "NOW() + INTERVAL '3 days'"}, $4, $5, 'approved') RETURNING id`,
+        [name, type, host, parent, type === 'club' ? 'official' : null])).rows[0].id;
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner'),($1,$3,'member')`, [id, host, guest]);
+      return id;
+    };
+    // The route's chain: requireAdmin first, the handler only if it passes.
+    const attach = async (userId, groupId, dealId) => call(async (req, res) => {
+      let handled = null;
+      await requireAdmin(req, res, () => { handled = C.setEventDeal(req, res); });
+      await handled;
+    }, { userId, params: { groupId: String(groupId) }, body: { deal_id: dealId } });
+    const shown = async (id) => {
+      const res = await call(C.getGroupById, { userId: guest, params: { id: String(id) } });
+      ok(res);
+      return res.body.deal;
+    };
+    const linkOf = async (id) => (await db.query('SELECT deal_id FROM event_deals WHERE group_id = $1', [id])).rows;
+
+    it('seed: an official club with two events, a meetup, deals of every kind', async () => {
+      ({ requireAdmin } = await import('../../src/middleware/auth.js'));
+      host = await mkU('smoke-evdeal-host@x.com', 'Soleá');
+      guest = await mkU('smoke-evdeal-guest@x.com', 'Gina');
+      club = await mkGroup('Smoke Café Soleá', 'club');
+      event = await mkGroup('Smoke Punsch Night', 'event', club);
+      sibling = await mkGroup('Smoke Quiz', 'event', club);
+      meetup = await mkGroup('Smoke Treffen', 'group');
+      DL.once = await mkDeal('Smoke Soleá Deal');
+      DL.weekly = await mkDeal('Smoke Wochen-Deal', { interval: 'weekly', max: 1 });
+      DL.soldOut = await mkDeal('Smoke Ausverkauft', { max: 1 });
+      DL.expired = await mkDeal('Smoke Abgelaufen', { untilSql: "NOW() - INTERVAL '1 day'" });
+      DL.inactive = await mkDeal('Smoke Inaktiv', { active: false });
+    });
+
+    it('only an admin may hang a deal on an event', async () => {
+      const denied = await attach(B, event, DL.once);
+      expect(denied.statusCode).toBe(403);
+      expect(await linkOf(event)).toEqual([]);
+      const res = await attach(A, event, DL.once);
+      ok(res);
+      expect(res.body).toEqual({ group_id: event, deal_id: DL.once, deal: {
+        id: DL.once, name: 'Smoke Soleá Deal', deal_label: '2 für 1', photo, verified: true } });
+    });
+
+    it('the event page and the club\'s event list embed it — nothing elsewhere', async () => {
+      expect(await shown(event)).toEqual({ id: DL.once, name: 'Smoke Soleá Deal', deal_label: '2 für 1', photo, verified: true });
+      expect(await shown(sibling)).toBeNull();
+      expect(await shown(meetup)).toBeNull();
+      const clubPage = await call(C.getGroupById, { userId: guest, params: { id: String(club) } });
+      expect(clubPage.body).not.toHaveProperty('deal');
+      const list = await call(C.getClubEvents, { userId: host, params: { id: String(club) }, query: {} });
+      ok(list);
+      const byId = Object.fromEntries(list.body.map((e) => [e.id, e.deal]));
+      expect(byId[event]).toMatchObject({ id: DL.once, verified: true });
+      expect(byId[sibling]).toBeNull();
+    });
+
+    it('the admin list names the events a deal hangs on', async () => {
+      const res = await call(C.getDealsForAdmin, {});
+      ok(res);
+      const row = res.body.find((d) => d.id === DL.once);
+      expect(row.events).toEqual([{ id: event, name: 'Smoke Punsch Night', date: expect.any(Date) }]);
+      expect(res.body.find((d) => d.id === DL.weekly).events).toEqual([]);
+    });
+
+    it('one deal per event: another one replaces it', async () => {
+      ok(await attach(A, event, DL.weekly));
+      expect(await linkOf(event)).toEqual([{ deal_id: DL.weekly }]);
+      expect((await shown(event)).id).toBe(DL.weekly);
+    });
+
+    it('a sold-out once-deal, an expired and an inactive one are never shown — a weekly one at its weekly cap still is', async () => {
+      // the weekly deal (cap 1) redeemed once THIS week: redeemDeal never caps weekly deals
+      await db.query(
+        `INSERT INTO deal_redemptions (deal_id, user_id, period_key) VALUES ($1, $2, 'w:' || to_char(now(), 'IYYY-IW'))`,
+        [DL.weekly, guest]);
+      expect((await shown(event)).id).toBe(DL.weekly);
+      // the once-deal with a cap of 1, redeemed once in its current round
+      ok(await attach(A, meetup, DL.soldOut));
+      expect((await shown(meetup)).id).toBe(DL.soldOut);
+      await db.query(`INSERT INTO deal_redemptions (deal_id, user_id, period_key) VALUES ($1, $2, 'once')`, [DL.soldOut, guest]);
+      expect(await shown(meetup)).toBeNull();
+      const res = await attach(A, meetup, DL.soldOut);
+      ok(res);
+      expect(res.body.deal).toBeNull();                       // attached, but the dashboard learns it is not shown
+      for (const id of [DL.expired, DL.inactive]) {
+        ok(await attach(A, sibling, id));
+        expect(await shown(sibling)).toBeNull();
+      }
+    });
+
+    it('refuses a club, an unknown event or deal and a bad body; null takes it off', async () => {
+      const onClub = await attach(A, club, DL.once);
+      expect(onClub.statusCode).toBe(400);
+      expect(onClub.body.code).toBe('NOT_AN_EVENT');
+      expect((await attach(A, 2147483000, DL.once)).statusCode).toBe(404);
+      expect((await attach(A, event, 2147483000)).statusCode).toBe(404);
+      expect((await attach(A, event, 'abc')).statusCode).toBe(400);
+      ok(await attach(A, sibling, null));
+      expect(await linkOf(sibling)).toEqual([]);
+      expect(await shown(sibling)).toBeNull();
+    });
+
+    it('deleting the event removes the link: a soft delete everywhere it showed, a hard delete in the table', async () => {
+      ok(await call(C.deleteClubEvent, { userId: host, params: { id: String(club), eventId: String(event) } }));
+      const page = await call(C.getGroupById, { userId: guest, params: { id: String(event) } });
+      expect(page.statusCode).toBe(404);
+      const list = await call(C.getClubEvents, { userId: host, params: { id: String(club) }, query: {} });
+      expect(list.body.map((e) => e.id)).not.toContain(event);
+      const admin = await call(C.getDealsForAdmin, {});
+      expect(admin.body.find((d) => d.id === DL.weekly).events).toEqual([]);
+      // a real DELETE (e.g. an account deletion cascading a solo club) takes the row along
+      expect(await linkOf(meetup)).toEqual([{ deal_id: DL.soldOut }]);
+      await db.query('DELETE FROM groups WHERE id = $1', [meetup]);
+      expect(await linkOf(meetup)).toEqual([]);
     });
   });
 

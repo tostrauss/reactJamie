@@ -9,6 +9,7 @@ import { clubAliveSql, parentClubGateSql, partnerSql } from '../utils/clubGate.j
 import { claimImmediate, bumpPending } from '../utils/categoryPushBudget.js';
 import { postSystemMessage, SYSTEM_TEXTS } from '../utils/systemMessage.js';
 import { isUserPro } from './subscriptionController.js';
+import { getDealsForEvents } from './dealController.js';
 import {
   freeDailyGroupJoins, freeDailyGroupCreates, countsTowardJoinLimit, dailyJoinState,
   dailyCreateState, logGroupJoin, limitExempt, dailyJoinLimitBody, dailyCreateLimitBody,
@@ -994,6 +995,13 @@ export const getGroupById = async (req, res) => {
     }
 
     const group = result.rows[0];
+
+    // The deal an admin hung on this event (P4 v1, Tina 16.11.2026) — for
+    // everyone, like is_partner; null while none is visible
+    // (dealController DEAL_VISIBLE_SQL). Clubs carry no deal of their own.
+    if (group.type === 'event' || group.type === 'group') {
+      group.deal = (await getDealsForEvents([group.id])).get(group.id) || null;
+    }
 
     // Check if current user is member/favorite/pending (if authenticated)
     if (req.userId) {

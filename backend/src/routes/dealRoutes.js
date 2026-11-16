@@ -2,7 +2,7 @@ import express from 'express';
 import {
   getDeals, getDeal, createDeal, updateDeal, deleteDeal,
   getRedemptionStatus, redeemDeal,
-  getDealsForAdmin, getDealRedemptions, startNewRound,
+  getDealsForAdmin, getDealRedemptions, startNewRound, setEventDeal,
 } from '../controllers/dealController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 
@@ -13,6 +13,8 @@ const router = express.Router();
 router.get('/admin/list',           authenticate, requireAdmin, getDealsForAdmin);
 router.get('/admin/:id/redemptions', authenticate, requireAdmin, getDealRedemptions);
 router.post('/admin/:id/new-round',  authenticate, requireAdmin, startNewRound);
+// Hang a deal on an event / take it off (P4 v1, 16.11.2026) — admins only.
+router.put('/event/:groupId',       authenticate, requireAdmin, setEventDeal);
 router.post('/',    authenticate, requireAdmin, createDeal);
 router.put('/:id',  authenticate, requireAdmin, updateDeal);
 router.delete('/:id', authenticate, requireAdmin, deleteDeal);
