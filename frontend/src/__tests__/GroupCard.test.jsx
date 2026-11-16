@@ -144,4 +144,38 @@ describe('GroupCard', () => {
     render(<MemoryRouter><GroupCard group={boostedGroup} /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('🚀')).toBeInTheDocument());
   });
+
+  // „☆ Partner" (Tina 16.11.2026): the server flags an official club's own
+  // event (is_partner); the card frames it yellow and adds the tab.
+  it('a partner event gets the yellow frame class and the „☆ Partner" tab', async () => {
+    const partnerEvent = { ...baseGroup, type: 'event', parent_club_id: 7, is_partner: true };
+    const { container } = render(<MemoryRouter><GroupCard group={partnerEvent} /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText('Partner')).toBeInTheDocument());
+    expect(container.firstChild).toHaveClass('group-card', 'is-partner');
+    expect(container.querySelector('.partner-badge--tab')).toBeInTheDocument();
+    // Nothing else changes: count, date badge, no extra buttons.
+    expect(screen.getByText('3/8 Mitglieder')).toBeInTheDocument();
+  });
+
+  it('no partner look without the flag — older server, community or member event, plain group', () => {
+    const cases = [
+      { ...baseGroup, type: 'event', parent_club_id: 7 },
+      { ...baseGroup, type: 'event', parent_club_id: 8, is_partner: false },
+      baseGroup,
+    ];
+    for (const group of cases) {
+      const { container, unmount } = render(<MemoryRouter><GroupCard group={group} /></MemoryRouter>);
+      expect(container.firstChild).not.toHaveClass('is-partner');
+      expect(screen.queryByText('Partner')).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('a full partner event keeps its tab next to the Voll chip', () => {
+    const fullPartner = { ...baseGroup, type: 'event', parent_club_id: 7, is_partner: true, members_count: 8 };
+    const { container } = render(<MemoryRouter><GroupCard group={fullPartner} /></MemoryRouter>);
+    expect(container.firstChild).toHaveClass('full', 'is-partner');
+    expect(screen.getByText('Voll')).toBeInTheDocument();
+    expect(screen.getByText('Partner')).toBeInTheDocument();
+  });
 });

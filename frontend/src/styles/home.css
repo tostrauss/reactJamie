@@ -442,6 +442,18 @@
   border-color: var(--border-default);
 }
 
+/* „☆ Partner" (Tina 16.11.2026): an official club's own event — a pastel-
+   yellow border at 55 % instead of the lilac-grey default, plus the tab
+   bottom left (PartnerBadge, global.css). Scoped to .is-partner because
+   DealCard and CommunityCard reuse .group-card. The :hover twin keeps the
+   reset above from turning it lilac again (desktop hover, iOS sticky hover
+   after a tap). A full partner event dims like every full card (.full). */
+.group-card.is-partner,
+.group-card.is-partner:hover {
+  border-color: var(--partner-line);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-partner-rgb), 0.1);
+}
+
 /* ── Top text section ──────────────────────────────────── */
 .card-header {
   display: flex;

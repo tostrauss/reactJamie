@@ -61,4 +61,9 @@ describe('partner yellow lives in the tokens only', () => {
     const globalCss = fs.readFileSync(path.join(SRC, 'styles/global.css'), 'utf8');
     expect(globalCss.match(/F9E296|249,\s*226,\s*150/gi)).toHaveLength(2);   // --accent-partner + -rgb
   });
+
+  it('the feed card keeps its yellow frame on :hover (home.css resets .group-card:hover to lilac)', () => {
+    const homeCss = fs.readFileSync(path.join(SRC, 'styles/home.css'), 'utf8');
+    expect(homeCss).toMatch(/\.group-card\.is-partner:hover\s*\{[^}]*border-color:\s*var\(--partner-line\)/);
+  });
 });

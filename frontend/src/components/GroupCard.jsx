@@ -6,6 +6,7 @@ import { nextOccurrence, parseDateDescriptor } from '../utils/recurrence';
 import { purchasesEnabled } from '../utils/platform';
 import { usePaymentsConfig } from '../utils/paymentsConfig';
 import { thumbUrl, coverCardUrl } from '../utils/images';
+import PartnerBadge from './PartnerBadge';
 
 // Dispatched on every Pro-gate click (member-preview lock on group cards).
 // AppRoutes listens for this and opens <ProModal />. Using a window event
@@ -56,6 +57,10 @@ export const GroupCard = memo(({
   const { user, isPro } = useContext(AuthContext) || {};
   const isAdmin = !!user?.is_admin;
   const isClub = group.type === 'club';
+  // „☆ Partner" (Tina 16.11.2026): an official club's own event. The server
+  // decides (backend utils/clubGate.js partnerSql) — the card only shows it:
+  // yellow frame + the tab bottom left. Older servers send no flag → none.
+  const isPartner = !!group.is_partner;
 
   // member_previews is embedded by the backend (up to 4 faces for every
   // viewer). Only the 4th (bottom-right) tile can be the Pro gate; the first
@@ -104,7 +109,7 @@ export const GroupCard = memo(({
   }
 
   return (
-    <div className={`group-card ${isFull ? 'full' : ''}${badgeLabel ? ' has-badge' : ''}`} onClick={onClick}>
+    <div className={`group-card ${isFull ? 'full' : ''}${badgeLabel ? ' has-badge' : ''}${isPartner ? ' is-partner' : ''}`} onClick={onClick}>
 
       {/* ── Date badge ── */}
       {badgeLabel && <span className="card-badge">{badgeLabel}</span>}
@@ -227,6 +232,9 @@ export const GroupCard = memo(({
           </>
         )}
       </div>
+
+      {/* ── „☆ Partner" tab, bottom left — mirror image of the date badge ── */}
+      {isPartner && <PartnerBadge variant="tab" />}
 
     </div>
   );
