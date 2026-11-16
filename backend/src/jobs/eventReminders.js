@@ -194,7 +194,11 @@ async function reminderRecipients(groupIds) {
 // already reviewed or dismissed this event (mirrors getPendingReviews) so the
 // nudge only lands on people who still have something to do — and, since
 // 16.11.2026, anyone who joined after the event's day: getPendingReviews never
-// asks them, so their push used to open the app onto nothing.
+// asks them, so their push used to open the app onto nothing. Nor anyone whose
+// list would be empty: getPendingReviews lists the others who were in time,
+// minus everyone in a block with the asker — the meetup's floor
+// (REVIEW_PUSH_MIN_PARTICIPANTS) counts heads, not lists, so owner + one in a
+// block passed it and both got a push about nobody (review 16.11.2026).
 async function reviewNudgeRecipients(groupIds) {
   const byGroup = new Map();
   if (!groupIds.length) return byGroup;
@@ -210,7 +214,14 @@ async function reviewNudgeRecipients(groupIds) {
        AND NOT EXISTS (SELECT 1 FROM event_reviews er
                        WHERE er.group_id = gm.group_id AND er.reviewer_id = gm.user_id)
        AND NOT EXISTS (SELECT 1 FROM event_review_dismissals d
-                       WHERE d.group_id = gm.group_id AND d.user_id = gm.user_id)`,
+                       WHERE d.group_id = gm.group_id AND d.user_id = gm.user_id)
+       AND EXISTS (SELECT 1 FROM group_members o
+                   WHERE o.group_id = gm.group_id AND o.user_id <> gm.user_id
+                     AND ${joinedInTimeSql('o', 'g')}
+                     AND NOT EXISTS (SELECT 1 FROM friendships f
+                                     WHERE f.status = 'blocked'
+                                       AND ((f.requester_id = gm.user_id AND f.addressee_id = o.user_id)
+                                         OR (f.requester_id = o.user_id AND f.addressee_id = gm.user_id))))`,
     [groupIds]
   );
   for (const r of rows) {

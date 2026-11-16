@@ -5907,6 +5907,26 @@ suite('write endpoints against real Postgres', () => {
       const prompt = (await call(C.getPendingReviews, { userId: O })).body.find((r) => r.group_id === deserted);
       expect(prompt.members).toEqual([]);
     });
+
+    // Review 16.11.2026: owner + one other in a block are two heads, but two
+    // empty lists — the meetup is claimed, nobody gets a push about nobody.
+    it('the push: nobody whose list would be empty — the owner and the only other, in a block', async () => {
+      await db.query(`UPDATE groups SET reminder_day_sent_for = date, reminder_hour_sent_for = date,
+                                        owner_nudge_sent_for = date, review_nudge_sent_for = date WHERE date IS NOT NULL`);
+      const pair = await mkMeetup([P[0]], 'Push Blockiert');
+      await db.query(`INSERT INTO friendships (requester_id, addressee_id, status) VALUES ($1, $2, 'blocked')`, [P[0], O]);
+      try {
+        const at11 = (await db.query(
+          `SELECT (((date::date + 1)::timestamp + TIME '11:00') AT TIME ZONE 'Europe/Vienna') AS t FROM groups WHERE id = $1`,
+          [pair])).rows[0].t;
+        expect(await C.runEventReminders({ now: at11 }))
+          .toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 1, pushes: 0 });
+        const prompt = (await call(C.getPendingReviews, { userId: O })).body.find((r) => r.group_id === pair);
+        expect(prompt.members).toEqual([]);
+      } finally {
+        await db.query('DELETE FROM friendships WHERE requester_id = $1 AND addressee_id = $2', [P[0], O]);
+      }
+    });
   });
 
   // ── „☆ Partner“: an official club's own events (Tina/Tobi, 16.11.2026) ─

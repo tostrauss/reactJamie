@@ -184,9 +184,11 @@ export const participantsAtEventSql = (a) => {
 };
 
 // Of those participants, the ones still IN the meetup: members by the end of
-// its day who have not left. Exactly who the prompt lists (getPendingReviews
-// reads group_members only) and whom the review push reaches — the floor
-// REVIEW_PUSH_MIN_PARTICIPANTS is taken on this. Alias pm, like above.
+// its day who have not left — the people the prompt can list (getPendingReviews
+// reads group_members only; it also leaves out whoever is in a block with the
+// asker, which no head count can know — eventReminders' recipient query checks
+// that per person). The floor REVIEW_PUSH_MIN_PARTICIPANTS is taken on this.
+// Alias pm, like above.
 export const remainingParticipantsSql = (a) => {
   const g = alias(a);
   return `(SELECT COUNT(*) FROM group_members pm WHERE pm.group_id = ${g}.id AND ${joinedInTimeSql('pm', g)})`;

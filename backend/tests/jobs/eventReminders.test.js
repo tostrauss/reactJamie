@@ -349,6 +349,25 @@ describe('review nudge (Batch 3)', () => {
     expect(pushUsersMock).toHaveBeenCalledWith([7], expect.any(Function), null, '/');
   });
 
+  // Review 16.11.2026: the head count passed owner + one in a block, whose
+  // lists are both empty — the floor has to hold per recipient.
+  it('recipients only with somebody on their list: another member in time, not in a block with them', async () => {
+    program({
+      review: [{ id: 41, owner_id: 1, name: 'Bar Abend', location: null, members_count: 2, time_hhmm: '19:00' }],
+      reviewMembers: [],
+    });
+    const out = await runEventReminders({ now: NOW });
+    const revSel = statements.find(s => s.text.includes('event_reviews'));
+    expect(revSel.text).toContain('AND EXISTS (SELECT 1 FROM group_members o');
+    expect(revSel.text).toContain('o.user_id <> gm.user_id');
+    expect(revSel.text).toContain(joinedInTimeSql('o', 'g'));
+    expect(revSel.text).toContain("f.status = 'blocked'");
+    expect(revSel.text).toContain('(f.requester_id = gm.user_id AND f.addressee_id = o.user_id)');
+    expect(revSel.text).toContain('(f.requester_id = o.user_id AND f.addressee_id = gm.user_id)');
+    expect(pushUsersMock).not.toHaveBeenCalled();
+    expect(out.reviewNudge).toBe(1);
+  });
+
   it('re-arms the marker (NULL) if the recipient lookup fails after the claim', async () => {
     dbQueryImpl = async (text) => {
       if (text.includes('UPDATE groups g SET') && text.includes('review_nudge_sent_for')) {
