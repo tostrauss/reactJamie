@@ -2147,12 +2147,18 @@
     "redeemConfirmYes": "Confirmar",
     "redeemConfirmNo": "Cancelar",
     "redeemError": "Error al canjear. Inténtalo de nuevo.",
+    "soldOutCTA": "Agotado",
+    "soldOutToast": "Lo sentimos, esta oferta ya está agotada.",
+    "goneToast": "Esta oferta ya no está disponible.",
     "redeemPage": {
       "header": "Muestra esta página en el establecimiento",
       "subheader": "Esta oferta solo se puede canjear una vez",
       "brand": "JAMIE",
       "brandSub": "Ofertas",
       "done": "Listo"
+    },
+    "eventRow": {
+      "verified": "Partner verificado"
     }
   },
   "outOfRegion": {

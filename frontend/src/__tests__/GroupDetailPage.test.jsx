@@ -47,6 +47,7 @@ const renderPage = async (group) => {
         <Routes>
           <Route path="/group/:id" element={<GroupDetail />} />
           <Route path="/group/:id/requests" element={<div>Anfragen-Seite</div>} />
+          <Route path="/deal/:id" element={<div>Deal-Seite</div>} />
         </Routes>
       </MemoryRouter>
     </AuthContext.Provider>,
@@ -113,6 +114,31 @@ describe('GroupDetail — partner event (P2)', () => {
     await renderPage(clubEvent({ owner_id: 99, is_manager: false }));
     expect(document.querySelector('.gd-content-card')).not.toHaveClass('gd-content-card--partner');
     expect(screen.queryByText('Partner')).not.toBeInTheDocument();
+  });
+});
+
+// The deal an admin hung on the event (P4 v1, Tina 16.11.2026): in the head
+// card between title and description, a tap opens the deal's redeem page.
+describe('GroupDetail — the deal at the event (P4 v1)', () => {
+  const DEAL = { id: 12, name: 'Café Soleá', deal_label: '1 Getränk gratis', photo: null, verified: true };
+
+  it('sits between title and description and opens the deal page', async () => {
+    await renderPage(clubEvent({ owner_id: 99, is_manager: false, description: 'Brettspiele bis Mitternacht', deal: DEAL }));
+    const card = document.querySelector('.gd-content-card');
+    const title = card.querySelector('.gd-group-title');
+    const row = card.querySelector('.event-deal-row');
+    const description = card.querySelector('.gd-description');
+    expect(row).toBeTruthy();
+    expect(title.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(row.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'Geprüfter Partner' })).toBeInTheDocument();
+    fireEvent.click(row);
+    expect(await screen.findByText('Deal-Seite')).toBeInTheDocument();
+  });
+
+  it('no row while the server embeds none', async () => {
+    await renderPage(clubEvent({ owner_id: 99, is_manager: false, deal: null }));
+    expect(document.querySelector('.event-deal-row')).toBeNull();
   });
 });
 

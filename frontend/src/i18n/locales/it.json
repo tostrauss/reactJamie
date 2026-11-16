@@ -2147,12 +2147,18 @@
     "redeemConfirmYes": "Conferma",
     "redeemConfirmNo": "Annulla",
     "redeemError": "Riscatto non riuscito. Riprova.",
+    "soldOutCTA": "Esaurito",
+    "soldOutToast": "Peccato, questo deal è già esaurito.",
+    "goneToast": "Questo deal non è più disponibile.",
     "redeemPage": {
       "header": "Mostra questa pagina nel locale",
       "subheader": "Questo deal è riscattabile una sola volta",
       "brand": "JAMIE",
       "brandSub": "Deals",
       "done": "Fatto"
+    },
+    "eventRow": {
+      "verified": "Partner verificato"
     }
   },
   "outOfRegion": {

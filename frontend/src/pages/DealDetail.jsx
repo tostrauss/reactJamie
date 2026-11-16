@@ -71,6 +71,9 @@ export const DealDetail = () => {
   const [redemption, setRedemption] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
+  // The server answered 410 DEAL_SOLD_OUT: the deal's redemption cap is
+  // reached. The CTA says so instead of offering a redeem that cannot work.
+  const [soldOut, setSoldOut] = useState(false);
 
   useEffect(() => {
     // Two independent fetches: ONLY the deal payload gates render. The
@@ -80,13 +83,20 @@ export const DealDetail = () => {
     let cancelled = false;
     deals.getOne(id)
       .then(res => { if (!cancelled) setDeal(res.data); })
-      .catch(() => { if (!cancelled) navigate(-1); })
+      .catch((err) => {
+        if (cancelled) return;
+        // 404: taken down or expired since the link was made — an event's
+        // deal row (P4, 16.11.2026), a push, a shared link. Say so before
+        // going back; a silent jump looked like a broken tap.
+        if (err?.response?.status === 404) toast.error(t('deal.goneToast'));
+        navigate(-1);
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
     deals.getRedemptionStatus(id)
       .then(res => { if (!cancelled) setRedemption(res.data); })
       .catch(() => {}); // non-fatal: CTA simply stays disabled
     return () => { cancelled = true; };
-  }, [id, navigate]);
+  }, [id, navigate, toast, t]);
 
   const handleConfirmRedeem = async () => {
     if (redeeming) return;
@@ -116,6 +126,21 @@ export const DealDetail = () => {
         }));
         // Refresh status so the button reflects the new day.
         deals.getRedemptionStatus(id).then(r => setRedemption(r.data)).catch(() => {});
+        return;
+      }
+      // 410 DEAL_SOLD_OUT — the last free slot went while the page was open;
+      // 404 — the deal was switched off or ran out meanwhile. Both used to
+      // end in the generic „Einlösen fehlgeschlagen. Bitte erneut versuchen.“,
+      // which invites a retry that can never work.
+      if (err.response?.status === 410) {
+        setShowConfirm(false);
+        setSoldOut(true);
+        toast.error(t('deal.soldOutToast'));
+        return;
+      }
+      if (err.response?.status === 404) {
+        setShowConfirm(false);
+        toast.error(t('deal.goneToast'));
         return;
       }
       toast.error(t('deal.redeemError'));
@@ -239,35 +264,40 @@ export const DealDetail = () => {
           // active: redeemed → the button opens the shop.
           const voucherLocked = redeemed && !isAdmin && !bookingUrl;
           const shopAfterRedeem = redeemed && !!bookingUrl;
+          // Sold out (410) or wrong weekday: greyed out, nothing to tap.
+          const soldOutNow = soldOut && !redeemed;
+          const blocked = blockedByDay || soldOutNow;
           const label = redeemed
             ? (bookingUrl
                 ? t('deal.ticketShopCTA', { defaultValue: 'Zum Ticketshop 🎟' })
                 : isAdmin ? t('deal.viewVoucherCTA') : redeemedLabel)
+            : soldOutNow
+            ? t('deal.soldOutCTA')
             : blockedByDay
             ? t('deal.onlyDaysCTA', { days: daysLabel, defaultValue: 'Nur {{days}} einlösbar' })
             : t('deal.redeemCTA');
           return (
             <button
               type="button"
-              disabled={!redemption || redeeming || voucherLocked || blockedByDay}
+              disabled={!redemption || redeeming || voucherLocked || blocked}
               onClick={() => {
                 if (redeemed) {
                   if (bookingUrl) window.open(bookingUrl, '_blank', 'noopener');
                   else if (isAdmin) navigate(`/deal/${id}/redeem`);
                 }
-                else if (!blockedByDay) setShowConfirm(true);
+                else if (!blocked) setShowConfirm(true);
               }}
               style={{
-                background: ((redeemed && !shopAfterRedeem) || blockedByDay) ? 'rgba(255,255,255,0.10)' : '#FD7666',
-                color: (voucherLocked || blockedByDay) ? 'rgba(255,255,255,0.55)' : '#fff',
-                border: ((redeemed && !shopAfterRedeem) || blockedByDay) ? '1px solid rgba(255,255,255,0.15)' : 'none',
+                background: ((redeemed && !shopAfterRedeem) || blocked) ? 'rgba(255,255,255,0.10)' : '#FD7666',
+                color: (voucherLocked || blocked) ? 'rgba(255,255,255,0.55)' : '#fff',
+                border: ((redeemed && !shopAfterRedeem) || blocked) ? '1px solid rgba(255,255,255,0.15)' : 'none',
                 borderRadius: 100,
                 padding: '13px 32px',
                 fontSize: 15,
                 fontWeight: 800,
                 letterSpacing: 0.3,
-                boxShadow: ((redeemed && !shopAfterRedeem) || blockedByDay) ? 'none' : '0 8px 24px rgba(253,118,102,0.35)',
-                cursor: (!redemption || voucherLocked || blockedByDay) ? 'default' : 'pointer',
+                boxShadow: ((redeemed && !shopAfterRedeem) || blocked) ? 'none' : '0 8px 24px rgba(253,118,102,0.35)',
+                cursor: (!redemption || voucherLocked || blocked) ? 'default' : 'pointer',
                 opacity: !redemption ? 0.7 : 1,
               }}
             >

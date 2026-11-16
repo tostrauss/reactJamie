@@ -2147,12 +2147,18 @@
     "redeemConfirmYes": "Bestätigen",
     "redeemConfirmNo": "Abbrechen",
     "redeemError": "Einlösen fehlgeschlagen. Bitte erneut versuchen.",
+    "soldOutCTA": "Ausverkauft",
+    "soldOutToast": "Dieser Deal ist leider schon ausverkauft.",
+    "goneToast": "Dieser Deal ist nicht mehr verfügbar.",
     "redeemPage": {
       "header": "Zeige diese Seite in dem Geschäft vor",
       "subheader": "Dieser Deal ist nur einmal einlösbar",
       "brand": "JAMIE",
       "brandSub": "Deals",
       "done": "Fertig"
+    },
+    "eventRow": {
+      "verified": "Geprüfter Partner"
     }
   },
   "outOfRegion": {

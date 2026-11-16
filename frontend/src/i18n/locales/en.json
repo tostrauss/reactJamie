@@ -2147,12 +2147,18 @@
     "redeemConfirmYes": "Confirm",
     "redeemConfirmNo": "Cancel",
     "redeemError": "Could not redeem. Please try again.",
+    "soldOutCTA": "Sold out",
+    "soldOutToast": "Sorry, this deal is already sold out.",
+    "goneToast": "This deal is no longer available.",
     "redeemPage": {
       "header": "Show this screen at the venue",
       "subheader": "This deal can only be redeemed once",
       "brand": "JAMIE",
       "brandSub": "Deals",
       "done": "Done"
+    },
+    "eventRow": {
+      "verified": "Verified partner"
     }
   },
   "outOfRegion": {

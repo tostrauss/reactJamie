@@ -2147,12 +2147,18 @@
     "redeemConfirmYes": "Confirmer",
     "redeemConfirmNo": "Annuler",
     "redeemError": "Échec de l'utilisation. Réessaie, s'il te plaît.",
+    "soldOutCTA": "Épuisé",
+    "soldOutToast": "Dommage, cette offre est déjà épuisée.",
+    "goneToast": "Cette offre n'est plus disponible.",
     "redeemPage": {
       "header": "Montre cette page au personnel sur place",
       "subheader": "Cette offre n'est utilisable qu'une seule fois",
       "brand": "JAMIE",
       "brandSub": "Offres",
       "done": "Terminé"
+    },
+    "eventRow": {
+      "verified": "Partenaire vérifié"
     }
   },
   "outOfRegion": {

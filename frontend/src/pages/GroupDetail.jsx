@@ -13,6 +13,7 @@ import { UserName } from '../components/UserName';
 import VerifiedBadge from '../components/VerifiedBadge';
 import StarIcon from '../components/StarIcon';
 import GroupDetailPills from '../components/GroupDetailPills';
+import EventDealRow from '../components/EventDealRow';
 import { AttendanceTierBadge } from '../components/AttendanceTierBadge';
 import { EventReviewModal } from '../components/EventReviewModal';
 import AvatarGateModal from '../components/AvatarGateModal';
@@ -925,6 +926,11 @@ export const GroupDetail = () => {
             <h2 className="gd-group-title">
               {group.name || group.title || group.category || ''}
             </h2>
+
+            {/* The deal an admin hung on this event (P4 v1, Tina 16.11.2026):
+                between title and description, a tap opens its redeem page.
+                Server-embedded only while it can be redeemed. */}
+            <EventDealRow deal={group.deal} />
 
             {/* Description */}
             {group.description && (
