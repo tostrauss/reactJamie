@@ -305,7 +305,7 @@ export default function DealForm({ variant = 'admin', deal = null, defaults, tit
           {...inputProps('address')}
           ref={addressRef}
           type="text"
-          maxLength={500}
+          maxLength={255}
           value={form.address}
           onChange={set('address')}
           placeholder={k('fields.addressPlaceholder', { defaultValue: 'z.B. Hauptstraße 1, 1010 Wien' })}

@@ -58,6 +58,10 @@ async function notifyNearbyUsersAboutDeal(deal) {
   }
 }
 
+// max_redemptions is an INTEGER column: a bigger number failed the write with
+// a bare 500 (22003) instead of a 400 (review 16.11.2026).
+const INT4_MAX = 2147483647;
+
 function validateDealInputs({ lat, lng, booking_url, photos, name, deal_label, description, address }) {
   if (lat !== null && lat !== undefined) {
     const n = parseFloat(lat);
@@ -78,7 +82,9 @@ function validateDealInputs({ lat, lng, booking_url, photos, name, deal_label, d
   if (name !== undefined && (typeof name !== 'string' || name.length > 255)) return 'name invalid';
   if (deal_label !== undefined && (typeof deal_label !== 'string' || deal_label.length > 100)) return 'deal_label invalid';
   if (description !== undefined && description !== null && (typeof description !== 'string' || description.length > 2000)) return 'description invalid';
-  if (address !== undefined && address !== null && (typeof address !== 'string' || address.length > 500)) return 'address invalid';
+  // deals.address is VARCHAR(255): longer failed the write with a bare 500
+  // (review 16.11.2026 — clubs type their own now).
+  if (address !== undefined && address !== null && (typeof address !== 'string' || address.length > 255)) return 'address invalid';
   if (photos !== undefined && photos !== null) {
     if (!Array.isArray(photos) || photos.length > 12) return 'photos must be an array of <=12 URLs';
     for (const p of photos) {
@@ -223,7 +229,7 @@ export const createDeal = async (req, res) => {
     maxRedemptionsParsed = null;
   } else if (max_redemptions !== undefined) {
     const n = parseInt(max_redemptions, 10);
-    if (Number.isNaN(n) || n < 1) return res.status(400).json({ error: 'max_redemptions muss eine positive Zahl sein' });
+    if (Number.isNaN(n) || n < 1 || n > INT4_MAX) return res.status(400).json({ error: 'max_redemptions muss eine positive Zahl sein' });
     maxRedemptionsParsed = n;
   }
   const validationError = validateDealInputs({ lat, lng, booking_url, photos, name, deal_label, description, address });
@@ -321,7 +327,7 @@ export const updateDeal = async (req, res) => {
       fields.max_redemptions = null;
     } else {
       const n = parseInt(max_redemptions, 10);
-      if (Number.isNaN(n) || n < 1) return res.status(400).json({ error: 'max_redemptions muss eine positive Zahl sein' });
+      if (Number.isNaN(n) || n < 1 || n > INT4_MAX) return res.status(400).json({ error: 'max_redemptions muss eine positive Zahl sein' });
       fields.max_redemptions = n;
     }
   }
@@ -950,19 +956,22 @@ async function clubDealFields(body, club, { partial }) {
       fields.max_redemptions = null;
     } else {
       const n = parseInt(b.max_redemptions, 10);
-      if (Number.isNaN(n) || n < 1) return { status: 400, error: 'max_redemptions muss eine positive Zahl sein' };
+      if (Number.isNaN(n) || n < 1 || n > INT4_MAX) return { status: 400, error: 'max_redemptions muss eine positive Zahl sein' };
       fields.max_redemptions = n;
     }
   }
 
-  const textToCheck = [fields.name, fields.deal_label, fields.description].filter(Boolean).join('\n');
+  // A typed address shows on the deal page as typed, also when geocoding does
+  // not resolve it — the club's text like the others (review 16.11.2026).
+  const typedAddress = typeof b.address === 'string' ? b.address.trim() : '';
+  const textToCheck = [fields.name, fields.deal_label, fields.description, typedAddress].filter(Boolean).join('\n');
   if (textToCheck) {
     const { safe, reason } = await checkTextSafety(textToCheck);
     if (!safe) return { status: 422, error: reason };
   }
 
   if (b.address !== undefined || !partial) {
-    const address = typeof b.address === 'string' ? b.address.trim() : '';
+    const address = typedAddress;
     if (!address) {
       fields.address = club.location || null;
       fields.lat = club.lat ?? null;

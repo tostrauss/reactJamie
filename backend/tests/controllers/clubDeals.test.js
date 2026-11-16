@@ -258,6 +258,23 @@ describe('POST /api/deals/club/:clubId (createClubDeal)', () => {
     expect(inserts()).toHaveLength(0);
   });
 
+  // Review 16.11.2026: clubs type these themselves now.
+  it('an address over 255 characters or a cap beyond INTEGER: 400 — not the database\'s bare 500', async () => {
+    expect((await create(body({ address: `Gumpendorfer Straße 1, 1060 Wien ${'x'.repeat(230)}` }))).statusCode).toBe(400);
+    expect((await create(body({ max_redemptions: '99999999999' }))).statusCode).toBe(400);
+    expect(inserts()).toHaveLength(0);
+    expect((await create(body({ max_redemptions: 2147483647 }))).statusCode).toBe(201);
+  });
+
+  it('a typed address is moderated with the texts — it shows on the deal page as typed', async () => {
+    expect((await create(body({ address: 'Neubaugasse 7, 1070 Wien' }))).statusCode).toBe(201);
+    expect(textMock).toHaveBeenLastCalledWith('Café Soleá\n2 für 1\nNeubaugasse 7, 1070 Wien');
+    const bad = await create(body({ address: 'Hurensohnweg 1, 1070 Wien' }));
+    expect(bad.statusCode).toBe(422);
+    expect(geoMock).toHaveBeenCalledTimes(1);   // refused before geocoding
+    expect(inserts()).toHaveLength(1);
+  });
+
   it('before the deals.club_id migration (42703): 503, not 500', async () => {
     const db = (await import('../../src/config/database.js')).default;
     db.query.mockImplementationOnce(async () => ({ rows: [scenario.access] }))
