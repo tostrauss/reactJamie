@@ -184,6 +184,32 @@ function parseRedeemDays(input) {
   return days.length ? days : null;
 }
 
+// „Sichtbar bis“ → a Date (invalid when it is no date). The deal forms send a
+// bare day ('2026-12-17'), and „Sichtbar bis 17.12.“ means all of the 17th in
+// Vienna — stored as 23:59:59 there. new Date('2026-12-17') is midnight UTC:
+// the deal went dark at 01:00 on the very day it was „sichtbar bis“, a club's
+// earliest choice (tomorrow) ran until that night (review 16.11.2026). A value
+// with a time is taken as the instant it names. Stored like every timestamp
+// here: as its UTC wall clock.
+const DAY_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
+const VIENNA_CLOCK = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Europe/Vienna', hourCycle: 'h23',
+  year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric',
+});
+function visibleUntilFrom(value) {
+  const m = DAY_ONLY.exec(typeof value === 'string' ? value : '');
+  if (!m) return new Date(value);
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  // 23:59:59 that day as if Vienna were UTC, then back by Vienna's offset
+  // (+1 h, +2 h in summer — the clocks change at 01:00 UTC, never near this).
+  const wall = Date.UTC(y, mo - 1, d, 23, 59, 59);
+  const back = new Date(wall);
+  if (back.getUTCFullYear() !== y || back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d) return new Date(NaN); // 2026-02-30
+  const p = Object.fromEntries(VIENNA_CLOCK.formatToParts(back).map(({ type, value: v }) => [type, Number(v)]));
+  const offset = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - wall;
+  return new Date(wall - offset);
+}
+
 export const createDeal = async (req, res) => {
   const { name, category, deal_label, description, address, lat, lng, photos, booking_url, visible_until, max_redemptions, redeem_interval, redeem_days } = req.body;
   if (!name || !deal_label) {
@@ -205,7 +231,7 @@ export const createDeal = async (req, res) => {
   // visible_until: optional ISO date/datetime; NULL = no expiry
   let visibleUntilParsed = null;
   if (visible_until) {
-    const d = new Date(visible_until);
+    const d = visibleUntilFrom(visible_until);
     if (isNaN(d.getTime())) return res.status(400).json({ error: 'visible_until ist kein gültiges Datum' });
     visibleUntilParsed = d.toISOString();
   }
@@ -266,7 +292,7 @@ export const updateDeal = async (req, res) => {
   if (validationError) return res.status(400).json({ error: validationError });
   let visibleUntilParsed = null;
   if (visible_until) {
-    const d = new Date(visible_until);
+    const d = visibleUntilFrom(visible_until);
     if (isNaN(d.getTime())) return res.status(400).json({ error: 'visible_until ist kein gültiges Datum' });
     visibleUntilParsed = d.toISOString();
   }
@@ -807,11 +833,12 @@ async function clubDealAccess(clubId, userId, { needPro }) {
 }
 
 // visible_until of a club deal: required, in the future, at most
-// CLUB_DEAL_MAX_DAYS ahead — plus a day of slack for the time zones, as the
-// form sends a bare date (midnight UTC). → { iso } or { error }.
+// CLUB_DEAL_MAX_DAYS ahead — plus a day of slack, as the form sends a bare
+// date that runs to the end of its Vienna day (visibleUntilFrom).
+// → { iso } or { error }.
 function parseClubDealUntil(value) {
   if (value === undefined || value === null || value === '') return { error: '„Sichtbar bis“ ist ein Pflichtfeld.' };
-  const d = new Date(value);
+  const d = visibleUntilFrom(value);
   if (isNaN(d.getTime())) return { error: 'visible_until ist kein gültiges Datum' };
   if (d.getTime() <= Date.now()) return { error: '„Sichtbar bis“ muss in der Zukunft liegen.' };
   if (d.getTime() > Date.now() + (CLUB_DEAL_MAX_DAYS + 1) * 24 * 3600 * 1000) {
@@ -1064,9 +1091,11 @@ export const startNewRound = async (req, res) => {
   const setDate = visible_until !== undefined;
   let visibleUntilParsed = null;
   if (visible_until) {
-    const d = new Date(visible_until);
+    const d = visibleUntilFrom(visible_until);
     if (isNaN(d.getTime())) return res.status(400).json({ error: 'visible_until ist kein gültiges Datum' });
-    if (d.getTime() < Date.now() - 24 * 3600 * 1000) return res.status(400).json({ error: 'Das neue Ablaufdatum liegt in der Vergangenheit' });
+    // No more day of slack: a bare date now runs to the end of its Vienna
+    // day, so today still works and yesterday is over.
+    if (d.getTime() <= Date.now()) return res.status(400).json({ error: 'Das neue Ablaufdatum liegt in der Vergangenheit' });
     visibleUntilParsed = d.toISOString();
   }
   try {

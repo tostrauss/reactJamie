@@ -442,8 +442,8 @@ suite('write endpoints against real Postgres', () => {
     const r = await call(C.startNewRound, { userId: A, params: { id: String(dealId) }, body: { visible_until: '2099-12-31' } });
     ok(r);
     expect(r.body.redeem_round).toBe(2);
-    const row = await db.query("SELECT to_char(visible_until, 'YYYY-MM-DD') AS d FROM deals WHERE id=$1", [dealId]);
-    expect(row.rows[0].d).toBe('2099-12-31');
+    const row = await db.query("SELECT to_char(visible_until, 'YYYY-MM-DD HH24:MI:SS') AS d FROM deals WHERE id=$1", [dealId]);
+    expect(row.rows[0].d).toBe('2099-12-31 22:59:59'); // all of the 31st in Vienna (CET), review 16.11.2026
     const feed = await call(C.getDeals, { userId: B });
     expect((feed.body || []).some(d => d.id === dealId)).toBe(true);
     const n = await db.query('SELECT COUNT(*)::int AS n FROM deal_redemptions WHERE deal_id=$1', [dealId]);
@@ -6560,6 +6560,12 @@ suite('write endpoints against real Postgres', () => {
         'SELECT club_id, created_by, address, lat, lng, photos, is_active, category FROM deals WHERE id = $1', [D.main])).rows[0];
       expect(row).toEqual({ club_id: club, created_by: proMgr, address: ADDRESS, lat: 48.19, lng: 16.35,
         photos: [photo], is_active: true, category: 'Lokal' });
+      // „Sichtbar bis“ is that whole day in Vienna (review 16.11.2026): its
+      // last second there, kept as UTC wall clock like every timestamp.
+      expect((await db.query(
+        `SELECT visible_until = ((($2::date + 1)::timestamp AT TIME ZONE 'Europe/Vienna') - INTERVAL '1 second')
+                                AT TIME ZONE 'UTC' AS ok
+           FROM deals WHERE id = $1`, [D.main, until(30)])).rows[0].ok).toBe(true);
     });
 
     it('an app admin who manages the club needs no Pro; a non-manager 403 even with Pro; a community 403', async () => {

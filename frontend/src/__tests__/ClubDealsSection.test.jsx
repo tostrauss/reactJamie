@@ -85,6 +85,21 @@ describe('ClubDealsSection — the list', () => {
     expect(rowOf('Wöchentlich')).not.toHaveClass('is-dimmed');   // weekly deals are never capped
   });
 
+  // Review 16.11.2026: the server keeps a deal through the day picked in
+  // Vienna (the end of that day) — the list says so until then.
+  it('a deal through the 17th in Vienna still shows as such late that evening', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-12-17T22:30:00Z'));   // 23:30 in Vienna
+      await renderSection({ rows: [deal({ visible_until: '2026-12-17T22:59:59.000Z' })] });
+      const row = screen.getByText('2 für 1').closest('.ge-deal-row');
+      expect(row).not.toHaveClass('is-dimmed');
+      expect(within(row).getByText('Sichtbar bis 17.12.2026 · 3× eingelöst')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('no deals yet: a line saying so and „Deal anlegen“', async () => {
     await renderSection({ rows: [] });
     expect(screen.getByText('Noch keine Deals.')).toBeInTheDocument();

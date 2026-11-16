@@ -4,6 +4,7 @@ import { upload } from '../utils/api';
 import { useToast } from '../context/ToastContext';
 import { loadGoogleMaps, onGoogleMapsReady, createPlacesAutocomplete } from '../utils/googleMaps';
 import { ALLOWED_COUNTRIES } from '../utils/regions';
+import { viennaTodayUTC } from '../utils/recurrence';
 
 /**
  * The deal form — company, 2-word headline, description, address, booking
@@ -15,7 +16,8 @@ import { ALLOWED_COUNTRIES } from '../utils/regions';
  *     bis" optional (empty = no expiry).
  *   - variant 'club' — in the club's edit page, in its look (ge-*), texts
  *     under groupEdit.deals.* in all five languages; "Sichtbar bis" required,
- *     from tomorrow to CLUB_DEAL_MAX_DAYS ahead (the server checks the same);
+ *     from tomorrow to CLUB_DEAL_MAX_DAYS ahead in Vienna days (the server
+ *     checks the upper limit too; the deal shows through the day picked);
  *     an empty address is the club's own, filled in by the server.
  * The form checks the required fields and builds the payload; the parent
  * saves it — onSubmit(payload, id) → Promise, id null for a new deal —,
@@ -25,7 +27,12 @@ import { ALLOWED_COUNTRIES } from '../utils/regions';
 // Mirrors backend dealController CLUB_DEAL_MAX_DAYS.
 export const CLUB_DEAL_MAX_DAYS = 180;
 
-const isoDay = (offsetDays = 0) => new Date(Date.now() + offsetDays * 864e5).toISOString().slice(0, 10);
+// A Vienna calendar day, N days from today there, as the date input wants it.
+// The date picked means through that day in Vienna (the server stores its
+// end, dealController visibleUntilFrom) — so „today“ must be Vienna's too:
+// toISOString() alone gave the UTC day, a day behind from midnight to 01:00
+// (02:00 in summer).
+const isoDay = (offsetDays = 0) => new Date(viennaTodayUTC() + offsetDays * 864e5).toISOString().slice(0, 10);
 
 // ISO weekdays (1=Mon … 7=Sun) for "nur an bestimmten Tagen einlösbar", named
 // in the UI language — 5 Jan 2026 was a Monday. German without the dot, as

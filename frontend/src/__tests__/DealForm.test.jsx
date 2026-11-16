@@ -14,6 +14,7 @@ vi.mock('../utils/googleMaps', () => ({
 vi.mock('../utils/api', () => ({ upload: { image: vi.fn() } }));
 const { upload } = await import('../utils/api');
 const { default: DealForm } = await import('../components/DealForm');
+const { viennaTodayUTC } = await import('../utils/recurrence');
 
 const PHOTO = 'https://app.jamie-app.com/media/p.webp';
 const deal = (o = {}) => ({
@@ -126,7 +127,8 @@ describe('DealForm — admin (the Kooperationen form, unchanged)', () => {
 
 describe('DealForm — club (a club\'s own deal, P4 v2)', () => {
   const clubForm = (props = {}) => renderForm({ variant: 'club', title: 'Neuer Deal', defaults: { name: 'Bar Neun' }, ...props });
-  const day = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  // Vienna days, like the form (review 16.11.2026).
+  const day = (n) => new Date(viennaTodayUTC() + n * 864e5).toISOString().slice(0, 10);
   // Next to the page's own „Speichern“ the deal form says what it saves.
   const saveDeal = () => fireEvent.click(screen.getByRole('button', { name: 'Deal speichern' }));
 
@@ -147,6 +149,21 @@ describe('DealForm — club (a club\'s own deal, P4 v2)', () => {
     const often = screen.getByRole('group', { name: 'Wie oft einlösbar?' });
     expect(within(often).getByRole('button', { name: 'Einmal pro Person' })).toHaveAttribute('aria-pressed', 'true');
     expect(within(often).getAllByRole('button')).toHaveLength(3);
+  });
+
+  // 00:30 in Vienna is still yesterday in UTC: „tomorrow“ is Vienna's tomorrow
+  // — the UTC day offered a date that ran out the same night.
+  it('tomorrow and the last day are Vienna\'s, also just after midnight there', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-11-16T23:30:00Z'));   // 17.11. 00:30 in Vienna
+      clubForm();
+      const until = screen.getByLabelText(/^Sichtbar bis \*/);
+      expect(until).toHaveAttribute('min', '2026-11-18');
+      expect(until).toHaveAttribute('max', '2027-05-16');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('without an end date nothing is handed on — the club\'s toast names all three fields', () => {

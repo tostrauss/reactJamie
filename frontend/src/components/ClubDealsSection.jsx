@@ -103,8 +103,10 @@ export default function ClubDealsSection({ clubId, clubName }) {
     }
   };
 
-  // The day the club picked — stored as midnight UTC, so read in UTC.
-  const day = (iso) => new Date(iso).toLocaleDateString(lang, { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
+  // The day the club picked, read in Vienna: stored as the end of that day
+  // there (dealController visibleUntilFrom) — an older deal's midnight UTC
+  // falls on the same Vienna day.
+  const day = (iso) => new Date(iso).toLocaleDateString(lang, { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Vienna' });
 
   const row = (deal, idx) => {
     const photo = Array.isArray(deal.photos) ? deal.photos[0] : null;

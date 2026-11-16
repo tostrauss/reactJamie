@@ -200,13 +200,39 @@ describe('POST /api/deals/club/:clubId (createClubDeal)', () => {
   });
 
   it(`visible_until is required, in the future, at most ${CLUB_DEAL_MAX_DAYS} days ahead`, async () => {
-    for (const visible_until of [undefined, null, '', 'kein Datum', day(-1), day(0), day(CLUB_DEAL_MAX_DAYS + 3)]) {
+    for (const visible_until of [undefined, null, '', 'kein Datum', day(-1), day(CLUB_DEAL_MAX_DAYS + 3)]) {
       const res = await create(body({ visible_until }));
       expect(res.statusCode, String(visible_until)).toBe(400);
     }
     expect((await create(body({ visible_until: day(1) }))).statusCode).toBe(201);
     expect((await create(body({ visible_until: day(CLUB_DEAL_MAX_DAYS) }))).statusCode).toBe(201);
     expect(inserts()).toHaveLength(2);
+  });
+
+  // Review 16.11.2026: „Sichtbar bis 17.12.“ is all of the 17th in Vienna —
+  // midnight UTC hid the deal from 01:00 that very day.
+  it('a bare date runs to the end of its Vienna day — 23:59:59 there, in winter and in summer', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-11-16T23:30:00Z'));   // 17.11. 00:30 in Vienna, the 16th in UTC
+      const stored = async (visible_until) => {
+        queries.length = 0;
+        const res = await create(body({ visible_until }));
+        if (res.statusCode !== 201) return res.statusCode;
+        const ins = inserts()[0];
+        const cols = ins.text.match(/INSERT INTO deals \(([^)]+)\)/)[1].split(', ');
+        return ins.params[cols.indexOf('visible_until')];
+      };
+      expect(await stored('2026-12-17')).toBe('2026-12-17T22:59:59.000Z');   // CET
+      expect(await stored('2027-05-14')).toBe('2027-05-14T21:59:59.000Z');   // CEST
+      expect(await stored('2026-11-17')).toBe('2026-11-17T22:59:59.000Z');   // today in Vienna: until tonight
+      expect(await stored('2026-11-16')).toBe(400);                          // over in Vienna, still the UTC day
+      expect(await stored('2026-02-30')).toBe(400);
+      // a value with a time is the instant it names
+      expect(await stored('2026-12-01T12:00:00.000Z')).toBe('2026-12-01T12:00:00.000Z');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('name and headline required; texts moderated (422); photos only from the allowlist; links http(s)', async () => {
