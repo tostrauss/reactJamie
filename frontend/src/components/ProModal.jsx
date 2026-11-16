@@ -236,6 +236,10 @@ const CONTEXT_FEATURE = {
   creates: { icon:'✨', titleKey:'unlimitedJoins', descKey:'unlimitedJoinsDesc' },
   // DailyLimitModal CTA after a 403 DAILY_FRIEND_LIMIT (free: 5 requests per day).
   friends: { icon:'🤝', titleKey:'unlimitedFriendRequests', descKey:'unlimitedFriendRequestsDesc' },
+  // Club edit page: a club's own deals (P4 v2, Tina/Tobi 16.11.2026). Only
+  // this context row — the benefit list stays without deals, redeeming one
+  // is free for everybody.
+  clubDeals: { icon:'🏷️', titleKey:'clubDeals', descKey:'clubDealsDesc' },
 };
 
 // ── Confetti piece ───────────────────────────────────────────────────────

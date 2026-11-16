@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 
 // DealForm — the deal form out of AdminDealsSection (P4 v2, Tina/Tobi
-// 16.11.2026): the admin keeps exactly its Kooperationen form; the form checks
+// 16.11.2026): the admin keeps exactly its Kooperationen form, clubs with Pro
+// fill in the same one in their edit page's look ('club'); the form checks
 // the required fields, builds the payload and hands it to the parent
 // (onSubmit(payload, id)). Real German i18n.
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }));
@@ -120,5 +121,75 @@ describe('DealForm — admin (the Kooperationen form, unchanged)', () => {
     expect(await screen.findByRole('button', { name: 'Speichert…' })).toBeDisabled();
     finish();
     expect(await screen.findByRole('button', { name: 'Speichern' })).not.toBeDisabled();
+  });
+});
+
+describe('DealForm — club (a club\'s own deal, P4 v2)', () => {
+  const clubForm = (props = {}) => renderForm({ variant: 'club', title: 'Neuer Deal', defaults: { name: 'Bar Neun' }, ...props });
+  const day = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  // Next to the page's own „Speichern“ the deal form says what it saves.
+  const saveDeal = () => fireEvent.click(screen.getByRole('button', { name: 'Deal speichern' }));
+
+  it('the edit page\'s look, the club\'s texts; the club name prefilled; „Sichtbar bis“ required, tomorrow … 180 days', () => {
+    clubForm();
+    const form = screen.getByRole('form', { name: 'Neuer Deal' });
+    expect(form).toHaveClass('ge-card', 'ge-deal-form');
+    expect(screen.getByLabelText(/^Name auf der Karte/)).toHaveValue('Bar Neun');
+    expect(screen.getByLabelText(/^Name auf der Karte/)).toHaveClass('ge-input');
+    const until = screen.getByLabelText(/^Sichtbar bis \*/);
+    expect(until).toBeRequired();
+    expect(until).toHaveAttribute('min', day(1));
+    expect(until).toHaveAttribute('max', day(180));
+    expect(screen.getByText('Höchstens 180 Tage – danach wird der Deal automatisch ausgeblendet.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Adresse')).toHaveAttribute('placeholder', 'Leer = Adresse deines Clubs');
+    // how often: chips, not a select
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    const often = screen.getByRole('group', { name: 'Wie oft einlösbar?' });
+    expect(within(often).getByRole('button', { name: 'Einmal pro Person' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(often).getAllByRole('button')).toHaveLength(3);
+  });
+
+  it('without an end date nothing is handed on — the club\'s toast names all three fields', () => {
+    const { onSubmit } = clubForm();
+    type(/^Angebot/, '2 für 1');
+    fireEvent.submit(screen.getByRole('form', { name: 'Neuer Deal' }));
+    expect(toast.error).toHaveBeenCalledWith('Name, Angebot und „Sichtbar bis“ sind Pflichtfelder');
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('a new deal: chips set the interval, an empty address is null (the club\'s)', async () => {
+    const { onSubmit } = clubForm();
+    type(/^Angebot/, '2 für 1');
+    type(/^Sichtbar bis/, day(30));
+    fireEvent.click(screen.getByRole('button', { name: '1× pro Woche' }));
+    saveDeal();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Bar Neun', deal_label: '2 für 1', visible_until: day(30), redeem_interval: 'weekly', address: null,
+    }), null);
+  });
+
+  it('an edit sends the address only when it changed (no geocoding of an untouched one)', async () => {
+    const { onSubmit } = clubForm({ deal: deal({ visible_until: `${day(20)}T00:00:00.000Z` }), title: 'Deal bearbeiten' });
+    saveDeal();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].address).toBeUndefined();
+    expect(onSubmit.mock.calls[0][1]).toBe(5);
+    type('Adresse', 'Neubaugasse 7, 1070 Wien');
+    saveDeal();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+    expect(onSubmit.mock.calls[1][0].address).toBe('Neubaugasse 7, 1070 Wien');
+  });
+
+  it('weekday chips in the UI language', async () => {
+    const { switchLanguage } = await import('../i18n');
+    await switchLanguage('en');
+    try {
+      clubForm();
+      const days = screen.getByRole('group', { name: 'Redeemable only on certain days?' });
+      expect([...days.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
+    } finally {
+      await switchLanguage('de');
+    }
   });
 });

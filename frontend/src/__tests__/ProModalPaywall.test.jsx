@@ -228,4 +228,18 @@ describe('ProModal — the web browser sells nothing since 26.10.2026', () => {
     // a missing contextCta key used to print the raw key under the title
     expect(screen.queryByText(/pro\.contextCta/)).toBeNull();
   });
+
+  it('a club\'s own deals (P4 v2): their call-out and row on top — never a deals row in the general list', async () => {
+    await renderModal({ feature: 'clubDeals' });
+    expect(screen.getByText('Leg jetzt Deals für deinen Club an!')).toBeTruthy();
+    expect(screen.getByText('Deals für deinen Club anlegen')).toBeTruthy();
+    expect(screen.getByText(/einlösen bleibt für alle gratis/)).toBeTruthy();
+    expect(screen.queryByText(/pro\.contextCta|pro\.features/)).toBeNull();
+  });
+
+  it('without that context the benefits name no deals, also behind „Alle Vorteile ansehen“', async () => {
+    await renderModal();
+    await act(async () => { fireEvent.click(screen.getByText('Alle Vorteile ansehen').closest('button')); });
+    expect(screen.queryByText('Deals für deinen Club anlegen')).toBeNull();
+  });
 });

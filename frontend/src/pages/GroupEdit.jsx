@@ -6,6 +6,8 @@ import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { UserName } from '../components/UserName';
 import { ImageCropModal } from '../components/ImageCropModal';
+import ClubDealsSection from '../components/ClubDealsSection';
+import EventDealPicker from '../components/EventDealPicker';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import { shareLink } from '../utils/share';
 import '../styles/group-edit.css';
@@ -839,6 +841,17 @@ export const GroupEdit = () => {
 
           </div>
         </section>
+
+        {/* ── Deals (P4 v2, Tina/Tobi 16.11.2026) ── A live official club's
+            own deals, put up with JAMIE Pro; and on an event the club put up
+            itself (☆ Partner), one of them hung on it. Communities get none. */}
+        {isClub && group?.club_type === 'official' && group?.approval_status === 'approved'
+          && group?.is_active !== false && (
+          <ClubDealsSection clubId={group.id} clubName={group.name} />
+        )}
+        {isEvent && group?.parent_club_id && group?.is_partner && (
+          <EventDealPicker clubId={group.parent_club_id} eventId={group.id} shownDeal={group.deal} />
+        )}
 
         {/* ── Gruppe / Event teilen ── */}
         <section className="ge-section">

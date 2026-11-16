@@ -805,3 +805,152 @@
   .ge-controls-row { flex-direction: column; }
   .ge-control-divider { width: auto; height: 1px; margin: 0 18px; }
 }
+
+/* ── Club deals (P4 v2, Tina/Tobi 16.11.2026) ──────────────────────────────
+   ClubDealsSection, EventDealPicker and DealForm's 'club' variant: in the
+   edit page's look; the offer in the partner yellow like the deal row on an
+   event (EventDealRow). Long names end in „…“ — one too-wide child lets a
+   page pan sideways (S3). */
+.ge-deals-intro {
+  margin: -4px 0 12px;
+}
+
+.ge-deal-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 18px;
+}
+
+.ge-deal-row.is-dimmed .ge-deal-thumb,
+.ge-deal-row.is-dimmed .ge-deal-info {
+  opacity: 0.55;
+}
+
+.ge-deal-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--partner-text);
+}
+
+.ge-deal-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Below ~140px of text the buttons move to their own line. */
+.ge-deal-info {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.ge-deal-name,
+.ge-deal-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ge-deal-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-white);
+}
+
+.ge-deal-label {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--partner-text);
+}
+
+.ge-deal-meta {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.ge-deal-row .ge-member-actions {
+  margin-left: auto;
+}
+
+.ge-deals-new {
+  margin-top: 12px;
+}
+
+.ge-deal-form-title {
+  margin: 0;
+  padding: 16px 18px 2px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--accent-coral);
+}
+
+.ge-deal-form .ge-cat-grid {
+  margin-top: 0;
+}
+
+/* An empty date field without native styling collapses on iOS Safari. */
+.ge-deal-form input[type='date'] {
+  display: block;
+  min-height: 24px;
+}
+
+.ge-deal-form-actions {
+  display: flex;
+  gap: 10px;
+  padding: 4px 18px 18px;
+}
+
+.ge-deal-btn {
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: var(--text-light);
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.ge-deal-btn--primary {
+  flex: 1;
+  border-color: transparent;
+  background: var(--accent-coral);
+  color: #fff;
+}
+
+.ge-deal-btn:disabled {
+  opacity: 0.55;
+}
+
+.ge-event-deal-note {
+  margin: 0;
+}
+
+.ge-event-deal-chip {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.ge-event-deal-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

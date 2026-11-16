@@ -1115,6 +1115,14 @@ export const deals = {
   // off (P4 v1, 16.11.2026). One deal per event: a second one replaces it.
   // → { group_id, deal_id, deal }; deal null = attached, not visible now.
   setEventDeal: (groupId, dealId) => axiosInstance.put(`/deals/event/${groupId}`, { deal_id: dealId }),
+  // A club's own deals (P4 v2, 16.11.2026) — its owner and co-managers.
+  // Listing and deleting are free; creating and editing need JAMIE Pro (or
+  // an app admin), else 403 { code: 'PRO_REQUIRED' }. setEventDeal above
+  // takes the club's own deals for its own events, too.
+  getForClub:    (clubId)               => axiosInstance.get(`/deals/club/${clubId}`),
+  createForClub: (clubId, data)         => axiosInstance.post(`/deals/club/${clubId}`, data),
+  updateForClub: (clubId, dealId, data) => axiosInstance.put(`/deals/club/${clubId}/${dealId}`, data),
+  removeForClub: (clubId, dealId)       => axiosInstance.delete(`/deals/club/${clubId}/${dealId}`),
   create: (data)    => axiosInstance.post('/deals', data),
   update: (id, data)=> axiosInstance.put(`/deals/${id}`, data),
   remove: (id)      => axiosInstance.delete(`/deals/${id}`),

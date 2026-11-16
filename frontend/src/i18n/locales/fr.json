@@ -1704,7 +1704,9 @@
       "unlimitedJoinsDesc": "Crée et rejoins autant de groupes que tu veux.",
       "unlimitedFriendRequests": "Demandes d’amitié illimitées",
       "unlimitedFriendRequestsDesc": "Envoie autant de demandes que tu veux.",
-      "joinsLimitReached": "Tu as atteint ta limite gratuite de la semaine – avec Pro, tu continues tout de suite"
+      "joinsLimitReached": "Tu as atteint ta limite gratuite de la semaine – avec Pro, tu continues tout de suite",
+      "clubDeals": "Créer des deals pour ton club",
+      "clubDealsDesc": "Tes propres offres dans le fil des deals et à tes événements – les utiliser reste gratuit pour tous."
     },
     "title": "JAMIE Pro",
     "heroTitle1": "MORE PEOPLE.",
@@ -1769,7 +1771,8 @@
       "boosts": "Booste ton groupe tout en haut maintenant !",
       "joins": "Rejoins autant de groupes que tu veux !",
       "creates": "Crée autant de rencontres que tu veux !",
-      "friends": "Connecte-toi avec autant de personnes que tu veux !"
+      "friends": "Connecte-toi avec autant de personnes que tu veux !",
+      "clubDeals": "Crée maintenant des deals pour ton club !"
     },
     "trialHeadlineDays_one": "🎁 Commence avec {{count}} jour gratuit",
     "trialHeadlineDays_other": "🎁 Commence avec {{count}} jours gratuits",
@@ -2111,7 +2114,84 @@
     },
     "favoriteAria": "Ajouter aux favoris",
     "favError": "Le favori n'a pas pu être enregistré",
-    "shareBtn": "Partager le lien"
+    "shareBtn": "Partager le lien",
+    "deals": {
+      "title": "Deals",
+      "intro": "Les offres de ton club – elles apparaissent comme tous les deals JAMIE dans l’app et à tes événements.",
+      "newBtn": "Créer un deal",
+      "newTitle": "Nouveau deal",
+      "editTitle": "Modifier le deal",
+      "saveBtn": "Enregistrer le deal",
+      "savingBtn": "Enregistrement…",
+      "editBtn": "Modifier",
+      "deleteBtn": "Supprimer",
+      "editAria": "Modifier le deal « {{name}} »",
+      "deleteAria": "Supprimer le deal « {{name}} »",
+      "confirmDelete": "Supprimer le deal « {{name}} » ? Il disparaît aussitôt de l’app.",
+      "loading": "Chargement des deals…",
+      "empty": "Pas encore de deals.",
+      "untilFmt": "Visible jusqu’au {{date}}",
+      "expiredFmt": "Expiré le {{date}}",
+      "capReached": "Limite atteinte – hors ligne",
+      "redemptions_one": "Utilisé une fois",
+      "redemptions_other": "Utilisé {{count}} fois",
+      "atEvents": "📍 {{names}}",
+      "fields": {
+        "company": "Nom sur la carte",
+        "companyPlaceholder": "p. ex. Café Soleá",
+        "headline": "Offre (2 mots)",
+        "headlinePlaceholder": "p. ex. 1+1 gratuit",
+        "headlineHint": "En grand sur la carte du deal",
+        "description": "Comment ça marche",
+        "descriptionPlaceholder": "Prends une boisson de ton choix et reçois-en une gratuite. Dis « Jamie » à la commande.",
+        "descriptionHint": "Tout le monde le voit sur la page du deal",
+        "address": "Adresse",
+        "addressPlaceholder": "Vide = adresse de ton club",
+        "addressHint": "Devient la carte sur la page du deal. Vide = l’adresse de ton club.",
+        "bookingUrl": "Lien (facultatif)",
+        "bookingUrlHint": "Par exemple votre billetterie – la page du deal affiche alors « Réserver maintenant ».",
+        "redeemInterval": "Utilisable à quelle fréquence ?",
+        "redeemIntervalHint": "Récurrent (p. ex. hebdomadaire) pour les offres régulières comme « Welcome Shot chaque jeudi ». La limite ci-dessous ne s’applique alors pas.",
+        "redeemDays": "Utilisable seulement certains jours ?",
+        "redeemDaysHint": "Aucun choisi = tous les jours.",
+        "visibleUntil": "Visible jusqu’au",
+        "visibleUntilHint": "180 jours maximum – ensuite le deal est masqué automatiquement.",
+        "maxRedemptions": "Max. utilisations",
+        "maxRedemptionsHint": "Le deal passe hors ligne dès que ce nombre de personnes l’a utilisé (vide = illimité).",
+        "photo": "Photo",
+        "photoPick": "Choisir une photo",
+        "photoUploading": "Téléversement…",
+        "photoRemove": "Retirer"
+      },
+      "intervals": {
+        "once": "Une fois par personne",
+        "weekly": "1× par semaine",
+        "daily": "1× par jour"
+      },
+      "toast": {
+        "loadError": "Impossible de charger les deals",
+        "uploadError": "Échec du téléversement de la photo",
+        "requiredFields": "Nom, offre et « Visible jusqu’au » sont obligatoires",
+        "saved": "Deal enregistré",
+        "saveError": "Échec de l’enregistrement",
+        "deleted": "Deal supprimé",
+        "deleteError": "Échec de la suppression",
+        "proRequired": "Les deals pour ton club sont une fonctionnalité JAMIE Pro."
+      },
+      "event": {
+        "title": "Deal à l’événement",
+        "hint": "Un deal de ton club, en haut de la page de l’événement – appliqué tout de suite.",
+        "noDeal": "Aucun deal",
+        "none": "Ton club n’a pas encore de deals. Crée-les sous Modifier le club → Deals.",
+        "jamieNote": "Un deal de JAMIE est attaché à cet événement : {{name}}. Seule l’équipe JAMIE peut le changer.",
+        "toast": {
+          "attached": "Le deal est maintenant à l’événement",
+          "attachedHidden": "Attaché – mais pas visible à l’événement pour l’instant (expiré ou limite atteinte)",
+          "detached": "Deal retiré de l’événement",
+          "error": "Ça n’a pas marché"
+        }
+      }
+    }
   },
   "clubEdit": {
     "title": "Modifier le club",
@@ -2280,6 +2360,7 @@
       "expiredFmt": "Expiré le {{date}}",
       "inactiveLabel": "Inactif",
       "capReachedLabel": "Limite atteinte – hors ligne",
+      "clubFmt": "Du club {{name}}",
       "redemptionsCount_one": "{{count}} utilisée",
       "redemptionsCount_other": "{{count}} utilisées",
       "redemptionsTooltip": "Nombre de fois où cette offre a été utilisée par des utilisateurs.",

@@ -335,6 +335,13 @@ export const AdminDealsSection = () => {
                       {t('admin.deals.capReachedLabel')}
                     </div>
                   )}
+                  {/* A club's own deal (P4 v2, 16.11.2026) — put up by the
+                      club with Pro, not by JAMIE. */}
+                  {deal.club && (
+                    <div style={{ color: 'var(--partner-text)', fontSize: 11, fontWeight: 600 }}>
+                      {t('admin.deals.clubFmt', { name: deal.club.name })}
+                    </div>
+                  )}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>

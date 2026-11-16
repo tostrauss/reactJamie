@@ -1704,7 +1704,9 @@
       "unlimitedJoinsDesc": "Crea y únete a tantos grupos como quieras.",
       "unlimitedFriendRequests": "Solicitudes de amistad ilimitadas",
       "unlimitedFriendRequestsDesc": "Envía tantas solicitudes como quieras.",
-      "joinsLimitReached": "Has alcanzado tu límite semanal gratuito – con Pro sigues al momento"
+      "joinsLimitReached": "Has alcanzado tu límite semanal gratuito – con Pro sigues al momento",
+      "clubDeals": "Crear deals para tu club",
+      "clubDealsDesc": "Tus propias ofertas en el feed de deals y en tus eventos; canjearlas sigue siendo gratis para todos."
     },
     "title": "JAMIE Pro",
     "heroTitle1": "MORE PEOPLE.",
@@ -1769,7 +1771,8 @@
       "boosts": "¡Impulsa tu grupo a lo más alto ahora!",
       "joins": "¡Únete a todos los grupos que quieras!",
       "creates": "¡Crea tantos encuentros como quieras!",
-      "friends": "¡Conecta con tantas personas como quieras!"
+      "friends": "¡Conecta con tantas personas como quieras!",
+      "clubDeals": "¡Crea ya deals para tu club!"
     },
     "trialHeadlineDays_one": "🎁 Empieza con {{count}} día gratis",
     "trialHeadlineDays_other": "🎁 Empieza con {{count}} días gratis",
@@ -2111,7 +2114,84 @@
     },
     "favoriteAria": "Añadir a favoritos",
     "favError": "El favorito no se pudo guardar",
-    "shareBtn": "Compartir enlace"
+    "shareBtn": "Compartir enlace",
+    "deals": {
+      "title": "Deals",
+      "intro": "Las ofertas de tu club: aparecen como todos los deals de JAMIE en la app y en tus eventos.",
+      "newBtn": "Crear deal",
+      "newTitle": "Nuevo deal",
+      "editTitle": "Editar deal",
+      "saveBtn": "Guardar deal",
+      "savingBtn": "Guardando…",
+      "editBtn": "Editar",
+      "deleteBtn": "Eliminar",
+      "editAria": "Editar el deal «{{name}}»",
+      "deleteAria": "Eliminar el deal «{{name}}»",
+      "confirmDelete": "¿Eliminar el deal «{{name}}»? Desaparece de la app al instante.",
+      "loading": "Cargando deals…",
+      "empty": "Todavía no hay deals.",
+      "untilFmt": "Visible hasta el {{date}}",
+      "expiredFmt": "Caducó el {{date}}",
+      "capReached": "Límite alcanzado – fuera de línea",
+      "redemptions_one": "Canjeado una vez",
+      "redemptions_other": "Canjeado {{count}} veces",
+      "atEvents": "📍 {{names}}",
+      "fields": {
+        "company": "Nombre en la tarjeta",
+        "companyPlaceholder": "p. ej. Café Soleá",
+        "headline": "Oferta (2 palabras)",
+        "headlinePlaceholder": "p. ej. 1+1 gratis",
+        "headlineHint": "Aparece en grande en la tarjeta del deal",
+        "description": "Cómo funciona",
+        "descriptionPlaceholder": "Pide una bebida de tu elección y llévate otra gratis. Di «Jamie» al hacer tu pedido.",
+        "descriptionHint": "Todos lo ven en la página del deal",
+        "address": "Dirección",
+        "addressPlaceholder": "Vacío = dirección de tu club",
+        "addressHint": "Se convierte en el mapa de la página del deal. Vacío = la dirección de tu club.",
+        "bookingUrl": "Enlace (opcional)",
+        "bookingUrlHint": "Por ejemplo, vuestra tienda de entradas: la página del deal muestra entonces «Reservar ahora».",
+        "redeemInterval": "¿Cada cuánto se puede canjear?",
+        "redeemIntervalHint": "Recurrente (p. ej. semanal) para ofertas fijas como «Welcome Shot cada jueves». El límite de abajo no se aplica entonces.",
+        "redeemDays": "¿Canjeable solo ciertos días?",
+        "redeemDaysHint": "Ninguno elegido = todos los días.",
+        "visibleUntil": "Visible hasta",
+        "visibleUntilHint": "Como máximo 180 días; después el deal se oculta automáticamente.",
+        "maxRedemptions": "Máx. canjes",
+        "maxRedemptionsHint": "El deal se desactiva en cuanto ese número de personas lo haya canjeado (vacío = ilimitado).",
+        "photo": "Foto",
+        "photoPick": "Elegir foto",
+        "photoUploading": "Subiendo…",
+        "photoRemove": "Quitar"
+      },
+      "intervals": {
+        "once": "Una vez por persona",
+        "weekly": "1× por semana",
+        "daily": "1× por día"
+      },
+      "toast": {
+        "loadError": "No se pudieron cargar los deals",
+        "uploadError": "Error al subir la foto",
+        "requiredFields": "Nombre, oferta y «Visible hasta» son obligatorios",
+        "saved": "Deal guardado",
+        "saveError": "Error al guardar",
+        "deleted": "Deal eliminado",
+        "deleteError": "Error al eliminar",
+        "proRequired": "Los deals para tu club son una función de JAMIE Pro."
+      },
+      "event": {
+        "title": "Deal en el evento",
+        "hint": "Un deal de tu club, arriba en la página del evento; se aplica al instante.",
+        "noDeal": "Sin deal",
+        "none": "Tu club todavía no tiene deals. Créalos en Editar club → Deals.",
+        "jamieNote": "Este evento tiene un deal de JAMIE: {{name}}. Solo el equipo de JAMIE puede cambiarlo.",
+        "toast": {
+          "attached": "El deal ya está en el evento",
+          "attachedHidden": "Añadido, pero ahora no se ve en el evento (caducado o límite alcanzado)",
+          "detached": "Deal quitado del evento",
+          "error": "No ha funcionado"
+        }
+      }
+    }
   },
   "clubEdit": {
     "title": "Editar club",
@@ -2280,6 +2360,7 @@
       "expiredFmt": "Caducada el {{date}}",
       "inactiveLabel": "Inactiva",
       "capReachedLabel": "Límite alcanzado – fuera de línea",
+      "clubFmt": "Del club {{name}}",
       "redemptionsCount_one": "{{count}} canjeada",
       "redemptionsCount_other": "{{count}} canjeadas",
       "redemptionsTooltip": "Número de veces que los usuarios han canjeado esta oferta.",
