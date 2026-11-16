@@ -1199,22 +1199,128 @@ export const getClubMembers = async (req, res) => {
 // ==========================================
 // GET USER'S CLUBS
 // ==========================================
-export const getUserClubs = async (req, res) => {
-  try {
-    const result = await db.query(
-      `SELECT g.*, u.name as owner_name, gm.role
+// Home's „Meine Clubs/Meine Communities“ — and, since 16.11.2026, the
+// profile's „Clubs & Communities“ bubbles (Tina, PR2/PR3). For the bubbles
+// only ADDITIVE fields; Home and old bundles read g.* + role, and the order
+// stays newest-first (the profile sorts on the client):
+//   is_own                 the caller owns it → always left, never sorted
+//   joined_at              newest-first among the never-sorted
+//   profile_position       the caller's own order (setMyClubOrder), NULL = never sorted
+//   pending_request_count  open requests, own clubs only → the coral counter
+// Rejected or closed clubs still come along (g.approval_status / is_active),
+// as Home always had them; the profile filters them itself.
+// Before the migration (42703) profile_position reads as NULL.
+const userClubsSql = (withPosition) => `
+      SELECT g.*, u.name as owner_name, gm.role,
+             gm.joined_at,
+             ${withPosition ? 'gm.profile_position' : 'NULL::smallint AS profile_position'},
+             (g.owner_id = $1) AS is_own,
+             CASE WHEN g.owner_id = $1
+                  THEN (SELECT COUNT(*)::int FROM group_join_requests jr
+                         WHERE jr.group_id = g.id AND jr.status = 'pending')
+                  ELSE 0 END AS pending_request_count
        FROM group_members gm
        JOIN groups g ON gm.group_id = g.id
        LEFT JOIN users u ON g.owner_id = u.id
        WHERE gm.user_id = $1 AND g.type = $2
          AND g.deleted_at IS NULL
-       ORDER BY gm.joined_at DESC`,
-      [req.userId, CLUB_TYPE]
-    );
+       ORDER BY gm.joined_at DESC`;
+
+export const getUserClubs = async (req, res) => {
+  try {
+    const result = await db.query(userClubsSql(true), [req.userId, CLUB_TYPE]).catch((err) => {
+      if (err.code !== '42703') throw err;
+      return db.query(userClubsSql(false), [req.userId, CLUB_TYPE]);
+    });
     res.json(result.rows);
   } catch (err) {
     console.error('Error fetching user clubs:', err);
     res.status(500).json({ error: 'Interner Serverfehler' });
+  }
+};
+
+// ==========================================
+// PUT /api/users/me/clubs/order  body: { clubIds: number[] }
+// ==========================================
+// „Sortieren“ in the own profile (Tina 16.11.2026, PR3): the clubs the caller
+// JOINED, in the order the bubbles show them. The array IS the order and
+// replaces the old one; [] forgets it. Own clubs stay fixed on the left and
+// ids of clubs the caller is not in change nothing — both are skipped
+// silently, so the client may send its whole bubble row. Gaps that leaves in
+// the numbering are harmless: only the order counts. ONE transaction, answered
+// with the list exactly as GET /clubs/user/joined returns it, read back before
+// the commit. Two devices saving at once: the last save wins.
+export const MAX_PROFILE_CLUB_ORDER = 200;
+// Postgres INTEGER bound: a larger id would fail the int[] cast as a 500.
+const PG_INT_MAX = 2147483647;
+
+/**
+ * Like featuredClubController.parseClubIds, with the profile's own ceiling:
+ * an array of at most MAX_PROFILE_CLUB_ORDER positive integer ids (numbers or
+ * digit strings), no duplicates. The ids as numbers in the order sent, or
+ * null when anything is off — the order is the point, so nothing is "fixed".
+ */
+export function parseProfileClubOrder(raw) {
+  if (!Array.isArray(raw) || raw.length > MAX_PROFILE_CLUB_ORDER) return null;
+  const ids = raw.map((v) => {
+    let n = null;
+    if (typeof v === 'number') n = v;
+    else if (typeof v === 'string' && /^\d+$/.test(v)) n = Number(v);
+    return Number.isInteger(n) && n > 0 && n <= PG_INT_MAX ? n : null;
+  });
+  if (ids.some((id) => id === null)) return null;
+  if (new Set(ids).size !== ids.length) return null;
+  return ids;
+}
+
+export const setMyClubOrder = async (req, res) => {
+  const ids = parseProfileClubOrder(req.body?.clubIds);
+  if (!ids) {
+    return res.status(400).json({
+      error: `Ungültige Reihenfolge (höchstens ${MAX_PROFILE_CLUB_ORDER} verschiedene Clubs).`,
+      code: 'CLUB_ORDER_INVALID',
+    });
+  }
+  let client;
+  try {
+    client = await db.pool.connect();
+    await client.query('BEGIN');
+    // Only clubs ever carry a position, so this forgets exactly the old order.
+    await client.query(
+      'UPDATE group_members SET profile_position = NULL WHERE user_id = $1 AND profile_position IS NOT NULL',
+      [req.userId]
+    );
+    if (ids.length) {
+      // position = 1-based index in the array (WITH ORDINALITY); the join on
+      // groups keeps it to clubs the caller is in but does not own.
+      await client.query(
+        `UPDATE group_members gm
+            SET profile_position = v.ord
+           FROM unnest($2::int[]) WITH ORDINALITY AS v(id, ord), groups g
+          WHERE gm.user_id = $1
+            AND gm.group_id = v.id
+            AND g.id = v.id
+            AND g.type = 'club'
+            AND g.owner_id <> $1`,
+        [req.userId, ids]
+      );
+    }
+    const { rows } = await client.query(userClubsSql(true), [req.userId, CLUB_TYPE]);
+    await client.query('COMMIT');
+    res.json(rows);
+  } catch (err) {
+    await client?.query('ROLLBACK').catch(() => {});
+    if (err.code === '42703') {
+      // Boot window: group_members.profile_position is not there yet.
+      return res.status(503).json({
+        error: 'Das Sortieren ist gleich wieder verfügbar. Bitte versuche es in einer Minute erneut.',
+        code: 'CLUB_ORDER_UNAVAILABLE',
+      });
+    }
+    console.error('Error saving club order:', err);
+    res.status(500).json({ error: 'Reihenfolge konnte nicht gespeichert werden' });
+  } finally {
+    client?.release();
   }
 };
 

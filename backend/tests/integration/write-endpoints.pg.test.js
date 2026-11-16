@@ -207,6 +207,7 @@ suite('write endpoints against real Postgres', () => {
       getDiscoverEvents: c.getDiscoverEvents, getMapPins: mp.getMapPins,
       getGroupById: g.getGroupById,
       cancelGroup: g.cancelGroup, deleteGroup: g.deleteGroup,
+      getUserClubs: c.getUserClubs, setMyClubOrder: c.setMyClubOrder,     // profile order (16.11.2026)
     };
   }, 90000);
 
@@ -6038,6 +6039,95 @@ suite('write endpoints against real Postgres', () => {
       ok(await call(C.handleClubJoinRequest, { userId: host,
         params: { id: String(G.club), requestId: String(R.club) }, body: { action: 'accept' } }));
       expect(await isMember(G.club)).toBe(true);
+    });
+  });
+
+  // ── Profil „Clubs & Communities“ (Tina 16.11.2026, PR3) ─────────────────
+  // GET /clubs/user/joined carries the bubble fields (additive, Home keeps its
+  // order), PUT /users/me/clubs/order numbers the clubs the caller joined.
+  // Real Postgres for what a mock cannot judge: UPDATE … FROM unnest WITH
+  // ORDINALITY into a SMALLINT, the owner exclusion, the per-row counter.
+  describe('profile clubs: the bubbles and their order (PR3, 16.11.2026)', () => {
+    let me, other;
+    const K = {};   // clubs by case
+    const mkU = async (email, name) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+       VALUES ($1,$2,'1995-02-02','female',$3, TRUE, 'email') RETURNING id`, [email, name, avatar])).rows[0].id;
+    const mkClub = async (name, owner, { clubType = 'community', approval = 'approved', active = true } = {}) => (await db.query(
+      `INSERT INTO groups (name, type, owner_id, category, location, max_members, approval_status, club_type, is_active)
+       VALUES ($1,'club',$2,'Sport','Wien',100,$3,$4,$5) RETURNING id`, [name, owner, approval, clubType, active])).rows[0].id;
+    const member = (club, user, role, daysAgo) => db.query(
+      `INSERT INTO group_members (group_id, user_id, role, joined_at)
+       VALUES ($1,$2,$3, NOW() - make_interval(days => $4::int))`, [club, user, role, daysAgo]);
+    const list = async () => {
+      const res = await call(C.getUserClubs, { userId: me });
+      ok(res);
+      return res.body;
+    };
+    const byId = (rows) => Object.fromEntries(rows.map((r) => [r.id, r]));
+
+    it('seed: two own clubs, three joined (one co-managed, one official), one rejected own, one foreign', async () => {
+      me = await mkU('smoke-bubbles-me@x.com', 'Mia');
+      other = await mkU('smoke-bubbles-other@x.com', 'Olli');
+      const asker = await mkU('smoke-bubbles-asker@x.com', 'Ari');
+      K.own = await mkClub('Bubble Meine Community', me);
+      await member(K.own, me, 'owner', 30);
+      K.ownOfficial = await mkClub('Bubble Mein Club', me, { clubType: 'official' });
+      await member(K.ownOfficial, me, 'owner', 20);
+      for (const [key, name, clubType, role, days] of [
+        ['a', 'Bubble Laufrunde', 'community', 'member', 10],
+        ['b', 'Bubble Café', 'official', 'member', 5],
+        ['c', 'Bubble Schach', 'community', 'admin', 2],
+      ]) {
+        K[key] = await mkClub(name, other, { clubType });
+        await member(K[key], other, 'owner', 60);
+        await member(K[key], me, role, days);
+      }
+      K.foreign = await mkClub('Bubble Fremd', other);
+      await member(K.foreign, other, 'owner', 60);
+      K.rejected = await mkClub('Bubble Abgelehnt', me, { clubType: 'official', approval: 'rejected', active: false });
+      await member(K.rejected, me, 'owner', 1);
+      // A request to my own club counts; one to a club I only co-manage does not.
+      await db.query(`INSERT INTO group_join_requests (group_id, user_id, status) VALUES ($1,$3,'pending'),($2,$3,'pending')`,
+        [K.own, K.c, asker]);
+    });
+
+    it('the read carries what the bubbles need, newest first as Home always had it', async () => {
+      const rows = await list();
+      expect(rows.map((r) => r.id)).toEqual([K.rejected, K.c, K.b, K.a, K.ownOfficial, K.own]);
+      const r = byId(rows);
+      expect(r[K.own]).toMatchObject({ is_own: true, role: 'owner', club_type: 'community', profile_position: null, pending_request_count: 1 });
+      expect(r[K.ownOfficial]).toMatchObject({ is_own: true, club_type: 'official', pending_request_count: 0 });
+      expect(r[K.c]).toMatchObject({ is_own: false, role: 'admin', pending_request_count: 0 });
+      expect(r[K.b]).toMatchObject({ is_own: false, role: 'member', club_type: 'official' });
+      // still delivered — the profile filters rejected and closed clubs itself
+      expect(r[K.rejected]).toMatchObject({ approval_status: 'rejected', is_active: false });
+      expect(r[K.a].joined_at).toBeInstanceOf(Date);
+    });
+
+    it('sorting numbers the joined clubs in the order sent; own and foreign ids change nothing', async () => {
+      const res = await call(C.setMyClubOrder, { userId: me, body: { clubIds: [K.c, K.own, K.a, K.foreign, K.b] } });
+      ok(res);
+      const r = byId(res.body);
+      expect([r[K.c].profile_position, r[K.a].profile_position, r[K.b].profile_position]).toEqual([1, 3, 5]);
+      expect([r[K.own].profile_position, r[K.ownOfficial].profile_position]).toEqual([null, null]);
+      expect(byId(await list())[K.a].profile_position).toBe(3);                    // GET reads the same back
+      const others = await db.query(
+        'SELECT profile_position FROM group_members WHERE group_id = $1 AND user_id = $2', [K.a, other]);
+      expect(others.rows[0].profile_position).toBeNull();                          // nobody else's order moves
+      const foreignRow = await db.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [K.foreign, me]);
+      expect(foreignRow.rowCount).toBe(0);                                         // and no membership appears
+    });
+
+    it('a new order replaces the old one completely, [] forgets it, a bad list is a 400', async () => {
+      ok(await call(C.setMyClubOrder, { userId: me, body: { clubIds: [String(K.b)] } }));
+      let r = byId(await list());
+      expect([r[K.b].profile_position, r[K.a].profile_position, r[K.c].profile_position]).toEqual([1, null, null]);
+      ok(await call(C.setMyClubOrder, { userId: me, body: { clubIds: [] } }));
+      r = byId(await list());
+      expect(Object.values(r).map((x) => x.profile_position).every((p) => p === null)).toBe(true);
+      const bad = await call(C.setMyClubOrder, { userId: me, body: { clubIds: [K.a, K.a] } });
+      expect(bad.statusCode).toBe(400);
     });
   });
 

@@ -21,6 +21,7 @@ vi.mock('../../src/controllers/userController.js', () => stubs(['getUserById', '
 vi.mock('../../src/controllers/hallOfFameController.js', () => stubs([
   'getUserHallOfFame', 'getMyProfileStats', 'hideMemory', 'unhideMemory',
 ]));
+vi.mock('../../src/controllers/clubController.js', () => stubs(['setMyClubOrder']));
 
 const userRoutes = (await import('../../src/routes/userRoutes.js')).default;
 const app = express();
@@ -34,6 +35,11 @@ describe('user routes — own profile', () => {
     expect(await handlerOf(request(app).get('/api/users/me/profile-stats'))).toBe('getMyProfileStats');
     expect(await handlerOf(request(app).post('/api/users/me/hall-of-fame/5/hide'))).toBe('hideMemory');
     expect(await handlerOf(request(app).delete('/api/users/me/hall-of-fame/5/hide'))).toBe('unhideMemory');
+  });
+
+  // „Sortieren“ of the club bubbles (16.11.2026).
+  it('saving the club order reaches its own handler', async () => {
+    expect(await handlerOf(request(app).put('/api/users/me/clubs/order').send({ clubIds: [1, 2] }))).toBe('setMyClubOrder');
   });
 
   it('the neighbours still route as before', async () => {

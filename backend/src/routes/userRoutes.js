@@ -3,6 +3,7 @@ import { getUserById, searchUsers } from '../controllers/userController.js';
 import {
   getUserHallOfFame, getMyProfileStats, hideMemory, unhideMemory,
 } from '../controllers/hallOfFameController.js';
+import { setMyClubOrder } from '../controllers/clubController.js';
 import { authenticate } from '../middleware/auth.js';
 import { userSearchLimiter } from '../middleware/rateLimiter.js';
 
@@ -15,6 +16,9 @@ router.get('/search', authenticate, userSearchLimiter, searchUsers)
 router.get('/me/profile-stats', authenticate, getMyProfileStats);
 router.post('/me/hall-of-fame/:groupId/hide', authenticate, hideMemory);
 router.delete('/me/hall-of-fame/:groupId/hide', authenticate, unhideMemory);
+// „Sortieren“ of the profile's club bubbles (16.11.2026); read back through
+// GET /api/clubs/user/joined.
+router.put('/me/clubs/order', authenticate, setMyClubOrder);
 // Events someone took part in — own (id "me") or another profile's public ones.
 router.get('/:id/hall-of-fame', authenticate, getUserHallOfFame);
 router.get('/:id', authenticate, getUserById);
