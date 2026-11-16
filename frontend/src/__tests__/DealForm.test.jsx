@@ -166,6 +166,21 @@ describe('DealForm — club (a club\'s own deal, P4 v2)', () => {
     }
   });
 
+  // Review 16.11.2026: a deal „sichtbar bis“ today is live until 23:59:59 in
+  // Vienna — min = tomorrow made the browser refuse to save it unchanged.
+  it('an edit may keep today as „Sichtbar bis“ — only a new deal starts tomorrow', async () => {
+    const { onSubmit } = clubForm({ deal: deal({ visible_until: `${day(0)}T22:59:59.000Z` }), title: 'Deal bearbeiten' });
+    const until = screen.getByLabelText(/^Sichtbar bis \*/);
+    expect(until).toHaveValue(day(0));
+    expect(until).toHaveAttribute('min', day(0));
+    expect(until).toHaveAttribute('max', day(180));
+    expect(until).toBeValid();
+    saveDeal();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].visible_until).toBe(day(0));
+    expect(onSubmit.mock.calls[0][1]).toBe(5);
+  });
+
   it('without an end date nothing is handed on — the club\'s toast names all three fields', () => {
     const { onSubmit } = clubForm();
     type(/^Angebot/, '2 für 1');

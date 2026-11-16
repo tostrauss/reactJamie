@@ -16,9 +16,10 @@ import { viennaTodayUTC } from '../utils/recurrence';
  *     bis" optional (empty = no expiry).
  *   - variant 'club' — in the club's edit page, in its look (ge-*), texts
  *     under groupEdit.deals.* in all five languages; "Sichtbar bis" required,
- *     from tomorrow to CLUB_DEAL_MAX_DAYS ahead in Vienna days (the server
- *     checks the upper limit too; the deal shows through the day picked);
- *     an empty address is the club's own, filled in by the server.
+ *     from tomorrow (an edit: from today) to CLUB_DEAL_MAX_DAYS ahead in
+ *     Vienna days (the server checks the upper limit too; the deal shows
+ *     through the day picked); an empty address is the club's own, filled in
+ *     by the server.
  * The form checks the required fields and builds the payload; the parent
  * saves it — onSubmit(payload, id) → Promise, id null for a new deal —,
  * shows the toasts and closes the form.
@@ -248,6 +249,12 @@ export default function DealForm({ variant = 'admin', deal = null, defaults, tit
     </button>
   ));
 
+  // „Sichtbar bis“ from: a new club deal starts tomorrow at the earliest; an
+  // edit may keep today — a deal „sichtbar bis“ today is live until 23:59:59
+  // in Vienna, and min = tomorrow made the browser refuse to save it
+  // unchanged (review 16.11.2026). The server takes today, too.
+  const untilMin = club && !form.id ? isoDay(1) : isoDay(0);
+
   const intervals = [
     ['once', k('intervals.once', { defaultValue: 'Einmalig pro Nutzer' })],
     ['weekly', k('intervals.weekly', { defaultValue: '1× pro Woche' })],
@@ -365,7 +372,7 @@ export default function DealForm({ variant = 'admin', deal = null, defaults, tit
         <input
           {...inputProps('until')}
           type="date"
-          min={club ? isoDay(1) : isoDay(0)}
+          min={untilMin}
           max={club ? isoDay(CLUB_DEAL_MAX_DAYS) : undefined}
           value={form.visible_until}
           onChange={set('visible_until')}
