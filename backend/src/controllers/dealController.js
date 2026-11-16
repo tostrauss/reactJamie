@@ -5,6 +5,7 @@ import { resolveCreateLocation } from '../utils/geocode.js';
 import { clubAliveSql } from '../utils/clubGate.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { checkImageField } from '../utils/safeUrl.js';
+import { viennaToday } from '../utils/polls.js';
 import { isUserPro } from './subscriptionController.js';
 
 // Try to extract the city from a free-form address. Most DACH addresses end in
@@ -891,16 +892,30 @@ async function clubDealAccess(clubId, userId, { needPro }) {
   return { club };
 }
 
-// visible_until of a club deal: required, in the future, at most
-// CLUB_DEAL_MAX_DAYS ahead — plus a day of slack, as the form sends a bare
-// date that runs to the end of its Vienna day (visibleUntilFrom).
-// → { iso } or { error }.
+// The last moment a club deal may run: the end, in Vienna, of the Vienna
+// calendar day CLUB_DEAL_MAX_DAYS after today there — the last day DealForm
+// offers (isoDay(CLUB_DEAL_MAX_DAYS)), through its end like every bare date
+// (visibleUntilFrom). Day arithmetic on the bare date, in UTC on purpose:
+// Date.UTC rolls the day over into the right month and knows no DST.
+function clubDealLastMoment(now = new Date()) {
+  const [y, m, d] = viennaToday(now).split('-').map(Number);
+  return visibleUntilFrom(new Date(Date.UTC(y, m - 1, d + CLUB_DEAL_MAX_DAYS)).toISOString().slice(0, 10));
+}
+
+// visible_until of a club deal: required, in the future (today runs until
+// its end in Vienna, so today is fine), and no later than
+// clubDealLastMoment() — counted in Vienna calendar days. It was a span of
+// milliseconds (now + CLUB_DEAL_MAX_DAYS + 1 days), which the clock change
+// in between shifted by an hour: from 00:00 to 01:00 in summer time it
+// refused the form's own last day when that falls in winter time, from
+// 23:00 in winter time it let a day too many through when that falls in
+// summer time (review 16.11.2026). → { iso } or { error }.
 function parseClubDealUntil(value) {
   if (value === undefined || value === null || value === '') return { error: '„Sichtbar bis“ ist ein Pflichtfeld.' };
   const d = visibleUntilFrom(value);
   if (isNaN(d.getTime())) return { error: 'visible_until ist kein gültiges Datum' };
   if (d.getTime() <= Date.now()) return { error: '„Sichtbar bis“ muss in der Zukunft liegen.' };
-  if (d.getTime() > Date.now() + (CLUB_DEAL_MAX_DAYS + 1) * 24 * 3600 * 1000) {
+  if (d.getTime() > clubDealLastMoment().getTime()) {
     return { error: `„Sichtbar bis“ darf höchstens ${CLUB_DEAL_MAX_DAYS} Tage in der Zukunft liegen.` };
   }
   return { iso: d.toISOString() };

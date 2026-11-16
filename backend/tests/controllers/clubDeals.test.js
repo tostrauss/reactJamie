@@ -243,6 +243,48 @@ describe('POST /api/deals/club/:clubId (createClubDeal)', () => {
     }
   });
 
+  // Review 16.11.2026: the upper limit is the form's max (DealForm
+  // isoDay(CLUB_DEAL_MAX_DAYS)) — Vienna calendar days. It was now + 181 days
+  // in milliseconds, which the clock change in between shifted by an hour.
+  it(`the last day is ${CLUB_DEAL_MAX_DAYS} Vienna calendar days after today there — across the clock change, both ways`, async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      const status = async (visible_until) => (await create(body({ visible_until }))).statusCode;
+      // 02.06.2027 00:30 in Vienna (summer time), still the 1st in UTC: the
+      // form offers up to 29.11.2027 (winter time) — the old span refused it.
+      vi.setSystemTime(new Date('2027-06-01T22:30:00Z'));
+      expect(await status('2027-11-29')).toBe(201);
+      expect(await status('2027-11-30')).toBe(400);
+      // 17.11.2026 00:30 in Vienna (winter time): up to 16.05.2027
+      vi.setSystemTime(new Date('2026-11-16T23:30:00Z'));
+      expect(await status('2027-05-16')).toBe(201);
+      expect(await status('2027-05-17')).toBe(400);
+      // 16.11.2026 23:30 in Vienna (winter time): up to 15.05.2027 — the old
+      // span let 16.05. (summer time) through, a day past the form's max.
+      vi.setSystemTime(new Date('2026-11-16T22:30:00Z'));
+      expect(await status('2027-05-15')).toBe(201);
+      expect(await status('2027-05-16')).toBe(400);
+      // the lower end is unchanged: today runs until its end in Vienna
+      expect(await status('2026-11-16')).toBe(201);
+      expect(await status('2026-11-15')).toBe(400);
+      expect(inserts()).toHaveLength(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('an edit has the same last day', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      const edit = (visible_until) => run(updateClubDeal, { params: { clubId: '7', dealId: '11' }, body: { visible_until } });
+      vi.setSystemTime(new Date('2027-06-01T22:30:00Z'));
+      expect((await edit('2027-11-29')).statusCode).toBe(200);
+      expect((await edit('2027-11-30')).statusCode).toBe(400);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('name and headline required; texts moderated (422); photos only from the allowlist; links http(s)', async () => {
     expect((await create(body({ name: '  ' }))).statusCode).toBe(400);
     expect((await create(body({ deal_label: undefined }))).statusCode).toBe(400);
