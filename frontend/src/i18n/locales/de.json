@@ -2176,7 +2176,8 @@
         "saveError": "Speichern fehlgeschlagen",
         "deleted": "Deal gelöscht",
         "deleteError": "Löschen fehlgeschlagen",
-        "proRequired": "Deals für deinen Club sind ein JAMIE Pro Feature."
+        "proRequired": "Deals für deinen Club sind ein JAMIE Pro Feature.",
+        "limit": "Höchstens {{max}} aktive Deals gleichzeitig – lösche zuerst einen."
       },
       "event": {
         "title": "Deal am Event",

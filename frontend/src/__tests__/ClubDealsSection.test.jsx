@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react';
 import { AuthContext } from '../context/AuthContext';
 
 // „Deals“ in a club's edit page (P4 v2, Tina/Tobi 16.11.2026): the club's
@@ -192,6 +192,37 @@ describe('ClubDealsSection — with Pro', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Deal speichern' }));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Dein Text enthält unangemessene Inhalte.'));
     expect(form()).toBeInTheDocument();
+  });
+
+  // Review 16.11.2026: at most 3 of a club's deals show at a time (the server's
+  // CLUB_DEAL_LIMIT) — the feed has no place filter.
+  it('three live deals: „Deal anlegen“ says so instead of opening a form; an expired one does not count', async () => {
+    const LIMIT = 'Höchstens 3 aktive Deals gleichzeitig – lösche zuerst einen.';
+    await renderSection({ isPro: true, rows: [deal({ id: 1 }), deal({ id: 2 }), deal({ id: 3 })] });
+    fireEvent.click(newBtn());
+    expect(toast.error).toHaveBeenCalledWith(LIMIT);
+    expect(form()).toBeNull();
+    // editing one of them stays possible
+    fireEvent.click(screen.getAllByRole('button', { name: 'Deal „2 für 1“ bearbeiten' })[0]);
+    expect(form()).toBeInTheDocument();
+    cleanup();
+    toast.error.mockClear();
+    await renderSection({ isPro: true, rows: [deal({ id: 1 }), deal({ id: 2 }), deal({ id: 3, visible_until: '2026-01-02T00:00:00.000Z' })] });
+    fireEvent.click(newBtn());
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(form()).toBeInTheDocument();
+  });
+
+  it('the server\'s CLUB_DEAL_LIMIT (another manager was quicker): toast, form closed, list reloaded', async () => {
+    deals.createForClub.mockRejectedValue({ response: { status: 409, data: { code: 'CLUB_DEAL_LIMIT', error: 'x' } } });
+    await renderSection({ isPro: true });
+    fireEvent.click(newBtn());
+    fireEvent.change(screen.getByLabelText(/^Angebot/), { target: { value: 'x' } });
+    fireEvent.change(screen.getByLabelText(/^Sichtbar bis/), { target: { value: inDays(3) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Deal speichern' }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Höchstens 3 aktive Deals gleichzeitig – lösche zuerst einen.'));
+    expect(form()).toBeNull();
+    await waitFor(() => expect(deals.getForClub).toHaveBeenCalledTimes(2));
   });
 
   it('the subscription ran out meanwhile (PRO_REQUIRED): the form closes, the way to Pro opens', async () => {

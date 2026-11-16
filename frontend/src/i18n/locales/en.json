@@ -2176,7 +2176,8 @@
         "saveError": "Saving failed",
         "deleted": "Deal deleted",
         "deleteError": "Deleting failed",
-        "proRequired": "Deals for your club are a JAMIE Pro feature."
+        "proRequired": "Deals for your club are a JAMIE Pro feature.",
+        "limit": "At most {{max}} active deals at a time – delete one first."
       },
       "event": {
         "title": "Deal at the event",

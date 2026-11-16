@@ -6664,6 +6664,26 @@ suite('write endpoints against real Postgres', () => {
       expect((await shownAt(meetup)).id).toBe(D.main);
     });
 
+    // Review 16.11.2026: the feed has no place filter — at most 3 of a club's
+    // deals show at a time. The count runs under a lock on the club's row, so
+    // a script's parallel requests cannot all pass it before any has written.
+    it('at most 3 live deals per club — also against five at once; one run out makes room, an edit cannot bring it back past the limit', async () => {
+      const bar = await mkClub('Smoke Limit Bar', other, 'official');
+      const made = await Promise.all([1, 2, 3, 4, 5].map((n) => create(other, bar, body({ name: `Smoke Limit ${n}` }))));
+      expect(made.map((r) => r.statusCode).sort()).toEqual([201, 201, 201, 409, 409]);
+      expect(made.find((r) => r.statusCode === 409).body.code).toBe('CLUB_DEAL_LIMIT');
+      expect(await clubDealCount(bar)).toBe(3);
+      const ids = made.filter((r) => r.statusCode === 201).map((r) => r.body.id);
+      await db.query(`UPDATE deals SET visible_until = NOW() - INTERVAL '1 hour' WHERE id = $1`, [ids[0]]);
+      ok(await create(other, bar, body({ name: 'Smoke Limit 6' })));
+      const back = await edit(other, bar, ids[0], { visible_until: until(10) });
+      expect(back.statusCode).toBe(409);
+      expect(back.body.code).toBe('CLUB_DEAL_LIMIT');
+      ok(await edit(other, bar, ids[1], { deal_label: '3 für 2', visible_until: until(10) }));
+      ok(await remove(other, bar, ids[2]));
+      ok(await edit(other, bar, ids[0], { visible_until: until(10) }));
+    });
+
     it('account deletion: created_by goes NULL, a club passed on keeps its deals (new owner needs Pro), a solo club takes them along', async () => {
       const soloDeal = await create(solo, soloClub, body({ name: 'Smoke Solo Deal' }));
       expect(soloDeal.statusCode).toBe(201);

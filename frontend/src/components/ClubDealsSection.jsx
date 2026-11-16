@@ -4,7 +4,7 @@ import { deals as dealsApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { thumbUrl } from '../utils/images';
-import { canPutUpClubDeals, askForClubDealsPro } from '../utils/clubDeals';
+import { canPutUpClubDeals, askForClubDealsPro, CLUB_DEAL_MAX_LIVE } from '../utils/clubDeals';
 import DealForm from './DealForm';
 
 // The shop icon of the deal row on an event (EventDealRow), for a deal
@@ -59,9 +59,16 @@ export default function ClubDealsSection({ clubId, clubName }) {
   useEffect(() => { load(); }, [load]);
 
   // The paid part: into the form only with Pro (or as an app admin).
+  // A new deal also only below CLUB_DEAL_MAX_LIVE live ones (the server's
+  // rule, review 16.11.2026) — no form that could only end in that refusal.
   const openForm = (deal) => {
     if (!canPutUpClubDeals({ isPro, user })) {
       askForClubDealsPro(t, toast);
+      return;
+    }
+    const live = list.filter((d) => !d.visible_until || new Date(d.visible_until) > new Date()).length;
+    if (!deal && live >= CLUB_DEAL_MAX_LIVE) {
+      toast.error(t('groupEdit.deals.toast.limit', { max: CLUB_DEAL_MAX_LIVE }));
       return;
     }
     setFormFor({ deal });
@@ -82,6 +89,14 @@ export default function ClubDealsSection({ clubId, clubName }) {
       if (err.response?.data?.code === 'PRO_REQUIRED') {
         setFormFor(null);
         askForClubDealsPro(t, toast);
+        return;
+      }
+      // Already CLUB_DEAL_MAX_LIVE live deals (another manager meanwhile, or
+      // an expired one brought back): say so and show the list as it is now.
+      if (err.response?.data?.code === 'CLUB_DEAL_LIMIT') {
+        toast.error(t('groupEdit.deals.toast.limit', { max: CLUB_DEAL_MAX_LIVE }));
+        setFormFor(null);
+        load();
         return;
       }
       toast.error(err.response?.data?.error || t('groupEdit.deals.toast.saveError'));

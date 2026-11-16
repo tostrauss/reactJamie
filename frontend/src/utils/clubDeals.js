@@ -7,6 +7,10 @@ import { proUpsellAllowed } from './platform';
 // without it an admin would be sent to the ProModal for nothing.
 export const canPutUpClubDeals = ({ isPro, user }) => !!(isPro || user?.is_admin);
 
+// At most this many of a club's deals show at a time — the feed has no place
+// filter. Mirrors backend dealController CLUB_DEAL_MAX_LIVE (review 16.11.2026).
+export const CLUB_DEAL_MAX_LIVE = 3;
+
 // The way to Pro, as for paid events on the club page (ClubDetail): where Pro
 // may not be advertised — iOS without a purchase path, Apple 3.1.1 — only a
 // toast, else the ProModal leading with „Deals für deinen Club“.

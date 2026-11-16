@@ -2176,7 +2176,8 @@
         "saveError": "Échec de l’enregistrement",
         "deleted": "Deal supprimé",
         "deleteError": "Échec de la suppression",
-        "proRequired": "Les deals pour ton club sont une fonctionnalité JAMIE Pro."
+        "proRequired": "Les deals pour ton club sont une fonctionnalité JAMIE Pro.",
+        "limit": "{{max}} deals actifs maximum en même temps – supprime d’abord un deal."
       },
       "event": {
         "title": "Deal à l’événement",

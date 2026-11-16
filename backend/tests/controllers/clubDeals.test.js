@@ -28,36 +28,42 @@ const scenario = {
   geo: { ok: true, coords: { lat: 48.21, lng: 16.37 } },
   liveRows: [{}],               // redeemDeal's club check (SELECT 1 FROM deals d …)
   liveFail: null,
+  // The club's live deals (liveClubDeals), one entry per count — the last
+  // one repeats: [pre-check, the count under the lock].
+  live: [{ others: 0, self_live: false }],
 };
 const queries = [];
 
-vi.mock('../../src/config/database.js', () => ({
-  default: {
-    query: vi.fn(async (text, params) => {
-      queries.push({ text, params });
-      if (text.includes('AS caller_is_admin')) return { rows: scenario.access ? [scenario.access] : [] };
-      if (text.startsWith('INSERT INTO deals')) return { rows: [{ id: 42, club_id: params.at(-2), created_by: params.at(-1) }] };
-      if (text.startsWith('SELECT 1 FROM deals WHERE id = $1 AND club_id = $2')) return { rows: scenario.ownDeal ? [{}] : [] };
-      if (text.startsWith('UPDATE deals SET is_active = FALSE')) return { rows: scenario.updated ? [{ id: params[0] }] : [] };
-      if (text.startsWith('UPDATE deals SET')) return { rows: scenario.updated ? [{ id: params.at(-2) }] : [] };
-      if (text.includes('WHERE d.club_id = $1 AND d.is_active = TRUE')) return { rows: scenario.listRows };
-      if (text.includes('FROM event_deals ed\n         JOIN groups g')) return { rows: scenario.eventRows };
-      if (text.startsWith('SELECT type, parent_club_id FROM groups')) return { rows: scenario.event ? [scenario.event] : [] };
-      if (text.startsWith('SELECT is_admin FROM users')) return { rows: [{ is_admin: scenario.isAdmin }] };
-      if (text.startsWith('SELECT club_id, is_active FROM deals')) return { rows: scenario.dealRow ? [scenario.dealRow] : [] };
-      if (text.startsWith('SELECT 1 FROM deals d WHERE d.id = $1')) {
-        if (scenario.liveFail && !text.includes('AND TRUE')) throw scenario.liveFail;
-        return { rows: scenario.liveRows };
-      }
-      if (text.startsWith('SELECT 1 FROM deals WHERE id = $1')) return { rows: [{}] };
-      if (text.startsWith('SELECT d.club_id FROM event_deals')) return { rows: scenario.currentLink ? [scenario.currentLink] : [] };
-      if (/^\s*(INSERT INTO|DELETE FROM) event_deals/.test(text)) return { rows: [], rowCount: 1 };
-      if (text.includes('FROM event_deals ed\n         JOIN deals d')) return { rows: [] };
-      if (text.includes('JOIN push_subscriptions')) return { rows: [{ id: 3 }] };
-      throw new Error(`unexpected SQL in test: ${text.slice(0, 80)}`);
-    }),
-  },
-}));
+vi.mock('../../src/config/database.js', () => {
+  const query = vi.fn(async (text, params) => {
+    queries.push({ text, params });
+    if (/^(BEGIN|COMMIT|ROLLBACK)$/.test(text)) return { rows: [] };
+    if (text.startsWith('SELECT 1 FROM groups WHERE id = $1 FOR UPDATE')) return { rows: [{}] };
+    if (text.includes('AS self_live')) return { rows: [scenario.live.length > 1 ? scenario.live.shift() : scenario.live[0]] };
+    if (text.includes('AS caller_is_admin')) return { rows: scenario.access ? [scenario.access] : [] };
+    if (text.startsWith('INSERT INTO deals')) return { rows: [{ id: 42, club_id: params.at(-2), created_by: params.at(-1) }] };
+    if (text.startsWith('SELECT 1 FROM deals WHERE id = $1 AND club_id = $2')) return { rows: scenario.ownDeal ? [{}] : [] };
+    if (text.startsWith('UPDATE deals SET is_active = FALSE')) return { rows: scenario.updated ? [{ id: params[0] }] : [] };
+    if (text.startsWith('UPDATE deals SET')) return { rows: scenario.updated ? [{ id: params.at(-2) }] : [] };
+    if (text.includes('WHERE d.club_id = $1 AND d.is_active = TRUE')) return { rows: scenario.listRows };
+    if (text.includes('FROM event_deals ed\n         JOIN groups g')) return { rows: scenario.eventRows };
+    if (text.startsWith('SELECT type, parent_club_id FROM groups')) return { rows: scenario.event ? [scenario.event] : [] };
+    if (text.startsWith('SELECT is_admin FROM users')) return { rows: [{ is_admin: scenario.isAdmin }] };
+    if (text.startsWith('SELECT club_id, is_active FROM deals')) return { rows: scenario.dealRow ? [scenario.dealRow] : [] };
+    if (text.startsWith('SELECT 1 FROM deals d WHERE d.id = $1')) {
+      if (scenario.liveFail && !text.includes('AND TRUE')) throw scenario.liveFail;
+      return { rows: scenario.liveRows };
+    }
+    if (text.startsWith('SELECT 1 FROM deals WHERE id = $1')) return { rows: [{}] };
+    if (text.startsWith('SELECT d.club_id FROM event_deals')) return { rows: scenario.currentLink ? [scenario.currentLink] : [] };
+    if (/^\s*(INSERT INTO|DELETE FROM) event_deals/.test(text)) return { rows: [], rowCount: 1 };
+    if (text.includes('FROM event_deals ed\n         JOIN deals d')) return { rows: [] };
+    if (text.includes('JOIN push_subscriptions')) return { rows: [{ id: 3 }] };
+    throw new Error(`unexpected SQL in test: ${text.slice(0, 80)}`);
+  });
+  // writeUnderClubDealLimit's transaction: the same dispatch, in order.
+  return { default: { query, pool: { connect: async () => ({ query, release: () => {} }) } } };
+});
 const pushMock = vi.fn(async () => {});
 vi.mock('../../src/controllers/pushController.js', () => ({ sendPushToUsers: (...a) => pushMock(...a) }));
 const proMock = vi.fn(async () => scenario.pro);
@@ -74,6 +80,7 @@ vi.mock('../../src/utils/safeUrl.js', () => ({
 
 const {
   getClubDeals, createClubDeal, updateClubDeal, deleteClubDeal, setEventDeal, redeemDeal, CLUB_DEAL_MAX_DAYS,
+  CLUB_DEAL_MAX_LIVE,
 } = await import('../../src/controllers/dealController.js');
 
 const makeRes = () => {
@@ -100,6 +107,7 @@ beforeEach(() => {
     access: { ...CLUB }, pro: false, ownDeal: true, updated: true, listRows: [], eventRows: [],
     event: { type: 'event', parent_club_id: 7 }, isAdmin: false, dealRow: { club_id: 7, is_active: true },
     currentLink: null, geo: { ok: true, coords: { lat: 48.21, lng: 16.37 } }, liveRows: [{}], liveFail: null,
+    live: [{ others: 0, self_live: false }],
   });
   queries.length = 0;
   pushMock.mockClear(); proMock.mockClear(); geoMock.mockClear(); textMock.mockClear();
@@ -257,6 +265,60 @@ describe('POST /api/deals/club/:clubId (createClubDeal)', () => {
     const res = await create(body());
     expect(res.statusCode).toBe(503);
     expect(res.body.code).toBe('CLUB_DEALS_UNAVAILABLE');
+  });
+});
+
+// Review 16.11.2026: the feed has no place filter and puts the newest first —
+// one club with Pro and a script filled it for every city.
+describe(`at most ${CLUB_DEAL_MAX_LIVE} live deals per club`, () => {
+  beforeEach(() => { scenario.pro = true; });
+  const edit = (b) => run(updateClubDeal, { params: { clubId: '7', dealId: '11' }, body: b });
+  const counts = () => queries.filter((q) => q.text.includes('AS self_live'));
+  const flow = () => queries.map(({ text }) => (text.includes('AS self_live') ? 'count'
+    : text.includes('FOR UPDATE') ? 'lock' : /^(INSERT INTO deals|UPDATE deals SET)/.test(text) ? 'write'
+      : /^(BEGIN|COMMIT|ROLLBACK)$/.test(text) ? text : null)).filter(Boolean);
+
+  it('at the limit: 409 CLUB_DEAL_LIMIT before the moderation and geocoding calls, nothing written', async () => {
+    scenario.live = [{ others: CLUB_DEAL_MAX_LIVE, self_live: false }];
+    const res = await create(body({ address: 'Neubaugasse 7, 1070 Wien' }));
+    expect(res.statusCode).toBe(409);
+    expect(res.body.code).toBe('CLUB_DEAL_LIMIT');
+    expect(textMock).not.toHaveBeenCalled();
+    expect(geoMock).not.toHaveBeenCalled();
+    expect(inserts()).toHaveLength(0);
+    // live = what the feed shows: active, not past its end date
+    expect(counts()[0].params).toEqual([7, null]);
+    expect(counts()[0].text).toContain('WHERE club_id = $1 AND is_active = TRUE');
+    expect(counts()[0].text).toContain('(visible_until IS NULL OR visible_until > NOW())');
+  });
+
+  it('below it: counted again under a lock on the club\'s row, in one transaction with the INSERT', async () => {
+    scenario.live = [{ others: CLUB_DEAL_MAX_LIVE - 1, self_live: false }];
+    expect((await create(body())).statusCode).toBe(201);
+    expect(flow()).toEqual(['count', 'BEGIN', 'lock', 'count', 'write', 'COMMIT']);
+    expect(queries.find((q) => q.text.includes('FOR UPDATE')).params).toEqual([7]);
+  });
+
+  it('a parallel request got there first: the count under the lock refuses — ROLLBACK, 409, nothing written', async () => {
+    scenario.live = [{ others: CLUB_DEAL_MAX_LIVE - 1, self_live: false }, { others: CLUB_DEAL_MAX_LIVE, self_live: false }];
+    const res = await create(body());
+    expect(res.statusCode).toBe(409);
+    expect(res.body.code).toBe('CLUB_DEAL_LIMIT');
+    expect(flow()).toEqual(['count', 'BEGIN', 'lock', 'count', 'ROLLBACK']);
+  });
+
+  it('an edit counts only when its new end date brings an expired deal back', async () => {
+    scenario.live = [{ others: CLUB_DEAL_MAX_LIVE, self_live: true }];     // live already: the count stays
+    expect((await edit({ deal_label: 'neu', visible_until: day(10) })).statusCode).toBe(200);
+    expect(counts()[0].params).toEqual([7, 11]);
+    expect(flow()).toEqual(['BEGIN', 'lock', 'count', 'write', 'COMMIT']);
+    scenario.live = [{ others: CLUB_DEAL_MAX_LIVE, self_live: false }];    // expired: one too many
+    const back = await edit({ visible_until: day(10) });
+    expect(back.statusCode).toBe(409);
+    expect(back.body.code).toBe('CLUB_DEAL_LIMIT');
+    queries.length = 0;
+    expect((await edit({ deal_label: 'neu' })).statusCode).toBe(200);      // no end date: no count at all
+    expect(flow()).toEqual(['write']);
   });
 });
 

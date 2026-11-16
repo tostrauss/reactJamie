@@ -2176,7 +2176,8 @@
         "saveError": "Error al guardar",
         "deleted": "Deal eliminado",
         "deleteError": "Error al eliminar",
-        "proRequired": "Los deals para tu club son una función de JAMIE Pro."
+        "proRequired": "Los deals para tu club son una función de JAMIE Pro.",
+        "limit": "Como máximo {{max}} deals activos a la vez: elimina uno primero."
       },
       "event": {
         "title": "Deal en el evento",

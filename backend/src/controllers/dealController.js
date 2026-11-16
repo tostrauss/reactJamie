@@ -800,6 +800,59 @@ const CLUB_DEALS_UNAVAILABLE = {
   code: 'CLUB_DEALS_UNAVAILABLE',
 };
 
+// At most CLUB_DEAL_MAX_LIVE of a club's deals show at a time (review
+// 16.11.2026): getDeals has no place or club filter and puts the newest
+// first, so one club with Pro and a script could fill the deals of every
+// city — each one a moderation and a geocoding call besides. Live = what the
+// feed shows: active and not past visible_until. A club makes room by
+// deleting one or letting it run out; an edit counts only when it brings an
+// expired deal back.
+export const CLUB_DEAL_MAX_LIVE = 3;
+
+const CLUB_DEAL_LIMIT = {
+  error: `Höchstens ${CLUB_DEAL_MAX_LIVE} aktive Deals gleichzeitig – lösche zuerst einen.`,
+  code: 'CLUB_DEAL_LIMIT',
+};
+
+// The club's live deals other than `dealId` (none on a create), and whether
+// `dealId` itself is live → { others, selfLive }.
+async function liveClubDeals(q, clubId, dealId = null) {
+  const { rows } = await q.query(
+    `SELECT (COUNT(*) FILTER (WHERE id IS DISTINCT FROM $2::int))::int AS others,
+            COALESCE(BOOL_OR(id = $2::int), FALSE) AS self_live
+       FROM deals
+      WHERE club_id = $1 AND is_active = TRUE
+        AND (visible_until IS NULL OR visible_until > NOW())`,
+    [clubId, dealId]
+  );
+  return { others: rows[0].others, selfLive: rows[0].self_live };
+}
+
+// Runs `write(client)` unless it would put one of the club's deals too many
+// on show → its result, or null at the limit. Under a lock on the club's row,
+// so parallel requests (a script) count one after the other instead of all
+// passing before any of them has written.
+async function writeUnderClubDealLimit(clubId, dealId, write) {
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT 1 FROM groups WHERE id = $1 FOR UPDATE', [clubId]);
+    const live = await liveClubDeals(client, clubId, dealId);
+    if (!live.selfLive && live.others >= CLUB_DEAL_MAX_LIVE) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+    const result = await write(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 // Who may do what with a club's deals → { club } or { status, body }. In
 // this order, so nobody learns more than they may: an unknown club 404, a
 // non-manager 403 (with Pro, too), a community 403 OFFICIAL_CLUB_REQUIRED, a
@@ -973,15 +1026,21 @@ export const createClubDeal = async (req, res) => {
   try {
     const access = await clubDealAccess(ids.clubId, req.userId, { needPro: true });
     if (!access.club) return res.status(access.status).json(access.body);
+    // At the limit already: refused before the moderation and geocoding
+    // calls. The binding count runs again under the lock, with the INSERT.
+    if ((await liveClubDeals(db, ids.clubId)).others >= CLUB_DEAL_MAX_LIVE) {
+      return res.status(409).json(CLUB_DEAL_LIMIT);
+    }
     const parsed = await clubDealFields(req.body, access.club, { partial: false });
     if (parsed.error) return res.status(parsed.status).json({ error: parsed.error });
     const row = { ...parsed.fields, club_id: ids.clubId, created_by: req.userId };
     const cols = Object.keys(row); // fixed allowlist above — not user input
-    const result = await db.query(
+    const result = await writeUnderClubDealLimit(ids.clubId, null, (client) => client.query(
       `INSERT INTO deals (${cols.join(', ')})
        VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
       cols.map((k) => row[k])
-    );
+    ));
+    if (!result) return res.status(409).json(CLUB_DEAL_LIMIT);
     // Deliberately no notifyNearbyUsersAboutDeal: the city push is JAMIE's.
     console.log(`[deals] club ${ids.clubId}: user ${req.userId} created deal ${result.rows[0].id}`);
     res.status(201).json(result.rows[0]);
@@ -1009,11 +1068,17 @@ export const updateClubDeal = async (req, res) => {
     if (parsed.error) return res.status(parsed.status).json({ error: parsed.error });
     const keys = Object.keys(parsed.fields); // fixed allowlist above — not user input
     if (!keys.length) return res.status(400).json({ error: 'Keine Änderungen übergeben' });
-    const result = await db.query(
+    const update = (q) => q.query(
       `UPDATE deals SET ${keys.map((k, i) => `${k}=$${i + 1}`).join(', ')}, updated_at=CURRENT_TIMESTAMP
         WHERE id=$${keys.length + 1} AND club_id=$${keys.length + 2} RETURNING *`,
       [...keys.map((k) => parsed.fields[k]), ids.dealId, ids.clubId]
     );
+    // Only a new end date can bring an expired deal back on show — then the
+    // limit counts (CLUB_DEAL_MAX_LIVE).
+    const result = parsed.fields.visible_until !== undefined
+      ? await writeUnderClubDealLimit(ids.clubId, ids.dealId, update)
+      : await update(db);
+    if (!result) return res.status(409).json(CLUB_DEAL_LIMIT);
     if (!result.rows.length) return res.status(404).json({ error: 'Deal not found' });
     console.log(`[deals] club ${ids.clubId}: user ${req.userId} edited deal ${ids.dealId}`);
     res.json(result.rows[0]);
