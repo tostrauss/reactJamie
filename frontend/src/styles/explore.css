@@ -28,6 +28,9 @@
 .explore-content {
   flex: 1;
   overflow-y: auto;
+  /* Own page scroller → own sideways guard (see .app-viewport, global.css).
+     Carousels inside are their own overflow-x:auto scrollers and keep working. */
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   /* No extra padding-bottom — .explore-container already reserves

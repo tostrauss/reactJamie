@@ -521,10 +521,13 @@ select:focus-visible {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  /* Never pan the whole app sideways: body has this guard, but the APP
-     scrolls in THIS container — without it, a single child a few px too
+  /* Never pan the whole app sideways: body has this guard, but document-flow
+     pages scroll in THIS container — without it, a single child a few px too
      wide let iOS drag the entire screen horizontally (Tina, 31.10.2026,
-     Gruppen- und Clubs-Feed). */
+     Gruppen- und Clubs-Feed). It does NOT reach a fixed-height page's own
+     inner scroller: overflow-y:auto alone computes overflow-x to auto there,
+     so each of those carries the same guard itself (.gd-scroll and friends,
+     pinned in __tests__/pageScrollGuard.test.js — Tina 15.11.2026). */
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
@@ -1145,6 +1148,8 @@ select:focus {
 .notif-scroll {
   flex: 1;
   overflow-y: auto;
+  /* Own page scroller → own sideways guard (see .app-viewport). */
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
 }

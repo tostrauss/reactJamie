@@ -81,6 +81,12 @@
 .gd-scroll {
   flex: 1;
   overflow-y: auto;
+  /* Never pan sideways. This fixed-height page scrolls HERE, not in
+     .app-viewport — so the guard there (05f9041, 31.10.) never reached it,
+     and with overflow-y alone overflow-x computes to auto: one child a few px
+     too wide (the bottom pill row) let iOS drag the whole event page sideways
+     (Tina 15.11.2026, „Spieleabend“). Same guard as .up-scroll-body. */
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   /* Nav clearance: the in-flow nav sits below, but the floating "+" button
@@ -226,6 +232,11 @@
   color: white;
   letter-spacing: 0.5px;
   text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  /* A long name ends in „…" instead of being cut off hard at the tile edge. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Scalloped verified seal (VerifiedBadge) — size comes from the SVG prop. */
@@ -363,6 +374,10 @@
   font-size: 13px;
   font-weight: 600;
   color: var(--text-muted);
+  /* A place without spaces (a pasted URL, a glued-together address) breaks
+     inside the card instead of widening the page (S3, 16.11.2026). */
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Tappable variant (Teilnehmer → roster page): same look as the plain
@@ -565,6 +580,11 @@
   display: flex;
   justify-content: center;
   gap: 16px;
+  /* Three pills („Teilen“, „Kalender“, „Wer war dabei?“) need ≈ 424px, an
+     iPhone row has 335–362px: they wrap 2 + 1 instead of overflowing the
+     page sideways (Tina 15.11.2026, S3). Longer it/fr/es labels too. */
+  flex-wrap: wrap;
+  row-gap: 10px;
   padding-bottom: 8px;
 }
 
@@ -574,6 +594,9 @@
   justify-content: center;
   gap: 8px;
   padding: 0 28px;
+  /* One line per pill — wrapping happens between pills, not inside one. */
+  white-space: nowrap;
+  max-width: 100%;
   height: 48px;
   background: var(--bg-card);
   border: 1px solid var(--border-default);

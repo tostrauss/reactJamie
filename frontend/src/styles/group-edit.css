@@ -153,6 +153,9 @@
 .ge-body {
   flex: 1;
   overflow-y: auto;
+  /* overflow-y:auto makes this a sideways scroller too — .ge-page clipping
+     doesn't stop an inner pan (see .app-viewport, global.css). */
+  overflow-x: hidden;
   padding: 0 18px;
   /* Bottom nav is ~64px tall, but on some Android devices it renders taller
      with its own safe-area inset baked in — bumping to 110px so the very last

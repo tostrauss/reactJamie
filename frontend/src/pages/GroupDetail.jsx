@@ -578,6 +578,13 @@ export const GroupDetail = () => {
   })();
   const headerDate = formatHeaderDate(displayDateISO, dateLocale, t);
   const shortDate = formatShortDate(displayDateISO, t);
+  // The event's (Vienna) day is over → „Kalender" has nothing left to add,
+  // and on a past event it was the pill that pushed the row past the screen
+  // (S3, Tina 15.11.2026). Weekly groups keep it: displayDateISO is already
+  // their next occurrence. Vienna day, like the „Heute" label — the server's
+  // own past-check (CURRENT_DATE on Railway) runs on the UTC day; the up to
+  // 2 h between the two only decide when after midnight the pill goes.
+  const dayOver = !!displayDateISO && utcDayStart(new Date(displayDateISO)) < viennaTodayUTC();
 
   return (
     <div className="gd-page">
@@ -1159,7 +1166,7 @@ export const GroupDetail = () => {
               {isEvent ? t('groups.detail.shareEvent') : t('groups.detail.share')}
             </button>
 
-            {group.date && isJoined && (
+            {group.date && isJoined && !dayOver && (
               <button className="gd-action-pill" onClick={() => openCalendar(group)}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>

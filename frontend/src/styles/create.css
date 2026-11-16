@@ -172,6 +172,8 @@
   min-height: 0; /* let the flex child shrink so overflow-y:auto actually scrolls */
   padding: 0 20px 24px;
   overflow-y: auto;
+  /* Own page scroller → own sideways guard (see .app-viewport, global.css). */
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
 }
