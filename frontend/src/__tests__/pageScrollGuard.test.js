@@ -13,6 +13,9 @@ import { fileURLToPath } from 'url';
 //
 // A deliberate list, not „all scrollers": chat surfaces (swipe-back) and
 // carousels (.ppc-track, explore's chip rows) scroll sideways on purpose.
+// The onboarding scroller is pinned on its base rule (auth.css): the 17.10.
+// fix sits on `.ob-flow .onboarding-content` (onboarding.css) and covered
+// only the pages inside .ob-flow (review 16.11.2026).
 // Read from disk: Vitest serves CSS imports (even ?raw) as empty modules.
 const STYLES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../styles');
 const css = (name) => fs.readFileSync(path.join(STYLES, name), 'utf8');
@@ -42,6 +45,7 @@ const PAGE_SCROLLERS = [
   ['create.css', '.create-content'],
   ['explore.css', '.explore-content'],
   ['group-edit.css', '.ge-body'],
+  ['auth.css', '.onboarding-content'],
 ];
 
 describe('page scrollers never pan sideways', () => {

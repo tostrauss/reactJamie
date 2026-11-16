@@ -465,6 +465,10 @@
   min-height: 0;               /* let the flex child shrink so it can scroll */
   overflow-y: auto;            /* tall steps (interests, photos) scroll instead
                                   of clipping behind the footer on small phones */
+  /* Never sideways (pageScrollGuard.test.js): overflow-y alone computes
+     overflow-x to auto. Until 16.11.2026 only the .ob-flow pages had it
+     (onboarding.css, 17.10.) — now every user of the scroller does. */
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   display: flex;
