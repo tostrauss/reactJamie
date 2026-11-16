@@ -856,7 +856,7 @@
         "communityOne": "Comunidad",
         "eventOne": "Evento",
         "clubEventOne": "Evento del club",
-        "communityEventOne": "Evento de la comunidad"
+        "communityEventOne": "Evento de comunidad"
       },
       "requestsTab": {
         "remaining": "{{count}} pendientes",

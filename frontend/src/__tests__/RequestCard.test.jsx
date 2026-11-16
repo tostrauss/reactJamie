@@ -69,6 +69,7 @@ describe('RequestCard — the type band (Ziel 4)', () => {
   it('a friend request: „👋 Freundschaftsanfrage“, a neutral frame, no group in sight', () => {
     renderCard({ ...base, kind: 'friend' });
     expect(card()).toHaveClass('request-card--typed', 'request-card--friend');
+    expect(band().querySelector('.request-type-band-thumb').textContent).toBe('👋');
     expect(band().textContent).toContain('Freundschaftsanfrage');
     expect(band().textContent).toContain('möchte mit dir befreundet sein');
     expect(document.querySelector('.request-type-band-name')).toBeNull();
@@ -82,7 +83,7 @@ describe('RequestCard — the type band (Ziel 4)', () => {
     expect(band().textContent).toContain('Beitrittsanfrage');
     expect(document.querySelector('.request-type-band-name').textContent).toBe('Laufen (easy)');
     expect(screen.getByText('Gruppe')).toHaveClass('chat-type-badge', 'group-badge');
-    expect(document.querySelector('.request-type-band-date').textContent).toBe('Sa., 21. Nov.');
+    expect(document.querySelector('.request-type-band-date').textContent).toBe('21. Nov.');
   });
 
   it('an event of a community: „Community-Event“, with the time', () => {
@@ -90,7 +91,7 @@ describe('RequestCard — the type band (Ziel 4)', () => {
     renderCard(clubEvent());
     expect(card()).toHaveClass('request-card--group');
     expect(screen.getByText('Community-Event')).toBeInTheDocument();
-    expect(document.querySelector('.request-type-band-date').textContent).toBe('Sa., 21. Nov., 19:00');
+    expect(document.querySelector('.request-type-band-date').textContent).toBe('21. Nov., 19:00');
   });
 
   it('a member\'s event in an official club: „Club-Event“', () => {
@@ -120,7 +121,7 @@ describe('RequestCard — the type band (Ziel 4)', () => {
   it('the day as the creator typed it — a late event stays on its day (UTC reading)', () => {
     at();
     renderCard(clubEvent({ group_date: '2026-11-21T23:30:00.000Z' }));
-    expect(document.querySelector('.request-type-band-date').textContent).toBe('Sa., 21. Nov., 23:30');
+    expect(document.querySelector('.request-type-band-date').textContent).toBe('21. Nov., 23:30');
   });
 
   it('„Heute“ and „Morgen“ on the Vienna day', () => {
@@ -135,7 +136,7 @@ describe('RequestCard — the type band (Ziel 4)', () => {
   it('a weekly series shows its next date, not the first one', () => {
     at();
     renderCard(join({ group_date: '2026-11-02T00:00:00.000Z', group_recurring: true }));
-    expect(document.querySelector('.request-type-band-date').textContent).toBe('Mo., 23. Nov.');
+    expect(document.querySelector('.request-type-band-date').textContent).toBe('23. Nov.');
   });
 
   it('the picture: the group\'s own, else the club\'s, else its initial', () => {

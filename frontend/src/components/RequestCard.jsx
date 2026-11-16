@@ -50,12 +50,13 @@ const toneOf = (kind) => {
   return kind === 'club' || kind === 'community' ? 'club' : 'group';
 };
 
-// „Heute“, „Morgen“ or „Sa., 21. Nov.“ — with the time when one was set
-// („Sa., 21. Nov., 19:00“; meetups carry none since 09.06., they sit at
-// 00:00). The stored Vienna wall-clock comes back tagged UTC, so only the
-// UTC reading holds what the creator typed (utils/eventDate, recurrence.js);
-// a weekly series shows its next date. A club's date is a "next meetup" note
-// and never the request's, so clubs get none.
+// „Heute“, „Morgen“ or „21. Nov.“ — with the time when one was set
+// („21. Nov., 19:00“; meetups carry none since 09.06., they sit at 00:00).
+// No weekday: it shares a line with the type chip, also in it/fr/es. The
+// stored Vienna wall-clock comes back tagged UTC, so only the UTC reading
+// holds what the creator typed (utils/eventDate, recurrence.js); a weekly
+// series shows its next date. A club's date is a "next meetup" note and never
+// the request's, so clubs get none.
 const bandDate = (r, locale, t) => {
   if (r.group_type === 'club') return null;
   const d = nextOccurrence({ date: r.group_date, is_recurring_weekly: r.group_recurring });
@@ -63,7 +64,7 @@ const bandDate = (r, locale, t) => {
   const days = Math.round((utcDayStart(d) - viennaTodayUTC()) / 86400000);
   const day = days === 0 ? t('groups.card.dateHeute')
     : days === 1 ? t('groups.card.dateMorgen')
-    : d.toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+    : d.toLocaleDateString(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
   if (!d.getUTCHours() && !d.getUTCMinutes()) return day;
   return `${day}, ${formatEventDate(d.toISOString(), locale).time}`;
 };
@@ -95,12 +96,14 @@ export function RequestCard({ request }) {
 
   return (
     <div className={`request-card${tone ? ` request-card--typed request-card--${tone}` : ''}`}>
+      {/* Three lines for a join request — what it is, for which group or
+          event, its type and date — so even the long it/fr/es labels each
+          get a line of their own; two for a friend request. */}
       {isFriend && (
         <div className="request-type-band">
+          <span className="request-type-band-thumb request-type-band-thumb--emoji" aria-hidden="true">👋</span>
           <span className="request-type-band-text">
-            <span className="request-type-band-kind">
-              <span aria-hidden="true">👋 </span>{t('chat.list.requestsTab.friendLabel')}
-            </span>
+            <span className="request-type-band-kind">{t('chat.list.requestsTab.friendLabel')}</span>
             <span className="request-type-band-sub">{t('chat.list.requestsTab.friendSub')}</span>
           </span>
         </div>
@@ -113,16 +116,14 @@ export function RequestCard({ request }) {
               : (request.group_name || '?')[0].toUpperCase()}
           </span>
           <span className="request-type-band-text">
-            <span className="request-type-band-top">
-              <span className="request-type-band-kind">
-                <span aria-hidden="true">🔒 </span>{t('chat.list.requestsTab.joinLabel')}
-              </span>
+            <span className="request-type-band-kind">
+              <span aria-hidden="true">🔒 </span>{t('chat.list.requestsTab.joinLabel')}
+            </span>
+            <span className="request-type-band-name">{request.group_name}</span>
+            <span className="request-type-band-meta">
               {kind === 'partner'
                 ? <PartnerBadge variant="pill" />
                 : <span className={`chat-type-badge ${tone === 'club' ? 'club-badge' : 'group-badge'}`}>{t(KIND_LABEL[kind])}</span>}
-            </span>
-            <span className="request-type-band-bottom">
-              <span className="request-type-band-name">{request.group_name}</span>
               {date && <span className="request-type-band-date">{date}</span>}
             </span>
           </span>
