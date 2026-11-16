@@ -5,7 +5,7 @@ import { sendPushToUser, sendPushToUsers } from './pushController.js';
 import { expandMatchTerms } from '../utils/categoryFanout.js';
 import { normalizeLocale, categoryPushText, joinRequestText, pushTexts } from '../utils/pushLocale.js';
 import { getCached, setCached, invalidatePrefix, deleteCached } from '../utils/cache.js';
-import { parentClubGateSql, partnerSql } from '../utils/clubGate.js';
+import { clubAliveSql, parentClubGateSql, partnerSql } from '../utils/clubGate.js';
 import { claimImmediate, bumpPending } from '../utils/categoryPushBudget.js';
 import { postSystemMessage, SYSTEM_TEXTS } from '../utils/systemMessage.js';
 import { isUserPro } from './subscriptionController.js';
@@ -2157,6 +2157,17 @@ export const getJoinRequests = async (req, res) => {
 // plus clubs they co-manage (role='admin'), matching handleClubJoinRequest's
 // permission. Same per-request payload shape as getJoinRequests (RequestCard
 // renders both), extended with group_name/group_type for the deck header.
+//
+// Ziel 4 (Tina, 16.11.2026): which card is WHAT has to be clear while swiping,
+// so the card gets the event's date, the club behind an event and the type
+// (group_date, group_recurring, group_club_type, parent_club_*) plus how often
+// the asker was turned down already (rejected_count). Additive only — old
+// bundles route on group_type and read group_name/user_*, renamed never.
+// And only requests that can still be answered: nothing for a cancelled or
+// deleted group/club/event, none for a one-off event whose Vienna day is over
+// (weekly series roll on; a club's date is a "next meetup" and never ends it),
+// none for an event whose club is no longer live. Those rows simply stay
+// pending — hidden, they cost nobody an attempt.
 export const getAllJoinRequests = async (req, res) => {
   try {
     const result = await db.query(
@@ -2167,6 +2178,11 @@ export const getAllJoinRequests = async (req, res) => {
               -- already handled the previous incarnation.
               jr.updated_at,
               g.name AS group_name, g.type AS group_type, g.image_url AS group_image,
+              -- Vienna wall-clock like every groups.date: format with timeZone 'UTC'.
+              g.date AS group_date, g.is_recurring_weekly AS group_recurring,
+              g.club_type AS group_club_type, g.parent_club_id,
+              pc.name AS parent_club_name, pc.image_url AS parent_club_image,
+              jr.rejected_count,
               u.name AS user_name, u.avatar_url AS user_avatar, u.bio AS user_bio,
               u.interests AS user_interests,
               -- Age only, no birth date — see getJoinRequests.
@@ -2174,8 +2190,13 @@ export const getAllJoinRequests = async (req, res) => {
               u.is_trusted_user AS user_trusted
        FROM group_join_requests jr
        JOIN groups g ON g.id = jr.group_id AND g.deleted_at IS NULL
+       LEFT JOIN groups pc ON pc.id = g.parent_club_id
        JOIN users u ON u.id = jr.user_id
        WHERE jr.status = 'pending'
+         AND g.is_active = TRUE
+         AND (g.type = 'club' OR g.date IS NULL OR g.is_recurring_weekly = TRUE
+              OR g.date::date >= (NOW() AT TIME ZONE 'Europe/Vienna')::date)
+         AND (g.parent_club_id IS NULL OR (${clubAliveSql('pc')}))
          AND (g.owner_id = $1
               OR (g.type = 'club' AND EXISTS (
                     SELECT 1 FROM group_members gm
@@ -2191,6 +2212,26 @@ export const getAllJoinRequests = async (req, res) => {
   }
 };
 
+// Accepting a request must never take anybody into a group or event that no
+// longer happens (16.11.2026): the deck now hides those requests, but a stale
+// deck, the requests page or an old bundle can still send the accept. The
+// liveness columns come with the owner lookup (ACCEPT_LIVENESS_SQL, alias g):
+// cancelled (is_active) or deleted → 410 GROUP_GONE; an event whose club is no
+// longer live → 410 CLUB_GONE, the code joinGroup answers for the same case.
+// Strict `=== false`, so a row shape without the columns keeps the old path.
+// Accept only — rejecting a request for a dead event takes nobody anywhere.
+const ACCEPT_LIVENESS_SQL = `(g.deleted_at IS NULL AND g.is_active IS TRUE) AS is_live,
+              ${parentClubGateSql('g')} AS club_live`;
+const GROUP_GONE_BODY = {
+  error: 'Dieses Treffen wurde abgesagt oder gelöscht. Die Anfrage kann nicht mehr angenommen werden.',
+  code: 'GROUP_GONE',
+};
+const acceptGoneBody = (g) => {
+  if (g?.is_live === false) return GROUP_GONE_BODY;
+  if (g?.club_live === false) return { error: CLUB_BLOCK_MESSAGE.CLUB_GONE, code: 'CLUB_GONE' };
+  return null;
+};
+
 // ==========================================
 // HANDLE JOIN REQUEST (accept/reject)
 // ==========================================
@@ -2199,9 +2240,9 @@ export const handleJoinRequest = async (req, res) => {
     const { id, requestId } = req.params;
     const { action } = req.body; // 'accept' or 'reject'
 
-    // Verify ownership + fetch group name in one query
+    // Verify ownership + fetch group name (and whether it still happens) in one query
     const [groupRes, request] = await Promise.all([
-      db.query('SELECT owner_id, name FROM groups WHERE id = $1', [id]),
+      db.query(`SELECT g.owner_id, g.name, ${ACCEPT_LIVENESS_SQL} FROM groups g WHERE g.id = $1`, [id]),
       db.query('SELECT user_id, status FROM group_join_requests WHERE id = $1 AND group_id = $2', [requestId, id]),
     ]);
     if (groupRes.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
@@ -2216,6 +2257,9 @@ export const handleJoinRequest = async (req, res) => {
     deleteCached(`user_groups:${req.userId}`);
 
     if (action === 'accept') {
+      // Nobody joins a cancelled/deleted event or one of a dead club (above).
+      const gone = acceptGoneBody(groupRes.rows[0]);
+      if (gone) return res.status(410).json(gone);
       // Re-verify the applicant still has a profile photo at acceptance time.
       // The gate on joinGroup only checks at REQUEST time, so without this a
       // member could slip in avatar-less two ways: (1) request with a photo,
@@ -2395,11 +2439,15 @@ export const bulkAcceptJoinRequests = async (req, res) => {
       : null;
 
     const groupRes = await db.query(
-      'SELECT owner_id, name FROM groups WHERE id = $1 AND deleted_at IS NULL',
+      `SELECT g.owner_id, g.name, ${ACCEPT_LIVENESS_SQL} FROM groups g WHERE g.id = $1 AND g.deleted_at IS NULL`,
       [id]
     );
     if (groupRes.rows.length === 0) return res.status(404).json({ error: 'Gruppe nicht gefunden' });
     if (Number(groupRes.rows[0].owner_id) !== Number(req.userId)) return res.status(403).json({ error: 'Keine Berechtigung' });
+    // The single accept's rule (16.11.2026): nobody into a cancelled event or
+    // one whose club is gone.
+    const gone = acceptGoneBody(groupRes.rows[0]);
+    if (gone) return res.status(410).json(gone);
     const gname = groupRes.rows[0].name;
 
     // Owner's pending_request_count changes → bust their chat-list cache.
@@ -2936,7 +2984,8 @@ export const inviteMember = async (req, res) => {
 // ── Push helpers (fire-and-forget) ──────────────────────────────────────────
 // `deepLink` defaults to the per-group requests page (owner flow). Club
 // co-managers are NOT the owner, so getJoinRequests would 403 them there —
-// clubController passes '/chats' (the aggregated Anfragen tab) for them (Batch 3).
+// clubController passes '/chats?tab=anfragen' (the aggregated swipe deck) for
+// them (Batch 3; plain '/chats' opened the Chats tab until 16.11.2026).
 export async function notifyJoinRequest(requesterUserId, recipientUserId, groupName, groupId, deepLink = `/group/${groupId}/requests`) {
   try {
     // Requester name + RECIPIENT's app language in one round trip — the push must

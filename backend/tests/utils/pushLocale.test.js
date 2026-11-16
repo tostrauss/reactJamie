@@ -289,6 +289,20 @@ describe('pushTexts', () => {
       expect(pushTexts('reviewNudge', { groupName: 'Bar Abend' })('en').title).toBe('How was "Bar Abend"?');
     });
   });
+
+  // Ziel 4 (Tina, 16.11.2026): being let into a private event is the moment
+  // „anfragen“ pays off — as celebratory as the host's „🎉 X will dabei sein!“.
+  describe('joinAccepted', () => {
+    it('celebrates and names the group or event, in all five languages', () => {
+      const b = pushTexts('joinAccepted', { name: 'Punsch Night' });
+      expect(b('de')).toEqual({ title: '🎉 Du bist dabei!', body: 'Deine Anfrage für „Punsch Night“ wurde angenommen' });
+      expect(b('en')).toEqual({ title: "🎉 You're in!", body: 'Your request for "Punsch Night" was accepted' });
+      expect(b('it')).toEqual({ title: '🎉 Sei dentro!', body: 'La tua richiesta per "Punsch Night" è stata accettata' });
+      expect(b('fr')).toEqual({ title: '🎉 Tu en es !', body: 'Ta demande pour « Punsch Night » a été acceptée' });
+      expect(b('es')).toEqual({ title: '🎉 ¡Estás dentro!', body: 'Tu solicitud para "Punsch Night" ha sido aceptada' });
+      expect(b('pt').title).toBe('🎉 Du bist dabei!');
+    });
+  });
 });
 
 // Voice messages store a URL in `content`, so every push surface shows a label

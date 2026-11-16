@@ -1568,8 +1568,10 @@ suite('write endpoints against real Postgres', () => {
       expect(row).not.toHaveProperty('date_of_birth');
       // created_at / updated_at are the request's own timestamps; no OTHER
       // value may be a date under some new alias (DATE columns come back as
-      // 'YYYY-MM-DD' strings — database.js pins OID 1082).
-      const { created_at, updated_at, ...rest } = row;  // eslint-disable-line no-unused-vars
+      // 'YYYY-MM-DD' strings — database.js pins OID 1082). group_date is let
+      // through deliberately (deck band, 16.11.2026): it is the EVENT's date,
+      // not a birth date — the asker's age stays the only thing about them.
+      const { created_at, updated_at, group_date, ...rest } = row;  // eslint-disable-line no-unused-vars
       for (const [k, v] of Object.entries(rest)) {
         expect(v instanceof Date, k).toBe(false);
         if (typeof v === 'string') expect(v, k).not.toMatch(/^\d{4}-\d{2}-\d{2}$/);
@@ -5858,6 +5860,110 @@ suite('write endpoints against real Postgres', () => {
       expect((await feed())[ev]).toBe(true);
       ok(await call(C.classifyClub, { userId: A, params: { id: String(later) }, body: { club_type: 'community' } }));
       expect((await feed())[ev]).toBe(false);
+    });
+  });
+
+  // ── Anfragen-Deck (Ziel 4, Tina 16.11.2026) ─────────────────────────────
+  // The card gets what it needs to say what it is while it is swiped, and the
+  // deck holds only requests that can still be answered. Accepting into an
+  // event that no longer happens is refused on every path.
+  describe('Anfragen deck: what the card needs, only what can still be answered (16.11.2026)', () => {
+    const vienna = `(NOW() AT TIME ZONE 'Europe/Vienna')`;
+    const clubImage = 'https://app.jamie-app.com/media/uploads/club.webp';
+    let host, asker;
+    const G = {};   // the entities, by case
+    const R = {};   // the request ids, by case
+    const mkU = async (email, name) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+       VALUES ($1,$2,'1993-03-03','female',$3, TRUE, 'email') RETURNING id`, [email, name, avatar])).rows[0].id;
+    const mk = async ({ name, type = 'group', dateSql = 'NULL', recurring = false, active = true,
+      isPrivate = true, clubType = null, parent = null, image = null }) => (await db.query(
+      `INSERT INTO groups (name, type, owner_id, category, location, max_members, date, is_recurring_weekly,
+                           is_active, is_private, approval_status, club_type, parent_club_id, image_url)
+       VALUES ($1,$2,$3,'Sport','Wien',20, ${dateSql}, $4, $5, $6, 'approved', $7, $8, $9) RETURNING id`,
+      [name, type, host, recurring, active, isPrivate, clubType, parent, image])).rows[0].id;
+    const ask = async (gid, rejected = 0) => (await db.query(
+      `INSERT INTO group_join_requests (group_id, user_id, status, rejected_count)
+       VALUES ($1,$2,'pending',$3) RETURNING id`, [gid, asker, rejected])).rows[0].id;
+    const deck = async () => {
+      const res = await call(C.getAllJoinRequests, { userId: host });
+      ok(res);
+      return res.body;
+    };
+    const isMember = async (gid) => (await db.query(
+      'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [gid, asker])).rowCount === 1;
+
+    it('seed: one host, one asker, one request per case', async () => {
+      host = await mkU('smoke-deck-host@x.com', 'Hanna');
+      asker = await mkU('smoke-deck-asker@x.com', 'Ari');
+      G.live = await mk({ name: 'Deck Live', dateSql: `${vienna} + INTERVAL '5 days'` });
+      G.cancelled = await mk({ name: 'Deck Abgesagt', dateSql: `${vienna} + INTERVAL '5 days'`, active: false });
+      G.past = await mk({ name: 'Deck Vorbei', dateSql: `${vienna} - INTERVAL '2 days'` });
+      G.weekly = await mk({ name: 'Deck Wöchentlich', dateSql: `${vienna} - INTERVAL '20 days'`, recurring: true });
+      // Started at 00:01 today — the deck keeps it until the Vienna day is over.
+      G.today = await mk({ name: 'Deck Heute', dateSql: `date_trunc('day', ${vienna}) + INTERVAL '1 minute'` });
+      // A club's date is a "next meetup", long past here — and nothing to do with the request.
+      G.club = await mk({ name: 'Deck Club', type: 'club', dateSql: `${vienna} - INTERVAL '30 days'`, clubType: 'official' });
+      G.pubClub = await mk({ name: 'Deck Partner-Club', type: 'club', isPrivate: false, clubType: 'official', image: clubImage });
+      G.clubEvent = await mk({ name: 'Deck Club-Event', type: 'event', dateSql: `${vienna} + INTERVAL '4 days'`, parent: G.pubClub });
+      G.deadClub = await mk({ name: 'Deck Club weg', type: 'club', isPrivate: false, clubType: 'community' });
+      G.deadEvent = await mk({ name: 'Deck Event ohne Club', type: 'event', dateSql: `${vienna} + INTERVAL '4 days'`, parent: G.deadClub });
+      await db.query('UPDATE groups SET deleted_at = NOW(), is_active = FALSE WHERE id = $1', [G.deadClub]);
+      G.closedClub = await mk({ name: 'Deck Club geschlossen', type: 'club', active: false, clubType: 'community' });
+      for (const k of ['cancelled', 'past', 'weekly', 'today', 'club', 'clubEvent', 'deadEvent', 'closedClub']) {
+        R[k] = await ask(G[k]);
+      }
+      R.live = await ask(G.live, 1); // turned down once before
+    });
+
+    it('lists only requests that can still be answered', async () => {
+      const ids = (await deck()).map((r) => r.id);
+      for (const k of ['live', 'weekly', 'today', 'club', 'clubEvent']) expect(ids, k).toContain(R[k]);
+      for (const k of ['cancelled', 'past', 'deadEvent', 'closedClub']) expect(ids, k).not.toContain(R[k]);
+    });
+
+    it('the card carries the date, the type and the club behind an event — and earlier refusals', async () => {
+      const cards = await deck();
+      const card = (k) => cards.find((r) => r.id === R[k]);
+      expect(card('clubEvent')).toMatchObject({
+        group_type: 'event', group_name: 'Deck Club-Event', group_recurring: false, group_club_type: null,
+        parent_club_id: G.pubClub, parent_club_name: 'Deck Partner-Club', parent_club_image: clubImage,
+        rejected_count: 0,
+      });
+      expect(card('clubEvent').group_date).toBeInstanceOf(Date);
+      expect(card('club')).toMatchObject({ group_type: 'club', group_club_type: 'official', parent_club_id: null, parent_club_name: null });
+      expect(card('weekly').group_recurring).toBe(true);
+      expect(card('live').rejected_count).toBe(1);
+    });
+
+    it('accepting into a cancelled event, an event of a dead club or a closed club: 410, nobody joins, still pending', async () => {
+      const single = await call(C.handleJoinRequest, { userId: host,
+        params: { id: String(G.cancelled), requestId: String(R.cancelled) }, body: { action: 'accept' } });
+      expect(single.statusCode).toBe(410);
+      expect(single.body.code).toBe('GROUP_GONE');
+      const bulk = await call(C.bulkAcceptJoinRequests, { userId: host, params: { id: String(G.cancelled) }, body: {} });
+      expect(bulk.statusCode).toBe(410);
+      const orphan = await call(C.handleJoinRequest, { userId: host,
+        params: { id: String(G.deadEvent), requestId: String(R.deadEvent) }, body: { action: 'accept' } });
+      expect(orphan.statusCode).toBe(410);
+      expect(orphan.body.code).toBe('CLUB_GONE');
+      const closed = await call(C.handleClubJoinRequest, { userId: host,
+        params: { id: String(G.closedClub), requestId: String(R.closedClub) }, body: { action: 'accept' } });
+      expect(closed.statusCode).toBe(410);
+      expect(closed.body.code).toBe('GROUP_GONE');
+      for (const k of ['cancelled', 'deadEvent', 'closedClub']) {
+        expect(await isMember(G[k]), k).toBe(false);
+        expect((await db.query('SELECT status FROM group_join_requests WHERE id = $1', [R[k]])).rows[0].status, k).toBe('pending');
+      }
+    });
+
+    it('where it still happens, accepting works as before', async () => {
+      ok(await call(C.handleJoinRequest, { userId: host,
+        params: { id: String(G.clubEvent), requestId: String(R.clubEvent) }, body: { action: 'accept' } }));
+      expect(await isMember(G.clubEvent)).toBe(true);
+      ok(await call(C.handleClubJoinRequest, { userId: host,
+        params: { id: String(G.club), requestId: String(R.club) }, body: { action: 'accept' } }));
+      expect(await isMember(G.club)).toBe(true);
     });
   });
 

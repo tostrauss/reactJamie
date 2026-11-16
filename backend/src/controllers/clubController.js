@@ -925,12 +925,15 @@ export const joinClub = async (req, res) => {
       }
       // Batch 3: co-managers (role='admin') review club requests too (the
       // Anfragen tab scopes to owned OR co-managed) — notify them as well, but
-      // deep-link to /chats: getJoinRequests 403s a non-owner on the per-group
-      // requests page. Fire-and-forget; their chat-list badge is busted too.
+      // deep-link to the deck: getJoinRequests 403s a non-owner on the
+      // per-group requests page. ?tab=anfragen since 16.11.2026 — plain
+      // /chats landed on the Chats tab, one tap short of the request (every
+      // bundle since 04.08. knows the tab). Fire-and-forget; their chat-list
+      // badge is busted too.
       db.query(`SELECT user_id FROM group_members WHERE group_id = $1 AND role = 'admin' AND user_id != $2`, [id, req.userId])
         .then(r => {
           for (const m of r.rows) {
-            notifyJoinRequest(req.userId, m.user_id, clubRow.name || '', id, '/chats').catch(() => {});
+            notifyJoinRequest(req.userId, m.user_id, clubRow.name || '', id, '/chats?tab=anfragen').catch(() => {});
             deleteCached(`user_groups:${m.user_id}`);
             req.app.get('io')?.to(`user_${m.user_id}`).emit('join_request_update', {
               group_id: Number(id), group_name: clubRow.name,
@@ -1254,8 +1257,12 @@ export const handleClubJoinRequest = async (req, res) => {
     const { id, requestId } = req.params;
     const { action } = req.body;
 
+    // is_live: a closed (cancelClub / rejectClub → is_active FALSE) or deleted
+    // club takes nobody in any more (16.11.2026) — mirrors
+    // groupController.handleJoinRequest, and the deck no longer lists those.
     const club = await db.query(
-      'SELECT owner_id, name FROM groups WHERE id = $1 AND type = $2',
+      `SELECT owner_id, name, (deleted_at IS NULL AND is_active IS TRUE) AS is_live
+         FROM groups WHERE id = $1 AND type = $2`,
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club not found' });
@@ -1276,6 +1283,13 @@ export const handleClubJoinRequest = async (req, res) => {
     deleteCached(`user_groups:${req.userId}`);
 
     if (action === 'accept') {
+      // Strict `=== false`: a row shape without the column keeps the old path.
+      if (club.rows[0].is_live === false) {
+        return res.status(410).json({
+          error: 'Dieser Club existiert nicht mehr. Die Anfrage kann nicht mehr angenommen werden.',
+          code: 'GROUP_GONE',
+        });
+      }
       // Re-verify the applicant still has a profile photo at acceptance time —
       // mirrors groupController.handleJoinRequest. The joinClub gate only runs
       // at REQUEST time, so this closes the TOCTOU hole (request with a photo,

@@ -11,6 +11,8 @@ const scenario = {
   avatarUrl: null,    // users.avatar_url for the join avatar gate
   allRequests: [],    // rows for the aggregated user/requests endpoint
   tierRows: [],       // rows of the Abzeichen-Stufen aggregate
+  liveRow: null,      // owner + liveness lookup of handleJoinRequest / bulk accept
+  request: null,      // the request row handleJoinRequest reads
 };
 
 vi.mock('../../src/config/database.js', () => ({
@@ -19,6 +21,12 @@ vi.mock('../../src/config/database.js', () => ({
       // FIRST: the tier aggregate is routed on its marker (utils/attendanceTiers.js).
       if (text.includes('attendance-tiers')) {
         return { rows: scenario.tierRows };
+      }
+      if (text.includes('AS is_live')) {
+        return { rows: scenario.liveRow ? [scenario.liveRow] : [] };
+      }
+      if (text.includes('SELECT user_id, status FROM group_join_requests')) {
+        return { rows: scenario.request ? [scenario.request] : [] };
       }
       if (text.includes('LEFT JOIN group_members gm ON gm.group_id = g.id')) {
         return { rows: scenario.groupRow ? [scenario.groupRow] : [] };
@@ -45,7 +53,9 @@ vi.mock('../../src/controllers/subscriptionController.js', () => ({
   isUserPro: vi.fn(async () => false),
 }));
 
-const { joinGroup, getAllJoinRequests } = await import('../../src/controllers/groupController.js');
+const {
+  joinGroup, getAllJoinRequests, handleJoinRequest, bulkAcceptJoinRequests,
+} = await import('../../src/controllers/groupController.js');
 const { setCached, getCached } = await import('../../src/utils/cache.js');
 
 const makeRes = () => {
@@ -69,6 +79,8 @@ beforeEach(() => {
   scenario.avatarUrl = null;
   scenario.allRequests = [];
   scenario.tierRows = [];
+  scenario.liveRow = null;
+  scenario.request = null;
   emitMock.mockClear();
   ioMock.to.mockClear();
 });
@@ -161,5 +173,81 @@ describe('getAllJoinRequests', () => {
     expect(call[0]).toContain("g.owner_id = $1");
     expect(call[0]).toContain("gm.role = 'admin'");
     expect(call[1]).toEqual([7]);
+  });
+
+  // Ziel 4 (Tina, 16.11.2026): the card says what it is while it is swiped.
+  it('carries the band fields — additively, the old ones untouched', async () => {
+    const { default: db } = await import('../../src/config/database.js');
+    await getAllJoinRequests({ userId: 7 }, makeRes());
+    const sql = db.query.mock.calls.find(c => c[0].includes('FROM group_join_requests jr'))[0];
+    for (const col of [
+      'g.date AS group_date', 'g.is_recurring_weekly AS group_recurring', 'g.club_type AS group_club_type',
+      'g.parent_club_id', 'pc.name AS parent_club_name', 'pc.image_url AS parent_club_image', 'jr.rejected_count',
+      // what old bundles route on and render
+      'g.name AS group_name', 'g.type AS group_type', 'u.name AS user_name',
+    ]) expect(sql).toContain(col);
+    expect(sql).toContain('LEFT JOIN groups pc ON pc.id = g.parent_club_id');
+    expect(sql).not.toContain('date_of_birth AS');
+  });
+
+  it('lists only requests that can still be answered', async () => {
+    const { default: db } = await import('../../src/config/database.js');
+    await getAllJoinRequests({ userId: 7 }, makeRes());
+    const sql = db.query.mock.calls.find(c => c[0].includes('FROM group_join_requests jr'))[0];
+    expect(sql).toContain('g.deleted_at IS NULL');
+    expect(sql).toContain('g.is_active = TRUE');                     // cancelled
+    // past one-off events by the Vienna DAY; weekly series and clubs (whose
+    // date is a "next meetup") never go past
+    expect(sql).toContain("g.date::date >= (NOW() AT TIME ZONE 'Europe/Vienna')::date");
+    expect(sql).toContain("g.type = 'club' OR g.date IS NULL OR g.is_recurring_weekly = TRUE");
+    // an event of a club that is gone
+    expect(sql).toContain("pc.approval_status = 'approved'");
+    expect(sql).toContain('pc.deleted_at IS NULL');
+  });
+});
+
+// Nobody is taken into a cancelled/deleted event or one whose club is gone
+// (16.11.2026) — the accept is refused before any transaction starts.
+describe('accepting into an event that no longer happens', () => {
+  const req = (action) => ({
+    params: { id: '1', requestId: '50' }, body: { action }, userId: 7,
+    app: { get: vi.fn(() => ioMock) },
+  });
+
+  it.each([
+    [{ owner_id: 7, name: 'Abgesagt', is_live: false, club_live: true }, 'GROUP_GONE'],
+    [{ owner_id: 7, name: 'Club weg', is_live: true, club_live: false }, 'CLUB_GONE'],
+  ])('handleJoinRequest accept → 410 %j', async (row, code) => {
+    const { default: db } = await import('../../src/config/database.js');
+    db.pool.connect.mockClear();
+    scenario.liveRow = row;
+    scenario.request = { user_id: 9, status: 'pending' };
+    const res = makeRes();
+    await handleJoinRequest(req('accept'), res);
+    expect(res.status).toHaveBeenCalledWith(410);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code }));
+    expect(db.pool.connect).not.toHaveBeenCalled();
+    const lookup = db.query.mock.calls.find(c => c[0].includes('AS is_live'))[0];
+    expect(lookup).toContain('g.is_active IS TRUE');
+    expect(lookup).toContain("pc.approval_status = 'approved'");
+  });
+
+  it('bulk "Alle annehmen" follows the same rule', async () => {
+    const { default: db } = await import('../../src/config/database.js');
+    db.pool.connect.mockClear();
+    scenario.liveRow = { owner_id: 7, name: 'Abgesagt', is_live: false, club_live: true };
+    const res = makeRes();
+    await bulkAcceptJoinRequests({ ...req('accept'), body: {} }, res);
+    expect(res.status).toHaveBeenCalledWith(410);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'GROUP_GONE' }));
+    expect(db.pool.connect).not.toHaveBeenCalled();
+  });
+
+  it('only the owner learns about it — a stranger still gets the plain 403', async () => {
+    scenario.liveRow = { owner_id: 3, name: 'Abgesagt', is_live: false, club_live: true };
+    scenario.request = { user_id: 9, status: 'pending' };
+    const res = makeRes();
+    await handleJoinRequest(req('accept'), res);
+    expect(res.status).toHaveBeenCalledWith(403);
   });
 });

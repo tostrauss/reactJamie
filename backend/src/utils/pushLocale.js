@@ -150,12 +150,15 @@ const PUSH_TEXTS = {
     fr: (p) => ({ title: 'Place libre !', body: `Une place s'est libérée dans "${p.groupName}"` }),
     es: (p) => ({ title: '¡Plaza libre!', body: `Se ha liberado una plaza en "${p.groupName}"` }),
   },
+  // The moment a private event pays off for the asker (Ziel 4, Tina
+  // 16.11.2026: „anfragen“ should feel exclusive) — as celebratory as the
+  // host's „🎉 X will dabei sein!“, no longer a dry receipt.
   joinAccepted: {
-    de: (p) => ({ title: 'Beitrittsanfrage akzeptiert', body: `Du bist jetzt Mitglied von "${p.name}"` }),
-    en: (p) => ({ title: 'Request accepted', body: `You are now a member of "${p.name}"` }),
-    it: (p) => ({ title: 'Richiesta accettata', body: `Ora sei membro di "${p.name}"` }),
-    fr: (p) => ({ title: 'Demande acceptée', body: `Tu es maintenant membre de "${p.name}"` }),
-    es: (p) => ({ title: 'Solicitud aceptada', body: `Ya eres miembro de "${p.name}"` }),
+    de: (p) => ({ title: '🎉 Du bist dabei!', body: `Deine Anfrage für „${p.name}“ wurde angenommen` }),
+    en: (p) => ({ title: "🎉 You're in!", body: `Your request for "${p.name}" was accepted` }),
+    it: (p) => ({ title: '🎉 Sei dentro!', body: `La tua richiesta per "${p.name}" è stata accettata` }),
+    fr: (p) => ({ title: '🎉 Tu en es !', body: `Ta demande pour « ${p.name} » a été acceptée` }),
+    es: (p) => ({ title: '🎉 ¡Estás dentro!', body: `Tu solicitud para "${p.name}" ha sido aceptada` }),
   },
   clubEvent: {
     de: (p) => ({ title: p.clubName, body: `Neues Event: ${p.eventName}` }),
