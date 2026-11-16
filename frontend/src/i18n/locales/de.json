@@ -1523,7 +1523,8 @@
       "restored": "Verbindung wiederhergestellt",
       "lost": "Verbindung unterbrochen – Wiederverbindung...",
       "failed": "Verbindung fehlgeschlagen. Bitte Seite neu laden.",
-      "offline": "Keine Internetverbindung"
+      "offline": "Keine Internetverbindung",
+      "offlineHide": "Hinweis „Keine Internetverbindung“ ausblenden"
     },
     "install": {
       "title": "JAMIE installieren",

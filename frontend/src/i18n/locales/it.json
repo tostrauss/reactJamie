@@ -1523,7 +1523,8 @@
       "restored": "Connessione ripristinata",
       "lost": "Connessione persa – riconnessione...",
       "failed": "Connessione fallita. Ricarica la pagina.",
-      "offline": "Nessuna connessione a Internet"
+      "offline": "Nessuna connessione a Internet",
+      "offlineHide": "Nascondi l'avviso «Nessuna connessione a Internet»"
     },
     "install": {
       "title": "Installa JAMIE",

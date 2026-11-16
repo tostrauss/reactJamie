@@ -1517,6 +1517,15 @@ select:focus {
   animation: slideDown 0.3s ease;
 }
 
+/* Its always-mounted live region (NetworkContext.jsx OfflineStatus), on top
+   of .sr-only: fixed, so the 1 px box at the end of #root can never make the
+   document taller than the screen (the .pe-order-bar lesson, 10.10.2026). */
+.offline-status {
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
 @keyframes slideDown {
   from { transform: translateY(-100%); }
   to { transform: translateY(0); }

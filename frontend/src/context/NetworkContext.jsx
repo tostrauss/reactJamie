@@ -25,8 +25,23 @@ export const NetworkProvider = ({ children }) => {
   return (
     <NetworkContext.Provider value={{ isOnline }}>
       {children}
+      <OfflineStatus isOnline={isOnline} />
       {!isOnline && <OfflineBanner />}
     </NetworkContext.Provider>
+  );
+};
+
+// What a screen reader says (review 16.11.2026). Always mounted, like
+// .toast-container: a live region that appears together with its text is
+// often not announced at all by VoiceOver/TalkBack. Empty while online; once
+// per offline spell it reads „Keine Internetverbindung“, whatever happens to
+// the banner. Visually hidden (global.css .offline-status).
+const OfflineStatus = ({ isOnline }) => {
+  const { t } = useTranslation();
+  return (
+    <div className="sr-only offline-status" role="status" aria-live="polite">
+      {isOnline ? '' : t('app.connection.offline')}
+    </div>
   );
 };
 
@@ -62,15 +77,25 @@ const OfflineBanner = () => {
 
   if (dismissed) return null;
 
+  // A button for keyboards and screen readers too (review 16.11.2026): Enter
+  // or Space closes it like a tap, and its name says so. The announcement is
+  // OfflineStatus's — a button cannot be a live region as well.
   return (
     <div
       ref={ref}
       className="offline-banner"
-      role="status"
-      aria-live="polite"
+      role="button"
+      tabIndex={0}
+      aria-label={t('app.connection.offlineHide')}
       {...handlers}
       // A tap works too — the one-finger alternative to the swipe.
       onClick={() => setDismissed(true)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          setDismissed(true);
+        }
+      }}
     >
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <line x1="1" y1="1" x2="23" y2="23"/>

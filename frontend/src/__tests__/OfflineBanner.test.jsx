@@ -5,11 +5,16 @@ import { NetworkProvider } from '../context/NetworkContext';
 // „Keine Internetverbindung" swipes up (or taps) away — for the current
 // offline spell only (Tina 16.11.2026). While it shows, <html> carries
 // data-offline-banner + its height so the toasts start below it.
+// Since the review of 16.11.2026 the banner is a button (keyboard and screen
+// reader close it too) and the announcement comes from a live region that is
+// always mounted — the same text is then on screen twice, so the banner is
+// looked up by its class.
 
 const OFFLINE = 'Keine Internetverbindung';
+const HIDE = 'Hinweis „Keine Internetverbindung“ ausblenden';
 const goOffline = () => act(() => { window.dispatchEvent(new Event('offline')); });
 const goOnline = () => act(() => { window.dispatchEvent(new Event('online')); });
-const banner = () => screen.queryByText(OFFLINE)?.closest('.offline-banner') ?? null;
+const banner = () => document.querySelector('.offline-banner');
 const root = document.documentElement;
 
 const swipeUp = (el) => {
@@ -28,15 +33,52 @@ afterEach(() => {
 });
 
 describe('offline banner', () => {
-  it('shows on „offline" as a status message and lifts the toasts below it', () => {
+  it('shows on „offline" and lifts the toasts below it', () => {
     render(<NetworkProvider><div /></NetworkProvider>);
     expect(banner()).toBeNull();
     expect(root.hasAttribute('data-offline-banner')).toBe(false);
 
     goOffline();
-    expect(banner()).toHaveAttribute('role', 'status');
+    expect(banner()).toHaveTextContent(OFFLINE);
     expect(root.hasAttribute('data-offline-banner')).toBe(true);
     expect(root.style.getPropertyValue('--offline-banner-h')).toMatch(/px$/);
+  });
+
+  it('is announced by a live region that is there from the start, not only with its text', () => {
+    render(<NetworkProvider><div /></NetworkProvider>);
+    const region = screen.getByRole('status');
+    expect(region).toHaveAttribute('aria-live', 'polite');
+    expect(region).toHaveClass('sr-only', 'offline-status');
+    expect(region).toBeEmptyDOMElement();
+
+    goOffline();
+    expect(screen.getByRole('status')).toBe(region);
+    expect(region).toHaveTextContent(OFFLINE);
+    goOnline();
+    expect(region).toBeEmptyDOMElement();
+  });
+
+  it('is a button that says what it does — Enter or Space hides it', () => {
+    render(<NetworkProvider><div /></NetworkProvider>);
+    goOffline();
+    const btn = screen.getByRole('button', { name: HIDE });
+    expect(btn).toBe(banner());
+    expect(btn).toHaveAttribute('tabindex', '0');
+    fireEvent.keyDown(btn, { key: 'Enter' });
+    expect(banner()).toBeNull();
+    expect(root.hasAttribute('data-offline-banner')).toBe(false);
+
+    goOnline();
+    goOffline();
+    fireEvent.keyDown(banner(), { key: ' ' });
+    expect(banner()).toBeNull();
+  });
+
+  it('other keys leave it alone', () => {
+    render(<NetworkProvider><div /></NetworkProvider>);
+    goOffline();
+    fireEvent.keyDown(banner(), { key: 'Tab' });
+    expect(banner()).not.toBeNull();
   });
 
   it('a swipe up hides it for this offline spell; the next one shows it again', () => {
