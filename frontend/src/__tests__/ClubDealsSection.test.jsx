@@ -100,6 +100,19 @@ describe('ClubDealsSection — the list', () => {
     }
   });
 
+  // Review 16.11.2026: French counts 0 as „one“ (CLDR) — a new deal read
+  // „Utilisé une fois“.
+  it('French: a deal nobody has redeemed yet reads „Utilisé 0 fois“', async () => {
+    const { switchLanguage } = await import('../i18n');
+    await switchLanguage('fr');
+    try {
+      await renderSection({ rows: [deal({ redemption_count: 0, round_redemption_count: 0 })] });
+      expect(screen.getByText(/Utilisé 0 fois$/)).toBeInTheDocument();
+    } finally {
+      await switchLanguage('de');
+    }
+  });
+
   it('no deals yet: a line saying so and „Deal anlegen“', async () => {
     await renderSection({ rows: [] });
     expect(screen.getByText('Noch keine Deals.')).toBeInTheDocument();

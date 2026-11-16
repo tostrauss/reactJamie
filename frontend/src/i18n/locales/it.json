@@ -2185,6 +2185,7 @@
         "noDeal": "Nessun deal",
         "none": "Il tuo club non ha ancora deal. Creali in Modifica club → Deal.",
         "jamieNote": "A questo evento è collegato un deal di JAMIE: {{name}}. Solo il team JAMIE può cambiarlo.",
+        "jamieNoteUnseen": "A questo evento è collegato un deal di JAMIE. Solo il team JAMIE può cambiarlo.",
         "toast": {
           "attached": "Il deal ora è all’evento",
           "attachedHidden": "Collegato – ma ora non visibile all’evento (scaduto o limite raggiunto)",
@@ -2255,6 +2256,7 @@
     "redeemConfirmNo": "Annulla",
     "redeemError": "Riscatto non riuscito. Riprova.",
     "soldOutCTA": "Esaurito",
+    "goneCTA": "Non più disponibile",
     "soldOutToast": "Peccato, questo deal è già esaurito.",
     "goneToast": "Questo deal non è più disponibile.",
     "redeemPage": {

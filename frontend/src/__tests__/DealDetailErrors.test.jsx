@@ -72,12 +72,15 @@ describe('DealDetail — a deal that is gone says so', () => {
     expect(screen.getByRole('button', { name: 'Ausverkauft' })).toBeDisabled();
   });
 
-  it('404 on redeeming: „nicht mehr verfügbar“ instead of „bitte erneut versuchen“', async () => {
+  it('404 on redeeming: „nicht mehr verfügbar“ instead of „bitte erneut versuchen“ — and the button says so', async () => {
     deals.redeem.mockRejectedValue({ response: { status: 404, data: { error: 'Deal not found' } } });
     renderPage();
     await confirmRedeem();
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Dieser Deal ist nicht mehr verfügbar.'));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    // review 16.11.2026: it stayed coral and led to the same error on every tap
+    expect(screen.getByRole('button', { name: 'Nicht mehr verfügbar' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Jetzt einlösen' })).not.toBeInTheDocument();
   });
 
   it('any other redeem failure keeps the generic retry message', async () => {

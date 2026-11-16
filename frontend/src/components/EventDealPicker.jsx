@@ -27,6 +27,10 @@ export default function EventDealPicker({ clubId, eventId, shownDeal }) {
   const [deals, setDeals] = useState(null);     // null: loading, or not for this viewer
   const [current, setCurrent] = useState(null); // id of the club's deal on this event
   const [busy, setBusy] = useState(false);
+  // JAMIE's deal on the event while the page cannot see it — expired or sold
+  // out, so the event page embeds none and `shownDeal` is null: the server's
+  // 409 DEAL_SET_BY_JAMIE tells (review 16.11.2026).
+  const [jamieUnseen, setJamieUnseen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,6 +70,7 @@ export default function EventDealPicker({ clubId, eventId, shownDeal }) {
       else toast.warning(t('groupEdit.deals.event.toast.attachedHidden'));
     } catch (err) {
       if (err.response?.data?.code === 'PRO_REQUIRED') askForClubDealsPro(t, toast);
+      else if (err.response?.data?.code === 'DEAL_SET_BY_JAMIE') setJamieUnseen(true);
       else toast.error(err.response?.data?.error || t('groupEdit.deals.event.toast.error'));
     } finally {
       setBusy(false);
@@ -97,6 +102,8 @@ export default function EventDealPicker({ clubId, eventId, shownDeal }) {
         <div className="ge-field">
           {jamieDeal ? (
             <p className="ge-hint ge-event-deal-note">{t('groupEdit.deals.event.jamieNote', { name: jamieDeal.name })}</p>
+          ) : jamieUnseen ? (
+            <p className="ge-hint ge-event-deal-note">{t('groupEdit.deals.event.jamieNoteUnseen')}</p>
           ) : choices.length === 0 ? (
             <p className="ge-hint ge-event-deal-note">{t('groupEdit.deals.event.none')}</p>
           ) : (

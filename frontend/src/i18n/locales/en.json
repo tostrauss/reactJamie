@@ -2185,6 +2185,7 @@
         "noDeal": "No deal",
         "none": "Your club has no deals yet. Add them under Edit club → Deals.",
         "jamieNote": "A deal from JAMIE is on this event: {{name}}. Only the JAMIE team can change it.",
+        "jamieNoteUnseen": "A deal from JAMIE is on this event. Only the JAMIE team can change it.",
         "toast": {
           "attached": "The deal is now on the event",
           "attachedHidden": "Attached – but not visible on the event right now (expired or limit reached)",
@@ -2255,6 +2256,7 @@
     "redeemConfirmNo": "Cancel",
     "redeemError": "Could not redeem. Please try again.",
     "soldOutCTA": "Sold out",
+    "goneCTA": "No longer available",
     "soldOutToast": "Sorry, this deal is already sold out.",
     "goneToast": "This deal is no longer available.",
     "redeemPage": {

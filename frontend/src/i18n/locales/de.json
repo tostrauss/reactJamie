@@ -2185,6 +2185,7 @@
         "noDeal": "Kein Deal",
         "none": "Dein Club hat noch keine Deals. Leg sie unter Club bearbeiten → Deals an.",
         "jamieNote": "An diesem Event hängt ein Deal von JAMIE: {{name}}. Den kann nur das JAMIE-Team ändern.",
+        "jamieNoteUnseen": "An diesem Event hängt ein Deal von JAMIE. Den kann nur das JAMIE-Team ändern.",
         "toast": {
           "attached": "Deal hängt jetzt am Event",
           "attachedHidden": "Angehängt – am Event aber gerade nicht sichtbar (abgelaufen oder Limit erreicht)",
@@ -2255,6 +2256,7 @@
     "redeemConfirmNo": "Abbrechen",
     "redeemError": "Einlösen fehlgeschlagen. Bitte erneut versuchen.",
     "soldOutCTA": "Ausverkauft",
+    "goneCTA": "Nicht mehr verfügbar",
     "soldOutToast": "Dieser Deal ist leider schon ausverkauft.",
     "goneToast": "Dieser Deal ist nicht mehr verfügbar.",
     "redeemPage": {

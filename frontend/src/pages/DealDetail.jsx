@@ -74,6 +74,10 @@ export const DealDetail = () => {
   // The server answered 410 DEAL_SOLD_OUT: the deal's redemption cap is
   // reached. The CTA says so instead of offering a redeem that cannot work.
   const [soldOut, setSoldOut] = useState(false);
+  // …or 404 while the page was open: switched off or run out meanwhile — the
+  // same, „nicht mehr verfügbar“ (review 16.11.2026; the CTA stayed coral and
+  // led to the same error on every tap).
+  const [gone, setGone] = useState(false);
 
   useEffect(() => {
     // Two independent fetches: ONLY the deal payload gates render. The
@@ -140,6 +144,7 @@ export const DealDetail = () => {
       }
       if (err.response?.status === 404) {
         setShowConfirm(false);
+        setGone(true);
         toast.error(t('deal.goneToast'));
         return;
       }
@@ -264,15 +269,18 @@ export const DealDetail = () => {
           // active: redeemed → the button opens the shop.
           const voucherLocked = redeemed && !isAdmin && !bookingUrl;
           const shopAfterRedeem = redeemed && !!bookingUrl;
-          // Sold out (410) or wrong weekday: greyed out, nothing to tap.
+          // Sold out (410), gone (404) or wrong weekday: greyed out, nothing to tap.
           const soldOutNow = soldOut && !redeemed;
-          const blocked = blockedByDay || soldOutNow;
+          const goneNow = gone && !redeemed;
+          const blocked = blockedByDay || soldOutNow || goneNow;
           const label = redeemed
             ? (bookingUrl
                 ? t('deal.ticketShopCTA', { defaultValue: 'Zum Ticketshop 🎟' })
                 : isAdmin ? t('deal.viewVoucherCTA') : redeemedLabel)
             : soldOutNow
             ? t('deal.soldOutCTA')
+            : goneNow
+            ? t('deal.goneCTA')
             : blockedByDay
             ? t('deal.onlyDaysCTA', { days: daysLabel, defaultValue: 'Nur {{days}} einlösbar' })
             : t('deal.redeemCTA');

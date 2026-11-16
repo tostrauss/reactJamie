@@ -129,13 +129,24 @@ describe('EventDealPicker', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('the server\'s reason when it refuses the change (e.g. JAMIE\'s deal there meanwhile)', async () => {
+  // Review 16.11.2026: JAMIE's deal there but out of sight (expired, sold out —
+  // the event page embeds none): the 409 switches to the note, no error toast.
+  it('JAMIE\'s deal there unseen (409 DEAL_SET_BY_JAMIE): the note instead of the chips, no error', async () => {
     deals.setEventDeal.mockRejectedValue({ response: { status: 409, data: { code: 'DEAL_SET_BY_JAMIE',
       error: 'An diesem Event hängt ein Deal von JAMIE. Den kann nur das JAMIE-Team ändern.' } } });
     await renderPicker();
     fireEvent.click(await screen.findByRole('button', { name: '2 für 1' }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(
-      'An diesem Event hängt ein Deal von JAMIE. Den kann nur das JAMIE-Team ändern.'));
+    expect(await screen.findByText('An diesem Event hängt ein Deal von JAMIE. Den kann nur das JAMIE-Team ändern.'))
+      .toHaveClass('ge-event-deal-note');
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: '2 für 1' })).not.toBeInTheDocument();
+  });
+
+  it('any other refusal: the server\'s reason, the chips stay', async () => {
+    deals.setEventDeal.mockRejectedValue({ response: { status: 500, data: { error: 'Internal server error' } } });
+    await renderPicker();
+    fireEvent.click(await screen.findByRole('button', { name: '2 für 1' }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Internal server error'));
     expect(chip('2 für 1')).toHaveAttribute('aria-pressed', 'false');
   });
 });

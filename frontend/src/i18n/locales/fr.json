@@ -2133,7 +2133,7 @@
       "untilFmt": "Visible jusqu’au {{date}}",
       "expiredFmt": "Expiré le {{date}}",
       "capReached": "Limite atteinte – hors ligne",
-      "redemptions_one": "Utilisé une fois",
+      "redemptions_one": "Utilisé {{count}} fois",
       "redemptions_other": "Utilisé {{count}} fois",
       "atEvents": "📍 {{names}}",
       "fields": {
@@ -2185,6 +2185,7 @@
         "noDeal": "Aucun deal",
         "none": "Ton club n’a pas encore de deals. Crée-les sous Modifier le club → Deals.",
         "jamieNote": "Un deal de JAMIE est attaché à cet événement : {{name}}. Seule l’équipe JAMIE peut le changer.",
+        "jamieNoteUnseen": "Un deal de JAMIE est attaché à cet événement. Seule l’équipe JAMIE peut le changer.",
         "toast": {
           "attached": "Le deal est maintenant à l’événement",
           "attachedHidden": "Attaché – mais pas visible à l’événement pour l’instant (expiré ou limite atteinte)",
@@ -2255,6 +2256,7 @@
     "redeemConfirmNo": "Annuler",
     "redeemError": "Échec de l'utilisation. Réessaie, s'il te plaît.",
     "soldOutCTA": "Épuisé",
+    "goneCTA": "Plus disponible",
     "soldOutToast": "Dommage, cette offre est déjà épuisée.",
     "goneToast": "Cette offre n'est plus disponible.",
     "redeemPage": {

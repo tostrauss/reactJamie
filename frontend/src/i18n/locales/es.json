@@ -2185,6 +2185,7 @@
         "noDeal": "Sin deal",
         "none": "Tu club todavía no tiene deals. Créalos en Editar club → Deals.",
         "jamieNote": "Este evento tiene un deal de JAMIE: {{name}}. Solo el equipo de JAMIE puede cambiarlo.",
+        "jamieNoteUnseen": "Este evento tiene un deal de JAMIE. Solo el equipo de JAMIE puede cambiarlo.",
         "toast": {
           "attached": "El deal ya está en el evento",
           "attachedHidden": "Añadido, pero ahora no se ve en el evento (caducado o límite alcanzado)",
@@ -2255,6 +2256,7 @@
     "redeemConfirmNo": "Cancelar",
     "redeemError": "Error al canjear. Inténtalo de nuevo.",
     "soldOutCTA": "Agotado",
+    "goneCTA": "Ya no disponible",
     "soldOutToast": "Lo sentimos, esta oferta ya está agotada.",
     "goneToast": "Esta oferta ya no está disponible.",
     "redeemPage": {
