@@ -1,11 +1,11 @@
 import { useEffect, useId, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../context/ToastContext';
 import { groups as groupsApi } from '../utils/api';
 import { eventDateLocale, formatEventDate } from '../utils/eventDate';
 import { utcDayStart, viennaTodayUTC } from '../utils/recurrence';
-import StarIcon from './StarIcon';
+import PartnerBadge from './PartnerBadge';
 
 // Rows in view before „Alle anzeigen (N)“ — the server sends at most 30.
 const FIRST_ROWS = 3;
@@ -25,7 +25,8 @@ const kindOf = (row) => row.kind || (row.is_partner ? 'partner' : row.type === '
 // „Gruppe · 8/20“ under it. Own entries are framed in the partner yellow and
 // carry the coral counter of open requests the old hub's chip used to show.
 // „Zum Chat“ on every row; the chat's back button then leads to the profile
-// again (state.from, see ChatPage). A tap on the row opens the event.
+// again, on the tab it was on (state.from, see ChatPage). A tap on the row
+// opens the event.
 //
 // „Events bearbeiten“ — only when at least one entry may be edited (can_edit,
 // the edit endpoints' own rule): those rows wiggle and a tap opens their edit
@@ -34,6 +35,7 @@ const kindOf = (row) => row.kind || (row.is_partner ? 'partner' : row.type === '
 // (see ProfileClubBubbles): `editing` in, `onEditingChange` out.
 export default function ProfileUpcomingEvents({ editing = false, onEditingChange }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const { t, i18n } = useTranslation();
   const uid = useId();
@@ -93,11 +95,7 @@ export default function ProfileUpcomingEvents({ editing = false, onEditingChange
             </span>
             <span className="profile-upcoming-sub">
               {kind === 'partner' ? (
-                <span className="profile-upcoming-partner">
-                  <StarIcon size={11} strokeWidth="2.4" strokeLinejoin="round" />
-                  <span aria-hidden="true">{t('groups.card.partnerBadge')}</span>
-                  <span className="sr-only">{t('groups.card.partnerAria')}</span>
-                </span>
+                <PartnerBadge variant="inline" />
               ) : (
                 <span>{t(kind === 'community' ? 'profile.upcoming.typeCommunity' : 'profile.upcoming.typeGroup')}</span>
               )}
@@ -118,7 +116,7 @@ export default function ProfileUpcomingEvents({ editing = false, onEditingChange
             type="button"
             className="profile-upcoming-requests"
             onClick={() => navigate('/chats?tab=anfragen')}
-            aria-label={t('profile.clubs.requestsAria', { count: requests })}
+            aria-label={t('profile.clubs.requestsAria', { count: requests, name: row.name })}
           >
             {requests > 99 ? '99+' : requests}
           </button>
@@ -127,7 +125,8 @@ export default function ProfileUpcomingEvents({ editing = false, onEditingChange
           <button
             type="button"
             className="profile-upcoming-chat"
-            onClick={() => navigate(`/chat/${row.id}`, { state: { from: '/profile' } })}
+            // The card shows on both profile tabs — back to the one it was on.
+            onClick={() => navigate(`/chat/${row.id}`, { state: { from: location.pathname + location.search } })}
             aria-label={t('profile.upcoming.chatAria', { name: row.name })}
           >
             {t('profile.upcoming.toChat')}
@@ -156,7 +155,6 @@ export default function ProfileUpcomingEvents({ editing = false, onEditingChange
             type="button"
             className={`profile-section-action${editing ? ' is-active' : ''}`}
             onClick={() => onEditingChange?.(!editing)}
-            aria-pressed={editing}
           >
             {editing ? t('profile.upcoming.done') : t('profile.upcoming.edit')}
           </button>

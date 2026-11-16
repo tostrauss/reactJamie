@@ -1128,8 +1128,8 @@
       "ownAria": "Created by you",
       "partnerAria": "JAMIE partner",
       "pendingAria": "Still under review",
-      "requestsAria_one": "{{count}} open request",
-      "requestsAria_other": "{{count}} open requests",
+      "requestsAria_one": "{{count}} open request for “{{name}}”",
+      "requestsAria_other": "{{count}} open requests for “{{name}}”",
       "ownLockedClub": "You created this club! Keep it visible",
       "ownLockedCommunity": "You created this community! Keep it visible",
       "saveError": "Couldn’t save the order – please try again"

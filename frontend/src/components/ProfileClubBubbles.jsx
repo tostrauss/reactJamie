@@ -173,7 +173,7 @@ export default function ProfileClubBubbles({ sorting = false, onSortingChange })
             type="button"
             className="profile-club-requests"
             onClick={() => navigate('/chats?tab=anfragen')}
-            aria-label={t('profile.clubs.requestsAria', { count: requests })}
+            aria-label={t('profile.clubs.requestsAria', { count: requests, name: club.name })}
           >
             {requests > 99 ? '99+' : requests}
           </button>
@@ -193,7 +193,6 @@ export default function ProfileClubBubbles({ sorting = false, onSortingChange })
             type="button"
             className={`profile-section-action${sorting ? ' is-active' : ''}`}
             onClick={() => onSortingChange?.(!sorting)}
-            aria-pressed={sorting}
           >
             {sorting ? t('profile.clubs.done') : t('profile.clubs.sort')}
           </button>
@@ -205,11 +204,13 @@ export default function ProfileClubBubbles({ sorting = false, onSortingChange })
       </ul>
       {sorting && (pickedClub ? (
         <div className="profile-clubs-move" role="group" aria-label={t('profile.clubs.moveAria', { name: pickedClub.name })}>
+          {/* At the row's end aria-disabled, not disabled: the arrow keeps the
+              focus it has (review 16.11.2026) — move() ignores the tap. */}
           <button
             type="button"
             className="pe-order-btn pe-order-btn--icon"
             onClick={() => move(pickedClub.id, pickedIndex - 1)}
-            disabled={pickedIndex === 0}
+            aria-disabled={pickedIndex === 0}
             aria-label={t('profile.clubs.moveEarlier')}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
@@ -221,7 +222,7 @@ export default function ProfileClubBubbles({ sorting = false, onSortingChange })
             type="button"
             className="pe-order-btn pe-order-btn--icon"
             onClick={() => move(pickedClub.id, pickedIndex + 1)}
-            disabled={pickedIndex === sortable.length - 1}
+            aria-disabled={pickedIndex === sortable.length - 1}
             aria-label={t('profile.clubs.moveLater')}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">

@@ -1128,8 +1128,8 @@
       "ownAria": "Créé par toi",
       "partnerAria": "Partenaire JAMIE",
       "pendingAria": "En cours de vérification",
-      "requestsAria_one": "{{count}} demande en attente",
-      "requestsAria_other": "{{count}} demandes en attente",
+      "requestsAria_one": "{{count}} demande en attente pour « {{name}} »",
+      "requestsAria_other": "{{count}} demandes en attente pour « {{name}} »",
       "ownLockedClub": "Tu as créé ce club ! Laisse-le visible",
       "ownLockedCommunity": "Tu as créé cette communauté ! Laisse-la visible",
       "saveError": "Impossible d'enregistrer l'ordre – réessaie"

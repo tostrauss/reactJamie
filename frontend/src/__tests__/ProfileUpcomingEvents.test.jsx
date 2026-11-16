@@ -55,10 +55,10 @@ function Harness() {
   return <ProfileUpcomingEvents editing={editing} onEditingChange={setEditing} />;
 }
 
-const renderUpcoming = async (rows = ROWS) => {
+const renderUpcoming = async (rows = ROWS, entry = '/profile') => {
   api.groups.getUpcoming.mockResolvedValue({ data: rows.map((r) => ({ ...r })) });
   const utils = render(
-    <MemoryRouter initialEntries={['/profile']}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/profile" element={<Harness />} />
         <Route path="*" element={<Where />} />
@@ -130,7 +130,8 @@ describe('ProfileUpcomingEvents — the list', () => {
   it('subline per type: ☆ Partner, Community, Gruppe · x/y — the screen reader hears the participants phrase', async () => {
     await renderUpcoming();
     const sub = (name) => item(name).querySelector('.profile-upcoming-sub');
-    const partner = sub('Spieleabend').querySelector('.profile-upcoming-partner');
+    // the one ☆ Partner look (PartnerBadge), inline in the subline — review 16.11.2026
+    const partner = sub('Spieleabend').querySelector('.partner-badge.partner-badge--inline');
     expect(partner).toBeTruthy();
     expect(partner.querySelector('svg polygon')).toBeTruthy();                 // ☆
     expect(within(partner).getByText('Partner').getAttribute('aria-hidden')).toBe('true');
@@ -138,7 +139,7 @@ describe('ProfileUpcomingEvents — the list', () => {
     expect(within(sub('Spieleabend')).getByText('· 8/20').getAttribute('aria-hidden')).toBe('true');
     expect(within(sub('Spieleabend')).getByText('8/20 Teilnehmer').classList.contains('sr-only')).toBe(true);
 
-    expect(sub('Laufrunde').querySelector('.profile-upcoming-partner')).toBeNull();
+    expect(sub('Laufrunde').querySelector('.partner-badge')).toBeNull();
     expect(within(sub('Laufrunde')).getByText('Gruppe')).toBeTruthy();
     expect(within(sub('Laufrunde')).getByText('· 1/20')).toBeTruthy();
     expect(within(sub('Wiener Stammtisch')).getByText('Community')).toBeTruthy();
@@ -151,7 +152,7 @@ describe('ProfileUpcomingEvents — the list', () => {
       delete copy.kind;
       return copy;
     }));
-    expect(item('Spieleabend').querySelector('.profile-upcoming-partner')).toBeTruthy();
+    expect(item('Spieleabend').querySelector('.partner-badge--inline')).toBeTruthy();
     expect(within(item('Laufrunde')).getByText('Gruppe')).toBeTruthy();
     expect(within(item('Wiener Stammtisch')).getByText('Community')).toBeTruthy();
   });
@@ -181,9 +182,17 @@ describe('ProfileUpcomingEvents — the list', () => {
     expect(where()).toBe('/chat/42 {"from":"/profile"}');
   });
 
+  // Review 16.11.2026: the card is on both profile tabs — back to the one it was on.
+  it('…on the Memories tab, back to the Memories tab', async () => {
+    await renderUpcoming(ROWS, '/profile?tab=halloffame');
+    fireEvent.click(screen.getByRole('button', { name: 'Zum Chat von „Laufrunde“' }));
+    expect(where()).toBe('/chat/42 {"from":"/profile?tab=halloffame"}');
+  });
+
   it('the coral counter on an own entry with open requests leads to the Anfragen deck', async () => {
     await renderUpcoming();
-    const counter = screen.getByRole('button', { name: '2 offene Anfragen' });
+    // named by its event: several own rows can carry one (review 16.11.2026)
+    const counter = screen.getByRole('button', { name: '2 offene Anfragen für „Spieleabend“' });
     expect(counter.textContent).toBe('2');
     expect(item('Spieleabend').contains(counter)).toBe(true);
     fireEvent.click(counter);
@@ -221,9 +230,10 @@ describe('ProfileUpcomingEvents — „Events bearbeiten"', () => {
     expect(locked).toEqual(['Laufrunde', 'Altes Treffen']);
     expect(item('Laufrunde').querySelector('.profile-upcoming-open').getAttribute('aria-disabled')).toBe('true');
     expect(screen.queryByRole('button', { name: /^Zum Chat/ })).toBeNull();
-    expect(screen.queryByRole('button', { name: '2 offene Anfragen' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /offene Anfragen/ })).toBeNull();
     expect(screen.getByText('Tippe auf ein Event, um es zu bearbeiten.')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Fertig' }).getAttribute('aria-pressed')).toBe('true');
+    // The label carries the state — no aria-pressed besides (review 16.11.2026).
+    expect(screen.getByRole('button', { name: 'Fertig' }).hasAttribute('aria-pressed')).toBe(false);
   });
 
   it('a tap on an editable row opens its edit page — club events too', async () => {
@@ -250,6 +260,6 @@ describe('ProfileUpcomingEvents — „Events bearbeiten"', () => {
     expect(document.querySelector('.profile-upcoming-row.is-locked')).toBeNull();
     expect(screen.getAllByRole('button', { name: /^Zum Chat von/ })).toHaveLength(3);
     expect(names()).toEqual(FIRST_THREE);
-    expect(screen.getByRole('button', { name: 'Events bearbeiten' }).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Events bearbeiten' }).hasAttribute('aria-pressed')).toBe(false);
   });
 });

@@ -1128,8 +1128,8 @@
       "ownAria": "Creado por ti",
       "partnerAria": "Partner de JAMIE",
       "pendingAria": "Todavía en revisión",
-      "requestsAria_one": "{{count}} solicitud pendiente",
-      "requestsAria_other": "{{count}} solicitudes pendientes",
+      "requestsAria_one": "{{count}} solicitud pendiente para «{{name}}»",
+      "requestsAria_other": "{{count}} solicitudes pendientes para «{{name}}»",
       "ownLockedClub": "¡Tú creaste este club! Déjalo visible",
       "ownLockedCommunity": "¡Tú creaste esta comunidad! Déjala visible",
       "saveError": "No se pudo guardar el orden; inténtalo de nuevo"

@@ -1128,8 +1128,8 @@
       "ownAria": "Von dir erstellt",
       "partnerAria": "JAMIE-Partner",
       "pendingAria": "Wird noch geprüft",
-      "requestsAria_one": "{{count}} offene Anfrage",
-      "requestsAria_other": "{{count}} offene Anfragen",
+      "requestsAria_one": "{{count}} offene Anfrage für „{{name}}“",
+      "requestsAria_other": "{{count}} offene Anfragen für „{{name}}“",
       "ownLockedClub": "Diesen Club hast du erstellt! Lass ihn sichtbar",
       "ownLockedCommunity": "Diese Community hast du erstellt! Lass sie sichtbar",
       "saveError": "Reihenfolge konnte nicht gespeichert werden – bitte versuch es nochmal"

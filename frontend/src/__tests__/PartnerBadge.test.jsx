@@ -26,6 +26,16 @@ describe('PartnerBadge', () => {
     expect(container.firstChild).toHaveClass('partner-badge', 'partner-badge--tab');
     expect(container.firstChild).not.toHaveClass('partner-badge--pill');
   });
+
+  // The profile's „Demnächst dabei“ subline drew its own copy until the
+  // review of 16.11.2026 — now the same badge, without an outline.
+  it('inline in a line of text: no outline, an 11 px star, the same words', () => {
+    const { container } = render(<PartnerBadge variant="inline" />);
+    expect(container.firstChild).toHaveClass('partner-badge', 'partner-badge--inline');
+    expect(container.firstChild).not.toHaveClass('partner-badge--pill');
+    expect(container.querySelector('svg')).toHaveAttribute('width', '11');
+    expect(screen.getByText('Event eines JAMIE-Partners')).toHaveClass('sr-only');
+  });
 });
 
 describe('StarIcon', () => {

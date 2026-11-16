@@ -2496,15 +2496,6 @@
   overflow: hidden;
 }
 
-/* „☆ Partner": text and star at full strength (global.css tokens). */
-.profile-upcoming-partner {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  color: var(--partner-text);
-  font-weight: 600;
-}
-
 /* The counter on the date tile's top right corner: the tile ends 8 + 46 =
    54px in, the 20px counter overlaps its edge by 14. */
 .profile-upcoming-requests {
@@ -2949,7 +2940,10 @@
   background: var(--accent-coral);
   color: #fff;
 }
-.pe-order-btn:disabled { opacity: 0.35; cursor: default; }
+/* aria-disabled: the club bubbles' arrows at the row's end keep their focus
+   (review 16.11.2026) — a disabled button dropped it onto <body>. */
+.pe-order-btn:disabled,
+.pe-order-btn[aria-disabled="true"] { opacity: 0.35; cursor: default; }
 /* Umkreis-Auswahl in den Benachrichtigungs-Einstellungen. Sits in the right
    slot of a .settings-row, where the other rows put a toggle — so it is sized
    to that slot (auto width, not the full-width .settings-input) while keeping

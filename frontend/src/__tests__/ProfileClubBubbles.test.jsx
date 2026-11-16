@@ -112,7 +112,8 @@ describe('ProfileClubBubbles — the row', () => {
 
   it('the coral counter on an own club leads to the Anfragen deck', async () => {
     await renderBubbles();
-    const counter = screen.getByRole('button', { name: '3 offene Anfragen' });
+    // named by its club: several own ones can carry one (review 16.11.2026)
+    const counter = screen.getByRole('button', { name: '3 offene Anfragen für „Mein Lauftreff“' });
     expect(counter.textContent).toBe('3');
     expect(item('Mein Lauftreff').contains(counter)).toBe(true);
     fireEvent.click(counter);
@@ -138,14 +139,15 @@ describe('ProfileClubBubbles — „Sortieren"', () => {
     const wiggling = [...document.querySelectorAll('.profile-club.is-wiggling')].map((li) => li.querySelector('.profile-club-name').textContent);
     expect(wiggling).toEqual(SHOWN.slice(1));
     expect(item('Mein Lauftreff').classList.contains('is-wiggling')).toBe(false);
-    expect(screen.getByRole('button', { name: 'Fertig' }).getAttribute('aria-pressed')).toBe('true');
+    // The label carries the state — no aria-pressed besides (review 16.11.2026).
+    expect(screen.getByRole('button', { name: 'Fertig' }).hasAttribute('aria-pressed')).toBe(false);
     expect(screen.getByText('Antippen, dann mit den Pfeilen verschieben.')).toBeTruthy();
   });
 
   it('an own bubble stays put and says why — Community or Club wording; no counter in the mode', async () => {
     await renderBubbles([...CLUBS, club(9, 'Mein Partnerclub', { is_own: true, club_type: 'official' })]);
     startSorting();
-    expect(screen.queryByRole('button', { name: '3 offene Anfragen' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /offene Anfragen/ })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /^Mein Lauftreff/ }));
     expect(toast.info).toHaveBeenCalledWith('Diese Community hast du erstellt! Lass sie sichtbar');
     fireEvent.click(screen.getByRole('button', { name: /^Mein Partnerclub/ }));
@@ -159,7 +161,7 @@ describe('ProfileClubBubbles — „Sortieren"', () => {
     startSorting();
     pick('Café Soleá');
     expect(item('Café Soleá').classList.contains('is-picked')).toBe(true);
-    expect(screen.getByRole('button', { name: 'Einen Platz nach hinten' }).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Einen Platz nach hinten' }).getAttribute('aria-disabled')).toBe('true');
     fireEvent.click(screen.getByRole('button', { name: 'Einen Platz nach vorne' }));
     fireEvent.click(screen.getByRole('button', { name: 'Einen Platz nach vorne' }));
     expect(screen.getByText('Jetzt an Platz 2 von 4')).toBeTruthy();
@@ -185,6 +187,23 @@ describe('ProfileClubBubbles — „Sortieren"', () => {
     fireEvent.keyDown(document.activeElement, { key: 'ArrowLeft' });
     fireEvent.keyDown(document.activeElement, { key: 'ArrowLeft' });   // already first among the joined: stays
     expect(names()).toEqual(SHOWN);
+  });
+
+  // Review 16.11.2026: a disabled button at the row's end dropped the focus
+  // onto <body> — VoiceOver lost its place in the card.
+  it('at the row\'s end the arrow keeps its focus and does nothing', async () => {
+    await renderBubbles();
+    startSorting();
+    pick('Brettspiel-Treff');
+    const earlier = screen.getByRole('button', { name: 'Einen Platz nach vorne' });
+    earlier.focus();
+    fireEvent.click(earlier);
+    expect(names()).toEqual(['Mein Lauftreff', 'Brettspiel-Treff', 'Alter Club', 'Südtiroler in Wien', 'Café Soleá']);
+    expect(earlier.getAttribute('aria-disabled')).toBe('true');
+    expect(earlier.disabled).toBe(false);
+    expect(document.activeElement).toBe(earlier);
+    fireEvent.click(earlier);                                   // once more at the edge: nothing
+    expect(names()).toEqual(['Mein Lauftreff', 'Brettspiel-Treff', 'Alter Club', 'Südtiroler in Wien', 'Café Soleá']);
   });
 
   it('a failed save puts the old order back and says so', async () => {

@@ -408,6 +408,12 @@ select:focus-visible {
   background: rgba(var(--accent-partner-rgb), 0.08);
 }
 
+/* In a line of text (the profile's „Demnächst dabei“ subline): no outline,
+   the line's own size, a step lighter than the outlined shapes. */
+.partner-badge--inline {
+  font-weight: 600;
+}
+
 /* Google Places Autocomplete dropdown — inject-on-body element. Lift it above
    the bottom nav (1000), sheets (1100) and any modal so suggestions are never
    clipped/hidden while typing an address (event form, create group/club). */
