@@ -18,6 +18,10 @@ function cityFromAddress(addr) {
 // Fire-and-forget: push a "Neues Angebot" to users whose location contains the
 // deal's city. Only users with an active web push subscription are queried.
 // Capped at 500 recipients per deal to bound the worst-case fan-out cost.
+// Only users who opted in to news & deals pushes (users.push_news, default
+// OFF — App Store Guideline 4.5.4, the same opt-in the news push honours,
+// 16.11.2026): before, every account in the city got this ad. Fails CLOSED
+// like newsController: a missing column (boot window) is never consent.
 async function notifyNearbyUsersAboutDeal(deal) {
   if (!deal?.id) return;
   const city = cityFromAddress(deal.address);
@@ -28,6 +32,7 @@ async function notifyNearbyUsersAboutDeal(deal) {
        FROM users u
        JOIN push_subscriptions ps ON ps.user_id = u.id
        WHERE u.is_active = TRUE
+         AND u.push_news = TRUE
          AND u.location ILIKE $1
        LIMIT 500`,
       [`%${city}%`]
@@ -41,6 +46,10 @@ async function notifyNearbyUsersAboutDeal(deal) {
       `/deal/${deal.id}`
     );
   } catch (err) {
+    if (err?.code === '42703') {
+      console.warn('[deals] users.push_news missing (boot window) — no deal push sent');
+      return;
+    }
     console.error('[deals] notifyNearbyUsersAboutDeal failed:', err.message);
   }
 }
