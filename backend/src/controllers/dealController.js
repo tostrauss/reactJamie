@@ -496,6 +496,17 @@ export const getRedemptionStatus = async (req, res) => {
 // the unique_violation branch turns that into a 409 instead of a 500.
 export const redeemDeal = async (req, res) => {
   const { id } = req.params;
+  // A club's deal whose club went dark (CLUB_DEAL_LIVE_SQL, P4 v2) shows
+  // nowhere any more — so it is not redeemable either, not even from a page
+  // opened before. Outside the transaction: the boot-window fallback (42703)
+  // could not retry inside an aborted one.
+  try {
+    const live = await queryWithClubGate((clubLive) => `SELECT 1 FROM deals d WHERE d.id = $1 AND ${clubLive}`, [id]);
+    if (!live.rows.length) return res.status(404).json({ error: 'Deal not found' });
+  } catch (err) {
+    console.error('redeemDeal error:', err);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');

@@ -26,6 +26,8 @@ const scenario = {
   dealRow: { club_id: 7, is_active: true }, // SELECT club_id, is_active FROM deals
   currentLink: null,            // the deal on the event now: { club_id }
   geo: { ok: true, coords: { lat: 48.21, lng: 16.37 } },
+  liveRows: [{}],               // redeemDeal's club check (SELECT 1 FROM deals d …)
+  liveFail: null,
 };
 const queries = [];
 
@@ -43,6 +45,10 @@ vi.mock('../../src/config/database.js', () => ({
       if (text.startsWith('SELECT type, parent_club_id FROM groups')) return { rows: scenario.event ? [scenario.event] : [] };
       if (text.startsWith('SELECT is_admin FROM users')) return { rows: [{ is_admin: scenario.isAdmin }] };
       if (text.startsWith('SELECT club_id, is_active FROM deals')) return { rows: scenario.dealRow ? [scenario.dealRow] : [] };
+      if (text.startsWith('SELECT 1 FROM deals d WHERE d.id = $1')) {
+        if (scenario.liveFail && !text.includes('AND TRUE')) throw scenario.liveFail;
+        return { rows: scenario.liveRows };
+      }
       if (text.startsWith('SELECT 1 FROM deals WHERE id = $1')) return { rows: [{}] };
       if (text.startsWith('SELECT d.club_id FROM event_deals')) return { rows: scenario.currentLink ? [scenario.currentLink] : [] };
       if (/^\s*(INSERT INTO|DELETE FROM) event_deals/.test(text)) return { rows: [], rowCount: 1 };
@@ -67,7 +73,7 @@ vi.mock('../../src/utils/safeUrl.js', () => ({
 }));
 
 const {
-  getClubDeals, createClubDeal, updateClubDeal, deleteClubDeal, setEventDeal, CLUB_DEAL_MAX_DAYS,
+  getClubDeals, createClubDeal, updateClubDeal, deleteClubDeal, setEventDeal, redeemDeal, CLUB_DEAL_MAX_DAYS,
 } = await import('../../src/controllers/dealController.js');
 
 const makeRes = () => {
@@ -93,7 +99,7 @@ beforeEach(() => {
   Object.assign(scenario, {
     access: { ...CLUB }, pro: false, ownDeal: true, updated: true, listRows: [], eventRows: [],
     event: { type: 'event', parent_club_id: 7 }, isAdmin: false, dealRow: { club_id: 7, is_active: true },
-    currentLink: null, geo: { ok: true, coords: { lat: 48.21, lng: 16.37 } },
+    currentLink: null, geo: { ok: true, coords: { lat: 48.21, lng: 16.37 } }, liveRows: [{}], liveFail: null,
   });
   queries.length = 0;
   pushMock.mockClear(); proMock.mockClear(); geoMock.mockClear(); textMock.mockClear();
@@ -363,5 +369,27 @@ describe('PUT /api/deals/event/:groupId by a club\'s manager (P4 v2)', () => {
     const res = await run(setEventDeal, { userId: 0, params: { groupId: '90' }, body: { deal_id: 11 } });
     expect(res.statusCode).toBe(401);
     expect(queries).toHaveLength(0);
+  });
+});
+
+describe('redeemDeal — a club deal whose club went dark (P4 v2)', () => {
+  it('404 before any transaction: not shown anywhere, not redeemable either', async () => {
+    scenario.liveRows = [];
+    const res = await run(redeemDeal, { params: { id: '11' } });
+    expect(res.statusCode).toBe(404);
+    const q = queries.find((x) => x.text.startsWith('SELECT 1 FROM deals d WHERE d.id = $1'));
+    expect(q.params).toEqual(['11']);
+    expect(q.text).toContain("c.club_type = 'official'");
+    expect(q.text).toContain('d.club_id IS NULL OR EXISTS');
+  });
+
+  it('boot window (42703, no deals.club_id yet): the same check without the club condition', async () => {
+    scenario.liveRows = [];
+    scenario.liveFail = Object.assign(new Error('column d.club_id does not exist'), { code: '42703' });
+    const res = await run(redeemDeal, { params: { id: '11' } });
+    expect(res.statusCode).toBe(404);
+    const checks = queries.filter((x) => x.text.startsWith('SELECT 1 FROM deals d WHERE d.id = $1'));
+    expect(checks).toHaveLength(2);
+    expect(checks[1].text).toMatch(/AND TRUE$/);
   });
 });

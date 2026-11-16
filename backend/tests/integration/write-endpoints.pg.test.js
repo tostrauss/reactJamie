@@ -6579,6 +6579,8 @@ suite('write endpoints against real Postgres', () => {
       expect(await feedIds()).not.toContain(D.main);
       expect((await page(D.main)).statusCode).toBe(404);
       expect(await shownAt(event)).toBeNull();
+      // …and not redeemable, not even from a page opened before
+      expect((await call(C.redeemDeal, { userId: member, params: { id: String(D.main) } })).statusCode).toBe(404);
       // closed: the same
       await db.query(`UPDATE groups SET club_type = 'official', is_active = FALSE WHERE id = $1`, [club]);
       expect(await feedIds()).not.toContain(D.main);
