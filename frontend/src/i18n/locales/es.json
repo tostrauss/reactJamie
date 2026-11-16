@@ -2533,6 +2533,7 @@
       "approving": "Cargando…",
       "reject": "Rechazar",
       "rejectConfirm": "¿Seguro que quieres rechazar el club «{{name}}»?",
+      "rejectConfirmCommunity": "¿Seguro que quieres rechazar la comunidad «{{name}}»?",
       "approveError": "Error al aprobar",
       "rejectError": "Error al rechazar",
       "typeClub": "Club",

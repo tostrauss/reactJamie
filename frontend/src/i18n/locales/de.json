@@ -2533,6 +2533,7 @@
       "approving": "Laden…",
       "reject": "Ablehnen",
       "rejectConfirm": "Club \"{{name}}\" wirklich ablehnen?",
+      "rejectConfirmCommunity": "Community \"{{name}}\" wirklich ablehnen?",
       "approveError": "Freigabe fehlgeschlagen",
       "rejectError": "Ablehnung fehlgeschlagen",
       "typeClub": "Club",

@@ -2533,6 +2533,7 @@
       "approving": "Caricamento…",
       "reject": "Rifiuta",
       "rejectConfirm": "Rifiutare davvero il club \"{{name}}\"?",
+      "rejectConfirmCommunity": "Rifiutare davvero la community \"{{name}}\"?",
       "approveError": "Approvazione non riuscita",
       "rejectError": "Rifiuto non riuscito",
       "typeClub": "Club",

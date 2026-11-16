@@ -2533,6 +2533,7 @@
       "approving": "Loading…",
       "reject": "Reject",
       "rejectConfirm": "Really reject club \"{{name}}\"?",
+      "rejectConfirmCommunity": "Really reject community \"{{name}}\"?",
       "approveError": "Approval failed",
       "rejectError": "Rejection failed",
       "typeClub": "Club",

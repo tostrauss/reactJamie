@@ -412,7 +412,10 @@ export const AdminDashboard = () => {
                     <button
                       disabled={clubActionId === club.id}
                       onClick={async () => {
-                        if (!window.confirm(t('admin.pendingClubs.rejectConfirm', { name: club.name }))) return;
+                        // Asks about a community as a community (review 16.11.2026),
+                        // by the tag's rule above; no field → the old wording.
+                        const community = club.club_type !== undefined && club.club_type !== 'official';
+                        if (!window.confirm(t(community ? 'admin.pendingClubs.rejectConfirmCommunity' : 'admin.pendingClubs.rejectConfirm', { name: club.name }))) return;
                         setClubActionId(club.id);
                         try {
                           await admin.rejectClub(club.id);

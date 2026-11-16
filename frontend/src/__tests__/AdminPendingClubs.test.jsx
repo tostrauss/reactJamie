@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 // The approval queue says what waits (Tina 16.11.2026: „Es müsste im Admin
@@ -70,6 +70,28 @@ describe('AdminDashboard — approval queue: „Club“ or „Community“', () 
     vi.mocked(admin.getPendingClubs).mockResolvedValue({ data: [pending(3, 'Altbestand', null)] });
     const { findByText } = render(<MemoryRouter><AdminDashboard /></MemoryRouter>);
     expect((await tagOf(findByText, 'Altbestand')).textContent).toBe('admin.pendingClubs.typeCommunity');
+  });
+
+  // Review 16.11.2026: the tag said „Community“, the question „Club …?“.
+  it('„Ablehnen“ asks about a community as a community, a club as a club', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    try {
+      vi.mocked(admin.getPendingClubs).mockResolvedValue({ data: [
+        pending(1, 'Café Soleá', 'official'),
+        pending(2, 'Lauftreff Prater', 'community'),
+      ] });
+      const { findByText } = render(<MemoryRouter><AdminDashboard /></MemoryRouter>);
+      // name → its info column → the head row → the entry with the buttons
+      const rejectOf = async (name) => within((await findByText(name)).parentElement.parentElement.parentElement)
+        .getByRole('button', { name: 'admin.pendingClubs.reject' });
+      fireEvent.click(await rejectOf('Lauftreff Prater'));
+      expect(confirm).toHaveBeenLastCalledWith('admin.pendingClubs.rejectConfirmCommunity(name=Lauftreff Prater)');
+      fireEvent.click(await rejectOf('Café Soleá'));
+      expect(confirm).toHaveBeenLastCalledWith('admin.pendingClubs.rejectConfirm(name=Café Soleá)');
+      expect(admin.rejectClub).not.toHaveBeenCalled();
+    } finally {
+      confirm.mockRestore();
+    }
   });
 
   it('an older server without the field: no tag rather than a wrong one', async () => {
