@@ -6006,7 +6006,10 @@ suite('write endpoints against real Postgres', () => {
       G.deadEvent = await mk({ name: 'Deck Event ohne Club', type: 'event', dateSql: `${vienna} + INTERVAL '4 days'`, parent: G.deadClub });
       await db.query('UPDATE groups SET deleted_at = NOW(), is_active = FALSE WHERE id = $1', [G.deadClub]);
       G.closedClub = await mk({ name: 'Deck Club geschlossen', type: 'club', active: false, clubType: 'community' });
-      for (const k of ['cancelled', 'past', 'weekly', 'today', 'club', 'clubEvent', 'deadEvent', 'closedClub']) {
+      // A live community's event: its card must not read as „☆ Partner".
+      G.commClub = await mk({ name: 'Deck Community', type: 'club', isPrivate: false, clubType: 'community' });
+      G.commEvent = await mk({ name: 'Deck Community-Event', type: 'event', dateSql: `${vienna} + INTERVAL '4 days'`, parent: G.commClub });
+      for (const k of ['cancelled', 'past', 'weekly', 'today', 'club', 'clubEvent', 'deadEvent', 'closedClub', 'commEvent']) {
         R[k] = await ask(G[k]);
       }
       R.live = await ask(G.live, 1); // turned down once before
@@ -6014,7 +6017,7 @@ suite('write endpoints against real Postgres', () => {
 
     it('lists only requests that can still be answered', async () => {
       const ids = (await deck()).map((r) => r.id);
-      for (const k of ['live', 'weekly', 'today', 'club', 'clubEvent']) expect(ids, k).toContain(R[k]);
+      for (const k of ['live', 'weekly', 'today', 'club', 'clubEvent', 'commEvent']) expect(ids, k).toContain(R[k]);
       for (const k of ['cancelled', 'past', 'deadEvent', 'closedClub']) expect(ids, k).not.toContain(R[k]);
     });
 
@@ -6030,6 +6033,17 @@ suite('write endpoints against real Postgres', () => {
       expect(card('club')).toMatchObject({ group_type: 'club', group_club_type: 'official', parent_club_id: null, parent_club_name: null });
       expect(card('weekly').group_recurring).toBe(true);
       expect(card('live').rejected_count).toBe(1);
+    });
+
+    // WHOSE event (review 16.11.2026): the club's own type, and „☆ Partner"
+    // by partnerSql — the official club's event its owner put up.
+    it('an event card knows its club\'s type and whether it is a partner event', async () => {
+      const cards = await deck();
+      const card = (k) => cards.find((r) => r.id === R[k]);
+      expect(card('clubEvent')).toMatchObject({ group_club_type: null, parent_club_type: 'official', is_partner: true });
+      expect(card('commEvent')).toMatchObject({ group_club_type: null, parent_club_type: 'community', is_partner: false });
+      expect(card('club')).toMatchObject({ parent_club_type: null, is_partner: false });
+      expect(card('live')).toMatchObject({ parent_club_type: null, is_partner: false });
     });
 
     it('accepting into a cancelled event, an event of a dead club or a closed club: 410, nobody joins, still pending', async () => {

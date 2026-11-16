@@ -190,6 +190,19 @@ describe('getAllJoinRequests', () => {
     expect(sql).not.toContain('date_of_birth AS');
   });
 
+  // An event row's own club_type is always NULL — the band needs the club's
+  // type and the partner flag (review 16.11.2026), by the feed's one rule.
+  it('carries the parent club\'s type and „☆ Partner" by partnerSql', async () => {
+    const { default: db } = await import('../../src/config/database.js');
+    const { partnerSql } = await import('../../src/utils/clubGate.js');
+    await getAllJoinRequests({ userId: 7 }, makeRes());
+    const sql = db.query.mock.calls.find(c => c[0].includes('FROM group_join_requests jr'))[0];
+    expect(sql).toContain('pc.club_type AS parent_club_type');
+    expect(sql).toContain(`${partnerSql('g')} AS is_partner`);
+    // never a COALESCE onto the event row's own (always NULL) column
+    expect(sql).not.toMatch(/COALESCE\([^)]*club_type/);
+  });
+
   it('lists only requests that can still be answered', async () => {
     const { default: db } = await import('../../src/config/database.js');
     await getAllJoinRequests({ userId: 7 }, makeRes());

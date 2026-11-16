@@ -2262,6 +2262,11 @@ export const getJoinRequests = async (req, res) => {
 // (weekly series roll on; a club's date is a "next meetup" and never ends it),
 // none for an event whose club is no longer live. Those rows simply stay
 // pending — hidden, they cost nobody an attempt.
+// For an event card the band also needs WHOSE event it is (review 16.11.2026):
+// group_club_type is NULL on every event row (the column is for clubs), so
+// parent_club_type carries the club's own type, and is_partner the one rule
+// of feed and event page (utils/clubGate.js partnerSql) — „☆ Partner" vs a
+// community's event.
 export const getAllJoinRequests = async (req, res) => {
   try {
     const result = await db.query(
@@ -2276,6 +2281,7 @@ export const getAllJoinRequests = async (req, res) => {
               g.date AS group_date, g.is_recurring_weekly AS group_recurring,
               g.club_type AS group_club_type, g.parent_club_id,
               pc.name AS parent_club_name, pc.image_url AS parent_club_image,
+              pc.club_type AS parent_club_type, ${partnerSql('g')} AS is_partner,
               jr.rejected_count,
               u.name AS user_name, u.avatar_url AS user_avatar, u.bio AS user_bio,
               u.interests AS user_interests,
