@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
@@ -73,6 +73,31 @@ describe('GroupDetail — „Kalender" only while the event is still ahead (S3)'
       is_recurring_weekly: true, date: dayAt19(-15),
     }));
     expect(screen.getByRole('button', { name: /Kalender/ })).toBeInTheDocument();
+  });
+});
+
+// The edge itself (review 16.11.2026): what has to be over is the event's
+// VIENNA day — not its start time, not the UTC day. Only Date is faked, so
+// the findBy* polling keeps its real timers.
+describe('GroupDetail — „Kalender" on the event day itself', () => {
+  const tonight = '2026-11-16T19:00:00.000Z';   // 19:00 Vienna wall-clock, UTC-tagged
+  const at = (iso) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(iso));
+  };
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('still there late on the event day, hours after the start (23:30 Vienna)', async () => {
+    at('2026-11-16T22:30:00Z');
+    await renderPage(clubEvent({ owner_id: 99, is_manager: false, date: tonight }));
+    expect(screen.getByRole('button', { name: /Kalender/ })).toBeInTheDocument();
+  });
+
+  it('gone after Vienna midnight, though the UTC day is still the 16th (00:30 Vienna)', async () => {
+    at('2026-11-16T23:30:00Z');
+    await renderPage(clubEvent({ owner_id: 99, is_manager: false, date: tonight }));
+    expect(screen.queryByRole('button', { name: /Kalender/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Event teilen/ })).toBeInTheDocument();
   });
 });
 
