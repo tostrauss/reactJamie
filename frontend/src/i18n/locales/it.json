@@ -626,7 +626,6 @@
       "pending": "Richiesta inviata ✓",
       "leave": "Lascia il club",
       "openChat": "Vai alla chat",
-      "boost": "Boost al club",
       "delete": "Elimina club",
       "report": "Segnala club",
       "rejected": "Richiesta rifiutata"
@@ -699,7 +698,12 @@
       "errorProRequired": "Gli eventi a pagamento sono una funzione di JAMIE Pro.",
       "confirmLeave": "Vuoi davvero lasciare l’evento? Il tuo posto si libera.",
       "privateLabel": "Evento privato",
-      "privateHint": "Partecipazione solo su richiesta: sei tu a confermare chi c’è"
+      "privateHint": "Partecipazione solo su richiesta: sei tu a confermare chi c’è",
+      "dealLabel": "Aggiungi un deal",
+      "dealHint": "Offri ai partecipanti un vantaggio, ad es. uno sconto o un drink gratis",
+      "dealPanelTitle": "Deal per l’evento",
+      "autoMessagesLabel": "Messaggi automatici",
+      "autoMessagesHint": "Promemoria e informazioni sull’evento arrivano al gruppo automaticamente a vostro nome"
     },
     "confirmLeave": "Vuoi davvero lasciare il club? Puoi entrare in questo club al massimo due volte in totale."
   },
@@ -1718,8 +1722,6 @@
     "features": {
       "boostGroups": "Boost ai gruppi",
       "boostGroupsDesc": "Più visibilità per i tuoi eventi e gruppi.",
-      "boostClubs": "Boost ai club",
-      "boostClubsDesc": "Più membri per la tua community",
       "seeMembers": "Guarda in anticipo chi c'è nel gruppo",
       "seeMembersDesc": "Guarda in anticipo tutti i partecipanti di un gruppo e vedi se fa per te.",
       "topPlacement": "Posizione in alto",
@@ -1754,7 +1756,7 @@
     "later": "Forse più tardi",
     "startError": "Errore durante l'avvio dell'abbonamento",
     "successTitle": "Benvenuto in Pro!",
-    "successBody": "Da ora puoi aggiungere amici, inviare messaggi diretti e fare Boost ai tuoi gruppi e club.",
+    "successBody": "Da ora puoi aggiungere amici, inviare messaggi diretti e fare Boost ai tuoi gruppi.",
     "paymentTitle": "Dati di pagamento",
     "paymentSub": "Crittografia SSL · Disdici quando vuoi",
     "subscriptionLabel": "Abbonamento",
@@ -2298,6 +2300,53 @@
       "verified": "Partner verificato"
     }
   },
+  "partner": {
+    "close": "Chiudi",
+    "cta": "Sì, contattateci!",
+    "concurrent": {
+      "title": "Ciao {{name}}, siete velocissimi! 🙌",
+      "intro": "Sono Tina, tra i fondatori di JAMIE. Abbiamo creato JAMIE perché a Vienna le persone tornino a incontrarsi davvero, meglio ancora in posti come il vostro!",
+      "lead": "Gratis è possibile 1 evento alla volta. Se volete di più, diventate nostri partner:",
+      "b1": "Fino a 3 eventi contemporaneamente",
+      "b2": "Deal vostri per i vostri ospiti",
+      "b3": "Partner Badge ufficiale e altro ancora!",
+      "outro": "Sinceramente: la partnership ha un costo. In cambio sviluppate JAMIE insieme a noi. Vi andrebbe? Vi contatto io personalmente. 😊",
+      "notReady": "Non siete ancora pronti? Un altro evento è gratis non appena il primo è passato."
+    },
+    "third": {
+      "title": "Ciao {{name}}, che bello che stiate organizzando un altro evento! 🙌",
+      "intro": "Sono Tina, tra i fondatori di JAMIE. Abbiamo creato JAMIE perché a Vienna le persone tornino a incontrarsi davvero, e siamo molto felici che da voi sia già successo due volte.",
+      "lead": "Dal terzo evento in poi si continua come JAMIE Partner. Così potete:",
+      "b1": "organizzare fino a 3 eventi contemporaneamente",
+      "b2": "creare deal vostri per i vostri ospiti",
+      "b3": "ottenere il Partner Badge ufficiale e altro ancora",
+      "outro": "Sinceramente: la partnership ha un costo. In questo momento però cerchiamo 10 partner pilota che sviluppino JAMIE insieme a noi.",
+      "outro2": "Vi andrebbe? Vi contatto io personalmente. 😊"
+    },
+    "request": {
+      "title": "Richiesta JAMIE",
+      "name": "Nome",
+      "company": "Azienda",
+      "companyPlaceholder": "facoltativo",
+      "email": "E-mail",
+      "phone": "Telefono",
+      "contactMail": "preferisco essere contattato via e-mail",
+      "contactCall": "preferisco essere contattato per telefono",
+      "privacy": "Ho letto l’<1>informativa sulla privacy</1> e accetto che JAMIE mi contatti in merito a questa richiesta.",
+      "submit": "Invia richiesta",
+      "sending": "Invio in corso…",
+      "sent": "Grazie! Vi contattiamo personalmente. 😊",
+      "error": "Non è stato possibile inviare la richiesta. Riprova.",
+      "errors": {
+        "name": "Inserisci il tuo nome.",
+        "email": "Inserisci un indirizzo e-mail valido.",
+        "phone": "Inserisci un numero di telefono.",
+        "privacy": "Conferma l’informativa sulla privacy."
+      }
+    },
+    "memberBlocked": "Al momento questo club non può creare altri eventi.",
+    "dealNotAllowed": "I deal sono disponibili per i primi 2 eventi del vostro club – poi come JAMIE Partner."
+  },
   "outOfRegion": {
     "title": "Presto anche da te!",
     "subtitleLine1": "Al momento JAMIE è disponibile in Austria, Germania, Svizzera, Italia, Francia e Spagna.",
@@ -2579,7 +2628,9 @@
       "save": "Salva",
       "saved": "Salvato",
       "saveError": "Salvataggio non riuscito",
-      "empty": "Nessun club trovato."
+      "empty": "Nessun club trovato.",
+      "paidPartner": "Partner pagante",
+      "paidPartnerHint": "Cornice gialla, ☆ Partner e ✓ – senza limiti per eventi e deal"
     },
     "featuredClubs": {
       "title": "Club nell'onboarding",
@@ -2795,6 +2846,18 @@
       "deleteClub": "Rimuovi club",
       "confirmDeleteGroup": "Rimuovere \"{{name}}\"? Sparirà per tutti i membri. Chat e cronologia restano come prova.",
       "toReceiver": "a {{name}}"
+    },
+    "partnerLeads": {
+      "title": "Richieste partner",
+      "empty": "Ancora nessuna richiesta partner.",
+      "contactMail": "via e-mail",
+      "contactCall": "per telefono",
+      "source": {
+        "concurrent": "Messaggio 1 · 2º evento in contemporanea",
+        "third": "Messaggio 2 · 3º evento",
+        "ticket": "Evento con biglietto",
+        "deal": "Deal"
+      }
     }
   },
   "imageUpload": {

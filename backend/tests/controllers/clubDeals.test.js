@@ -5,18 +5,28 @@ process.env.NODE_ENV = 'test';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────
 // Clubs put up their own deals (P4 v2, Tina/Tobi 16.11.2026): the owner or a
-// co-manager of a live OFFICIAL club, and only with JAMIE Pro or as an app
-// admin (PRO_REQUIRED otherwise); a club deal never sends the city push. The
-// same people hang their own deals on their own club's events. Queries are
-// dispatched on SQL text; each test programs `scenario`. The real SQL (gate,
-// cascades, the feed) runs in the smoke test.
+// co-manager of a live OFFICIAL club; a club deal never sends the city push.
+// The same people hang their own deals on their own club's events.
+//
+// Since 17.11.2026 (Tina's new document, decided by Tobi) JAMIE Pro plays no
+// part: the library is for paying partners (and app admins), and a deal goes
+// on an event while that is one of the club's first two free events — or the
+// club is a paying partner. Refused: 403 PARTNER_REQUIRED / 'deal'.
+//
+// Queries are dispatched on SQL text; each test programs `scenario`. The real
+// SQL (gate, rank, cascades, the feed) runs in the smoke test.
 const CLUB = {
-  id: 7, club_type: 'official', location: 'Gumpendorfer Straße 1, 1060 Wien', lat: 48.19, lng: 16.35,
+  id: 7, name: 'Café Soleá', club_type: 'official', is_paid_partner: false,
+  location: 'Gumpendorfer Straße 1, 1060 Wien', lat: 48.19, lng: 16.35,
   is_live: true, is_manager: true, caller_is_admin: false,
 };
 const scenario = {
   access: { ...CLUB },          // the clubDealAccess row (null = no such club)
-  pro: false,                   // isUserPro
+  // The free tier's count (countClubEvents): begun, nothing used.
+  counted: { started: true, used: 0, upcoming: 0 },
+  // The event's place among the club's free events (eventFreeRank); null = no
+  // such event in this club.
+  rank: { counted: true, before: 0 },
   ownDeal: true,                // SELECT 1 FROM deals … club_id … (edit)
   updated: true,                // UPDATE … RETURNING (edit / delete)
   listRows: [],                 // the club's deals
@@ -44,6 +54,8 @@ vi.mock('../../src/config/database.js', () => {
     if (text.startsWith('SELECT 1 FROM groups WHERE id = $1 FOR UPDATE')) return { rows: [{}] };
     if (text.includes('AS self_live')) return { rows: [scenario.live.length > 1 ? scenario.live.shift() : scenario.live[0]] };
     if (text.includes('AS caller_is_admin')) return { rows: scenario.access ? [scenario.access] : [] };
+    if (text.includes('AS started')) return { rows: [scenario.counted] };              // countClubEvents
+    if (text.includes('AS counted')) return { rows: scenario.rank ? [scenario.rank] : [] }; // eventFreeRank
     if (text.startsWith('INSERT INTO deals')) return { rows: [{ id: 42, club_id: params.at(-2), created_by: params.at(-1) }] };
     if (text.startsWith('SELECT 1 FROM deals WHERE id = $1 AND club_id = $2')) return { rows: scenario.ownDeal ? [{}] : [] };
     if (text.startsWith('UPDATE deals SET is_active = FALSE')) return { rows: scenario.updated ? [{ id: params[0] }] : [] };
@@ -82,7 +94,9 @@ vi.mock('../../src/config/database.js', () => {
 });
 const pushMock = vi.fn(async () => {});
 vi.mock('../../src/controllers/pushController.js', () => ({ sendPushToUsers: (...a) => pushMock(...a) }));
-const proMock = vi.fn(async () => scenario.pro);
+// JAMIE Pro is no longer asked anywhere on these paths: the module is mocked
+// so that any call would show.
+const proMock = vi.fn(async () => true);
 vi.mock('../../src/controllers/subscriptionController.js', () => ({ isUserPro: (...a) => proMock(...a) }));
 const geoMock = vi.fn(async () => scenario.geo);
 vi.mock('../../src/utils/geocode.js', () => ({ resolveCreateLocation: (...a) => geoMock(...a) }));
@@ -120,7 +134,8 @@ const attach = (dealId, groupId = '90') => run(setEventDeal, { params: { groupId
 let logSpy;
 beforeEach(() => {
   Object.assign(scenario, {
-    access: { ...CLUB }, pro: false, ownDeal: true, updated: true, listRows: [], eventRows: [],
+    access: { ...CLUB }, counted: { started: true, used: 0, upcoming: 0 }, rank: { counted: true, before: 0 },
+    ownDeal: true, updated: true, listRows: [], eventRows: [],
     event: { type: 'event', parent_club_id: 7 }, isAdmin: false, dealRow: { club_id: 7, is_active: true },
     currentLink: null, linkAtWrite: undefined, geo: { ok: true, coords: { lat: 48.21, lng: 16.37 } }, liveRows: [{}], liveFail: null,
     live: [{ others: 0, self_live: false }],
@@ -132,39 +147,59 @@ beforeEach(() => {
 });
 
 describe('the club-deal gate', () => {
-  it('a manager without Pro: 403 PRO_REQUIRED on create, nothing written, nothing geocoded', async () => {
+  it('the library without the partnership: 403 PARTNER_REQUIRED / deal, nothing written, nothing geocoded — Pro is never asked', async () => {
     const res = await create(body());
     expect(res.statusCode).toBe(403);
-    expect(res.body.code).toBe('PRO_REQUIRED');
-    expect(proMock).toHaveBeenCalledWith(5);
+    expect(res.body).toEqual({
+      error: 'Deals gibt es für die ersten 2 Events eures Clubs – danach als JAMIE Partner.',
+      code: 'PARTNER_REQUIRED', reason: 'deal', club_name: 'Café Soleá',
+    });
+    expect(proMock).not.toHaveBeenCalled();
     expect(inserts()).toHaveLength(0);
     expect(geoMock).not.toHaveBeenCalled();
   });
 
-  it('an app admin who manages the club needs no Pro — isUserPro is not even asked', async () => {
-    scenario.access.caller_is_admin = true;
-    const res = await create(body());
-    expect(res.statusCode).toBe(201);
+  it('a paying partner and an app admin who manages the club put deals up — without Pro', async () => {
+    scenario.access.is_paid_partner = true;
+    expect((await create(body())).statusCode).toBe(201);
+    scenario.access = { ...CLUB, caller_is_admin: true };
+    expect((await create(body())).statusCode).toBe(201);
     expect(proMock).not.toHaveBeenCalled();
+    expect(inserts()).toHaveLength(2);
   });
 
-  it('in this order: unknown club 404, non-manager 403 (with Pro too), community, club not live — before Pro is asked', async () => {
-    scenario.pro = true;
+  it('the free tier switched off (CLUB_FREE_TIER=false) or not begun yet: the library is open', async () => {
+    process.env.CLUB_FREE_TIER = 'false';
+    try {
+      expect((await create(body())).statusCode).toBe(201);
+    } finally {
+      delete process.env.CLUB_FREE_TIER;
+    }
+    scenario.counted = { started: false, used: 0, upcoming: 0 };   // no start marker (boot window)
+    expect((await create(body())).statusCode).toBe(201);
+    expect(inserts()).toHaveLength(2);
+  });
+
+  it('in this order: unknown club 404, non-manager 403 (a paying partner\'s too), community, club not live — before the paid part', async () => {
     scenario.access = null;
     expect((await create(body())).statusCode).toBe(404);
-    scenario.access = { ...CLUB, is_manager: false, club_type: 'community', is_live: false };
+    scenario.access = { ...CLUB, is_paid_partner: true, is_manager: false, club_type: 'community', is_live: false };
     const outsider = await create(body());
     expect(outsider.statusCode).toBe(403);
     expect(outsider.body.code).toBe('NOT_CLUB_MANAGER');
-    scenario.access = { ...CLUB, club_type: 'community', is_live: false };
+    // …an app admin who does not manage the club neither: the library never let them
+    scenario.access = { ...CLUB, is_manager: false, caller_is_admin: true };
+    expect((await create(body())).body.code).toBe('NOT_CLUB_MANAGER');
+    scenario.access = { ...CLUB, is_paid_partner: true, club_type: 'community', is_live: false };
     const community = await create(body());
     expect(community.statusCode).toBe(403);
     expect(community.body.code).toBe('OFFICIAL_CLUB_REQUIRED');
-    scenario.access = { ...CLUB, is_live: false };
+    scenario.access = { ...CLUB, is_paid_partner: true, is_live: false };
     const pending = await create(body());
     expect(pending.statusCode).toBe(403);
     expect(pending.body.code).toBe('CLUB_NOT_LIVE');
-    expect(proMock).not.toHaveBeenCalled();
+    // none of them got as far as the free tier's count
+    expect(queries.some((q) => q.text.includes('AS started'))).toBe(false);
     expect(inserts()).toHaveLength(0);
   });
 
@@ -188,7 +223,7 @@ describe('the club-deal gate', () => {
 });
 
 describe('POST /api/deals/club/:clubId (createClubDeal)', () => {
-  beforeEach(() => { scenario.pro = true; });
+  beforeEach(() => { scenario.access.is_paid_partner = true; });   // a paying partner's library
 
   it('stores the deal with club_id + created_by; an empty address is the club\'s, pin included; no city push', async () => {
     const res = await create(body({ description: '  Sag „Jamie“  ', photos: [photo], redeem_interval: 'weekly', redeem_days: [4] }));
@@ -335,7 +370,8 @@ describe('POST /api/deals/club/:clubId (createClubDeal)', () => {
 
   it('before the deals.club_id migration (42703): 503, not 500', async () => {
     const db = (await import('../../src/config/database.js')).default;
-    db.query.mockImplementationOnce(async () => ({ rows: [scenario.access] }))
+    db.query.mockImplementationOnce(async () => ({ rows: [scenario.access] }))      // the gate
+      .mockImplementationOnce(async () => ({ rows: [scenario.counted] }))            // the free tier's count
       .mockImplementationOnce(async () => { throw Object.assign(new Error('column "club_id" does not exist'), { code: '42703' }); });
     const res = await create(body());
     expect(res.statusCode).toBe(503);
@@ -343,10 +379,10 @@ describe('POST /api/deals/club/:clubId (createClubDeal)', () => {
   });
 });
 
-// Review 16.11.2026: the feed has no place filter and puts the newest first —
-// one club with Pro and a script filled it for every city.
+// Review 16.11.2026: one club and a script could put up any number of deals.
+// The limit holds for the library (a paying partner's, since 17.11.2026).
 describe(`at most ${CLUB_DEAL_MAX_LIVE} live deals per club`, () => {
-  beforeEach(() => { scenario.pro = true; });
+  beforeEach(() => { scenario.access.is_paid_partner = true; });
   const edit = (b) => run(updateClubDeal, { params: { clubId: '7', dealId: '11' }, body: b });
   const counts = () => queries.filter((q) => q.text.includes('AS self_live'));
   const flow = () => queries.map(({ text }) => (text.includes('AS self_live') ? 'count'
@@ -400,7 +436,7 @@ describe(`at most ${CLUB_DEAL_MAX_LIVE} live deals per club`, () => {
 });
 
 describe('GET / PUT / DELETE a club\'s deals', () => {
-  it('the list needs no Pro: live deals of this club, with the events they hang on', async () => {
+  it('the list is free (no partnership, no Pro): live deals of this club, with the events they hang on', async () => {
     scenario.listRows = [{ id: 11, name: 'A' }, { id: 12, name: 'B' }];
     scenario.eventRows = [{ deal_id: 12, id: 90, name: 'Punsch Night', date: null }];
     const res = await run(getClubDeals, { params: { clubId: '7' } });
@@ -410,15 +446,18 @@ describe('GET / PUT / DELETE a club\'s deals', () => {
       { id: 12, name: 'B', events: [{ id: 90, name: 'Punsch Night', date: null }] },
     ]);
     expect(proMock).not.toHaveBeenCalled();
+    expect(queries.some((q) => q.text.includes('AS started'))).toBe(false);   // the free tier is not even counted
     const ev = queries.find((q) => q.text.includes('JOIN groups g'));
     expect(ev.text).toContain('ed.deal_id = ANY($1::int[])');
     expect(ev.params).toEqual([[11, 12]]);
   });
 
-  it('an edit needs Pro, touches only the club\'s own live deal and only what was sent', async () => {
+  it('an edit needs the partnership, touches only the club\'s own live deal and only what was sent', async () => {
     let res = await run(updateClubDeal, { params: { clubId: '7', dealId: '11' }, body: { deal_label: '3 für 2' } });
-    expect(res.body.code).toBe('PRO_REQUIRED');
-    scenario.pro = true;
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toMatchObject({ code: 'PARTNER_REQUIRED', reason: 'deal' });
+    expect(queries.some((q) => q.text.startsWith('UPDATE deals SET'))).toBe(false);
+    scenario.access.is_paid_partner = true;
     res = await run(updateClubDeal, { params: { clubId: '7', dealId: '11' }, body: { deal_label: ' 3 für 2 ' } });
     expect(res.statusCode).toBe(200);
     const upd = queries.find((q) => q.text.startsWith('UPDATE deals SET'));
@@ -429,7 +468,7 @@ describe('GET / PUT / DELETE a club\'s deals', () => {
   });
 
   it('an edit cannot clear the end date, nor go past the limit; an empty edit is a 400', async () => {
-    scenario.pro = true;
+    scenario.access.is_paid_partner = true;
     const edit = (b) => run(updateClubDeal, { params: { clubId: '7', dealId: '11' }, body: b });
     expect((await edit({ visible_until: null })).statusCode).toBe(400);
     expect((await edit({ visible_until: day(CLUB_DEAL_MAX_DAYS + 3) })).statusCode).toBe(400);
@@ -437,7 +476,7 @@ describe('GET / PUT / DELETE a club\'s deals', () => {
     expect((await edit({ visible_until: day(60) })).statusCode).toBe(200);
   });
 
-  it('deleting is free (no Pro) and soft; someone else\'s deal 404', async () => {
+  it('deleting is free (no partnership, no Pro) and soft; someone else\'s deal 404', async () => {
     const res = await run(deleteClubDeal, { params: { clubId: '7', dealId: '11' } });
     expect(res.statusCode).toBe(200);
     expect(proMock).not.toHaveBeenCalled();
@@ -459,27 +498,51 @@ describe('GET / PUT / DELETE a club\'s deals', () => {
 describe('PUT /api/deals/event/:groupId by a club\'s manager (P4 v2)', () => {
   const linkWrites = () => queries.filter((q) => /^\s*(INSERT INTO|DELETE FROM) event_deals/.test(q.text));
 
-  it('hangs the club\'s own deal on the club\'s own event — with Pro', async () => {
-    scenario.pro = true;
-    const res = await attach(11);
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ group_id: 90, deal_id: 11, deal: null });
-    expect(queries.find((q) => q.text.includes('AS caller_is_admin')).params).toEqual([7, 5]);
-    expect(linkWrites()[0].params).toEqual([90, 11, 5, 7]);
+  it('hangs the club\'s own deal on one of the club\'s first two events — no partnership, no Pro', async () => {
+    for (const before of [0, 1]) {
+      queries.length = 0;
+      scenario.rank = { counted: true, before };
+      const res = await attach(11);
+      expect(res.statusCode, `event ${before + 1}`).toBe(200);
+      expect(res.body).toEqual({ group_id: 90, deal_id: 11, deal: null });
+      expect(queries.find((q) => q.text.includes('AS caller_is_admin')).params).toEqual([7, 5]);
+      // the event's place among the club's free events was looked up: event 90 of club 7
+      expect(queries.find((q) => q.text.includes('AS counted')).params).toEqual([90, 7]);
+      expect(linkWrites()[0].params).toEqual([90, 11, 5, 7]);
+    }
+    expect(proMock).not.toHaveBeenCalled();
   });
 
-  it('hanging one on needs Pro; taking it off does not', async () => {
+  it('from the third event on, hanging one on needs the partnership; taking it off never does', async () => {
+    scenario.rank = { counted: true, before: 2 };
     const res = await attach(11);
     expect(res.statusCode).toBe(403);
-    expect(res.body.code).toBe('PRO_REQUIRED');
+    expect(res.body).toMatchObject({ code: 'PARTNER_REQUIRED', reason: 'deal', club_name: 'Café Soleá' });
+    expect(res.body.error).toBe('Deals gibt es für die ersten 2 Events eures Clubs – danach als JAMIE Partner.');
     expect(linkWrites()).toHaveLength(0);
     const off = await attach(null);
     expect(off.statusCode).toBe(200);
     expect(linkWrites()[0].text).toMatch(/^DELETE FROM event_deals/);
+    // a paying partner: any event
+    scenario.access.is_paid_partner = true;
+    expect((await attach(11)).statusCode).toBe(200);
+  });
+
+  it('an event from before the deploy is none of the free ones: partnership — an app admin\'s club and the switch are free of it', async () => {
+    scenario.rank = { counted: false, before: 0 };
+    expect((await attach(11)).body).toMatchObject({ code: 'PARTNER_REQUIRED', reason: 'deal' });
+    process.env.CLUB_FREE_TIER = 'false';
+    try {
+      expect((await attach(11)).statusCode).toBe(200);
+    } finally {
+      delete process.env.CLUB_FREE_TIER;
+    }
+    expect((await attach(11)).statusCode).toBe(403);
+    scenario.counted = { started: false, used: 0, upcoming: 0 };   // the free tier has not begun
+    expect((await attach(11)).statusCode).toBe(200);
   });
 
   it('only the club\'s own live deals: another club\'s 403 NOT_OWN_DEAL, JAMIE\'s 403, a deleted one 404', async () => {
-    scenario.pro = true;
     scenario.dealRow = { club_id: 8, is_active: true };
     const foreign = await attach(11);
     expect(foreign.statusCode).toBe(403);
@@ -494,7 +557,6 @@ describe('PUT /api/deals/event/:groupId by a club\'s manager (P4 v2)', () => {
   });
 
   it('only events of a club they manage: a meetup or an orphan 403, someone else\'s club 403', async () => {
-    scenario.pro = true;
     scenario.event = { type: 'group', parent_club_id: null };
     expect((await attach(11)).body.code).toBe('NOT_CLUB_MANAGER');
     scenario.event = { type: 'event', parent_club_id: null };
@@ -508,7 +570,6 @@ describe('PUT /api/deals/event/:groupId by a club\'s manager (P4 v2)', () => {
   });
 
   it('a deal JAMIE hung there stays: neither replaced nor taken off by the club (409)', async () => {
-    scenario.pro = true;
     scenario.currentLink = { club_id: null };
     const replace = await attach(11);
     expect(replace.statusCode).toBe(409);
@@ -524,7 +585,6 @@ describe('PUT /api/deals/event/:groupId by a club\'s manager (P4 v2)', () => {
   // hung on the event between it and the write was replaced or taken off.
   // The club's writes carry the condition themselves.
   it('JAMIE hangs a deal on between the check and the write: the club\'s write leaves it there (409)', async () => {
-    scenario.pro = true;
     scenario.linkAtWrite = { club_id: null };       // none at the check, JAMIE's at the write
     const replace = await attach(11);
     expect(replace.statusCode).toBe(409);
@@ -559,7 +619,7 @@ describe('PUT /api/deals/event/:groupId by a club\'s manager (P4 v2)', () => {
     expect(res.statusCode).toBe(200);
     expect(queries.some((q) => q.text.includes('AS caller_is_admin'))).toBe(false);
     expect(queries.some((q) => q.text.startsWith('SELECT d.club_id FROM event_deals'))).toBe(false);
-    expect(proMock).not.toHaveBeenCalled();
+    expect(queries.some((q) => q.text.includes('AS counted') || q.text.includes('AS started'))).toBe(false);
     // …and its writes take whatever hangs there: no club condition
     expect(linkWrites()[0].text).not.toContain('WHERE EXISTS');
     expect(linkWrites()[0].params).toEqual([90, 11, 5]);

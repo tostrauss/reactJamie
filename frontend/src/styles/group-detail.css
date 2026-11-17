@@ -419,6 +419,12 @@
   white-space: nowrap;
 }
 .gd-pill-row .partner-badge { flex-shrink: 0; }
+/* „☆ PARTNER“ in Versalien und mit der Laufweite der Kategorie daneben, wie
+   in Tinas Bild 3 („AFTER WORK“ · „☆ PARTNER“; Audit GD-04, 17.11.2026).
+   Nur in dieser Zeile: die Lasche im Feed, das Profil und das Anfragen-Band
+   bleiben „☆ Partner“. Der Text selbst bleibt, wie er ist (Screenreader,
+   fr „Partenaire“ → PARTENAIRE). */
+.gd-pill-row .partner-badge--pill { text-transform: uppercase; letter-spacing: 0.5px; }
 
 /* Category eyebrow — small uppercase label above the title */
 .gd-category-eyebrow {

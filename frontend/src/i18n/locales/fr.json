@@ -626,7 +626,6 @@
       "pending": "Demande envoyée ✓",
       "leave": "Quitter le club",
       "openChat": "Ouvrir le chat",
-      "boost": "Booster le club",
       "delete": "Supprimer le club",
       "report": "Signaler le club",
       "rejected": "Demande refusée"
@@ -699,7 +698,12 @@
       "errorProRequired": "Les événements payants sont une fonctionnalité JAMIE Pro.",
       "confirmLeave": "Vraiment quitter cet événement ? Ta place sera libérée.",
       "privateLabel": "Événement privé",
-      "privateHint": "Participation sur demande uniquement – tu valides qui vient"
+      "privateHint": "Participation sur demande uniquement – tu valides qui vient",
+      "dealLabel": "Ajouter un deal",
+      "dealHint": "Offre un avantage aux participants, p. ex. une réduction ou une boisson offerte",
+      "dealPanelTitle": "Deal pour l’événement",
+      "autoMessagesLabel": "Messages automatiques",
+      "autoMessagesHint": "Les rappels et les infos sur l’événement partent automatiquement au groupe en votre nom"
     },
     "confirmLeave": "Vraiment quitter ce club ? Tu ne peux rejoindre ce club que deux fois au total."
   },
@@ -1718,8 +1722,6 @@
     "features": {
       "boostGroups": "Booster des groupes",
       "boostGroupsDesc": "Plus de visibilité pour tes événements et groupes.",
-      "boostClubs": "Booster des clubs",
-      "boostClubsDesc": "Plus de membres pour ta communauté",
       "seeMembers": "Vois à l'avance qui est dans le groupe",
       "seeMembersDesc": "Regarde tous les participants d'un groupe à l'avance et vois si ça te correspond.",
       "topPlacement": "Placement en tête",
@@ -1754,7 +1756,7 @@
     "later": "Peut-être plus tard",
     "startError": "Erreur au démarrage de l'abonnement",
     "successTitle": "Bienvenue dans JAMIE Pro !",
-    "successBody": "Tu peux dès maintenant ajouter des amis, envoyer des messages directs et booster tes groupes & clubs.",
+    "successBody": "Tu peux dès maintenant ajouter des amis, envoyer des messages directs et booster tes groupes.",
     "paymentTitle": "Données de paiement",
     "paymentSub": "Chiffré SSL · Résiliable à tout moment",
     "subscriptionLabel": "Abonnement",
@@ -2298,6 +2300,53 @@
       "verified": "Partenaire vérifié"
     }
   },
+  "partner": {
+    "close": "Fermer",
+    "cta": "Oui, contactez-nous !",
+    "concurrent": {
+      "title": "Hey {{name}}, vous êtes rapides ! 🙌",
+      "intro": "Je suis Tina, cofondatrice de JAMIE. Nous avons créé JAMIE pour que les gens à Vienne se retrouvent à nouveau pour de vrai, de préférence dans des lieux comme le vôtre !",
+      "lead": "Gratuitement, c’est 1 événement à la fois. Si vous en voulez plus, devenez notre partenaire :",
+      "b1": "Jusqu’à 3 événements en même temps",
+      "b2": "Vos propres deals pour vos clients",
+      "b3": "Partner Badge officiel et plus encore !",
+      "outro": "Pour être honnête : le partenariat a un coût. En échange, vous développez JAMIE avec nous. Ça vous dirait ? Je vous contacte personnellement. 😊",
+      "notReady": "Pas encore prêts ? Un autre événement est gratuit dès que le premier est passé."
+    },
+    "third": {
+      "title": "Hey {{name}}, super que vous prévoyiez un nouvel événement ! 🙌",
+      "intro": "Je suis Tina, cofondatrice de JAMIE. Nous avons créé JAMIE pour que les gens à Vienne se retrouvent à nouveau pour de vrai, et nous sommes ravis que ce soit déjà arrivé deux fois chez vous.",
+      "lead": "À partir du troisième événement, ça continue en tant que JAMIE Partner. Vous pourrez ainsi :",
+      "b1": "prévoir jusqu’à 3 événements en même temps",
+      "b2": "créer vos propres deals pour vos clients",
+      "b3": "obtenir le Partner Badge officiel et plus encore",
+      "outro": "Pour être honnête : le partenariat a un coût. En ce moment, nous cherchons toutefois 10 partenaires pilotes pour développer JAMIE avec nous.",
+      "outro2": "Ça vous dirait ? Je vous contacte personnellement. 😊"
+    },
+    "request": {
+      "title": "Demande JAMIE",
+      "name": "Nom",
+      "company": "Entreprise",
+      "companyPlaceholder": "facultatif",
+      "email": "E-mail",
+      "phone": "Téléphone",
+      "contactMail": "je préfère être contacté par e-mail",
+      "contactCall": "je préfère être contacté par téléphone",
+      "privacy": "J’ai lu la <1>politique de confidentialité</1> et j’accepte que JAMIE me contacte au sujet de cette demande.",
+      "submit": "Envoyer la demande",
+      "sending": "Envoi en cours…",
+      "sent": "Merci ! Nous vous contactons personnellement. 😊",
+      "error": "La demande n’a pas pu être envoyée. Réessaie.",
+      "errors": {
+        "name": "Indique ton nom.",
+        "email": "Indique une adresse e-mail valide.",
+        "phone": "Indique un numéro de téléphone.",
+        "privacy": "Confirme la politique de confidentialité."
+      }
+    },
+    "memberBlocked": "Ce club ne peut pas créer d’autres événements pour le moment.",
+    "dealNotAllowed": "Les deals sont disponibles pour les 2 premiers événements de votre club – ensuite en tant que JAMIE Partner."
+  },
   "outOfRegion": {
     "title": "Bientôt chez toi aussi !",
     "subtitleLine1": "JAMIE démarre en Autriche, Allemagne, Suisse, Italie, France et Espagne.",
@@ -2579,7 +2628,9 @@
       "save": "Enregistrer",
       "saved": "Enregistré",
       "saveError": "Enregistrement impossible",
-      "empty": "Aucun club trouvé."
+      "empty": "Aucun club trouvé.",
+      "paidPartner": "Partenaire payant",
+      "paidPartnerHint": "Cadre jaune, ☆ Partner et ✓ – sans limite pour les événements et les deals"
     },
     "featuredClubs": {
       "title": "Clubs dans l'onboarding",
@@ -2795,6 +2846,18 @@
       "deleteClub": "Retirer le club",
       "confirmDeleteGroup": "Retirer « {{name}} » ? Il disparaît pour tous les membres. Le chat et l’historique sont conservés comme preuve.",
       "toReceiver": "à {{name}}"
+    },
+    "partnerLeads": {
+      "title": "Demandes de partenariat",
+      "empty": "Aucune demande de partenariat pour l’instant.",
+      "contactMail": "par e-mail",
+      "contactCall": "par téléphone",
+      "source": {
+        "concurrent": "Message 1 · 2e événement en même temps",
+        "third": "Message 2 · 3e événement",
+        "ticket": "Événement avec billet",
+        "deal": "Deal"
+      }
     }
   },
   "imageUpload": {

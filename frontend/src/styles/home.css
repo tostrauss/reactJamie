@@ -453,6 +453,13 @@
   border-color: var(--partner-line);
   box-shadow: inset 0 0 0 1px rgba(var(--accent-partner-rgb), 0.1);
 }
+/* Die Lasche (17 px, global.css .partner-badge--tab) sitzt in einem eigenen
+   Streifen unter dem Raster, mit 7 px Luft wie in Mock 1 (Tina 17.11.2026,
+   Audit P1-09): bis dahin lag sie 5 px über der unteren linken Kachel, ihre
+   gelbe Oberkante lief quer durchs Foto. Nur Partner-Karten; die Karte
+   bleibt 4:5, das Raster wird 12 px niedriger. Ändern sich Padding oder
+   line-height der Lasche, wandert dieser Wert mit. */
+.group-card.is-partner .card-photo-grid { margin-bottom: 24px; }
 
 /* ── Top text section ──────────────────────────────────── */
 .card-header {

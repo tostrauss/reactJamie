@@ -16,7 +16,11 @@ import { checkImageField } from '../utils/safeUrl.js';
 import { createEntityWithOwner, notifyCancellationFanout } from '../services/entityLifecycle.js';
 import { attachAttendanceTiers } from '../utils/attendanceTiers.js';
 import { CLUB_CARD_SELECT } from '../utils/clubCards.js';
-import { getDealsForEvents } from './dealController.js';
+import {
+  getDealsForEvents, parseClubDealBody, writeEventClubDeal, CLUB_DEAL_REFUSALS, CLUB_DEALS_UNAVAILABLE,
+} from './dealController.js';
+import { loadClubForQuota, quotaOf, ticketRule, partnerRequired } from '../utils/clubEventQuota.js';
+import { enableAutoMessages, setAutoMessages } from '../utils/clubAutoMessages.js';
 
 const CLUBS_TTL = 30_000; // 30 s
 const DISCOVER_EVENTS_KEY = 'discover_events';
@@ -1874,22 +1878,30 @@ export const getDiscoverEvents = async (req, res) => {
 // ==========================================
 export const createClubEvent = async (req, res) => {
   const { id } = req.params;
-  const { name, description, date, time, location, max_members, is_recurring_weekly, ticket_url, is_private } = req.body;
+  const { name, description, date, time, location, max_members, is_recurring_weekly, ticket_url, is_private, deal, auto_messages } = req.body;
   const userId = req.userId;
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
   if (!date) return res.status(400).json({ error: 'Datum ist erforderlich' });
 
-  // Paid events are a Pro feature (Tina/Tobi 2026-09-03). The frontend gates
-  // the toggle behind the ProModal, but that's bypassable with a direct API
-  // call — so validate the link AND the subscription here too.
+  // „Deal anlegen“ in the event form (Tina 17.11.2026): the event may arrive
+  // with ONE deal — an object with the deal fields. Old bundles never send
+  // it. Its columns once checked (below); outside the try so the catch can
+  // tell a deal-table error from an event error.
+  const wantsDeal = deal !== undefined && deal !== null;
+  if (wantsDeal && (typeof deal !== 'object' || Array.isArray(deal))) {
+    return res.status(400).json({ error: 'Ungültiger Deal' });
+  }
+  let dealFields = null;
+
+  // The ticket link's FORMAT is checked here; WHO may set one is decided once
+  // the club is loaded (below): since 17.11.2026 that depends on the club —
+  // a JAMIE partner, or JAMIE Pro as before (Tina/Tobi 2026-09-03). The
+  // frontend gates the toggle, but that's bypassable with a direct API call.
   const ticketUrl = normalizeTicketUrl(ticket_url);
   if (ticket_url && !ticketUrl) {
     return res.status(400).json({ error: 'Ungültiger Ticket-Link (nur http/https)' });
-  }
-  if (ticketUrl && !(await isUserPro(userId))) {
-    return res.status(403).json({ error: 'Kostenpflichtige Events sind ein Pro-Feature.', code: 'PRO_REQUIRED' });
   }
   // Participant limit: 2–500 like the create form and updateClubEvent; unset → 20.
   let createMax = 20;
@@ -1901,11 +1913,10 @@ export const createClubEvent = async (req, res) => {
   }
 
   try {
-    const club = await db.query(
-      'SELECT id, name, category, owner_id, events_owner_only, location, is_private, lat, lng FROM groups WHERE id = $1 AND type = $2',
-      [id, CLUB_TYPE]
-    );
-    if (club.rows.length === 0) return res.status(404).json({ error: 'Club nicht gefunden' });
+    // The club, with what the free tier needs to know about it and the caller
+    // (utils/clubEventQuota.js) — one query, like the plain SELECT before.
+    const club = await loadClubForQuota(db, id, userId);
+    if (!club) return res.status(404).json({ error: 'Club nicht gefunden' });
 
     const membership = await db.query(
       'SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2',
@@ -1919,10 +1930,59 @@ export const createClubEvent = async (req, res) => {
     // the founder (owner) OR a co-manager (role='admin') may add events — regular
     // members still just see them. Reuses the role already fetched above.
     const canManageEvents =
-      Number(club.rows[0].owner_id) === Number(userId) || membership.rows[0]?.role === 'admin';
-    if (club.rows[0].events_owner_only && !canManageEvents) {
+      Number(club.owner_id) === Number(userId) || membership.rows[0]?.role === 'admin';
+    if (club.events_owner_only && !canManageEvents) {
       return res.status(403).json({ error: 'Nur Gründer oder Manager dürfen Events erstellen' });
     }
+
+    // ── The free tier of official clubs (Tina 17.11.2026, decided by Tobi) ──
+    // 2 free events per club, 1 at a time; ticket events only as a JAMIE
+    // partner. Paying partners, the JAMIE team (app admins) and communities
+    // are never limited — the rules and the counting are in
+    // utils/clubEventQuota.js. Every refusal is a 403 with code
+    // PARTNER_REQUIRED for the new surface (it shows Tina's partner message)
+    // AND a German `error` sentence, which is all an old bundle shows.
+    const quota = await quotaOf(db, club);
+
+    // Who may set a ticket link: in a limited official club nobody — that is
+    // what the partnership is for, JAMIE Pro does not buy it; a club that is
+    // not limited needs no Pro (the partner pays); everywhere else (a
+    // community, and every club while the free tier is off) Pro as before.
+    if (ticketUrl) {
+      const rule = ticketRule(quota);
+      if (rule === 'partner') return res.status(403).json(partnerRequired('ticket', club.name));
+      if (rule === 'pro' && !(await isUserPro(userId))) {
+        return res.status(403).json({ error: 'Kostenpflichtige Events sind ein Pro-Feature.', code: 'PRO_REQUIRED' });
+      }
+    }
+
+    // First look without a lock: a club at its limit is refused BEFORE the
+    // moderation and geocoding calls. The count that binds runs again under
+    // the lock, together with the INSERT.
+    if (quota.block) return res.status(403).json(partnerRequired(quota.block, club.name));
+
+    // A deal with the event: only the people who run the club (owner,
+    // co-manager, an app admin), only a live official club — the refusals of
+    // the club-deal gate (dealController.clubDealAccess), in its order. No
+    // payment check here: an event a limited club may still create is one of
+    // its first two, and those carry a deal for free.
+    if (wantsDeal) {
+      if (!canManageEvents && !club.caller_is_admin) {
+        return res.status(403).json({ error: 'Keine Berechtigung', code: 'NOT_CLUB_MANAGER' });
+      }
+      if (club.club_type !== 'official') return res.status(403).json(CLUB_DEAL_REFUSALS.community);
+      if (!club.is_live) return res.status(403).json(CLUB_DEAL_REFUSALS.notLive);
+    }
+
+    // „Automatisierte Nachrichten“ (Tina 17.11.2026): the bar under „Deal
+    // anlegen“. Only `true` counts, only in an official club, only from the
+    // people who run it — anything else is ignored, never an error: an old
+    // bundle does not send the field, and the event of a plain member is
+    // created as always. What it switches on: utils/clubAutoMessages.js.
+    const wantsAuto = auto_messages === true
+      && club.club_type === 'official'
+      && (canManageEvents || !!club.caller_is_admin);
+    let autoMessages = false;
 
     const { safe, reason } = await checkTextSafety([name, description].filter(Boolean).join('\n'));
     if (!safe) return res.status(422).json({ error: reason });
@@ -1931,23 +1991,23 @@ export const createClubEvent = async (req, res) => {
     // Ort is optional in the event form — an empty field inherits the CLUB's
     // location (text AND coords). The inherited text must be stored too, not
     // just geocoded: otherwise the event renders without any address line.
-    const eventLocation = (location && location.trim()) || club.rows[0].location || null;
+    const eventLocation = (location && location.trim()) || club.location || null;
     // Inherited (or identical) location → inherit the club's pin too: no
     // Nominatim call, no drift between club pin and event pin.
     const inheritsClubPin =
       eventLocation != null &&
-      eventLocation === club.rows[0].location &&
-      club.rows[0].lat != null;
+      eventLocation === club.location &&
+      club.lat != null;
     let coords = null;
     if (inheritsClubPin) {
-      coords = { lat: club.rows[0].lat, lng: club.rows[0].lng };
+      coords = { lat: club.lat, lng: club.lng };
     } else {
       // A custom location resolves NEAR THE CLUB first, then through the market
       // gate — the old unrestricted lookup sent "6. Bezirk" to Tehran's
       // District 6, and an out-of-market pin hides the event from every
       // logged-in Gruppen feed (same-country box) while anonymous requests
       // still see it (Tina, 05.11.2026).
-      const geo = await resolveClubEventLocation(eventLocation, club.rows[0].lat, club.rows[0].lng);
+      const geo = await resolveClubEventLocation(eventLocation, club.lat, club.lng);
       if (!geo.ok) {
         return res.status(400).json({ error: 'Dieser Ort liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien, Frankreich, Spanien).' });
       }
@@ -1963,33 +2023,80 @@ export const createClubEvent = async (req, res) => {
     // Tina 30.09.2026: in a PUBLIC club the creator may make a single event
     // private (join by request, host approves — see usesJoinRequest in
     // groupController). A private club's events are always private.
-    const eventIsPrivate = !!club.rows[0].is_private || is_private === true;
+    const eventIsPrivate = !!club.is_private || is_private === true;
 
-    // Event row + owner membership in ONE transaction (audit risk #10) —
+    // The deal's fields, checked like every club deal (required fields, end
+    // date, moderation 422, photo allowlist, region gate 400) — BEFORE
+    // anything is written: a deal that does not pass means no event either.
+    if (wantsDeal) {
+      const parsed = await parseClubDealBody(deal, club, { partial: false });
+      if (parsed.error) return res.status(parsed.status).json({ error: parsed.error });
+      dealFields = parsed.fields;
+    }
+
+    // Event row + owner membership in ONE statement (audit risk #10) —
     // shared core in services/entityLifecycle.js.
-    const event = await createEntityWithOwner(
-      `INSERT INTO groups
+    const insertSql = `INSERT INTO groups
          (name, description, type, category, date, location, max_members, owner_id,
           parent_club_id, is_private, lat, lng, is_recurring_weekly, ticket_url)
        VALUES ($1, $2, 'event', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-       RETURNING *`,
-      [
-        name.trim(),
-        description || null,
-        club.rows[0].category || null,
-        dateTime,
-        eventLocation,
-        createMax,
-        userId,
-        parseInt(id, 10),
-        eventIsPrivate,
-        coords?.lat ?? null,
-        coords?.lng ?? null,
-        !!is_recurring_weekly,
-        ticketUrl,
-      ],
-      userId
-    );
+       RETURNING *`;
+    const insertParams = [
+      name.trim(),
+      description || null,
+      club.category || null,
+      dateTime,
+      eventLocation,
+      createMax,
+      userId,
+      parseInt(id, 10),
+      eventIsPrivate,
+      coords?.lat ?? null,
+      coords?.lng ?? null,
+      !!is_recurring_weekly,
+      ticketUrl,
+    ];
+
+    let event;
+    if (!quota.limited && !dealFields && !wantsAuto) {
+      // Not limited (a community, a paying partner, the JAMIE team, the free
+      // tier off), no deal and no automated messages with it: exactly the
+      // write from before — the pool, one statement.
+      event = await createEntityWithOwner(insertSql, insertParams, userId);
+    } else {
+      // ONE transaction for what belongs together.
+      // Limited: count again under a lock on the club's row — so two requests
+      // at once (a double tap, a script) count one after the other instead of
+      // both passing before either has written (the shape of
+      // dealController.writeUnderClubDealLimit). FOR UPDATE holds back other
+      // writers of that one row only; no reader waits.
+      // A deal: written and hung on with its event, or not at all.
+      // Automated messages: the switch, behind a savepoint — if its table is
+      // not there yet (boot window) the event is created without it.
+      const client = await db.pool.connect();
+      try {
+        await client.query('BEGIN');
+        if (quota.limited) {
+          await client.query('SELECT 1 FROM groups WHERE id = $1 FOR UPDATE', [club.id]);
+          const again = await quotaOf(client, club);
+          if (again.block) {
+            await client.query('ROLLBACK');
+            return res.status(403).json(partnerRequired(again.block, club.name));
+          }
+        }
+        event = await createEntityWithOwner(insertSql, insertParams, userId, client);
+        if (dealFields) {
+          await writeEventClubDeal(client, { clubId: club.id, eventId: event.id, userId, fields: dealFields });
+        }
+        if (wantsAuto) autoMessages = await enableAutoMessages(client, event.id, userId);
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err; // → the 500 below, nothing written
+      } finally {
+        client.release();
+      }
+    }
 
     // Welcome line in the new event's chat, like every new group and club
     // (since 2026-10-26, Tina). Fire-and-forget, no live broadcast — only the
@@ -2010,7 +2117,7 @@ export const createClubEvent = async (req, res) => {
     // club otherwise fired 300 round trips behind a single event creation).
     db.query('SELECT user_id FROM group_members WHERE group_id = $1 AND user_id <> $2', [id, userId])
       .then(({ rows }) => {
-        const clubName = club.rows[0].name || 'Club';
+        const clubName = club.name || 'Club';
         sendPushToUsers(
           rows.map(r => r.user_id),
           pushTexts('clubEvent', { clubName, eventName: name.trim() }),
@@ -2020,8 +2127,19 @@ export const createClubEvent = async (req, res) => {
       })
       .catch(() => {});
 
-    res.status(201).json(event);
+    // The answer is the event row, as always (old bundles read it). New next
+    // to it: `deal` — what the event shows right now, in the shape of the
+    // event page's deal row, or null (no deal sent, or one that is not
+    // visible). Read after the commit; getDealsForEvents never throws.
+    // `auto_messages`: whether the switch „Automatisierte Nachrichten“ is on.
+    const shownDeal = dealFields ? (await getDealsForEvents([event.id])).get(event.id) || null : null;
+    res.status(201).json({ ...event, deal: shownDeal, auto_messages: autoMessages });
   } catch (err) {
+    // The deal tables are not there yet (boot window): only a request that
+    // brought a deal can meet that, and nothing was written for it.
+    if (dealFields && (err?.code === '42P01' || err?.code === '42703')) {
+      return res.status(503).json(CLUB_DEALS_UNAVAILABLE);
+    }
     console.error('Error creating club event:', err);
     res.status(500).json({ error: 'Veranstaltung konnte nicht erstellt werden' });
   }
@@ -2118,13 +2236,19 @@ export const deleteClubEvent = async (req, res) => {
 // the discover feed, and the map all reflect the edit immediately.
 export const updateClubEvent = async (req, res) => {
   const { id, eventId } = req.params;
-  const { name, description, date, time, location, max_members, is_recurring_weekly, image_url, ticket_url, is_private, target_age_min, target_age_max } = req.body;
+  const { name, description, date, time, location, max_members, is_recurring_weekly, image_url, ticket_url, is_private, target_age_min, target_age_max, auto_messages } = req.body;
   const userId = req.userId;
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   if (name !== undefined && !String(name).trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
   if (is_private !== undefined && typeof is_private !== 'boolean') {
     return res.status(400).json({ error: 'is_private muss true oder false sein' });
+  }
+  // „Automatisierte Nachrichten“ on the edit page of the event (Tina
+  // 17.11.2026): a real switch, so only true or false. Old bundles never
+  // send it.
+  if (auto_messages !== undefined && typeof auto_messages !== 'boolean') {
+    return res.status(400).json({ error: 'auto_messages muss true oder false sein' });
   }
   // „Für welches Alter?" on club events (Tina 05.11.2026): the edit form has
   // shown the fields all along, but this endpoint ignored them. Same rules as
@@ -2154,17 +2278,15 @@ export const updateClubEvent = async (req, res) => {
     if (bad) return res.status(400).json({ error: bad });
   }
 
-  // Ticket link (Pro-only, same rules as createClubEvent). An explicit empty
-  // string clears it — that's "back to a free event" and needs no Pro check.
+  // Ticket link: the FORMAT here, WHO may set one once the club is loaded
+  // (below — same rule as createClubEvent). An explicit empty string clears
+  // it — that's "back to a free event" and needs no check at all.
   let ticketUrl = null;
   if (ticket_url !== undefined) {
     const isClearing = typeof ticket_url === 'string' && !ticket_url.trim();
     ticketUrl = isClearing ? '' : normalizeTicketUrl(ticket_url);
     if (!isClearing && !ticketUrl) {
       return res.status(400).json({ error: 'Ungültiger Ticket-Link (nur http/https)' });
-    }
-    if (ticketUrl && !(await isUserPro(userId))) {
-      return res.status(403).json({ error: 'Kostenpflichtige Events sind ein Pro-Feature.', code: 'PRO_REQUIRED' });
     }
   }
 
@@ -2181,6 +2303,22 @@ export const updateClubEvent = async (req, res) => {
     const canManage = await userManagesClub(id, club.rows[0]?.owner_id, userId);
     if (!canManage && !isEventOwner) {
       return res.status(403).json({ error: 'Keine Berechtigung' });
+    }
+
+    // Setting a ticket link follows createClubEvent's rule (17.11.2026): in a
+    // limited official club only as a JAMIE partner (403 PARTNER_REQUIRED,
+    // with Pro too), in a club that is not limited without Pro, everywhere
+    // else JAMIE Pro as before. Only when a link is being SET — every other
+    // edit of the event stays free of this. Switching „wöchentlich
+    // wiederholen“ on or off is deliberately not checked (Tobi 17.11.2026:
+    // series run on).
+    if (ticketUrl) {
+      const quotaClub = await loadClubForQuota(db, id, userId);
+      const rule = ticketRule(quotaClub ? await quotaOf(db, quotaClub) : null);
+      if (rule === 'partner') return res.status(403).json(partnerRequired('ticket', quotaClub.name));
+      if (rule === 'pro' && !(await isUserPro(userId))) {
+        return res.status(403).json({ error: 'Kostenpflichtige Events sind ein Pro-Feature.', code: 'PRO_REQUIRED' });
+      }
     }
 
     // Teilnehmerlimit nachträglich ändern (Tina 10.10.2026): 2–500 like the
@@ -2284,6 +2422,15 @@ export const updateClubEvent = async (req, res) => {
     invalidatePrefix('map:'); // location/coords may have moved the pin
     invalidatePrefix('groups:'); // …and its card in the Gruppen feed
 
+    // The switch „Automatisierte Nachrichten“, after the edit itself is
+    // saved: only from the people who run the club (its owner, a co-manager)
+    // — a member editing an event of their own leaves it as it is — and only
+    // under an official club (checked in the write). Never fails the edit.
+    let autoMessages;
+    if (auto_messages !== undefined && canManage) {
+      autoMessages = await setAutoMessages({ clubId: id, eventId, userId, enabled: auto_messages });
+    }
+
     // ── Batch 2 (2026-09-07): notify attendees on a when/where move, promote the
     // waitlist on a cap raise. Mirrors updateGroup; fire-and-forget.
     const before = event.rows[0];
@@ -2318,7 +2465,9 @@ export const updateClubEvent = async (req, res) => {
         .catch(err => console.error('waitlist promote failed:', err.message));
     }
 
-    res.json(result.rows[0]);
+    // The event row as always; `auto_messages` next to it only when the
+    // switch was part of this save.
+    res.json(autoMessages === undefined ? result.rows[0] : { ...result.rows[0], auto_messages: autoMessages });
   } catch (err) {
     console.error('Error updating club event:', err);
     res.status(500).json({ error: 'Veranstaltung konnte nicht aktualisiert werden' });

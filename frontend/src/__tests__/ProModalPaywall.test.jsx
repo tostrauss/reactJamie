@@ -188,8 +188,11 @@ describe('ProModal paywall — Tina-Redesign 27.10.2026', () => {
     const toggle = screen.getByText('Alle Vorteile ansehen').closest('button');
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     await act(async () => { fireEvent.click(toggle); });
-    expect(screen.getByText('Clubs boosten')).toBeTruthy();
     expect(screen.getByText('Top-Platzierung')).toBeTruthy();
+    // „Club boosten“ left the club page on 17.11.2026 (Tina: „ganz
+    // weggeben“) — the paywall never promises it again, open or collapsed
+    expect(screen.queryByText('Clubs boosten')).toBeNull();
+    expect(screen.queryByText(/Club/)).toBeNull();
     // no emoji feature icons any more — the "Burger King" crown is gone
     expect(screen.queryByText('👑')).toBeNull();
   });

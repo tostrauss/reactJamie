@@ -99,7 +99,14 @@ export const AdminClassifySection = () => {
       const saved = res?.data?.club;
       // Render what the server actually stored, not what we hoped it would.
       setRows((prev) => prev.map((r) => (Number(r.id) === Number(club.id)
-        ? { ...r, club_type: saved?.club_type ?? r.club_type, category_label: saved?.category_label ?? null }
+        ? {
+          ...r,
+          club_type: saved?.club_type ?? r.club_type,
+          category_label: saved?.category_label ?? null,
+          // „Zahlender Partner“: only what the server says — and only if it
+          // says anything (an older server answers without the field).
+          ...(typeof saved?.is_paid_partner === 'boolean' ? { is_paid_partner: saved.is_paid_partner } : {}),
+        }
         : r)));
       setDrafts((prev) => {
         const next = { ...prev };
@@ -186,6 +193,27 @@ export const AdminClassifySection = () => {
                   </button>
                 ))}
               </div>
+
+              {/* „Zahlender Partner“ (Tina 17.11.2026, decided by Tobi): the
+                  mark behind the yellow frame, „☆ Partner“ and ✓, and what
+                  lifts the free tier. Only an official club can carry it (the
+                  server refuses it elsewhere), and a server that does not
+                  send the field yet gets no switch. */}
+              {current === 'official' && 'is_paid_partner' in c && (
+                <>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      style={{ width: 20, height: 20, flexShrink: 0, accentColor: 'var(--accent-coral, #FD7666)' }}
+                      checked={!!c.is_paid_partner}
+                      disabled={busyId === c.id}
+                      onChange={() => save(c, { is_paid_partner: !c.is_paid_partner })}
+                    />
+                    {t('admin.classify.paidPartner')}
+                  </label>
+                  <p style={{ color: MUTED, fontSize: 12, margin: '0 0 10px' }}>{t('admin.classify.paidPartnerHint')}</p>
+                </>
+              )}
 
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <input

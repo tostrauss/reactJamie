@@ -19,7 +19,7 @@ vi.mock('../../src/config/redis.js', () => ({ redisClient: null, redisSubscriber
 vi.mock('../../src/middleware/auth.js', () => ({
   authenticate: pass, optionalAuth: pass, requireCompleteProfile: pass, requireAdmin: pass,
 }));
-vi.mock('../../src/middleware/rateLimiter.js', () => ({ generalLimiter: pass }));
+vi.mock('../../src/middleware/rateLimiter.js', () => ({ generalLimiter: pass, partnerLeadLimiter: pass }));
 vi.mock('../../src/controllers/clubController.js', () => stubs([
   'createClub', 'getClubs', 'getClubById', 'joinClub', 'leaveClub', 'toggleClubFavorite',
   'getUserFavoriteClubs', 'getClubMembers', 'getUserClubs', 'getClubJoinRequests',
@@ -32,6 +32,11 @@ vi.mock('../../src/controllers/groupController.js', () => stubs([
 ]));
 vi.mock('../../src/controllers/featuredClubController.js', () => stubs([
   'getFeaturedClubs', 'getFeaturedClubsAdmin', 'setFeaturedClubs',
+]));
+// The partner model (Tina 17.11.2026): its club routes sit next to the events'.
+vi.mock('../../src/controllers/partnerController.js', () => stubs([
+  'getEventQuota', 'requestPartner', 'getPartnerLeadsAdmin',
+  'getEventExtras', 'saveEventDeal', 'removeEventDeal',
 ]));
 vi.mock('../../src/controllers/adminController.js', () => stubs([
   'getStats', 'getRecentUsers', 'getScreenTime', 'exportUsers', 'exportScreens', 'exportSuggestions',
@@ -63,6 +68,32 @@ describe('club routes', () => {
     expect(await handlerOf(request(app).get('/api/clubs/events/discover'))).toBe('getDiscoverEvents');
     expect(await handlerOf(request(app).get('/api/clubs'))).toBe('getClubs');
   });
+
+  // The free tier (Tina 17.11.2026): the quota is its own path under the club
+  // — neither the club itself nor its event list answers for it.
+  it('GET /api/clubs/:id/event-quota reaches the quota, the event routes stay where they were', async () => {
+    expect(await handlerOf(request(app).get('/api/clubs/7/event-quota'))).toBe('getEventQuota');
+    expect(await handlerOf(request(app).get('/api/clubs/7/events'))).toBe('getClubEvents');
+    expect(await handlerOf(request(app).post('/api/clubs/7/events').send({}))).toBe('createClubEvent');
+    expect(await handlerOf(request(app).put('/api/clubs/7/events/9').send({}))).toBe('updateClubEvent');
+    expect(await handlerOf(request(app).delete('/api/clubs/7/events/9'))).toBe('deleteClubEvent');
+  });
+
+  // „Ja, meldet euch!“ → „JAMIE Anfrage“.
+  it('POST /api/clubs/:id/partner-request reaches the request handler', async () => {
+    expect(await handlerOf(request(app).post('/api/clubs/7/partner-request').send({}))).toBe('requestPartner');
+  });
+
+  // The ONE deal of an event sits one segment below the event: editing or
+  // deleting the EVENT must never be answered by the deal handlers, nor the
+  // other way round.
+  it('the event\'s deal routes reach their own handlers, next to the event\'s own', async () => {
+    expect(await handlerOf(request(app).get('/api/clubs/7/events/9/extras'))).toBe('getEventExtras');
+    expect(await handlerOf(request(app).put('/api/clubs/7/events/9/deal').send({}))).toBe('saveEventDeal');
+    expect(await handlerOf(request(app).delete('/api/clubs/7/events/9/deal'))).toBe('removeEventDeal');
+    expect(await handlerOf(request(app).put('/api/clubs/7/events/9').send({}))).toBe('updateClubEvent');
+    expect(await handlerOf(request(app).delete('/api/clubs/7/events/9'))).toBe('deleteClubEvent');
+  });
 });
 
 describe('admin routes', () => {
@@ -91,5 +122,10 @@ describe('admin routes', () => {
     expect(await handlerOf(request(app).get('/api/admin/news/audience'))).toBe('getNewsAudience');
     expect(await handlerOf(request(app).get('/api/admin/news'))).toBe('listNews');
     expect(await handlerOf(request(app).post('/api/admin/news').send({ title: 'x' }))).toBe('sendNews');
+  });
+
+  // „Partner-Anfragen“ (Tina 17.11.2026).
+  it('GET /api/admin/partner-leads reaches the partner list', async () => {
+    expect(await handlerOf(request(app).get('/api/admin/partner-leads'))).toBe('getPartnerLeadsAdmin');
   });
 });

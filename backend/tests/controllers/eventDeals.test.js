@@ -65,7 +65,9 @@ const put = async (groupId, body) => {
   return res;
 };
 const tableMissing = () => Object.assign(new Error('relation "event_deals" does not exist'), { code: '42P01' });
-const embedRow = { group_id: 5, id: 3, name: 'Café Soleá', deal_label: '2 für 1', photo: 'https://x/p.webp' };
+// What the embed SELECT returns: a JAMIE deal — `verified` comes from the SQL
+// row since 17.11.2026 (the ✓ is for JAMIE's deals and paying partners).
+const embedRow = { group_id: 5, id: 3, name: 'Café Soleá', deal_label: '2 für 1', photo: 'https://x/p.webp', verified: true };
 
 let logSpy;
 beforeEach(() => {
@@ -95,6 +97,43 @@ describe('getDealsForEvents', () => {
     expect(sql).toContain("WHEN 'weekly' THEN 'w:'");
     expect(deals.get(5)).toEqual({ id: 3, name: 'Café Soleá', deal_label: '2 für 1', photo: 'https://x/p.webp', verified: true });
     expect(deals.get(6).photo).toBeNull();
+  });
+
+  // Tina 17.11.2026: „Den Haken bekommen nur Partner, die bezahlen.“ The ✓ at
+  // a deal is for JAMIE's own deals and for the deals of paying partners —
+  // decided in the query, from the deal's club.
+  it('verified comes from the row: a JAMIE deal and a paying partner\'s yes, a club that does not pay no', async () => {
+    scenario.embedRows = [
+      { ...embedRow, group_id: 5, verified: true },                 // JAMIE's, or a paying partner's
+      { ...embedRow, group_id: 6, id: 4, verified: false },         // an official club that does not pay
+      { ...embedRow, group_id: 7, id: 5, verified: null },          // its club row is gone
+    ];
+    const deals = await getDealsForEvents([5, 6, 7]);
+    expect(deals.get(5).verified).toBe(true);
+    expect(deals.get(6).verified).toBe(false);
+    expect(deals.get(7).verified).toBe(false);
+    // …and otherwise they are the same object: „die dann genau so aussehen“
+    expect(Object.keys(deals.get(6))).toEqual(Object.keys(deals.get(5)));
+    const sql = queries[0].text;
+    expect(sql).toContain('(d.club_id IS NULL OR dc.is_paid_partner = TRUE) AS verified');
+    expect(sql).toContain('LEFT JOIN groups dc ON dc.id = d.club_id');
+  });
+
+  it('before the deals.club_id migration (42703): the same read without the club join — every deal is JAMIE\'s, so verified', async () => {
+    const db = (await import('../../src/config/database.js')).default;
+    db.query.mockImplementationOnce(async (text, params) => {
+      queries.push({ text, params });
+      throw Object.assign(new Error('column d.club_id does not exist'), { code: '42703' });
+    });
+    scenario.embedRows = [embedRow];
+    const deals = await getDealsForEvents([5]);
+    expect(deals.get(5).verified).toBe(true);
+    expect(queries).toHaveLength(2);
+    const fallback = queries[1].text;
+    expect(fallback).toContain('TRUE AS verified');
+    expect(fallback).not.toContain('dc.');
+    expect(fallback).not.toContain('d.club_id');
+    expect(fallback).toMatch(/AND TRUE$/);
   });
 
   it('nothing asked, nothing queried', async () => {

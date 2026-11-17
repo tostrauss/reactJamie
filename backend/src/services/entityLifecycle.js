@@ -16,9 +16,13 @@ import { sendPushToUsers } from '../controllers/pushController.js';
 // its unguarded ROLLBACK could mask the real error on a dead connection —
 // review 2026-09-02). Triggers (members_count) fire normally.
 // `insertSql` must INSERT INTO groups ... RETURNING *.
-export async function createEntityWithOwner(insertSql, params, ownerId) {
+// `q` (optional, since 17.11.2026): a client that is already INSIDE a
+// transaction — createClubEvent counts a club's free events under a lock and
+// writes the event in that same transaction. Without it nothing changes: the
+// pool, one statement, no client checkout.
+export async function createEntityWithOwner(insertSql, params, ownerId, q = db) {
   const ownerParam = params.length + 1;
-  const result = await db.query(
+  const result = await q.query(
     `WITH ins AS (${insertSql}),
           member AS (
             INSERT INTO group_members (group_id, user_id, role)

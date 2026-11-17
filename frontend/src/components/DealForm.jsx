@@ -23,6 +23,19 @@ import { viennaTodayUTC } from '../utils/recurrence';
  * The form checks the required fields and builds the payload; the parent
  * saves it — onSubmit(payload, id) → Promise, id null for a new deal —,
  * shows the toasts and closes the form.
+ *
+ * `embedded` (Tina 17.11.2026: the bar „Deal anlegen“ in a club's event form
+ * — „dann öffnet sich nochmal ein Feld, wo man die Deal Infos reingibt inkl.
+ * wann der Deal angezeigt werden soll, eh wie wir es hatten“): the same
+ * fields as a PANEL inside someone else's form — a <div role="group">, no
+ * title, no Speichern/Abbrechen, no native `required` (the host form decides
+ * when to save). On every change it reports
+ * onChange({ payload, missing, uploading }) — the payload the server takes,
+ * which required fields are still empty (their form keys), and whether a
+ * photo is still on its way. „Sichtbar bis“ starts today there: an event
+ * today may carry a deal through today.
+ * `look` picks the class names of the club variant: 'ge' (the edit page,
+ * default) or 'event' (the event form on the club page, cd-event-*).
  */
 
 // Mirrors backend dealController CLUB_DEAL_MAX_DAYS.
@@ -57,13 +70,62 @@ const formFromDeal = (deal, defaults = {}) => ({
   description: deal?.description || '',
   address: deal?.address || '', // free-form address; backend geocodes it to lat/lng for the map
   booking_url: deal?.booking_url || '', // optional external link → "Jetzt buchen" CTA (e.g. ticket shop)
-  visible_until: deal?.visible_until ? deal.visible_until.slice(0, 10) : '', // YYYY-MM-DD in the input
+  // YYYY-MM-DD in the input; a new deal at an event starts out with the
+  // event's date (defaults.visible_until)
+  visible_until: deal?.visible_until ? deal.visible_until.slice(0, 10) : (defaults.visible_until || ''),
   photo_url: Array.isArray(deal?.photos) && deal.photos.length > 0 ? deal.photos[0] : '',
   // global cap; empty = unlimited (auto-offline at cap)
   max_redemptions: deal ? (deal.max_redemptions == null ? '' : String(deal.max_redemptions)) : '100',
   redeem_interval: deal?.redeem_interval || 'once', // once | daily | weekly — how often a user may redeem
   redeem_days: Array.isArray(deal?.redeem_days) ? deal.redeem_days : [], // ISO weekdays; empty = any day
 });
+
+// Which required fields are still empty → their form keys. A club's deal
+// needs its end date, JAMIE's does not.
+const missingFields = (form, { club }) => [
+  !form.name.trim() && 'name',
+  !form.deal_label.trim() && 'deal_label',
+  club && !form.visible_until && 'visible_until',
+].filter(Boolean);
+
+// What the server takes, from the form as it stands.
+const buildPayload = (form, { club, deal }) => {
+  const address = form.address.trim();
+  return {
+    name: form.name.trim(),
+    deal_label: form.deal_label.trim(),
+    description: form.description.trim() || null,
+    // Backend geocodes a non-empty address to lat/lng (Austria-first) so the
+    // deal-detail map renders. Empty = no address (a club's: the club's).
+    // A club's edit leaves an untouched address out, so the server does not
+    // geocode it again on every save.
+    address: club && form.id && address === (deal?.address || '') ? undefined : (address || null),
+    // Optional external link. Set → a "Jetzt buchen" button on the deal page
+    // opens it (ticket shop / booking). Per-deal, so it never shows on deals
+    // that don't set it (Tina 2026-07-31: "nicht bei jedem Deal").
+    booking_url: form.booking_url.trim() || null,
+    photos: form.photo_url ? [form.photo_url] : [],
+    visible_until: form.visible_until || null,
+    // Empty input = unlimited (null); otherwise the global redemption cap.
+    max_redemptions: form.max_redemptions.trim() === '' ? null : form.max_redemptions.trim(),
+    redeem_interval: form.redeem_interval || 'once',
+    redeem_days: form.redeem_days,
+  };
+};
+
+// The class names of the club variant, per look.
+const LOOKS = {
+  ge: {
+    field: 'ge-field', label: 'ge-label', hint: 'ge-hint', divider: true,
+    input: 'ge-input', textarea: 'ge-input ge-textarea', chips: 'ge-cat-grid', chip: 'ge-cat-chip',
+    photoPick: 'ge-share-btn', photoRemove: 'ge-role-btn',
+  },
+  event: {
+    field: 'cd-event-deal-field', label: 'cd-event-deal-label', hint: 'cd-event-recurring-hint', divider: false,
+    input: 'cd-event-input', textarea: 'cd-event-input cd-event-textarea', chips: 'cd-event-deal-chips', chip: 'cd-event-deal-chip',
+    photoPick: 'cd-event-deal-photo-btn', photoRemove: 'cd-event-deal-photo-btn',
+  },
+};
 
 // The admin dashboard's inline look, exactly as the form had it in
 // AdminDealsSection.
@@ -89,14 +151,18 @@ const ADMIN = {
   },
 };
 
-export default function DealForm({ variant = 'admin', deal = null, defaults, title, onSubmit, onCancel }) {
+export default function DealForm({
+  variant = 'admin', deal = null, defaults, title, onSubmit, onCancel,
+  embedded = false, look = 'ge', onChange,
+}) {
   const { t, i18n } = useTranslation();
   const toast = useToast();
   const club = variant === 'club';
+  const cls = LOOKS[look] || LOOKS.ge;
   const ns = club ? 'groupEdit.deals' : 'admin.deals';
   const k = (key, opts) => t(`${ns}.${key}`, opts);
   const lang = i18n.resolvedLanguage || i18n.language || 'de';
-  const idp = `deal-${variant}`; // ids for label ↔ input
+  const idp = `deal-${variant}${embedded ? '-event' : ''}`; // ids for label ↔ input
 
   const fileRef = useRef(null);
   const addressRef = useRef(null);
@@ -104,6 +170,21 @@ export default function DealForm({ variant = 'admin', deal = null, defaults, tit
   const [form, setForm] = useState(() => formFromDeal(deal, defaults));
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  // Embedded: the host form saves, so it hears of every change — and of the
+  // first state, before anything was typed. The latest onChange is used
+  // without making it a dependency (the host passes a new function each
+  // render).
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  useEffect(() => {
+    if (!embedded) return;
+    onChangeRef.current?.({
+      payload: buildPayload(form, { club, deal }),
+      missing: missingFields(form, { club }),
+      uploading,
+    });
+  }, [embedded, form, uploading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Google Maps script for the address autocomplete — same picker as group/club
   // creation. Load once.
@@ -167,31 +248,11 @@ export default function DealForm({ variant = 'admin', deal = null, defaults, tit
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.deal_label.trim() || (club && !form.visible_until)) {
+    if (missingFields(form, { club }).length) {
       toast.error(k('toast.requiredFields'));
       return;
     }
-    const address = form.address.trim();
-    const payload = {
-      name: form.name.trim(),
-      deal_label: form.deal_label.trim(),
-      description: form.description.trim() || null,
-      // Backend geocodes a non-empty address to lat/lng (Austria-first) so the
-      // deal-detail map renders. Empty = no address (a club's: the club's).
-      // A club's edit leaves an untouched address out, so the server does not
-      // geocode it again on every save.
-      address: club && form.id && address === (deal?.address || '') ? undefined : (address || null),
-      // Optional external link. Set → a "Jetzt buchen" button on the deal page
-      // opens it (ticket shop / booking). Per-deal, so it never shows on deals
-      // that don't set it (Tina 2026-07-31: "nicht bei jedem Deal").
-      booking_url: form.booking_url.trim() || null,
-      photos: form.photo_url ? [form.photo_url] : [],
-      visible_until: form.visible_until || null,
-      // Empty input = unlimited (null); otherwise the global redemption cap.
-      max_redemptions: form.max_redemptions.trim() === '' ? null : form.max_redemptions.trim(),
-      redeem_interval: form.redeem_interval || 'once',
-      redeem_days: form.redeem_days,
-    };
+    const payload = buildPayload(form, { club, deal });
     setSaving(true);
     try {
       await onSubmit(payload, form.id);
@@ -209,12 +270,12 @@ export default function DealForm({ variant = 'admin', deal = null, defaults, tit
       : labels === 'group' ? { id: `${idp}-${key}-label` } : {};
     return club ? (
       <div key={key}>
-        <div className="ge-field">
-          <label className="ge-label" {...labelProps}>{label}{required && ' *'}</label>
+        <div className={cls.field}>
+          <label className={cls.label} {...labelProps}>{label}{required && ' *'}</label>
           {control}
-          {hint && <p className="ge-hint">{hint}</p>}
+          {hint && <p className={cls.hint}>{hint}</p>}
         </div>
-        {!last && <div className="ge-divider" />}
+        {cls.divider && !last && <div className="ge-divider" />}
       </div>
     ) : (
       <div key={key} style={{ marginBottom: last ? 16 : 12 }}>
@@ -224,11 +285,15 @@ export default function DealForm({ variant = 'admin', deal = null, defaults, tit
       </div>
     );
   };
-  const inputProps = (key) => (club ? { id: `${idp}-${key}`, className: 'ge-input' } : { id: `${idp}-${key}`, style: ADMIN.input });
+  const inputProps = (key) => (club ? { id: `${idp}-${key}`, className: cls.input } : { id: `${idp}-${key}`, style: ADMIN.input });
   const set = (key) => (e) => setForm(p => ({ ...p, [key]: e.target.value }));
+  // Embedded, the fields sit in the host's <form>: a native `required` would
+  // stop that form's submit with the browser's own bubble — the host checks
+  // `missing` and says it in its own words instead.
+  const need = (on = true) => (embedded ? undefined : on);
 
   const chip = (active, onClick, label, key) => (club ? (
-    <button key={key} type="button" className={`ge-cat-chip${active ? ' active' : ''}`} aria-pressed={active} onClick={onClick}>
+    <button key={key} type="button" className={`${cls.chip}${active ? ' active' : ''}`} aria-pressed={active} onClick={onClick}>
       {label}
     </button>
   ) : (
@@ -253,7 +318,9 @@ export default function DealForm({ variant = 'admin', deal = null, defaults, tit
   // edit may keep today — a deal „sichtbar bis“ today is live until 23:59:59
   // in Vienna, and min = tomorrow made the browser refuse to save it
   // unchanged (review 16.11.2026). The server takes today, too.
-  const untilMin = club && !form.id ? isoDay(1) : isoDay(0);
+  // Embedded in an event's form, today is fine for a new deal as well: an
+  // event today may carry a deal through today.
+  const untilMin = club && !form.id && !embedded ? isoDay(1) : isoDay(0);
 
   const intervals = [
     ['once', k('intervals.once', { defaultValue: 'Einmalig pro Nutzer' })],
@@ -261,15 +328,8 @@ export default function DealForm({ variant = 'admin', deal = null, defaults, tit
     ['daily', k('intervals.daily', { defaultValue: '1× pro Tag' })],
   ];
 
-  return (
-    <form
-      onSubmit={submit}
-      className={club ? 'ge-card ge-form-card ge-deal-form' : undefined}
-      style={club ? undefined : ADMIN.form}
-      aria-label={title}
-    >
-      <h3 className={club ? 'ge-deal-form-title' : undefined} style={club ? undefined : ADMIN.title}>{title}</h3>
-
+  const fields = (
+    <>
       {field('name', { label: k('fields.company'), required: true },
         <input
           {...inputProps('name')}
@@ -278,7 +338,7 @@ export default function DealForm({ variant = 'admin', deal = null, defaults, tit
           value={form.name}
           onChange={set('name')}
           placeholder={k('fields.companyPlaceholder')}
-          required
+          required={need()}
         />)}
 
       {field('label', { label: k('fields.headline'), required: true, hint: k('fields.headlineHint') },
@@ -289,13 +349,13 @@ export default function DealForm({ variant = 'admin', deal = null, defaults, tit
           value={form.deal_label}
           onChange={set('deal_label')}
           placeholder={k('fields.headlinePlaceholder')}
-          required
+          required={need()}
         />)}
 
       {field('description', { label: k('fields.description'), hint: k('fields.descriptionHint') },
         <textarea
           {...(club
-            ? { id: `${idp}-description`, className: 'ge-input ge-textarea' }
+            ? { id: `${idp}-description`, className: cls.textarea }
             : { id: `${idp}-description`, style: { ...ADMIN.input, resize: 'vertical', minHeight: 80 } })}
           maxLength={2000}
           rows={4}
@@ -338,7 +398,7 @@ export default function DealForm({ variant = 'admin', deal = null, defaults, tit
         hint: k('fields.redeemIntervalHint', { defaultValue: 'Wiederkehrend (z.B. wöchentlich) für Stamm-Angebote wie „Welcome Shot jeden Donnerstag". Das globale Limit unten gilt dann nicht.' }),
         labels: club ? 'group' : 'input',
       }, club ? (
-        <div className="ge-cat-grid" role="group" aria-labelledby={`${idp}-interval-label`}>
+        <div className={cls.chips} role="group" aria-labelledby={`${idp}-interval-label`}>
           {intervals.map(([value, label]) => chip(form.redeem_interval === value,
             () => setForm(p => ({ ...p, redeem_interval: value })), label, value))}
         </div>
@@ -354,7 +414,7 @@ export default function DealForm({ variant = 'admin', deal = null, defaults, tit
         labels: 'group',
       },
         <div
-          className={club ? 'ge-cat-grid' : undefined}
+          className={club ? cls.chips : undefined}
           style={club ? undefined : { display: 'flex', flexWrap: 'wrap', gap: 6 }}
           role="group"
           aria-labelledby={`${idp}-days-label`}
@@ -376,7 +436,7 @@ export default function DealForm({ variant = 'admin', deal = null, defaults, tit
           max={club ? isoDay(CLUB_DEAL_MAX_DAYS) : undefined}
           value={form.visible_until}
           onChange={set('visible_until')}
-          required={club}
+          required={need(club)}
         />)}
 
       {field('max', { label: k('fields.maxRedemptions'), hint: k('fields.maxRedemptionsHint') },
@@ -400,7 +460,7 @@ export default function DealForm({ variant = 'admin', deal = null, defaults, tit
           <button
             type="button"
             onClick={() => setForm(p => ({ ...p, photo_url: '' }))}
-            className={club ? 'ge-role-btn' : undefined}
+            className={club ? cls.photoRemove : undefined}
             style={club ? undefined : ADMIN.btnGhost}
           >
             {k('fields.photoRemove')}
@@ -419,13 +479,35 @@ export default function DealForm({ variant = 'admin', deal = null, defaults, tit
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={uploading}
-            className={club ? 'ge-share-btn' : undefined}
+            className={club ? cls.photoPick : undefined}
             style={club ? undefined : { ...ADMIN.btnGhost, width: '100%', padding: '14px 16px' }}
           >
             {uploading ? k('fields.photoUploading') : k('fields.photoPick')}
           </button>
         </>
       ))}
+    </>
+  );
+
+  // A panel inside the host's form: the fields only.
+  if (embedded) {
+    return (
+      <div className="cd-event-deal-panel" role="group" aria-label={title}>
+        {fields}
+      </div>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={submit}
+      className={club ? 'ge-card ge-form-card ge-deal-form' : undefined}
+      style={club ? undefined : ADMIN.form}
+      aria-label={title}
+    >
+      <h3 className={club ? 'ge-deal-form-title' : undefined} style={club ? undefined : ADMIN.title}>{title}</h3>
+
+      {fields}
 
       <div className={club ? 'ge-deal-form-actions' : undefined} style={club ? undefined : { display: 'flex', gap: 8 }}>
         <button

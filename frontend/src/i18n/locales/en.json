@@ -626,7 +626,6 @@
       "pending": "Request sent ✓",
       "leave": "Leave club",
       "openChat": "Open chat",
-      "boost": "Boost club",
       "delete": "Delete club",
       "report": "Report club",
       "rejected": "Request declined"
@@ -699,7 +698,12 @@
       "errorProRequired": "Paid events are a JAMIE Pro feature.",
       "confirmLeave": "Really leave this event? Your spot is freed up.",
       "privateLabel": "Private event",
-      "privateHint": "Join by request only – you approve who comes"
+      "privateHint": "Join by request only – you approve who comes",
+      "dealLabel": "Add a deal",
+      "dealHint": "Offer participants a perk, e.g. a discount or a free drink",
+      "dealPanelTitle": "Deal for the event",
+      "autoMessagesLabel": "Automated messages",
+      "autoMessagesHint": "Reminders and info about the event go to the group automatically in your name"
     },
     "confirmLeave": "Really leave this club? You can only join this club twice in total."
   },
@@ -1718,8 +1722,6 @@
     "features": {
       "boostGroups": "Boost groups",
       "boostGroupsDesc": "More visibility for your events and groups.",
-      "boostClubs": "Boost clubs",
-      "boostClubsDesc": "More members for your community",
       "seeMembers": "See who's in the group up front",
       "seeMembersDesc": "Check out all participants of a group in advance and see if it's a fit.",
       "topPlacement": "Top placement",
@@ -1754,7 +1756,7 @@
     "later": "Maybe later",
     "startError": "Could not start subscription",
     "successTitle": "Welcome to Pro!",
-    "successBody": "You can now add friends, send direct messages and boost your groups & clubs.",
+    "successBody": "You can now add friends, send direct messages and boost your groups.",
     "paymentTitle": "Payment details",
     "paymentSub": "SSL-encrypted · Cancel any time",
     "subscriptionLabel": "Subscription",
@@ -2298,6 +2300,53 @@
       "verified": "Verified partner"
     }
   },
+  "partner": {
+    "close": "Close",
+    "cta": "Yes, get in touch!",
+    "concurrent": {
+      "title": "Hey {{name}}, you’re quick! 🙌",
+      "intro": "I’m Tina, one of the founders of JAMIE. We built JAMIE so that people in Vienna really get together again – ideally at places like yours!",
+      "lead": "One event at a time is free. If you want more, become our partner:",
+      "b1": "Up to 3 events at the same time",
+      "b2": "Your own deals for your guests",
+      "b3": "Official Partner Badge & more!",
+      "outro": "To be honest: the partnership costs something. In return, you shape JAMIE together with us. Would you be up for it? I’ll get in touch with you personally. 😊",
+      "notReady": "Not ready yet? Another event is free as soon as your first one is over."
+    },
+    "third": {
+      "title": "Hey {{name}}, great that you’re planning another event! 🙌",
+      "intro": "I’m Tina, one of the founders of JAMIE. We built JAMIE so that people in Vienna really get together again, and we’re very happy that this has already happened twice at your place.",
+      "lead": "From the third event on, it continues as a JAMIE Partner. That lets you:",
+      "b1": "plan up to 3 events at the same time",
+      "b2": "create your own deals for your guests",
+      "b3": "get the official Partner Badge & more",
+      "outro": "To be honest: the partnership costs something. Right now, though, we’re looking for 10 pilot partners who develop JAMIE further with us.",
+      "outro2": "Would you be up for it? I’ll get in touch with you personally. 😊"
+    },
+    "request": {
+      "title": "JAMIE Request",
+      "name": "Name",
+      "company": "Company",
+      "companyPlaceholder": "optional",
+      "email": "Email",
+      "phone": "Phone",
+      "contactMail": "I’d rather be contacted by email",
+      "contactCall": "I’d rather be contacted by phone",
+      "privacy": "I have read the <1>privacy policy</1> and agree that JAMIE may contact me about this request.",
+      "submit": "Send request",
+      "sending": "Sending…",
+      "sent": "Thank you! We’ll get in touch with you personally. 😊",
+      "error": "The request could not be sent. Please try again.",
+      "errors": {
+        "name": "Please enter your name.",
+        "email": "Please enter a valid email address.",
+        "phone": "Please enter a phone number.",
+        "privacy": "Please confirm the privacy policy."
+      }
+    },
+    "memberBlocked": "This club cannot create any more events right now.",
+    "dealNotAllowed": "Deals are available for your club’s first 2 events – after that as a JAMIE Partner."
+  },
   "outOfRegion": {
     "title": "Coming to you soon!",
     "subtitleLine1": "JAMIE is live in Austria, Germany, Switzerland, Italy, France and Spain.",
@@ -2579,7 +2628,9 @@
       "save": "Save",
       "saved": "Saved",
       "saveError": "Could not be saved",
-      "empty": "No clubs found."
+      "empty": "No clubs found.",
+      "paidPartner": "Paying partner",
+      "paidPartnerHint": "Yellow frame, ☆ Partner and ✓ – no limit on events and deals"
     },
     "featuredClubs": {
       "title": "Clubs in onboarding",
@@ -2795,6 +2846,18 @@
       "deleteClub": "Remove club",
       "confirmDeleteGroup": "Remove \"{{name}}\"? It disappears for every member. Chat and history are kept as evidence.",
       "toReceiver": "to {{name}}"
+    },
+    "partnerLeads": {
+      "title": "Partner requests",
+      "empty": "No partner requests yet.",
+      "contactMail": "by email",
+      "contactCall": "by phone",
+      "source": {
+        "concurrent": "Message 1 · 2nd event at the same time",
+        "third": "Message 2 · 3rd event",
+        "ticket": "Ticket event",
+        "deal": "Deal"
+      }
     }
   },
   "imageUpload": {

@@ -376,6 +376,16 @@ const PUSH_TEXTS = {
     fr: (p) => ({ title: p.isCommunity ? 'Nouvelle communauté à valider' : 'Nouveau club à valider', body: `« ${p.groupName} » attend une validation` }),
     es: (p) => ({ title: p.isCommunity ? 'Nueva comunidad pendiente' : 'Nuevo club pendiente', body: `"${p.groupName}" espera aprobación` }),
   },
+  // To ADMINS: a club's manager sent the „JAMIE Anfrage“ form from the partner
+  // message (Tina 17.11.2026) — opens the admin's list „Partner-Anfragen“.
+  // No price, no contact details: only which club asks.
+  partnerLeadAdmin: {
+    de: (p) => ({ title: 'Neue Partner-Anfrage 🤝', body: `"${p.groupName}" möchte JAMIE Partner werden` }),
+    en: (p) => ({ title: 'New partner request 🤝', body: `"${p.groupName}" wants to become a JAMIE partner` }),
+    it: (p) => ({ title: 'Nuova richiesta partner 🤝', body: `"${p.groupName}" vuole diventare partner di JAMIE` }),
+    fr: (p) => ({ title: 'Nouvelle demande de partenariat 🤝', body: `« ${p.groupName} » veut devenir partenaire JAMIE` }),
+    es: (p) => ({ title: 'Nueva solicitud de partner 🤝', body: `"${p.groupName}" quiere ser partner de JAMIE` }),
+  },
   // To ADMINS: a new report came in.
   //
   // The body used to be the constant "Eine neue Meldung ist eingegangen" — it

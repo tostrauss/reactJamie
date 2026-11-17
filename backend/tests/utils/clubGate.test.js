@@ -14,6 +14,14 @@ describe('partnerSql', () => {
     expect(sql).toContain("pc.club_type = 'official'");
   });
 
+  // Tina's document of 17.11.2026, decided by Tobi: ☆, the yellow frame and
+  // the ✓ are what a PAYING partner gets — the mark an admin sets on the club.
+  it('only paying partners: the parent club carries the admin’s mark', () => {
+    expect(sql).toContain('pc.is_paid_partner = TRUE');
+    // the event row's own column is always FALSE — never that one
+    expect(sql).not.toContain('g.is_paid_partner');
+  });
+
   it('only what the club itself put up: the event creator is its owner or a co-manager', () => {
     expect(sql).toContain('pc.owner_id = g.owner_id');
     expect(sql).toContain("mgr.user_id = g.owner_id AND mgr.role = 'admin'");

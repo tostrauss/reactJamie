@@ -1167,6 +1167,21 @@ export const suggestions = {
 // (Scaffolding — the coordinator removes these markers after the merge.)
 // ==========================================
 // >>> BAU1-API (Partner, Clubs & Deals)
+// Partner clubs (Tina 17.11.2026): the free tier of clubs, the partner
+// request („JAMIE Anfrage“), the ONE deal of a club event, the admin's list.
+// clubs.createEvent / clubs.updateEvent and admin.classifyClub stay as they
+// are — they simply carry the new fields (deal, is_paid_partner).
+// A component that existing pages render calls these inside try/catch (or
+// Promise.resolve().then(…).catch(…)): tests that mock this module without
+// partnerApi must keep working.
+export const partnerApi = {
+  getEventQuota:   (clubId)                => axiosInstance.get(`/clubs/${clubId}/event-quota`),
+  requestPartner:  (clubId, data)          => axiosInstance.post(`/clubs/${clubId}/partner-request`, data),
+  getEventExtras:  (clubId, eventId)       => axiosInstance.get(`/clubs/${clubId}/events/${eventId}/extras`),
+  saveEventDeal:   (clubId, eventId, data) => axiosInstance.put(`/clubs/${clubId}/events/${eventId}/deal`, data),
+  removeEventDeal: (clubId, eventId)       => axiosInstance.delete(`/clubs/${clubId}/events/${eventId}/deal`),
+  getPartnerLeads: ()                      => axiosInstance.get('/admin/partner-leads'),
+};
 // <<< BAU1-API
 //
 // ── separator: leave in place ──

@@ -12,6 +12,7 @@ import { AdminClassifySection } from '../components/AdminClassifySection';
 import { AdminMotivationsCard } from '../components/AdminMotivationsCard';
 import { AdminNewsSection } from '../components/AdminNewsSection';
 import { AdminReportsSection } from '../components/AdminReportsSection';
+import { AdminPartnerLeadsSection } from '../components/AdminPartnerLeadsSection';
 import { AdminUserModal } from '../components/AdminUserModal';
 import { UserName } from '../components/UserName';
 import { downloadCSV } from '../utils/csv';
@@ -285,6 +286,7 @@ export const AdminDashboard = () => {
             deep-link to #reports. (Until 2026-09-15 reports had no UI here at
             all: the endpoint existed and nothing called it.) */}
         <AdminReportsSection />
+        <div id="partner-leads"><AdminPartnerLeadsSection /></div>
 
         <h2 style={{ color: '#fff', fontSize: 14, fontWeight: 600, marginBottom: 12, opacity: 0.6, textTransform: 'uppercase', letterSpacing: 1 }}>
           {t('admin.sections.users')}

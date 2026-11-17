@@ -532,7 +532,10 @@
   flex-shrink: 0;
 }
 
-/* ── Pro gate row (groups roster only): API returned a truncated list ── */
+/* ── Pro gate row (groups roster only): API returned a truncated list ──
+   Coral like every other call to action since 17.11.2026 (Tina: „Allgemein
+   die gelben Balken weg!“) — it was a gold bar with a gold „Pro
+   freischalten“. What it does and says is unchanged. */
 .cd-members-gated {
   display: flex;
   align-items: center;
@@ -541,8 +544,8 @@
   margin-top: 10px;
   padding: 14px 16px;
   min-height: 52px;
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.08), rgba(255, 165, 0, 0.03));
-  border: 1px solid rgba(255, 215, 0, 0.22);
+  background: rgba(253, 118, 102, 0.08);
+  border: 1px solid rgba(253, 118, 102, 0.25);
   border-radius: var(--radius-lg);
   color: var(--text-light);
   font-size: 13px;
@@ -561,13 +564,19 @@
 }
 .cd-members-gated-cta {
   flex-shrink: 0;
-  color: #FFD700;
+  color: var(--accent-coral);
   font-weight: 800;
 }
 
-/* ── Events section (primary content) ─────────────────── */
+/* ── Events section (primary content) ───────────────────
+   Directly under the description since 17.11.2026 (Tina: above „Zum Chat“
+   and „Club teilen“): the distance to both neighbours is .cd-body's gap, so
+   no margin of its own. */
 .cd-events {
-  margin-top: 8px;
+  margin-top: 0;
+  /* ?newEvent=1 scrolls this box to the top: it must come to rest below the
+     sticky .cd-top-bar (safe area + 10 + 40 + 10), not underneath it. */
+  scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 68px);
   padding: 18px 16px;
   background: linear-gradient(180deg, rgba(253, 118, 102, 0.06), rgba(253, 118, 102, 0.02));
   border: 1px solid rgba(253, 118, 102, 0.2);
@@ -795,6 +804,84 @@
   font-size: 12px;
 }
 
+/* ── „Deal anlegen“: the deal's fields under its bar (Tina 17.11.2026) ──
+   DealForm embedded, look 'event': a framed group with the bars' radius.
+   NOT filled like the bars: the fields in it are the event form's own
+   (global.css gives every input here --bg-input), and on a --bg-input panel
+   they had no visible box at all. On the form's own ground they look exactly
+   like „Name des Events“ above. Everything may shrink (min-width: 0): the
+   panel sits in a 390px page inside two paddings. */
+.cd-event-deal-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+}
+.cd-event-deal-panel > div,
+.cd-event-deal-field {
+  min-width: 0;
+}
+.cd-event-deal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cd-event-deal-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.cd-event-deal-panel .cd-event-recurring-hint {
+  margin: 0;
+}
+.cd-event-deal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.cd-event-deal-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 7px 12px;
+  border-radius: var(--radius-full, 999px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-light);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.cd-event-deal-chip.active {
+  background: rgba(253, 118, 102, 0.18);
+  border-color: var(--accent-coral);
+  color: var(--accent-coral);
+}
+.cd-event-deal-photo-btn {
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: var(--text-light);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.cd-event-deal-photo-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .cd-event-submit-btn {
   padding: 12px;
   border-radius: var(--radius-md);
@@ -816,6 +903,21 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+/* One event: its card and, under it, its deal (Tina 16.11.2026: „Er wird
+   auch nochmal bei den Clubs unter dem Event angezeigt“). The row is the
+   event page's own (event-deal-row.css); here it loses its bottom margin and
+   is set in by 12px, which ties it to the card above. min-width: 0 so a long
+   deal name ends in „…“ instead of widening the page. */
+.cd-event-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.cd-event-item > .event-deal-row {
+  margin: 0 0 0 12px;
+  width: calc(100% - 12px);
 }
 .cd-event-card {
   display: flex;
@@ -866,14 +968,30 @@
   flex: 1;
   min-width: 0;
 }
+/* Up to TWO lines since 17.11.2026: next to the date, the calendar button and
+   a button whose label may itself take two lines („Anfrage ausstehend…“,
+   see .cd-event-actions below) one line left a name of a few letters — „W…“.
+   Clamped, so a long name still ends in „…“. A word too long for the line
+   („Wöchentlicher“) is hyphenated — only words of 10 letters and more, so a
+   short name is never split — and, where the browser cannot, breaks rather
+   than pushing the card wider. */
 .cd-event-name {
   margin: 0 0 3px;
   font-size: 14px;
   font-weight: 700;
+  line-height: 1.25;
   color: var(--text-light);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  -webkit-hyphenate-limit-before: 4;
+  -webkit-hyphenate-limit-after: 4;
+  hyphenate-limit-chars: 10 4 4;
 }
 .cd-event-time {
   margin: 0 0 2px;
@@ -887,12 +1005,23 @@
   margin: 0;
   font-size: 11px;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+/* Calendar button and the event's button side by side while they fit in
+   140px („Beitreten“, „Dabei ✓“, „Löschen“). A longer label („Anfrage
+   ausstehend…“, two lines at 104px) drops under the calendar button instead:
+   the column is then 104px wide, not 154, and the event's name keeps its
+   room. */
 .cd-event-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 6px;
   flex-shrink: 0;
+  max-width: 140px;
 }
 .cd-event-cal-btn {
   /* 44px min hit area (Apple HIG); the visible circle stays compact via the
@@ -925,6 +1054,17 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
+/* In the event card the button may carry a longer label than „Beitreten“ —
+   „Beitritt anfragen“, „Anfrage ausstehend…“, „Anfrage abgelehnt“ and their
+   translations: it wraps to two lines at 104px instead of squeezing the
+   event's name out of the card. Scoped to the card; .cd-event-join-btn itself
+   stays as it is. */
+.cd-event-actions .cd-event-join-btn {
+  max-width: 104px;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
+}
 .cd-event-join-btn--joined {
   background: transparent;
   color: var(--text-muted);
@@ -944,18 +1084,6 @@
   margin-top: 12px;
   padding-top: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-.cd-boost-btn {
-  padding: 14px;
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, #FFD700, #FFAA00);
-  color: #1a1100;
-  font-size: 15px;
-  font-weight: 800;
-  border: none;
-  cursor: pointer;
-  min-height: 48px;
-  box-shadow: 0 6px 18px rgba(255, 215, 0, 0.3);
 }
 
 /* ── Report link ──────────────────────────────────────── */

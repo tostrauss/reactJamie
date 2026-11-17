@@ -51,4 +51,13 @@ describe('event page CSS (group-detail.css)', () => {
     expect(css).toMatch(/\n\.gd-pill-row\s*\{[^}]*min-width:\s*0/);
     expect(css).toMatch(/\.gd-pill-row \.gd-category-eyebrow\s*\{[^}]*text-overflow:\s*ellipsis/);
   });
+
+  // Tina's picture 3 (audit GD-04): „AFTER WORK“ · „☆ PARTNER“ — both in
+  // capitals with the same tracking. By CSS only, so the text a screen
+  // reader gets (and every getByText('Partner') above) stays as it is.
+  it('the partner pill next to the category is in capitals with the category\u2019s tracking', () => {
+    expect(css).toMatch(/\.gd-pill-row \.partner-badge--pill\s*\{[^}]*text-transform:\s*uppercase/);
+    expect(css).toMatch(/\.gd-pill-row \.partner-badge--pill\s*\{[^}]*letter-spacing:\s*0\.5px/);
+    expect(css).toMatch(/\n\.gd-category-eyebrow\s*\{[^}]*letter-spacing:\s*0\.5px/);
+  });
 });

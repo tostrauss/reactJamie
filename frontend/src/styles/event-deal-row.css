@@ -3,8 +3,16 @@
    in the partner yellow (100 %, like every partner text — global.css
    tokens), an arrow. Its own sheet so the club's event list can reuse it.
    min-width:0 and an ellipsis on every text: the row never gets wider than
-   the card (S3 — one too-wide child let the event page pan sideways). */
+   the card (S3 — one too-wide child let the event page pan sideways).
+
+   Drawn to Tina's picture 4 since 17.11.2026 (audit GD-18…25, measured on
+   the mock): the row is FRAMED in the partner line and filled with 10 % of
+   the partner yellow (#37304B on the card), the icon sits in a purple
+   circle, and glyph, ✓, offer and arrow are all the cream partner yellow. */
 .event-deal-row {
+  /* The circle behind the shop glyph, picked from mock 4. Local on purpose:
+     it is used nowhere else. */
+  --deal-icon-bg: #584F88;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -12,8 +20,8 @@
   min-width: 0;
   margin: 0 0 18px;
   padding: 10px 12px;
-  background: var(--bg-input);
-  border: none;
+  background: rgba(var(--accent-partner-rgb), 0.10);
+  border: 1px solid var(--partner-line);
   border-radius: var(--radius-md);
   color: var(--text-white);
   font-family: inherit;
@@ -23,7 +31,7 @@
   touch-action: manipulation;
   transition: background 0.15s;
 }
-.event-deal-row:active { background: var(--bg-hover); }
+.event-deal-row:active { background: rgba(var(--accent-partner-rgb), 0.16); }
 
 .event-deal-row-icon {
   flex-shrink: 0;
@@ -34,14 +42,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-card);
-  color: var(--text-light);
-}
-.event-deal-row-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
+  background: var(--deal-icon-bg);
+  color: var(--partner-text);
 }
 
 .event-deal-row-text {
@@ -66,13 +68,16 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.event-deal-row-check { flex-shrink: 0; }
+.event-deal-row-check {
+  flex-shrink: 0;
+  color: var(--partner-text);
+}
 .event-deal-row-label {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
   color: var(--partner-text);
 }
 .event-deal-row-arrow {
   flex-shrink: 0;
-  color: var(--text-muted);
+  color: var(--partner-text);
 }

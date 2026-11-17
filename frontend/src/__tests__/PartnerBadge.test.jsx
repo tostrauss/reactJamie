@@ -76,4 +76,16 @@ describe('partner yellow lives in the tokens only', () => {
     const homeCss = fs.readFileSync(path.join(SRC, 'styles/home.css'), 'utf8');
     expect(homeCss).toMatch(/\.group-card\.is-partner:hover\s*\{[^}]*border-color:\s*var\(--partner-line\)/);
   });
+
+  // Tina's picture 1 (audit P1-09): the tab sits in a strip of its own UNDER
+  // the photo grid. Without this rule it covered the bottom-left photo by
+  // 5 px, its yellow top edge running through the face.
+  it('the tab of a partner card gets its own strip under the photo grid (17 px tab + 7 px air)', () => {
+    const homeCss = fs.readFileSync(path.join(SRC, 'styles/home.css'), 'utf8');
+    expect(homeCss).toMatch(/\.group-card\.is-partner \.card-photo-grid\s*\{[^}]*margin-bottom:\s*24px/);
+    // the tab's height this value belongs to: 1 px line + 2 + 12 + 2
+    const globalCss = fs.readFileSync(path.join(SRC, 'styles/global.css'), 'utf8');
+    const tab = globalCss.slice(globalCss.indexOf('.partner-badge--tab {'));
+    expect(tab.slice(0, tab.indexOf('}'))).toMatch(/padding:\s*2px 8px 2px 7px;[\s\S]*line-height:\s*12px;[\s\S]*border-top:\s*1px solid/);
+  });
 });

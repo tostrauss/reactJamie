@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { deals } from '../utils/api';
@@ -88,6 +88,17 @@ function DealPage({ id }) {
   // same, „nicht mehr verfügbar“ (review 16.11.2026; the CTA stayed coral and
   // led to the same error on every tap).
   const [gone, setGone] = useState(false);
+  // Whether THIS page is still on screen. The page is keyed by the deal's id,
+  // so opening another deal unmounts it — but a redeem still on its way
+  // answers later, and the toast context is global: its „Deal eingelöst!“
+  // (or its error) appeared over the NEXT deal (review 16.11.2026). An
+  // answer for a page that is gone is dropped. Set in the effect, not only
+  // cleared, so React's double mount in development leaves it true.
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
 
   useEffect(() => {
     // Two independent fetches: ONLY the deal payload gates render. The
@@ -117,6 +128,7 @@ function DealPage({ id }) {
     setRedeeming(true);
     try {
       const res = await deals.redeem(id);
+      if (!alive.current) return;
       // Reflect the redeemed state on THIS page immediately (CTA + "1/1
       // eingelöst" counter) instead of whisking the user off to the voucher
       // page — the proof screen stays reachable via the redeemed button.
@@ -124,6 +136,7 @@ function DealPage({ id }) {
       setShowConfirm(false);
       toast.success(t('deal.redeemedToast'));
     } catch (err) {
+      if (!alive.current) return;
       // 409 — already redeemed in a parallel tab or after a back-button race.
       // Surface the existing redemption so the page shows it as redeemed.
       if (err.response?.status === 409) {
@@ -139,7 +152,7 @@ function DealPage({ id }) {
           defaultValue: 'Nur {{days}} einlösbar',
         }));
         // Refresh status so the button reflects the new day.
-        deals.getRedemptionStatus(id).then(r => setRedemption(r.data)).catch(() => {});
+        deals.getRedemptionStatus(id).then(r => { if (alive.current) setRedemption(r.data); }).catch(() => {});
         return;
       }
       // 410 DEAL_SOLD_OUT — the last free slot went while the page was open;
@@ -160,7 +173,7 @@ function DealPage({ id }) {
       }
       toast.error(t('deal.redeemError'));
     } finally {
-      setRedeeming(false);
+      if (alive.current) setRedeeming(false);
     }
   };
 

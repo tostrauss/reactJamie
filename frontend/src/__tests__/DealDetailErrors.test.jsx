@@ -143,5 +143,49 @@ describe('DealDetail — the next deal starts fresh', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(deals.redeem).toHaveBeenCalledTimes(1);
     expect(deals.redeem).toHaveBeenCalledWith('7');
+    // …and says nothing over deal 9: the toast context is global, „Erfolgreich
+    // eingelöst!“ for deal 7 used to pop up on the next deal's page.
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  // The same for every way a redeem can fail: the answer for deal 7 arrives
+  // when deal 9 is on screen — no error toast there, and deal 9 is neither
+  // „nicht mehr verfügbar“ nor sold out.
+  it.each([
+    ['410 sold out', { status: 410, data: { code: 'DEAL_SOLD_OUT' } }],
+    ['404 gone', { status: 404, data: { error: 'Deal not found' } }],
+    ['422 wrong day', { status: 422, data: { code: 'WRONG_DAY', redeem_days: [4] } }],
+    ['500', { status: 500, data: { error: 'Internal server error' } }],
+    ['no answer at all (network)', undefined],
+  ])('a failed redeem of deal 7 (%s) that answers after the switch shows no toast over deal 9', async (_name, response) => {
+    let fail;
+    deals.redeem.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+    renderAt7();
+    expect(await screen.findByText('Deal 7')).toBeInTheDocument();
+    await confirmRedeem();
+    fireEvent.click(screen.getByRole('button', { name: 'Push-Tap' }));
+    expect(await screen.findByText('Deal 9')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Jetzt einlösen' })).toBeEnabled());
+    const statusCalls = deals.getRedemptionStatus.mock.calls.length;
+
+    await act(async () => { fail(response ? { response } : new Error('Network Error')); });
+
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Jetzt einlösen' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Nicht mehr verfügbar' })).not.toBeInTheDocument();
+    // the „wrong day“ branch refreshes the status of ITS deal — not from a page that is gone
+    expect(deals.getRedemptionStatus.mock.calls.length).toBe(statusCalls);
+  });
+
+  // The guard must not swallow what belongs to the page that is still open.
+  it('on the page that is still open the redeem answers as always: toast and „Bereits eingelöst“', async () => {
+    deals.redeem.mockResolvedValue({ data: { redeemed: true, count: 1, max: 1, redeemed_at: '2026-11-16T18:00:00.000Z' } });
+    renderAt7();
+    expect(await screen.findByText('Deal 7')).toBeInTheDocument();
+    await confirmRedeem();
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Erfolgreich eingelöst! ✅'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

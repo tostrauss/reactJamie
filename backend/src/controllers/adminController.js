@@ -638,25 +638,36 @@ export const rejectClub = async (req, res) => {
 // ==========================================
 // RECLASSIFY A CLUB  (admin only)
 // ==========================================
-// POST /api/admin/clubs/:id/classify   body: { club_type?, category_label? }
+// POST /api/admin/clubs/:id/classify
+//   body: { club_type?, category_label?, is_paid_partner? }
 //
 // The 22.10.2026 split (Tina) made every existing club a 'community'; this is
 // how the real ones become 'official' — and where the free-text category line
 // ("Sport · Laufclub") can be corrected when an owner writes something
-// unusable. Both fields are optional; sending neither is a 400 rather than a
+// unusable. All fields are optional; sending none is a 400 rather than a
 // silent no-op.
+//
+// is_paid_partner („Zahlender Partner“, Tina's document of 17.11.2026, decided
+// by Tobi): ☆ Partner, the yellow frame and the ✓ are what a PAYING partner
+// gets (utils/clubGate.js partnerSql), and this is the only place that sets
+// the mark. Only an official club can carry it: `true` for a club that is not
+// 'official' after this very request is refused (400
+// PAID_PARTNER_OFFICIAL_ONLY) — `false` always goes. Reclassifying a paying
+// club as a community later leaves the mark standing; it has no effect there
+// (partnerSql asks for 'official') and is back when the club is.
 //
 // Deliberately does NOT touch approval_status: upgrading a long-approved club
 // to 'official' must not pull it back into the moderation queue and out of
 // every listing.
 export const classifyClub = async (req, res) => {
   const { id } = req.params;
-  const { club_type, category_label } = req.body || {};
+  const { club_type, category_label, is_paid_partner } = req.body || {};
 
   const hasType = club_type !== undefined;
   const hasLabel = category_label !== undefined;
-  if (!hasType && !hasLabel) {
-    return res.status(400).json({ error: 'club_type oder category_label erforderlich' });
+  const hasPaid = is_paid_partner !== undefined;
+  if (!hasType && !hasLabel && !hasPaid) {
+    return res.status(400).json({ error: 'club_type, category_label oder is_paid_partner erforderlich' });
   }
   if (hasType && club_type !== 'community' && club_type !== 'official') {
     return res.status(400).json({ error: "club_type muss 'community' oder 'official' sein" });
@@ -665,29 +676,54 @@ export const classifyClub = async (req, res) => {
       && (typeof category_label !== 'string' || category_label.length > 60)) {
     return res.status(400).json({ error: 'Kategorie darf maximal 60 Zeichen lang sein' });
   }
+  // A real boolean only: 'false' or 0 from a hand-written request must never
+  // be read as a yes.
+  if (hasPaid && typeof is_paid_partner !== 'boolean') {
+    return res.status(400).json({ error: 'is_paid_partner muss true oder false sein' });
+  }
 
   try {
     // NULL params + COALESCE/CASE: an unsent field keeps its stored value.
-    // Casts are explicit because both params are only read inside a CASE —
-    // without them Postgres answers "could not determine data type".
+    // Casts are explicit because the params are only read inside a CASE or a
+    // COALESCE — without them Postgres answers "could not determine data type".
+    // The last condition is the official-only rule, in the write itself: the
+    // type the club has AFTER this request decides, so club_type and the mark
+    // may arrive together.
     const result = await db.query(
       `UPDATE groups
           SET club_type = COALESCE($2::text, club_type),
               category_label = CASE WHEN $3::text IS NULL THEN category_label
                                     WHEN btrim($3::text) = '' THEN NULL
                                     ELSE btrim($3::text) END,
+              is_paid_partner = COALESCE($4::boolean, is_paid_partner),
               updated_at = CURRENT_TIMESTAMP
         WHERE id = $1 AND type = 'club' AND deleted_at IS NULL
-        RETURNING id, name, club_type, category_label, approval_status`,
-      [id, hasType ? club_type : null, hasLabel ? (category_label ?? '') : null]
+          AND ($4::boolean IS NOT TRUE OR COALESCE($2::text, club_type) = 'official')
+        RETURNING id, name, club_type, category_label, approval_status, is_paid_partner`,
+      [id, hasType ? club_type : null, hasLabel ? (category_label ?? '') : null, hasPaid ? is_paid_partner : null]
     );
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Club nicht gefunden' });
+    if (result.rowCount === 0) {
+      // Nothing written: no such club — or the mark was asked for a club that
+      // is not official.
+      if (is_paid_partner === true) {
+        const club = await db.query(
+          `SELECT 1 FROM groups WHERE id = $1 AND type = 'club' AND deleted_at IS NULL`, [id]);
+        if (club.rowCount > 0) {
+          return res.status(400).json({
+            error: 'Nur offizielle Clubs können zahlende Partner sein',
+            code: 'PAID_PARTNER_OFFICIAL_ONLY',
+          });
+        }
+      }
+      return res.status(404).json({ error: 'Club nicht gefunden' });
+    }
 
     // Every club listing is cached for 30 s, the onboarding list separately.
     // 'groups:' and 'discover_events' since 16.11.2026: an official club's own
     // events carry „☆ Partner“ (utils/clubGate.js partnerSql), and promoting
     // or demoting a club must show in the Gruppen feed at once — not after a
-    // TTL — like approveClub does for its events.
+    // TTL — like approveClub does for its events. The same four cover the
+    // paying-partner mark: feed (☆), Clubs list and onboarding list (✓).
     try {
       const { invalidatePrefix, deleteCached } = await import('../utils/cache.js');
       invalidatePrefix('clubs:');
@@ -696,7 +732,7 @@ export const classifyClub = async (req, res) => {
       invalidatePrefix('discover_events');
     } catch { /* non-fatal */ }
 
-    console.log(`[admin] user ${req.userId} classified club ${id} as ${result.rows[0].club_type}`);
+    console.log(`[admin] user ${req.userId} classified club ${id} as ${result.rows[0].club_type} paid=${result.rows[0].is_paid_partner}`);
     res.json({ success: true, club: result.rows[0] });
   } catch (err) {
     // The 22.10. migration has not run on this database yet.
@@ -717,7 +753,8 @@ export const classifyClub = async (req, res) => {
 // GET /api/admin/clubs?search=…  — name search over live clubs with their
 // current type, so the dashboard can show what it is about to change. Separate
 // from GET /api/clubs (card columns, member previews, caching) because this
-// view needs four fields and the truth, uncached.
+// view needs four fields and the truth, uncached. is_paid_partner since
+// 17.11.2026: the „Zahlender Partner“ switch shows what it is about to change.
 export const getClubsForAdmin = async (req, res) => {
   const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
   try {
@@ -731,7 +768,7 @@ export const getClubsForAdmin = async (req, res) => {
     const { rows } = await db.query(
       `SELECT g.id, g.name, g.image_url, g.location, g.members_count,
               g.approval_status, g.is_active, g.club_type, g.category_label,
-              g.category
+              g.category, g.is_paid_partner
          FROM groups g
         WHERE ${where}
         ORDER BY g.members_count DESC NULLS LAST, g.created_at DESC, g.id DESC
