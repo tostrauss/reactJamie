@@ -210,6 +210,6 @@ describe('CLUB_AUTO_TEXTS', () => {
       CLUB_AUTO_TEXTS.soon(), CLUB_AUTO_TEXTS.thanks(),
     ].join('|');
     expect(all).not.toMatch(/[\u00A0\u202F\u2009]/);
-    expect(all).not.toMatch(/[\[\]{}€]|undefined|null/);
+    expect(all).not.toMatch(/[[\]{}€]|undefined|null/);
   });
 });
