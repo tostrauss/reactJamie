@@ -889,6 +889,12 @@
   margin-top: 12px;
 }
 
+/* While the club's deals load (ClubDealsSection). */
+.ge-deals-new:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .ge-deal-form-title {
   margin: 0;
   padding: 16px 18px 2px;

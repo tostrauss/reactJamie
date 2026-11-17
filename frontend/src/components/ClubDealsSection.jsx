@@ -58,16 +58,24 @@ export default function ClubDealsSection({ clubId, clubName }) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Live as the server counts it for the limit (dealController liveClubDeals):
+  // not past visible_until — the list holds active deals only. A one-time
+  // deal at its cap counts, too, though the feed hides it.
+  const isLive = (d) => !d.visible_until || new Date(d.visible_until) > new Date();
+
   // The paid part: into the form only with Pro (or as an app admin).
   // A new deal also only below CLUB_DEAL_MAX_LIVE live ones (the server's
   // rule, review 16.11.2026) — no form that could only end in that refusal.
+  // The same for an expired one: saving it needs a new end date, which brings
+  // it back on show, so at the limit the server refuses it (409) and the form
+  // closed with everything typed into it (review 16.11.2026).
   const openForm = (deal) => {
     if (!canPutUpClubDeals({ isPro, user })) {
       askForClubDealsPro(t, toast);
       return;
     }
-    const live = list.filter((d) => !d.visible_until || new Date(d.visible_until) > new Date()).length;
-    if (!deal && live >= CLUB_DEAL_MAX_LIVE) {
+    const live = list.filter(isLive).length;
+    if ((!deal || !isLive(deal)) && live >= CLUB_DEAL_MAX_LIVE) {
       toast.error(t('groupEdit.deals.toast.limit', { max: CLUB_DEAL_MAX_LIVE }));
       return;
     }
@@ -126,7 +134,7 @@ export default function ClubDealsSection({ clubId, clubName }) {
   const row = (deal, idx) => {
     const photo = Array.isArray(deal.photos) ? deal.photos[0] : null;
     const until = deal.visible_until ? new Date(deal.visible_until) : null;
-    const expired = !!until && until < new Date();
+    const expired = !isLive(deal);
     // The cap of the current round takes a one-time deal offline (redeemDeal).
     const capReached = (deal.redeem_interval || 'once') === 'once' && deal.max_redemptions != null
       && (deal.round_redemption_count ?? 0) >= deal.max_redemptions;
@@ -210,8 +218,11 @@ export default function ClubDealsSection({ clubId, clubName }) {
           ) : (
             <div className="ge-card">{list.map(row)}</div>
           )}
+          {/* Not before the list is in: until then it counts no live deal,
+              and the limit check above would let a fourth one through to
+              the form (review 16.11.2026). */}
           {!failed && (
-            <button type="button" className="ge-share-btn ge-deals-new" onClick={() => openForm(null)}>
+            <button type="button" className="ge-share-btn ge-deals-new" onClick={() => openForm(null)} disabled={loading}>
               + {t('groupEdit.deals.newBtn')}
             </button>
           )}

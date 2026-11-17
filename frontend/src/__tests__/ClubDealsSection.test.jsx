@@ -226,6 +226,46 @@ describe('ClubDealsSection — with Pro', () => {
     expect(form()).toBeInTheDocument();
   });
 
+  // Review 16.11.2026: saving an expired deal needs a new end date, which
+  // brings it back on show — at the limit the server can only refuse that
+  // (409), and the form closed with everything typed into it.
+  it('three live deals: „Bearbeiten“ on an expired one says so instead of opening a form; below the limit it opens', async () => {
+    const LIMIT = 'Höchstens 3 aktive Deals gleichzeitig – lösche zuerst einen.';
+    const expired = deal({ id: 4, deal_label: 'Alt', visible_until: '2026-01-02T00:00:00.000Z' });
+    await renderSection({ isPro: true, rows: [deal({ id: 1 }), deal({ id: 2 }), deal({ id: 3 }), expired] });
+    fireEvent.click(screen.getByRole('button', { name: 'Deal „Alt“ bearbeiten' }));
+    expect(toast.error).toHaveBeenCalledWith(LIMIT);
+    expect(form()).toBeNull();
+    expect(deals.updateForClub).not.toHaveBeenCalled();
+    cleanup();
+    toast.error.mockClear();
+    await renderSection({ isPro: true, rows: [deal({ id: 1 }), deal({ id: 2 }), expired] });
+    fireEvent.click(screen.getByRole('button', { name: 'Deal „Alt“ bearbeiten' }));
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(form()).toBeInTheDocument();
+  });
+
+  // Review 16.11.2026: before the list is in it counts no live deal — a tap
+  // then let a fourth one through to the form.
+  it('„Deal anlegen“ is disabled until the list is in', async () => {
+    let answer;
+    deals.getForClub.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+    render(
+      <AuthContext.Provider value={{ user: { id: 1 }, isPro: true }}>
+        <ClubDealsSection clubId={70} clubName="Bar Neun" />
+      </AuthContext.Provider>,
+    );
+    expect(screen.getByText('Lade Deals…')).toBeInTheDocument();
+    expect(newBtn()).toBeDisabled();
+    fireEvent.click(newBtn());
+    expect(form()).toBeNull();
+    answer({ data: [deal({ id: 1 }), deal({ id: 2 }), deal({ id: 3 })] });
+    await waitFor(() => expect(newBtn()).toBeEnabled());
+    fireEvent.click(newBtn());
+    expect(toast.error).toHaveBeenCalledWith('Höchstens 3 aktive Deals gleichzeitig – lösche zuerst einen.');
+    expect(form()).toBeNull();
+  });
+
   it('the server\'s CLUB_DEAL_LIMIT (another manager was quicker): toast, form closed, list reloaded', async () => {
     deals.createForClub.mockRejectedValue({ response: { status: 409, data: { code: 'CLUB_DEAL_LIMIT', error: 'x' } } });
     await renderSection({ isPro: true });
