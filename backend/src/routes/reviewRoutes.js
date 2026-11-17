@@ -1,7 +1,9 @@
 import express from 'express';
 import { getPendingReviews, submitReview, dismissReview, getReviewForGroup, getMyAttendance } from '../controllers/reviewController.js';
 import { getPendingConnect, dismissConnect } from '../controllers/connectController.js';
-import { authenticate } from '../middleware/auth.js';
+import { getPendingRatings, submitRating, dismissRating, getRatingsAdmin } from '../controllers/eventRatingController.js';
+import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { eventRatingLimiter } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
@@ -15,5 +17,13 @@ router.get('/attendance',         authenticate, getMyAttendance);
 // event, for everybody but its creator (Tina 17.11.2026).
 router.get('/connect/pending',    authenticate, getPendingConnect);
 router.post('/connect/dismiss',   authenticate, dismissConnect);
+
+// „Wie war’s bei X?“ — stars + feedback (Tina 17.11.2026). authenticate must
+// run BEFORE the limiter so req.userId is set (the limiter keys on it): rating
+// and closing share 30 per hour per user. The list is for app admins only.
+router.get('/ratings/pending',    authenticate, getPendingRatings);
+router.post('/ratings',           authenticate, eventRatingLimiter, submitRating);
+router.post('/ratings/dismiss',   authenticate, eventRatingLimiter, dismissRating);
+router.get('/ratings/admin',      authenticate, requireAdmin, getRatingsAdmin);
 
 export default router;

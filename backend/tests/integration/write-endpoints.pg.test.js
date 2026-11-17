@@ -6890,7 +6890,7 @@ suite('write endpoints against real Postgres', () => {
   describe('Bau 2: nach dem Event, Community, Club-Events (17.11.2026)', () => {
     // Own people and own modules — the C block above stays as it is.
     let U = {};   // user ids by short name
-    let migrations, connect, connectJob;
+    let migrations, connect, connectJob, ratings;
 
     const mkUser = async (key, name) => {
       const r = await db.query(
@@ -6930,6 +6930,7 @@ suite('write endpoints against real Postgres', () => {
       migrations = await import('../../src/config/migrations.js');
       connect = await import('../../src/controllers/connectController.js');
       connectJob = await import('../../src/jobs/connectNudges.js');
+      ratings = await import('../../src/controllers/eventRatingController.js');
       await mkUser('owner', 'Bau2 Olga');
       await mkUser('guest', 'Bau2 Gabi');
       // After the event: O2 creates, M1–M3 take part, L joins too late.
@@ -7192,6 +7193,132 @@ suite('write endpoints against real Postgres', () => {
         const lateEvent = await mkEvent('Bau2 Push Spät', `TIMESTAMP '2027-03-02 19:00:00'`, U.o2, [U.m1]);
         await tick('2027-03-03T22:30:00Z');          // 23:30 Vienna
         expect(await marker(lateEvent)).toBeNull();
+      });
+    });
+
+    // ── B2-04: „Wie war’s bei X?“ — stars + feedback ──────────────────────
+    // Every participant (the creator too) is asked in the app 24 h after a
+    // timed event, the day after at 18:00 Vienna for a date-only one, for 7
+    // days. Seeds are Vienna wall-clock relative to NOW() with distances that
+    // hold at any time of day (the endpoint reads the real NOW()).
+    describe('„Wie war’s bei X?“: stars + feedback after an event', () => {
+      // A timed start `hours` ago — at hh:mm:30, so it can never read as a
+      // date-only event (stored at exactly 00:00).
+      const hoursAgo = (hours) =>
+        `date_trunc('minute', (NOW() AT TIME ZONE 'Europe/Vienna') - INTERVAL '${Number(hours)} hours') + INTERVAL '30 seconds'`;
+      const dateOnly = (daysAgo) => `${VIENNA_TODAY} - INTERVAL '${Number(daysAgo)} days'`;
+      const pendingIds = async (uid) => {
+        const res = await call(ratings.getPendingRatings, { userId: uid });
+        ok(res);
+        return res.body.map((r) => r.group_id);
+      };
+      let E = {};
+
+      it('asked 24 h after a timed event and the day after a date-only one — not before, not after 7 days, never about a solo event', async () => {
+        await mkUser('r1', 'Bau2 Rita');
+        E.due = await mkEvent('Bau2 Punsch & Rave', hoursAgo(30), U.o2, [U.r1, U.m2]);
+        E.early = await mkEvent('Bau2 Zu früh', hoursAgo(10), U.o2, [U.r1]);
+        E.expired = await mkEvent('Bau2 Vorbei', hoursAgo(9 * 24), U.o2, [U.r1]);
+        E.dayDue = await mkEvent('Bau2 Ganztags vorgestern', dateOnly(2), U.o2, [U.r1]);
+        E.dayEarly = await mkEvent('Bau2 Ganztags heute', dateOnly(0), U.o2, [U.r1]);
+        E.solo = await mkEvent('Bau2 Solo', hoursAgo(30), U.r1, []);
+        E.cancelled = await mkEvent('Bau2 Abgesagt', hoursAgo(30), U.o2, [U.r1]);
+        await db.query('UPDATE groups SET is_active = FALSE WHERE id = $1', [E.cancelled]);
+
+        const mine = await call(ratings.getPendingRatings, { userId: U.r1 });
+        ok(mine);
+        expect(mine.body.map((r) => r.group_id).sort((a, b) => a - b)).toEqual([E.due, E.dayDue].sort((a, b) => a - b));
+        expect(mine.body.find((r) => r.group_id === E.due)).toMatchObject({ group_name: 'Bau2 Punsch & Rave', image_url: null });
+        // The creator is a participant too — „ALLE“.
+        expect(await pendingIds(U.o2)).toEqual(expect.arrayContaining([E.due, E.dayDue]));
+        // Somebody who was not there is not asked.
+        expect(await pendingIds(U.guest)).toEqual([]);
+      });
+
+      it('a rating with feedback is stored once: 201, then no longer asked, a second one is 409', async () => {
+        const rate = (uid, gid, stars, feedback) => call(ratings.submitRating, { userId: uid, body: { group_id: gid, stars, feedback } });
+        // Not allowed: too early, expired, not a participant, a solo event.
+        expect((await rate(U.r1, E.early, 5)).body).toMatchObject({ code: 'RATING_NOT_ALLOWED' });
+        expect((await rate(U.r1, E.expired, 5)).statusCode).toBe(403);
+        expect((await rate(U.guest, E.due, 5)).statusCode).toBe(403);
+        expect((await rate(U.r1, E.solo, 5)).statusCode).toBe(403);
+        // Refused before any SQL.
+        expect((await rate(U.r1, E.due, 6)).statusCode).toBe(400);
+        expect((await rate(U.r1, E.due, 5, 'x'.repeat(1001))).body).toMatchObject({ code: 'FEEDBACK_TOO_LONG' });
+
+        const first = await rate(U.r1, E.due, 5, '  Mega Abend! 🎉  ');
+        expect(first.statusCode).toBe(201);
+        expect(first.body).toEqual({ success: true });
+        expect(await pendingIds(U.r1)).toEqual([E.dayDue]);
+        const again = await rate(U.r1, E.due, 1, 'doch nicht');
+        expect(again.statusCode).toBe(409);
+        expect(again.body).toMatchObject({ code: 'ALREADY_RATED' });
+        const row = (await db.query(
+          'SELECT stars, feedback FROM event_ratings WHERE group_id = $1 AND user_id = $2', [E.due, U.r1])).rows[0];
+        expect(row).toEqual({ stars: 5, feedback: 'Mega Abend! 🎉' });
+        // Stars only, by somebody else: the feedback is NULL.
+        expect((await rate(U.m2, E.due, 3)).statusCode).toBe(201);
+        expect((await db.query(
+          'SELECT stars, feedback FROM event_ratings WHERE group_id = $1 AND user_id = $2', [E.due, U.m2])).rows[0])
+          .toEqual({ stars: 3, feedback: null });
+      });
+
+      it('the X: a row without stars — never asked about that event again, and no rating afterwards', async () => {
+        expect((await call(ratings.dismissRating, { userId: U.guest, body: { group_id: E.dayDue } })).statusCode).toBe(403);
+        ok(await call(ratings.dismissRating, { userId: U.r1, body: { group_id: E.dayDue } }));
+        ok(await call(ratings.dismissRating, { userId: U.r1, body: { group_id: E.dayDue } }));   // idempotent
+        expect(await pendingIds(U.r1)).toEqual([]);
+        expect((await db.query(
+          'SELECT stars, feedback FROM event_ratings WHERE group_id = $1 AND user_id = $2', [E.dayDue, U.r1])).rows)
+          .toEqual([{ stars: null, feedback: null }]);
+        const late = await call(ratings.submitRating, { userId: U.r1, body: { group_id: E.dayDue, stars: 4 } });
+        expect(late.statusCode).toBe(409);
+        // Closing after a real rating changes nothing.
+        ok(await call(ratings.dismissRating, { userId: U.r1, body: { group_id: E.due } }));
+        expect((await db.query('SELECT stars FROM event_ratings WHERE group_id = $1 AND user_id = $2', [E.due, U.r1])).rows[0].stars).toBe(5);
+      });
+
+      it('the admin list shows only real ratings, newest first, with event and person', async () => {
+        const res = await call(ratings.getRatingsAdmin, { userId: A, query: { limit: '200' } });
+        ok(res);
+        expect(res.body).toMatchObject({ limit: 200, offset: 0 });
+        expect(res.body.total).toBeGreaterThanOrEqual(2);
+        const ours = res.body.ratings.filter((r) => [E.due, E.dayDue].includes(r.group_id));
+        // Rita's 5 ★ and Max's 3 ★ — the row closed with the X is not a rating.
+        expect(ours.map((r) => [r.group_id, r.user_name, r.stars, r.feedback])).toEqual([
+          [E.due, 'Bau2 Max', 3, null],
+          [E.due, 'Bau2 Rita', 5, 'Mega Abend! 🎉'],
+        ]);
+        expect(ours[0]).toMatchObject({ group_name: 'Bau2 Punsch & Rave', type: 'group', club_name: null, user_id: U.m2 });
+      });
+
+      it('the emergency switch EVENT_RATINGS=false: nobody is asked', async () => {
+        process.env.EVENT_RATINGS = 'false';
+        try {
+          expect(await pendingIds(U.o2)).toEqual([]);
+        } finally {
+          delete process.env.EVENT_RATINGS;
+        }
+        expect(await pendingIds(U.o2)).toEqual(expect.arrayContaining([E.due]));
+      });
+
+      it('the GDPR export carries the own ratings — and partner_leads as an array even while that table is missing', async () => {
+        const exp = await call(C.exportData, { userId: U.r1 });
+        ok(exp);
+        expect(exp.body.event_ratings).toEqual([
+          expect.objectContaining({ event_name: 'Bau2 Punsch & Rave', stars: 5, feedback: 'Mega Abend! 🎉' }),
+        ]);
+        // The table belongs to Bau 1 (V-07): whether it exists here or not,
+        // the export answers 200 with an array.
+        expect(Array.isArray(exp.body.partner_leads)).toBe(true);
+      });
+
+      it('deleting the account of somebody who rated runs through and takes their rows along (CASCADE)', async () => {
+        ok(await call(C.deleteAccount, { userId: U.r1, body: {} }));
+        expect((await db.query('SELECT 1 FROM users WHERE id = $1', [U.r1])).rows).toEqual([]);
+        expect((await db.query('SELECT 1 FROM event_ratings WHERE user_id = $1', [U.r1])).rows).toEqual([]);
+        // Max's rating of the same event stays.
+        expect((await db.query('SELECT stars FROM event_ratings WHERE group_id = $1', [E.due])).rows).toEqual([{ stars: 3 }]);
       });
     });
   });
