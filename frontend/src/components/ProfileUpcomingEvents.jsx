@@ -82,7 +82,9 @@ export default function ProfileUpcomingEvents({ editing = false, onEditingChange
     const locked = editing && !row.can_edit;
     const requests = row.is_own && !editing ? (row.pending_request_count || 0) : 0;
     const current = row.members_count || 0;
-    const cls = ['profile-upcoming-row', row.is_own && 'is-own', isToday && 'is-today', editable && 'is-wiggling', locked && 'is-locked']
+    // is-partner: the whole subline in the partner yellow, „☆ Partner · 8/20“
+    // (mock p. 3) — not only the badge.
+    const cls = ['profile-upcoming-row', row.is_own && 'is-own', kind === 'partner' && 'is-partner', isToday && 'is-today', editable && 'is-wiggling', locked && 'is-locked']
       .filter(Boolean).join(' ');
     return (
       <li key={row.id} className={cls}>

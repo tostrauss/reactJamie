@@ -2540,6 +2540,14 @@
   overflow: hidden;
 }
 
+/* A partner's event: the whole subline yellow, „☆ Partner · 8/20" (mock
+   p. 3) — the „· 8/20" used to stay grey beside the yellow badge. Text, so
+   the text token. */
+.profile-upcoming-row.is-partner .profile-upcoming-sub {
+  color: var(--partner-text);
+  font-weight: 600;
+}
+
 /* The counter on the date tile's top right corner: the tile ends 8 + 36 =
    44px in, the 20px counter overlaps its edge by 14. */
 .profile-upcoming-requests {

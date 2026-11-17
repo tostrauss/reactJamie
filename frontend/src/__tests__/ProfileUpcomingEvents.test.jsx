@@ -148,6 +148,15 @@ describe('ProfileUpcomingEvents — the list', () => {
     expect(within(sub('Wiener Stammtisch')).getByText('· 12/30')).toBeTruthy();
   });
 
+  // Mock p. 3: „☆ Partner · 8/20“ is yellow from end to end — the row carries
+  // the class the CSS colours the whole subline by.
+  it('only the row of a partner event is marked is-partner (its whole subline turns yellow)', async () => {
+    await renderUpcoming();
+    expect(item('Spieleabend').classList.contains('is-partner')).toBe(true);
+    expect(item('Laufrunde').classList.contains('is-partner')).toBe(false);
+    expect(item('Wiener Stammtisch').classList.contains('is-partner')).toBe(false);
+  });
+
   it('a server without `kind` gets the same rule from is_partner and the type', async () => {
     await renderUpcoming(ROWS.slice(0, 3).map((r) => {
       const copy = { ...r };

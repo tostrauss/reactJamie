@@ -147,6 +147,11 @@ describe('the date tile of „Demnächst dabei“', () => {
     expect(tile.color).toBe('var(--text-white)');
   });
 
+  it('the subline of a partner event is yellow as a whole — the text token', () => {
+    const sub = block(profileCss, '.profile-upcoming-row.is-partner .profile-upcoming-sub');
+    expect(sub.color).toBe('var(--partner-text)');
+  });
+
   it('the month is no longer upper-case and grey — capitalised, the tile\'s white', () => {
     const month = block(profileCss, '.profile-upcoming-month');
     const day = block(profileCss, '.profile-upcoming-day');
