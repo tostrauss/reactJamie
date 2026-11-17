@@ -19,7 +19,7 @@ vi.mock('../../src/config/redis.js', () => ({ redisClient: null, redisSubscriber
 vi.mock('../../src/middleware/auth.js', () => ({
   authenticate: pass, optionalAuth: pass, requireCompleteProfile: pass, requireAdmin: pass,
 }));
-vi.mock('../../src/middleware/rateLimiter.js', () => ({ generalLimiter: pass }));
+vi.mock('../../src/middleware/rateLimiter.js', () => ({ generalLimiter: pass, partnerLeadLimiter: pass }));
 vi.mock('../../src/controllers/clubController.js', () => stubs([
   'createClub', 'getClubs', 'getClubById', 'joinClub', 'leaveClub', 'toggleClubFavorite',
   'getUserFavoriteClubs', 'getClubMembers', 'getUserClubs', 'getClubJoinRequests',
@@ -35,7 +35,7 @@ vi.mock('../../src/controllers/featuredClubController.js', () => stubs([
 ]));
 // The partner model (Tina 17.11.2026): its club routes sit next to the events'.
 vi.mock('../../src/controllers/partnerController.js', () => stubs([
-  'getEventQuota',
+  'getEventQuota', 'requestPartner', 'getPartnerLeadsAdmin',
 ]));
 vi.mock('../../src/controllers/adminController.js', () => stubs([
   'getStats', 'getRecentUsers', 'getScreenTime', 'exportUsers', 'exportScreens', 'exportSuggestions',
@@ -77,6 +77,11 @@ describe('club routes', () => {
     expect(await handlerOf(request(app).put('/api/clubs/7/events/9').send({}))).toBe('updateClubEvent');
     expect(await handlerOf(request(app).delete('/api/clubs/7/events/9'))).toBe('deleteClubEvent');
   });
+
+  // „Ja, meldet euch!“ → „JAMIE Anfrage“.
+  it('POST /api/clubs/:id/partner-request reaches the request handler', async () => {
+    expect(await handlerOf(request(app).post('/api/clubs/7/partner-request').send({}))).toBe('requestPartner');
+  });
 });
 
 describe('admin routes', () => {
@@ -105,5 +110,10 @@ describe('admin routes', () => {
     expect(await handlerOf(request(app).get('/api/admin/news/audience'))).toBe('getNewsAudience');
     expect(await handlerOf(request(app).get('/api/admin/news'))).toBe('listNews');
     expect(await handlerOf(request(app).post('/api/admin/news').send({ title: 'x' }))).toBe('sendNews');
+  });
+
+  // „Partner-Anfragen“ (Tina 17.11.2026).
+  it('GET /api/admin/partner-leads reaches the partner list', async () => {
+    expect(await handlerOf(request(app).get('/api/admin/partner-leads'))).toBe('getPartnerLeadsAdmin');
   });
 });

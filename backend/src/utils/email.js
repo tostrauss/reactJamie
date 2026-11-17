@@ -306,6 +306,55 @@ export const sendAdminClubPendingEmail = async (club, ownerUserId) => {
   });
 };
 
+// „JAMIE Anfrage“ (Tina 17.11.2026): a club's manager tapped „Ja, meldet
+// euch!“ on the partner message and sent the contact form. Goes to the office
+// inbox — where Tina answers these herself — not to ADMIN_EMAIL (decided by
+// Tobi). Every value in it was typed by a user: all through escapeHtml, the
+// subject without line breaks (header injection, like the contact form).
+// No prices anywhere (Tobi 17.11.2026). `lead` is the stored row
+// (partnerController.requestPartner), `club` its { id, name }.
+const PARTNER_LEADS_TO = 'office@jamie-app.com';
+const PARTNER_LEAD_SOURCES = {
+  concurrent: 'Nachricht 1 · 2. Event gleichzeitig',
+  third: 'Nachricht 2 · 3. Event',
+  ticket: 'Ticket-Event',
+  deal: 'Deal',
+};
+export const sendPartnerLeadEmail = async (lead, club) => {
+  if (!lead || !club) return;
+  const base = FRONTEND_URL();
+  const clubName = String(club.name || `#${club.id}`);
+  const when = new Date(lead.created_at || Date.now()).toLocaleString('de-AT', { timeZone: 'Europe/Vienna' });
+  const row = (label, value) => `<tr><td style="padding:4px 8px;color:#888;white-space:nowrap;vertical-align:top;">${label}:</td><td style="padding:4px 8px;">${value}</td></tr>`;
+  const link = (href, text) => `<a href="${href}" style="color:#FD7666;">${text}</a>`;
+  return sendEmail({
+    to: PARTNER_LEADS_TO,
+    subject: `[JAMIE] Partner-Anfrage: ${clubName}`.replace(/[\r\n]+/g, ' ').slice(0, 200),
+    html: `
+      <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:32px 20px;">
+        <h2 style="color:#FD7666;margin:0 0 8px;">Neue Partner-Anfrage</h2>
+        <p style="color:#555;line-height:1.55;">
+          Ein Club möchte JAMIE Partner werden und bittet um Rückmeldung.
+        </p>
+        <table style="border-collapse:collapse;margin:18px 0;">
+          ${row('Club', `<strong>${link(`${base}/club/${Number(club.id)}`, escapeHtml(clubName))}</strong>`)}
+          ${row('Auslöser', escapeHtml(PARTNER_LEAD_SOURCES[lead.source] || lead.source))}
+          ${row('Name', `<strong>${escapeHtml(lead.name)}</strong>`)}
+          ${row('Unternehmen', escapeHtml(lead.company || '–'))}
+          ${row('E-Mail', lead.email ? link(`mailto:${escapeHtml(lead.email)}`, escapeHtml(lead.email)) : '–')}
+          ${row('Telefon', lead.phone ? link(`tel:${escapeHtml(lead.phone.replace(/[^+0-9]/g, ''))}`, escapeHtml(lead.phone)) : '–')}
+          ${row('Kontaktwunsch', lead.contact === 'call' ? 'per Anruf' : 'per Mail')}
+          ${row('Nutzer-ID', lead.user_id ? `#${Number(lead.user_id)}` : '–')}
+          ${row('Gesendet', escapeHtml(when))}
+        </table>
+        <a href="${base}/admin#partner-leads" style="display:inline-block;background:#FD7666;color:#fff;padding:12px 28px;border-radius:12px;text-decoration:none;font-weight:600;">
+          Im Admin-Dashboard öffnen
+        </a>
+      </div>
+    `
+  });
+};
+
 // Website contact form (jamie-app.com footer) → forwarded to the office
 // inbox. Our minimal sender has no Reply-To support, so the sender's address
 // is prominent in the body for manual replies. Subject strips newlines to

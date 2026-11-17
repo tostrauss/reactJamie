@@ -28,6 +28,7 @@ import {
 import { getFeedbackAdmin } from '../controllers/feedbackController.js';
 import { getFeaturedClubsAdmin, setFeaturedClubs } from '../controllers/featuredClubController.js';
 import { getNewsAudience, listNews, sendNews } from '../controllers/newsController.js';
+import { getPartnerLeadsAdmin } from '../controllers/partnerController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -91,5 +92,9 @@ router.put('/clubs/featured',        setFeaturedClubs);
 router.get('/news/audience',         getNewsAudience);
 router.get('/news',                  listNews);
 router.post('/news',                 sendNews);
+
+// „Partner-Anfragen“ — what clubs sent from the partner message via „Ja,
+// meldet euch!“ (Tina 17.11.2026). Read-only list, newest first.
+router.get('/partner-leads',         getPartnerLeadsAdmin);
 
 export default router;

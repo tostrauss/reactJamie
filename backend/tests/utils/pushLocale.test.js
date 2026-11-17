@@ -275,6 +275,20 @@ describe('pushTexts', () => {
       }
     });
 
+    // Tina 17.11.2026: a club sent the „JAMIE Anfrage“ form from the partner
+    // message — the admins hear which club, in their language, and no price.
+    it('partnerLeadAdmin names the club that asks, per locale', () => {
+      const b = pushTexts('partnerLeadAdmin', { groupName: 'Café Soleá' });
+      expect(b('de')).toEqual({ title: 'Neue Partner-Anfrage 🤝', body: '"Café Soleá" möchte JAMIE Partner werden' });
+      expect(b('en')).toEqual({ title: 'New partner request 🤝', body: '"Café Soleá" wants to become a JAMIE partner' });
+      expect(b('it')).toEqual({ title: 'Nuova richiesta partner 🤝', body: '"Café Soleá" vuole diventare partner di JAMIE' });
+      expect(b('fr')).toEqual({ title: 'Nouvelle demande de partenariat 🤝', body: '« Café Soleá » veut devenir partenaire JAMIE' });
+      expect(b('es')).toEqual({ title: 'Nueva solicitud de partner 🤝', body: '"Café Soleá" quiere ser partner de JAMIE' });
+      for (const l of ['de', 'en', 'it', 'fr', 'es']) {
+        expect(`${b(l).title} ${b(l).body}`, l).not.toMatch(/€|\d/);
+      }
+    });
+
     // reportAdmin used to be a constant ("Eine neue Meldung ist eingegangen"),
     // which told an admin that something happened but never what. It now names
     // the reason and the reported target.

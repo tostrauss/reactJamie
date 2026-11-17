@@ -7316,6 +7316,118 @@ suite('write endpoints against real Postgres', () => {
       expect((await ask('featured')).statusCode).toBe(404);
     });
   });
+
+  // ── „Ja, meldet euch!“ → „JAMIE Anfrage“ (Tina 17.11.2026) ──────────────
+  // controllers/partnerController.js: the request a club's manager sends from
+  // the partner message is stored once per club and person a day and listed
+  // for the admins. The mail module is mocked for this suite without the new
+  // function — the handler must not mind.
+  describe('Partner-Anfragen (Tina 17.11.2026)', () => {
+    let pc, owner, coMgr, member, club;
+    const FORM = {
+      name: 'Olga Wirt', company: 'Café Anfrage', email: 'olga@anfrage.at', phone: '+43 660 1234567',
+      contact: 'mail', privacy: true, reason: 'third',
+    };
+    const mkU = async (tag, name) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+       VALUES ($1,$2,'1988-08-08','female',$3, TRUE, 'email') RETURNING id`, [`smoke-lead-${tag}@x.com`, name, avatar])).rows[0].id;
+    const send = (userId, body = FORM, clubId = club) => call(pc.requestPartner, { userId, params: { id: String(clubId) }, body });
+    const rows = async (clubId = club) => (await db.query(
+      `SELECT user_id, source, name, company, email, phone, contact, privacy_accepted_at, created_at
+         FROM partner_leads WHERE club_id = $1 ORDER BY id`, [clubId])).rows;
+
+    beforeAll(async () => {
+      pc = await import('../../src/controllers/partnerController.js');
+      owner = await mkU('owner', 'Olga');
+      coMgr = await mkU('mgr', 'Marta');
+      member = await mkU('member', 'Mona');
+      club = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, is_private, approval_status, club_type)
+         VALUES ('Café Anfrage','club',$1,'Bar','Wien',500,FALSE,'approved','official') RETURNING id`, [owner])).rows[0].id;
+      await db.query(
+        `INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner'),($1,$3,'admin'),($1,$4,'member')`,
+        [club, owner, coMgr, member]);
+    });
+
+    it('the owner’s request is stored with how they want to be reached and when they agreed', async () => {
+      const res = await send(owner);
+      expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+      expect(res.body).toEqual({ ok: true });
+      const stored = await rows();
+      expect(stored).toHaveLength(1);
+      expect(stored[0]).toMatchObject({
+        user_id: owner, source: 'third', name: 'Olga Wirt', company: 'Café Anfrage',
+        email: 'olga@anfrage.at', phone: '+43 660 1234567', contact: 'mail',
+      });
+      expect(stored[0].privacy_accepted_at).toBeInstanceOf(Date);
+      expect(Math.abs(stored[0].privacy_accepted_at - stored[0].created_at)).toBeLessThan(1000);
+    });
+
+    it('a second request within 24 hours answers like a success — still exactly one row', async () => {
+      const again = await send(owner, { ...FORM, reason: 'concurrent' });
+      expect(again.statusCode).toBe(200);
+      expect(again.body).toEqual({ ok: true, duplicate: true });
+      expect(await rows()).toHaveLength(1);
+      // a day later the same person may ask again
+      await db.query(`UPDATE partner_leads SET created_at = created_at - INTERVAL '25 hours' WHERE club_id = $1`, [club]);
+      expect((await send(owner, { ...FORM, reason: 'concurrent' })).statusCode).toBe(201);
+      expect((await rows()).map((r) => r.source)).toEqual(['third', 'concurrent']);
+    });
+
+    it('a co-manager may ask too, by call and without an e-mail — a plain member may not', async () => {
+      const byCall = await send(coMgr, { name: 'Marta', contact: 'call', phone: '0660 7654321', privacy: true, reason: 'ticket' });
+      expect(byCall.statusCode, JSON.stringify(byCall.body)).toBe(201);
+      const mine = (await rows()).find((r) => r.user_id === coMgr);
+      expect(mine).toMatchObject({ source: 'ticket', contact: 'call', phone: '0660 7654321', email: null, company: null });
+
+      const no = await send(member);
+      expect(no.statusCode).toBe(403);
+      expect(no.body.code).toBe('NOT_CLUB_MANAGER');
+      expect((await rows()).some((r) => r.user_id === member)).toBe(false);
+    });
+
+    it('without the privacy tick, or with a bad e-mail, nothing is stored', async () => {
+      const before = (await rows()).length;
+      await db.query(`UPDATE partner_leads SET created_at = created_at - INTERVAL '25 hours' WHERE club_id = $1`, [club]);
+      for (const [field, over] of [['privacy', { privacy: false }], ['privacy', { privacy: 'yes' }],
+        ['email', { email: 'keine-adresse' }], ['reason', { reason: 'foo' }], ['contact', { contact: 'sms' }]]) {
+        const res = await send(owner, { ...FORM, ...over });
+        expect(res.statusCode, field).toBe(400);
+        expect(res.body).toMatchObject({ code: 'LEAD_INVALID', field });
+      }
+      expect(await rows()).toHaveLength(before);
+    });
+
+    it('not a club, or a club that does not exist: 404', async () => {
+      const ev = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, parent_club_id)
+         VALUES ('Anfrage-Event','event',$1,'Bar','Wien',20,$2) RETURNING id`, [owner, club])).rows[0].id;
+      expect((await send(owner, FORM, ev)).statusCode).toBe(404);
+      expect((await send(owner, FORM, 2147483000)).statusCode).toBe(404);
+    });
+
+    it('the admin list shows the requests newest first, with the club’s and the person’s name', async () => {
+      const res = await call(pc.getPartnerLeadsAdmin, { userId: A });
+      ok(res);
+      expect(Array.isArray(res.body)).toBe(true);
+      const ours = res.body.filter((l) => l.club?.id === club);
+      expect(ours).toHaveLength(3);
+      for (const l of ours) expect(l.club).toEqual({ id: club, name: 'Café Anfrage' });
+      expect(ours.map((l) => l.user.name).sort()).toEqual(['Marta', 'Olga', 'Olga']);
+      const times = res.body.map((l) => new Date(l.created_at).getTime());
+      expect(times).toEqual([...times].sort((a, b) => b - a));
+      expect(Object.keys(ours[0]).sort()).toEqual(
+        ['club', 'company', 'contact', 'created_at', 'email', 'id', 'name', 'phone', 'source', 'user']);
+    });
+
+    it('a deleted account leaves the request in the list, without the person', async () => {
+      await db.query('DELETE FROM users WHERE id = $1', [coMgr]);
+      const res = await call(pc.getPartnerLeadsAdmin, { userId: A });
+      ok(res);
+      const hers = res.body.find((l) => l.club?.id === club && l.source === 'ticket');
+      expect(hers).toMatchObject({ name: 'Marta', phone: '0660 7654321', user: null });
+    });
+  });
   // <<< BAU1-SMOKE
   //
   // ── separator: leave in place ──
