@@ -470,6 +470,16 @@ const PUSH_TEXTS = {
     fr: () => ({ title: 'Des inconnus peuvent devenir des amis !', body: 'Fais le premier pas et envoie une demande d’amitié !' }),
     es: () => ({ title: '¡De desconocidos pueden nacer amistades!', body: '¡Da el primer paso y envía una solicitud de amistad!' }),
   },
+  // A community without its first meetup about a week after it was founded
+  // (Tina 17.11.2026, jobs/communityNudges.js) — her text, split into title
+  // and body. Also the bell entry.
+  communityFirstEvent: {
+    de: (p) => ({ title: `Hey, ${p.groupName} hat Potenzial! ✨`, body: 'Jetzt fehlt nur noch das erste Treffen. Leg los!' }),
+    en: (p) => ({ title: `Hey, ${p.groupName} has potential! ✨`, body: 'All it needs now is the first meetup. Get started!' }),
+    it: (p) => ({ title: `Ehi, ${p.groupName} ha del potenziale! ✨`, body: 'Ora manca solo il primo incontro. Inizia!' }),
+    fr: (p) => ({ title: `Hey, ${p.groupName} a du potentiel ! ✨`, body: 'Il ne manque plus que la première sortie. Lance-toi !' }),
+    es: (p) => ({ title: `¡Hey, ${p.groupName} tiene potencial! ✨`, body: 'Solo falta el primer plan. ¡Empieza!' }),
+  },
   // Admin → Nutzer → "Test-Push senden" (support tool, 06.10.2026). Says what it
   // is, so a tester who receives it knows push reaches this device.
   // To the USER: an admin removed a profile picture that shows no real person

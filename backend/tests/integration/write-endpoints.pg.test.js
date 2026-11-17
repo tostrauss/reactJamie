@@ -6890,7 +6890,7 @@ suite('write endpoints against real Postgres', () => {
   describe('Bau 2: nach dem Event, Community, Club-Events (17.11.2026)', () => {
     // Own people and own modules — the C block above stays as it is.
     let U = {};   // user ids by short name
-    let migrations, connect, connectJob, ratings;
+    let migrations, connect, connectJob, ratings, communityJob, communityCtl;
 
     const mkUser = async (key, name) => {
       const r = await db.query(
@@ -6931,6 +6931,8 @@ suite('write endpoints against real Postgres', () => {
       connect = await import('../../src/controllers/connectController.js');
       connectJob = await import('../../src/jobs/connectNudges.js');
       ratings = await import('../../src/controllers/eventRatingController.js');
+      communityJob = await import('../../src/jobs/communityNudges.js');
+      communityCtl = await import('../../src/controllers/communityNudgeController.js');
       await mkUser('owner', 'Bau2 Olga');
       await mkUser('guest', 'Bau2 Gabi');
       // After the event: O2 creates, M1–M3 take part, L joins too late.
@@ -7319,6 +7321,159 @@ suite('write endpoints against real Postgres', () => {
         expect((await db.query('SELECT 1 FROM event_ratings WHERE user_id = $1', [U.r1])).rows).toEqual([]);
         // Max's rating of the same event stays.
         expect((await db.query('SELECT stars FROM event_ratings WHERE group_id = $1', [E.due])).rows).toEqual([{ stars: 3 }]);
+      });
+    });
+
+    // ── B2-05: „Hey, [Community] hat Potenzial! ✨“ ────────────────────────
+    // A community without a meetup about a week after it was founded: once,
+    // to its creator — bell entry, push and the card on the home screen.
+    // The job's clock is injected and far in the future, so the communities
+    // of every other test (created about now) are far outside its 7–30 days;
+    // only our own ids are looked at anyway.
+    describe('community without a first meetup: nudge and card', () => {
+      const CLOCK = new Date('2027-06-15T10:00:00Z');      // 12:00 in Vienna
+      const daysBefore = (days) => new Date(CLOCK.getTime() - days * 24 * 60 * 60 * 1000);
+      // created_at is a naive TIMESTAMP in the session zone — written through
+      // timestamptz, exactly as the job compares it.
+      const mkCommunity = async (name, owner, createdAt, clubType = null) => (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, approval_status, is_active,
+                             club_type, image_url, created_at)
+         VALUES ($1, 'club', $2, 'Sport', 'Wien', 500, 'approved', TRUE, $3, $4, $5::timestamptz) RETURNING id`,
+        [name, owner, clubType, `https://app.jamie-app.com/media/uploads/${encodeURIComponent(name)}.webp`, createdAt])).rows[0].id;
+      const markerOf = async (clubId) => (await db.query(
+        'SELECT due_at, dismissed_at FROM community_event_nudges WHERE club_id = $1', [clubId])).rows[0];
+      const bellOf = async (uid) => (await db.query(
+        `SELECT type, title, message, reference_type, reference_id, link FROM notifications
+          WHERE user_id = $1 AND type = 'community_first_event' ORDER BY reference_id`, [uid])).rows;
+      const cardsOf = async (uid) => {
+        const res = await call(communityCtl.getMyCommunityNudges, { userId: uid });
+        ok(res);
+        return res.body;
+      };
+      const linkOf = (clubId) => `/club/${clubId}?newEvent=1`;
+      let K = {};
+
+      it('due after a week: one marker row, a bell entry and a push to the creator — once', async () => {
+        await mkUser('c1', 'Bau2 Cleo');
+        await mkUser('c2', 'Bau2 Carl');
+        await mkUser('c3', 'Bau2 Cora');
+        await db.query('UPDATE users SET push_reminders = FALSE WHERE id = $1', [U.c2]);
+        await db.query('UPDATE users SET is_active = FALSE WHERE id = $1', [U.c3]);
+
+        K.due = await mkCommunity('Bau2 Punsch & Rave 2', U.c1, daysBefore(8));
+        K.second = await mkCommunity('Bau2 Laufcrew', U.c1, daysBefore(20), 'community');
+        K.young = await mkCommunity('Bau2 Zu jung', U.c1, daysBefore(3));
+        K.old = await mkCommunity('Bau2 Altbestand', U.c1, daysBefore(40));
+        K.club = await mkCommunity('Bau2 Offizieller Club', U.c1, daysBefore(8), 'official');
+        K.hadEvent = await mkCommunity('Bau2 Hatte ein Treffen', U.c1, daysBefore(8));
+        K.pending = await mkCommunity('Bau2 In Prüfung', U.c1, daysBefore(8));
+        K.quiet = await mkCommunity('Bau2 Ohne Push', U.c2, daysBefore(8));
+        K.frozen = await mkCommunity('Bau2 Gesperrt', U.c3, daysBefore(8));
+        await db.query(`UPDATE groups SET approval_status = 'pending' WHERE id = $1`, [K.pending]);
+        // A meetup that was deleted again still means „had one“.
+        const gone = await mkEvent('Bau2 Gelöschtes Treffen', `TIMESTAMP '2027-06-10 19:00:00'`, U.c1, [],
+          { type: 'event', parent: K.hadEvent });
+        await db.query('UPDATE groups SET deleted_at = NOW(), is_active = FALSE WHERE id = $1', [gone]);
+
+        const send = vi.fn(async () => {});
+        const sentFor = (clubId) => send.mock.calls.filter((c) => c[3] === linkOf(clubId));
+
+        // 23:30 Vienna: nothing is claimed outside 09:00–22:59.
+        await communityJob.runCommunityEventNudges({ now: new Date('2027-06-15T21:30:00Z'), send });
+        expect(await markerOf(K.due)).toBeUndefined();
+        expect(send).not.toHaveBeenCalled();
+
+        const out = await communityJob.runCommunityEventNudges({ now: CLOCK, send });
+        expect(out.nudged).toBeGreaterThanOrEqual(3);
+        // Claimed: the two communities of Cleo's in the window, and Carl's.
+        for (const id of [K.due, K.second, K.quiet]) {
+          expect((await markerOf(id)).due_at.toISOString()).toBe(CLOCK.toISOString());
+        }
+        // Never: too young, too old, an official club, one that had a meetup,
+        // one still in review, one of a frozen account.
+        for (const id of [K.young, K.old, K.club, K.hadEvent, K.pending, K.frozen]) {
+          expect(await markerOf(id)).toBeUndefined();
+        }
+
+        // Cleo: a bell entry per community, each with its link, and a push each.
+        expect(await bellOf(U.c1)).toEqual([K.due, K.second].sort((a, b) => a - b).map((id) => ({
+          type: 'community_first_event',
+          title: `Hey, ${id === K.due ? 'Bau2 Punsch & Rave 2' : 'Bau2 Laufcrew'} hat Potenzial! ✨`,
+          message: 'Jetzt fehlt nur noch das erste Treffen. Leg los!',
+          reference_type: 'club', reference_id: id, link: linkOf(id),
+        })));
+        expect(sentFor(K.due)).toHaveLength(1);
+        expect(sentFor(K.due)[0][0]).toEqual([U.c1]);
+        expect(sentFor(K.due)[0][1]('de')).toEqual({
+          title: 'Hey, Bau2 Punsch & Rave 2 hat Potenzial! ✨', body: 'Jetzt fehlt nur noch das erste Treffen. Leg los!',
+        });
+        expect(sentFor(K.second)).toHaveLength(1);
+        // Carl switched reminders off: the bell entry, but no push.
+        expect(await bellOf(U.c2)).toHaveLength(1);
+        expect(sentFor(K.quiet)).toHaveLength(0);
+        expect(await bellOf(U.c3)).toEqual([]);
+
+        // The next tick, and one two days later: never a second time.
+        send.mockClear();
+        await communityJob.runCommunityEventNudges({ now: new Date('2027-06-15T10:15:00Z'), send });
+        await communityJob.runCommunityEventNudges({ now: new Date('2027-06-17T10:00:00Z'), send });
+        expect(sentFor(K.due)).toHaveLength(0);
+        expect(sentFor(K.second)).toHaveLength(0);
+        expect(sentFor(K.young)).toHaveLength(0);   // five days old by then: still too young
+        expect(await bellOf(U.c1)).toHaveLength(2);
+      });
+
+      it('the card: the creator\'s due communities, newest first — for 14 days', async () => {
+        // The nudges fell due yesterday and three days ago (real clock: the endpoint reads NOW()).
+        await db.query(`UPDATE community_event_nudges SET due_at = NOW() - INTERVAL '1 day' WHERE club_id = $1`, [K.due]);
+        await db.query(`UPDATE community_event_nudges SET due_at = NOW() - INTERVAL '3 days' WHERE club_id = $1`, [K.second]);
+        const cards = await cardsOf(U.c1);
+        expect(cards.map((c) => c.id)).toEqual([K.due, K.second]);
+        expect(cards[0]).toMatchObject({
+          id: K.due, name: 'Bau2 Punsch & Rave 2',
+          image_url: `https://app.jamie-app.com/media/uploads/${encodeURIComponent('Bau2 Punsch & Rave 2')}.webp`,
+        });
+        expect(cards[0].due_at).toBeTruthy();
+        // Nobody else sees them.
+        expect(await cardsOf(U.guest)).toEqual([]);
+        // After 14 days the card is gone by itself.
+        await db.query(`UPDATE community_event_nudges SET due_at = NOW() - INTERVAL '15 days' WHERE club_id = $1`, [K.second]);
+        expect((await cardsOf(U.c1)).map((c) => c.id)).toEqual([K.due]);
+        await db.query(`UPDATE community_event_nudges SET due_at = NOW() - INTERVAL '3 days' WHERE club_id = $1`, [K.second]);
+      });
+
+      it('the X closes one card for good — only the creator can', async () => {
+        const dismiss = (uid, clubId) => call(communityCtl.dismissCommunityNudge, { userId: uid, params: { clubId: String(clubId) } });
+        expect((await dismiss(U.c1, 'abc')).statusCode).toBe(400);
+        // Somebody else's tap changes nothing (and tells them nothing).
+        ok(await dismiss(U.c2, K.due));
+        expect((await markerOf(K.due)).dismissed_at).toBeNull();
+        ok(await dismiss(U.c1, K.due));
+        ok(await dismiss(U.c1, K.due));   // idempotent
+        expect((await markerOf(K.due)).dismissed_at).toBeInstanceOf(Date);
+        expect((await cardsOf(U.c1)).map((c) => c.id)).toEqual([K.second]);
+      });
+
+      it('a first meetup ends the card', async () => {
+        expect((await cardsOf(U.c1)).map((c) => c.id)).toEqual([K.second]);
+        await mkEvent('Bau2 Erstes Treffen', `TIMESTAMP '2027-07-01 19:00:00'`, U.c1, [], { type: 'event', parent: K.second });
+        expect(await cardsOf(U.c1)).toEqual([]);
+      });
+
+      it('the emergency switch COMMUNITY_NUDGES=false: nothing claimed, no card', async () => {
+        const fresh = await mkCommunity('Bau2 Not-Aus', U.c1, daysBefore(8));
+        await db.query(
+          `INSERT INTO community_event_nudges (club_id, due_at) VALUES ($1, NOW() - INTERVAL '1 day')`, [K.young]);
+        process.env.COMMUNITY_NUDGES = 'false';
+        try {
+          const send = vi.fn(async () => {});
+          expect(await communityJob.runCommunityEventNudges({ now: CLOCK, send })).toEqual({ nudged: 0, pushes: 0 });
+          expect(await markerOf(fresh)).toBeUndefined();
+          expect(await cardsOf(U.c1)).toEqual([]);
+        } finally {
+          delete process.env.COMMUNITY_NUDGES;
+        }
+        expect((await cardsOf(U.c1)).map((c) => c.id)).toEqual([K.young]);
       });
     });
   });

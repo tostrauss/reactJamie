@@ -16,6 +16,8 @@
 //      ist’s bei X? Schnapp dir ein Foto für deine Memories!"
 //   6. connect (connectNudges.js) — „Aus Fremden können Freundschaften
 //      werden!" the day after, to everybody but the creator.
+//   7. community (communityNudges.js) — „Hey, X hat Potenzial! ✨" to the
+//      creator of a community without a meetup about a week after founding.
 //
 // Every nudge is claimed in ONE statement (UPDATE … SKIP LOCKED / INSERT … ON
 // CONFLICT DO NOTHING RETURNING), so two Railway replicas never double-send,
@@ -35,6 +37,7 @@ import { pushTexts } from '../utils/pushLocale.js';
 import { postSystemMessage, SYSTEM_TEXTS } from '../utils/systemMessage.js';
 import { parentClubGateSql } from '../utils/clubGate.js';
 import { runConnectNudges } from './connectNudges.js';
+import { runCommunityEventNudges } from './communityNudges.js';
 
 const TZ = 'Europe/Vienna';
 const LOCAL = (p) => `(${p}::timestamptz AT TIME ZONE '${TZ}')`;
@@ -415,6 +418,7 @@ export async function runEngagementNudges({ now = new Date(), io } = {}) {
     ['cover', () => runCoverNags({ now })],
     ['live', () => runLivePhotoPrompts({ now })],
     ['connect', () => runConnectNudges({ now })],
+    ['community', () => runCommunityEventNudges({ now })],
   ]) {
     try {
       out[name] = await fn();

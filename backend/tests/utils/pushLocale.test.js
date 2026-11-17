@@ -443,4 +443,14 @@ describe('Bau 2 pushes (Tina 17.11.2026)', () => {
     // No event name in it, and an unknown language falls back to German.
     expect(b('pt')).toEqual(b('de'));
   });
+
+  it('communityFirstEvent: Tina\'s text with the community\'s name, split into title and body', () => {
+    const b = pushTexts('communityFirstEvent', { groupName: 'Punsch & Rave 2' });
+    // ✨ is U+2728, as in her document.
+    expect(b('de')).toEqual({ title: 'Hey, Punsch & Rave 2 hat Potenzial! ✨', body: 'Jetzt fehlt nur noch das erste Treffen. Leg los!' });
+    expect(b('en')).toEqual({ title: 'Hey, Punsch & Rave 2 has potential! ✨', body: 'All it needs now is the first meetup. Get started!' });
+    expect(b('it')).toEqual({ title: 'Ehi, Punsch & Rave 2 ha del potenziale! ✨', body: 'Ora manca solo il primo incontro. Inizia!' });
+    expect(b('fr')).toEqual({ title: 'Hey, Punsch & Rave 2 a du potentiel ! ✨', body: 'Il ne manque plus que la première sortie. Lance-toi !' });
+    expect(b('es')).toEqual({ title: '¡Hey, Punsch & Rave 2 tiene potencial! ✨', body: 'Solo falta el primer plan. ¡Empieza!' });
+  });
 });
