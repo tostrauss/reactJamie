@@ -29,6 +29,14 @@ const SMOKE_URL = process.env.SMOKE_DATABASE_URL;
 if (SMOKE_URL) {
   process.env.DATABASE_URL = SMOKE_URL;
   process.env.NODE_ENV = 'test'; // ssl off; no moderation keys → fail-open blocklist only
+  // "No moderation keys" has to be made true: database.js runs dotenv.config(),
+  // and a developer's backend/.env carries real ones. With them every create
+  // waited on a live OpenAI call (2.5 s when the network is slow — two creates
+  // and the 5-s test timeout was gone, seen 17.11.2026). dotenv never
+  // overrides a variable that is already set, so empty pins them off.
+  process.env.OPENAI_API_KEY = '';
+  process.env.SIGHTENGINE_API_USER = '';
+  process.env.SIGHTENGINE_API_SECRET = '';
   // Declare the image-origin allowlist this suite's fixtures assume
   // (utils/safeUrl.js), instead of inheriting whatever the developer's local
   // .env happens to hold — which points at localhost and would reject the
@@ -6076,6 +6084,9 @@ suite('write endpoints against real Postgres', () => {
       // A club's date is a "next meetup", long past here — and nothing to do with the request.
       G.club = await mk({ name: 'Deck Club', type: 'club', dateSql: `${vienna} - INTERVAL '30 days'`, clubType: 'official' });
       G.pubClub = await mk({ name: 'Deck Partner-Club', type: 'club', isPrivate: false, clubType: 'official', image: clubImage });
+      // „☆ Partner“ is for paying partners only since Tobi 17.11.2026 (partnerSql):
+      // this seed pays, so card('clubEvent') keeps is_partner: true.
+      await db.query('UPDATE groups SET is_paid_partner = TRUE WHERE id = $1', [G.pubClub]);
       G.clubEvent = await mk({ name: 'Deck Club-Event', type: 'event', dateSql: `${vienna} + INTERVAL '4 days'`, parent: G.pubClub });
       G.deadClub = await mk({ name: 'Deck Club weg', type: 'club', isPrivate: false, clubType: 'community' });
       G.deadEvent = await mk({ name: 'Deck Event ohne Club', type: 'event', dateSql: `${vienna} + INTERVAL '4 days'`, parent: G.deadClub });
@@ -6285,6 +6296,8 @@ suite('write endpoints against real Postgres', () => {
       // First occurrence 20 days ago at 19:00 → next: tomorrow 19:00, whatever the time of day.
       E.weekly = await theirs({ name: 'Up Wöchentlich', at: '-19 days -5 hours', recurring: true });
       const official = await theirs({ name: 'Up Partner-Club', type: 'club', clubType: 'official' });
+      // a paying partner (Tobi 17.11.2026) — otherwise E.partner is no „☆ Partner“ once partnerSql asks for it
+      await db.query('UPDATE groups SET is_paid_partner = TRUE WHERE id = $1', [official]);
       E.partner = await theirs({ name: 'Up Punsch Night', type: 'event', parent: official, at: '2 days 19 hours' });
       await add(official, peer);
       E.memberEvent = await mk({ name: 'Up Mitglieder-Abend', owner: peer, type: 'event', parent: official, at: '3 days 18 hours' });
@@ -6846,6 +6859,41 @@ suite('write endpoints against real Postgres', () => {
         WHERE table_schema = current_schema() AND table_name = 'groups' AND column_name = 'is_paid_partner'`)).rows[0];
     const SHAPE = { data_type: 'boolean', is_nullable: 'NO', column_default: 'false' };
     const paidOf = async (id) => (await db.query('SELECT is_paid_partner FROM groups WHERE id = $1', [id])).rows[0]?.is_paid_partner;
+
+    // V-01: the ✓ in the Clubs list and the ☆ on the profile bubbles are built
+    // on this field. It arrives through SELECT g.* — this pin falls if someone
+    // turns one of these lists into an explicit column list and forgets it.
+    it('the club endpoints carry is_paid_partner as a boolean (V-01)', async () => {
+      const mkOfficial = async (name) => (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, club_type,
+                             approval_status, is_active, is_private)
+         VALUES ($1, 'club', $2, 'Sonstiges', 'Wien', 500, 'official', 'approved', TRUE, FALSE)
+         RETURNING id`, [name, A])).rows[0].id;
+      const paid = await mkOfficial('Smoke Fundament Zahlt');
+      const free = await mkOfficial('Smoke Fundament Gratis');
+      for (const id of [paid, free]) {
+        await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'owner')`, [id, A]);
+      }
+      await db.query('UPDATE groups SET is_paid_partner = TRUE WHERE id = $1', [paid]);
+
+      // `search` bypasses the 30-s list cache of getClubs
+      const list = await call(C.getClubs, { userId: A, query: { club_type: 'official', search: 'Smoke Fundament', limit: '100' } });
+      ok(list);
+      const inList = Object.fromEntries(list.body.map((c) => [c.id, c.is_paid_partner]));
+      expect(inList[paid]).toBe(true);
+      expect(inList[free]).toBe(false);
+
+      const one = await call(C.getClubById, { userId: A, params: { id: String(paid) } });
+      ok(one);
+      expect(one.body.is_paid_partner).toBe(true);
+
+      const joined = await call(C.getUserClubs, { userId: A });
+      ok(joined);
+      expect(joined.body.find((c) => c.id === paid)?.is_paid_partner).toBe(true);
+      expect(joined.body.find((c) => c.id === free)?.is_paid_partner).toBe(false);
+
+      await db.query('DELETE FROM groups WHERE id = ANY($1::int[])', [[paid, free]]);
+    });
 
     it('a fresh database has it from schema.sql: BOOLEAN NOT NULL DEFAULT FALSE', async () => {
       expect(await column()).toEqual(SHAPE);

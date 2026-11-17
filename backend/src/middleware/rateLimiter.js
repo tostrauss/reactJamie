@@ -335,6 +335,35 @@ export const feedbackLimiter = rateLimit({
   message: { error: 'Zu viel Feedback auf einmal. Bitte versuche es später erneut.' }
 });
 
+// „JAMIE Anfrage“ (partner request, Tina 17.11.2026): every request mails
+// office@jamie-app.com and pushes all admins. 5 per hour per user; the 24-h
+// duplicate rule in the controller stays the first brake.
+export const partnerLeadLimiter = rateLimit({
+  ...SHARED,
+  windowMs: 60 * 60 * 1000,
+  max: disabled ? 10000 : 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `partnerlead:${req.userId}`,
+  validate: { keyGeneratorIpFallback: false },
+  store: makeStore('rl:partnerlead:'),
+  message: { error: 'Zu viele Anfragen. Bitte versuche es später erneut.' }
+});
+
+// „Wie war’s bei X?“ (Tina 17.11.2026): stars + feedback land in the admin
+// dashboard. Rating and dismissing share 30 per hour per user.
+export const eventRatingLimiter = rateLimit({
+  ...SHARED,
+  windowMs: 60 * 60 * 1000,
+  max: disabled ? 10000 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `rating:${req.userId}`,
+  validate: { keyGeneratorIpFallback: false },
+  store: makeStore('rl:rating:'),
+  message: { error: 'Zu viele Bewertungen auf einmal. Bitte versuche es später erneut.' }
+});
+
 // DM send: 10 messages/minute per authenticated user. Redis-backed so the cap
 // holds across instances (the old standalone limiter in dmRoutes had no store →
 // it was 10/min PER instance = 20/min effective at 2 replicas).

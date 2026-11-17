@@ -15,6 +15,7 @@ vi.mock('../../src/config/database.js', () => ({ default: { query: vi.fn() } }))
 const {
   generalLimiter, authLimiter, strictLimiter, passwordResetLimiter, publicFormLimiter, verifiedUserId, authLimiterSkip,
   pollCreateLimiter, pollVoteLimiter, reactionLimiter, messageLimiter, userSearchLimiter,
+  partnerLeadLimiter, eventRatingLimiter,
 } = await import('../../src/middleware/rateLimiter.js');
 const { generateToken } = await import('../../src/middleware/auth.js');
 
@@ -98,6 +99,24 @@ describe('rate limiters', () => {
       expect(mine.filter((r) => r.allowed).length).toBe(40);
       expect(mine[40]).toMatchObject({ allowed: false, status: 429 });
       expect(await run(userSearchLimiter, 52)).toEqual({ allowed: true });
+    });
+
+    // Tina 17.11.2026: the partner request (mail + admin push) and the event
+    // rating (admin dashboard) — their own buckets, per user.
+    it('partnerLeadLimiter: 5 per hour per user, another user unaffected', async () => {
+      const mine = [];
+      for (let i = 0; i < 6; i++) mine.push(await run(partnerLeadLimiter, 61));
+      expect(mine.filter((r) => r.allowed).length).toBe(5);
+      expect(mine[5]).toMatchObject({ allowed: false, status: 429 });
+      expect(await run(partnerLeadLimiter, 62)).toEqual({ allowed: true });
+    });
+
+    it('eventRatingLimiter: 30 per hour per user, another user unaffected', async () => {
+      const mine = [];
+      for (let i = 0; i < 31; i++) mine.push(await run(eventRatingLimiter, 63));
+      expect(mine.filter((r) => r.allowed).length).toBe(30);
+      expect(mine[30]).toMatchObject({ allowed: false, status: 429 });
+      expect(await run(eventRatingLimiter, 64)).toEqual({ allowed: true });
     });
 
     it('the poll limiters are their own instances', () => {
