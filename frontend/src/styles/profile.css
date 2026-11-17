@@ -2172,10 +2172,14 @@
   list-style: none;
   overflow-x: auto;
   scroll-snap-type: x proximity;
+  scroll-padding-inline: 16px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
 
+/* scroll-padding = the rail's own side padding: without it the first bubble
+   snapped 16px to the left, onto the card's edge, as soon as the row could
+   scroll — no longer flush under „Clubs & Communities". */
 .profile-clubs-rail::-webkit-scrollbar { display: none; }
 
 .profile-clubs-rail.is-sorting {

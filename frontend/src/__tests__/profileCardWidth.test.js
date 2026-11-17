@@ -80,6 +80,15 @@ describe('club bubbles: the mock\'s sizes, and no jump into „Sortieren“', ()
     expect(name['font-weight']).toBe('500');
   });
 
+  // With snap points but no scroll padding the first bubble snapped onto the
+  // card's edge, 16px left of the title (audit PC-08).
+  it('the row snaps inside its own 16px side padding', () => {
+    const rail = block(profileCss, '.profile-clubs-rail');
+    expect(rail['scroll-snap-type']).toBe('x proximity');
+    expect(rail['scroll-padding-inline']).toBe('16px');
+    expect(rail.padding).toBe('8px 16px 4px');
+  });
+
   // Mock p. 3: a light yellow disc with a dark star — it was a dark disc with
   // a thin yellow rim, the opposite.
   it('the ☆ disc: partner yellow with a star and rim in the card colour', () => {
