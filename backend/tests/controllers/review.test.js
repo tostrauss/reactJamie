@@ -238,6 +238,41 @@ describe('size gate: at most 8 participants', () => {
   });
 });
 
+// Tina 17.11.2026: „diese bekommt nur der Eventersteller“ — everybody else
+// gets the friends list instead (connectController.js). The server decides
+// who is ASKED, so old app bundles follow at once; who may ANSWER is unchanged.
+describe('only the creator is asked (Tina 17.11.2026)', () => {
+  it('getPendingReviews lists only events the caller owns', async () => {
+    await reviewMod.getPendingReviews({ userId: 7 }, makeRes());
+    const { text, params } = outerQueries[0];
+    expect(text).toContain('AND g.owner_id = $1');
+    expect(params).toEqual([7]);
+  });
+
+  it('getReviewForGroup (the „Wer war dabei?“ pill) answers the creator only — 404 for everybody else', async () => {
+    const res = makeRes();
+    await reviewMod.getReviewForGroup({ userId: 7, params: { groupId: '10' } }, res);
+    const { text, params } = outerQueries[0];
+    expect(text).toContain('AND g.owner_id = $1');
+    expect(params).toEqual([7, 10]);
+    // The mock finds no row — exactly what a non-creator gets.
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('the write path is untouched: a member\'s answer from an old dialog still records ticks', async () => {
+    scenario.countable = true;
+    scenario.ownerId = 99;          // the reviewer (1) is NOT the creator
+    memberSet.add(2);
+    const res = makeRes();
+    await reviewMod.submitReview({ userId: 1, body: { group_id: 10, attendances: [{ user_id: 2, was_present: true }] } }, res);
+    expect(res.json).toHaveBeenCalledWith({ success: true, counted: true });
+    expect(txnStatements.some((x) => x.text.includes('VALUES ($1, $2, $3, $4)'))).toBe(true);
+    // No owner condition anywhere on the way in.
+    const gate = outerQueries.find((q) => q.text.includes('AS countable')).text;
+    expect(gate).not.toContain('g.owner_id = $');
+  });
+});
+
 describe('getMyAttendance (own Abzeichen numbers)', () => {
   it('answers zeros + the first step when nothing is confirmed yet', async () => {
     const res = makeRes();

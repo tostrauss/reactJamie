@@ -140,6 +140,8 @@ export const nudgeParams = (row) => ({
   others: Math.max(0, (Number(row.members_count) || 0) - 1),
 });
 export const reviewNudgeParams = (row) => ({ groupName: row.name || '' });
+// Where the review push opens (see the send below for why not '/').
+export const REVIEW_PUSH_URL = '/home?review=1';
 
 // Atomic claim: stamp the marker with the CURRENT date and hand back the rows.
 // `join` lets a variant filter on the owner row (nudge → owner's preference).
@@ -190,15 +192,17 @@ async function reminderRecipients(groupIds) {
   return byGroup;
 }
 
-// Review-nudge recipients: same opt-out gates as reminders, PLUS skip anyone who
-// already reviewed or dismissed this event (mirrors getPendingReviews) so the
-// nudge only lands on people who still have something to do — and, since
-// 16.11.2026, anyone who joined after the event's day: getPendingReviews never
-// asks them, so their push used to open the app onto nothing. Nor anyone whose
-// list would be empty: getPendingReviews lists the others who were in time,
-// minus everyone in a block with the asker — the meetup's floor
+// Review-nudge recipient: since 17.11.2026 the CREATOR only (Tina: „diese
+// bekommt nur der Eventersteller“ — getPendingReviews asks nobody else, and
+// everybody else gets the Connect push, jobs/connectNudges.js). Same opt-out
+// gates as reminders, PLUS skipped when they already reviewed or dismissed
+// this event (mirrors getPendingReviews) so the nudge only lands when there is
+// still something to do — and, since 16.11.2026, when they joined after the
+// event's day: getPendingReviews never asks then. Nor when the list would be
+// empty: getPendingReviews lists the others who were in time, minus everyone
+// in a block with the asker — the meetup's floor
 // (REVIEW_PUSH_MIN_PARTICIPANTS) counts heads, not lists, so owner + one in a
-// block passed it and both got a push about nobody (review 16.11.2026).
+// block passed it and got a push about nobody (review 16.11.2026).
 async function reviewNudgeRecipients(groupIds) {
   const byGroup = new Map();
   if (!groupIds.length) return byGroup;
@@ -208,6 +212,7 @@ async function reviewNudgeRecipients(groupIds) {
      JOIN users u ON u.id = gm.user_id
      JOIN groups g ON g.id = gm.group_id
      WHERE gm.group_id = ANY($1::int[])
+       AND gm.user_id = g.owner_id
        AND gm.notifications_muted = FALSE
        AND u.push_reminders = TRUE
        AND ${joinedInTimeSql('gm', 'g')}
@@ -329,13 +334,17 @@ export async function runEventReminders({ now = new Date(), limit = 200 } = {}) 
       }
       if (recipients) {
         out.reviewNudge = review.length;
-        // Deep-link to '/' — App.jsx polls getPendingReviews on load and pops the
-        // EventReviewModal globally, so home is the reliable landing spot.
+        // Deep-link to /home?review=1: PostEventPrompts (frontend) reloads the
+        // open questions at once when it sees ?review=1, so the dialog also
+        // comes up in an app that was already running (iOS: a push tap only
+        // navigates inside the SPA). Not '/?review=1' — the '/' route
+        // redirects to /home and drops the query. Old bundles ignore the
+        // parameter and land on /home as before.
         await Promise.all(review.map(ev => {
           const ids = recipients.get(ev.id) || [];
           if (!ids.length) return null;
           out.pushes += ids.length;
-          return sendPushToUsers(ids, pushTexts('reviewNudge', reviewNudgeParams(ev)), null, '/')
+          return sendPushToUsers(ids, pushTexts('reviewNudge', reviewNudgeParams(ev)), null, REVIEW_PUSH_URL)
             .catch(err => console.error(`[cron] review-nudge failed for group ${ev.id}:`, err.message));
         }));
       }

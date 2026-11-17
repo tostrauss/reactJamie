@@ -362,8 +362,10 @@ suite('write endpoints against real Postgres', () => {
     const res = await call(C.getPendingReviews, { userId: B });
     ok(res);
     expect((res.body || []).some(r => r.group_id === pastGroup2Id)).toBe(false);
-    // …and still asks about the one that took place (A reviewed it, B has not)
-    expect((res.body || []).some(r => r.group_id === pastGroupId)).toBe(true);
+    // …and B is not asked about the one that took place either: B is only a
+    // member, and since 17.11.2026 (Tina) only the creator is asked — A, who
+    // has already answered above.
+    expect((res.body || []).some(r => r.group_id === pastGroupId)).toBe(false);
   });
   it('updateGroup: re-saving a PAST group with its own date is no reschedule (GroupEdit always sends it)', async () => {
     const before = (await db.query(`SELECT to_char(date, 'YYYY-MM-DD') AS d, date::text AS ts FROM groups WHERE id = $1`, [pastGroupId])).rows[0];
@@ -2173,7 +2175,9 @@ suite('write endpoints against real Postgres', () => {
       expect((await markers(G10)).nudge).toBe('2026-09-30 19:00:00');
     });
 
-    it('review nudge (Batch 3): fires ONCE the day after a group event, to unreviewed members', async () => {
+    // Since 17.11.2026 (Tina) only the CREATOR is asked „Wer war dabei?“ — so
+    // only they get this push; members get the Connect push instead.
+    it('review nudge (Batch 3): fires ONCE the day after a group event, to the creator who has not reviewed yet', async () => {
       // Raw insert (NOT mkGroup, which stamps the review marker) so the review
       // marker starts NULL; stamp the pre-event markers so ONLY review is eligible.
       const r = await db.query(
@@ -2193,17 +2197,19 @@ suite('write endpoints against real Postgres', () => {
       expect(await revMarker()).toBeNull();
 
       // 2026-10-02T09:00Z = 11:00 CEST on D+1 → inside [D+1 10:00, D+2 00:00).
-      // A (owner) + B, both push_reminders ON, unmuted, neither reviewed → 2 recipients.
-      expect(await tick('2026-10-02T09:00:00Z')).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 1, pushes: 2 });
+      // A (owner) + B, both push_reminders ON, unmuted, neither reviewed — but
+      // only the creator is asked, so only A is pushed → 1 recipient.
+      expect(await tick('2026-10-02T09:00:00Z')).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 1, pushes: 1 });
       expect(await revMarker()).toBe('2026-10-01 19:00:00');
 
       // Idempotent: marker = date now.
       expect(await tick('2026-10-02T12:00:00Z')).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 0, pushes: 0 });
 
-      // Re-arm + let B dismiss it: the recipient filter drops B, leaving only A.
+      // Re-arm + let A dismiss it: the recipient filter drops the creator too —
+      // the event is claimed, nobody is pushed.
       await db.query(`UPDATE groups SET review_nudge_sent_for = NULL WHERE id = $1`, [RG]);
-      await db.query(`INSERT INTO event_review_dismissals (group_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [RG, B]);
-      expect(await tick('2026-10-02T13:00:00Z')).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 1, pushes: 1 });
+      await db.query(`INSERT INTO event_review_dismissals (group_id, user_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [RG, A]);
+      expect(await tick('2026-10-02T13:00:00Z')).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 1, pushes: 0 });
     });
 
     // ── C. notifyFriendsOfActivity (utils/friendActivity) ────────────────────
@@ -3215,7 +3221,8 @@ suite('write endpoints against real Postgres', () => {
     });
 
     it('the prompts no longer ask about cancelled events', async () => {
-      const pending = await call(C.getPendingReviews, { userId: R2 });
+      // R3 created it — since 17.11.2026 only the creator is ever asked.
+      const pending = await call(C.getPendingReviews, { userId: R3 });
       ok(pending);
       expect(pending.body.map(r => r.group_id)).not.toContain(cancelledEvent);
     });
@@ -3271,8 +3278,9 @@ suite('write endpoints against real Postgres', () => {
       const own = await call(C.getPendingReviews, { userId: late });
       ok(own);
       expect(own.body.map(r => r.group_id)).not.toContain(gid);
-      const r1 = await call(C.getPendingReviews, { userId: R1 });
-      const listed = r1.body.find(r => r.group_id === gid).members.map(m => m.id);
+      // The creator's list (R3 — only the creator is asked since 17.11.2026).
+      const r3 = await call(C.getPendingReviews, { userId: R3 });
+      const listed = r3.body.find(r => r.group_id === gid).members.map(m => m.id);
       expect(listed).toContain(T);
       expect(listed).not.toContain(late);
       const reopen = await call(C.getReviewForGroup, { userId: late, params: { groupId: String(gid) } });
@@ -3290,18 +3298,18 @@ suite('write endpoints against real Postgres', () => {
       expect(votes).toEqual([{ reviewer_id: R1, reviewed_user_id: T }]);
     });
 
-    it('blocks: neither side is listed in the other\'s prompt, and the blocked one\'s ✗ never lands', async () => {
+    it('blocks: the creator\'s prompt never lists someone in a block with them, and the blocked one\'s ✗ never lands', async () => {
+      // H creates the meetup (only the creator is asked since 17.11.2026);
+      // T, who blocked H, is a member of it.
       const H = await mkU('smoke-tier-h@x.com', 'Hal');
-      const gid = await mkEvent(R3, { daysAgo: 3 });
-      await db.query(`INSERT INTO group_members (group_id, user_id, role, joined_at)
-                       VALUES ($1, $2, 'member', NOW() - INTERVAL '40 days')`, [gid, H]);
+      const gid = await mkEvent(H, { daysAgo: 3 });
       await db.query(`INSERT INTO friendships (requester_id, addressee_id, status) VALUES ($1, $2, 'blocked')`, [T, H]);
       const promptOf = async (uid) => (await call(C.getPendingReviews, { userId: uid })).body
-        .find(r => r.group_id === gid).members.map(m => m.id);
+        .find(r => r.group_id === gid)?.members.map(m => m.id);
       const hSees = await promptOf(H);
       expect(hSees).not.toContain(T);
       expect(hSees).toContain(R1);
-      expect(await promptOf(T)).not.toContain(H);
+      expect(await promptOf(T)).toBeUndefined();   // a member is not asked at all
 
       await vote(gid, R1, true);
       const res = await call(C.submitReview, { userId: H, body: {
@@ -5815,12 +5823,17 @@ suite('write endpoints against real Postgres', () => {
       for (let i = 1; i <= 8; i++) P.push(await mkU(`smoke-s4-p${i}@x.com`, `Pia ${i}`));
     });
 
-    it('8 people including the owner: asked, everyone listed, answers count', async () => {
+    // Since 17.11.2026 (Tina) the question goes to the CREATOR only; a member
+    // is neither asked nor offered the pill — their answer would still count.
+    it('8 people including the owner: the creator is asked, everyone listed, answers count', async () => {
       const gid = await mkMeetup(P.slice(0, 7));
-      expect(await pendingIds(P[0])).toContain(gid);
-      const reopen = await call(C.getReviewForGroup, { userId: P[0], params: { groupId: String(gid) } });
+      expect(await pendingIds(O)).toContain(gid);
+      const reopen = await call(C.getReviewForGroup, { userId: O, params: { groupId: String(gid) } });
       ok(reopen);
       expect(reopen.body.members).toHaveLength(7); // everyone but the asker
+      expect(await pendingIds(P[0])).not.toContain(gid);
+      const pill = await call(C.getReviewForGroup, { userId: P[0], params: { groupId: String(gid) } });
+      expect(pill.statusCode).toBe(404);
       const res = await call(C.submitReview, { userId: P[0], body: {
         group_id: gid, attendances: [{ user_id: P[1], was_present: true }] } });
       expect(res.body).toEqual({ success: true, counted: true });
@@ -5886,7 +5899,7 @@ suite('write endpoints against real Postgres', () => {
     it('a late joiner does not count: 8 in time plus one afterwards is still asked', async () => {
       const gid = await mkMeetup(P.slice(0, 7));
       await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, [gid, P[7]]); // joined NOW
-      expect(await pendingIds(P[0])).toContain(gid);
+      expect(await pendingIds(O)).toContain(gid);
       expect(await pendingIds(P[7])).not.toContain(gid);
     });
 
@@ -5894,9 +5907,9 @@ suite('write endpoints against real Postgres', () => {
       const gid = await mkMeetup(P);
       ok(await call(C.leaveGroup, { userId: P[7], params: { id: String(gid) } }));
       expect((await db.query('SELECT 1 FROM hall_of_fame_entries WHERE group_id = $1 AND user_id = $2', [gid, P[7]])).rowCount).toBe(1);
-      expect(await pendingIds(P[0])).not.toContain(gid); // 8 members + the one who left
+      expect(await pendingIds(O)).not.toContain(gid); // 8 members + the one who left
       ok(await call(C.kickMember, { userId: O, params: { id: String(gid), userId: String(P[6]) } }));
-      expect(await pendingIds(P[0])).toContain(gid);     // 7 members + the one who left = 8
+      expect(await pendingIds(O)).toContain(gid);     // 7 members + the one who left = 8
     });
 
     it('a solo owner keeps the prompt — the modal is their way to „Hat nicht stattgefunden“', async () => {
@@ -5929,9 +5942,10 @@ suite('write endpoints against real Postgres', () => {
       // 23:30: inside the D+1 window, outside the day — nothing.
       expect(await C.runEventReminders({ now: await dayAfter('23:30') }))
         .toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 0, pushes: 0 });
-      // 11:00: the 8-person meetup only, to its 8 — the late joiner not among them.
+      // 11:00: the 8-person meetup only, and only to its creator (Tina
+      // 17.11.2026) — neither the seven others nor the late joiner.
       expect(await C.runEventReminders({ now: await dayAfter('11:00') }))
-        .toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 1, pushes: 8 });
+        .toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 1, pushes: 1 });
       expect([await claimed(eight), await claimed(nine), await claimed(solo), await claimed(deserted)])
         .toEqual([true, false, false, false]);
       // …while its owner still gets the prompt itself, with nobody to tick.
@@ -5957,6 +5971,33 @@ suite('write endpoints against real Postgres', () => {
       } finally {
         await db.query('DELETE FROM friendships WHERE requester_id = $1 AND addressee_id = $2', [P[0], O]);
       }
+    });
+
+    // Tina 17.11.2026: „diese bekommt nur der Eventersteller“. The server
+    // decides who is ASKED (popup, pill, push), so old bundles follow at
+    // once; who may ANSWER did not change — a dialog that was already open on
+    // a member's phone still lands, and still counts.
+    it('only the creator is asked; an old dialog\'s member answer still lands (write gate unchanged)', async () => {
+      const gid = await mkMeetup(P.slice(0, 3), 'Nur Ersteller');
+      // The creator: popup and pill.
+      expect(await pendingIds(O)).toContain(gid);
+      ok(await call(C.getReviewForGroup, { userId: O, params: { groupId: String(gid) } }));
+      // Every member: neither.
+      for (const member of P.slice(0, 3)) {
+        expect(await pendingIds(member)).not.toContain(gid);
+        expect((await call(C.getReviewForGroup, { userId: member, params: { groupId: String(gid) } })).statusCode).toBe(404);
+      }
+      // A member's answer from an old dialog is recorded like before.
+      const res = await call(C.submitReview, { userId: P[1], body: {
+        group_id: gid, attendances: [{ user_id: P[0], was_present: true }, { user_id: O, was_present: true }] } });
+      expect(res.body).toEqual({ success: true, counted: true });
+      const votes = (await db.query(
+        `SELECT reviewed_user_id, was_present FROM event_reviews
+          WHERE group_id = $1 AND reviewer_id = $2 AND reviewed_user_id <> reviewer_id ORDER BY reviewed_user_id`,
+        [gid, P[1]])).rows;
+      expect(votes).toEqual([O, P[0]].sort((a, b) => a - b).map((id) => ({ reviewed_user_id: id, was_present: true })));
+      // …and the creator is still asked afterwards: the member's answer is not theirs.
+      expect(await pendingIds(O)).toContain(gid);
     });
   });
 

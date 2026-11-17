@@ -30,7 +30,7 @@ vi.mock('../../src/controllers/pushController.js', () => ({
 }));
 
 const {
-  runEventReminders, reminderParams, nudgeParams, APP_TZ, NUDGE_MIN_OTHERS,
+  runEventReminders, reminderParams, nudgeParams, APP_TZ, NUDGE_MIN_OTHERS, REVIEW_PUSH_URL,
 } = await import('../../src/jobs/eventReminders.js');
 const {
   participantsAtEventSql, remainingParticipantsSql, joinedInTimeSql,
@@ -285,14 +285,15 @@ describe('edge cases', () => {
 });
 
 describe('review nudge (Batch 3)', () => {
-  it('claims group events, skips who already reviewed/dismissed, sends one "/" push per event', async () => {
+  // Since 17.11.2026 (Tina) only the CREATOR is asked — and pushed.
+  it('claims group events, pushes only the creator (unless they reviewed/dismissed), one "/home?review=1" push per event', async () => {
     program({
       review: [
         { id: 41, owner_id: 1, name: 'Bar Abend', location: null, members_count: 5, time_hhmm: '19:00' },
         { id: 42, owner_id: 2, name: 'Picknick', location: null, members_count: 3, time_hhmm: null },
       ],
       reviewMembers: [
-        { group_id: 41, user_id: 7 }, { group_id: 41, user_id: 8 }, { group_id: 42, user_id: 9 },
+        { group_id: 41, user_id: 1 }, { group_id: 42, user_id: 2 },
       ],
     });
     const out = await runEventReminders({ now: NOW });
@@ -308,13 +309,18 @@ describe('review nudge (Batch 3)', () => {
     expect(revSel.text).toContain('event_review_dismissals');
     expect(revSel.text).toContain('gm.notifications_muted = FALSE');
     expect(revSel.text).toContain('u.push_reminders = TRUE');
+    // The creator only: getPendingReviews asks nobody else (Tina 17.11.2026).
+    expect(revSel.text).toContain('AND gm.user_id = g.owner_id');
     expect(revSel.params).toEqual([[41, 42]]);
 
+    // /home?review=1, not '/': the '/' route redirects and drops the query,
+    // and the app reloads the open questions when it sees ?review=1 (S4).
+    expect(REVIEW_PUSH_URL).toBe('/home?review=1');
     expect(pushUsersMock).toHaveBeenCalledTimes(2);
-    expect(pushUsersMock).toHaveBeenNthCalledWith(1, [7, 8], expect.any(Function), null, '/');
-    expect(pushUsersMock).toHaveBeenNthCalledWith(2, [9], expect.any(Function), null, '/');
+    expect(pushUsersMock).toHaveBeenNthCalledWith(1, [1], expect.any(Function), null, '/home?review=1');
+    expect(pushUsersMock).toHaveBeenNthCalledWith(2, [2], expect.any(Function), null, '/home?review=1');
     expect(pushUsersMock.mock.calls[0][1]('de')).toEqual({ title: 'Wie war "Bar Abend"?', body: 'Bewerte, wer dabei war 🌟' });
-    expect(out).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 2, pushes: 3 });
+    expect(out).toEqual({ dayBefore: 0, hourBefore: 0, ownerNudge: 0, reviewNudge: 2, pushes: 2 });
   });
 
   // „Wer war dabei?“ only for small meetups (Tina, 16.11.2026).
@@ -340,13 +346,13 @@ describe('review nudge (Batch 3)', () => {
   it('recipients are members by the end of the event day — a late joiner is never asked, so never pushed', async () => {
     program({
       review: [{ id: 41, owner_id: 1, name: 'Bar Abend', location: null, members_count: 5, time_hhmm: '19:00' }],
-      reviewMembers: [{ group_id: 41, user_id: 7 }],
+      reviewMembers: [{ group_id: 41, user_id: 1 }],
     });
     await runEventReminders({ now: NOW });
     const revSel = statements.find(s => s.text.includes('event_reviews'));
     expect(revSel.text).toContain('JOIN groups g ON g.id = gm.group_id');
     expect(revSel.text).toContain(joinedInTimeSql('gm', 'g'));
-    expect(pushUsersMock).toHaveBeenCalledWith([7], expect.any(Function), null, '/');
+    expect(pushUsersMock).toHaveBeenCalledWith([1], expect.any(Function), null, '/home?review=1');
   });
 
   // Review 16.11.2026: the head count passed owner + one in a block, whose
