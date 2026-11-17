@@ -6684,6 +6684,73 @@ suite('write endpoints against real Postgres', () => {
       expect((await shownAt(meetup)).id).toBe(D.main);
     });
 
+    // Review 16.11.2026: the club's check that JAMIE's deal stays was a SELECT
+    // of its own — a deal JAMIE hung on the event between that check and the
+    // write was replaced or taken off. The writes carry the condition
+    // themselves now. JAMIE's attach is slipped in right after the check.
+    it('JAMIE hangs a deal on between the club\'s check and its write: neither replaced nor taken off (409, the row unchanged); the club\'s own is', async () => {
+      const second = await create(proMgr, club, body({ name: 'Smoke Bar Neun Zwei', deal_label: 'Happy Hour' }));
+      expect(second.statusCode, JSON.stringify(second.body)).toBe(201);
+      D.second = second.body.id;
+      const linkRow = async (g) => (await db.query(
+        'SELECT deal_id, attached_by, created_at FROM event_deals WHERE group_id = $1', [g])).rows[0] ?? null;
+
+      // the club's own deal: hung on, replaced, taken off; taking off nothing is fine
+      ok(await attach(proMgr, event, D.main));
+      ok(await attach(proMgr, event, D.second));
+      expect(await linkRow(event)).toMatchObject({ deal_id: D.second, attached_by: proMgr });
+      ok(await attach(owner, event, null));
+      expect(await linkRow(event)).toBeNull();
+      ok(await attach(owner, event, null));
+
+      // JAMIE's attach lands right after the club's check (the SELECT on event_deals)
+      let atCheck;
+      const jamieRightAfterCheck = () => vi.spyOn(db, 'query').mockImplementation(async (text, params) => {
+        const result = await db.pool.query(text, params);
+        if (!atCheck && String(text).startsWith('SELECT d.club_id FROM event_deals')) {
+          await db.pool.query(
+            `INSERT INTO event_deals (group_id, deal_id, attached_by) VALUES ($1, $2, $3)
+             ON CONFLICT (group_id) DO UPDATE
+               SET deal_id = EXCLUDED.deal_id, attached_by = EXCLUDED.attached_by, created_at = NOW()`,
+            [event, D.jamie, A]);
+          atCheck = (await db.pool.query(
+            'SELECT deal_id, attached_by, created_at FROM event_deals WHERE group_id = $1', [event])).rows[0];
+        }
+        return result;
+      });
+      const raced = async (fn) => {
+        atCheck = null;
+        const spy = jamieRightAfterCheck();
+        try { return await fn(); } finally { spy.mockRestore(); }
+      };
+
+      // hanging the club's deal on: the check saw an empty slot, the write finds JAMIE's
+      const on = await raced(() => attach(proMgr, event, D.main));
+      expect(on.statusCode, JSON.stringify(on.body)).toBe(409);
+      expect(on.body.code).toBe('DEAL_SET_BY_JAMIE');
+      expect(atCheck).toMatchObject({ deal_id: D.jamie, attached_by: A });
+      expect(await linkRow(event)).toEqual(atCheck);
+
+      // taking it off: the check saw the club's own deal, the write finds JAMIE's
+      ok(await attach(A, event, null));
+      ok(await attach(proMgr, event, D.main));
+      const off = await raced(() => attach(owner, event, null));
+      expect(off.statusCode, JSON.stringify(off.body)).toBe(409);
+      expect(off.body.code).toBe('DEAL_SET_BY_JAMIE');
+      expect(atCheck).toMatchObject({ deal_id: D.jamie, attached_by: A });
+      expect(await linkRow(event)).toEqual(atCheck);
+
+      // without a race the check answers the same — the row stays as it is
+      expect((await attach(proMgr, event, D.second)).body.code).toBe('DEAL_SET_BY_JAMIE');
+      expect((await attach(owner, event, null)).body.code).toBe('DEAL_SET_BY_JAMIE');
+      expect(await linkRow(event)).toEqual(atCheck);
+      expect((await shownAt(event)).id).toBe(D.jamie);
+
+      // as it was for the tests below: nothing on the event, one deal of the club
+      ok(await attach(A, event, null));
+      ok(await remove(proMgr, club, D.second));
+    });
+
     // Review 16.11.2026: the feed has no place filter — at most 3 of a club's
     // deals show at a time. The count runs under a lock on the club's row, so
     // a script's parallel requests cannot all pass it before any has written.

@@ -25,6 +25,9 @@ const scenario = {
   isAdmin: false,               // SELECT is_admin FROM users (setEventDeal)
   dealRow: { club_id: 7, is_active: true }, // SELECT club_id, is_active FROM deals
   currentLink: null,            // the deal on the event now: { club_id }
+  // A deal hung on the event between the check and the write: what the write
+  // itself finds there ({ club_id }); undefined = currentLink.
+  linkAtWrite: undefined,
   geo: { ok: true, coords: { lat: 48.21, lng: 16.37 } },
   liveRows: [{}],               // redeemDeal's club check (SELECT 1 FROM deals d …)
   liveFail: null,
@@ -56,7 +59,20 @@ vi.mock('../../src/config/database.js', () => {
     }
     if (text.startsWith('SELECT 1 FROM deals WHERE id = $1')) return { rows: [{}] };
     if (text.startsWith('SELECT d.club_id FROM event_deals')) return { rows: scenario.currentLink ? [scenario.currentLink] : [] };
-    if (/^\s*(INSERT INTO|DELETE FROM) event_deals/.test(text)) return { rows: [], rowCount: 1 };
+    if (/^\s*(INSERT INTO|DELETE FROM) event_deals/.test(text)) {
+      // As Postgres would: a write without the club condition (an admin's)
+      // takes whatever is there; the club's only its own deal or an empty slot.
+      if (scenario.linkAtWrite !== undefined) scenario.currentLink = scenario.linkAtWrite;
+      const link = scenario.currentLink;
+      const own = (clubId) => !!link && Number(link.club_id) === Number(clubId);
+      if (text.startsWith('DELETE')) {
+        const hit = text.includes('USING deals d') ? own(params[1]) : !!link;
+        if (hit) scenario.currentLink = null;
+        return { rows: [], rowCount: hit ? 1 : 0 };
+      }
+      const written = !text.includes('WHERE EXISTS') || !link || own(params[3]);
+      return { rows: written ? [{ group_id: params[0] }] : [], rowCount: written ? 1 : 0 };
+    }
     if (text.includes('FROM event_deals ed\n         JOIN deals d')) return { rows: [] };
     if (text.includes('JOIN push_subscriptions')) return { rows: [{ id: 3 }] };
     throw new Error(`unexpected SQL in test: ${text.slice(0, 80)}`);
@@ -106,7 +122,7 @@ beforeEach(() => {
   Object.assign(scenario, {
     access: { ...CLUB }, pro: false, ownDeal: true, updated: true, listRows: [], eventRows: [],
     event: { type: 'event', parent_club_id: 7 }, isAdmin: false, dealRow: { club_id: 7, is_active: true },
-    currentLink: null, geo: { ok: true, coords: { lat: 48.21, lng: 16.37 } }, liveRows: [{}], liveFail: null,
+    currentLink: null, linkAtWrite: undefined, geo: { ok: true, coords: { lat: 48.21, lng: 16.37 } }, liveRows: [{}], liveFail: null,
     live: [{ others: 0, self_live: false }],
   });
   queries.length = 0;
@@ -447,7 +463,7 @@ describe('PUT /api/deals/event/:groupId by a club\'s manager (P4 v2)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ group_id: 90, deal_id: 11, deal: null });
     expect(queries.find((q) => q.text.includes('AS caller_is_admin')).params).toEqual([7, 5]);
-    expect(linkWrites()[0].params).toEqual([90, 11, 5]);
+    expect(linkWrites()[0].params).toEqual([90, 11, 5, 7]);
   });
 
   it('hanging one on needs Pro; taking it off does not', async () => {
@@ -502,14 +518,52 @@ describe('PUT /api/deals/event/:groupId by a club\'s manager (P4 v2)', () => {
     expect(linkWrites()).toHaveLength(2);
   });
 
+  // Review 16.11.2026: the check above is a SELECT of its own — a deal JAMIE
+  // hung on the event between it and the write was replaced or taken off.
+  // The club's writes carry the condition themselves.
+  it('JAMIE hangs a deal on between the check and the write: the club\'s write leaves it there (409)', async () => {
+    scenario.pro = true;
+    scenario.linkAtWrite = { club_id: null };       // none at the check, JAMIE's at the write
+    const replace = await attach(11);
+    expect(replace.statusCode).toBe(409);
+    expect(replace.body.code).toBe('DEAL_SET_BY_JAMIE');
+    const upsert = linkWrites()[0];
+    expect(upsert.text).toMatch(
+      /ON CONFLICT \(group_id\) DO UPDATE[\s\S]+WHERE EXISTS \(SELECT 1 FROM deals d WHERE d\.id = event_deals\.deal_id AND d\.club_id = \$4\)/);
+    expect(upsert.params).toEqual([90, 11, 5, 7]);
+    // taking it off: the club's own at the check, JAMIE's at the write
+    scenario.currentLink = { club_id: 7 };
+    const off = await attach(null);
+    expect(off.statusCode).toBe(409);
+    expect(off.body.code).toBe('DEAL_SET_BY_JAMIE');
+    const del = linkWrites()[1];
+    expect(del.text).toMatch(/^DELETE FROM event_deals ed USING deals d\s+WHERE ed\.group_id = \$1 AND d\.id = ed\.deal_id AND d\.club_id = \$2$/);
+    expect(del.params).toEqual([90, 7]);
+    expect(scenario.currentLink).toEqual({ club_id: null });   // JAMIE's is still there
+  });
+
+  it('nothing on the event: taking it off stays a no-op that succeeds', async () => {
+    const off = await attach(null);
+    expect(off.statusCode).toBe(200);
+    expect(off.body).toEqual({ group_id: 90, deal_id: null, deal: null });
+    expect(linkWrites()).toHaveLength(1);
+  });
+
   it('an app admin keeps the old path: any deal, any event, no club gate', async () => {
     scenario.isAdmin = true;
     scenario.event = { type: 'group', parent_club_id: null };
+    scenario.currentLink = { club_id: 8 };
     const res = await attach(11);
     expect(res.statusCode).toBe(200);
     expect(queries.some((q) => q.text.includes('AS caller_is_admin'))).toBe(false);
     expect(queries.some((q) => q.text.startsWith('SELECT d.club_id FROM event_deals'))).toBe(false);
     expect(proMock).not.toHaveBeenCalled();
+    // …and its writes take whatever hangs there: no club condition
+    expect(linkWrites()[0].text).not.toContain('WHERE EXISTS');
+    expect(linkWrites()[0].params).toEqual([90, 11, 5]);
+    expect((await attach(null)).statusCode).toBe(200);
+    expect(linkWrites()[1].text).toBe('DELETE FROM event_deals WHERE group_id = $1');
+    expect(linkWrites()[1].params).toEqual([90]);
   });
 
   it('no session: 401 before anything is read', async () => {

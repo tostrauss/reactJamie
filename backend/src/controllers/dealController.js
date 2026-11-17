@@ -700,6 +700,20 @@ const toPositiveInt = (v) => {
   return Number.isInteger(n) && n > 0 && n <= 2147483647 ? n : null;
 };
 
+const DEAL_SET_BY_JAMIE = {
+  error: 'An diesem Event hängt ein Deal von JAMIE. Den kann nur das JAMIE-Team ändern.',
+  code: 'DEAL_SET_BY_JAMIE',
+};
+
+// Whether the deal on the event right now is not the club's own — JAMIE's.
+async function foreignDealOn(groupId, clubId) {
+  const { rows } = await db.query(
+    `SELECT d.club_id FROM event_deals ed JOIN deals d ON d.id = ed.deal_id WHERE ed.group_id = $1`,
+    [groupId]
+  );
+  return rows.length > 0 && Number(rows[0].club_id) !== Number(clubId);
+}
+
 export const setEventDeal = async (req, res) => {
   if (!req.userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   const groupId = toPositiveInt(req.params.groupId);
@@ -717,9 +731,10 @@ export const setEventDeal = async (req, res) => {
     }
     const caller = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);
     const isAdmin = !!caller.rows[0]?.is_admin;
+    let clubId = null; // a club manager's club: only its own deals are theirs to move
     if (!isAdmin) {
       // A club's own manager: only an event of that club…
-      const clubId = event.rows[0].type === 'event' ? event.rows[0].parent_club_id : null;
+      clubId = event.rows[0].type === 'event' ? event.rows[0].parent_club_id : null;
       if (!clubId) return res.status(403).json({ error: 'Keine Berechtigung', code: 'NOT_CLUB_MANAGER' });
       const access = await clubDealAccess(clubId, req.userId, { needPro: dealId !== null });
       if (!access.club) return res.status(access.status).json(access.body);
@@ -732,31 +747,46 @@ export const setEventDeal = async (req, res) => {
         }
       }
       // …and never over a deal JAMIE hung there.
-      const current = await db.query(
-        `SELECT d.club_id FROM event_deals ed JOIN deals d ON d.id = ed.deal_id WHERE ed.group_id = $1`,
-        [groupId]
-      );
-      if (current.rows.length && Number(current.rows[0].club_id) !== Number(clubId)) {
-        return res.status(409).json({
-          error: 'An diesem Event hängt ein Deal von JAMIE. Den kann nur das JAMIE-Team ändern.',
-          code: 'DEAL_SET_BY_JAMIE',
-        });
-      }
+      if (await foreignDealOn(groupId, clubId)) return res.status(409).json(DEAL_SET_BY_JAMIE);
     }
-    if (dealId === null) {
-      await db.query('DELETE FROM event_deals WHERE group_id = $1', [groupId]);
-    } else {
-      if (isAdmin) {
+    if (isAdmin) {
+      if (dealId === null) {
+        await db.query('DELETE FROM event_deals WHERE group_id = $1', [groupId]);
+      } else {
         const deal = await db.query('SELECT 1 FROM deals WHERE id = $1', [dealId]);
         if (!deal.rows.length) return res.status(404).json({ error: 'Deal not found' });
+        // One deal per event: hanging another one replaces it.
+        await db.query(
+          `INSERT INTO event_deals (group_id, deal_id, attached_by) VALUES ($1, $2, $3)
+           ON CONFLICT (group_id) DO UPDATE
+             SET deal_id = EXCLUDED.deal_id, attached_by = EXCLUDED.attached_by, created_at = NOW()`,
+          [groupId, dealId, req.userId]
+        );
       }
-      // One deal per event: hanging another one replaces it.
-      await db.query(
+    } else if (dealId === null) {
+      // The check above gives the usual answer; the condition in the write
+      // makes it hold. A deal JAMIE hangs on the event between that check and
+      // this write is not taken off (review 16.11.2026): only the club's own
+      // goes. Nothing removed: nothing was there (no-op), or JAMIE's (409).
+      const off = await db.query(
+        `DELETE FROM event_deals ed USING deals d
+          WHERE ed.group_id = $1 AND d.id = ed.deal_id AND d.club_id = $2`,
+        [groupId, clubId]
+      );
+      if (!off.rowCount && await foreignDealOn(groupId, clubId)) return res.status(409).json(DEAL_SET_BY_JAMIE);
+    } else {
+      // One deal per event, but the club's replaces only its own — or none:
+      // a row that comes back neither inserted nor updated holds JAMIE's deal,
+      // hung there since the check above (review 16.11.2026).
+      const on = await db.query(
         `INSERT INTO event_deals (group_id, deal_id, attached_by) VALUES ($1, $2, $3)
          ON CONFLICT (group_id) DO UPDATE
-           SET deal_id = EXCLUDED.deal_id, attached_by = EXCLUDED.attached_by, created_at = NOW()`,
-        [groupId, dealId, req.userId]
+           SET deal_id = EXCLUDED.deal_id, attached_by = EXCLUDED.attached_by, created_at = NOW()
+           WHERE EXISTS (SELECT 1 FROM deals d WHERE d.id = event_deals.deal_id AND d.club_id = $4)
+         RETURNING group_id`,
+        [groupId, dealId, req.userId, clubId]
       );
+      if (!on.rowCount) return res.status(409).json(DEAL_SET_BY_JAMIE);
     }
     const shown = await getDealsForEvents([groupId]);
     console.log(`[${isAdmin ? 'admin' : 'deals'}] user ${req.userId} ${dealId ? `attached deal ${dealId} to` : 'took the deal off'} group ${groupId}`);
