@@ -2607,7 +2607,7 @@
       "saveError": "Could not be saved",
       "empty": "No clubs found.",
       "paidPartner": "Paying partner",
-      "paidPartnerHint": "Yellow frame, ☆ Partner and ✓ – no limit on events and deals"
+      "paidPartnerHint": "✓ on the club and its deals – no limit on events and deals"
     },
     "featuredClubs": {
       "title": "Clubs in onboarding",

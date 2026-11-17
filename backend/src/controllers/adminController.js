@@ -648,13 +648,15 @@ export const rejectClub = async (req, res) => {
 // silent no-op.
 //
 // is_paid_partner („Zahlender Partner“, Tina's document of 17.11.2026, decided
-// by Tobi): ☆ Partner, the yellow frame and the ✓ are what a PAYING partner
-// gets (utils/clubGate.js partnerSql), and this is the only place that sets
-// the mark. Only an official club can carry it: `true` for a club that is not
-// 'official' after this very request is refused (400
-// PAID_PARTNER_OFFICIAL_ONLY) — `false` always goes. Reclassifying a paying
-// club as a community later leaves the mark standing; it has no effect there
-// (partnerSql asks for 'official') and is back when the club is.
+// by Tobi): the ✓ of a checked partner (club list, its deals) and the end of
+// the free tier (utils/clubEventQuota.js) are what a PAYING partner gets, and
+// this is the only place that sets the mark. NOT ☆ Partner and the yellow
+// frame: those are for every official club's own events (utils/clubGate.js
+// partnerSql; Tina's clarification of 17.11.2026, 10:26). Only an official club can
+// carry the mark: `true` for a club that is not 'official' after this very
+// request is refused (400 PAID_PARTNER_OFFICIAL_ONLY) — `false` always goes.
+// Reclassifying a paying club as a community later leaves the mark standing;
+// its readers ask for 'official' as well, and it is back when the club is.
 //
 // Deliberately does NOT touch approval_status: upgrading a long-approved club
 // to 'official' must not pull it back into the moderation queue and out of
@@ -723,7 +725,8 @@ export const classifyClub = async (req, res) => {
     // events carry „☆ Partner“ (utils/clubGate.js partnerSql), and promoting
     // or demoting a club must show in the Gruppen feed at once — not after a
     // TTL — like approveClub does for its events. The same four cover the
-    // paying-partner mark: feed (☆), Clubs list and onboarding list (✓).
+    // paying-partner mark: Clubs list and onboarding list (✓), and the deal
+    // row at an event in the feed's neighbourhood (✓).
     try {
       const { invalidatePrefix, deleteCached } = await import('../utils/cache.js');
       invalidatePrefix('clubs:');

@@ -14,12 +14,13 @@ describe('partnerSql', () => {
     expect(sql).toContain("pc.club_type = 'official'");
   });
 
-  // Tina's document of 17.11.2026, decided by Tobi: ☆, the yellow frame and
-  // the ✓ are what a PAYING partner gets — the mark an admin sets on the club.
-  it('only paying partners: the parent club carries the admin’s mark', () => {
-    expect(sql).toContain('pc.is_paid_partner = TRUE');
-    // the event row's own column is always FALSE — never that one
-    expect(sql).not.toContain('g.is_paid_partner');
+  // Tina's clarification of 17.11.2026, 10:26 (decided by Tobi): „Stern hat jeder
+  // Club mit Pastellgelb umrandet … diesen verified-Haken haben nur Paid
+  // Clubs.“ ☆ and the yellow frame are for EVERY official club's own events;
+  // the mark „Zahlender Partner“ is for the ✓ and the free tier only. (For a
+  // few hours that morning this asked for pc.is_paid_partner = TRUE.)
+  it('every official club, paying or not: the paying mark is not part of the rule', () => {
+    expect(sql).not.toContain('is_paid_partner');
   });
 
   it('only what the club itself put up: the event creator is its owner or a co-manager', () => {

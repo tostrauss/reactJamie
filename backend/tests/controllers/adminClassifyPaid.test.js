@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // „Zahlender Partner“ (Tina's document of 17.11.2026, decided by Tobi): ☆
-// Partner, the yellow frame and the ✓ are for paying partners only, and
+// Partner and the yellow frame are for every official club again (Tina's
+// clarification of 17.11.2026, 10:26); the ✓ and the end of the free tier are for paying partners only, and
 // POST /api/admin/clubs/:id/classify is the one place that sets the mark —
 // with { is_paid_partner }, alone or next to club_type / category_label. Only
 // an official club can carry it. The real-Postgres smoke suite runs the same

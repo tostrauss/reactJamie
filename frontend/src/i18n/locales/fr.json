@@ -2607,7 +2607,7 @@
       "saveError": "Enregistrement impossible",
       "empty": "Aucun club trouvé.",
       "paidPartner": "Partenaire payant",
-      "paidPartnerHint": "Cadre jaune, ☆ Partner et ✓ – sans limite pour les événements et les deals"
+      "paidPartnerHint": "✓ sur le club et ses deals – sans limite pour les événements et les deals"
     },
     "featuredClubs": {
       "title": "Clubs dans l'onboarding",

@@ -195,10 +195,11 @@ export const AdminClassifySection = () => {
               </div>
 
               {/* „Zahlender Partner“ (Tina 17.11.2026, decided by Tobi): the
-                  mark behind the yellow frame, „☆ Partner“ and ✓, and what
-                  lifts the free tier. Only an official club can carry it (the
-                  server refuses it elsewhere), and a server that does not
-                  send the field yet gets no switch. */}
+                  mark behind the ✓ of a checked partner, and what lifts the
+                  free tier. Not „☆ Partner“ and the yellow frame — every
+                  official club has those (Tina's clarification of 17.11.2026, 10:26). Only an official
+                  club can carry it (the server refuses it elsewhere), and a
+                  server that does not send the field yet gets no switch. */}
               {current === 'official' && 'is_paid_partner' in c && (
                 <>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>

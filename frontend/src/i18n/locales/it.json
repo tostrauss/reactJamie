@@ -2607,7 +2607,7 @@
       "saveError": "Salvataggio non riuscito",
       "empty": "Nessun club trovato.",
       "paidPartner": "Partner pagante",
-      "paidPartnerHint": "Cornice gialla, ☆ Partner e ✓ – senza limiti per eventi e deal"
+      "paidPartnerHint": "✓ sul club e sui suoi deal – senza limiti per eventi e deal"
     },
     "featuredClubs": {
       "title": "Club nell'onboarding",

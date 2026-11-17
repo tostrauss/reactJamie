@@ -3891,10 +3891,11 @@ suite('write endpoints against real Postgres', () => {
     });
     beforeEach(() => { sent.length = 0; posted.length = 0; });
 
-    // S2 (Tina 16.11.2026): the memory push moved from the same day to D+1
-    // from 12:00 — two hours behind the review push, with its own title. These
+    // S2 (Tina 16.11.2026): the memory push moved from the same day to D+1,
+    // with its own title — from 17:00 since her clarification of 17.11.2026
+    // (Tobi: „17 Uhr am nächsten Tag“; 12:00 for the one day before). These
     // two used to pin the same-day timing; rewritten on purpose, not „greened".
-    it('memory push: every participant the day AFTER a timed event — not that evening, not before 12:00, not twice, minus muted/opted-out/already-shared', async () => {
+    it('memory push: every participant the day AFTER a timed event — not that evening, not before 17:00, not twice, minus muted/opted-out/already-shared', async () => {
       const o = await mkU('o'); const p1 = await mkU('p1');
       const off = await mkU('off', { reminders: false }); const mute = await mkU('mute'); const shared = await mkU('shared');
       const g = await mkG(o, { name: 'Bowling', date: '2027-03-10 19:00' });
@@ -3905,27 +3906,30 @@ suite('write endpoints against real Postgres', () => {
 
       await en.runMomentPrompts({ now: '2027-03-10T22:30:00+01:00', send });   // start + 3.5 h: the old slot
       expect(memory()).toBeUndefined();
-      await en.runMomentPrompts({ now: '2027-03-11T11:45:00+01:00', send });   // D+1 before noon
+      await en.runMomentPrompts({ now: '2027-03-11T12:00:00+01:00', send });   // D+1 noon: the slot of 16.11.
+      await en.runMomentPrompts({ now: '2027-03-11T16:45:00+01:00', send });   // D+1 before 17:00
       expect(memory()).toBeUndefined();
-      await en.runMomentPrompts({ now: '2027-03-11T12:00:00+01:00', send });
+      await en.runMomentPrompts({ now: '2027-03-11T17:00:00+01:00', send });
       expect(memory().ids).toEqual([o, p1].sort((a, b) => a - b));
       expect(memory().url).toBe('/explore?share=1');
       sent.length = 0;
-      await en.runMomentPrompts({ now: '2027-03-11T12:15:00+01:00', send });
+      await en.runMomentPrompts({ now: '2027-03-11T17:15:00+01:00', send });
       expect(memory()).toBeUndefined();
     });
 
-    it('memory push: a date-only meetup the day after from 12:00 too — never its own evening, never two days later', async () => {
+    it('memory push: a date-only meetup the day after from 17:00 too — never its own evening, never two days later', async () => {
       const o = await mkU('do'); const p = await mkU('dp');
       const g = await mkG(o, { name: 'Picknick', date: '2027-03-12 00:00' });
       await join(g, p);
       await en.runMomentPrompts({ now: '2027-03-12T21:15:00+01:00', send });
       expect(sent.find(s => s.title === '📷 Deine Memory von Picknick')).toBeUndefined();
       await en.runMomentPrompts({ now: '2027-03-13T12:00:00+01:00', send });
+      expect(sent.find(s => s.title === '📷 Deine Memory von Picknick')).toBeUndefined();
+      await en.runMomentPrompts({ now: '2027-03-13T17:00:00+01:00', send });
       expect(sent.find(s => s.title === '📷 Deine Memory von Picknick').ids).toEqual([o, p].sort((a, b) => a - b));
       const g2 = await mkG(o, { name: 'Zu spät', date: '2027-03-12 00:00' });
       await join(g2, p);
-      await en.runMomentPrompts({ now: '2027-03-14T12:00:00+01:00', send });
+      await en.runMomentPrompts({ now: '2027-03-14T17:00:00+01:00', send });
       expect(sent.find(s => s.title === '📷 Deine Memory von Zu spät')).toBeUndefined();
     });
 
@@ -3937,8 +3941,15 @@ suite('write endpoints against real Postgres', () => {
     // them apart. A live push is the one sent urgent (LIVE_PUSH_OPTS). June
     // fixtures (CEST, +02:00), so no other test's clock lands in their windows.
     const liveFor = (u) => sent.filter(s => s.opts?.urgency === 'high' && s.ids.includes(u));
+    // OFF by default since 17.11.2026 (Tina: „Während dem Event soll keine
+    // Nachricht kommen“, EVENT_LIVE_PUSH). The three cases about what it does
+    // switch it on; it is taken off before every case and after the last.
+    const livePushOn = () => { process.env.EVENT_LIVE_PUSH = 'true'; };
+    beforeEach(() => { delete process.env.EVENT_LIVE_PUSH; });
+    afterAll(() => { delete process.env.EVENT_LIVE_PUSH; });
 
     it('live push: once per event from start+120 min, to the participants minus muted/opted-out/already-shared — urgent, gone after an hour', async () => {
+      livePushOn();
       const o = await mkU('lo'); const p = await mkU('lp');
       const off = await mkU('loff', { reminders: false }); const mute = await mkU('lmute'); const shared = await mkU('lshared');
       const g = await mkG(o, { name: 'Quizabend', date: '2027-06-10 19:00' });
@@ -3959,11 +3970,12 @@ suite('write endpoints against real Postgres', () => {
       await en.runLivePhotoPrompts({ now: '2027-06-10T21:15:00+02:00', send });   // start + 135 min
       expect(mine()).toHaveLength(1);                                              // not twice
       // …and the memory push the next day still comes: its own marker.
-      await en.runMomentPrompts({ now: '2027-06-11T12:00:00+02:00', send });
+      await en.runMomentPrompts({ now: '2027-06-11T17:00:00+02:00', send });
       expect(sent.find(s => s.title === '📷 Deine Memory von Quizabend').ids).toEqual([o, p].sort((a, b) => a - b));
     });
 
     it('live push: never for a date-only meetup, never from start+180 or at night (a 21:00 start gets none, 20:45 its 22:45 tick); a solo creator\'s event only once someone joined', async () => {
+      livePushOn();
       // One participant per event: that is how a push is told apart from the others'.
       const o = await mkU('lno');
       const pAllDay = await mkU('lnp-allday'); const pSolo = await mkU('lnp-solo'); const pMissed = await mkU('lnp-missed');
@@ -3995,6 +4007,7 @@ suite('write endpoints against real Postgres', () => {
     });
 
     it('live push: a moved event is asked about again on its new date', async () => {
+      livePushOn();
       const o = await mkU('lmo'); const p = await mkU('lmp');
       const g = await mkG(o, { name: 'Verschoben', date: '2027-06-14 18:00' });
       await join(g, p);
@@ -6040,7 +6053,8 @@ suite('write endpoints against real Postgres', () => {
       commHost = await mkU('smoke-partner-comm@x.com', 'Cem');
       viewer = await mkU('smoke-partner-viewer@x.com', 'Vito');
       const official = await mkClub('Smoke Café Partner', host, 'official');
-      // ☆ Partner is for paying partners only since 17.11.2026 (partnerSql): this one pays.
+      // This one pays (the ✓, no free tier). ☆ Partner does not ask for that:
+      // every official club's own events carry it (Tina's clarification of 17.11.2026, 10:26).
       await db.query('UPDATE groups SET is_paid_partner = TRUE WHERE id = $1', [official]);
       const community = await mkClub('Smoke Community Partner', commHost, 'community');
       await db.query(
@@ -6078,10 +6092,11 @@ suite('write endpoints against real Postgres', () => {
       expect((await call(C.getGroupById, { userId: viewer, params: { id: String(ev) } })).body.is_partner).toBe(false);
     });
 
-    // Since 17.11.2026 the club's TYPE alone makes nobody a partner: the mark
-    // „Zahlender Partner“ does, on an official club. Each step must show in the
-    // feed at once — classify busts the 30 s cache.
-    it('classifying a club shows in the feed at once — official alone is no partner, the paying mark is', async () => {
+    // The club's TYPE makes its own events ☆ Partner; the mark „Zahlender
+    // Partner“ changes nothing about that (Tina's clarification of 17.11.2026, 10:26: „Stern hat jeder
+    // Club … diesen verified-Haken haben nur Paid Clubs“). Each step must show
+    // in the feed at once — classify busts the 30 s cache.
+    it('classifying a club shows in the feed at once — official makes the partner, the paying mark does not matter', async () => {
       const later = await mkClub('Smoke Bald Partner', host, 'community');
       const ev = await mkEvent('Bald Partner-Event', later, host);
       const paid = async () => (await db.query('SELECT is_paid_partner FROM groups WHERE id = $1', [later])).rows[0].is_paid_partner;
@@ -6090,10 +6105,10 @@ suite('write endpoints against real Postgres', () => {
       (await import('../../src/utils/cache.js')).invalidatePrefix('groups:');
       expect((await feed())[ev]).toBe(false); // …which is cached now
 
-      // an official club that does not pay: still no partner
+      // an official club, not paying: a partner at once
       ok(await classify({ club_type: 'official' }));
-      expect((await feed())[ev]).toBe(false);
-      // the mark: a partner at once
+      expect((await feed())[ev]).toBe(true);
+      // the mark: stored, and still a partner
       const marked = await classify({ is_paid_partner: true });
       ok(marked);
       expect(marked.body.club).toMatchObject({ id: later, club_type: 'official', is_paid_partner: true });
@@ -6102,27 +6117,35 @@ suite('write endpoints against real Postgres', () => {
       ok(await classify({ club_type: 'community' }));
       expect((await feed())[ev]).toBe(false);
       expect(await paid()).toBe(true);
-      // …and is back with the type
+      // …official again: a partner again
       ok(await classify({ club_type: 'official' }));
       expect((await feed())[ev]).toBe(true);
-      // taken off again
+      // the mark taken off: still a partner — it never depended on it
       const unmarked = await classify({ is_paid_partner: false });
       ok(unmarked);
       expect(unmarked.body.club.is_paid_partner).toBe(false);
-      expect((await feed())[ev]).toBe(false);
+      expect((await feed())[ev]).toBe(true);
     });
 
-    it('an official club that does not pay: a partner nowhere', async () => {
+    // Tina's clarification of 17.11.2026, 10:26: „Stern hat jeder Club mit Pastellgelb umrandet … diesen
+    // verified-Haken haben nur Paid Clubs.“ (That morning this case read „a
+    // partner nowhere“.)
+    it('an official club that does not pay: its own events are ☆ Partner all the same — only the ✓ is for paying clubs', async () => {
       const free = await mkClub('Smoke Café Gratis', host, 'official');
-      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner')`, [free, host]);
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner'),($1,$3,'member')`, [free, host, member]);
       const ev = await mkEvent('Gratis-Abend', free, host);
+      const byGuest = await mkEvent('Gratis-Abend eines Mitglieds', free, member);
       (await import('../../src/utils/cache.js')).invalidatePrefix('groups:');
-      expect((await feed())[ev]).toBe(false);
+      const marks = await feed();
+      expect(marks[ev]).toBe(true);
+      expect(marks[byGuest]).toBe(false);          // still only what the club's team put up
       for (const userId of [0, viewer]) {
         const res = await call(C.getGroupById, { userId, params: { id: String(ev) } });
         ok(res);
-        expect(res.body.is_partner, `as user ${userId}`).toBe(false);
+        expect(res.body.is_partner, `as user ${userId}`).toBe(true);
       }
+      // the mark itself is untouched: that is what the ✓ reads
+      expect((await db.query('SELECT is_paid_partner FROM groups WHERE id = $1', [free])).rows[0].is_paid_partner).toBe(false);
     });
 
     it('the mark is for official clubs only — a community is refused, both in one request goes', async () => {
@@ -8276,6 +8299,67 @@ suite('write endpoints against real Postgres', () => {
         await Promise.all([run('2027-11-14T19:00:00+01:00'), run('2027-11-14T19:00:00+01:00'), run('2027-11-14T19:00:00+01:00')]);
         expect(await said(ev)).toHaveLength(1);
       });
+    });
+  });
+
+  // Tina's clarification of 17.11.2026 (10:26, decided by Tobi): „Während dem
+  // Event soll keine Nachricht kommen, dass man eine Memory hochladen soll.
+  // Diese Nachricht erst am nächsten Tag“ — 17:00 the next day. The push
+  // WHILE an event runs is off unless EVENT_LIVE_PUSH=true. Fixtures in July
+  // 2027 (CEST), away from every other clock in this suite.
+  describe('Kein Push während des Events (Tina 17.11.2026)', () => {
+    let en;
+    const sent = [];
+    const send = (ids, builder, _body, url, opts) => { sent.push({ ids: [...ids], title: builder('de').title, url, opts }); };
+    const mkU = async (tag) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider, push_reminders)
+       VALUES ($1, $2, '1996-04-04', 'female', $3, TRUE, 'email', TRUE) RETURNING id`,
+      [`smoke-nolive-${tag}@x.com`, `NoLive ${tag}`, avatar])).rows[0].id;
+    const markerOf = async (g) => (await db.query(
+      `SELECT live_prompt_sent_for, moment_prompt_sent_at FROM groups WHERE id = $1`, [g])).rows[0];
+
+    beforeAll(async () => { en = await import('../../src/jobs/engagementNudges.js'); });
+    beforeEach(() => { sent.length = 0; delete process.env.EVENT_LIVE_PUSH; });
+    afterAll(() => { delete process.env.EVENT_LIVE_PUSH; });
+
+    it('two hours into the event: nothing is claimed and nothing is sent — the memory push comes the next day from 17:00', async () => {
+      const o = await mkU('o'); const p = await mkU('p');
+      const g = (await db.query(
+        `INSERT INTO groups (name, type, date, owner_id, category, location, max_members, created_at)
+         VALUES ('Sommerfest', 'group', '2027-07-10 19:00', $1, 'Spiele', 'Wien', 20, '2027-07-01 12:00') RETURNING id`, [o])).rows[0].id;
+      await db.query(
+        `INSERT INTO group_members (group_id, user_id, role, joined_at) VALUES ($1,$2,'owner','2027-07-01 12:00'),($1,$3,'member','2027-07-01 13:00')`,
+        [g, o, p]);
+      const mine = () => sent.filter((s) => s.ids.includes(p));
+
+      // the window in which it used to go out: start+120 … start+180 min
+      for (const value of [undefined, 'false', '1']) {
+        if (value === undefined) delete process.env.EVENT_LIVE_PUSH;
+        else process.env.EVENT_LIVE_PUSH = value;
+        expect(await en.runLivePhotoPrompts({ now: '2027-07-10T21:00:00+02:00', send })).toEqual({ events: 0, pushes: 0 });
+        expect(await en.runLivePhotoPrompts({ now: '2027-07-10T21:15:00+02:00', send })).toEqual({ events: 0, pushes: 0 });
+      }
+      expect(mine()).toEqual([]);
+      expect((await markerOf(g)).live_prompt_sent_for).toBeNull();      // nothing used up
+
+      // the same window with the switch: this event WAS due — the switch is what held it back
+      process.env.EVENT_LIVE_PUSH = 'true';
+      await en.runLivePhotoPrompts({ now: '2027-07-10T21:30:00+02:00', send });
+      expect(mine()).toHaveLength(1);
+      expect(mine()[0].opts).toMatchObject({ urgency: 'high' });
+      delete process.env.EVENT_LIVE_PUSH;
+      sent.length = 0;
+
+      // …and the one photo push of the event: the next day, not before 17:00
+      await en.runMomentPrompts({ now: '2027-07-10T22:30:00+02:00', send });   // its own evening
+      await en.runMomentPrompts({ now: '2027-07-11T12:00:00+02:00', send });   // the slot of 16.11.
+      await en.runMomentPrompts({ now: '2027-07-11T16:45:00+02:00', send });
+      expect(mine()).toEqual([]);
+      await en.runMomentPrompts({ now: '2027-07-11T17:00:00+02:00', send });
+      expect(mine()).toHaveLength(1);
+      expect(mine()[0]).toMatchObject({ title: '📷 Deine Memory von Sommerfest', url: '/explore?share=1' });
+      await en.runMomentPrompts({ now: '2027-07-11T17:15:00+02:00', send });
+      expect(mine()).toHaveLength(1);
     });
   });
   // <<< BAU1-SMOKE
