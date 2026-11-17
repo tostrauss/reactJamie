@@ -1159,6 +1159,21 @@ export const suggestions = {
   get: (params = {}) => axiosInstance.get('/suggestions', { params }),
 };
 
+// ==========================================
+// Tina-Update 17.11.2026 — two build sessions work in parallel.
+// NEW api functions go ONLY into the session's own block, as their own named
+// exports (not into the objects above, not attached to axiosInstance), so the
+// branches merge without conflicts.
+// (Scaffolding — the coordinator removes these markers after the merge.)
+// ==========================================
+// >>> BAU1-API (Partner, Clubs & Deals)
+// <<< BAU1-API
+//
+// ── separator: leave in place ──
+//
+// >>> BAU2-API (Profil, Community & Nach dem Event)
+// <<< BAU2-API
+
 // Attach modules to instance for convenience
 axiosInstance.auth = auth;
 axiosInstance.users = users;

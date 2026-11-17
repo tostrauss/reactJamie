@@ -6820,6 +6820,21 @@ suite('write endpoints against real Postgres', () => {
     });
   });
 
+  // ── Tina-Update 17.11.2026: two build sessions work in parallel ─────────
+  // New describe blocks go ONLY inside the session's own block, so the
+  // branches merge without conflicts. An existing describe is changed only by
+  // the session whose topic it is. Everything below these blocks must stay
+  // last: it drops a column and rewrites deal dates.
+  // (Scaffolding — the coordinator removes these markers after the merge.)
+  //
+  // >>> BAU1-SMOKE (Partner, Clubs & Deals)
+  // <<< BAU1-SMOKE
+  //
+  // ── separator: leave in place ──
+  //
+  // >>> BAU2-SMOKE (Profil, Community & Nach dem Event)
+  // <<< BAU2-SMOKE
+
   // ── groups.is_paid_partner (partner model, Tina/Tobi 17.11.2026) ────────
   // The column ships one deploy ahead of its readers. The path that matters
   // runs in production exactly once: a database that has the groups table but
