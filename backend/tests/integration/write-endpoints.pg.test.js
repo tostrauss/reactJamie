@@ -6226,8 +6226,8 @@ suite('write endpoints against real Postgres', () => {
       // A club's date is a "next meetup", long past here — and nothing to do with the request.
       G.club = await mk({ name: 'Deck Club', type: 'club', dateSql: `${vienna} - INTERVAL '30 days'`, clubType: 'official' });
       G.pubClub = await mk({ name: 'Deck Partner-Club', type: 'club', isPrivate: false, clubType: 'official', image: clubImage });
-      // „☆ Partner“ is for paying partners only since Tobi 17.11.2026 (partnerSql):
-      // this seed pays, so card('clubEvent') keeps is_partner: true.
+      // This seed pays (the ✓). „☆ Partner“ does not ask for that: every official
+      // club's own events carry it (Tina's clarification of 17.11.2026, 10:26).
       await db.query('UPDATE groups SET is_paid_partner = TRUE WHERE id = $1', [G.pubClub]);
       G.clubEvent = await mk({ name: 'Deck Club-Event', type: 'event', dateSql: `${vienna} + INTERVAL '4 days'`, parent: G.pubClub });
       G.deadClub = await mk({ name: 'Deck Club weg', type: 'club', isPrivate: false, clubType: 'community' });
@@ -6438,7 +6438,7 @@ suite('write endpoints against real Postgres', () => {
       // First occurrence 20 days ago at 19:00 → next: tomorrow 19:00, whatever the time of day.
       E.weekly = await theirs({ name: 'Up Wöchentlich', at: '-19 days -5 hours', recurring: true });
       const official = await theirs({ name: 'Up Partner-Club', type: 'club', clubType: 'official' });
-      // a paying partner (Tobi 17.11.2026) — otherwise E.partner is no „☆ Partner“ once partnerSql asks for it
+      // a paying partner — „☆ Partner“ does not depend on it (Tina's clarification of 17.11.2026, 10:26)
       await db.query('UPDATE groups SET is_paid_partner = TRUE WHERE id = $1', [official]);
       E.partner = await theirs({ name: 'Up Punsch Night', type: 'event', parent: official, at: '2 days 19 hours' });
       await add(official, peer);
@@ -7027,14 +7027,9 @@ suite('write endpoints against real Postgres', () => {
     });
   });
 
-  // ── Tina-Update 17.11.2026: two build sessions work in parallel ─────────
-  // New describe blocks go ONLY inside the session's own block, so the
-  // branches merge without conflicts. An existing describe is changed only by
-  // the session whose topic it is. Everything below these blocks must stay
-  // last: it drops a column and rewrites deal dates.
-  // (Scaffolding — the coordinator removes these markers after the merge.)
-  //
-  // >>> BAU1-SMOKE (Partner, Clubs & Deals)
+  // ── Tina-Update 17.11.2026 ──────────────────────────────────────────────
+  // Everything below these describes must stay last: it drops a column and
+  // rewrites deal dates.
   // ── Bau 1: the tables behind the partner model (Tina 17.11.2026) ────────
   // partner_leads („JAMIE Anfrage“), club_event_auto_messages („Automatisierte
   // Nachrichten“) and the day the free tier starts counting. Only migrations
@@ -8362,11 +8357,7 @@ suite('write endpoints against real Postgres', () => {
       expect(mine()).toHaveLength(1);
     });
   });
-  // <<< BAU1-SMOKE
-  //
-  // ── separator: leave in place ──
-  //
-  // >>> BAU2-SMOKE (Profil, Community & Nach dem Event)
+
   describe('Bau 2: nach dem Event, Community, Club-Events (17.11.2026)', () => {
     // Own people and own modules — the C block above stays as it is.
     let U = {};   // user ids by short name
@@ -9062,7 +9053,6 @@ suite('write endpoints against real Postgres', () => {
       });
     });
   });
-  // <<< BAU2-SMOKE
 
   // ── groups.is_paid_partner (partner model, Tina/Tobi 17.11.2026) ────────
   // The column ships one deploy ahead of its readers. The path that matters

@@ -87,7 +87,7 @@ CREATE TABLE groups (
   is_featured     BOOLEAN DEFAULT FALSE,                 -- "Im Trend" section
   club_type       VARCHAR(12),                           -- clubs only: 'community' (user-founded, instant) | 'official' (needs approval); NULL reads as 'community'
   category_label  VARCHAR(60),                           -- clubs only: free-text category line ("Sport · Laufclub")
-  is_paid_partner BOOLEAN NOT NULL DEFAULT FALSE,        -- official clubs only: paying JAMIE partner, set by an app admin (☆ Partner, yellow frame, ✓)
+  is_paid_partner BOOLEAN NOT NULL DEFAULT FALSE,        -- official clubs only: paying JAMIE partner, set by an app admin (the ✓, no free tier; ☆ Partner and the yellow frame do not depend on it)
   parent_club_id  INTEGER REFERENCES groups(id) ON DELETE CASCADE, -- NULL = top-level; set for club events
   deleted_at      TIMESTAMP,                             -- Soft delete (NULL = active)
   created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -2120,14 +2120,15 @@ const runStartupMigrations = async () => {
     }
   });
 
-  // ── Partner model (Tina 17.11.2026; Tobi: ☆ Partner, the yellow frame and
-  // the ✓ are for PAYING partners only) ───────────────────────────────────
-  // Deliberately shipped one deploy AHEAD of its readers. partnerSql (feed
-  // decoration, event page, profile, requests deck) and the Clubs list will
-  // read this column on hot paths, and the server takes traffic before its
-  // migrations finish — with the column already live, no request can ever
-  // meet the new code without it. This step has no reader and changes nothing
-  // a user can see.
+  // ── Partner model (Tina 17.11.2026): the ✓, the free tier's exemption and
+  // deals beyond the first two events are for PAYING partners. ☆ Partner and
+  // the yellow frame are NOT — every official club's own events carry them
+  // (Tina's clarification of 17.11.2026, 10:26; partnerSql does not read
+  // this column). ────────────────────────────────────────────────────────
+  // Deliberately shipped one deploy AHEAD of its readers: the Clubs list and
+  // the club free tier read this column on hot paths, and the server takes
+  // traffic before its migrations finish — with the column already live, no
+  // request can ever meet the new code without it.
   //
   // BOOLEAN NOT NULL DEFAULT FALSE, unlike the nullable club_type: FALSE is a
   // true statement for every row (groups and events included), and a constant
