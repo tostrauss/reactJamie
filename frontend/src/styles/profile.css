@@ -2379,11 +2379,23 @@
   text-overflow: ellipsis;
 }
 
-/* ── „Demnächst dabei" (PR4/PR5): under the bubbles, in the same card ── */
+/* ── „Demnächst dabei" (PR4/PR5): under the bubbles, in the same card ──
+   The divider is inset 12px on both sides, flush with the event rows below
+   it, as in the mock (p. 3) — a border-top ran from card edge to card edge. */
 .profile-clubs + .profile-upcoming {
+  position: relative;
   margin-top: 12px;
   padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.profile-clubs + .profile-upcoming::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .profile-upcoming-hint { margin: 0 16px 2px; }

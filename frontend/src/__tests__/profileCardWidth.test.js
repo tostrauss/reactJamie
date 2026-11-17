@@ -99,3 +99,31 @@ describe('club bubbles: the mock\'s sizes, and no jump into „Sortieren“', ()
     expect(star.width).toBe('22px');
   });
 });
+
+// The line between the bubbles and „Demnächst dabei“ is inset like the event
+// rows under it (mock p. 3) — as a border-top it ran from card edge to card
+// edge (audit PC-16 = PU-03). block() does not escape the „+“, hence the
+// regexes here.
+describe('the divider above „Demnächst dabei“ is inset', () => {
+  const declarations = (re) => {
+    const m = profileCss.match(re);
+    if (!m) throw new Error(`${re} not found`);
+    return Object.fromEntries(m[1].split(';').map((d) => d.trim()).filter(Boolean)
+      .map((d) => [d.slice(0, d.indexOf(':')).trim(), d.slice(d.indexOf(':') + 1).trim()]));
+  };
+
+  it('a 1px line 12px in from both sides — the rows\' own inset', () => {
+    const line = declarations(/\n\.profile-clubs \+ \.profile-upcoming::before\s*\{([^}]*)\}/);
+    expect(line.left).toBe('12px');
+    expect(line.right).toBe('12px');
+    expect(line.height).toBe('1px');
+    expect(line.position).toBe('absolute');
+    expect(block(profileCss, '.profile-upcoming-list').padding).toBe('6px 12px 0');
+  });
+
+  it('the section itself carries no border any more, and anchors the line', () => {
+    const section = declarations(/\n\.profile-clubs \+ \.profile-upcoming\s*\{([^}]*)\}/);
+    expect(section['border-top']).toBeUndefined();
+    expect(section.position).toBe('relative');
+  });
+});
