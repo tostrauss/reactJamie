@@ -393,10 +393,153 @@
   color: #f87171;
 }
 
+/* ── „Hey, [Community] hat Potenzial! ✨“ (CommunityNudgeCard, Bild 17) ─── */
+/* The same dimmed, blurred layer as the rating card, centred above the nav.
+   Her mock is scaled about 1.4×: the card is just under 350px wide at 390px;
+   its colours run from rgb(46,33,78) at the top to rgb(42,30,70). */
+.pe-nudge-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 22px calc(60px + var(--nav-safe-bottom) + 12px);
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.pe-nudge-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  box-sizing: border-box;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 20px;
+  background: linear-gradient(180deg, #2E214E 0%, #2A1E46 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 28px;
+  color: var(--text-white);
+  outline: none;
+}
+.pe-nudge-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.pe-nudge-close::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+.pe-nudge-close:focus-visible {
+  outline: 2px solid var(--accent-coral);
+  outline-offset: 2px;
+}
+/* Picture left, text right. As in her mock the row starts BELOW the X (which
+   ends 50px from the card's top), so the text may use the full width: „Hey,
+   Punsch & Rave 2“ stays on one line at 390px, as she drew it. */
+.pe-nudge-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding-top: 32px;
+}
+.pe-nudge-pic {
+  position: relative;
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+}
+.pe-nudge-img,
+.pe-nudge-fallback {
+  width: 64px;
+  height: 64px;
+  box-sizing: border-box;
+  border-radius: 16px;
+  border: 1px solid rgba(253, 118, 102, 0.25);
+}
+.pe-nudge-img {
+  display: block;
+  object-fit: cover;
+}
+/* No picture: the outlined people icon of her mock. */
+.pe-nudge-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(253, 118, 102, 0.10);
+  color: var(--accent-coral);
+}
+/* The three short coral strokes over the picture's top right corner. */
+.pe-nudge-spark {
+  position: absolute;
+  top: -17px;
+  right: -16px;
+  color: var(--accent-coral);
+  pointer-events: none;
+}
+.pe-nudge-text { min-width: 0; }
+.pe-nudge-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--text-white);
+  overflow-wrap: anywhere;
+  /* A safety net only: the component already shortens a very long name. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+.pe-nudge-name { color: var(--accent-coral); }
+.pe-nudge-body {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.75);
+}
+/* Coral pill with DARK text, as in her mock. */
+.pe-nudge-cta {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 20px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent-coral);
+  color: var(--bg-primary);
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.pe-nudge-cta:active { transform: scale(0.99); }
+
 @media (prefers-reduced-motion: reduce) {
   .pe-primary:active,
   .pe-friend-btn--primary:active,
   .pe-rating-star:active,
-  .pe-rating-submit:active { transform: none; }
+  .pe-rating-submit:active,
+  .pe-nudge-cta:active { transform: none; }
   .pe-rating-star { transition: none; }
 }

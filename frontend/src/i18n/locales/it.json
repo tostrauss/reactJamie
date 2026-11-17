@@ -1685,6 +1685,11 @@
       "countFmt_other": "{{count}} valutazioni"
     }
   },
+  "communityNudge": {
+    "title": "Ehi, <1>{{name}}</1> ha del potenziale! ✨",
+    "body": "Ora manca solo il primo incontro. Inizia!",
+    "close": "Chiudi"
+  },
   "attendance": {
     "pillFmt": "{{n}}+ presenze",
     "tierAriaFmt": "Badge: presenza confermata ad almeno {{n}} eventi",

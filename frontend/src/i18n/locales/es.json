@@ -1685,6 +1685,11 @@
       "countFmt_other": "{{count}} valoraciones"
     }
   },
+  "communityNudge": {
+    "title": "¡Hey, <1>{{name}}</1> tiene potencial! ✨",
+    "body": "Solo falta el primer plan. ¡Empieza!",
+    "close": "Cerrar"
+  },
   "attendance": {
     "pillFmt": "{{n}}+ asistencias",
     "tierAriaFmt": "Insignia: asistencia confirmada en al menos {{n}} eventos",

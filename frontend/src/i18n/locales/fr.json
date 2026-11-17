@@ -1685,6 +1685,11 @@
       "countFmt_other": "{{count}} avis"
     }
   },
+  "communityNudge": {
+    "title": "Hey, <1>{{name}}</1> a du potentiel ! ✨",
+    "body": "Il ne manque plus que la première sortie. Lance-toi !",
+    "close": "Fermer"
+  },
   "attendance": {
     "pillFmt": "{{n}}+ présences",
     "tierAriaFmt": "Badge : présence confirmée à au moins {{n}} événements",

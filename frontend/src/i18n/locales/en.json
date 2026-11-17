@@ -1685,6 +1685,11 @@
       "countFmt_other": "{{count}} ratings"
     }
   },
+  "communityNudge": {
+    "title": "Hey, <1>{{name}}</1> has potential! ✨",
+    "body": "All it needs now is the first meetup. Get started!",
+    "close": "Close"
+  },
   "attendance": {
     "pillFmt": "{{n}}+ attended",
     "tierAriaFmt": "Badge: confirmed at {{n}}+ events",

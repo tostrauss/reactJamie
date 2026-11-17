@@ -12,7 +12,7 @@ const api = vi.hoisted(() => ({
     getConnectPending: vi.fn(), getRatingsPending: vi.fn(), dismissConnect: vi.fn(),
     submitRating: vi.fn(), dismissRating: vi.fn(),
   },
-  communityNudgeApi: { getMine: vi.fn() },
+  communityNudgeApi: { getMine: vi.fn(), dismiss: vi.fn() },
   friends: { sendRequest: vi.fn(), respondRequest: vi.fn() },
   users: {},
 }));
@@ -40,6 +40,9 @@ const connectEventName = () => document.querySelector('.pe-connect .pe-head-name
 // An event of „Wie war’s bei X?“ (GET /reviews/ratings/pending).
 const ratingEvent = (id, name) => ({ group_id: id, group_name: name, event_date: '2026-11-15T19:00:00.000Z', image_url: null });
 const ratingTitle = () => document.querySelector('.pe-rating-title')?.textContent ?? null;
+// A community that is due (GET /users/me/community-nudges).
+const nudge = (id, name) => ({ id, name, image_url: null, due_at: '2026-11-16T10:00:00.000Z' });
+const nudgeName = () => document.querySelector('.pe-nudge-name')?.textContent ?? null;
 
 const Where = () => {
   const loc = useLocation();
@@ -79,6 +82,7 @@ beforeEach(() => {
   api.postEventApi.dismissConnect.mockImplementation(() => ok({ success: true }));
   api.postEventApi.dismissRating.mockImplementation(() => ok({ success: true }));
   api.postEventApi.submitRating.mockImplementation(() => ok({ success: true }));
+  api.communityNudgeApi.dismiss.mockImplementation(() => ok({ success: true }));
 });
 afterEach(() => { vi.useRealTimers(); });
 
@@ -357,6 +361,73 @@ describe('PostEventPrompts — „Wie war’s bei X?“', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Schließen' })); });
     expect(ratingTitle()).toBeNull();
     expect(onActiveChange).toHaveBeenLastCalledWith(false);
+  });
+});
+
+// B2-11: a community without a meetup — the card, on the home screen only.
+describe('PostEventPrompts — the community card', () => {
+  const Go = ({ to }) => {
+    const navigate = useNavigate();
+    return <button onClick={() => navigate(to)}>go</button>;
+  };
+  const renderWithGo = async (entry, to) => {
+    render(
+      <MemoryRouter initialEntries={[entry]}>
+        <Routes><Route path="*" element={<><Where /><Go to={to} /></>} /></Routes>
+        <PostEventPrompts user={USER} onActiveChange={onActiveChange} />
+      </MemoryRouter>,
+    );
+    await act(async () => {});
+  };
+
+  it('comes up on the home screen — the newest one', async () => {
+    api.communityNudgeApi.getMine.mockImplementation(() => ok([nudge(9, 'Punsch & Rave 2'), nudge(10, 'Laufcrew')]));
+    await renderAt('/home');
+    expect(nudgeName()).toBe('Punsch & Rave 2');
+    expect(onActiveChange).toHaveBeenLastCalledWith(true);
+  });
+
+  it('nowhere else: on another screen it waits, and shows once the user is back on the home screen', async () => {
+    api.communityNudgeApi.getMine.mockImplementation(() => ok([nudge(9, 'Punsch & Rave 2')]));
+    await renderWithGo('/profile', '/home');
+    expect(nudgeName()).toBeNull();
+    expect(onActiveChange).not.toHaveBeenCalledWith(true);
+    await act(async () => { fireEvent.click(screen.getByText('go')); });
+    expect(where()).toBe('/home');
+    expect(nudgeName()).toBe('Punsch & Rave 2');
+  });
+
+  it('one per session: after the X no second card, even with another community due', async () => {
+    api.communityNudgeApi.getMine.mockImplementation(() => ok([nudge(9, 'Punsch & Rave 2'), nudge(10, 'Laufcrew')]));
+    await renderAt('/home');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Schließen' })); });
+    expect(api.communityNudgeApi.dismiss).toHaveBeenCalledWith(9);
+    expect(nudgeName()).toBeNull();
+    expect(onActiveChange).toHaveBeenLastCalledWith(false);
+    // Back in the app later: the list is fetched again, but nothing is shown.
+    vi.setSystemTime(new Date(Date.now() + CHECK_EVERY_MS + 1000));
+    await comeBack();
+    expect(api.communityNudgeApi.getMine).toHaveBeenCalledTimes(2);
+    expect(nudgeName()).toBeNull();
+  });
+
+  it('„Treffen erstellen“ leads to the community with ?newEvent=1 — and that screen shows no card', async () => {
+    api.communityNudgeApi.getMine.mockImplementation(() => ok([nudge(9, 'Punsch & Rave 2')]));
+    await renderAt('/home');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Treffen erstellen' })); });
+    expect(where()).toBe('/club/9?newEvent=1');       // newEvent is the club page's parameter, not ours
+    expect(nudgeName()).toBeNull();
+  });
+
+  it('last in line: the dialogs after an event come first', async () => {
+    api.postEventApi.getRatingsPending.mockImplementation(() => ok([ratingEvent(41, 'Spieleabend')]));
+    api.communityNudgeApi.getMine.mockImplementation(() => ok([nudge(9, 'Punsch & Rave 2')]));
+    await renderAt('/home');
+    expect(ratingTitle()).toBe('Wie war’s bei Spieleabend?');
+    expect(nudgeName()).toBeNull();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Schließen' })); });
+    expect(ratingTitle()).toBeNull();
+    expect(nudgeName()).toBe('Punsch & Rave 2');
   });
 });
 

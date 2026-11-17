@@ -13,6 +13,7 @@ const typeIcon = (type) => {
   if (type === 'request_accepted') return '✅';
   if (type === 'report_resolved') return '🛡️';
   if (type === 'community_cover') return '📸';
+  if (type === 'community_first_event') return '✨';
   return '📢';
 };
 

@@ -1685,6 +1685,11 @@
       "countFmt_other": "{{count}} Bewertungen"
     }
   },
+  "communityNudge": {
+    "title": "Hey, <1>{{name}}</1> hat Potenzial! ✨",
+    "body": "Jetzt fehlt nur noch das erste Treffen. Leg los!",
+    "close": "Schließen"
+  },
   "attendance": {
     "pillFmt": "{{n}}+ mal dabei",
     "tierAriaFmt": "Abzeichen: mindestens {{n}}-mal bestätigt dabei",

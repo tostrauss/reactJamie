@@ -4,6 +4,7 @@ import { reviews, postEventApi, communityNudgeApi } from '../utils/api';
 import { EventReviewModal } from './EventReviewModal';
 import ConnectSheet from './ConnectSheet';
 import EventRatingModal from './EventRatingModal';
+import CommunityNudgeCard from './CommunityNudgeCard';
 
 // Everything the app asks or tells somebody AFTER an event, in one place and
 // one at a time (Tina 17.11.2026):
@@ -61,6 +62,8 @@ const RENDERERS = {
   // The sheet walks through its events itself and reports when all are closed.
   connect: ({ items, done }) => <ConnectSheet items={items} onDone={() => done({ all: true })} />,
   ratings: ({ items, done }) => <EventRatingModal items={items} onDone={() => done({ all: true })} />,
+  // One card per session, the newest: closing it ends this part (see `done`).
+  community: ({ items, done }) => <CommunityNudgeCard nudge={items[0]} onClose={() => done()} />,
 };
 
 // Each call inside its own promise: a missing export (a test's api mock) or a
