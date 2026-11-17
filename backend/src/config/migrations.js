@@ -2156,12 +2156,6 @@ const runStartupMigrations = async () => {
     }
   });
 
-  // ── Tina-Update 17.11.2026: two build sessions work in parallel ─────────
-  // Each one appends its steps ONLY inside its own block, so the branches
-  // merge without conflicts. Additive only, migrate() wrapper, lock_timeout.
-  // (Scaffolding — the coordinator removes these markers after the merge.)
-  //
-  // >>> BAU1-MIGRATIONEN (Partner, Clubs & Deals)
   // ── Clubs: free tier, partner requests, automated messages (Tina 17.11.2026)
   // Three additive steps, optional like „Welle 1“: only here (never
   // schema.sql), no CRITICAL_SCHEMA_PROBE, no backfill. Until they exist every
@@ -2250,11 +2244,7 @@ const runStartupMigrations = async () => {
       client.release();
     }
   });
-  // <<< BAU1-MIGRATIONEN
-  //
-  // ── separator: leave in place ──
-  //
-  // >>> BAU2-MIGRATIONEN (Profil, Community & Nach dem Event)
+
   // After the event and the community nudge (Tina 17.11.2026) — three side
   // tables, nothing on a hot path: every reader catches 42P01 and simply
   // switches its feature off (the new GETs answer 200 with nothing in them).
@@ -2330,7 +2320,6 @@ const runStartupMigrations = async () => {
       client.release();
     }
   });
-  // <<< BAU2-MIGRATIONEN
 
   // ── Post-migration schema assertion ────────────────────────────────────
   // The server accepts traffic BEFORE migrations finish (listen → migrate),

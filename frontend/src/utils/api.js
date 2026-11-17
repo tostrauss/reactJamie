@@ -1160,13 +1160,9 @@ export const suggestions = {
 };
 
 // ==========================================
-// Tina-Update 17.11.2026 — two build sessions work in parallel.
-// NEW api functions go ONLY into the session's own block, as their own named
-// exports (not into the objects above, not attached to axiosInstance), so the
-// branches merge without conflicts.
-// (Scaffolding — the coordinator removes these markers after the merge.)
+// Tina-Update 17.11.2026 — their own named exports (not in the objects above,
+// not attached to axiosInstance).
 // ==========================================
-// >>> BAU1-API (Partner, Clubs & Deals)
 // Partner clubs (Tina 17.11.2026): the free tier of clubs, the partner
 // request („JAMIE Anfrage“), the ONE deal of a club event, the admin's list.
 // clubs.createEvent / clubs.updateEvent and admin.classifyClub stay as they
@@ -1182,11 +1178,7 @@ export const partnerApi = {
   removeEventDeal: (clubId, eventId)       => axiosInstance.delete(`/clubs/${clubId}/events/${eventId}/deal`),
   getPartnerLeads: ()                      => axiosInstance.get('/admin/partner-leads'),
 };
-// <<< BAU1-API
-//
-// ── separator: leave in place ──
-//
-// >>> BAU2-API (Profil, Community & Nach dem Event)
+
 // After the event (Tina 17.11.2026): the friends list („Connect“) and „Wie
 // war’s bei X?“ (stars + feedback), plus the admin list of the ratings.
 export const postEventApi = {
@@ -1204,7 +1196,6 @@ export const communityNudgeApi = {
   getMine: () => axiosInstance.get('/users/me/community-nudges'),
   dismiss: (clubId) => axiosInstance.post(`/users/me/community-nudges/${clubId}/dismiss`),
 };
-// <<< BAU2-API
 
 // Attach modules to instance for convenience
 axiosInstance.auth = auth;
