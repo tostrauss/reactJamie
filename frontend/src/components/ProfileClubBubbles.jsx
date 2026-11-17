@@ -6,6 +6,7 @@ import { clubs as clubsApi, users as usersApi } from '../utils/api';
 import { thumbUrl } from '../utils/images';
 import { movePhoto as moveItem } from '../utils/photoOrder';
 import { profileClubRows, withClubOrder } from '../utils/profileClubs';
+import { isPaidPartnerClub } from '../utils/paidPartner';
 import useBubbleDrag from '../hooks/useBubbleDrag';
 import StarIcon from './StarIcon';
 
@@ -157,13 +158,12 @@ export default function ProfileClubBubbles({ sorting = false, onSortingChange })
   const renderBubble = (club, index) => {
     const isOwn = !!club.is_own;
     const movable = sorting && !isOwn;
-    // The star means a paying partner — partnerSql's rule (backend
-    // utils/clubGate.js): a live, approved official club with the admin's
-    // is_paid_partner flag. A club still in review is no partner yet, an
-    // official club that does not pay has no star. An old server without the
-    // flag: no star.
-    const isPartner = club.club_type === 'official' && club.approval_status === 'approved'
-      && club.is_active !== false && club.is_paid_partner === true;
+    // The star means a paying partner — the one rule the ✓ in the Clubs list
+    // uses too (utils/paidPartner.js, partnerSql's): a live, approved official
+    // club with the admin's is_paid_partner flag. A club still in review is
+    // no partner yet, an official club that does not pay has no star. An old
+    // server without the flag: no star.
+    const isPartner = isPaidPartnerClub(club);
     const inReview = club.approval_status === 'pending';
     const requests = isOwn && !sorting ? (club.pending_request_count || 0) : 0;
     const isPicked = movable && picked === club.id;
