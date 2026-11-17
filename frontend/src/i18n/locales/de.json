@@ -2267,6 +2267,53 @@
       "verified": "Geprüfter Partner"
     }
   },
+  "partner": {
+    "close": "Schließen",
+    "cta": "Ja, meldet euch!",
+    "concurrent": {
+      "title": "Hey {{name}}, ihr seid ja schnell! 🙌",
+      "intro": "Ich bin Tina, eine der Gründer:innen von JAMIE. Wir haben JAMIE gebaut, damit Menschen in Wien wieder echt zusammenkommen und am liebsten an Orten wie eurem!",
+      "lead": "Gratis geht 1 Event gleichzeitig. Wenn ihr mehr wollt, werdet unser Partner:",
+      "b1": "Bis zu 3 Events gleichzeitig",
+      "b2": "Eigene Deals für eure Gäste",
+      "b3": "Offizielles Partner Badge & mehr!",
+      "outro": "Ehrlich gesagt: Die Partnerschaft kostet etwas. Dafür entwickelt ihr JAMIE mit uns weiter. Hättet ihr Lust? Ich melde mich persönlich bei euch. 😊",
+      "notReady": "Noch nicht bereit? Ein weiteres Event ist gratis, sobald euer erstes vorbei ist."
+    },
+    "third": {
+      "title": "Hey {{name}}, schön, dass ihr wieder ein Event plant! 🙌",
+      "intro": "Ich bin Tina, eine der Gründer:innen von JAMIE. Wir haben JAMIE gebaut, damit Menschen in Wien wieder echt zusammenkommen, und es freut uns sehr, dass das schon zweimal bei euch passiert ist.",
+      "lead": "Ab dem dritten Event geht es als JAMIE Partner weiter. Damit könnt ihr:",
+      "b1": "bis zu 3 Events gleichzeitig planen",
+      "b2": "eigene Deals für eure Gäste anlegen",
+      "b3": "das offizielle Partner Badge bekommen & mehr",
+      "outro": "Ehrlich gesagt: Die Partnerschaft kostet etwas. Gerade suchen wir aber 10 Pilotpartner, die JAMIE mit uns weiterentwickeln.",
+      "outro2": "Hättet ihr Lust? Ich melde mich persönlich bei euch. 😊"
+    },
+    "request": {
+      "title": "JAMIE Anfrage",
+      "name": "Name",
+      "company": "Unternehmen",
+      "companyPlaceholder": "optional",
+      "email": "E-Mail",
+      "phone": "Telefon",
+      "contactMail": "ich möchte lieber per Mail kontaktiert werden",
+      "contactCall": "ich möchte lieber per Anruf kontaktiert werden",
+      "privacy": "Ich habe die <1>Datenschutzerklärung</1> gelesen und bin einverstanden, dass JAMIE mich zu dieser Anfrage kontaktiert.",
+      "submit": "Anfrage senden",
+      "sending": "Wird gesendet…",
+      "sent": "Danke! Wir melden uns persönlich bei euch. 😊",
+      "error": "Die Anfrage konnte nicht gesendet werden. Bitte versuch es noch einmal.",
+      "errors": {
+        "name": "Bitte gib deinen Namen an.",
+        "email": "Bitte gib eine gültige E-Mail-Adresse an.",
+        "phone": "Bitte gib eine Telefonnummer an.",
+        "privacy": "Bitte bestätige den Datenschutz."
+      }
+    },
+    "memberBlocked": "Dieser Club kann gerade keine weiteren Events anlegen.",
+    "dealNotAllowed": "Deals gibt es für die ersten 2 Events eures Clubs – danach als JAMIE Partner."
+  },
   "outOfRegion": {
     "title": "Bald auch bei dir!",
     "subtitleLine1": "JAMIE startet gerade in Österreich, Deutschland, der Schweiz, Italien, Frankreich und Spanien.",

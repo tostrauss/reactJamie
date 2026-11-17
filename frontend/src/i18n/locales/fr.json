@@ -2267,6 +2267,53 @@
       "verified": "Partenaire vérifié"
     }
   },
+  "partner": {
+    "close": "Fermer",
+    "cta": "Oui, contactez-nous !",
+    "concurrent": {
+      "title": "Hey {{name}}, vous êtes rapides ! 🙌",
+      "intro": "Je suis Tina, cofondatrice de JAMIE. Nous avons créé JAMIE pour que les gens à Vienne se retrouvent à nouveau pour de vrai, de préférence dans des lieux comme le vôtre !",
+      "lead": "Gratuitement, c’est 1 événement à la fois. Si vous en voulez plus, devenez notre partenaire :",
+      "b1": "Jusqu’à 3 événements en même temps",
+      "b2": "Vos propres deals pour vos clients",
+      "b3": "Partner Badge officiel et plus encore !",
+      "outro": "Pour être honnête : le partenariat a un coût. En échange, vous développez JAMIE avec nous. Ça vous dirait ? Je vous contacte personnellement. 😊",
+      "notReady": "Pas encore prêts ? Un autre événement est gratuit dès que le premier est passé."
+    },
+    "third": {
+      "title": "Hey {{name}}, super que vous prévoyiez un nouvel événement ! 🙌",
+      "intro": "Je suis Tina, cofondatrice de JAMIE. Nous avons créé JAMIE pour que les gens à Vienne se retrouvent à nouveau pour de vrai, et nous sommes ravis que ce soit déjà arrivé deux fois chez vous.",
+      "lead": "À partir du troisième événement, ça continue en tant que JAMIE Partner. Vous pourrez ainsi :",
+      "b1": "prévoir jusqu’à 3 événements en même temps",
+      "b2": "créer vos propres deals pour vos clients",
+      "b3": "obtenir le Partner Badge officiel et plus encore",
+      "outro": "Pour être honnête : le partenariat a un coût. En ce moment, nous cherchons toutefois 10 partenaires pilotes pour développer JAMIE avec nous.",
+      "outro2": "Ça vous dirait ? Je vous contacte personnellement. 😊"
+    },
+    "request": {
+      "title": "Demande JAMIE",
+      "name": "Nom",
+      "company": "Entreprise",
+      "companyPlaceholder": "facultatif",
+      "email": "E-mail",
+      "phone": "Téléphone",
+      "contactMail": "je préfère être contacté par e-mail",
+      "contactCall": "je préfère être contacté par téléphone",
+      "privacy": "J’ai lu la <1>politique de confidentialité</1> et j’accepte que JAMIE me contacte au sujet de cette demande.",
+      "submit": "Envoyer la demande",
+      "sending": "Envoi en cours…",
+      "sent": "Merci ! Nous vous contactons personnellement. 😊",
+      "error": "La demande n’a pas pu être envoyée. Réessaie.",
+      "errors": {
+        "name": "Indique ton nom.",
+        "email": "Indique une adresse e-mail valide.",
+        "phone": "Indique un numéro de téléphone.",
+        "privacy": "Confirme la politique de confidentialité."
+      }
+    },
+    "memberBlocked": "Ce club ne peut pas créer d’autres événements pour le moment.",
+    "dealNotAllowed": "Les deals sont disponibles pour les 2 premiers événements de votre club – ensuite en tant que JAMIE Partner."
+  },
   "outOfRegion": {
     "title": "Bientôt chez toi aussi !",
     "subtitleLine1": "JAMIE démarre en Autriche, Allemagne, Suisse, Italie, France et Espagne.",
