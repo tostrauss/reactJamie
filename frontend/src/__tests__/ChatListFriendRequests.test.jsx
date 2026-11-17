@@ -12,6 +12,13 @@ import path from 'node:path';
 // through the friendship endpoints. Real German i18n.
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), info: vi.fn(), showUndo: vi.fn() }));
 vi.mock('../context/ToastContext', () => ({ useToast: () => toast }));
+// May the app advertise Pro here? Everywhere but the iOS app without a
+// purchase path (Apple 3.1.1) — only this one switch is mocked.
+const platform = vi.hoisted(() => ({ upsell: true }));
+vi.mock('../utils/platform', async (importOriginal) => ({
+  ...(await importOriginal()),
+  proUpsellAllowed: () => platform.upsell,
+}));
 vi.mock('../hooks/useOnPullRefresh', () => ({ default: () => {} }));
 vi.mock('../utils/api', () => ({
   groups: {
@@ -27,7 +34,14 @@ vi.mock('../utils/api', () => ({
   },
 }));
 const { groups, clubs, friends } = await import('../utils/api');
+const { AuthContext } = await import('../context/AuthContext');
 const { ChatList } = await import('../pages/ChatList');
+
+// Who looks at the deck. „Überspringen“ is a Pro feature since 17.11.2026, so
+// the plain case is a free account; app admins skip like Pro.
+const FREE = { user: { id: 1, is_admin: false }, isPro: false };
+const PRO = { user: { id: 1, is_admin: false }, isPro: true };
+const ADMIN = { user: { id: 1, is_admin: true }, isPro: false };
 
 // GET /friends/requests/pending row (requester_*), with the Abzeichen-Stufe
 // both ways: _step is the five-step level the deck shows, _tier the old
@@ -63,16 +77,18 @@ const LocationProbe = () => {
   return <output data-testid="location">{loc.pathname + loc.search}</output>;
 };
 
-const renderList = async ({ friendRows = [], joinRows = [], socket = null, url = '/chats?tab=anfragen' } = {}) => {
+const renderList = async ({ friendRows = [], joinRows = [], socket = null, url = '/chats?tab=anfragen', auth = FREE } = {}) => {
   friends.getPending.mockResolvedValue({ data: friendRows });
   groups.getAllRequests.mockResolvedValue({ data: joinRows });
   render(
-    <SocketContext.Provider value={{ socket, isConnected: !!socket }}>
-      <MemoryRouter initialEntries={[url]}>
-        <Routes><Route path="/chats" element={<ChatList />} /></Routes>
-        <LocationProbe />
-      </MemoryRouter>
-    </SocketContext.Provider>,
+    <AuthContext.Provider value={auth}>
+      <SocketContext.Provider value={{ socket, isConnected: !!socket }}>
+        <MemoryRouter initialEntries={[url]}>
+          <Routes><Route path="/chats" element={<ChatList />} /></Routes>
+          <LocationProbe />
+        </MemoryRouter>
+      </SocketContext.Provider>
+    </AuthContext.Provider>,
   );
   await act(async () => {});
 };
@@ -87,6 +103,7 @@ const band = () => document.querySelector('.request-type-band');
 beforeEach(() => {
   vi.clearAllMocks();
   friends.respondRequest.mockResolvedValue({ data: {} });
+  platform.upsell = true;
 });
 
 describe('ChatList — friend requests in the Anfragen deck', () => {
@@ -203,24 +220,103 @@ describe('ChatList — friend requests in the Anfragen deck', () => {
 
 // „Überspringen“ (Tina, 07.11.2026): a third way out of the deck — ablehnen nur
 // zum Weiterblättern kostet den Anfragenden eines seiner zwei Anfrage-Budgets.
+// Since 17.11.2026 it is a JAMIE Pro feature (Tina + Tobi: zahlen muss man,
+// „wenn man auf ‚Überspringen‘ klickt, bei der Auswahl, wer in der Gruppe sein
+// darf“): Pro and app admins skip, a free account's tap opens the Pro offer.
 describe('ChatList — Überspringen im Anfragen-Deck', () => {
-  it('stellt die Karte ans Deck-Ende, ruft keine API und rotiert beim zweiten Skip zurück', async () => {
-    await renderList({ joinRows: [
-      joinReq(),
-      joinReq({ id: 32, user_id: 56, user_name: 'Mia', created_at: '2026-10-11T10:00:00Z', updated_at: '2026-10-18T10:00:00Z' }),
-    ] });
+  const twoCards = () => [
+    joinReq(),
+    joinReq({ id: 32, user_id: 56, user_name: 'Mia', created_at: '2026-10-11T10:00:00Z', updated_at: '2026-10-18T10:00:00Z' }),
+  ];
+  const skipButton = () => screen.queryByRole('button', { name: 'Überspringen' });
+  // The Pro sheet is opened by a plain window event (App.jsx owns the sheet).
+  const watchProOffer = () => {
+    const seen = vi.fn();
+    window.addEventListener('jamie:open-pro-modal', seen);
+    return { seen, stop: () => window.removeEventListener('jamie:open-pro-modal', seen) };
+  };
+
+  it('Pro: stellt die Karte ans Deck-Ende, ruft keine API und rotiert beim zweiten Skip zurück', async () => {
+    const offer = watchProOffer();
+    await renderList({ joinRows: twoCards(), auth: PRO });
     expect(screen.getByText('Max, 30')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Überspringen' }));
+    fireEvent.click(skipButton());
     expect(screen.getByText('Mia, 30')).toBeTruthy();
     expect(groups.handleRequest).not.toHaveBeenCalled();
     expect(friends.respondRequest).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Überspringen' }));
+    fireEvent.click(skipButton());
     expect(screen.getByText('Max, 30')).toBeTruthy();
+    expect(offer.seen).not.toHaveBeenCalled();
+    offer.stop();
   });
 
-  it('zeigt den Knopf nicht, wenn es keine zweite Karte gibt', async () => {
+  it('Free: der Tipp öffnet das Pro-Angebot, die Karte bleibt vorn, nichts wird übersprungen', async () => {
+    const offer = watchProOffer();
+    await renderList({ joinRows: twoCards() });
+    expect(screen.getByText('Max, 30')).toBeTruthy();
+    fireEvent.click(skipButton());
+    expect(offer.seen).toHaveBeenCalledTimes(1);
+    // Opened like the roster's Pro lock for non-members: the plain event,
+    // no context of its own.
+    expect(offer.seen.mock.calls[0][0].detail ?? null).toBeNull();
+    expect(screen.getByText('Max, 30')).toBeTruthy();
+    expect(screen.queryByText('Mia, 30')).toBeNull();
+    // Tapping again offers again — and still moves nothing.
+    fireEvent.click(skipButton());
+    expect(offer.seen).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('Max, 30')).toBeTruthy();
+    expect(groups.handleRequest).not.toHaveBeenCalled();
+    expect(friends.respondRequest).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+    offer.stop();
+  });
+
+  it('Free: Annehmen und Ablehnen bleiben frei — nur das Überspringen kostet Pro', async () => {
+    const offer = watchProOffer();
+    await renderList({ joinRows: twoCards() });
+    fireEvent.click(screen.getByRole('button', { name: ACCEPT_MAX }));
+    await waitFor(() => expect(screen.getByText('Mia, 30')).toBeTruthy());
+    expect(groups.handleRequest).toHaveBeenCalledTimes(1);
+    expect(offer.seen).not.toHaveBeenCalled();
+    offer.stop();
+  });
+
+  it('App-Admins überspringen wie Pro', async () => {
+    const offer = watchProOffer();
+    await renderList({ joinRows: twoCards(), auth: ADMIN });
+    fireEvent.click(skipButton());
+    expect(screen.getByText('Mia, 30')).toBeTruthy();
+    expect(offer.seen).not.toHaveBeenCalled();
+    offer.stop();
+  });
+
+  it('ohne Kaufweg (iOS-App, Apple 3.1.1): kein Knopf für Free, kein Angebot — Pro überspringt dort weiter', async () => {
+    platform.upsell = false;
+    const offer = watchProOffer();
+    await renderList({ joinRows: twoCards() });
+    expect(skipButton()).toBeNull();
+    // The deck itself is untouched: both answers are there.
+    expect(screen.getByRole('button', { name: ACCEPT_MAX })).toBeTruthy();
+    expect(screen.getByRole('button', { name: DECLINE_MAX })).toBeTruthy();
+    expect(offer.seen).not.toHaveBeenCalled();
+    offer.stop();
+  });
+
+  it('ohne Kaufweg überspringt ein Pro-Konto wie überall', async () => {
+    platform.upsell = false;
+    await renderList({ joinRows: twoCards(), auth: PRO });
+    fireEvent.click(skipButton());
+    expect(screen.getByText('Mia, 30')).toBeTruthy();
+  });
+
+  it('zeigt den Knopf nicht, wenn es keine zweite Karte gibt — auch nicht mit Pro', async () => {
+    await renderList({ joinRows: [joinReq()], auth: PRO });
+    expect(skipButton()).toBeNull();
+  });
+
+  it('zeigt Free den Knopf nur bei einer weiteren Karte', async () => {
     await renderList({ joinRows: [joinReq()] });
-    expect(screen.queryByRole('button', { name: 'Überspringen' })).toBeNull();
+    expect(skipButton()).toBeNull();
   });
 });
 
@@ -259,7 +355,7 @@ describe('ChatList — Typ klar erkennbar (Ziel 4)', () => {
   });
 
   it('a deep link opens a segment, and skipping rotates inside it', async () => {
-    await renderList({ friendRows: [friendReq()], joinRows: [joinReq(), punsch()], url: '/chats?tab=anfragen&kind=beitritte' });
+    await renderList({ friendRows: [friendReq()], joinRows: [joinReq(), punsch()], url: '/chats?tab=anfragen&kind=beitritte', auth: PRO });
     expect(screen.getByText('Max, 30')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Überspringen' }));
     expect(screen.getByText('Mia, 30')).toBeTruthy();

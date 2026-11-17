@@ -4,9 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { groups, clubs, directMessages, friends as friendsApi } from '../utils/api';
 import { thumbUrl } from '../utils/images';
 import { SocketContext } from '../context/SocketContext';
+import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { RequestCard } from '../components/RequestCard';
 import useOnPullRefresh from '../hooks/useOnPullRefresh';
+import { proUpsellAllowed } from '../utils/platform';
+import { usePaymentsConfig } from '../utils/paymentsConfig';
 import '../styles/chat.css';
 import '../styles/profile.css';
 
@@ -82,6 +85,14 @@ export const ChatList = () => {
 
   const navigate = useNavigate();
   const { socket } = useContext(SocketContext);
+  // „Überspringen“ in the Anfragen deck is a JAMIE Pro feature (Tina + Tobi,
+  // 17.11.2026: zahlen muss man, „wenn man auf ‚Überspringen‘ klickt, bei der
+  // Auswahl, wer in der Gruppe sein darf“). Pro and app admins skip as
+  // before; everyone else gets the Pro offer on the tap. No provider (a bare
+  // render) reads as a free account.
+  const { user, isPro } = useContext(AuthContext) || {};
+  const canSkip = !!isPro || !!user?.is_admin;
+  usePaymentsConfig(); // re-render when the runtime payments config arrives
   const toast = useToast();
   const { t, i18n } = useTranslation();
   const lang = i18n.resolvedLanguage || i18n.language || 'de';
@@ -407,9 +418,17 @@ export const ChatList = () => {
     }
   };
 
-  // No API call, no effect on the asker — purely reorders the local deck.
+  // No API call, no effect on the asker — purely reorders the local deck
+  // (which is why the Pro rule lives here and nowhere on the server).
   const deckSkip = () => {
     if (processing || !current || deck.length < 2) return;
+    // A free account: the card stays in front and the Pro offer opens, the
+    // same way the roster's Pro lock for non-members opens it (plain event,
+    // App.jsx owns the sheet and its platform rules).
+    if (!canSkip) {
+      window.dispatchEvent(new Event('jamie:open-pro-modal'));
+      return;
+    }
     const k = reqKey(current);
     setSkippedKeys(prev => {
       const next = new Set(prev);
@@ -906,8 +925,12 @@ export const ChatList = () => {
                     </svg>
                   </button>
                   {/* Überspringen (Tina, 07.11.2026) — only when there IS a next
-                      card; deciding later must not cost the asker anything. */}
-                  {deck.length > 1 && (
+                      card; deciding later must not cost the asker anything.
+                      Pro only since 17.11.2026: a free account's tap opens the
+                      Pro offer. In the iOS app without a purchase path there is
+                      nothing to offer (Apple 3.1.1) — like the roster's Pro
+                      lock there, the button is simply not shown. */}
+                  {deck.length > 1 && (canSkip || proUpsellAllowed()) && (
                     <button className="action-btn skip" onClick={deckSkip} disabled={processing} aria-label={t('chat.list.requestsModal.skip')}>
                       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M5 17l5-5-5-5M13 17l5-5-5-5"/>
