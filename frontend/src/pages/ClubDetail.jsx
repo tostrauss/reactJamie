@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useContext } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { clubs, partnerApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
@@ -40,6 +40,7 @@ const emptyEventForm = () => ({
 export const ClubDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isPro } = useContext(AuthContext);
   const toast = useToast();
   const { t, i18n } = useTranslation();
@@ -71,6 +72,12 @@ export const ClubDetail = () => {
   // — GET /clubs/:id/event-quota — or null (a community, not yet loaded, an
   // older server): then nothing is checked here and the server decides.
   const [quota, setQuota] = useState(null);
+  // The club id whose quota question is settled — answered, failed or never
+  // asked (a community). quota === null alone cannot tell „still asking“ from
+  // „unknown“, and ?newEvent=1 must wait for the answer.
+  const [quotaReadyFor, setQuotaReadyFor] = useState(null);
+  const quotaReq = useRef(0);
+  const newEventHandled = useRef(null);
   // Tina's partner letter, open with the reason it came up for.
   const [partnerSheet, setPartnerSheet] = useState(null);
   // What the embedded deal form holds: { payload, missing, uploading }.
@@ -171,17 +178,25 @@ export const ClubDetail = () => {
   // Asked after loading, after joining or leaving, and after every event that
   // is created or deleted. Any failure (an older server answers 404, a test
   // mocks the api without it) reads as „unknown“ — the server decides then.
+  // The newest question wins: an answer that arrives after a later one was
+  // asked (another club opened meanwhile) is dropped.
   const refreshQuota = async (entity = club) => {
+    const req = ++quotaReq.current;
     if (!user || !entity || entity.club_type !== 'official' || !entity.is_member) {
       setQuota(null);
+      setQuotaReadyFor(id);
       return;
     }
+    let next = null;
     try {
       const res = await partnerApi.getEventQuota(id);
-      setQuota(res?.data && typeof res.data === 'object' ? res.data : null);
+      next = res?.data && typeof res.data === 'object' ? res.data : null;
     } catch {
-      setQuota(null);
+      next = null;
     }
+    if (req !== quotaReq.current) return;
+    setQuota(next);
+    setQuotaReadyFor(id);
   };
 
   const handleFavoriteToggle = async () => {
@@ -345,6 +360,36 @@ export const ClubDetail = () => {
     if (quota?.block) { partnerStop(quota.block); return; }
     setShowCreateEvent(true);
   };
+
+  // /club/:id?newEvent=1 — where the community nudge („… hat Potenzial! ✨“,
+  // card, push and bell) lands: the event form opens by itself, the same way
+  // „+“ opens it, so a club at its limit gets the letter instead. Waits for
+  // the club and its quota; once per navigation (location.key) — a rerender
+  // must not toggle the form shut again. Who may not create events sees the
+  // page as always. The parameter leaves the URL either way, so going back or
+  // reloading does not open the form a second time.
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('newEvent') !== '1') return;
+    if (loading || !club || quotaReadyFor !== id) return;
+    if (newEventHandled.current === location.key) return;
+    newEventHandled.current = location.key;
+    const mayCreate = !!user && isJoined && (!club.events_owner_only || managesClub);
+    if (mayCreate && !showCreateEvent) {
+      openCreateEvent();
+      if (!quota?.block) {
+        requestAnimationFrame(() => {
+          document.querySelector('.cd-events')?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+        });
+      }
+    }
+    const rest = new URLSearchParams(location.search);
+    rest.delete('newEvent');
+    navigate(
+      { pathname: location.pathname, search: rest.toString() ? `?${rest}` : '', hash: location.hash },
+      { replace: true, state: location.state },
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the page or its data arrive, not on every render
+  }, [location.key, location.search, loading, club, quotaReadyFor, id]);
 
   // „Kostenfreies Event“ unticked. In a limited official club a ticket event
   // is a partner's (Tina: „würde immer sofort eine Nachricht zu JAMIE Partner

@@ -574,6 +574,9 @@
    no margin of its own. */
 .cd-events {
   margin-top: 0;
+  /* ?newEvent=1 scrolls this box to the top: it must come to rest below the
+     sticky .cd-top-bar (safe area + 10 + 40 + 10), not underneath it. */
+  scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 68px);
   padding: 18px 16px;
   background: linear-gradient(180deg, rgba(253, 118, 102, 0.06), rgba(253, 118, 102, 0.02));
   border: 1px solid rgba(253, 118, 102, 0.2);

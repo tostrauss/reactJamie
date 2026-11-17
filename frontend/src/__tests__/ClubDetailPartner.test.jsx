@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent, within, waitFor } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
 // The free tier of official clubs in the event form of the club page (Tina's
@@ -45,15 +45,20 @@ const quota = (over = {}) => ({
 });
 const day = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
 
-const renderClub = async ({ isPro = false, userId = 1 } = {}) => {
-  render(
-    <AuthContext.Provider value={{ user: { id: userId, name: 'Olga', email: 'olga@x.at', avatar_url: '/a.webp' }, isPro }}>
-      <MemoryRouter initialEntries={['/club/7']}>
-        <Routes><Route path="/club/:id" element={<ClubDetail />} /></Routes>
-      </MemoryRouter>
-    </AuthContext.Provider>,
-  );
+// Where the router stands — ?newEvent=1 must leave the URL once it is used.
+const Where = () => { const l = useLocation(); world.url = l.pathname + l.search; return null; };
+const tree = ({ isPro = false, userId = 1, path = '/club/7' } = {}) => (
+  <AuthContext.Provider value={{ user: { id: userId, name: 'Olga', email: 'olga@x.at', avatar_url: '/a.webp' }, isPro }}>
+    <MemoryRouter initialEntries={[path]}>
+      <Where />
+      <Routes><Route path="/club/:id" element={<ClubDetail />} /></Routes>
+    </MemoryRouter>
+  </AuthContext.Provider>
+);
+const renderClub = async (opts) => {
+  const view = render(tree(opts));
   await act(async () => {});
+  return view;
 };
 const plus = () => screen.getByRole('button', { name: 'Neues Event erstellen' });
 const tap = async (el) => { await act(async () => { fireEvent.click(el); }); };
@@ -371,5 +376,91 @@ describe('the server says no after all', () => {
     await submit();
     expect(toast.error).toHaveBeenCalledWith('Dein Text enthält unangemessene Inhalte.');
     expect(form()).toBeTruthy();
+  });
+});
+
+describe('/club/:id?newEvent=1 opens the event form (the community nudge lands here)', () => {
+  const NEW = { path: '/club/7?newEvent=1' };
+  const COMMUNITY = { ...CLUB, club_type: null, name: 'Neue Freundschaften' };
+
+  it('a community, its owner: the form is open and the parameter is gone — other parameters stay', async () => {
+    world.club = { ...COMMUNITY };
+    await renderClub({ path: '/club/7?newEvent=1&from=nudge' });
+    expect(form()).toBeTruthy();
+    screen.getByPlaceholderText('Name des Events');
+    expect(world.url).toBe('/club/7?from=nudge');
+    expect(partnerApi.getEventQuota).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('without the parameter nothing opens by itself', async () => {
+    world.club = { ...COMMUNITY };
+    await renderClub();
+    expect(form()).toBeNull();
+    expect(world.url).toBe('/club/7');
+  });
+
+  it('an official club at its limit: the partner letter instead of the form — the same way „+“ goes', async () => {
+    world.quota = quota({ used: 1, upcoming: 1, block: 'concurrent' });
+    await renderClub(NEW);
+    const sheet = screen.getByRole('dialog');
+    expect(within(sheet).getByRole('heading', { level: 2 }).textContent).toBe('Hey Laufclub Prater, ihr seid ja schnell! 🙌');
+    expect(form()).toBeNull();
+    expect(world.url).toBe('/club/7');
+  });
+
+  it('an official club waits for its quota: no form while the answer is out, the letter once it says „third“', async () => {
+    let answer;
+    partnerApi.getEventQuota.mockImplementationOnce(() => new Promise((resolve) => { answer = resolve; }));
+    await renderClub(NEW);
+    expect(form()).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(world.url).toBe('/club/7?newEvent=1');
+    await act(async () => { answer({ data: quota({ used: 2, block: 'third' }) }); });
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    expect(form()).toBeNull();
+    expect(world.url).toBe('/club/7');
+  });
+
+  it('an official club with room: the form opens', async () => {
+    await renderClub(NEW);
+    expect(form()).toBeTruthy();
+    expect(world.url).toBe('/club/7');
+  });
+
+  it('the quota cannot be read (an older server): the form opens, the server decides', async () => {
+    world.quota = new Error('404');
+    await renderClub(NEW);
+    expect(form()).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(world.url).toBe('/club/7');
+  });
+
+  it('who is not a member sees the page as always — no form, the parameter is gone', async () => {
+    world.club = { ...COMMUNITY, owner_id: 99, is_member: false };
+    await renderClub(NEW);
+    expect(form()).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(world.url).toBe('/club/7');
+  });
+
+  it('a member of a club where only the owner creates events: no form either', async () => {
+    world.club = { ...COMMUNITY, owner_id: 99, events_owner_only: true };
+    await renderClub(NEW);
+    expect(form()).toBeNull();
+    expect(world.url).toBe('/club/7');
+  });
+
+  it('a rerender does not open it a second time: the form stays open, and stays shut once closed', async () => {
+    world.club = { ...COMMUNITY };
+    const view = await renderClub(NEW);
+    expect(form()).toBeTruthy();
+    await act(async () => { view.rerender(tree(NEW)); });
+    expect(form()).toBeTruthy();
+    await tap(plus());
+    expect(form()).toBeNull();
+    await act(async () => { view.rerender(tree(NEW)); });
+    expect(form()).toBeNull();
   });
 });
