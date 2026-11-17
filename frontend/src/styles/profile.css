@@ -2160,10 +2160,13 @@
 }
 
 /* One row that scrolls sideways; in „Sortieren" a grid with every bubble in
-   view, so no sideways scroll gets in the way of picking. */
+   view, so no sideways scroll gets in the way of picking. Sizes from Tina's
+   mock p. 3 (16.11.2026): photo 50px, centre to centre 74px = 64px track +
+   10px gap. The grid uses the SAME 64px tracks and 10px gap as the row, so
+   tapping „Sortieren" moves no bubble of the first row. */
 .profile-clubs-rail {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   margin: 0;
   padding: 8px 16px 4px;
   list-style: none;
@@ -2177,7 +2180,9 @@
 
 .profile-clubs-rail.is-sorting {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  grid-template-columns: repeat(auto-fill, 64px);
+  column-gap: 10px;
+  justify-content: start;
   row-gap: 14px;
   overflow: visible;
 }
@@ -2185,7 +2190,7 @@
 .profile-club {
   --wiggle-deg: 2deg;
   position: relative;
-  flex: 0 0 72px;
+  flex: 0 0 64px;
   min-width: 0;
   scroll-snap-align: start;
 }
@@ -2194,7 +2199,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
   padding: 0;
   background: none;
@@ -2209,12 +2214,12 @@
 .profile-club-avatar {
   position: relative;
   flex-shrink: 0;
-  width: 64px;
-  height: 64px;
+  width: 50px;
+  height: 50px;
 }
 
-/* Rings as a double box-shadow like the chat list's avatar rings: no layout
-   shift, and the gap in the card colour lets the ring float. Joined clubs
+/* Rings as a box-shadow: no layout shift. Directly on the photo, without a
+   gap, as in the mock (p. 3) — about 53px across with the ring. Joined clubs
    neutral grey, own ones the partner yellow at full strength — a thin ring at
    55 % vanishes on the dark lilac. */
 .profile-club-bubble {
@@ -2227,9 +2232,9 @@
   border-radius: 50%;
   background: var(--bg-input);
   color: var(--text-muted);
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 800;
-  box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 3.5px rgba(255, 255, 255, 0.22);
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.22);
   transition: box-shadow 0.15s;
 }
 
@@ -2241,7 +2246,7 @@
 }
 
 .profile-club.is-own .profile-club-bubble {
-  box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4.5px var(--accent-partner);
+  box-shadow: 0 0 0 2px var(--accent-partner);
 }
 
 /* An own club still in review: there, but not live yet. */
@@ -2330,7 +2335,7 @@
   transform: scale(1.06);
 }
 .profile-club.is-picked .profile-club-bubble {
-  box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4.5px var(--text-white);
+  box-shadow: 0 0 0 2px var(--text-white);
 }
 
 .profile-clubs-hint,
