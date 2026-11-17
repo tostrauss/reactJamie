@@ -426,8 +426,8 @@ const PUSH_TEXTS = {
   // Tina's notification concept (03.11.) + To-Do (04.11.), decided 08.11.:
   // the photo push after an event — to EVERY participant now, not only the
   // creator. Her sentence, split into title + body. Since 16.11. it comes the
-  // day AFTER (D+1 12:00) and its title names the memory: „📷 Wie war X?“
-  // landed two hours after the review push „Wie war "X"?“ and read the same.
+  // day AFTER (D+1 17:00 since 17.11.; 12:00 for a day) and its title names
+  // the memory: „📷 Wie war X?“ read the same as the review push „Wie war "X"?“.
   // „Memory“ stays the product word in every language, as in the app.
   momentPrompt: {
     de: (p) => ({ title: `📷 Deine Memory von ${p.groupName}`, body: 'Lade ein Foto hoch und halte den Moment fest!' }),

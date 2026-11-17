@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 process.env.JWT_SECRET = 'test-secret-key';
 process.env.NODE_ENV = 'test';
@@ -26,7 +26,7 @@ vi.mock('../../src/utils/systemMessage.js', async (importOriginal) => ({
 }));
 
 const {
-  runLivePhotoPrompts, runMomentPrompts, pickLiveVariant, LIVE_PHOTO_VARIANTS, LIVE_PUSH_OPTS,
+  runLivePhotoPrompts, runMomentPrompts, pickLiveVariant, LIVE_PHOTO_VARIANTS, LIVE_PUSH_OPTS, liveEventPushEnabled,
   LIVE_PUSH_FROM_MIN, LIVE_PUSH_UNTIL_MIN,
 } = await import('../../src/jobs/engagementNudges.js');
 
@@ -61,7 +61,36 @@ describe('pickLiveVariant', () => {
   });
 });
 
-describe('runLivePhotoPrompts (push WHILE the event runs)', () => {
+// Tina's clarification of 17.11.2026 (10:26, decided by Tobi): „Während dem
+// Event soll keine Nachricht kommen, dass man eine Memory hochladen soll.
+// Diese Nachricht erst am nächsten Tag.“ The push is off unless the env says
+// exactly EVENT_LIVE_PUSH=true.
+describe('the push WHILE an event runs is off by default', () => {
+  afterEach(() => { delete process.env.EVENT_LIVE_PUSH; });
+
+  it.each([[undefined], ['false'], ['1'], ['TRUE'], ['']])('EVENT_LIVE_PUSH=%s: nothing is claimed, nothing is sent', async (value) => {
+    if (value === undefined) delete process.env.EVENT_LIVE_PUSH;
+    else process.env.EVENT_LIVE_PUSH = value;
+    expect(liveEventPushEnabled()).toBe(false);
+    // an event that would be due, with someone to tell
+    program({ claimed: [{ id: 7, name: 'Bowling', claimed_date: '2027-03-10 17:00:00' }], members: [{ group_id: 7, user_id: 1 }] });
+    const send = vi.fn();
+    expect(await runLivePhotoPrompts({ now: NOW, send })).toEqual({ events: 0, pushes: 0 });
+    // not one query: no marker is used up while it is off
+    expect(statements).toHaveLength(0);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('only exactly „true“ switches it on', () => {
+    process.env.EVENT_LIVE_PUSH = 'true';
+    expect(liveEventPushEnabled()).toBe(true);
+  });
+});
+
+describe('runLivePhotoPrompts (push WHILE the event runs — with EVENT_LIVE_PUSH=true)', () => {
+  beforeEach(() => { process.env.EVENT_LIVE_PUSH = 'true'; });
+  afterEach(() => { delete process.env.EVENT_LIVE_PUSH; });
+
   it('claims timed events only, from start+120 to start+180 min, with someone besides the creator, by day, re-armed by a move', async () => {
     // Tina 16.11.2026: „lieber nach 2h" — the first build said start+60.
     expect([LIVE_PUSH_FROM_MIN, LIVE_PUSH_UNTIL_MIN]).toEqual([120, 180]);
@@ -128,11 +157,14 @@ describe('runLivePhotoPrompts (push WHILE the event runs)', () => {
 });
 
 describe('runMomentPrompts (the memory push the day after)', () => {
-  it('claims D+1 from 12:00 until midnight — timed and date-only alike, never the same day', async () => {
+  // 17:00 since Tina's clarification of 17.11.2026 (Tobi: „17 Uhr am nächsten
+  // Tag“); 12:00 for the one day before that.
+  it('claims D+1 from 17:00 until midnight — timed and date-only alike, never the same day', async () => {
     program();
     await runMomentPrompts({ now: NOW, send: vi.fn() });
     const sql = claimOf('moment_prompt_sent_at').text;
-    expect(sql).toContain("((x.date::date + 1)::timestamp + TIME '12:00') AT TIME ZONE 'Europe/Vienna' <= $1::timestamptz");
+    expect(sql).toContain("((x.date::date + 1)::timestamp + TIME '17:00') AT TIME ZONE 'Europe/Vienna' <= $1::timestamptz");
+    expect(sql).not.toContain("TIME '12:00'");
     expect(sql).toContain("((x.date::date + 2)::timestamp) AT TIME ZONE 'Europe/Vienna' > $1::timestamptz");
     expect(sql).toContain('x.moment_prompt_sent_at IS NULL');
     expect(sql).toContain('BETWEEN 9 AND 22');

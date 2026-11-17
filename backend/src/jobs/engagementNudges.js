@@ -2,8 +2,9 @@
 // (04.11.2026), decided with Tobi on 08.11.2026. Runs every 15 min (server.js).
 //
 //   1. momentPrompt — „📷 Deine Memory von X — Lade ein Foto hoch und halte
-//      den Moment fest!" to EVERY participant the day AFTER the event (was:
-//      the creator only; since 16.11.2026 D+1 from 12:00, was the same day).
+//      den Moment fest!" to EVERY participant the day AFTER the event, from
+//      17:00 (Tina/Tobi 17.11.2026; from 12:00 since 16.11., the same day
+//      and the creator only before that).
 //   2. sayHello     — „Sag kurz Hallo 👋 Die anderen in X freuen sich auf
 //      dich!" to a member who joined ≥ 3 h ago and has not written yet.
 //   3. silence      — JAMIE's funny chat lines when nobody has written at all:
@@ -11,9 +12,12 @@
 //   4. coverNag     — communities without a cover photo: at 5 members
 //      „Hey! Deine Community hat schon X Mitglieder…", 7 days later
 //      „Huch! …um sichtbar zu bleiben!" — then never again.
-//   5. livePhotoPrompt — ONE push WHILE a timed event runs, start+120 to
-//      start+180 min, one of Tina's three lines (S2, 17.11.2026): „Wie
-//      ist’s bei X? Schnapp dir ein Foto für deine Memories!"
+//   5. livePhotoPrompt — OFF since 17.11.2026 (Tina: „Während dem Event soll
+//      keine Nachricht kommen, dass man eine Memory hochladen soll. Diese
+//      Nachricht erst am nächsten Tag“). Only with EVENT_LIVE_PUSH=true: one
+//      push WHILE a timed event runs, start+120 to start+180 min, one of
+//      three lines („Wie ist’s bei X? Schnapp dir ein Foto für deine
+//      Memories!").
 //   6. connect (connectNudges.js) — „Aus Fremden können Freundschaften
 //      werden!" the day after, to everybody but the creator.
 //   7. community (communityNudges.js) — „Hey, X hat Potenzial! ✨" to the
@@ -88,15 +92,16 @@ async function photoPushRecipients(groupIds) {
 }
 
 // ── 1. Photo push the day after the event ─────────────────────────────────
-// D+1 from 12:00 until midnight, timed and date-only events alike (Tina
-// 16.11.2026, decided by Tobi): the photo is now asked for WHILE the event
-// runs (5.), and this push turns it into the memory the next day — „morgen
-// wird's deine Memory". Until then it came the SAME day (timed: start+3 h,
-// date-only: 21:00, because D+1 10:00 belonged to the review push; Tobi
-// 08.11.); 12:00 keeps two hours to that review push (D+1 10:05) and its own
-// title keeps the two apart. A meetup its owner marks „Hat nicht
+// D+1 from 17:00 until midnight, timed and date-only events alike. Tina's
+// clarification of 17.11.2026 (10:26): „Während dem Event soll keine
+// Nachricht kommen, dass man eine Memory hochladen soll. Diese Nachricht erst
+// am nächsten Tag“ — Tobi: 17:00 the next day. So this is the ONE photo push
+// of an event now; the one WHILE it runs (5.) is off. Before: D+1 from 12:00
+// (16.11.2026), and until then the SAME day (timed: start+3 h, date-only:
+// 21:00; Tobi 08.11.). The review push comes that morning (D+1 10:05) and its
+// own title keeps the two apart. A meetup its owner marks „Hat nicht
 // stattgefunden“ in the review drops out by itself (LIVE). Inside DAYTIME, so
-// effectively 12:00–22:59. The marker is a sent-at that never re-arms.
+// effectively 17:00–22:59. The marker is a sent-at that never re-arms.
 // Recipients: photoPushRecipients.
 export async function runMomentPrompts({ now = new Date(), limit = 200, send = sendPushToUsers } = {}) {
   const claimed = await db.query(
@@ -107,7 +112,7 @@ export async function runMomentPrompts({ now = new Date(), limit = 200, send = s
            AND x.date IS NOT NULL
            AND x.moment_prompt_sent_at IS NULL
            AND ${DAYTIME('$1')}
-           AND ((x.date::date + 1)::timestamp + TIME '12:00') AT TIME ZONE '${TZ}' <= $1::timestamptz
+           AND ((x.date::date + 1)::timestamp + TIME '17:00') AT TIME ZONE '${TZ}' <= $1::timestamptz
            AND ((x.date::date + 2)::timestamp) AT TIME ZONE '${TZ}' > $1::timestamptz
          FOR UPDATE OF x SKIP LOCKED
          LIMIT $2
@@ -348,6 +353,13 @@ export async function runCoverNags({ now = new Date(), limit = 100, send = sendP
 // the event re-arms it. The line rotates per event (pickLiveVariant), so all
 // members of one event read the same one and the locale cache in
 // sendPushToUsers keeps working.
+// OFF since 17.11.2026 — Tina's clarification of that day (10:26): „Während
+// dem Event soll keine Nachricht kommen, dass man eine Memory hochladen
+// soll.“ The code stays, behind a switch that is off unless the env says
+// exactly EVENT_LIVE_PUSH=true (Railway, no deploy needed): without it
+// nothing is claimed — no marker is used up — and nothing is sent.
+export const liveEventPushEnabled = () => process.env.EVENT_LIVE_PUSH === 'true';
+
 export const LIVE_PUSH_FROM_MIN = 120;
 export const LIVE_PUSH_UNTIL_MIN = 180;
 export const LIVE_PHOTO_VARIANTS = 3;
@@ -359,6 +371,7 @@ export const pickLiveVariant = (groupId) => Number(groupId) % LIVE_PHOTO_VARIANT
 export const LIVE_PUSH_OPTS = Object.freeze({ urgency: 'high', ttl: 60 * 60 });
 
 export async function runLivePhotoPrompts({ now = new Date(), limit = 200, send = sendPushToUsers } = {}) {
+  if (!liveEventPushEnabled()) return { events: 0, pushes: 0 };
   const { rows: claimed } = await db.query(
     `UPDATE groups g SET live_prompt_sent_for = g.date
       WHERE g.id IN (
