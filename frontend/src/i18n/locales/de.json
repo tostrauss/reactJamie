@@ -1706,9 +1706,7 @@
       "unlimitedJoinsDesc": "So viele Gruppen erstellen und beitreten, wie du willst.",
       "unlimitedFriendRequests": "Unbegrenzt Freunde anfragen",
       "unlimitedFriendRequestsDesc": "So viele Leute anfragen, wie du willst.",
-      "joinsLimitReached": "Dein kostenloses Wochenlimit ist erreicht – mit Pro geht’s sofort weiter",
-      "clubDeals": "Deals für deinen Club anlegen",
-      "clubDealsDesc": "Eigene Angebote im Deal-Feed und an deinen Events – einlösen bleibt für alle gratis."
+      "joinsLimitReached": "Dein kostenloses Wochenlimit ist erreicht – mit Pro geht’s sofort weiter"
     },
     "title": "JAMIE Pro",
     "heroTitle1": "MORE PEOPLE.",
@@ -1773,8 +1771,7 @@
       "boosts": "Booste deine Gruppe jetzt ganz nach oben!",
       "joins": "Tritt so vielen Gruppen bei, wie du willst!",
       "creates": "Erstelle so viele Treffen, wie du willst!",
-      "friends": "Vernetz dich mit so vielen Leuten, wie du willst!",
-      "clubDeals": "Leg jetzt Deals für deinen Club an!"
+      "friends": "Vernetz dich mit so vielen Leuten, wie du willst!"
     },
     "trialHeadlineDays_one": "🎁 Starte mit {{count}} Tag kostenlos",
     "trialHeadlineDays_other": "🎁 Starte mit {{count}} Tagen kostenlos",
@@ -2118,26 +2115,13 @@
     "favError": "Favorit konnte nicht gespeichert werden",
     "shareBtn": "Link teilen",
     "deals": {
-      "title": "Deals",
-      "intro": "Angebote deines Clubs – sie erscheinen wie alle JAMIE-Deals in der App und an deinen Events.",
-      "newBtn": "Deal anlegen",
       "newTitle": "Neuer Deal",
       "editTitle": "Deal bearbeiten",
       "saveBtn": "Deal speichern",
       "savingBtn": "Speichert…",
       "editBtn": "Bearbeiten",
-      "deleteBtn": "Löschen",
       "editAria": "Deal „{{name}}“ bearbeiten",
-      "deleteAria": "Deal „{{name}}“ löschen",
-      "confirmDelete": "Deal „{{name}}“ löschen? Er verschwindet sofort aus der App.",
-      "loading": "Lade Deals…",
-      "empty": "Noch keine Deals.",
       "untilFmt": "Sichtbar bis {{date}}",
-      "expiredFmt": "Abgelaufen am {{date}}",
-      "capReached": "Limit erreicht – offline",
-      "redemptions_one": "1× eingelöst",
-      "redemptions_other": "{{count}}× eingelöst",
-      "atEvents": "📍 {{names}}",
       "fields": {
         "company": "Name auf der Karte",
         "companyPlaceholder": "z. B. Café Soleá",
@@ -2171,27 +2155,15 @@
         "daily": "1× pro Tag"
       },
       "toast": {
-        "loadError": "Deals konnten nicht geladen werden",
         "uploadError": "Foto-Upload fehlgeschlagen",
         "requiredFields": "Name, Angebot und „Sichtbar bis“ sind Pflichtfelder",
         "saved": "Deal gespeichert",
-        "saveError": "Speichern fehlgeschlagen",
-        "deleted": "Deal gelöscht",
-        "deleteError": "Löschen fehlgeschlagen",
-        "proRequired": "Deals für deinen Club sind ein JAMIE Pro Feature.",
-        "limit": "Höchstens {{max}} aktive Deals gleichzeitig – lösche zuerst einen."
+        "saveError": "Speichern fehlgeschlagen"
       },
       "event": {
         "title": "Deal am Event",
-        "hint": "Ein Deal deines Clubs, oben auf der Event-Seite – wird sofort übernommen.",
-        "noDeal": "Kein Deal",
-        "none": "Dein Club hat noch keine Deals. Leg sie unter Club bearbeiten → Deals an.",
         "jamieNote": "An diesem Event hängt ein Deal von JAMIE: {{name}}. Den kann nur das JAMIE-Team ändern.",
-        "jamieNoteUnseen": "An diesem Event hängt ein Deal von JAMIE. Den kann nur das JAMIE-Team ändern.",
         "toast": {
-          "attached": "Deal hängt jetzt am Event",
-          "attachedHidden": "Angehängt – am Event aber gerade nicht sichtbar (abgelaufen oder Limit erreicht)",
-          "detached": "Deal vom Event gelöst",
           "error": "Das hat nicht geklappt",
           "removed": "Deal entfernt",
           "autoOn": "Automatisierte Nachrichten an",
