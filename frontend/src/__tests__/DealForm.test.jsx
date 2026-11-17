@@ -225,3 +225,113 @@ describe('DealForm — club (a club\'s own deal, P4 v2)', () => {
     }
   });
 });
+
+// Tina 17.11.2026: the bar „Deal anlegen“ in a club's event form — „dann
+// öffnet sich nochmal ein Feld, wo man die Deal Infos reingibt inkl. wann der
+// Deal angezeigt werden soll, eh wie wir es hatten“. The same fields as a
+// panel inside the event's own form: no <form>, no buttons, and it tells the
+// host what it holds.
+describe('DealForm — embedded in an event\'s form („Deal anlegen“)', () => {
+  const day = (n) => new Date(viennaTodayUTC() + n * 864e5).toISOString().slice(0, 10);
+  const embed = (props = {}) => {
+    const onChange = vi.fn();
+    const onSubmit = vi.fn();
+    render(
+      <form aria-label="Event" onSubmit={(e) => { e.preventDefault(); onSubmit(); }}>
+        <DealForm variant="club" look="event" embedded title="Deal zum Event" defaults={{ name: 'Bar Neun' }}
+          onChange={onChange} {...props} />
+        <button type="submit">Event erstellen</button>
+      </form>,
+    );
+    return { onChange, onSubmit, last: () => onChange.mock.calls.at(-1)[0] };
+  };
+
+  it('a panel, not a form: the fields only — no title, no Speichern, no Abbrechen', () => {
+    embed();
+    const panel = screen.getByRole('group', { name: 'Deal zum Event' });
+    expect(panel).toHaveClass('cd-event-deal-panel');
+    expect(panel.tagName).toBe('DIV');
+    expect(panel.querySelector('form')).toBeNull();
+    expect(screen.getAllByRole('form')).toHaveLength(1);                 // the event's own
+    expect(within(panel).queryByRole('heading')).toBeNull();
+    expect(within(panel).queryByRole('button', { name: 'Deal speichern' })).toBeNull();
+    expect(within(panel).queryByRole('button', { name: 'Abbrechen' })).toBeNull();
+    // the same fields as on the edit page — „eh wie wir es hatten“
+    for (const label of [/^Name auf der Karte/, /^Angebot/, 'Adresse', /^Sichtbar bis/, 'Max. Einlösungen']) {
+      expect(within(panel).getByLabelText(label)).toBeInTheDocument();
+    }
+    expect(within(panel).getByRole('group', { name: 'Wie oft einlösbar?' })).toBeInTheDocument();
+    expect(within(panel).getByRole('group', { name: 'Nur an bestimmten Tagen einlösbar?' })).toBeInTheDocument();
+  });
+
+  it('the event form\'s look: its inputs, labels, hints and chips — no divider lines', () => {
+    embed();
+    const panel = screen.getByRole('group', { name: 'Deal zum Event' });
+    expect(within(panel).getByLabelText(/^Name auf der Karte/)).toHaveClass('cd-event-input');
+    expect(within(panel).getByLabelText(/^Name auf der Karte/)).not.toHaveClass('ge-input');
+    expect(panel.querySelector('label')).toHaveClass('cd-event-deal-label');
+    expect(panel.querySelector('.cd-event-recurring-hint')).toBeTruthy();
+    expect(within(panel).getByRole('button', { name: 'Einmal pro Person' })).toHaveClass('cd-event-deal-chip', 'active');
+    expect(panel.querySelector('.ge-divider')).toBeNull();
+    expect(panel.querySelector('[class*="ge-"]')).toBeNull();
+  });
+
+  it('nothing is natively required: the host form decides — and hears what is missing right away', () => {
+    const { last, onSubmit } = embed();
+    for (const label of [/^Name auf der Karte/, /^Angebot/, /^Sichtbar bis/]) {
+      expect(screen.getByLabelText(label)).not.toBeRequired();
+    }
+    expect(last().missing).toEqual(['deal_label', 'visible_until']);    // the name is prefilled
+    expect(last().uploading).toBe(false);
+    // the event's own submit is not stopped by the browser
+    fireEvent.submit(screen.getByRole('form', { name: 'Event' }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('every change is reported: what is still missing, and the payload the server takes', () => {
+    const { last } = embed();
+    type(/^Angebot/, ' 1 Punsch gratis ');
+    expect(last().missing).toEqual(['visible_until']);
+    type(/^Sichtbar bis/, day(10));
+    expect(last().missing).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: '1× pro Woche' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Do' }));
+    expect(last().payload).toEqual({
+      name: 'Bar Neun', deal_label: '1 Punsch gratis', description: null, address: null, booking_url: null,
+      photos: [], visible_until: day(10), max_redemptions: '100', redeem_interval: 'weekly', redeem_days: [4],
+    });
+    type(/^Name auf der Karte/, '  ');
+    expect(last().missing).toEqual(['name']);
+  });
+
+  it('„Sichtbar bis“ starts today and comes prefilled with the event\'s date', () => {
+    const { last } = embed({ defaults: { name: 'Bar Neun', visible_until: day(3) } });
+    const until = screen.getByLabelText(/^Sichtbar bis/);
+    expect(until).toHaveValue(day(3));
+    expect(until).toHaveAttribute('min', day(0));       // an event today may carry a deal through today
+    expect(until).toHaveAttribute('max', day(180));
+    expect(last().missing).toEqual(['deal_label']);
+    expect(last().payload.visible_until).toBe(day(3));
+  });
+
+  it('an existing deal is edited in the panel: its fields prefilled, an untouched address left out', () => {
+    const { last } = embed({ deal: deal({ visible_until: `${day(20)}T22:59:59.000Z` }) });
+    expect(screen.getByLabelText(/^Angebot/)).toHaveValue('1 Getränk gratis');
+    expect(last().missing).toEqual([]);
+    expect(last().payload.address).toBeUndefined();
+    expect(last().payload.visible_until).toBe(day(20));
+  });
+
+  it('a photo on its way is reported, so the host can wait for it', async () => {
+    let finish;
+    upload.image.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    const { last } = embed();
+    const file = new File(['x'], 'p.png', { type: 'image/png' });
+    fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [file] } });
+    await waitFor(() => expect(last().uploading).toBe(true));
+    finish({ data: { url: PHOTO } });
+    await waitFor(() => expect(last().uploading).toBe(false));
+    expect(last().payload.photos).toEqual([PHOTO]);
+  });
+});

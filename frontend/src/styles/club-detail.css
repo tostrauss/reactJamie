@@ -801,6 +801,85 @@
   font-size: 12px;
 }
 
+/* ── „Deal anlegen“: the deal's fields under its bar (Tina 17.11.2026) ──
+   DealForm embedded, look 'event': a panel in the bars' own style (same
+   fill, border and radius as .cd-event-recurring), its inputs one step
+   darker so they stand out on it. Everything may shrink (min-width: 0): the
+   panel sits in a 390px page inside two paddings. */
+.cd-event-deal-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 14px;
+  background: var(--bg-input);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-sm);
+}
+.cd-event-deal-panel > div,
+.cd-event-deal-field {
+  min-width: 0;
+}
+.cd-event-deal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cd-event-deal-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.cd-event-deal-panel .cd-event-input {
+  background: var(--bg-card);
+}
+.cd-event-deal-panel .cd-event-recurring-hint {
+  margin: 0;
+}
+.cd-event-deal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.cd-event-deal-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 7px 12px;
+  border-radius: var(--radius-full, 999px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-light);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.cd-event-deal-chip.active {
+  background: rgba(253, 118, 102, 0.18);
+  border-color: var(--accent-coral);
+  color: var(--accent-coral);
+}
+.cd-event-deal-photo-btn {
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  background: transparent;
+  color: var(--text-light);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.cd-event-deal-photo-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .cd-event-submit-btn {
   padding: 12px;
   border-radius: var(--radius-md);
