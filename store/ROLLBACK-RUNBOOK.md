@@ -49,6 +49,25 @@ umbenannt/gelöscht, nur ergänzt). NIEMALS versuchen, das Schema „mitzurollen
 Ausnahme-Radar: eine Migration, die Daten UMSCHREIBT (one_shot_migrations) —
 vor deren Deploy dieses Runbook um den Spezialfall ergänzen.
 
+**Spezialfall Gratis-Grenze für Clubs (Tina-Update 17.11.2026).** Der erste Boot
+des Updates setzt in `one_shot_migrations` den Stichtag
+`2026-11-17_club_free_tier_start`; ab `applied_at` zählen neu angelegte
+Club-Events gegen die Gratis-Grenze, und kein späterer Boot bewegt ihn. Wird
+dieser Deploy zurückgerollt, läuft der alte Code ohne Grenze weiter, der
+Stichtag bleibt aber stehen: Events, die Clubs bis zum nächsten Deploy anlegen,
+zählen dann mit, ein Club könnte sofort gesperrt sein. Deshalb **nach einem
+Rollback dieses Updates, vor dem nächsten Deploy**, in der Railway-DB:
+
+```sql
+DELETE FROM one_shot_migrations WHERE name = '2026-11-17_club_free_tier_start';
+```
+
+Der nächste Boot setzt den Stichtag neu. Schneller als ein Rollback ist bei
+Ärger mit der Grenze der Not-Aus `CLUB_FREE_TIER=false` (Railway-Env, ohne
+Deploy). Die übrigen Not-Aus-Schalter des Updates, alle standardmäßig an:
+`CLUB_AUTO_MESSAGES`, `PARTNER_LEADS_NOTIFY`, `POST_EVENT_CONNECT`,
+`EVENT_RATINGS`, `COMMUNITY_NUDGES`.
+
 ## 5. Wenn Rollback nicht reicht
 
 - DB selbst kaputt/inkonsistent → **Restore-Runbook** in

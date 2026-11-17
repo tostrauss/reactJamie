@@ -7525,6 +7525,23 @@ suite('write endpoints against real Postgres', () => {
       const hers = res.body.find((l) => l.club?.id === club && l.source === 'ticket');
       expect(hers).toMatchObject({ name: 'Marta', phone: '0660 7654321', user: null });
     });
+
+    // After the merge (N-2b): the GDPR export is Bau 2's, the table Bau 1's — on
+    // either branch alone this could not be checked (contract V-07).
+    it('the GDPR export of the person who asked carries their requests, with the club’s name', async () => {
+      const exp = await call(C.exportData, { userId: owner });
+      ok(exp);
+      expect(exp.body.partner_leads.map((l) => l.source).sort()).toEqual(['concurrent', 'third']);
+      for (const l of exp.body.partner_leads) {
+        expect(l).toMatchObject({
+          name: 'Olga Wirt', company: 'Café Anfrage', email: 'olga@anfrage.at', contact: 'mail', club_name: 'Café Anfrage',
+        });
+      }
+      // nobody else's requests
+      const other = await call(C.exportData, { userId: member });
+      ok(other);
+      expect(other.body.partner_leads).toEqual([]);
+    });
   });
 
   // ── Deals in the model of 17.11.2026 (Tina's new document, Tobi) ────────
@@ -8935,6 +8952,29 @@ suite('write endpoints against real Postgres', () => {
         const out = await joinState.attachJoinRequestState(db, { userId: undefined, clubIsPrivate: false, events });
         expect(out).toBe(events);
         expect(out.every((e) => !('joins_by_request' in e))).toBe(true);
+      });
+
+      // After the merge (N-2): the list endpoint itself — getClubEvents is
+      // Bau 1's, the helper Bau 2's. The button on the club page reads exactly
+      // these fields (contract V-14).
+      it('GET /clubs/:id/events hands the join state to the list', async () => {
+        // The list is members-only: Jana joins the public club, not its events.
+        await db.query(
+          `INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING`, [pub, U.j1]);
+        const res = await call(C.getClubEvents, { userId: U.j1, params: { id: String(pub) }, query: {} });
+        ok(res);
+        const byId = Object.fromEntries(res.body.map((e) => [e.id, e]));
+        // one rejection so far (the case above): asked, not blocked
+        expect(byId[secret]).toMatchObject({
+          is_member: false, joins_by_request: true, join_request_status: 'rejected', join_request_blocked: false,
+        });
+        expect(byId[open]).toMatchObject({
+          is_member: false, joins_by_request: false, join_request_status: null, join_request_blocked: false,
+        });
+        // A private club's event: its members are simply in or out.
+        const inside = await call(C.getClubEvents, { userId: U.j1, params: { id: String(priv) }, query: {} });
+        ok(inside);
+        expect(inside.body.find((e) => e.id === inner)).toMatchObject({ is_member: true, joins_by_request: false });
       });
     });
   });
