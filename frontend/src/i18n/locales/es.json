@@ -2192,8 +2192,13 @@
           "attached": "El deal ya está en el evento",
           "attachedHidden": "Añadido, pero ahora no se ve en el evento (caducado o límite alcanzado)",
           "detached": "Deal quitado del evento",
-          "error": "No ha funcionado"
-        }
+          "error": "No ha funcionado",
+          "removed": "Deal eliminado",
+          "autoOn": "Mensajes automáticos activados",
+          "autoOff": "Mensajes automáticos desactivados"
+        },
+        "removeBtn": "Quitar",
+        "confirmRemove": "¿Quitar el deal «{{name}}» del evento y eliminarlo?"
       }
     }
   },

@@ -2192,8 +2192,13 @@
           "attached": "The deal is now on the event",
           "attachedHidden": "Attached – but not visible on the event right now (expired or limit reached)",
           "detached": "Deal taken off the event",
-          "error": "That didn’t work"
-        }
+          "error": "That didn’t work",
+          "removed": "Deal removed",
+          "autoOn": "Automated messages on",
+          "autoOff": "Automated messages off"
+        },
+        "removeBtn": "Remove",
+        "confirmRemove": "Take the deal \"{{name}}\" off the event and delete it?"
       }
     }
   },

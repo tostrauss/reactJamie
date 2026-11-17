@@ -2192,8 +2192,13 @@
           "attached": "Il deal ora è all’evento",
           "attachedHidden": "Collegato – ma ora non visibile all’evento (scaduto o limite raggiunto)",
           "detached": "Deal rimosso dall’evento",
-          "error": "Non ha funzionato"
-        }
+          "error": "Non ha funzionato",
+          "removed": "Deal rimosso",
+          "autoOn": "Messaggi automatici attivi",
+          "autoOff": "Messaggi automatici disattivati"
+        },
+        "removeBtn": "Rimuovi",
+        "confirmRemove": "Togliere il deal \"{{name}}\" dall’evento ed eliminarlo?"
       }
     }
   },
