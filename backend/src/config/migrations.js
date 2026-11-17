@@ -2162,6 +2162,94 @@ const runStartupMigrations = async () => {
   // (Scaffolding — the coordinator removes these markers after the merge.)
   //
   // >>> BAU1-MIGRATIONEN (Partner, Clubs & Deals)
+  // ── Clubs: free tier, partner requests, automated messages (Tina 17.11.2026)
+  // Three additive steps, optional like „Welle 1“: only here (never
+  // schema.sql), no CRITICAL_SCHEMA_PROBE, no backfill. Until they exist every
+  // read degrades (the quota reads „not limited“, an event shows no automated
+  // messages) and only the writes that need them answer 503; the job logs and
+  // the next tick retries.
+  //
+  // 1. The day the free tier starts counting (Tobi 17.11.2026: „gezählt wird
+  // ab dem Deploy, nur neu angelegte Events“). applied_at of this row IS that
+  // day — the first boot of this code. ON CONFLICT DO NOTHING: no later boot
+  // moves it, so a restart never hands a club its free events back.
+  // utils/clubEventQuota.js reads it; without the row nothing is limited.
+  await migrate('club free tier start (2026-11-17)', () => db.query(
+    `INSERT INTO one_shot_migrations (name) VALUES ('2026-11-17_club_free_tier_start')
+     ON CONFLICT (name) DO NOTHING`));
+
+  // 2. „Ja, meldet euch!“ → „JAMIE Anfrage“: what a club's manager sends from
+  // the partner sheet, listed in the admin dashboard. Both FKs SET NULL, never
+  // CASCADE and never bare: an FK without ON DELETE once broke account
+  // deletion (group_join_requests.reviewed_by), and the request stays for the
+  // people who answer it when the account or the club is gone. `source` is
+  // which sheet it came from, `contact` how they want to be reached. Column
+  // names and types are frozen (the GDPR export reads them). Same tx +
+  // lock_timeout shape as event_deals — the FKs lock groups and users on first
+  // creation only.
+  await migrate('partner_leads (2026-11)', async () => {
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS partner_leads (
+          id                  SERIAL PRIMARY KEY,
+          club_id             INTEGER REFERENCES groups(id) ON DELETE SET NULL,
+          user_id             INTEGER REFERENCES users(id)  ON DELETE SET NULL,
+          source              VARCHAR(12) NOT NULL,
+          name                VARCHAR(100) NOT NULL,
+          company             VARCHAR(150),
+          email               VARCHAR(254),
+          phone               VARCHAR(40),
+          contact             VARCHAR(4)  NOT NULL,
+          privacy_accepted_at TIMESTAMPTZ NOT NULL,
+          created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          CONSTRAINT chk_partner_leads_source  CHECK (source  IN ('concurrent','third','ticket','deal')),
+          CONSTRAINT chk_partner_leads_contact CHECK (contact IN ('mail','call'))
+        )`);
+      await client.query('CREATE INDEX IF NOT EXISTS idx_partner_leads_created ON partner_leads (created_at DESC)');
+      await client.query('CREATE INDEX IF NOT EXISTS idx_partner_leads_club_user ON partner_leads (club_id, user_id, created_at DESC)');
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // sending a request answers 503 and the admin list is empty until the next boot
+    } finally {
+      client.release();
+    }
+  });
+
+  // 3. „Automatisierte Nachrichten“ of a club event: the switch and what has
+  // gone out. A side table, not columns on groups: no DDL on the hottest
+  // table, nothing new in every `SELECT g.*` (reasoning of event_deals).
+  // CASCADE on the event, SET NULL on who switched it on. welcome_sent_at is a
+  // sent-at that never re-arms; the three *_sent_for hold a COPY of groups.date
+  // as of the send (naive TIMESTAMP like the reminder markers), so moving the
+  // event re-arms them for the new date.
+  await migrate('club_event_auto_messages (2026-11)', async () => {
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS club_event_auto_messages (
+          group_id        INTEGER PRIMARY KEY REFERENCES groups(id) ON DELETE CASCADE,
+          enabled         BOOLEAN NOT NULL DEFAULT TRUE,
+          enabled_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          welcome_sent_at TIMESTAMPTZ,
+          eve_sent_for    TIMESTAMP,
+          soon_sent_for   TIMESTAMP,
+          thanks_sent_for TIMESTAMP
+        )`);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // no event sends automated messages until the next boot
+    } finally {
+      client.release();
+    }
+  });
   // <<< BAU1-MIGRATIONEN
   //
   // ── separator: leave in place ──

@@ -6841,6 +6841,97 @@ suite('write endpoints against real Postgres', () => {
   // (Scaffolding — the coordinator removes these markers after the merge.)
   //
   // >>> BAU1-SMOKE (Partner, Clubs & Deals)
+  // ── Bau 1: the tables behind the partner model (Tina 17.11.2026) ────────
+  // partner_leads („JAMIE Anfrage“), club_event_auto_messages („Automatisierte
+  // Nachrichten“) and the day the free tier starts counting. Only migrations
+  // create them, so this is the path production takes.
+  describe('Bau 1: Schema (Tina 17.11.2026)', () => {
+    const MARKER = '2026-11-17_club_free_tier_start';
+    const failedSteps = async () => {
+      const { getMigrationHealth } = await import('../../src/config/migrations.js');
+      return getMigrationHealth().stepFailures
+        .filter((f) => /free tier|partner_leads|club_event_auto_messages/.test(f.label));
+    };
+    const lead = (over = {}) => {
+      const row = {
+        club_id: null, user_id: null, source: 'third', name: 'Smoke Lead', contact: 'mail',
+        privacy_accepted_at: '2026-11-17T10:00:00Z', ...over,
+      };
+      const cols = Object.keys(row);
+      return db.query(
+        `INSERT INTO partner_leads (${cols.join(', ')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING id`,
+        cols.map((k) => row[k]));
+    };
+
+    it('the boot created both tables without a failed step', async () => {
+      expect(await failedSteps()).toEqual([]);
+      const { rows } = await db.query(
+        `SELECT table_name FROM information_schema.tables
+          WHERE table_schema = current_schema() AND table_name IN ('partner_leads', 'club_event_auto_messages')
+          ORDER BY table_name`);
+      expect(rows.map((r) => r.table_name)).toEqual(['club_event_auto_messages', 'partner_leads']);
+    });
+
+    it('a request only takes the four sources and the two ways of contact', async () => {
+      await expect(lead({ source: 'foo' })).rejects.toMatchObject({ code: '23514' });
+      await expect(lead({ contact: 'sms' })).rejects.toMatchObject({ code: '23514' });
+      for (const source of ['concurrent', 'third', 'ticket', 'deal']) {
+        for (const contact of ['mail', 'call']) {
+          const { rows } = await lead({ source, contact });
+          await db.query('DELETE FROM partner_leads WHERE id = $1', [rows[0].id]);
+        }
+      }
+    });
+
+    it('the day the free tier starts is set once — a second boot leaves it alone', async () => {
+      const day = async () => (await db.query(
+        `SELECT to_char(applied_at, 'YYYY-MM-DD HH24:MI:SS.US') AS at FROM one_shot_migrations WHERE name = $1`, [MARKER])).rows;
+      const first = await day();
+      expect(first).toHaveLength(1);
+      const { runStartupMigrations } = await import('../../src/config/migrations.js');
+      await runStartupMigrations();
+      expect(await failedSteps()).toEqual([]);
+      expect(await day()).toEqual(first);
+    });
+
+    it('an event that is really deleted takes its automated-messages row along', async () => {
+      const ev = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members)
+         VALUES ('Smoke Auto-Nachrichten', 'event', $1, 'Bar', 'Wien', 20) RETURNING id`, [A])).rows[0].id;
+      await db.query('INSERT INTO club_event_auto_messages (group_id, enabled_by) VALUES ($1, $2)', [ev, A]);
+      const row = (await db.query('SELECT * FROM club_event_auto_messages WHERE group_id = $1', [ev])).rows[0];
+      expect(row).toMatchObject({
+        enabled: true, enabled_by: A, welcome_sent_at: null, eve_sent_for: null, soon_sent_for: null, thanks_sent_for: null,
+      });
+      await db.query('DELETE FROM groups WHERE id = $1', [ev]);
+      expect((await db.query('SELECT 1 FROM club_event_auto_messages WHERE group_id = $1', [ev])).rowCount).toBe(0);
+    });
+
+    it('deleting the account or the club keeps the request — only the link goes', async () => {
+      const who = (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ('smoke-lead-user@x.com', 'Lea Lead', '1990-01-01', 'female', $1, TRUE, 'email') RETURNING id`, [avatar])).rows[0].id;
+      const club = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, club_type)
+         VALUES ('Smoke Lead-Club', 'club', $1, 'Bar', 'Wien', 100, 'official') RETURNING id`, [A])).rows[0].id;
+      const ev = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, parent_club_id)
+         VALUES ('Smoke Lead-Event', 'event', $1, 'Bar', 'Wien', 20, $2) RETURNING id`, [A, club])).rows[0].id;
+      await db.query('INSERT INTO club_event_auto_messages (group_id, enabled_by) VALUES ($1, $2)', [ev, who]);
+      const id = (await lead({ club_id: club, user_id: who, company: 'Café Lead', email: 'lea@x.com', phone: '+43 1 234' })).rows[0].id;
+
+      await db.query('DELETE FROM users WHERE id = $1', [who]);
+      // who switched the messages on is gone, the switch is not
+      expect((await db.query('SELECT enabled, enabled_by FROM club_event_auto_messages WHERE group_id = $1', [ev])).rows)
+        .toEqual([{ enabled: true, enabled_by: null }]);
+      // the club takes its event along (parent_club_id CASCADE), the request stays
+      await db.query('DELETE FROM groups WHERE id = $1', [club]);
+      const { rows } = await db.query('SELECT club_id, user_id, name, company, email, phone FROM partner_leads WHERE id = $1', [id]);
+      expect(rows).toEqual([{ club_id: null, user_id: null, name: 'Smoke Lead', company: 'Café Lead', email: 'lea@x.com', phone: '+43 1 234' }]);
+      await db.query('DELETE FROM partner_leads WHERE id = $1', [id]);
+      await db.query('DELETE FROM groups WHERE id = $1', [ev]);
+    });
+  });
   // <<< BAU1-SMOKE
   //
   // ── separator: leave in place ──
