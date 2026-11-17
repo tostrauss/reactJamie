@@ -3932,10 +3932,11 @@ suite('write endpoints against real Postgres', () => {
     // S2 (Tina 16.11.2026): ONE push WHILE a timed event runs — start+120 to
     // start+180 min („lieber nach 2h"; the first build said +60), one of her
     // three lines per event. The claim is global, so every assert picks its
-    // push by title (the line names the event and depends on its id —
-    // pickLiveVariant). June fixtures (CEST, +02:00), so no other test's
-    // clock lands in their windows.
-    const live = (g, name) => pushTexts('livePhotoPrompt', { groupName: name, variant: en.pickLiveVariant(g) })('de').title;
+    // push by a participant only THAT event has: since 17.11.2026 Tina's
+    // third line („Gute Stimmung?“) names no event, the title no longer tells
+    // them apart. A live push is the one sent urgent (LIVE_PUSH_OPTS). June
+    // fixtures (CEST, +02:00), so no other test's clock lands in their windows.
+    const liveFor = (u) => sent.filter(s => s.opts?.urgency === 'high' && s.ids.includes(u));
 
     it('live push: once per event from start+120 min, to the participants minus muted/opted-out/already-shared — urgent, gone after an hour', async () => {
       const o = await mkU('lo'); const p = await mkU('lp');
@@ -3944,7 +3945,8 @@ suite('write endpoints against real Postgres', () => {
       for (const u of [p, off, shared]) await join(g, u);
       await join(g, mute, { muted: true });
       await db.query(`INSERT INTO event_photos (group_id, user_id, url) VALUES ($1, $2, $3)`, [g, shared, avatar]);
-      const mine = () => sent.filter(s => s.title === live(g, 'Quizabend'));
+      const mine = () => liveFor(p);
+      const title = pushTexts('livePhotoPrompt', { groupName: 'Quizabend', variant: en.pickLiveVariant(g) })('de').title;
 
       await en.runLivePhotoPrompts({ now: '2027-06-10T20:00:00+02:00', send });   // start + 60 min: the old slot
       await en.runLivePhotoPrompts({ now: '2027-06-10T20:45:00+02:00', send });   // start + 105 min
@@ -3952,7 +3954,7 @@ suite('write endpoints against real Postgres', () => {
       await en.runLivePhotoPrompts({ now: '2027-06-10T21:00:00+02:00', send });   // start + 120 min
       expect(mine()).toHaveLength(1);
       expect(mine()[0]).toMatchObject({
-        ids: [o, p].sort((a, b) => a - b), url: '/explore?share=1', opts: { urgency: 'high', ttl: 3600 },
+        ids: [o, p].sort((a, b) => a - b), title, url: '/explore?share=1', opts: { urgency: 'high', ttl: 3600 },
       });
       await en.runLivePhotoPrompts({ now: '2027-06-10T21:15:00+02:00', send });   // start + 135 min
       expect(mine()).toHaveLength(1);                                              // not twice
@@ -3962,31 +3964,34 @@ suite('write endpoints against real Postgres', () => {
     });
 
     it('live push: never for a date-only meetup, never from start+180 or at night (a 21:00 start gets none, 20:45 its 22:45 tick); a solo creator\'s event only once someone joined', async () => {
-      const o = await mkU('lno'); const p = await mkU('lnp');
+      // One participant per event: that is how a push is told apart from the others'.
+      const o = await mkU('lno');
+      const pAllDay = await mkU('lnp-allday'); const pSolo = await mkU('lnp-solo'); const pMissed = await mkU('lnp-missed');
+      const pLate = await mkU('lnp-late'); const pEdge = await mkU('lnp-edge');
       const allDay = await mkG(o, { name: 'Ganztags', date: '2027-06-12 00:00' });
-      await join(allDay, p);
+      await join(allDay, pAllDay);
       const solo = await mkG(o, { name: 'Allein', date: '2027-06-12 15:00' });
       // Never ticked inside its window — first asked at start+180: too late.
       const missed = await mkG(o, { name: 'Verpasst', date: '2027-06-12 18:00' });
-      await join(missed, p);
+      await join(missed, pMissed);
       // start+120 = 23:00, already the quiet hours — and the window ends at midnight.
       const late = await mkG(o, { name: 'Spät', date: '2027-06-12 21:00' });
-      await join(late, p);
+      await join(late, pLate);
       const edge = await mkG(o, { name: 'Grenzfall', date: '2027-06-12 20:45' });
-      await join(edge, p);
+      await join(edge, pEdge);
       for (const now of ['2027-06-12T01:00:00+02:00', '2027-06-12T10:00:00+02:00', '2027-06-12T17:00:00+02:00',
         '2027-06-12T17:30:00+02:00', '2027-06-12T21:00:00+02:00', '2027-06-12T22:45:00+02:00', '2027-06-12T23:00:00+02:00',
         '2027-06-12T23:45:00+02:00', '2027-06-13T00:30:00+02:00', '2027-06-13T09:00:00+02:00']) {
         await en.runLivePhotoPrompts({ now, send });
       }
-      for (const [g, name] of [[allDay, 'Ganztags'], [solo, 'Allein'], [missed, 'Verpasst'], [late, 'Spät']]) {
-        expect(sent.filter(s => s.title === live(g, name)), name).toHaveLength(0);
+      for (const [u, name] of [[pAllDay, 'Ganztags'], [pSolo, 'Allein'], [pMissed, 'Verpasst'], [pLate, 'Spät']]) {
+        expect(liveFor(u), name).toHaveLength(0);
       }
-      expect(sent.filter(s => s.title === live(edge, 'Grenzfall'))).toHaveLength(1);
+      expect(liveFor(pEdge)).toHaveLength(1);
       // Not claimed while alone → asked again on the next tick, once someone is in.
-      await join(solo, p);
+      await join(solo, pSolo);
       await en.runLivePhotoPrompts({ now: '2027-06-12T17:45:00+02:00', send });
-      expect(sent.filter(s => s.title === live(solo, 'Allein'))).toHaveLength(1);
+      expect(liveFor(pSolo)).toHaveLength(1);
     });
 
     it('live push: a moved event is asked about again on its new date', async () => {
@@ -3994,10 +3999,10 @@ suite('write endpoints against real Postgres', () => {
       const g = await mkG(o, { name: 'Verschoben', date: '2027-06-14 18:00' });
       await join(g, p);
       await en.runLivePhotoPrompts({ now: '2027-06-14T20:00:00+02:00', send });
-      expect(sent.filter(s => s.title === live(g, 'Verschoben'))).toHaveLength(1);
+      expect(liveFor(p)).toHaveLength(1);
       await db.query(`UPDATE groups SET date = '2027-06-21 18:00' WHERE id = $1`, [g]);
       await en.runLivePhotoPrompts({ now: '2027-06-21T20:15:00+02:00', send });
-      expect(sent.filter(s => s.title === live(g, 'Verschoben'))).toHaveLength(2);
+      expect(liveFor(p)).toHaveLength(2);
       const marker = await db.query(
         `SELECT to_char(live_prompt_sent_for, 'YYYY-MM-DD HH24:MI') AS m FROM groups WHERE id = $1`, [g]);
       expect(marker.rows[0].m).toBe('2027-06-21 18:00');

@@ -342,23 +342,40 @@ describe('pushTexts', () => {
   describe('livePhotoPrompt', () => {
     const line = (variant, l) => pushTexts('livePhotoPrompt', { groupName: 'Bowling', variant })(l);
 
-    it('Tina\'s three German lines, the event name in every title', () => {
-      expect(line(0, 'de')).toEqual({ title: "Wie gefällt's dir bei Bowling?", body: 'Schnapp dir ein Foto für deine Memories! 📸' });
-      expect(line(1, 'de')).toEqual({ title: "Na, wie läuft's bei Bowling? 📸", body: 'Halt den Moment fest!' });
-      expect(line(2, 'de')).toEqual({ title: 'Gute Stimmung bei Bowling?', body: "Mach schnell ein Foto, morgen wird's deine Memory ✨" });
+    // Tina's wording (document of 17.11.2026, audit S2-text1..3): her
+    // apostrophe ’ (U+2019), no 📸 on line 1, no event name on line 3. Only
+    // „Wie ist die X?“ became „Wie ist’s bei X?“ (no article fits every name).
+    it('Tina\'s three German lines, character for character', () => {
+      expect(line(0, 'de')).toEqual({ title: 'Wie ist’s bei Bowling?', body: 'Schnapp dir ein Foto für deine Memories!' });
+      expect(line(1, 'de')).toEqual({ title: 'Na, wie läuft’s bei Bowling? 📸', body: 'Halt den Moment fest!' });
+      expect(line(2, 'de')).toEqual({ title: 'Gute Stimmung?', body: 'Mach schnell ein Foto, morgen wird’s deine Memory ✨' });
+      // her apostrophe, never the straight one
+      for (const v of [0, 1, 2]) {
+        const { title, body } = line(v, 'de');
+        expect(`${title} ${body}`, `de ${v}`).not.toContain("'");
+      }
+      expect(line(0, 'de').title.codePointAt('Wie ist'.length)).toBe(0x2019);
     });
 
-    it('three different lines in every language, each naming the event', () => {
+    it('three different lines in every language — lines 1 and 2 name the event, line 3 does not', () => {
       for (const l of ['de', 'en', 'it', 'fr', 'es']) {
         const titles = [0, 1, 2].map((v) => line(v, l).title);
         expect(new Set(titles).size, l).toBe(3);
-        for (const t of titles) expect(t, l).toContain('Bowling');
+        expect(titles[0], l).toContain('Bowling');
+        expect(titles[1], l).toContain('Bowling');
+        expect(titles[2], l).not.toContain('Bowling');
         for (const v of [0, 1, 2]) expect(line(v, l).body, `${l} ${v}`).toBeTruthy();
+        // 📸 only where Tina put it: in the title of line 2
+        expect(line(0, l).title + line(0, l).body, l).not.toContain('📸');
+        expect(line(1, l).title, l).toContain('📸');
+        expect(line(2, l).title + line(2, l).body, l).not.toContain('📸');
       }
-      expect(line(0, 'en')).toEqual({ title: 'Enjoying Bowling?', body: 'Grab a photo for your Memories! 📸' });
+      expect(line(0, 'en')).toEqual({ title: 'Enjoying Bowling?', body: 'Grab a photo for your Memories!' });
       expect(line(1, 'it').title).toBe('Allora, come va a Bowling? 📸');
-      expect(line(2, 'fr').body).toBe('Prends vite une photo, demain ce sera ta Memory ✨');
-      expect(line(2, 'es').title).toBe('¿Buen ambiente en Bowling?');
+      expect(line(2, 'en').title).toBe('Good vibes?');
+      expect(line(2, 'it').title).toBe('Bella atmosfera?');
+      expect(line(2, 'fr')).toEqual({ title: 'Bonne ambiance ?', body: 'Prends vite une photo, demain ce sera ta Memory ✨' });
+      expect(line(2, 'es').title).toBe('¿Buen ambiente?');
     });
 
     it('falls back to German and wraps a variant it does not know instead of sending nothing', () => {

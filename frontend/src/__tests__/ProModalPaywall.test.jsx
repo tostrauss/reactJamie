@@ -232,11 +232,14 @@ describe('ProModal — the web browser sells nothing since 26.10.2026', () => {
     expect(screen.queryByText(/pro\.contextCta/)).toBeNull();
   });
 
-  it('a club\'s own deals (P4 v2): their call-out and row on top — never a deals row in the general list', async () => {
+  // A club's own deals are no Pro feature any more (Tina 17.11.2026: a deal
+  // belongs to an event, the partnership pays for more). The context that
+  // advertised them is gone — an old caller asking for it gets the plain
+  // modal, never a raw key.
+  it('club deals are no Pro context any more: the plain modal, no deals line, no raw key', async () => {
     await renderModal({ feature: 'clubDeals' });
-    expect(screen.getByText('Leg jetzt Deals für deinen Club an!')).toBeTruthy();
-    expect(screen.getByText('Deals für deinen Club anlegen')).toBeTruthy();
-    expect(screen.getByText(/einlösen bleibt für alle gratis/)).toBeTruthy();
+    expect(screen.queryByText('Leg jetzt Deals für deinen Club an!')).toBeNull();
+    expect(screen.queryByText('Deals für deinen Club anlegen')).toBeNull();
     expect(screen.queryByText(/pro\.contextCta|pro\.features/)).toBeNull();
   });
 

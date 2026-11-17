@@ -814,6 +814,11 @@
 .ge-deals-intro {
   margin: -4px 0 12px;
 }
+/* The switch „Automatisierte Nachrichten“ under the event's deal
+   (EventDealEditor, Tina 17.11.2026). */
+.ge-event-auto {
+  margin-top: 14px;
+}
 
 .ge-deal-row {
   display: flex;

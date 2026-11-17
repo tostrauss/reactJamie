@@ -127,32 +127,35 @@ const reportAdminTexts = () => Object.fromEntries(
 const reminderBody = (p, l) => dots(p.time, GOING[l](p.count), p.location);
 
 // The three lines of the push WHILE an event runs (livePhotoPrompt below), in
-// Tina's order. A variant outside 0–2 wraps instead of sending nothing.
+// Tina's order and — since 17.11.2026 (audit S2-text1..3) — in her wording:
+// her apostrophe (’, U+2019), no 📸 she did not write, and line 3 without the
+// event's name, like hers. A variant outside 0–2 wraps instead of sending
+// nothing.
 const LIVE_PHOTO_LINES = {
   de: [
-    (n) => ({ title: `Wie gefällt's dir bei ${n}?`, body: 'Schnapp dir ein Foto für deine Memories! 📸' }),
-    (n) => ({ title: `Na, wie läuft's bei ${n}? 📸`, body: 'Halt den Moment fest!' }),
-    (n) => ({ title: `Gute Stimmung bei ${n}?`, body: "Mach schnell ein Foto, morgen wird's deine Memory ✨" }),
+    (n) => ({ title: `Wie ist’s bei ${n}?`, body: 'Schnapp dir ein Foto für deine Memories!' }),
+    (n) => ({ title: `Na, wie läuft’s bei ${n}? 📸`, body: 'Halt den Moment fest!' }),
+    () => ({ title: 'Gute Stimmung?', body: 'Mach schnell ein Foto, morgen wird’s deine Memory ✨' }),
   ],
   en: [
-    (n) => ({ title: `Enjoying ${n}?`, body: 'Grab a photo for your Memories! 📸' }),
+    (n) => ({ title: `Enjoying ${n}?`, body: 'Grab a photo for your Memories!' }),
     (n) => ({ title: `So, how's ${n} going? 📸`, body: 'Capture the moment!' }),
-    (n) => ({ title: `Good vibes at ${n}?`, body: 'Snap a quick photo – tomorrow it becomes your Memory ✨' }),
+    () => ({ title: 'Good vibes?', body: 'Snap a quick photo – tomorrow it becomes your Memory ✨' }),
   ],
   it: [
-    (n) => ({ title: `Ti stai divertendo a ${n}?`, body: 'Scatta una foto per le tue Memories! 📸' }),
+    (n) => ({ title: `Ti stai divertendo a ${n}?`, body: 'Scatta una foto per le tue Memories!' }),
     (n) => ({ title: `Allora, come va a ${n}? 📸`, body: 'Immortala il momento!' }),
-    (n) => ({ title: `Bella atmosfera a ${n}?`, body: 'Scatta subito una foto, domani diventerà la tua Memory ✨' }),
+    () => ({ title: 'Bella atmosfera?', body: 'Scatta subito una foto, domani diventerà la tua Memory ✨' }),
   ],
   fr: [
-    (n) => ({ title: `Ça te plaît, ${n} ?`, body: 'Prends une photo pour tes Memories ! 📸' }),
+    (n) => ({ title: `Ça te plaît, ${n} ?`, body: 'Prends une photo pour tes Memories !' }),
     (n) => ({ title: `Alors, comment ça se passe à ${n} ? 📸`, body: 'Immortalise le moment !' }),
-    (n) => ({ title: `Bonne ambiance à ${n} ?`, body: 'Prends vite une photo, demain ce sera ta Memory ✨' }),
+    () => ({ title: 'Bonne ambiance ?', body: 'Prends vite une photo, demain ce sera ta Memory ✨' }),
   ],
   es: [
-    (n) => ({ title: `¿Qué tal lo pasas en ${n}?`, body: '¡Haz una foto para tus Memories! 📸' }),
+    (n) => ({ title: `¿Qué tal lo pasas en ${n}?`, body: '¡Haz una foto para tus Memories!' }),
     (n) => ({ title: `¿Qué tal va ${n}? 📸`, body: '¡Captura el momento!' }),
-    (n) => ({ title: `¿Buen ambiente en ${n}?`, body: 'Haz una foto rápida, mañana será tu Memory ✨' }),
+    () => ({ title: '¿Buen ambiente?', body: 'Haz una foto rápida, mañana será tu Memory ✨' }),
   ],
 };
 const livePhotoLine = (p, l) => {
@@ -436,8 +439,11 @@ const PUSH_TEXTS = {
   // WHILE the event runs (S2, Tina 16.11.2026): one push per event, one of her
   // three lines — `variant` (0–2) is picked per event by the job
   // (engagementNudges.js pickLiveVariant), so everybody at one event reads the
-  // same line. The name moved into the title: her „Wie ist die …?“ needed an
-  // article no free event name can promise, and line 3 named no event at all.
+  // same line. Her wording (17.11.2026, audit S2-text1..3) with one change:
+  // „Wie ist die …?“ needs an article no free event name can promise („der
+  // Spieleabend“), so line 1 reads „Wie ist’s bei …?“ — her own „bei“ from
+  // line 2. The name stands in lines 1 and 2 only; line 3 names no event,
+  // like hers.
   livePhotoPrompt: {
     de: (p) => livePhotoLine(p, 'de'),
     en: (p) => livePhotoLine(p, 'en'),

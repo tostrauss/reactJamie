@@ -6,8 +6,7 @@ import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { UserName } from '../components/UserName';
 import { ImageCropModal } from '../components/ImageCropModal';
-import ClubDealsSection from '../components/ClubDealsSection';
-import EventDealPicker from '../components/EventDealPicker';
+import EventDealEditor from '../components/EventDealEditor';
 import { CATEGORY_HIERARCHY } from '../utils/categories';
 import { shareLink } from '../utils/share';
 import '../styles/group-edit.css';
@@ -842,15 +841,14 @@ export const GroupEdit = () => {
           </div>
         </section>
 
-        {/* ── Deals (P4 v2, Tina/Tobi 16.11.2026) ── A live official club's
-            own deals, put up with JAMIE Pro; and on an event the club put up
-            itself (☆ Partner), one of them hung on it. Communities get none. */}
-        {isClub && group?.club_type === 'official' && group?.approval_status === 'approved'
-          && group?.is_active !== false && (
-          <ClubDealsSection clubId={group.id} clubName={group.name} />
-        )}
-        {isEvent && group?.parent_club_id && group?.is_partner && (
-          <EventDealPicker clubId={group.parent_club_id} eventId={group.id} shownDeal={group.deal} />
+        {/* ── Deal am Event (Tina 17.11.2026) ── ONE deal per club event, put
+            up in the event form or here, plus the switch „Automatisierte
+            Nachrichten“. The section asks the server whether it is for this
+            viewer (the people who run an official club) and renders nothing
+            otherwise. A club's own page has no deal section any more: a
+            club's deal only ever shows at its event. */}
+        {isEvent && group?.parent_club_id && (
+          <EventDealEditor clubId={group.parent_club_id} eventId={group.id} eventDate={formData.date} />
         )}
 
         {/* ── Gruppe / Event teilen ── */}
