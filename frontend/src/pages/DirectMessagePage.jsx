@@ -25,6 +25,7 @@ import useSwipeBack from '../hooks/useSwipeBack';
 import { dropVanished, quoteIdOf } from '../utils/chatMerge';
 import { linkifyText } from '../utils/linkify';
 import { copyText } from '../utils/clipboard';
+import ReconnectBanner from '../components/ReconnectBanner';
 import '../styles/chat.css';
 
 export const DirectMessagePage = () => {
@@ -519,12 +520,9 @@ export const DirectMessagePage = () => {
         )}
       </header>
 
-      {/* Reconnection Banner */}
-      {!isConnected && (
-        <div className="reconnect-banner">
-          {t('chat.shared.reconnectBanner')}
-        </div>
-      )}
+      {/* Reconnection Banner. Swipes up or taps away, for this disconnect
+          only (ReconnectBanner). */}
+      {!isConnected && <ReconnectBanner />}
 
       <div className="messages-container" ref={messagesContainerRef}>
         {messagesList.length === 0 && (

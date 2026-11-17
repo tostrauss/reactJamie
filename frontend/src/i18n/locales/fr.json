@@ -830,7 +830,8 @@
   },
   "chat": {
     "shared": {
-      "reconnectBanner": "Connexion interrompue – reconnexion..."
+      "reconnectBanner": "Connexion interrompue – reconnexion...",
+      "reconnectHide": "Masquer l’avis « Connexion interrompue »"
     },
     "day": {
       "today": "Aujourd'hui",

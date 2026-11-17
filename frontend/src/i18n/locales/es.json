@@ -830,7 +830,8 @@
   },
   "chat": {
     "shared": {
-      "reconnectBanner": "Conexión interrumpida – reconectando..."
+      "reconnectBanner": "Conexión interrumpida – reconectando...",
+      "reconnectHide": "Ocultar el aviso «Conexión interrumpida»"
     },
     "day": {
       "today": "Hoy",

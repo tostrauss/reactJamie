@@ -830,7 +830,8 @@
   },
   "chat": {
     "shared": {
-      "reconnectBanner": "Connection lost — reconnecting…"
+      "reconnectBanner": "Connection lost — reconnecting…",
+      "reconnectHide": "Hide “Connection lost” notice"
     },
     "day": {
       "today": "Today",

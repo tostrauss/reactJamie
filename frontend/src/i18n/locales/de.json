@@ -830,7 +830,8 @@
   },
   "chat": {
     "shared": {
-      "reconnectBanner": "Verbindung unterbrochen – Wiederverbindung..."
+      "reconnectBanner": "Verbindung unterbrochen – Wiederverbindung...",
+      "reconnectHide": "Hinweis „Verbindung unterbrochen“ ausblenden"
     },
     "day": {
       "today": "Heute",

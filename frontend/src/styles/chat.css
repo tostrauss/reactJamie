@@ -1085,6 +1085,10 @@
   padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
   background: var(--bg-secondary);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  /* One layer above the reconnect banner right under it: swiped up, the
+     banner slides away UNDER the header, not across the back arrow and name. */
+  position: relative;
+  z-index: 1;
 }
 
 .back-button {
@@ -1461,8 +1465,13 @@
   background: var(--bg-input);
   cursor: not-allowed;
 }
-/* Reconnection Banner */
+/* Reconnection Banner — swipes up or taps away (components/ReconnectBanner.jsx,
+   Tina 17.11.2026). touch-action: none, else Android Chrome claims the
+   vertical pan and cancels the pointer mid-swipe (hooks/useSwipeDismiss.js);
+   z-index 0 under the header's 1, so it leaves beneath it. */
 .reconnect-banner {
+  position: relative;
+  z-index: 0;
   background: rgba(255, 107, 107, 0.15);
   border-bottom: 1px solid rgba(255, 107, 107, 0.35);
   padding: 8px 16px;
@@ -1470,6 +1479,15 @@
   color: #ff6b6b;
   font-size: 13px;
   font-weight: 500;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.reconnect-banner:focus-visible {
+  outline: 2px solid #ff6b6b;
+  outline-offset: -2px;
 }
 
 /* Permission Banner for Club Restrictions */

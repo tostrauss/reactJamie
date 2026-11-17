@@ -29,6 +29,7 @@ import { usePollVotes } from '../hooks/usePollVotes';
 import { isRenderablePoll, mergePoll } from '../utils/polls';
 import { linkifyText } from '../utils/linkify';
 import { copyText } from '../utils/clipboard';
+import ReconnectBanner from '../components/ReconnectBanner';
 import '../styles/chat.css';
 
 // The sender's profile picture beside a received group message, like
@@ -757,12 +758,9 @@ export const ChatPage = () => {
         )}
       </div>
 
-      {/* Reconnection Banner — only after 3s sustained disconnect */}
-      {showReconnectBanner && (
-        <div className="reconnect-banner">
-          {t('chat.shared.reconnectBanner')}
-        </div>
-      )}
+      {/* Reconnection Banner — only after 3s sustained disconnect. Swipes up
+          or taps away, for this disconnect only (ReconnectBanner). */}
+      {showReconnectBanner && <ReconnectBanner />}
 
       {/* Permission Banner */}
       {!canSendMessages && (
