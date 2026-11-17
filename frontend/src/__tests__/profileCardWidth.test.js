@@ -46,6 +46,15 @@ describe('profile cards are as wide as „Über Dich!"', () => {
   it('.profile-hub hides itself when it is empty', () => {
     expect(block(profileCss, '.profile-hub:empty').display).toBe('none');
   });
+
+  // Tina 17.11.2026 (Bild 5): „Das ist nicht ganz breit wie man sieht.
+  // Sollten alle gleich breit sein.“ — the masonry's own 20px side padding
+  // (global.css, for UserProfile) came on top of the section's 24px.
+  it('the Pinnwand tiles too: no side padding of their own in the own profile', () => {
+    const pinnwand = block(profileCss, '.profile-tab-content .pinnwand-masonry');
+    expect(pinnwand['padding-left']).toBe('0');
+    expect(pinnwand['padding-right']).toBe('0');
+  });
 });
 
 // „Clubs & Communities“ as in Tina's mock (p. 3, 17.11.2026): the photo 50px,

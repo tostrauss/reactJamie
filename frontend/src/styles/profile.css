@@ -408,6 +408,16 @@
   background: var(--accent-coral);
 }
 
+/* Own profile: the Pinnwand tiles are as wide as the cards above them (Tina
+   17.11.2026: „Das ist nicht ganz breit … Sollten alle gleich breit sein").
+   The masonry brings its own 20px side padding (global.css — UserProfile
+   needs it, its wrapper has none) — here that came on top of
+   .profile-info-section's 24px, so the tiles began 20px further in. */
+.profile-tab-content .pinnwand-masonry {
+  padding-left: 0;
+  padding-right: 0;
+}
+
 /* Pinnwand Grid */
 .pinnwand-grid {
   display: grid;
