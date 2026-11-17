@@ -157,6 +157,41 @@ describe('ProfileUpcomingEvents — the list', () => {
     expect(within(item('Wiener Stammtisch')).getByText('Community')).toBeTruthy();
   });
 
+  // Audit PU-20: an official club's event that is no partner event used to
+  // read „Community“ — a member's event there, or one of a club in review.
+  it('an event of an official club that is no partner event reads „Club · x/y“ — no star', async () => {
+    await renderUpcoming([row(47, 'Mitglieder-Abend', {
+      type: 'event', date: '2026-11-19T19:00:00.000Z', next_at: '2026-11-19T19:00:00.000Z',
+      parent_club_id: 7, club_name: 'Café Soleá', parent_club_type: 'official', kind: 'club',
+      members_count: 4, max_members: 12,
+    })]);
+    const sub = item('Mitglieder-Abend').querySelector('.profile-upcoming-sub');
+    expect(sub.querySelector('.partner-badge')).toBeNull();
+    expect(within(sub).getByText('Club')).toBeTruthy();
+    expect(within(sub).getByText('· 4/12')).toBeTruthy();
+    expect(within(sub).queryByText('Community')).toBeNull();
+  });
+
+  it('a server without `kind`: the parent club\'s type decides between „Club“ and „Community“', async () => {
+    const ev = (id, name, over) => {
+      const copy = row(id, name, {
+        type: 'event', date: '2026-11-19T19:00:00.000Z', next_at: '2026-11-19T19:00:00.000Z', parent_club_id: 7, ...over,
+      });
+      delete copy.kind;
+      return copy;
+    };
+    await renderUpcoming([
+      ev(48, 'Clubabend', { parent_club_type: 'official' }),
+      ev(49, 'Communitylauf', { parent_club_type: 'community' }),
+      ev(50, 'Altbestand', { parent_club_type: null }),
+    ]);
+    expect(within(item('Clubabend')).getByText('Club')).toBeTruthy();
+    expect(within(item('Communitylauf')).getByText('Community')).toBeTruthy();
+    expect(within(item('Altbestand')).getByText('Community')).toBeTruthy();   // NULL counts as community
+    // …and the partner flag still wins over the type.
+    expect(item('Clubabend').querySelector('.partner-badge')).toBeNull();
+  });
+
   it('own entries framed yellow and named as own for screen readers — the others not', async () => {
     await renderUpcoming();
     fireEvent.click(screen.getByRole('button', { name: 'Alle anzeigen (5)' }));

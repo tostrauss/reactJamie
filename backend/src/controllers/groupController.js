@@ -2120,13 +2120,19 @@ export const getUserGroups = async (req, res) => {
 //     updateClubEvent also the club's owner and co-managers (role 'admin'), the
 //     same people getGroupById's is_manager names, without the club's approval.
 //   - is_partner: utils/clubGate.js partnerSql, the one rule of feed and event
-//     page. kind for the subline: 'partner' („☆ Partner“), every other club
-//     event 'community' (also a regular member's event in an official club —
-//     not the club's own), a meetup 'group'.
+//     page. kind for the subline: 'partner' („☆ Partner“); any other event of
+//     an OFFICIAL club 'club' („Club · 8/20“, no star) — a regular member's
+//     event there, every event of an official club still in review, and every
+//     event of an official club that is no partner; an event of a community
+//     'community' (parent_club_type NULL counts as community, like
+//     RequestCard); a meetup 'group'. Audit PU-20: a club's event used to read
+//     „Community“. App bundles from before 17.11.2026 do not know 'club' and
+//     fall back to „Gruppe“.
 //   - pending_request_count: open requests, own entries only (the coral counter).
 // Page first, decorate second (getGroups): the per-row lookups run for at
 // most 30 rows, never for every past membership.
-export const upcomingKind = (row) => (row.is_partner ? 'partner' : row.type === 'event' ? 'community' : 'group');
+export const upcomingKind = (row) => (row.is_partner ? 'partner'
+  : row.type === 'event' ? (row.parent_club_type === 'official' ? 'club' : 'community') : 'group');
 
 export const getMyUpcomingEvents = async (req, res) => {
   try {
@@ -2153,7 +2159,7 @@ export const getMyUpcomingEvents = async (req, res) => {
        )
        SELECT g.id, g.name, g.type, g.date, page.next_at, g.is_recurring_weekly,
               g.image_url, g.location, g.members_count, g.max_members,
-              g.parent_club_id, pc.name AS club_name,
+              g.parent_club_id, pc.name AS club_name, pc.club_type AS parent_club_type,
               (g.owner_id = $1) AS is_own,
               (g.owner_id = $1
                OR (g.type = 'event' AND g.parent_club_id IS NOT NULL

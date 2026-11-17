@@ -1141,6 +1141,7 @@
       "editHint": "Tippe auf ein Event, um es zu bearbeiten.",
       "typeGroup": "Gruppe",
       "typeCommunity": "Community",
+      "typeClub": "Club",
       "toChat": "Zum Chat",
       "chatAria": "Zum Chat von „{{name}}“",
       "editAria": "„{{name}}“ bearbeiten",

@@ -41,27 +41,43 @@ beforeEach(() => {
   queries.length = 0;
 });
 
-describe('upcomingKind (the subline: „☆ Partner“ | „Community“ | „Gruppe“)', () => {
+describe('upcomingKind (the subline: „☆ Partner“ | „Club“ | „Community“ | „Gruppe“)', () => {
   it('partner wins, any other club event is a community one, a meetup a group', () => {
     expect(upcomingKind({ type: 'event', is_partner: true })).toBe('partner');
     expect(upcomingKind({ type: 'event', is_partner: false })).toBe('community');
     expect(upcomingKind({ type: 'group', is_partner: false })).toBe('group');
+  });
+
+  // Audit PU-20: a club's event that is no partner event used to read
+  // „Community“ — a member's event in an official club, or any event of an
+  // official club still in review.
+  it('an event of an OFFICIAL club that is no partner event is a club one — NULL counts as community', () => {
+    expect(upcomingKind({ type: 'event', is_partner: false, parent_club_type: 'official' })).toBe('club');
+    expect(upcomingKind({ type: 'event', is_partner: false, parent_club_type: 'community' })).toBe('community');
+    expect(upcomingKind({ type: 'event', is_partner: false, parent_club_type: null })).toBe('community');
+    // The partner flag still wins, and a meetup is never a club's.
+    expect(upcomingKind({ type: 'event', is_partner: true, parent_club_type: 'official' })).toBe('partner');
+    expect(upcomingKind({ type: 'group', is_partner: false, parent_club_type: 'official' })).toBe('group');
   });
 });
 
 describe('GET /api/groups/user/upcoming (getMyUpcomingEvents)', () => {
   it('one query for the caller, every row with its kind', async () => {
     scenario.rows = [
-      { id: 1, type: 'event', is_partner: true },
-      { id: 2, type: 'event', is_partner: false },
-      { id: 3, type: 'group', is_partner: false },
+      { id: 1, type: 'event', is_partner: true, parent_club_type: 'official' },
+      { id: 2, type: 'event', is_partner: false, parent_club_type: null },
+      { id: 3, type: 'group', is_partner: false, parent_club_type: null },
+      { id: 4, type: 'event', is_partner: false, parent_club_type: 'official' },
     ];
     const res = makeRes();
     await getMyUpcomingEvents({ userId: 7 }, res);
     expect(res.statusCode).toBe(200);
-    expect(res.body.map((r) => r.kind)).toEqual(['partner', 'community', 'group']);
+    expect(res.body.map((r) => r.kind)).toEqual(['partner', 'community', 'group', 'club']);
     expect(queries).toHaveLength(1);
     expect(queries[0].params).toEqual([7]);
+    // The kind's input travels along: the parent club's type (additive field).
+    expect(queries[0].text).toContain('pc.club_type AS parent_club_type');
+    expect(res.body[3].parent_club_type).toBe('official');
   });
 
   it('memberships only, still happening, its parent club alive — but its approval is no condition', async () => {

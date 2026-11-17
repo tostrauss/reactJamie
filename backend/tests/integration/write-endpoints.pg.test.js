@@ -6399,12 +6399,14 @@ suite('write endpoints against real Postgres', () => {
         is_partner: true, kind: 'partner', can_edit: false, club_name: 'Up Partner-Club',
         members_count: 2, max_members: 20, parent_club_id: E.official,
       });
-      // a regular member's event in an official club is not the club's own
-      expect(rows[E.memberEvent]).toMatchObject({ is_partner: false, kind: 'community', can_edit: false });
+      // a regular member's event in an official club is not the club's own —
+      // no star, but it IS a club's event: „Club · x/y“ (audit PU-20)
+      expect(rows[E.memberEvent]).toMatchObject({ is_partner: false, kind: 'club', can_edit: false, parent_club_type: 'official' });
       // co-manager of the club → may edit its events (updateClubEvent's rule)
       expect(rows[E.community]).toMatchObject({ is_own: false, can_edit: true, kind: 'community' });
-      // a founder's pending club hides nothing from them
-      expect(rows[E.inPending]).toMatchObject({ is_own: true, can_edit: true });
+      // a founder's pending club hides nothing from them — and its event is
+      // a club's too, not yet a partner's
+      expect(rows[E.inPending]).toMatchObject({ is_own: true, can_edit: true, kind: 'club', is_partner: false });
       expect(rows[E.undated].next_at).toBeNull();
     });
   });

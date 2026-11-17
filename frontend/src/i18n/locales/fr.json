@@ -1141,6 +1141,7 @@
       "editHint": "Touche un événement pour le modifier.",
       "typeGroup": "Groupe",
       "typeCommunity": "Communauté",
+      "typeClub": "Club",
       "toChat": "Ouvrir le chat",
       "chatAria": "Ouvrir le chat de « {{name}} »",
       "editAria": "Modifier « {{name}} »",

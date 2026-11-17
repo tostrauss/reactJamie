@@ -1141,6 +1141,7 @@
       "editHint": "Tap an event to edit it.",
       "typeGroup": "Group",
       "typeCommunity": "Community",
+      "typeClub": "Club",
       "toChat": "Open chat",
       "chatAria": "Open the chat of “{{name}}”",
       "editAria": "Edit “{{name}}”",
