@@ -2600,7 +2600,9 @@
       "save": "Speichern",
       "saved": "Gespeichert",
       "saveError": "Konnte nicht gespeichert werden",
-      "empty": "Keine Clubs gefunden."
+      "empty": "Keine Clubs gefunden.",
+      "paidPartner": "Zahlender Partner",
+      "paidPartnerHint": "Gelber Rahmen, ☆ Partner und ✓ – ohne Grenze für Events und Deals"
     },
     "featuredClubs": {
       "title": "Clubs im Onboarding",
@@ -2816,6 +2818,18 @@
       "deleteClub": "Club entfernen",
       "confirmDeleteGroup": "„{{name}}\" entfernen? Sie verschwindet für alle Mitglieder. Chat und Historie bleiben als Beleg erhalten.",
       "toReceiver": "an {{name}}"
+    },
+    "partnerLeads": {
+      "title": "Partner-Anfragen",
+      "empty": "Noch keine Partner-Anfragen.",
+      "contactMail": "per Mail",
+      "contactCall": "per Anruf",
+      "source": {
+        "concurrent": "Nachricht 1 · 2. Event gleichzeitig",
+        "third": "Nachricht 2 · 3. Event",
+        "ticket": "Ticket-Event",
+        "deal": "Deal"
+      }
     }
   },
   "imageUpload": {

@@ -124,4 +124,72 @@ describe('AdminClassifySection', () => {
     const { container } = render(<AdminClassifySection />);
     await waitFor(() => expect(container.querySelector('section')).toBeNull());
   });
+
+  // „Zahlender Partner“ (Tina 17.11.2026, decided by Tobi): the mark behind
+  // the yellow frame, „☆ Partner“ and ✓ — and what lifts the free tier.
+  const paidSwitch = (container) => container.querySelector('input[type="checkbox"]');
+
+  it('shows the „Zahlender Partner“ switch only for an official club', async () => {
+    const community = await renderLoaded([row(1, 'Lauftreff', { is_paid_partner: false })]);
+    expect(paidSwitch(community.container)).toBeNull();
+    community.unmount();
+
+    const official = await renderLoaded([row(2, 'Café Soleá', { club_type: 'official', is_paid_partner: true })]);
+    const box = paidSwitch(official.container);
+    expect(box.checked).toBe(true);
+    expect(box.closest('label').textContent).toBe('admin.classify.paidPartner');
+    official.getByText('admin.classify.paidPartnerHint');
+  });
+
+  it('one tap sends is_paid_partner and shows what the server stored', async () => {
+    const { container } = await renderLoaded([row(2, 'Café Soleá', { club_type: 'official', is_paid_partner: false })]);
+    expect(paidSwitch(container).checked).toBe(false);
+    vi.mocked(admin.classifyClub).mockResolvedValue({
+      data: { club: { id: 2, club_type: 'official', category_label: null, is_paid_partner: true } },
+    });
+    fireEvent.click(paidSwitch(container));
+    await waitFor(() => expect(admin.classifyClub).toHaveBeenCalledWith(2, { is_paid_partner: true }));
+    await waitFor(() => expect(paidSwitch(container).checked).toBe(true));
+
+    // …and off again; the type buttons keep sending only the type.
+    vi.mocked(admin.classifyClub).mockResolvedValue({
+      data: { club: { id: 2, club_type: 'official', category_label: null, is_paid_partner: false } },
+    });
+    fireEvent.click(paidSwitch(container));
+    await waitFor(() => expect(admin.classifyClub).toHaveBeenLastCalledWith(2, { is_paid_partner: false }));
+    await waitFor(() => expect(paidSwitch(container).checked).toBe(false));
+  });
+
+  it('a refused switch stays where it was and says why', async () => {
+    const { container, getByText } = await renderLoaded([row(2, 'Café Soleá', { club_type: 'official', is_paid_partner: false })]);
+    vi.mocked(admin.classifyClub).mockRejectedValue(httpError(500));
+    fireEvent.click(paidSwitch(container));
+    await waitFor(() => expect(getByText('admin.classify.saveError')).toBeTruthy());
+    expect(paidSwitch(container).checked).toBe(false);
+  });
+
+  // A server older than this bundle lists clubs without the field: no switch
+  // that would promise something the server cannot store — also not after a
+  // save whose answer does not carry it.
+  it('no switch when the server does not send the field', async () => {
+    const { container } = await renderLoaded([row(2, 'Café Soleá', { club_type: 'official' })]);
+    expect(paidSwitch(container)).toBeNull();
+    vi.mocked(admin.classifyClub).mockResolvedValue({
+      data: { club: { id: 2, club_type: 'community', category_label: null } },
+    });
+    fireEvent.click(typeButtons(container)[0]);
+    await waitFor(() => expect(typeButtons(container)[0].getAttribute('aria-pressed')).toBe('true'));
+    expect(paidSwitch(container)).toBeNull();
+  });
+
+  it('upgrading a community to Club brings the switch with the server’s value', async () => {
+    const { container } = await renderLoaded([row(1, 'Laufclub Prater', { is_paid_partner: false })]);
+    expect(paidSwitch(container)).toBeNull();
+    vi.mocked(admin.classifyClub).mockResolvedValue({
+      data: { club: { id: 1, club_type: 'official', category_label: null, is_paid_partner: false } },
+    });
+    fireEvent.click(typeButtons(container)[1]);
+    await waitFor(() => expect(paidSwitch(container)).toBeTruthy());
+    expect(paidSwitch(container).checked).toBe(false);
+  });
 });

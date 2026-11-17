@@ -2600,7 +2600,9 @@
       "save": "Enregistrer",
       "saved": "Enregistré",
       "saveError": "Enregistrement impossible",
-      "empty": "Aucun club trouvé."
+      "empty": "Aucun club trouvé.",
+      "paidPartner": "Partenaire payant",
+      "paidPartnerHint": "Cadre jaune, ☆ Partner et ✓ – sans limite pour les événements et les deals"
     },
     "featuredClubs": {
       "title": "Clubs dans l'onboarding",
@@ -2816,6 +2818,18 @@
       "deleteClub": "Retirer le club",
       "confirmDeleteGroup": "Retirer « {{name}} » ? Il disparaît pour tous les membres. Le chat et l’historique sont conservés comme preuve.",
       "toReceiver": "à {{name}}"
+    },
+    "partnerLeads": {
+      "title": "Demandes de partenariat",
+      "empty": "Aucune demande de partenariat pour l’instant.",
+      "contactMail": "par e-mail",
+      "contactCall": "par téléphone",
+      "source": {
+        "concurrent": "Message 1 · 2e événement en même temps",
+        "third": "Message 2 · 3e événement",
+        "ticket": "Événement avec billet",
+        "deal": "Deal"
+      }
     }
   },
   "imageUpload": {

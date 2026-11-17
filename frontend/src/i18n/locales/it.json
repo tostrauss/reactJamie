@@ -2600,7 +2600,9 @@
       "save": "Salva",
       "saved": "Salvato",
       "saveError": "Salvataggio non riuscito",
-      "empty": "Nessun club trovato."
+      "empty": "Nessun club trovato.",
+      "paidPartner": "Partner pagante",
+      "paidPartnerHint": "Cornice gialla, ☆ Partner e ✓ – senza limiti per eventi e deal"
     },
     "featuredClubs": {
       "title": "Club nell'onboarding",
@@ -2816,6 +2818,18 @@
       "deleteClub": "Rimuovi club",
       "confirmDeleteGroup": "Rimuovere \"{{name}}\"? Sparirà per tutti i membri. Chat e cronologia restano come prova.",
       "toReceiver": "a {{name}}"
+    },
+    "partnerLeads": {
+      "title": "Richieste partner",
+      "empty": "Ancora nessuna richiesta partner.",
+      "contactMail": "via e-mail",
+      "contactCall": "per telefono",
+      "source": {
+        "concurrent": "Messaggio 1 · 2º evento in contemporanea",
+        "third": "Messaggio 2 · 3º evento",
+        "ticket": "Evento con biglietto",
+        "deal": "Deal"
+      }
     }
   },
   "imageUpload": {

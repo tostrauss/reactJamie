@@ -2600,7 +2600,9 @@
       "save": "Save",
       "saved": "Saved",
       "saveError": "Could not be saved",
-      "empty": "No clubs found."
+      "empty": "No clubs found.",
+      "paidPartner": "Paying partner",
+      "paidPartnerHint": "Yellow frame, ☆ Partner and ✓ – no limit on events and deals"
     },
     "featuredClubs": {
       "title": "Clubs in onboarding",
@@ -2816,6 +2818,18 @@
       "deleteClub": "Remove club",
       "confirmDeleteGroup": "Remove \"{{name}}\"? It disappears for every member. Chat and history are kept as evidence.",
       "toReceiver": "to {{name}}"
+    },
+    "partnerLeads": {
+      "title": "Partner requests",
+      "empty": "No partner requests yet.",
+      "contactMail": "by email",
+      "contactCall": "by phone",
+      "source": {
+        "concurrent": "Message 1 · 2nd event at the same time",
+        "third": "Message 2 · 3rd event",
+        "ticket": "Ticket event",
+        "deal": "Deal"
+      }
     }
   },
   "imageUpload": {
