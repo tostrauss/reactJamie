@@ -837,13 +837,15 @@ const CLUB_DEALS_UNAVAILABLE = {
   code: 'CLUB_DEALS_UNAVAILABLE',
 };
 
-// At most CLUB_DEAL_MAX_LIVE of a club's deals show at a time (review
+// At most CLUB_DEAL_MAX_LIVE of a club's deals are live at a time (review
 // 16.11.2026): getDeals has no place or club filter and puts the newest
 // first, so one club with Pro and a script could fill the deals of every
-// city — each one a moderation and a geocoding call besides. Live = what the
-// feed shows: active and not past visible_until. A club makes room by
-// deleting one or letting it run out; an edit counts only when it brings an
-// expired deal back.
+// city — each one a moderation and a geocoding call besides. Live = active
+// and not past visible_until, which is more than the feed shows: a one-time
+// deal at its redemption cap drops out of the feed (getDeals) but keeps its
+// slot — the club's list shows it dimmed, „Limit erreicht“ — until it is
+// deleted or runs out. A club makes room by deleting one or letting it run
+// out; an edit counts only when it brings an expired deal back.
 export const CLUB_DEAL_MAX_LIVE = 3;
 
 const CLUB_DEAL_LIMIT = {

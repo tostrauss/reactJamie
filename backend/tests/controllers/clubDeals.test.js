@@ -361,10 +361,12 @@ describe(`at most ${CLUB_DEAL_MAX_LIVE} live deals per club`, () => {
     expect(textMock).not.toHaveBeenCalled();
     expect(geoMock).not.toHaveBeenCalled();
     expect(inserts()).toHaveLength(0);
-    // live = what the feed shows: active, not past its end date
+    // live: active, not past its end date — a one-time deal at its cap, which
+    // the feed hides, counts too
     expect(counts()[0].params).toEqual([7, null]);
     expect(counts()[0].text).toContain('WHERE club_id = $1 AND is_active = TRUE');
     expect(counts()[0].text).toContain('(visible_until IS NULL OR visible_until > NOW())');
+    expect(counts()[0].text).not.toContain('deal_redemptions');
   });
 
   it('below it: counted again under a lock on the club\'s row, in one transaction with the INSERT', async () => {
