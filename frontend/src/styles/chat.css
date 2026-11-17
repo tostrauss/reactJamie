@@ -210,57 +210,6 @@
   padding: 0 20px 20px;
 }
 
-/* ── Pro banner ── */
-.pro-banner {
-  margin: 16px 0;
-  padding: 24px 20px;
-  border-radius: 20px;
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(255, 140, 0, 0.06));
-  border: 1px solid rgba(255, 215, 0, 0.25);
-  text-align: center;
-}
-
-.pro-banner-icon {
-  font-size: 32px;
-  margin-bottom: 10px;
-}
-
-.pro-banner-title {
-  color: #FFD700;
-  font-weight: 800;
-  font-size: 17px;
-  margin-bottom: 8px;
-}
-
-.pro-banner-text {
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 13px;
-  line-height: 1.6;
-  margin-bottom: 16px;
-}
-
-.pro-banner-btn {
-  padding: 13px 28px;
-  border-radius: 14px;
-  border: none;
-  background: linear-gradient(135deg, #FFD700, #FFAA00);
-  color: #1a1100;
-  font-weight: 800;
-  font-size: 14px;
-  font-family: inherit;
-  cursor: pointer;
-  min-height: 48px;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-  box-shadow: 0 6px 20px rgba(255, 215, 0, 0.3);
-  transition: opacity 0.15s, transform 0.15s;
-}
-
-.pro-banner-btn:active {
-  transform: scale(0.97);
-  opacity: 0.9;
-}
-
 /* chat-time link variant */
 .chat-time--link {
   color: var(--accent-coral);
@@ -643,7 +592,8 @@
   min-height: 0;
 }
 
-/* Swipeable request card (shared with GroupRequests page + modal) */
+/* Swipeable request card — only the Anfragen deck in ChatList uses these
+   classes (the overview page /group/:id/requests draws its own rows). */
 .request-card-wrapper {
   position: relative;
   width: 100%;
@@ -653,8 +603,11 @@
 
 .swipe-indicator {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  /* At the top of the photo, right under the type band (2px frame + 70px band
+     + 1px line = 73px) — like a stamp. Centred on the card (top: 50%) it lay
+     on the Abzeichen-Pill (bottom left of the photo) and on the seal (bottom
+     right) as soon as it moved inside the card. */
+  top: 84px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -664,6 +617,8 @@
   opacity: 0;
   transition: opacity 0.2s;
   z-index: 10;
+  /* Never in the way of the card's own taps (profile link) or the drag. */
+  pointer-events: none;
 }
 
 .swipe-indicator span:first-child {
@@ -676,11 +631,28 @@
   font-size: 28px;
 }
 
-.swipe-accept { right: -20px; color: var(--accent-green); }
+/* The indicators ride INSIDE the card, on the side that stays on screen: the
+   wrapper moves with the finger, so ✓ on its right edge (and ✕ on its left)
+   left the screen exactly when the swipe was about to count — at the 90 px
+   trigger neither the circle nor „Aufnehmen“ / „Befreunden“ / „Ablehnen“ was
+   visible (Tina 17.11.2026: „Unterschied welche Anfragen man gerade swiped
+   muss klar sein“; audit ziel-d-swipe-texte). Dragged right, the card's LEFT
+   part is what remains in view — so accept sits left, decline right. */
+.swipe-accept { left: 16px; color: var(--accent-green); }
 .swipe-accept span:first-child { background: var(--accent-green); color: white; }
-.swipe-decline { left: -20px; color: var(--status-busy); }
+.swipe-decline { right: 16px; color: var(--status-busy); }
 .swipe-decline span:first-child { background: var(--status-busy); color: white; }
 .swipe-indicator.visible { opacity: 1; }
+/* Short screens: the photo shrinks with the viewport (34vh − 76px, at least
+   120px) — a smaller circle keeps circle + word above the pill and the seal. */
+@media (max-height: 700px) {
+  .swipe-indicator { top: 80px; gap: 4px; }
+  .swipe-indicator span:first-child { width: 44px; height: 44px; font-size: 22px; }
+}
+/* 568px-high phones: the photo is at its 120px minimum. */
+@media (max-height: 600px) {
+  .swipe-indicator { top: 77px; gap: 2px; }
+}
 /* What the swipe does, under the circle (Ziel 4, Tina 16.11.2026): „Aufnehmen“
    / „Befreunden“ / „Ablehnen“. On the card's own background so it stays
    readable over the photo. */
@@ -1085,6 +1057,10 @@
   padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
   background: var(--bg-secondary);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  /* One layer above the reconnect banner right under it: swiped up, the
+     banner slides away UNDER the header, not across the back arrow and name. */
+  position: relative;
+  z-index: 1;
 }
 
 .back-button {
@@ -1461,8 +1437,13 @@
   background: var(--bg-input);
   cursor: not-allowed;
 }
-/* Reconnection Banner */
+/* Reconnection Banner — swipes up or taps away (components/ReconnectBanner.jsx,
+   Tina 17.11.2026). touch-action: none, else Android Chrome claims the
+   vertical pan and cancels the pointer mid-swipe (hooks/useSwipeDismiss.js);
+   z-index 0 under the header's 1, so it leaves beneath it. */
 .reconnect-banner {
+  position: relative;
+  z-index: 0;
   background: rgba(255, 107, 107, 0.15);
   border-bottom: 1px solid rgba(255, 107, 107, 0.35);
   padding: 8px 16px;
@@ -1470,6 +1451,15 @@
   color: #ff6b6b;
   font-size: 13px;
   font-weight: 500;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.reconnect-banner:focus-visible {
+  outline: 2px solid #ff6b6b;
+  outline-offset: -2px;
 }
 
 /* Permission Banner for Club Restrictions */

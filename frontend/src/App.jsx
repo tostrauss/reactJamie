@@ -18,7 +18,7 @@ import { REGION_BOUNDS } from './utils/regions';
 import { AppIntro, shouldShowIntro } from './pages/AppIntro';
 const ProModal = lazyWithReload(() => import('./components/ProModal').then(m => ({ default: m.ProModal })));
 import { useAnalytics } from './hooks/useAnalytics';
-import { EventReviewModal } from './components/EventReviewModal';
+import PostEventPrompts from './components/PostEventPrompts';
 import { FeedbackModal } from './components/FeedbackModal';
 import { NotificationPrompt } from './components/NotificationPrompt';
 import { NativePushDeniedBanner, WebPushDeniedBanner } from './components/NativePushDeniedBanner';
@@ -26,7 +26,6 @@ import PullToRefresh from './components/PullToRefresh';
 import StatusBarScrim from './components/StatusBarScrim';
 import AvatarGateModal from './components/AvatarGateModal';
 import { InstallBanner } from './components/InstallBanner';
-import { reviews } from './utils/api';
 import { postAuthPath } from './utils/authRedirect';
 import { shouldNudge, AVATAR_NUDGE_KEY, AVATAR_NUDGE_SNOOZE_MS } from './utils/avatarNudge';
 
@@ -794,7 +793,10 @@ function AppRoutes() {
   // modal prepends a matching bubble so the first thing they read is the
   // reason they were sent here. null = the generic Pro pitch.
   const [proModalFeature, setProModalFeature] = useState(null);
-  const [pendingReviews, setPendingReviews] = useState(null);
+  // A dialog after an event is up („Wer war dabei?“, the friends list, „Wie
+  // war’s bei X?“, the community card) — PostEventPrompts owns the queue and
+  // reports here, so the banners below yield to it (Tina 17.11.2026).
+  const [postEventOpen, setPostEventOpen] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showAvatarNudge, setShowAvatarNudge] = useState(false);
 
@@ -863,13 +865,9 @@ function AppRoutes() {
     else safeStorage.removeItem('jamie_new_registration');
   }, [user]);
 
-  // Check for pending post-event reviews once after login
-  useEffect(() => {
-    if (!user) return;
-    reviews.getPending()
-      .then(res => { if (res.data?.length) setPendingReviews(res.data); })
-      .catch(() => {});
-  }, [user?.id]);
+  // (The post-event questions are loaded by PostEventPrompts, rendered below —
+  // at login, on every return to the foreground and on a push link, not just
+  // once after login as this file used to do.)
 
   // Global Pro-modal trigger — fired by GroupCard's Pro lock and any other
   // component that needs to surface the upgrade sheet from deep in the tree.
@@ -923,7 +921,7 @@ function AppRoutes() {
   // AppIntro return below unmounts the banner right after sign-up. Native iOS
   // permission timing (useNativePush) is deliberately unchanged.
   const inSignupFlow = /^\/(register|onboarding)(\/|$)/.test(pathname);
-  const avatarNudgeVisible = showAvatarNudge && !showFeedback && !pendingReviews && !showIntro
+  const avatarNudgeVisible = showAvatarNudge && !showFeedback && !postEventOpen && !showIntro
     && shouldNudge({ user, pathname, now: Date.now(), snoozeUntil: safeStorage.getItem(AVATAR_NUDGE_KEY) });
 
   if (showIntro) return <AppIntro onDone={() => setShowIntro(false)} />;
@@ -1053,12 +1051,10 @@ function AppRoutes() {
       </div>
       <PullToRefresh />
       <Navigation />
-      {pendingReviews && (
-        <EventReviewModal
-          pendingReviews={pendingReviews}
-          onDone={() => setPendingReviews(null)}
-        />
-      )}
+      {/* After an event, one dialog at a time: „Wer war dabei?“ (creator),
+          the friends list (everybody else), „Wie war’s bei X?“, the community
+          card. Nothing on the sign-up / onboarding routes; the queue waits. */}
+      <PostEventPrompts user={user} suppressed={inSignupFlow} onActiveChange={setPostEventOpen} />
       {showProModal && (
         <Suspense fallback={null}>
           <ProModal
@@ -1068,14 +1064,14 @@ function AppRoutes() {
           />
         </Suspense>
       )}
-      {/* Feedback prompt — suppressed while the intro / review modals are up. */}
-      {showFeedback && !pendingReviews && !showIntro && (
+      {/* Feedback prompt — suppressed while the intro / post-event dialogs are up. */}
+      {showFeedback && !postEventOpen && !showIntro && (
         <FeedbackModal onClose={dismissFeedback} />
       )}
       {/* Proactive web-push enable nudge — hidden on native iOS, during the
           sign-up flow and when a modal is up. Self-gates on support /
           permission / prior dismissal. */}
-      {user && !user.isGuest && !inSignupFlow && !showFeedback && !pendingReviews && !showIntro && !avatarNudgeVisible && (
+      {user && !user.isGuest && !inSignupFlow && !showFeedback && !postEventOpen && !showIntro && !avatarNudgeVisible && (
         <NotificationPrompt />
       )}
       {/* Native-iOS counterpart: the OS permission is DENIED (sticky — iOS
@@ -1084,14 +1080,14 @@ function AppRoutes() {
           Both prompts also yield to the soft avatar-nudge sheet — it's a
           bottom sheet at z 2000, the banners float at 9000 and would sit on
           top of its CTA. */}
-      {user && !user.isGuest && !inSignupFlow && !showFeedback && !pendingReviews && !showIntro && !avatarNudgeVisible && (
+      {user && !user.isGuest && !inSignupFlow && !showFeedback && !postEventOpen && !showIntro && !avatarNudgeVisible && (
         <NativePushDeniedBanner permission={nativePush.permission} />
       )}
       {/* Android counterpart (Play app + browser): the WEB permission is
           denied, and NotificationPrompt only ever asks while it is 'default'.
           Same suppression rules as the two above; the component reads the
           permission itself and stays silent outside Android (Lea, 18.10.2026). */}
-      {!isNative() && user && !user.isGuest && !inSignupFlow && !showFeedback && !pendingReviews && !showIntro && !avatarNudgeVisible && (
+      {!isNative() && user && !user.isGuest && !inSignupFlow && !showFeedback && !postEventOpen && !showIntro && !avatarNudgeVisible && (
         <WebPushDeniedBanner />
       )}
       {/* Avatar nudge for avatar-less members with a finished profile — soft,

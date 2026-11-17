@@ -11,8 +11,16 @@ import PartnerBadge from './PartnerBadge';
 const FIRST_ROWS = 3;
 
 // The subline's type is the server's (kind); a server without it gets the
-// same rule here: the partner flag, else a club event is a Community's.
-const kindOf = (row) => row.kind || (row.is_partner ? 'partner' : row.type === 'event' ? 'community' : 'group');
+// same rule here (groupController upcomingKind): the partner flag, else an
+// event of an official club is a Club's, any other club event a Community's.
+const kindOf = (row) => row.kind || (row.is_partner ? 'partner'
+  : row.type === 'event' ? (row.parent_club_type === 'official' ? 'club' : 'community') : 'group');
+
+// The word before „· 8/20“ where there is no ☆ Partner badge.
+const TYPE_LABEL = {
+  club: 'profile.upcoming.typeClub',
+  community: 'profile.upcoming.typeCommunity',
+};
 
 // „Demnächst dabei“ in the own profile (Tina 16.11.2026, PR4/PR5), under the
 // „Clubs & Communities“ bubbles in the same card: every meetup and club event
@@ -20,8 +28,9 @@ const kindOf = (row) => row.kind || (row.is_partner ? 'partner' : row.type === '
 // server's call (GET /groups/user/upcoming): until the end of its Vienna day,
 // weekly series on their next date, cancelled ones gone.
 //
-// A row: the date tile (UTC — the stored Vienna wall-clock, utils/eventDate),
-// „Heute“ beside the title in coral, „☆ Partner · 8/20“ / „Community · 8/20“ /
+// A row: the date tile „20.“ / „Nov“ (UTC — the stored Vienna wall-clock,
+// utils/eventDate), „Heute“ beside the title in coral, „☆ Partner · 8/20“ / „Club · 8/20“ (an
+// official club's event that is no partner event) / „Community · 8/20“ /
 // „Gruppe · 8/20“ under it. Own entries are framed in the partner yellow and
 // carry the coral counter of open requests the old hub's chip used to show.
 // „Zum Chat“ on every row; the chat's back button then leads to the profile
@@ -73,7 +82,9 @@ export default function ProfileUpcomingEvents({ editing = false, onEditingChange
     const locked = editing && !row.can_edit;
     const requests = row.is_own && !editing ? (row.pending_request_count || 0) : 0;
     const current = row.members_count || 0;
-    const cls = ['profile-upcoming-row', row.is_own && 'is-own', isToday && 'is-today', editable && 'is-wiggling', locked && 'is-locked']
+    // is-partner: the whole subline in the partner yellow, „☆ Partner · 8/20“
+    // (mock p. 3) — not only the badge.
+    const cls = ['profile-upcoming-row', row.is_own && 'is-own', kind === 'partner' && 'is-partner', isToday && 'is-today', editable && 'is-wiggling', locked && 'is-locked']
       .filter(Boolean).join(' ');
     return (
       <li key={row.id} className={cls}>
@@ -85,8 +96,11 @@ export default function ProfileUpcomingEvents({ editing = false, onEditingChange
           aria-disabled={locked || undefined}
         >
           <span className={`profile-upcoming-tile${date ? '' : ' is-empty'}`}>
-            <span className="profile-upcoming-day">{date ? date.day : '?'}</span>
-            {date && <span className="profile-upcoming-month">{date.month}</span>}
+            {/* „20.“ over „Nov“ as in Tina's mock (p. 3): the day with the
+                language's own ordinal dot (de only), the short month without
+                the dot some locales add („Nov.“, fr „nov.“) — CSS capitalises. */}
+            <span className="profile-upcoming-day">{date ? t('profile.upcoming.tileDay', { day: date.day }) : '?'}</span>
+            {date && <span className="profile-upcoming-month">{date.month.replace(/\.$/, '')}</span>}
           </span>
           <span className="profile-upcoming-text">
             <span className="profile-upcoming-head">
@@ -97,7 +111,7 @@ export default function ProfileUpcomingEvents({ editing = false, onEditingChange
               {kind === 'partner' ? (
                 <PartnerBadge variant="inline" />
               ) : (
-                <span>{t(kind === 'community' ? 'profile.upcoming.typeCommunity' : 'profile.upcoming.typeGroup')}</span>
+                <span>{t(TYPE_LABEL[kind] || 'profile.upcoming.typeGroup')}</span>
               )}
               {/* „8/20“ as in Tina's mock; screen readers get the app's
                   participants phrase instead. */}

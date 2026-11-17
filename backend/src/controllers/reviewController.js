@@ -23,8 +23,13 @@ async function withTransaction(fn) {
 
 // ==========================================
 // GET PENDING REVIEWS
-// Returns groups that ended 6h+ ago where user was a member
-// and has not yet submitted any reviews for that group.
+// Returns the past meetups the caller CREATED and has not yet answered
+// „Wer war dabei?“ about.
+//
+// Only the creator is asked (Tina 17.11.2026: „diese bekommt nur der
+// Eventersteller“) — everybody else gets the friends list instead
+// (connectController.js). The server decides, so app bundles from before that
+// day ask only the creator as well.
 // ==========================================
 export const getPendingReviews = async (req, res) => {
   try {
@@ -65,6 +70,8 @@ export const getPendingReviews = async (req, res) => {
        -- the "Wer war dabei?" modal one day after week one, for a series still
        -- running (and the answers wrote permanent trusted_count data).
        WHERE ${reviewableEventSql('g')}
+         -- Only the creator is asked (Tina 17.11.2026), see the header.
+         AND g.owner_id = $1
          AND g.date IS NOT NULL
          -- "Past" = the event's DAY is over. Date-only events store at midnight,
          -- so the old "date + 6h < NOW()" surfaced the review at 06:00 ON the
@@ -185,6 +192,12 @@ export const submitReview = async (req, res) => {
     // (no ✓/✗ rows, no seal recompute). Deliberately a 2xx — old modals
     // advance on any 2xx and would re-prompt forever otherwise. Strict
     // `=== false`, so a row shape without the column keeps today's behaviour.
+    //
+    // Since 17.11.2026 only the creator is ASKED (getPendingReviews,
+    // getReviewForGroup). Who may ANSWER is deliberately unchanged: a dialog
+    // that was already open in an old bundle, or a member's own POST, still
+    // lands exactly as before — Tina decided who gets the question, not whose
+    // answer counts.
     if (memberCheck.rows[0].countable === false) {
       await withTransaction(async (client) => {
         await client.query(
@@ -307,13 +320,15 @@ export const dismissReview = async (req, res) => {
 
 // ==========================================
 // GET REVIEW FOR ONE GROUP (manual re-open)
-// Returns the attendance payload for a single past group event the caller was
-// a member of, so they can open the review modal on demand — even after they
+// Returns the attendance payload for a single past group event the caller
+// CREATED, so they can open the review modal on demand — even after they
 // skipped it. Deliberately ignores dismissals (that's the whole point) but
 // still respects a real submission and the 6h-after-event window.
-// 404 when not eligible: not a member, not a past one-off group event, more
-// than 8 participants (16.11.2026 — the „Wer war dabei?“ pill then simply
-// disappears, in every app version), or already submitted.
+// 404 when not eligible: not the creator (Tina 17.11.2026 — only the creator
+// is asked), not a past one-off group event, more than 8 participants
+// (16.11.2026), or already submitted. The „Wer war dabei?“ pill on the event
+// page hangs on this endpoint, so a 404 makes it disappear in every app
+// version.
 // ==========================================
 export const getReviewForGroup = async (req, res) => {
   const groupId = parseInt(req.params.groupId, 10);
@@ -345,6 +360,7 @@ export const getReviewForGroup = async (req, res) => {
        JOIN users u ON u.id = all_gm.user_id
        WHERE g.id = $2
          AND ${reviewableEventSql('g')}   -- the same events getPendingReviews may ask about
+         AND g.owner_id = $1              -- and the same person: only the creator (Tina 17.11.2026)
          AND g.date IS NOT NULL
          AND g.date < CURRENT_DATE   -- day-based, see getPendingReviews (never before the event day)
          AND ${reviewRoundOpenSql('g')}   -- a closed round is final (its result may already show)

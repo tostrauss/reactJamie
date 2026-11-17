@@ -1078,7 +1078,8 @@ export const deleteAccount = async (req, res) => {
 // ==========================================
 export const exportData = async (req, res) => {
   try {
-    const [userRes, groupsRes, messagesRes, friendsRes, pollVotesRes, photosRes, hofRes, newsPrefRes, hofHiddenRes] = await Promise.all([
+    const [userRes, groupsRes, messagesRes, friendsRes, pollVotesRes, photosRes, hofRes, newsPrefRes, hofHiddenRes,
+      ratingsRes, partnerLeadsRes] = await Promise.all([
       db.query(
         // motivations ("Was trifft zu?") are personal data like the rest of
         // the profile — via the boot-window-safe read (utils/motivations.js).
@@ -1143,6 +1144,23 @@ export const exportData = async (req, res) => {
           WHERE hh.user_id = $1 ORDER BY hh.created_at DESC`,
         [req.userId]
       ).catch(() => ({ rows: [] })),
+      // „Wie war’s bei X?“ (17.11.2026): the stars and feedback the user gave
+      // (rows closed with the X carry nothing). Same own-catch rule.
+      db.query(
+        `SELECT g.name AS event_name, g.date AS event_date, r.stars, r.feedback, r.created_at
+           FROM event_ratings r JOIN groups g ON g.id = r.group_id
+          WHERE r.user_id = $1 AND r.stars IS NOT NULL ORDER BY r.created_at DESC`,
+        [req.userId]
+      ).catch(() => ({ rows: [] })),
+      // „JAMIE Anfrage“ (17.11.2026): the partner requests the user sent —
+      // name, company, e-mail and phone are their personal data. Same
+      // own-catch rule: the export never fails over a missing table.
+      db.query(
+        `SELECT l.created_at, l.source, l.name, l.company, l.email, l.phone, l.contact, g.name AS club_name
+           FROM partner_leads l LEFT JOIN groups g ON g.id = l.club_id
+          WHERE l.user_id = $1 ORDER BY l.created_at DESC`,
+        [req.userId]
+      ).catch(() => ({ rows: [] })),
     ]);
 
     res.json({
@@ -1159,6 +1177,8 @@ export const exportData = async (req, res) => {
       event_photos: photosRes.rows,
       hall_of_fame_kept_events: hofRes.rows,
       hall_of_fame_hidden_events: hofHiddenRes.rows,
+      event_ratings: ratingsRes.rows,
+      partner_leads: partnerLeadsRes.rows,
     });
   } catch (error) {
     console.error('exportData error:', error);

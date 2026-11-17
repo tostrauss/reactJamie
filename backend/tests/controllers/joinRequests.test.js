@@ -13,6 +13,7 @@ const scenario = {
   tierRows: [],       // rows of the Abzeichen-Stufen aggregate
   liveRow: null,      // owner + liveness lookup of handleJoinRequest / bulk accept
   request: null,      // the request row handleJoinRequest reads
+  attempt: null,      // the caller's own request row joinGroup reads (loadJoinAttempt)
 };
 
 vi.mock('../../src/config/database.js', () => ({
@@ -27,6 +28,10 @@ vi.mock('../../src/config/database.js', () => ({
       }
       if (text.includes('SELECT user_id, status FROM group_join_requests')) {
         return { rows: scenario.request ? [scenario.request] : [] };
+      }
+      // utils/joinAttempts.js loadJoinAttempt — the applicant's own row.
+      if (text.includes('SELECT status, rejected_count FROM group_join_requests')) {
+        return { rows: scenario.attempt ? [scenario.attempt] : [] };
       }
       if (text.includes('LEFT JOIN group_members gm ON gm.group_id = g.id')) {
         return { rows: scenario.groupRow ? [scenario.groupRow] : [] };
@@ -81,6 +86,7 @@ beforeEach(() => {
   scenario.tierRows = [];
   scenario.liveRow = null;
   scenario.request = null;
+  scenario.attempt = null;
   emitMock.mockClear();
   ioMock.to.mockClear();
 });
@@ -127,6 +133,34 @@ describe('joinGroup private path — owner badge freshness', () => {
     const res = makeRes();
     await joinGroup(makeReq(5), res);
     expect(emitMock).not.toHaveBeenCalled();
+  });
+});
+
+// ── A second request while the first is still open (audit ziel-d-privat-events) ──
+// The club's event list kept offering „Beitreten“ after a request went out;
+// the second tap ran into this 400, a bare German sentence in every language.
+describe('joinGroup private path — a request that is already pending', () => {
+  it('answers 400 with code JOIN_REQUEST_PENDING next to the German sentence, and writes nothing', async () => {
+    scenario.groupRow = { owner_id: 7, name: 'Privatgruppe', members_count: 1, max_members: 10, is_private: true, type: 'group', parent_club_id: null, already_member: null };
+    scenario.avatarUrl = 'https://cdn.example/me.jpg';
+    scenario.attempt = { status: 'pending', rejected_count: 0 };
+    const res = makeRes();
+    await joinGroup(makeReq(5), res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    // `error` stays for old bundles (they show it as a toast), `code` is new.
+    expect(res.json).toHaveBeenCalledWith({ error: 'Beitrittsanfrage bereits ausstehend', code: 'JOIN_REQUEST_PENDING' });
+    // The owner is not notified a second time.
+    expect(emitMock).not.toHaveBeenCalled();
+  });
+
+  it('a rejected request (one attempt left) is not „pending“: it goes out again', async () => {
+    scenario.groupRow = { owner_id: 7, name: 'Privatgruppe', members_count: 1, max_members: 10, is_private: true, type: 'group', parent_club_id: null, already_member: null };
+    scenario.avatarUrl = 'https://cdn.example/me.jpg';
+    scenario.attempt = { status: 'rejected', rejected_count: 1 };
+    const res = makeRes();
+    await joinGroup(makeReq(5), res);
+    expect(res.status).not.toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending' }));
   });
 });
 

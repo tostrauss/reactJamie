@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../context/ToastContext';
@@ -6,6 +6,7 @@ import { clubs as clubsApi, users as usersApi } from '../utils/api';
 import { thumbUrl } from '../utils/images';
 import { movePhoto as moveItem } from '../utils/photoOrder';
 import { profileClubRows, withClubOrder } from '../utils/profileClubs';
+import useBubbleDrag from '../hooks/useBubbleDrag';
 import StarIcon from './StarIcon';
 
 const sameIds = (a, b) => a.length === b.length && a.every((id, i) => id === b[i]);
@@ -14,14 +15,17 @@ const sameIds = (a, b) => a.length === b.length && a.every((id, i) => id === b[i
 // PR2/PR3), in place of the „Meine Gruppen & Clubs“ hub. Own clubs first, with
 // the yellow ring and a small coral counter of open requests (its tap is the
 // way into the Anfragen deck the hub's chip used to be); then the joined ones.
-// ☆ marks an official club — a Partner, the same star as on its events.
+// ☆ marks a PAYING partner (Tobi 17.11.2026: yellow, ☆ and ✓ only for paying
+// partners) — the same star as on its events; any other club has none.
 // Which clubs and in which order: utils/profileClubs.js.
 //
 // „Sortieren“ (from two sortable bubbles on): the row becomes a grid and the
 // joined bubbles wiggle like an iPhone home screen; own ones stand still, and
-// tapping one says why. Tap to pick, ← / → to move — the ProfileEdit photo
-// pattern: HTML5 drag events do not fire for touch in WKWebView and a pointer
-// drag would fight the page scroll. Keyboard: ← / → on the focused bubble.
+// tapping one says why. A wiggling bubble is DRAGGED to its new place (Tina
+// 17.11.2026 — Apple's wiggle is the mode for dragging; hooks/useBubbleDrag:
+// pointer events, since HTML5 drag events do not fire for touch in
+// WKWebView). The way without a drag stays: tap to pick, the arrows move it;
+// keyboard ← / → on the focused bubble.
 // Only moving, never hiding. Whatever ends the mode — „Fertig“, „Events
 // bearbeiten“ below, a tab switch, leaving the page — saves the new order at
 // once (PUT /users/me/clubs/order); a failed save puts the old order back.
@@ -38,6 +42,9 @@ export default function ProfileClubBubbles({ sorting = false, onSortingChange })
   // The joined clubs' ids in their new order while sorting, else null.
   const [draft, setDraft] = useState(null);
   const [picked, setPicked] = useState(null);
+  // The bubble under the finger while it is dragged, else null.
+  const [dragging, setDragging] = useState(null);
+  const railRef = useRef(null);
   // Latest values for the end of a sorting session, which runs in an effect
   // cleanup (possibly on unmount).
   const rowsRef = useRef(rows);
@@ -79,13 +86,29 @@ export default function ProfileClubBubbles({ sorting = false, onSortingChange })
     const start = profileClubRows(rowsRef.current).joined.map((c) => c.id);
     setDraft(start);
     setPicked(null);
+    setDragging(null);
     return () => {
       const ids = draftRef.current;
       setDraft(null);
       setPicked(null);
+      setDragging(null);
       if (ids && !sameIds(ids, start)) saveOrder(ids);
     };
   }, [sorting]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Dragging (only in the mode, only joined bubbles): the bubble follows the
+  // finger without React; state changes when it reaches another place. Let go,
+  // it is the picked one — the arrows show and its place is read out.
+  const drag = useBubbleDrag({
+    enabled: sorting,
+    railRef,
+    onStart: (id) => { setPicked(null); setDragging(id); },
+    onMove: (id, to) => setDraft((prev) => (prev ? moveItem(prev, prev.indexOf(id), to) : prev)),
+    onEnd: (id) => { setDragging(null); setPicked(id); },
+  });
+  // After the order changed mid-drag the bubbles sit in new places: keep the
+  // dragged one under the finger, before the paint.
+  useLayoutEffect(() => { drag.afterRender(); }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // React re-inserts a moved bubble's DOM node, which drops keyboard focus:
   // put it back after a move by arrow key (a tap never focused anything).
@@ -126,27 +149,39 @@ export default function ProfileClubBubbles({ sorting = false, onSortingChange })
       toast.info(t(club.club_type === 'official' ? 'profile.clubs.ownLockedClub' : 'profile.clubs.ownLockedCommunity'));
       return;
     }
+    // The click that ends a drag is not a tap.
+    if (drag.consumeClick()) return;
     setPicked((prev) => (prev === club.id ? null : club.id));
   };
 
   const renderBubble = (club, index) => {
     const isOwn = !!club.is_own;
     const movable = sorting && !isOwn;
-    // The star means a live official club (partnerSql's rule): a club still in
-    // review is not a partner yet.
-    const isPartner = club.club_type === 'official' && club.approval_status === 'approved';
+    // The star means a paying partner — partnerSql's rule (backend
+    // utils/clubGate.js): a live, approved official club with the admin's
+    // is_paid_partner flag. A club still in review is no partner yet, an
+    // official club that does not pay has no star. An old server without the
+    // flag: no star.
+    const isPartner = club.club_type === 'official' && club.approval_status === 'approved'
+      && club.is_active !== false && club.is_paid_partner === true;
     const inReview = club.approval_status === 'pending';
     const requests = isOwn && !sorting ? (club.pending_request_count || 0) : 0;
     const isPicked = movable && picked === club.id;
-    const cls = ['profile-club', isOwn && 'is-own', inReview && 'is-pending', movable && 'is-wiggling', isPicked && 'is-picked']
+    const isDragging = movable && dragging === club.id;
+    const cls = ['profile-club', isOwn && 'is-own', inReview && 'is-pending', movable && 'is-wiggling', isPicked && 'is-picked', isDragging && 'is-dragging']
       .filter(Boolean).join(' ');
     return (
-      <li key={club.id} className={cls}>
+      // data-club-id marks the places of the drag — own bubbles are none.
+      <li key={club.id} className={cls} data-club-id={movable ? club.id : undefined}>
         <button
           type="button"
           id={`${uid}-club-${club.id}`}
           className="profile-club-open"
+          // The name under the bubble is clamped to two lines — the full one
+          // on hover.
+          title={club.name}
           onClick={() => onTap(club)}
+          onPointerDown={movable ? (e) => drag.onPointerDown(e, club.id) : undefined}
           onKeyDown={movable ? (e) => onArrowKey(e, index, club.id) : undefined}
           aria-pressed={movable ? isPicked : undefined}
           aria-label={movable ? t('profile.clubs.pickAria', { name: club.name }) : undefined}
@@ -159,7 +194,7 @@ export default function ProfileClubBubbles({ sorting = false, onSortingChange })
             </span>
             {isPartner && (
               <span className="profile-club-star">
-                <StarIcon size={11} strokeWidth="2.4" strokeLinejoin="round" />
+                <StarIcon size={10} strokeWidth="2.6" strokeLinejoin="round" />
               </span>
             )}
           </span>
@@ -198,7 +233,7 @@ export default function ProfileClubBubbles({ sorting = false, onSortingChange })
           </button>
         )}
       </div>
-      <ul className={`profile-clubs-rail${sorting ? ' is-sorting' : ''}`}>
+      <ul ref={railRef} className={`profile-clubs-rail${sorting ? ' is-sorting' : ''}`}>
         {own.map((club) => renderBubble(club, -1))}
         {sortable.map((club, i) => renderBubble(club, i))}
       </ul>

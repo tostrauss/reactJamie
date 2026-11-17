@@ -6,6 +6,7 @@ import { AuthContext } from '../context/AuthContext';
 import { AdminDealsSection } from '../components/AdminDealsSection';
 import { AdminGrowthSection } from '../components/AdminGrowthSection';
 import { AdminFeedbackSection } from '../components/AdminFeedbackSection';
+import { AdminEventRatingsSection } from '../components/AdminEventRatingsSection';
 import { AdminFeaturedClubsSection } from '../components/AdminFeaturedClubsSection';
 import { AdminClassifySection } from '../components/AdminClassifySection';
 import { AdminMotivationsCard } from '../components/AdminMotivationsCard';
@@ -335,6 +336,7 @@ export const AdminDashboard = () => {
         {/* In-app feedback (FeedbackModal submissions). Placed above the club
             queue: fresh bug reports should be seen before slower CRUD work. */}
         <AdminFeedbackSection />
+        <AdminEventRatingsSection />
 
         {/* Approval queue for user-created clubs (#14) */}
         <div id="clubs-pending" style={{ marginBottom: 32 }}>

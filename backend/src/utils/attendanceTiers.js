@@ -15,6 +15,10 @@
 //   - and ✓ must STRICTLY outnumber ✗ — the ✗ button exists to flag
 //     no-shows, so one friendly tick does not outvote two honest "war nicht
 //     da". A tie does not count.
+// Since 17.11.2026 (Tina) the question is put to the CREATOR only, so new
+// votes normally come from the creator alone — and the creator is no longer
+// confirmed at their own meetups. Older votes by other members keep counting,
+// and submitReview still takes a member's answer; ATTENDANCE_SQL is unchanged.
 // Sign-ups, RSVPs and group_members are never read, so people who left a
 // group keep their history. Only events that stand (eventStandsSql), only
 // once the event's review round has closed (REVIEW_WINDOW_DAYS), and a group
@@ -93,8 +97,9 @@ export const REVIEW_WINDOW_DAYS = 14;
 // „Wer war dabei?“ only for small meetups (Tina, 16.11.2026): asked when at
 // most this many people took part, the owner included — the count the card
 // shows as „8/20“; max_members plays no part. Bigger events get no prompt and
-// no push, and answers about them are not recorded (S5 „Connect“ is meant for
-// those, once Tina has specified it). The server alone decides; changing it is
+// no push, and answers about them are not recorded. („Connect“ — the friends
+// list everybody but the creator gets after an event of any size — lives in
+// controllers/connectController.js.) The server alone decides; changing it is
 // a deploy, never an app build. MIRRORED in frontend/src/utils/attendanceTiers.js.
 export const REVIEW_MAX_PARTICIPANTS = 8;
 // The review PUSH also needs somebody besides the owner — a push about an

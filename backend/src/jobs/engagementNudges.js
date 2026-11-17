@@ -12,8 +12,12 @@
 //      „Hey! Deine Community hat schon X Mitglieder…", 7 days later
 //      „Huch! …um sichtbar zu bleiben!" — then never again.
 //   5. livePhotoPrompt — ONE push WHILE a timed event runs, start+120 to
-//      start+180 min, one of Tina's three lines (S2, 16.11.2026): „Wie
-//      gefällt's dir bei X? Schnapp dir ein Foto für deine Memories! 📸"
+//      start+180 min, one of Tina's three lines (S2, 17.11.2026): „Wie
+//      ist’s bei X? Schnapp dir ein Foto für deine Memories!"
+//   6. connect (connectNudges.js) — „Aus Fremden können Freundschaften
+//      werden!" the day after, to everybody but the creator.
+//   7. community (communityNudges.js) — „Hey, X hat Potenzial! ✨" to the
+//      creator of a community without a meetup about a week after founding.
 //
 // Every nudge is claimed in ONE statement (UPDATE … SKIP LOCKED / INSERT … ON
 // CONFLICT DO NOTHING RETURNING), so two Railway replicas never double-send,
@@ -32,6 +36,8 @@ import { sendPushToUsers } from '../controllers/pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 import { postSystemMessage, SYSTEM_TEXTS } from '../utils/systemMessage.js';
 import { parentClubGateSql } from '../utils/clubGate.js';
+import { runConnectNudges } from './connectNudges.js';
+import { runCommunityEventNudges } from './communityNudges.js';
 
 const TZ = 'Europe/Vienna';
 const LOCAL = (p) => `(${p}::timestamptz AT TIME ZONE '${TZ}')`;
@@ -401,8 +407,8 @@ export async function runLivePhotoPrompts({ now = new Date(), limit = 200, send 
   return { events: claimed.length, pushes };
 }
 
-// One tick for all five. Each is isolated: a failure (e.g. a missing table in
-// the boot window before the migration landed) logs, and the next still runs.
+// One tick for all of them. Each is isolated: a failure (e.g. a missing table
+// in the boot window before the migration landed) logs, and the next still runs.
 export async function runEngagementNudges({ now = new Date(), io } = {}) {
   const out = {};
   for (const [name, fn] of [
@@ -411,6 +417,8 @@ export async function runEngagementNudges({ now = new Date(), io } = {}) {
     ['silence', () => runSilenceNudges({ now, io })],
     ['cover', () => runCoverNags({ now })],
     ['live', () => runLivePhotoPrompts({ now })],
+    ['connect', () => runConnectNudges({ now })],
+    ['community', () => runCommunityEventNudges({ now })],
   ]) {
     try {
       out[name] = await fn();

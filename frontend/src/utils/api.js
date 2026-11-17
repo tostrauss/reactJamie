@@ -1172,6 +1172,23 @@ export const suggestions = {
 // ── separator: leave in place ──
 //
 // >>> BAU2-API (Profil, Community & Nach dem Event)
+// After the event (Tina 17.11.2026): the friends list („Connect“) and „Wie
+// war’s bei X?“ (stars + feedback), plus the admin list of the ratings.
+export const postEventApi = {
+  getConnectPending: () => axiosInstance.get('/reviews/connect/pending'),
+  dismissConnect: (group_id) => axiosInstance.post('/reviews/connect/dismiss', { group_id }),
+  getRatingsPending: () => axiosInstance.get('/reviews/ratings/pending'),
+  submitRating: (group_id, stars, feedback) => axiosInstance.post('/reviews/ratings', { group_id, stars, feedback }),
+  dismissRating: (group_id) => axiosInstance.post('/reviews/ratings/dismiss', { group_id }),
+  getRatingsAdmin: (params = {}) => axiosInstance.get('/reviews/ratings/admin', { params }),
+};
+
+// A community without its first meetup (Tina 17.11.2026): the card on the
+// home screen.
+export const communityNudgeApi = {
+  getMine: () => axiosInstance.get('/users/me/community-nudges'),
+  dismiss: (clubId) => axiosInstance.post(`/users/me/community-nudges/${clubId}/dismiss`),
+};
 // <<< BAU2-API
 
 // Attach modules to instance for convenience

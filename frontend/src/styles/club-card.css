@@ -1,0 +1,58 @@
+/* ========================================
+   Club card (Tina 17.11.2026)
+   An official club in Entdecken → Community → Clubs, as big as a community
+   card: the same .group-card.community-card, plus the ✓ of a paying partner
+   beside the name and „Events entdecken“ under the picture. Loaded by
+   components/ClubCard.jsx; everything else comes from home.css.
+   ======================================== */
+
+/* Height from the content — header + picture + button — instead of the
+   4:3 box .clubs-grid gives a community card. */
+.clubs-grid .group-card.club-card {
+  aspect-ratio: auto;
+}
+
+/* The picture as on the community card of her Bild 14 (about 2:1). */
+.club-card .card-photo-grid {
+  flex: none;
+  aspect-ratio: 2 / 1;
+  margin: 0 12px 10px;
+}
+
+/* Name and tick on one line; a long name wraps, the tick keeps its size. */
+.club-card-title-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+.club-card-title-line .card-title {
+  min-width: 0;
+}
+.club-card-verified {
+  flex-shrink: 0;
+}
+
+/* „Events entdecken“ — the pill of the old club row, across the full width
+   under the picture. */
+.club-card-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 12px 12px;
+  min-height: 44px;
+  border: 1.5px solid rgba(253, 118, 102, 0.4);
+  border-radius: var(--radius-full, 999px);
+  background: rgba(253, 118, 102, 0.1);
+  color: var(--accent-coral);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.club-card-cta:active {
+  background: rgba(253, 118, 102, 0.2);
+}

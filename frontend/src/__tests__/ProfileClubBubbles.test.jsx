@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useState } from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 
 // „Clubs & Communities“ in the own profile (Tina 16.11.2026, PR2/PR3): round
-// bubbles, own ones first with the yellow ring, ☆ on official clubs, and
+// bubbles, own ones first with the yellow ring, ☆ on paying partners, and
 // „Sortieren“ — joined bubbles wiggle, tap + arrows move them, leaving the
 // mode saves the order. Real German i18n.
 const api = vi.hoisted(() => ({
@@ -27,7 +27,7 @@ const club = (id, name, over = {}) => ({
 const CLUBS = [
   club(5, 'Brettspiel-Treff', { joined_at: '2026-11-10T10:00:00.000Z' }),
   club(1, 'Mein Lauftreff', { is_own: true, role: 'owner', pending_request_count: 3, joined_at: '2026-11-05T10:00:00.000Z' }),
-  club(2, 'Café Soleá', { club_type: 'official', profile_position: 2, joined_at: '2026-10-01T10:00:00.000Z' }),
+  club(2, 'Café Soleá', { club_type: 'official', is_paid_partner: true, profile_position: 2, joined_at: '2026-10-01T10:00:00.000Z' }),
   club(3, 'Südtiroler in Wien', { profile_position: 1, joined_at: '2026-09-01T10:00:00.000Z', image_url: '/media/uploads/sued.jpg' }),
   club(4, 'Alter Club', { joined_at: '2026-08-01T10:00:00.000Z' }),
   club(6, 'Abgelehnt', { approval_status: 'rejected', is_active: false }),
@@ -94,14 +94,34 @@ describe('ProfileClubBubbles — the row', () => {
     expect(item('Alter Club').querySelector('.profile-club-bubble').textContent).toBe('A');
   });
 
-  it('☆ only on a live official club — a club still in review is not a partner yet, and is dimmed', async () => {
-    await renderBubbles([...CLUBS, club(8, 'Mein Café', { is_own: true, club_type: 'official', approval_status: 'pending' })]);
+  // Tobi 17.11.2026: „Gelb, ☆ Partner und der ✓-Haken nur für ZAHLENDE
+  // Partner … Nicht zahlende Clubs: kein Gelb, kein ☆, kein ✓.“ The rule is
+  // partnerSql's: live, approved, official AND is_paid_partner.
+  it('☆ only on a paying partner — not on an official club that does not pay, not on one in review, not on a closed one', async () => {
+    await renderBubbles([
+      ...CLUBS,
+      club(10, 'Kein Zahler', { club_type: 'official' }),                                  // approved, no flag
+      club(11, 'Altes Feld', { club_type: 'official', is_paid_partner: undefined }),       // an old server
+      club(12, 'Zahlende Community', { is_paid_partner: true }),                           // flag without official
+      club(8, 'Mein Café', { is_own: true, club_type: 'official', is_paid_partner: true, approval_status: 'pending' }),
+    ]);
     const stars = [...document.querySelectorAll('.profile-club-star')];
     expect(stars).toHaveLength(1);
     expect(stars[0].closest('.profile-club')).toBe(item('Café Soleá'));
     expect(screen.getByRole('button', { name: /^Café Soleá/ }).textContent).toContain('JAMIE-Partner');
+    for (const name of ['Kein Zahler', 'Altes Feld', 'Zahlende Community', 'Mein Café']) {
+      expect(item(name).querySelector('.profile-club-star')).toBeNull();
+      expect(item(name).textContent).not.toContain('JAMIE-Partner');
+    }
+    // In review: there, dimmed, and says so — paying or not.
     expect(item('Mein Café').classList.contains('is-pending')).toBe(true);
     expect(item('Mein Café').textContent).toContain('Wird noch geprüft');
+  });
+
+  it('an own paying partner club carries both: the yellow ring and the ☆', async () => {
+    await renderBubbles([...CLUBS, club(9, 'Mein Partnerclub', { is_own: true, club_type: 'official', is_paid_partner: true })]);
+    expect(item('Mein Partnerclub').classList.contains('is-own')).toBe(true);
+    expect(item('Mein Partnerclub').querySelector('.profile-club-star')).toBeTruthy();
   });
 
   it('a tap opens the club page', async () => {
@@ -141,7 +161,7 @@ describe('ProfileClubBubbles — „Sortieren"', () => {
     expect(item('Mein Lauftreff').classList.contains('is-wiggling')).toBe(false);
     // The label carries the state — no aria-pressed besides (review 16.11.2026).
     expect(screen.getByRole('button', { name: 'Fertig' }).hasAttribute('aria-pressed')).toBe(false);
-    expect(screen.getByText('Antippen, dann mit den Pfeilen verschieben.')).toBeTruthy();
+    expect(screen.getByText('Ziehen zum Verschieben – oder antippen und die Pfeile nutzen.')).toBeTruthy();
   });
 
   it('an own bubble stays put and says why — Community or Club wording; no counter in the mode', async () => {
@@ -242,5 +262,144 @@ describe('ProfileClubBubbles — „Sortieren"', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Einen Platz nach hinten' }));
     await act(async () => { unmount(); });
     expect(api.users.setMyClubOrder).toHaveBeenCalledWith([4, 5, 3, 2]);
+  });
+});
+
+// Tina 17.11.2026: „wackeln die Bubbles wie bei Apple. User können die Clubs
+// neu ansortieren“ — Apple's wiggle is the mode for DRAGGING (audit PC-23).
+// jsdom has no layout, so the sortable bubbles get the grid's places here:
+// 64px tracks 10px apart, in one row (offsetLeft … are the hook's only source;
+// the rail's getBoundingClientRect is jsdom's all-zero box).
+describe('ProfileClubBubbles — dragging in „Sortieren"', () => {
+  const PITCH = 74;
+  const slotOf = (el) => (el.matches?.('li[data-club-id]')
+    ? [...el.parentNode.querySelectorAll('li[data-club-id]')].indexOf(el) : -1);
+  const centre = (i) => i * PITCH + 32;            // x of place i; y is 40 for all
+  let spies = [];
+
+  beforeEach(() => {
+    const layout = (prop, value) => vi.spyOn(HTMLElement.prototype, prop, 'get')
+      .mockImplementation(function get() { return slotOf(this) < 0 ? 0 : value(slotOf(this)); });
+    spies = [
+      layout('offsetLeft', (i) => i * PITCH),
+      layout('offsetTop', () => 0),
+      layout('offsetWidth', () => 64),
+      layout('offsetHeight', () => 80),
+    ];
+  });
+  afterEach(() => { spies.forEach((s) => s.mockRestore()); });
+
+  const pointer = { pointerId: 7, pointerType: 'touch', button: 0 };
+  const bubble = (name) => screen.getByRole('button', { name: `„${name}“ zum Verschieben auswählen` });
+  const press = (name, x, y = 40, over = {}) => fireEvent.pointerDown(bubble(name), { ...pointer, clientX: x, clientY: y, ...over });
+  const moveTo = (x, y = 40) => fireEvent.pointerMove(window, { ...pointer, clientX: x, clientY: y });
+  const letGo = (x, y = 40) => fireEvent.pointerUp(window, { ...pointer, clientX: x, clientY: y });
+  // The bubble glides home for 150 ms before the drag is over.
+  const settle = () => act(async () => { await new Promise((r) => setTimeout(r, 200)); });
+
+  // The joined ones in „Sortieren": Brettspiel-Treff (0), Alter Club (1),
+  // Südtiroler in Wien (2), Café Soleá (3).
+  it('„Café Soleá" dragged onto the place of „Brettspiel-Treff": new order, it is the picked one, „Fertig" saves it', async () => {
+    await renderBubbles();
+    startSorting();
+    press('Café Soleá', centre(3));
+    moveTo(centre(2));                              // past 6 px: a drag, over place 2
+    expect(item('Café Soleá').classList.contains('is-dragging')).toBe(true);
+    expect(names()).toEqual(['Mein Lauftreff', 'Brettspiel-Treff', 'Alter Club', 'Café Soleá', 'Südtiroler in Wien']);
+    moveTo(centre(0));
+    expect(names()).toEqual(['Mein Lauftreff', 'Café Soleá', 'Brettspiel-Treff', 'Alter Club', 'Südtiroler in Wien']);
+    // It follows the finger by an inline transform, lifted.
+    expect(item('Café Soleá').style.transform).toMatch(/^translate\(.+\) scale\(1\.1\)$/);
+    expect(document.querySelector('.profile-club.is-picked')).toBeNull();
+    expect(api.users.setMyClubOrder).not.toHaveBeenCalled();
+
+    letGo(centre(0));
+    // The click the release brings along is not a tap: nothing gets picked by it.
+    fireEvent.click(bubble('Café Soleá'));
+    expect(document.querySelector('.profile-club.is-picked')).toBeNull();
+    await settle();
+    // Home: no inline style left (it would overrule the picked bubble's scale).
+    expect(item('Café Soleá').classList.contains('is-dragging')).toBe(false);
+    expect(item('Café Soleá').style.transform).toBe('');
+    expect(item('Café Soleá').style.transition).toBe('');
+    expect(item('Café Soleá').classList.contains('is-picked')).toBe(true);
+    expect(screen.getByText('Jetzt an Platz 1 von 4')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Einen Platz nach hinten' })).toBeTruthy();
+
+    // A real tap afterwards picks again.
+    pick('Alter Club');
+    expect(item('Alter Club').classList.contains('is-picked')).toBe(true);
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Fertig' })); });
+    expect(api.users.setMyClubOrder).toHaveBeenCalledTimes(1);
+    expect(api.users.setMyClubOrder).toHaveBeenCalledWith([2, 5, 4, 3]);   // no own id (1)
+  });
+
+  it('touch brings no click after a drag — the next tap still picks', async () => {
+    await renderBubbles();
+    startSorting();
+    press('Brettspiel-Treff', centre(0));
+    moveTo(centre(1));
+    letGo(centre(1));
+    await settle();
+    expect(names()).toEqual(['Mein Lauftreff', 'Alter Club', 'Brettspiel-Treff', 'Südtiroler in Wien', 'Café Soleá']);
+    expect(item('Brettspiel-Treff').classList.contains('is-picked')).toBe(true);
+    fireEvent.click(bubble('Südtiroler in Wien'));
+    expect(item('Südtiroler in Wien').classList.contains('is-picked')).toBe(true);
+  });
+
+  it('under 6 px it stays a tap: nothing moves, the bubble is picked', async () => {
+    await renderBubbles();
+    startSorting();
+    press('Alter Club', centre(1));
+    moveTo(centre(1) + 4, 42);
+    expect(document.querySelector('.profile-club.is-dragging')).toBeNull();
+    letGo(centre(1) + 4, 42);
+    fireEvent.click(bubble('Alter Club'));
+    expect(item('Alter Club').classList.contains('is-picked')).toBe(true);
+    expect(item('Alter Club').style.transform).toBe('');
+    expect(names()).toEqual(SHOWN);
+  });
+
+  it('own bubbles are no places and cannot be dragged; the right mouse button drags nothing', async () => {
+    await renderBubbles();
+    startSorting();
+    expect(item('Mein Lauftreff').hasAttribute('data-club-id')).toBe(false);
+    expect([...document.querySelectorAll('li[data-club-id]')].map((li) => li.dataset.clubId)).toEqual(['5', '4', '3', '2']);
+    fireEvent.pointerDown(screen.getByRole('button', { name: /^Mein Lauftreff/ }), { ...pointer, clientX: 10, clientY: 40 });
+    moveTo(centre(2));
+    expect(document.querySelector('.profile-club.is-dragging')).toBeNull();
+    letGo(centre(2));
+
+    press('Alter Club', centre(1), 40, { pointerType: 'mouse', button: 2 });
+    fireEvent.pointerMove(window, { ...pointer, pointerType: 'mouse', clientX: centre(3), clientY: 40 });
+    expect(document.querySelector('.profile-club.is-dragging')).toBeNull();
+    expect(names()).toEqual(SHOWN);
+  });
+
+  it('another finger\'s moves are not this drag', async () => {
+    await renderBubbles();
+    startSorting();
+    press('Alter Club', centre(1));
+    fireEvent.pointerMove(window, { ...pointer, pointerId: 8, clientX: centre(3), clientY: 40 });
+    expect(document.querySelector('.profile-club.is-dragging')).toBeNull();
+    expect(names()).toEqual(SHOWN);
+  });
+
+  it('the mode ending mid-drag saves the order reached and leaves nothing behind', async () => {
+    await renderBubbles();
+    startSorting();
+    press('Café Soleá', centre(3));
+    moveTo(centre(0));
+    expect(item('Café Soleá').classList.contains('is-dragging')).toBe(true);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Modus beenden' })); });
+    expect(api.users.setMyClubOrder).toHaveBeenCalledWith([2, 5, 4, 3]);
+    expect(item('Café Soleá').style.transform).toBe('');
+    // The finger lifting afterwards, and the next session, find nothing stuck.
+    letGo(centre(0));
+    await settle();
+    startSorting();
+    expect(document.querySelector('.profile-club.is-dragging')).toBeNull();
+    expect(document.querySelector('.profile-club.is-picked')).toBeNull();
   });
 });

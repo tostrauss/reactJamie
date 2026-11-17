@@ -207,31 +207,49 @@ describe('Entdecken — cards and rows', () => {
     expect(await findByText('home.clubRow.members(12)')).toBeTruthy();
   });
 
-  it('a club row shows the free-text category and its upcoming events', async () => {
+  // Tina 17.11.2026: „Ich finde die Clubs sind leider zu klein. Lass sie uns
+  // doch auch so machen wie die Community!“ — a club is a card now, in the
+  // communities' own grid, no longer a small row.
+  it('a club is a card like a community: its own category line in the bubble, title and member count', async () => {
     vi.mocked(clubs.getAll).mockResolvedValue({
       data: [official(2, 'Café Concerto', { upcoming_events_count: 3 })],
     });
     const { findByText, container } = renderHome('?tab=clubs&seg=clubs');
     await findByText('Café Concerto');
-    expect(container.querySelector('.club-row-category').textContent).toBe('Bar · Nightlife');
-    expect(await findByText('home.clubRow.upcomingEvents(3)')).toBeTruthy();
-  });
-
-  it('a club row falls back to the member count without events', async () => {
-    vi.mocked(clubs.getAll).mockResolvedValue({ data: [official(2, 'Café Concerto')] });
-    const { findByText } = renderHome('?tab=clubs&seg=clubs');
-    await findByText('Café Concerto');
+    const card = container.querySelector('.clubs-grid .group-card.community-card.club-card');
+    expect(card).toBeTruthy();
+    expect(container.querySelector('.club-row')).toBeNull();
+    expect(card.querySelector('.community-card-category').textContent).toBe('Bar · Nightlife');
     expect(await findByText('home.clubRow.members(400)')).toBeTruthy();
+    // The „N anstehende Events“ line of the old row is gone.
+    expect(card.textContent).not.toContain('upcomingEvents');
   });
 
-  it('the row and its button both open the club', async () => {
+  it('the ✓ beside the name is for paying partners only — an official club that does not pay has none', async () => {
+    vi.mocked(clubs.getAll).mockResolvedValue({ data: [
+      official(2, 'Café Concerto', { is_paid_partner: true }),
+      official(3, 'Liberi Live', { is_paid_partner: false }),
+      official(4, 'Mr. Cashhunt'),                    // an older server: no field at all
+    ] });
+    const { findByText, container } = renderHome('?tab=clubs&seg=clubs');
+    await findByText('Café Concerto');
+    const cards = [...container.querySelectorAll('.club-card')];
+    expect(cards.map((c) => !!c.querySelector('.club-card-verified'))).toEqual([true, false, false]);
+    expect(cards[0].querySelector('.club-card-verified').getAttribute('aria-label')).toBe('profile.clubs.partnerAria');
+  });
+
+  it('the card and its button „Events entdecken“ both open the club — once each', async () => {
     vi.mocked(clubs.getAll).mockResolvedValue({ data: [official(2, 'Café Concerto')] });
     const { findByText, container } = renderHome('?tab=clubs&seg=clubs');
     await findByText('Café Concerto');
-    fireEvent.click(container.querySelector('.club-row-cta'));
+    const cta = container.querySelector('.club-card-cta');
+    expect(cta.textContent).toBe('home.clubEventsDiscover');
+    fireEvent.click(cta);
+    expect(navigate).toHaveBeenCalledTimes(1);
     expect(navigate).toHaveBeenCalledWith('/club/2');
     navigate.mockReset();
-    fireEvent.click(container.querySelector('.club-row'));
+    fireEvent.click(container.querySelector('.club-card'));
+    expect(navigate).toHaveBeenCalledTimes(1);
     expect(navigate).toHaveBeenCalledWith('/club/2');
   });
 
@@ -249,11 +267,11 @@ describe('Entdecken — deals', () => {
     const { findByText, container } = renderHome('?tab=clubs&seg=clubs');
     await findByText('Laufclub Wien');
     const dealRows = container.querySelector('.deal-rows');
-    const clubRows = container.querySelector('.club-rows');
+    const clubCards = container.querySelector('.clubs-grid');
     expect(dealRows).toBeTruthy();
-    expect(clubRows).toBeTruthy();
+    expect(clubCards).toBeTruthy();
     // "above" as the DOM sees it, not as CSS might reorder it.
-    expect(dealRows.compareDocumentPosition(clubRows) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(dealRows.compareDocumentPosition(clubCards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('a deal row keeps the /deal/:id deep link', async () => {

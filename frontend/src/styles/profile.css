@@ -408,6 +408,16 @@
   background: var(--accent-coral);
 }
 
+/* Own profile: the Pinnwand tiles are as wide as the cards above them (Tina
+   17.11.2026: „Das ist nicht ganz breit … Sollten alle gleich breit sein").
+   The masonry brings its own 20px side padding (global.css — UserProfile
+   needs it, its wrapper has none) — here that came on top of
+   .profile-info-section's 24px, so the tiles began 20px further in. */
+.profile-tab-content .pinnwand-masonry {
+  padding-left: 0;
+  padding-right: 0;
+}
+
 /* Pinnwand Grid */
 .pinnwand-grid {
   display: grid;
@@ -2160,24 +2170,34 @@
 }
 
 /* One row that scrolls sideways; in „Sortieren" a grid with every bubble in
-   view, so no sideways scroll gets in the way of picking. */
+   view, so no sideways scroll gets in the way of picking. Sizes from Tina's
+   mock p. 3 (16.11.2026): photo 50px, centre to centre 74px = 64px track +
+   10px gap. The grid uses the SAME 64px tracks and 10px gap as the row, so
+   tapping „Sortieren" moves no bubble of the first row. */
 .profile-clubs-rail {
+  position: relative;
   display: flex;
-  gap: 12px;
+  gap: 10px;
   margin: 0;
   padding: 8px 16px 4px;
   list-style: none;
   overflow-x: auto;
   scroll-snap-type: x proximity;
+  scroll-padding-inline: 16px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
 
+/* scroll-padding = the rail's own side padding: without it the first bubble
+   snapped 16px to the left, onto the card's edge, as soon as the row could
+   scroll — no longer flush under „Clubs & Communities". */
 .profile-clubs-rail::-webkit-scrollbar { display: none; }
 
 .profile-clubs-rail.is-sorting {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  grid-template-columns: repeat(auto-fill, 64px);
+  column-gap: 10px;
+  justify-content: start;
   row-gap: 14px;
   overflow: visible;
 }
@@ -2185,7 +2205,7 @@
 .profile-club {
   --wiggle-deg: 2deg;
   position: relative;
-  flex: 0 0 72px;
+  flex: 0 0 64px;
   min-width: 0;
   scroll-snap-align: start;
 }
@@ -2194,7 +2214,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
   padding: 0;
   background: none;
@@ -2209,12 +2229,12 @@
 .profile-club-avatar {
   position: relative;
   flex-shrink: 0;
-  width: 64px;
-  height: 64px;
+  width: 50px;
+  height: 50px;
 }
 
-/* Rings as a double box-shadow like the chat list's avatar rings: no layout
-   shift, and the gap in the card colour lets the ring float. Joined clubs
+/* Rings as a box-shadow: no layout shift. Directly on the photo, without a
+   gap, as in the mock (p. 3) — about 53px across with the ring. Joined clubs
    neutral grey, own ones the partner yellow at full strength — a thin ring at
    55 % vanishes on the dark lilac. */
 .profile-club-bubble {
@@ -2227,9 +2247,9 @@
   border-radius: 50%;
   background: var(--bg-input);
   color: var(--text-muted);
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 800;
-  box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 3.5px rgba(255, 255, 255, 0.22);
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.22);
   transition: box-shadow 0.15s;
 }
 
@@ -2241,13 +2261,17 @@
 }
 
 .profile-club.is-own .profile-club-bubble {
-  box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4.5px var(--accent-partner);
+  box-shadow: 0 0 0 2px var(--accent-partner);
 }
 
 /* An own club still in review: there, but not live yet. */
 .profile-club.is-pending .profile-club-bubble { opacity: 0.5; }
 
-/* ☆ — an official club, a Partner: bottom right, over the ring. */
+/* ☆ — a PAYING partner (Tobi 17.11.2026): bottom right, over the ring. A
+   light disc with a dark star, as in the mock (p. 3) — about a third of the
+   bubble (22px box, 18px of yellow inside the 2px rim in the card colour).
+   A small disc at the full 100 % yellow is the mock's one exception here —
+   larger yellow areas stay forbidden (lines and text only, 55 % for lines). */
 .profile-club-star {
   position: absolute;
   right: -3px;
@@ -2257,22 +2281,29 @@
   justify-content: center;
   width: 22px;
   height: 22px;
-  border: 1px solid var(--partner-line);
+  border: 2px solid var(--bg-card);
   border-radius: 50%;
-  background: var(--bg-card);
-  color: var(--partner-text);
+  background: var(--accent-partner);
+  color: var(--bg-card);
 }
 
+/* The name: up to two lines, small and quieter than the title, as in the mock
+   (p. 3: „JAMIE / Official", „Südtiroler / in Wien") — one line with „…" cut
+   „JAMIE Offi…". A long single word may break anywhere. */
 .profile-club-name {
-  display: block;
-  max-width: 100%;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.3;
-  text-align: center;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  width: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: rgba(255, 255, 255, 0.78);
+  text-align: center;
 }
 
 /* Open requests of an own club or event — the hub's „N Anfragen" chip as a
@@ -2324,13 +2355,45 @@
   50%      { transform: rotate(var(--wiggle-deg, 1.5deg)); }
 }
 
+/* Dragging in „Sortieren" (hooks/useBubbleDrag): the joined bubbles take the
+   finger themselves — no page scroll, no callout, no text selection starting
+   on them. The rail is position: relative above, so a bubble's offsetLeft/Top
+   count from the rail. The dragged bubble stops wiggling (the animation's
+   transform would win over the inline one that follows the finger), lifts
+   above the others and casts a shadow. */
+.profile-clubs-rail.is-sorting .profile-club:not(.is-own) .profile-club-open {
+  touch-action: none;
+  cursor: grab;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.profile-club.is-dragging {
+  animation: none;
+  z-index: 3;
+}
+
+.profile-clubs-rail.is-sorting .profile-club.is-dragging .profile-club-open { cursor: grabbing; }
+
+.profile-club.is-dragging .profile-club-bubble {
+  box-shadow: 0 0 0 2px var(--text-white), 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+
+/* The picture must never become the drag's target (image drag, long-press
+   menu). */
+.profile-club-bubble img {
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
 /* The bubble picked for moving holds still and steps forward, ringed white. */
 .profile-club.is-wiggling.is-picked {
   animation: none;
   transform: scale(1.06);
 }
 .profile-club.is-picked .profile-club-bubble {
-  box-shadow: 0 0 0 2px var(--bg-card), 0 0 0 4.5px var(--text-white);
+  box-shadow: 0 0 0 2px var(--text-white);
 }
 
 .profile-clubs-hint,
@@ -2359,11 +2422,23 @@
   text-overflow: ellipsis;
 }
 
-/* ── „Demnächst dabei" (PR4/PR5): under the bubbles, in the same card ── */
+/* ── „Demnächst dabei" (PR4/PR5): under the bubbles, in the same card ──
+   The divider is inset 12px on both sides, flush with the event rows below
+   it, as in the mock (p. 3) — a border-top ran from card edge to card edge. */
 .profile-clubs + .profile-upcoming {
+  position: relative;
   margin-top: 12px;
   padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.profile-clubs + .profile-upcoming::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .profile-upcoming-hint { margin: 0 16px 2px; }
@@ -2414,34 +2489,36 @@
   touch-action: manipulation;
 }
 
-/* The date tile — day over month, like the club page's event list, without
-   its gradient (brand rule: no gradients). */
+/* The date tile as in the mock p. 3 (Tina 16.11.2026): a small lilac square
+   with two equal white lines, „20." over „Nov" — it was a larger grey-blue
+   tile with a heavy day and a grey „NOV". The lilac is the mock's own. */
 .profile-upcoming-tile {
   display: flex;
   flex-shrink: 0;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 50px;
-  border-radius: 12px;
-  background: var(--bg-input);
+  width: 36px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  background: #3C3572;
   color: var(--text-white);
 }
 
 .profile-upcoming-day {
-  font-size: 18px;
-  font-weight: 900;
-  line-height: 1;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.15;
 }
 
+/* Same type as the day. The locale's short month comes lower-case in
+   fr/es/it („nov"). */
 .profile-upcoming-month {
-  margin-top: 3px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  margin-top: 1px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.15;
+  text-transform: capitalize;
 }
 
 .profile-upcoming-tile.is-empty .profile-upcoming-day { color: var(--text-muted); }
@@ -2496,12 +2573,20 @@
   overflow: hidden;
 }
 
-/* The counter on the date tile's top right corner: the tile ends 8 + 46 =
-   54px in, the 20px counter overlaps its edge by 14. */
+/* A partner's event: the whole subline yellow, „☆ Partner · 8/20" (mock
+   p. 3) — the „· 8/20" used to stay grey beside the yellow badge. Text, so
+   the text token. */
+.profile-upcoming-row.is-partner .profile-upcoming-sub {
+  color: var(--partner-text);
+  font-weight: 600;
+}
+
+/* The counter on the date tile's top right corner: the tile ends 8 + 36 =
+   44px in, the 20px counter overlaps its edge by 14. */
 .profile-upcoming-requests {
   top: 2px;
   right: auto;
-  left: 40px;
+  left: 30px;
 }
 
 .profile-upcoming-chat {

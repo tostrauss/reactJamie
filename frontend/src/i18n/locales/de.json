@@ -742,11 +742,8 @@
       "subtitle": "Entdecke organisierte Veranstaltungen und Clubs in deiner Nähe!"
     },
     "clubRow": {
-      "upcomingEvents_one": "{{count}} anstehendes Event",
-      "upcomingEvents_other": "{{count}} anstehende Events",
       "members_one": "{{count}} Mitglied",
       "members_other": "{{count}} Mitglieder",
-      "official": "Offizieller Club",
       "privateHint": "Beitritt auf Anfrage"
     },
     "search": {
@@ -833,7 +830,8 @@
   },
   "chat": {
     "shared": {
-      "reconnectBanner": "Verbindung unterbrochen – Wiederverbindung..."
+      "reconnectBanner": "Verbindung unterbrochen – Wiederverbindung...",
+      "reconnectHide": "Hinweis „Verbindung unterbrochen“ ausblenden"
     },
     "day": {
       "today": "Heute",
@@ -1119,7 +1117,7 @@
       "title": "Clubs & Communities",
       "sort": "Sortieren",
       "done": "Fertig",
-      "sortHint": "Antippen, dann mit den Pfeilen verschieben.",
+      "sortHint": "Ziehen zum Verschieben – oder antippen und die Pfeile nutzen.",
       "pickAria": "„{{name}}“ zum Verschieben auswählen",
       "moveAria": "„{{name}}“ verschieben",
       "moveEarlier": "Einen Platz nach vorne",
@@ -1141,11 +1139,13 @@
       "editHint": "Tippe auf ein Event, um es zu bearbeiten.",
       "typeGroup": "Gruppe",
       "typeCommunity": "Community",
+      "typeClub": "Club",
       "toChat": "Zum Chat",
       "chatAria": "Zum Chat von „{{name}}“",
       "editAria": "„{{name}}“ bearbeiten",
       "locked": "Dieses Event kann nur bearbeiten, wer es erstellt hat",
-      "showAll": "Alle anzeigen ({{count}})"
+      "showAll": "Alle anzeigen ({{count}})",
+      "tileDay": "{{day}}."
     },
     "memories": {
       "edit": "Bearbeiten",
@@ -1660,6 +1660,34 @@
     "retry": "Erneut versuchen",
     "done": "Fertig",
     "next": "Weiter"
+  },
+  "connect": {
+    "title": "Aus Fremden können Freundschaften werden!",
+    "text": "Mach den ersten Schritt und schicke eine Freundschaftsanfrage !",
+    "sendRequest": "Freundschaftsanfrage senden",
+    "close": "Schließen",
+    "listAria": "Wer bei „{{name}}“ dabei war"
+  },
+  "eventRating": {
+    "title": "Wie war’s bei {{name}}?",
+    "subtitle": "Wir hoffen, du hattest eine gute Zeit!",
+    "feedbackPlaceholder": "Feedback (optional) …",
+    "submit": "Feedback senden",
+    "close": "Schließen",
+    "starsAria": "Bewertung",
+    "starAria_one": "{{count}} Stern",
+    "starAria_other": "{{count}} Sterne",
+    "admin": {
+      "title": "Event-Bewertungen",
+      "empty": "Noch keine Bewertungen.",
+      "countFmt_one": "{{count}} Bewertung",
+      "countFmt_other": "{{count}} Bewertungen"
+    }
+  },
+  "communityNudge": {
+    "title": "Hey, <1>{{name}}</1> hat Potenzial! ✨",
+    "body": "Jetzt fehlt nur noch das erste Treffen. Leg los!",
+    "close": "Schließen"
   },
   "attendance": {
     "pillFmt": "{{n}}+ mal dabei",

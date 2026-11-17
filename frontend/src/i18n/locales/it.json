@@ -742,11 +742,8 @@
       "subtitle": "Scopri eventi organizzati e club vicino a te!"
     },
     "clubRow": {
-      "upcomingEvents_one": "{{count}} evento in arrivo",
-      "upcomingEvents_other": "{{count}} eventi in arrivo",
       "members_one": "{{count}} membro",
       "members_other": "{{count}} membri",
-      "official": "Club ufficiale",
       "privateHint": "Iscrizione su richiesta"
     },
     "search": {
@@ -833,7 +830,8 @@
   },
   "chat": {
     "shared": {
-      "reconnectBanner": "Connessione interrotta – riconnessione..."
+      "reconnectBanner": "Connessione interrotta – riconnessione...",
+      "reconnectHide": "Nascondi l’avviso “Connessione interrotta”"
     },
     "day": {
       "today": "Oggi",
@@ -1119,7 +1117,7 @@
       "title": "Club e community",
       "sort": "Ordina",
       "done": "Fatto",
-      "sortHint": "Toccane uno, poi spostalo con le frecce.",
+      "sortHint": "Trascina per spostare – oppure toccane uno e usa le frecce.",
       "pickAria": "Seleziona «{{name}}» per spostarlo",
       "moveAria": "Sposta «{{name}}»",
       "moveEarlier": "Sposta di un posto prima",
@@ -1141,11 +1139,13 @@
       "editHint": "Tocca un evento per modificarlo.",
       "typeGroup": "Gruppo",
       "typeCommunity": "Community",
+      "typeClub": "Club",
       "toChat": "Vai alla chat",
       "chatAria": "Vai alla chat di «{{name}}»",
       "editAria": "Modifica «{{name}}»",
       "locked": "Solo chi ha creato questo evento può modificarlo",
-      "showAll": "Vedi tutti ({{count}})"
+      "showAll": "Vedi tutti ({{count}})",
+      "tileDay": "{{day}}"
     },
     "memories": {
       "edit": "Modifica",
@@ -1660,6 +1660,34 @@
     "retry": "Riprova",
     "done": "Fatto",
     "next": "Avanti"
+  },
+  "connect": {
+    "title": "Da sconosciuti si può diventare amici!",
+    "text": "Fai il primo passo e invia una richiesta di amicizia!",
+    "sendRequest": "Invia richiesta di amicizia",
+    "close": "Chiudi",
+    "listAria": "Chi c’era a “{{name}}”"
+  },
+  "eventRating": {
+    "title": "Com’è andata {{name}}?",
+    "subtitle": "Speriamo che sia stato bello!",
+    "feedbackPlaceholder": "Feedback (facoltativo) …",
+    "submit": "Invia feedback",
+    "close": "Chiudi",
+    "starsAria": "Valutazione",
+    "starAria_one": "{{count}} stella",
+    "starAria_other": "{{count}} stelle",
+    "admin": {
+      "title": "Valutazioni degli eventi",
+      "empty": "Ancora nessuna valutazione.",
+      "countFmt_one": "{{count}} valutazione",
+      "countFmt_other": "{{count}} valutazioni"
+    }
+  },
+  "communityNudge": {
+    "title": "Ehi, <1>{{name}}</1> ha del potenziale! ✨",
+    "body": "Ora manca solo il primo incontro. Inizia!",
+    "close": "Chiudi"
   },
   "attendance": {
     "pillFmt": "{{n}}+ presenze",

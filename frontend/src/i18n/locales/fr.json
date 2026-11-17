@@ -742,11 +742,8 @@
       "subtitle": "Découvre des événements organisés et des clubs près de toi !"
     },
     "clubRow": {
-      "upcomingEvents_one": "{{count}} événement à venir",
-      "upcomingEvents_other": "{{count}} événements à venir",
       "members_one": "{{count}} membre",
       "members_other": "{{count}} membres",
-      "official": "Club officiel",
       "privateHint": "Adhésion sur demande"
     },
     "search": {
@@ -833,7 +830,8 @@
   },
   "chat": {
     "shared": {
-      "reconnectBanner": "Connexion interrompue – reconnexion..."
+      "reconnectBanner": "Connexion interrompue – reconnexion...",
+      "reconnectHide": "Masquer l’avis « Connexion interrompue »"
     },
     "day": {
       "today": "Aujourd'hui",
@@ -1119,7 +1117,7 @@
       "title": "Clubs et communautés",
       "sort": "Trier",
       "done": "Terminé",
-      "sortHint": "Touche-en un, puis déplace-le avec les flèches.",
+      "sortHint": "Fais glisser pour déplacer – ou touche-en un et utilise les flèches.",
       "pickAria": "Sélectionner « {{name}} » pour le déplacer",
       "moveAria": "Déplacer « {{name}} »",
       "moveEarlier": "Avancer d'une place",
@@ -1141,11 +1139,13 @@
       "editHint": "Touche un événement pour le modifier.",
       "typeGroup": "Groupe",
       "typeCommunity": "Communauté",
+      "typeClub": "Club",
       "toChat": "Ouvrir le chat",
       "chatAria": "Ouvrir le chat de « {{name}} »",
       "editAria": "Modifier « {{name}} »",
       "locked": "Seule la personne qui a créé cet événement peut le modifier",
-      "showAll": "Tout afficher ({{count}})"
+      "showAll": "Tout afficher ({{count}})",
+      "tileDay": "{{day}}"
     },
     "memories": {
       "edit": "Modifier",
@@ -1660,6 +1660,34 @@
     "retry": "Réessayer",
     "done": "Terminé",
     "next": "Continuer"
+  },
+  "connect": {
+    "title": "Des inconnus peuvent devenir des amis !",
+    "text": "Fais le premier pas et envoie une demande d’amitié !",
+    "sendRequest": "Envoyer une demande d’amitié",
+    "close": "Fermer",
+    "listAria": "Qui était à « {{name}} »"
+  },
+  "eventRating": {
+    "title": "Comment c’était, {{name}} ?",
+    "subtitle": "On espère que tu as passé un bon moment !",
+    "feedbackPlaceholder": "Ton avis (facultatif) …",
+    "submit": "Envoyer mon avis",
+    "close": "Fermer",
+    "starsAria": "Note",
+    "starAria_one": "{{count}} étoile",
+    "starAria_other": "{{count}} étoiles",
+    "admin": {
+      "title": "Avis sur les événements",
+      "empty": "Pas encore d’avis.",
+      "countFmt_one": "{{count}} avis",
+      "countFmt_other": "{{count}} avis"
+    }
+  },
+  "communityNudge": {
+    "title": "Hey, <1>{{name}}</1> a du potentiel ! ✨",
+    "body": "Il ne manque plus que la première sortie. Lance-toi !",
+    "close": "Fermer"
   },
   "attendance": {
     "pillFmt": "{{n}}+ présences",

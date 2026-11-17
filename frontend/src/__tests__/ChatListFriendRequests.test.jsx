@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { SocketContext } from '../context/SocketContext';
+import fs from 'node:fs';
+import path from 'node:path';
 
 // Friend requests in Chat → Anfragen (Lea, 18.10.2026: „Man bemerkt die
 // Freundschaftsanfragen nicht, nur wenn man aufs eigene Profil schaut.“). Same
@@ -323,5 +325,65 @@ describe('ChatList — Typ klar erkennbar (Ziel 4)', () => {
     await waitFor(() => expect(clubs.handleRequest).toHaveBeenCalledWith(7, 31, 'accept'));
     expect(groups.handleRequest).not.toHaveBeenCalled();
     expect(toast.success).toHaveBeenCalledWith('Max ist jetzt bei „Lauftreff“ dabei 🎉');
+  });
+});
+
+// jsdom loads no stylesheet — what the deck's swipe hints depend on is pinned
+// on the file (pattern of GroupDetailPills.test.jsx).
+const chatCss = fs.readFileSync(path.resolve(__dirname, '../styles/chat.css'), 'utf8');
+const cssRule = (selector) => {
+  const escaped = selector.replace(/\./g, '\\.');
+  const m = chatCss.match(new RegExp(`\\n${escaped}\\s*\\{([^}]*)\\}`));
+  // Declarations only — the comments in a rule quote old values.
+  return m ? m[1].replace(/\/\*[\s\S]*?\*\//g, '') : null;
+};
+// The px value of exactly this property (never border-right, padding-left…).
+const cssPx = (rule, prop) => {
+  const m = rule.match(new RegExp(`(?:^|[;\\s])${prop}:\\s*(-?\\d+(?:\\.\\d+)?)px`));
+  return m ? Number(m[1]) : null;
+};
+
+// The wrapper moves with the finger: a hint on its outer edge left the screen
+// exactly when the swipe was about to count (audit ziel-d-swipe-texte; Tina
+// 17.11.2026: „Unterschied welche Anfragen man gerade swiped muss klar sein“).
+describe('swipe indicators stay on screen (chat.css)', () => {
+  it('„Aufnehmen“ / „Befreunden“ sits inside the card on the left — the part that stays in view when dragged right', () => {
+    const rule = cssRule('.swipe-accept');
+    expect(rule).not.toBeNull();
+    expect(cssPx(rule, 'left')).toBeGreaterThanOrEqual(0);
+    expect(cssPx(rule, 'right') ?? 0).toBeGreaterThanOrEqual(0);
+  });
+
+  it('„Ablehnen“ sits inside the card on the right', () => {
+    const rule = cssRule('.swipe-decline');
+    expect(rule).not.toBeNull();
+    expect(cssPx(rule, 'right')).toBeGreaterThanOrEqual(0);
+    expect(cssPx(rule, 'left') ?? 0).toBeGreaterThanOrEqual(0);
+  });
+
+  it('the hints never catch a tap or the drag', () => {
+    expect(cssRule('.swipe-indicator')).toMatch(/pointer-events:\s*none/);
+  });
+
+  // Inside the card and centred (top: 50%) the circle lay on the Abzeichen-
+  // Pill and the seal at the bottom of the photo. Now a stamp at the photo's
+  // top: under the type band (2px frame + 70px band + 1px line).
+  it('they sit at the top of the photo, under the type band — not centred on pill and seal', () => {
+    const rule = cssRule('.swipe-indicator');
+    expect(rule).not.toMatch(/top:\s*50%/);
+    expect(cssPx(rule, 'top')).toBeGreaterThanOrEqual(73);
+    expect(cssPx(rule, 'top')).toBeLessThanOrEqual(90);
+  });
+});
+
+// „Allgemein die gelben Balken weg!“ (Tina 17.11.2026, audit P3-01 part 4):
+// the gold Pro banner of the chat list had no markup left, only its CSS.
+describe('chat.css carries no dead gold Pro banner', () => {
+  it('no Pro-banner rule and none of its gold', () => {
+    // Class name in two halves, so a search for it over the sources stays empty.
+    expect(chatCss).not.toContain('.pro-' + 'banner');
+    expect(chatCss).not.toMatch(/#FFD700/i);
+    expect(chatCss).not.toMatch(/#FFAA00/i);
+    expect(chatCss).not.toMatch(/255,\s*215,\s*0/);
   });
 });

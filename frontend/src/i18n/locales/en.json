@@ -742,11 +742,8 @@
       "subtitle": "Discover organised events and clubs near you!"
     },
     "clubRow": {
-      "upcomingEvents_one": "{{count}} upcoming event",
-      "upcomingEvents_other": "{{count}} upcoming events",
       "members_one": "{{count}} member",
       "members_other": "{{count}} members",
-      "official": "Official club",
       "privateHint": "Join by request"
     },
     "search": {
@@ -833,7 +830,8 @@
   },
   "chat": {
     "shared": {
-      "reconnectBanner": "Connection lost — reconnecting…"
+      "reconnectBanner": "Connection lost — reconnecting…",
+      "reconnectHide": "Hide “Connection lost” notice"
     },
     "day": {
       "today": "Today",
@@ -1119,7 +1117,7 @@
       "title": "Clubs & Communities",
       "sort": "Sort",
       "done": "Done",
-      "sortHint": "Tap one, then move it with the arrows.",
+      "sortHint": "Drag to move – or tap one and use the arrows.",
       "pickAria": "Select “{{name}}” to move it",
       "moveAria": "Move “{{name}}”",
       "moveEarlier": "Move one place earlier",
@@ -1141,11 +1139,13 @@
       "editHint": "Tap an event to edit it.",
       "typeGroup": "Group",
       "typeCommunity": "Community",
+      "typeClub": "Club",
       "toChat": "Open chat",
       "chatAria": "Open the chat of “{{name}}”",
       "editAria": "Edit “{{name}}”",
       "locked": "Only the person who created this event can edit it",
-      "showAll": "See all ({{count}})"
+      "showAll": "See all ({{count}})",
+      "tileDay": "{{day}}"
     },
     "memories": {
       "edit": "Edit",
@@ -1660,6 +1660,34 @@
     "retry": "Try again",
     "done": "Done",
     "next": "Next"
+  },
+  "connect": {
+    "title": "Strangers can become friends!",
+    "text": "Take the first step and send a friend request!",
+    "sendRequest": "Send friend request",
+    "close": "Close",
+    "listAria": "Who was at “{{name}}”"
+  },
+  "eventRating": {
+    "title": "How was {{name}}?",
+    "subtitle": "We hope you had a great time!",
+    "feedbackPlaceholder": "Feedback (optional) …",
+    "submit": "Send feedback",
+    "close": "Close",
+    "starsAria": "Rating",
+    "starAria_one": "{{count}} star",
+    "starAria_other": "{{count}} stars",
+    "admin": {
+      "title": "Event ratings",
+      "empty": "No ratings yet.",
+      "countFmt_one": "{{count}} rating",
+      "countFmt_other": "{{count}} ratings"
+    }
+  },
+  "communityNudge": {
+    "title": "Hey, <1>{{name}}</1> has potential! ✨",
+    "body": "All it needs now is the first meetup. Get started!",
+    "close": "Close"
   },
   "attendance": {
     "pillFmt": "{{n}}+ attended",

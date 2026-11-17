@@ -22,6 +22,7 @@ vi.mock('../../src/controllers/hallOfFameController.js', () => stubs([
   'getUserHallOfFame', 'getMyProfileStats', 'hideMemory', 'unhideMemory',
 ]));
 vi.mock('../../src/controllers/clubController.js', () => stubs(['setMyClubOrder']));
+vi.mock('../../src/controllers/communityNudgeController.js', () => stubs(['getMyCommunityNudges', 'dismissCommunityNudge']));
 
 const userRoutes = (await import('../../src/routes/userRoutes.js')).default;
 const app = express();
@@ -40,6 +41,13 @@ describe('user routes — own profile', () => {
   // „Sortieren“ of the club bubbles (16.11.2026).
   it('saving the club order reaches its own handler', async () => {
     expect(await handlerOf(request(app).put('/api/users/me/clubs/order').send({ clubIds: [1, 2] }))).toBe('setMyClubOrder');
+  });
+
+  // „Hey, [Community] hat Potenzial! ✨“ (17.11.2026): literal /me paths —
+  // read as '/:id' the card would silently be somebody's profile.
+  it('the community nudges and their close reach their own handlers', async () => {
+    expect(await handlerOf(request(app).get('/api/users/me/community-nudges'))).toBe('getMyCommunityNudges');
+    expect(await handlerOf(request(app).post('/api/users/me/community-nudges/9/dismiss'))).toBe('dismissCommunityNudge');
   });
 
   it('the neighbours still route as before', async () => {

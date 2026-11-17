@@ -1,0 +1,545 @@
+/* ========================================
+   After an event (Tina 17.11.2026)
+   The friends list „Aus Fremden können Freundschaften werden!“ (ConnectSheet),
+   „Wie war’s bei X?“ (EventRatingModal) and the card „Hey, [Community] hat
+   Potenzial! ✨“ (CommunityNudgeCard). Loaded by those components themselves —
+   they come up on every screen, so no page stylesheet can be relied on.
+   Layer: 9000, like the „Wer war dabei?“ dialog; the „Tageslimit erreicht“
+   sheet (10000) opens above it.
+   ======================================== */
+
+/* ── Shared: the dimmed layer and the bottom sheet ─────────────────────── */
+.pe-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+}
+.pe-sheet {
+  width: 100%;
+  max-width: 500px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  /* A max-height-capped flex column needs min-height: 0 on its scroll box,
+     else the children refuse to shrink and the last one is clipped instead of
+     scrolled (the recurring „sheet won't scroll“ bug class). */
+  min-height: 0;
+  max-height: calc(100vh - 12px);
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 12px);
+  /* Bottom = nav clearance (60px strip + --nav-safe-bottom), not the bare
+     home-indicator inset: .bottom-nav owns the bottom edge while this sheet is
+     fixed to the viewport bottom (the nav invariant). */
+  padding: 22px 20px calc(60px + var(--nav-safe-bottom) + 16px);
+  background: linear-gradient(175deg, #2E2455 0%, #1A1433 60%);
+  border: 1px solid rgba(253, 118, 102, 0.22);
+  border-bottom: none;
+  border-radius: 28px 28px 0 0;
+  color: var(--text-white);
+  outline: none;
+}
+
+/* The X — a 32px circle with a 44px hit area. */
+.pe-close {
+  position: relative;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-white);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.pe-close::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+.pe-close:focus-visible {
+  outline: 2px solid var(--accent-coral);
+  outline-offset: 2px;
+}
+
+/* The full-width coral button at the foot. */
+.pe-primary {
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 16px;
+  background: var(--accent-coral);
+  color: #fff;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.pe-primary:active { transform: scale(0.99); }
+.pe-primary:disabled { opacity: 0.6; cursor: default; transform: none; }
+
+/* ── The friends list (ConnectSheet, Tina's Bild 8) ────────────────────── */
+.pe-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.pe-head-text { min-width: 0; }
+.pe-head-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--text-white);
+  overflow-wrap: anywhere;
+}
+.pe-head-date {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+.pe-title {
+  flex-shrink: 0;
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--text-white);
+  text-wrap: balance;
+}
+.pe-text {
+  flex-shrink: 0;
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.65);
+}
+.pe-people {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.pe-person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.pe-person:last-child { border-bottom: none; }
+.pe-person-av {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.9);
+}
+.pe-person-av img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pe-person-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-white);
+}
+
+/* The friendship button — the shape of Explore's .ef-friends-btn (that
+   stylesheet is only loaded on Explore). It may wrap onto two lines: „Envoyer
+   une demande d'amitié“ does not fit beside a name on one. */
+.pe-friend-btn {
+  flex-shrink: 0;
+  max-width: 52%;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  white-space: normal;
+}
+.pe-friend-btn svg { flex-shrink: 0; }
+.pe-friend-btn--primary {
+  background: var(--accent-coral);
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.pe-friend-btn--primary:active { transform: scale(0.95); }
+.pe-friend-btn--primary:disabled { opacity: 0.6; cursor: default; transform: none; }
+.pe-friend-btn--done {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-light);
+}
+/* „✓ Befreundet“ as in Tina's Bild 8: an outlined coral pill, coral text. */
+.pe-friend-btn--friends {
+  background: transparent;
+  border: 1.5px solid var(--accent-coral);
+  color: var(--accent-coral);
+  font-weight: 600;
+}
+
+/* ── „Wie war’s bei X?“ (EventRatingModal, Tina's Bild 16) ─────────────── */
+/* A centred card, about 22px from the screen's sides at 390px. Colours taken
+   from her mock: the card runs from #261C43 (top) to #332950 (bottom). */
+.pe-rating-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Centred in the space ABOVE the bottom nav, as in her mock — the nav's
+     own height (60px strip + --nav-safe-bottom) is kept clear. */
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 22px calc(60px + var(--nav-safe-bottom) + 12px);
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.pe-rating-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  box-sizing: border-box;
+  /* A small screen with the keyboard up: the card scrolls instead of
+     running off both ends. */
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 28px 22px 24px;
+  text-align: center;
+  background: linear-gradient(180deg, #261C43 0%, #332950 100%);
+  border: 1px solid var(--border-default);
+  border-radius: 28px;
+  color: var(--text-white);
+  outline: none;
+}
+.pe-rating-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.10);
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.pe-rating-close::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+.pe-rating-close:focus-visible {
+  outline: 2px solid var(--accent-coral);
+  outline-offset: 2px;
+}
+.pe-rating-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  background: rgba(253, 118, 102, 0.10);
+  border: 1px solid rgba(253, 118, 102, 0.22);
+  color: var(--accent-coral);
+}
+.pe-rating-title {
+  margin: 0;
+  font-family: 'Archivo', -apple-system, sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--accent-coral);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.pe-rating-subtitle {
+  margin: 10px 0 22px;
+  font-size: 15px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.75);
+}
+.pe-rating-stars {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+/* 44px hit area around a 36px star. Grey until one is chosen; then every
+   star up to the chosen one is in full colour. */
+.pe-rating-star {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  font-size: 36px;
+  line-height: 1;
+  cursor: pointer;
+  filter: grayscale(1);
+  opacity: 0.35;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.pe-rating-star.is-on {
+  filter: none;
+  opacity: 1;
+}
+.pe-rating-star:active { transform: scale(0.9); }
+.pe-rating-star:focus-visible {
+  outline: 2px solid var(--accent-coral);
+  outline-offset: 1px;
+}
+.pe-rating-feedback {
+  display: block;
+  width: 100%;
+  min-height: 72px;
+  box-sizing: border-box;
+  margin: 22px 0 0;
+  padding: 14px 16px;
+  resize: none;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 16px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.4;
+}
+.pe-rating-feedback::placeholder { color: rgba(255, 255, 255, 0.5); }
+.pe-rating-feedback:focus {
+  outline: none;
+  border-color: rgba(253, 118, 102, 0.55);
+}
+/* Coral with DARK text, as in her mock. */
+.pe-rating-submit {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 16px;
+  background: var(--accent-coral);
+  color: var(--bg-primary);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.pe-rating-submit:active { transform: scale(0.99); }
+.pe-rating-submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+.pe-rating-error {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: #f87171;
+}
+
+/* ── „Hey, [Community] hat Potenzial! ✨“ (CommunityNudgeCard, Bild 17) ─── */
+/* The same dimmed, blurred layer as the rating card, centred above the nav.
+   Her mock is scaled about 1.4×: the card is just under 350px wide at 390px;
+   its colours run from rgb(46,33,78) at the top to rgb(42,30,70). */
+.pe-nudge-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 22px calc(60px + var(--nav-safe-bottom) + 12px);
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.pe-nudge-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  box-sizing: border-box;
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 20px;
+  background: linear-gradient(180deg, #2E214E 0%, #2A1E46 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 28px;
+  color: var(--text-white);
+  outline: none;
+}
+.pe-nudge-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.pe-nudge-close::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+.pe-nudge-close:focus-visible {
+  outline: 2px solid var(--accent-coral);
+  outline-offset: 2px;
+}
+/* Picture left, text right. As in her mock the row starts BELOW the X (which
+   ends 50px from the card's top), so the text may use the full width: „Hey,
+   Punsch & Rave 2“ stays on one line at 390px, as she drew it. */
+.pe-nudge-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding-top: 32px;
+}
+.pe-nudge-pic {
+  position: relative;
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+}
+.pe-nudge-img,
+.pe-nudge-fallback {
+  width: 64px;
+  height: 64px;
+  box-sizing: border-box;
+  border-radius: 16px;
+  border: 1px solid rgba(253, 118, 102, 0.25);
+}
+.pe-nudge-img {
+  display: block;
+  object-fit: cover;
+}
+/* No picture: the outlined people icon of her mock. */
+.pe-nudge-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(253, 118, 102, 0.10);
+  color: var(--accent-coral);
+}
+/* The three short coral strokes over the picture's top right corner. */
+.pe-nudge-spark {
+  position: absolute;
+  top: -17px;
+  right: -16px;
+  color: var(--accent-coral);
+  pointer-events: none;
+}
+.pe-nudge-text { min-width: 0; }
+.pe-nudge-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--text-white);
+  overflow-wrap: anywhere;
+  /* A safety net only: the component already shortens a very long name. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+.pe-nudge-name { color: var(--accent-coral); }
+.pe-nudge-body {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.75);
+}
+/* Coral pill with DARK text, as in her mock. */
+.pe-nudge-cta {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 20px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent-coral);
+  color: var(--bg-primary);
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.pe-nudge-cta:active { transform: scale(0.99); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pe-primary:active,
+  .pe-friend-btn--primary:active,
+  .pe-rating-star:active,
+  .pe-rating-submit:active,
+  .pe-nudge-cta:active { transform: none; }
+  .pe-rating-star { transition: none; }
+}

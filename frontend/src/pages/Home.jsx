@@ -7,7 +7,7 @@ import { GroupCard } from "../components/GroupCard";
 import { MapErrorBoundary } from "../components/MapErrorBoundary";
 import { DealCard } from "../components/DealCard";
 import { CommunityCard } from "../components/CommunityCard";
-import { ClubListRow } from "../components/ClubListRow";
+import { ClubCard } from "../components/ClubCard";
 import AvatarGateModal from "../components/AvatarGateModal";
 import { JamieWordmark } from "../components/JamieWordmark";
 import { NotificationBell } from "../components/NotificationBell";
@@ -975,11 +975,12 @@ export const Home = () => {
                 )}
 
                 {loading ? renderFeedSkeleton(3) : segmentClubs.length > 0 ? (
-                  <div className="club-rows">
+                  <div className="groups-grid clubs-grid">
                     {segmentClubs.map(club => (
-                      <ClubListRow
+                      <ClubCard
                         key={club.id}
                         club={club}
+                        emojiFor={catEmojiFor}
                         onOpen={() => handleCardClick(club.id, 'club')}
                       />
                     ))}

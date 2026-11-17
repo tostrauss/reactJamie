@@ -4,6 +4,7 @@ import {
   getUserHallOfFame, getMyProfileStats, hideMemory, unhideMemory,
 } from '../controllers/hallOfFameController.js';
 import { setMyClubOrder } from '../controllers/clubController.js';
+import { getMyCommunityNudges, dismissCommunityNudge } from '../controllers/communityNudgeController.js';
 import { authenticate } from '../middleware/auth.js';
 import { userSearchLimiter } from '../middleware/rateLimiter.js';
 
@@ -19,6 +20,11 @@ router.delete('/me/hall-of-fame/:groupId/hide', authenticate, unhideMemory);
 // „Sortieren“ of the profile's club bubbles (16.11.2026); read back through
 // GET /api/clubs/user/joined.
 router.put('/me/clubs/order', authenticate, setMyClubOrder);
+// „Hey, [Community] hat Potenzial! ✨“ (17.11.2026): the creator's own
+// communities that still have no meetup — the card on the home screen and
+// its X. Literal /me paths, registered before /:id.
+router.get('/me/community-nudges', authenticate, getMyCommunityNudges);
+router.post('/me/community-nudges/:clubId/dismiss', authenticate, dismissCommunityNudge);
 // Events someone took part in — own (id "me") or another profile's public ones.
 router.get('/:id/hall-of-fame', authenticate, getUserHallOfFame);
 router.get('/:id', authenticate, getUserById);
