@@ -32,6 +32,7 @@ import {
   getGroupMemberAvatars
 } from '../controllers/groupController.js';
 import { getFeaturedClubs } from '../controllers/featuredClubController.js';
+import { getEventQuota } from '../controllers/partnerController.js';
 import { authenticate, optionalAuth, requireCompleteProfile } from '../middleware/auth.js';
 import { generalLimiter } from '../middleware/rateLimiter.js';
 
@@ -97,6 +98,10 @@ router.get('/:id/events', optionalAuth, getClubEvents);
 router.post('/:id/events', authenticate, requireCompleteProfile, createClubEvent);
 router.put('/:id/events/:eventId', authenticate, requireCompleteProfile, updateClubEvent);
 router.delete('/:id/events/:eventId', authenticate, deleteClubEvent);
+// Where the club stands in the free tier (Tina 17.11.2026): the event form
+// asks before it opens, so a club at its limit sees the partner message
+// instead of a form that will be refused.
+router.get('/:id/event-quota', authenticate, getEventQuota);
 
 // ==========================================
 // CO-MANAGER ROUTES (owner only) — shared management for paid managed clubs

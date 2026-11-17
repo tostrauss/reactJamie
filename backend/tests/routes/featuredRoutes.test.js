@@ -33,6 +33,10 @@ vi.mock('../../src/controllers/groupController.js', () => stubs([
 vi.mock('../../src/controllers/featuredClubController.js', () => stubs([
   'getFeaturedClubs', 'getFeaturedClubsAdmin', 'setFeaturedClubs',
 ]));
+// The partner model (Tina 17.11.2026): its club routes sit next to the events'.
+vi.mock('../../src/controllers/partnerController.js', () => stubs([
+  'getEventQuota',
+]));
 vi.mock('../../src/controllers/adminController.js', () => stubs([
   'getStats', 'getRecentUsers', 'getScreenTime', 'exportUsers', 'exportScreens', 'exportSuggestions',
   'getPendingClubs', 'approveClub', 'rejectClub', 'deleteUser', 'updateUserRole', 'getTopClubs',
@@ -62,6 +66,16 @@ describe('club routes', () => {
     expect(await handlerOf(request(app).get('/api/clubs/42'))).toBe('getClubById');
     expect(await handlerOf(request(app).get('/api/clubs/events/discover'))).toBe('getDiscoverEvents');
     expect(await handlerOf(request(app).get('/api/clubs'))).toBe('getClubs');
+  });
+
+  // The free tier (Tina 17.11.2026): the quota is its own path under the club
+  // — neither the club itself nor its event list answers for it.
+  it('GET /api/clubs/:id/event-quota reaches the quota, the event routes stay where they were', async () => {
+    expect(await handlerOf(request(app).get('/api/clubs/7/event-quota'))).toBe('getEventQuota');
+    expect(await handlerOf(request(app).get('/api/clubs/7/events'))).toBe('getClubEvents');
+    expect(await handlerOf(request(app).post('/api/clubs/7/events').send({}))).toBe('createClubEvent');
+    expect(await handlerOf(request(app).put('/api/clubs/7/events/9').send({}))).toBe('updateClubEvent');
+    expect(await handlerOf(request(app).delete('/api/clubs/7/events/9'))).toBe('deleteClubEvent');
   });
 });
 

@@ -7274,6 +7274,47 @@ suite('write endpoints against real Postgres', () => {
       }
       expect(await quota(club)).toMatchObject({ limited: true, used: 2, upcoming: 2, block: 'third' });
     });
+
+    // GET /api/clubs/:id/event-quota — what the event form asks before it opens.
+    it('the quota endpoint says what creating would answer, to the people who may create', async () => {
+      const pc = await import('../../src/controllers/partnerController.js');
+      const ask = (club, userId = owner) => call(pc.getEventQuota, { userId, params: { id: String(club) } });
+
+      const club = await mkClub('Quota Café Frage', { more: [member] });
+      const empty = await ask(club);
+      ok(empty);
+      expect(empty.body).toEqual({
+        club_id: club, club_name: 'Quota Café Frage', limited: true, free_events: 2,
+        used: 0, upcoming: 0, block: null, ticket_allowed: false, is_manager: true,
+      });
+      const first = await create(club);
+      ok(first);
+      expect((await ask(club)).body).toMatchObject({ used: 1, upcoming: 1, block: 'concurrent' });
+      // a plain member gets the same answer, without the manager flag
+      expect((await ask(club, member)).body).toMatchObject({ block: 'concurrent', is_manager: false });
+      await moveTo(first.body.id, -2);
+      ok(await create(club));
+      expect((await ask(club)).body).toMatchObject({ used: 2, upcoming: 1, block: 'third' });
+
+      // an outsider learns nothing, an app admin sees it as not limited
+      const outsider = await ask(club, plain);
+      expect(outsider.statusCode).toBe(403);
+      expect(outsider.body.code).toBe('NOT_MEMBER');
+      expect((await ask(club, A)).body).toMatchObject({ limited: false, block: null, ticket_allowed: true, is_manager: false });
+
+      // a paying partner and a community: never limited
+      const partner = await mkClub('Quota Partner Frage', { paid: true });
+      expect((await ask(partner)).body).toMatchObject({ limited: false, block: null, ticket_allowed: true });
+      const community = await mkClub('Quota Community Frage', { type: 'community' });
+      expect((await ask(community)).body).toEqual({
+        club_id: community, club_name: 'Quota Community Frage', limited: false, free_events: 2,
+        used: 0, upcoming: 0, block: null, ticket_allowed: true, is_manager: true,
+      });
+
+      // not a club, not a number
+      expect((await ask(first.body.id)).statusCode).toBe(404);
+      expect((await ask('featured')).statusCode).toBe(404);
+    });
   });
   // <<< BAU1-SMOKE
   //
