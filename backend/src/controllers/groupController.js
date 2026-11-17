@@ -57,7 +57,7 @@ const GROUPS_TTL  = 30_000;  // 30 s — acceptable staleness for list views
 // keeps an already-future recurring start on its own date. Bucketing on the
 // ROLLED date is what guarantees the card badge ("Heute" / "Morgen") and this
 // ordering can never disagree.
-const NEXT_AT_SQL = `
+export const NEXT_AT_SQL = `
   CASE WHEN g.date IS NULL OR g.is_recurring_weekly IS NOT TRUE THEN g.date
        ELSE g.date + (GREATEST(CEIL(EXTRACT(EPOCH FROM (
               (NOW() AT TIME ZONE 'Europe/Vienna') - g.date
@@ -87,7 +87,7 @@ const AVATARS_TTL = 60_000;  // 60 s — avatars change only on join/leave
 // Value = ARRAY of boxes (Spain needs mainland + Canaries; anything else is
 // one box). FR/ES were missing entirely after the 2026-08-04 market launch —
 // French/Spanish users silently got the unfiltered worldwide feed.
-const COUNTRY_BOUNDS = {
+export const COUNTRY_BOUNDS = {
   AT: [{ latMin: 46.37, latMax: 49.02, lngMin: 9.53, lngMax: 17.16 }],
   DE: [{ latMin: 47.27, latMax: 55.06, lngMin: 5.87, lngMax: 15.04 }],
   CH: [{ latMin: 45.82, latMax: 47.81, lngMin: 5.96, lngMax: 10.49 }],

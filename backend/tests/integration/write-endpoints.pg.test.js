@@ -9054,6 +9054,405 @@ suite('write endpoints against real Postgres', () => {
     });
   });
 
+  // ── The new Friends page (Tina, 17.11.2026: „JAMIE: Neue Friends Seite“) ──
+  // GET /friends/going („Wo gehen deine Freunde hin? 🎉“) and GET
+  // /friends/people („Leute, die du kennen könntest“). Real Postgres because
+  // every rule is SQL: the feed's own gate (live parent club, age range,
+  // country box), the Vienna day, the weekly series' next date, the
+  // friendship states in both directions.
+  describe('Friends page: where friends go, people you may know (17.11.2026)', () => {
+    let hub, limits;
+    const P = {};   // user ids by short name
+
+    const mk = async (key, { active = true } = {}) => {
+      const r = await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider, is_active)
+         VALUES ($1, $2, '1995-03-03', 'female', $3, TRUE, 'email', $4) RETURNING id`,
+        [`smoke-fhub-${key}@x.com`, `Fhub ${key}`, avatar, active]);
+      P[key] = r.rows[0].id;
+      return P[key];
+    };
+    const befriend = (a, b, status = 'accepted') => db.query(
+      'INSERT INTO friendships (requester_id, addressee_id, status) VALUES ($1, $2, $3)', [a, b, status]);
+
+    // Vienna days relative to today, as SQL — the expression the endpoints
+    // compare with, so these cases hold at any time of day.
+    const TODAY = `date_trunc('day', NOW() AT TIME ZONE 'Europe/Vienna')`;
+    const inDays = (days, hour = 19) => `${TODAY} + INTERVAL '${Number(days)} days' + INTERVAL '${Number(hour)} hours'`;
+    const daysAgo = (days, hour = 19) => `${TODAY} - INTERVAL '${Number(days)} days' + INTERVAL '${Number(hour)} hours'`;
+
+    // A meetup (`when` is a trusted SQL expression of this file, or NULL).
+    // The members join in the order given, one minute apart.
+    const mkMeet = async (name, when, owner, others = [], o = {}) => {
+      const id = (await db.query(
+        `INSERT INTO groups (name, type, date, owner_id, category, location, max_members, parent_club_id,
+                             is_private, lat, lng, target_age_min, target_age_max, is_recurring_weekly)
+         VALUES ($1, $2, ${when || 'NULL'}, $3, 'Sport', 'Wien', $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+        [name, o.type || 'group', owner, o.max ?? 30, o.parent ?? null, !!o.isPrivate,
+          o.lat ?? null, o.lng ?? null, o.ageMin ?? null, o.ageMax ?? null, !!o.weekly])).rows[0].id;
+      await db.query(
+        `INSERT INTO group_members (group_id, user_id, role, joined_at)
+         SELECT $1, u, CASE WHEN u = $2 THEN 'owner' ELSE 'member' END,
+                NOW() - INTERVAL '40 days' + (ord * INTERVAL '1 minute')
+           FROM unnest($3::int[]) WITH ORDINALITY AS t(u, ord)`, [id, owner, [owner, ...others]]);
+      return id;
+    };
+    const mkClub = async (name, o = {}) => (await db.query(
+      `INSERT INTO groups (name, type, owner_id, category, location, max_members, approval_status, is_active, is_private)
+       VALUES ($1, 'club', $2, 'Sport', 'Wien', 500, $3, TRUE, $4) RETURNING id`,
+      [name, P.stranger, o.approval || 'approved', !!o.isPrivate])).rows[0].id;
+
+    const going = async (uid) => {
+      const res = await call(hub.getFriendsGoing, { userId: uid });
+      expect(res.statusCode).toBe(200);
+      return res.body;
+    };
+    const goingIds = async (uid) => (await going(uid)).map((c) => c.id);
+    const cardOf = async (uid, gid) => (await going(uid)).find((c) => c.id === gid);
+    const people = async (uid) => {
+      const res = await call(hub.getPeopleYouMayKnow, { userId: uid });
+      expect(res.statusCode).toBe(200);
+      return res.body;
+    };
+    const join = (uid, gid) => call(C.joinGroup, { userId: uid, params: { id: String(gid) }, body: {} });
+    // What the Gruppen feed shows this caller among this block's meetups
+    // (`search` keeps the answer out of the 30-second cache).
+    const feedIds = async (uid) => {
+      const res = await call(C.getGroups, { userId: uid,
+        query: { type: 'group', upcoming: 'true', include_club_events: 'true', search: 'Fhub' } });
+      ok(res);
+      return res.body.map((g) => g.id);
+    };
+
+    beforeAll(async () => {
+      hub = await import('../../src/controllers/friendsHubController.js');
+      limits = await import('../../src/utils/dailyLimits.js');
+      await mk('me');
+      await mk('fynn');
+      await mk('laura');
+      await mk('tim');
+      await mk('ghost', { active: false });   // a friend whose account is closed
+      await mk('asked');                      // open request, no friend yet
+      await mk('ex');                         // blocked
+      await mk('stranger');
+      await befriend(P.me, P.fynn);           // both directions of the row
+      await befriend(P.laura, P.me);
+      await befriend(P.me, P.tim);
+      await befriend(P.me, P.ghost);
+      await befriend(P.me, P.asked, 'pending');
+      await befriend(P.me, P.ex, 'blocked');
+    }, 60000);
+
+    describe('GET /friends/going', () => {
+      it('a coming meetup with friends in it: the card, the friends in member-list order, the caller\'s state', async () => {
+        const meet = await mkMeet('Fhub Spieleabend', inDays(2), P.fynn, [P.laura, P.stranger, P.tim]);
+        const card = await cardOf(P.me, meet);
+        expect(card).toMatchObject({
+          id: meet, name: 'Fhub Spieleabend', type: 'group', image_url: null,
+          friend_count: 3, my_status: 'none',
+        });
+        // Creator first, then join order — and never the stranger.
+        expect(card.friends).toEqual([
+          { id: P.fynn, name: 'Fhub fynn', avatar_url: avatar },
+          { id: P.laura, name: 'Fhub laura', avatar_url: avatar },
+          { id: P.tim, name: 'Fhub tim', avatar_url: avatar },
+        ]);
+        // The meetup's own date: nothing rolls for a one-off.
+        const stored = (await db.query('SELECT date FROM groups WHERE id = $1', [meet])).rows[0].date;
+        expect(card.next_at).toEqual(stored);
+        expect(card.date).toEqual(stored);
+        // Somebody without friends sees nothing at all.
+        expect(await going(P.stranger)).toEqual([]);
+      });
+
+      it('only accepted friends with an active account count', async () => {
+        const others = await mkMeet('Fhub Nur Fremde', inDays(2), P.stranger, [P.asked, P.ex]);
+        const closed = await mkMeet('Fhub Nur Geist', inDays(2), P.stranger, [P.ghost]);
+        const mixed = await mkMeet('Fhub Geist und Fynn', inDays(2), P.stranger, [P.ghost, P.fynn, P.asked]);
+        const ids = await goingIds(P.me);
+        expect(ids).not.toContain(others);
+        expect(ids).not.toContain(closed);
+        const card = await cardOf(P.me, mixed);
+        expect(card.friend_count).toBe(1);
+        expect(card.friends.map((f) => f.id)).toEqual([P.fynn]);
+      });
+
+      it('only what is still to come by the Vienna day, the next one first — a weekly series with its next date', async () => {
+        const yesterday = await mkMeet('Fhub Gestern', daysAgo(1), P.tim);
+        const today = await mkMeet('Fhub Heute ohne Uhrzeit', TODAY, P.tim);            // date-only: midnight
+        const tomorrow = await mkMeet('Fhub Morgen', inDays(1, 8), P.tim);
+        const undated = await mkMeet('Fhub Ohne Datum', null, P.tim);
+        const far = await mkMeet('Fhub In drei Wochen', inDays(21), P.tim);
+        // Started three weeks ago at midnight — whatever the time of day, its
+        // next date is a week from today (its slot of today has passed).
+        const weekly = await mkMeet('Fhub Jede Woche', `${TODAY} - INTERVAL '21 days'`, P.tim, [], { weekly: true });
+        const mine = [yesterday, today, tomorrow, undated, far, weekly];
+        const cards = (await going(P.me)).filter((c) => mine.includes(c.id));
+        expect(cards.map((c) => c.id)).toEqual([today, tomorrow, weekly, far]);
+        const series = cards.find((c) => c.id === weekly);
+        expect(series.is_recurring_weekly).toBe(true);
+        // …shown with the rolled date, not the stored first one.
+        // (rounded: the two dates can lie on either side of a clock change)
+        expect(Math.round((new Date(series.next_at) - new Date(series.date)) / 864e5)).toBe(28);
+        // The whole list is sorted by that next date.
+        const all = await going(P.me);
+        const times = all.map((c) => new Date(c.next_at).getTime());
+        expect(times).toEqual([...times].sort((a, b) => a - b));
+      });
+
+      it('what the feed hides never appears: a private club\'s event, a club in review or deleted, a cancelled or deleted meetup', async () => {
+        const pubClub = await mkClub('Fhub Club offen');
+        const privClub = await mkClub('Fhub Club privat', { isPrivate: true });
+        const pendClub = await mkClub('Fhub Club in Prüfung', { approval: 'pending' });
+        const goneClub = await mkClub('Fhub Club gelöscht');
+        // The caller is even a member of the private club — still hidden, like in the feed.
+        await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, [privClub, P.me]);
+
+        const pubEvent = await mkMeet('Fhub Event offen', inDays(5), P.fynn, [], { type: 'event', parent: pubClub });
+        const privEvent = await mkMeet('Fhub Event privat', inDays(5), P.fynn, [], { type: 'event', parent: privClub, isPrivate: true });
+        const pendEvent = await mkMeet('Fhub Event Prüfung', inDays(5), P.fynn, [], { type: 'event', parent: pendClub });
+        const goneEvent = await mkMeet('Fhub Event Clubweg', inDays(5), P.fynn, [], { type: 'event', parent: goneClub });
+        await db.query('UPDATE groups SET deleted_at = NOW(), is_active = FALSE WHERE id = $1', [goneClub]);
+        const cancelled = await mkMeet('Fhub Abgesagt', inDays(5), P.fynn);
+        await db.query('UPDATE groups SET is_active = FALSE WHERE id = $1', [cancelled]);
+        const deleted = await mkMeet('Fhub Gelöscht', inDays(5), P.fynn);
+        await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [deleted]);
+        // A private meetup (join by request) is in the feed — and here.
+        const byRequest = await mkMeet('Fhub Auf Anfrage', inDays(5), P.fynn, [], { isPrivate: true });
+
+        const ids = await goingIds(P.me);
+        expect(ids).toEqual(expect.arrayContaining([pubEvent, byRequest]));
+        for (const hidden of [privEvent, pendEvent, goneEvent, cancelled, deleted]) expect(ids).not.toContain(hidden);
+
+        // The feed itself, for the same caller: every card is in it, none of
+        // the hidden ones is.
+        const feed = await feedIds(P.me);
+        for (const id of ids) expect(feed, `card ${id} is not in the feed`).toContain(id);
+        for (const hidden of [privEvent, pendEvent, goneEvent, cancelled, deleted]) expect(feed).not.toContain(hidden);
+
+        // A club that turns private takes its event out of both.
+        await db.query('UPDATE groups SET is_private = TRUE WHERE id = $1', [pubClub]);
+        expect(await goingIds(P.me)).not.toContain(pubEvent);
+        expect(await feedIds(P.me)).not.toContain(pubEvent);
+        await db.query('UPDATE groups SET is_private = FALSE WHERE id = $1', [pubClub]);
+      });
+
+      // Own people from here on: the list ends at 12 cards, and P.me has
+      // nearly that many by now.
+      it('the caller\'s age range and country box, like in the feed', async () => {
+        await mk('ager');
+        await mk('a-host');
+        await befriend(P.ager, P['a-host']);
+        await db.query(`UPDATE users SET date_of_birth = (CURRENT_DATE - INTERVAL '30 years 6 months')::date WHERE id = $1`, [P.ager]);
+        const older = await mkMeet('Fhub Ü40', inDays(6), P['a-host'], [], { ageMin: 40, ageMax: 50 });
+        const fits = await mkMeet('Fhub 25 bis 35', inDays(6), P['a-host'], [], { ageMin: 25, ageMax: 35 });
+        const berlin = await mkMeet('Fhub Berlin', inDays(6), P['a-host'], [], { lat: 52.52, lng: 13.4 });
+        const vienna = await mkMeet('Fhub Wien', inDays(6), P['a-host'], [], { lat: 48.2, lng: 16.37 });
+        const nowhere = await mkMeet('Fhub Ohne Ort', inDays(6), P['a-host']);
+
+        // No country yet: every place passes; the age range holds (the caller is 30).
+        expect((await goingIds(P.ager)).sort()).toEqual([fits, berlin, vienna, nowhere].sort());
+
+        await db.query(`UPDATE users SET country = 'AT' WHERE id = $1`, [P.ager]);
+        const ids = await goingIds(P.ager);
+        expect([...ids].sort()).toEqual([fits, vienna, nowhere].sort());
+        const feed = await feedIds(P.ager);
+        expect(feed).not.toContain(berlin);
+        expect(feed).not.toContain(older);
+        for (const id of ids) expect(feed, `card ${id} is not in the feed`).toContain(id);
+        await db.query('UPDATE users SET country = NULL WHERE id = $1', [P.ager]);
+
+        // Without a date of birth nothing is filtered by age.
+        await db.query('UPDATE users SET date_of_birth = NULL WHERE id = $1', [P.ager]);
+        expect((await goingIds(P.ager)).sort()).toEqual([older, fits, berlin, vienna, nowhere].sort());
+      });
+
+      it('„Mitkommen“ is the normal join: an open meetup → member, one by request → requested', async () => {
+        await mk('joiner');
+        await mk('j-host');
+        await befriend(P['j-host'], P.joiner);
+        const open = await mkMeet('Fhub Offen', inDays(7), P['j-host']);
+        const closed = await mkMeet('Fhub Geschlossen', inDays(7), P['j-host'], [], { isPrivate: true });
+        expect((await cardOf(P.joiner, open)).my_status).toBe('none');
+        expect((await cardOf(P.joiner, closed)).my_status).toBe('none');
+
+        const joined = await join(P.joiner, open);
+        ok(joined);
+        expect(joined.body.status).toBe('joined');
+        expect((await cardOf(P.joiner, open)).my_status).toBe('member');
+
+        const asked = await join(P.joiner, closed);
+        ok(asked);
+        expect(asked.body.status).toBe('pending');
+        expect((await cardOf(P.joiner, closed)).my_status).toBe('requested');
+
+        // A rejected request is no open request: back to „Mitkommen“.
+        await db.query(`UPDATE group_join_requests SET status = 'rejected', rejected_count = 1
+                         WHERE group_id = $1 AND user_id = $2`, [closed, P.joiner]);
+        expect((await cardOf(P.joiner, closed)).my_status).toBe('none');
+      });
+
+      it('it counts against the same daily limit: at the limit the join answers DAILY_JOIN_LIMIT and the card stays', async () => {
+        const limit = limits.freeDailyGroupJoins();
+        expect(limit).toBeGreaterThan(0);
+        await mk('lim');
+        await mk('l-host');
+        await befriend(P.lim, P['l-host']);
+        const meets = [];
+        for (let i = 0; i <= limit; i++) meets.push(await mkMeet(`Fhub Limit ${i}`, inDays(8 + i), P['l-host']));
+        // The log is written after the answer — wait for it, the next join reads it.
+        const logged = async (gid) => {
+          for (let i = 0; i < 100; i++) {
+            const r = await db.query('SELECT 1 FROM group_join_log WHERE user_id = $1 AND group_id = $2', [P.lim, gid]);
+            if (r.rowCount > 0) return;
+            await new Promise((resolve) => setTimeout(resolve, 20));
+          }
+          throw new Error(`join of ${gid} was never logged`);
+        };
+        for (let i = 0; i < limit; i++) {
+          ok(await join(P.lim, meets[i]));
+          await logged(meets[i]);
+        }
+        const refused = await join(P.lim, meets[limit]);
+        expect(refused.statusCode).toBe(403);
+        expect(refused.body).toMatchObject({ code: 'DAILY_JOIN_LIMIT', limit });
+        const cards = await going(P.lim);
+        expect(cards.find((c) => c.id === meets[limit]).my_status).toBe('none');
+        expect(cards.find((c) => c.id === meets[0]).my_status).toBe('member');
+      });
+
+      it('a full meetup is not offered — unless the caller is in it or has asked', async () => {
+        await mk('late');
+        await mk('f-host');
+        await befriend(P.late, P['f-host']);
+        const full = await mkMeet('Fhub Voll', inDays(3), P['f-host'], [P.stranger], { max: 2 });
+        expect(await going(P.late)).toEqual([]);
+        // One seat more: offered.
+        await db.query('UPDATE groups SET max_members = 3 WHERE id = $1', [full]);
+        expect((await cardOf(P.late, full)).my_status).toBe('none');
+        await db.query('UPDATE groups SET max_members = 2 WHERE id = $1', [full]);
+
+        await db.query(`INSERT INTO group_join_requests (group_id, user_id, status) VALUES ($1, $2, 'pending')`, [full, P.late]);
+        expect((await cardOf(P.late, full)).my_status).toBe('requested');
+        await db.query('DELETE FROM group_join_requests WHERE group_id = $1 AND user_id = $2', [full, P.late]);
+        await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, [full, P.late]);
+        expect((await cardOf(P.late, full)).my_status).toBe('member');
+      });
+
+      it('at most 12 cards', async () => {
+        await mk('busy');
+        await mk('host');
+        await befriend(P.busy, P.host);
+        for (let i = 0; i < 14; i++) await mkMeet(`Fhub Viele ${i}`, inDays(30 + i), P.host);
+        const cards = await going(P.busy);
+        expect(cards).toHaveLength(12);
+        // …the twelve next ones.
+        expect(cards.map((c) => c.name)).toEqual(Array.from({ length: 12 }, (_, i) => `Fhub Viele ${i}`));
+      });
+    });
+
+    describe('GET /friends/people', () => {
+      it('people from a meetup that took place — never friends, open requests in either direction, rejections, blocks, closed accounts', async () => {
+        await mk('pm');
+        for (const key of ['pal', 'friend', 'out', 'in', 'nope', 'blocked', 'blockedMe']) await mk(`p-${key}`);
+        await mk('p-ghost', { active: false });
+        await befriend(P.pm, P['p-friend']);
+        await befriend(P.pm, P['p-out'], 'pending');          // I asked
+        await befriend(P['p-in'], P.pm, 'pending');           // they asked
+        await befriend(P.pm, P['p-nope'], 'rejected');
+        await befriend(P.pm, P['p-blocked'], 'blocked');
+        await befriend(P['p-blockedMe'], P.pm, 'blocked');
+        await mkMeet('Fhub Kochabend', daysAgo(3), P['p-pal'],
+          [P.pm, P['p-friend'], P['p-out'], P['p-in'], P['p-nope'], P['p-blocked'], P['p-blockedMe'], P['p-ghost']]);
+
+        const res = await people(P.pm);
+        expect(res.has_shared).toBe(true);
+        expect(res.people).toEqual([
+          { id: P['p-pal'], name: 'Fhub p-pal', avatar_url: avatar, age: expect.any(Number), event_name: 'Fhub Kochabend' },
+        ]);
+        // The older endpoint of the ⊕ sheet is untouched: it still lists the
+        // two open requests with their state.
+        const fr = await import('../../src/controllers/friendshipController.js');
+        const old = await call(fr.getFriendSuggestions, { userId: P.pm });
+        ok(old);
+        expect(old.body.map((u) => [u.id, u.friend_status]).sort()).toEqual([
+          [P['p-pal'], 'none'], [P['p-out'], 'pending_out'], [P['p-in'], 'pending_in'],
+        ].sort());
+      });
+
+      it('each person once, under the most recent meetup shared — the most recent first', async () => {
+        await mk('p-old');
+        await mkMeet('Fhub Wandern', daysAgo(10), P.pm, [P['p-pal'], P['p-old']]);
+        const res = await people(P.pm);
+        expect(res.people.map((u) => [u.id, u.event_name])).toEqual([
+          [P['p-pal'], 'Fhub Kochabend'],
+          [P['p-old'], 'Fhub Wandern'],
+        ]);
+      });
+
+      it('only meetups that took place: not a coming one, an undated one, a cancelled, deleted or „nicht stattgefunden“ one — and never a club', async () => {
+        for (const key of ['soon', 'undated', 'cancelled', 'deleted', 'notheld', 'club']) await mk(`n-${key}`);
+        await mkMeet('Fhub Kommt erst', inDays(2), P.pm, [P['n-soon']]);
+        await mkMeet('Fhub Kein Datum', null, P.pm, [P['n-undated']]);
+        const cancelled = await mkMeet('Fhub War abgesagt', daysAgo(2), P.pm, [P['n-cancelled']]);
+        await db.query('UPDATE groups SET is_active = FALSE WHERE id = $1', [cancelled]);
+        const deleted = await mkMeet('Fhub War gelöscht', daysAgo(2), P.pm, [P['n-deleted']]);
+        await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [deleted]);
+        const notHeld = await mkMeet('Fhub Fand nicht statt', daysAgo(2), P.pm, [P['n-notheld']]);
+        await db.query('UPDATE groups SET did_not_take_place = TRUE WHERE id = $1', [notHeld]);
+        // The same club — 500 members would flood the list.
+        const club = await mkClub('Fhub Gemeinsamer Club');
+        await db.query(`UPDATE groups SET date = ${daysAgo(5)} WHERE id = $1`, [club]);
+        await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member'), ($1, $3, 'member')`,
+          [club, P.pm, P['n-club']]);
+
+        const ids = (await people(P.pm)).people.map((u) => u.id);
+        expect(ids).toEqual([P['p-pal'], P['p-old']]);
+      });
+
+      it('has_shared: false without any shared meetup, true when everybody from it is a friend already', async () => {
+        await mk('alone');
+        expect(await people(P.alone)).toEqual({ people: [], has_shared: false });
+        // A meetup nobody else came to is no shared one.
+        await mkMeet('Fhub Allein', daysAgo(4), P.alone);
+        expect(await people(P.alone)).toEqual({ people: [], has_shared: false });
+
+        await mk('duo');
+        await mk('duo-friend');
+        await befriend(P.duo, P['duo-friend']);
+        await mkMeet('Fhub Zu zweit', daysAgo(4), P.duo, [P['duo-friend']]);
+        expect(await people(P.duo)).toEqual({ people: [], has_shared: true });
+      });
+
+      it('drawn from the 30 most recent past meetups — without a time window', async () => {
+        expect(hub.PEOPLE_SOURCE_EVENTS).toBe(30);
+        await mk('many');
+        await mk('m-recent');
+        await mk('m-ancient');
+        // 30 meetups on the last 30 days with the same person…
+        await db.query(
+          `WITH made AS (
+             INSERT INTO groups (name, type, date, owner_id, category, location, max_members)
+             SELECT 'Fhub Serie ' || n, 'group', ${TODAY} - (n * INTERVAL '1 day') + INTERVAL '19 hours', $1, 'Sport', 'Wien', 30
+               FROM generate_series(1, 30) AS n
+             RETURNING id)
+           INSERT INTO group_members (group_id, user_id, role)
+           SELECT made.id, u, CASE WHEN u = $1 THEN 'owner' ELSE 'member' END
+             FROM made, unnest($2::int[]) AS u`, [P.many, [P.many, P['m-recent']]]);
+        // …and one from 200 days ago with somebody else: the 31st.
+        await mkMeet('Fhub Lange her', daysAgo(200), P.many, [P['m-ancient']]);
+        expect((await people(P.many)).people.map((u) => u.id)).toEqual([P['m-recent']]);
+
+        // One of the 30 gone: the old one moves up — 200 days are no limit.
+        await db.query(`UPDATE groups SET deleted_at = NOW() WHERE name = 'Fhub Serie 7' AND owner_id = $1`, [P.many]);
+        expect((await people(P.many)).people.map((u) => [u.id, u.event_name])).toEqual([
+          [P['m-recent'], 'Fhub Serie 1'],
+          [P['m-ancient'], 'Fhub Lange her'],
+        ]);
+      });
+    });
+  });
+
   // ── groups.is_paid_partner (partner model, Tina/Tobi 17.11.2026) ────────
   // The column ships one deploy ahead of its readers. The path that matters
   // runs in production exactly once: a database that has the groups table but
