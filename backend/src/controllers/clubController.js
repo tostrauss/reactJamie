@@ -17,6 +17,7 @@ import { createEntityWithOwner, notifyCancellationFanout } from '../services/ent
 import { attachAttendanceTiers } from '../utils/attendanceTiers.js';
 import { CLUB_CARD_SELECT } from '../utils/clubCards.js';
 import { getDealsForEvents } from './dealController.js';
+import { loadClubForQuota, quotaOf, ticketRule, partnerRequired } from '../utils/clubEventQuota.js';
 
 const CLUBS_TTL = 30_000; // 30 s
 const DISCOVER_EVENTS_KEY = 'discover_events';
@@ -1881,15 +1882,13 @@ export const createClubEvent = async (req, res) => {
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
   if (!date) return res.status(400).json({ error: 'Datum ist erforderlich' });
 
-  // Paid events are a Pro feature (Tina/Tobi 2026-09-03). The frontend gates
-  // the toggle behind the ProModal, but that's bypassable with a direct API
-  // call — so validate the link AND the subscription here too.
+  // The ticket link's FORMAT is checked here; WHO may set one is decided once
+  // the club is loaded (below): since 17.11.2026 that depends on the club —
+  // a JAMIE partner, or JAMIE Pro as before (Tina/Tobi 2026-09-03). The
+  // frontend gates the toggle, but that's bypassable with a direct API call.
   const ticketUrl = normalizeTicketUrl(ticket_url);
   if (ticket_url && !ticketUrl) {
     return res.status(400).json({ error: 'Ungültiger Ticket-Link (nur http/https)' });
-  }
-  if (ticketUrl && !(await isUserPro(userId))) {
-    return res.status(403).json({ error: 'Kostenpflichtige Events sind ein Pro-Feature.', code: 'PRO_REQUIRED' });
   }
   // Participant limit: 2–500 like the create form and updateClubEvent; unset → 20.
   let createMax = 20;
@@ -1901,11 +1900,10 @@ export const createClubEvent = async (req, res) => {
   }
 
   try {
-    const club = await db.query(
-      'SELECT id, name, category, owner_id, events_owner_only, location, is_private, lat, lng FROM groups WHERE id = $1 AND type = $2',
-      [id, CLUB_TYPE]
-    );
-    if (club.rows.length === 0) return res.status(404).json({ error: 'Club nicht gefunden' });
+    // The club, with what the free tier needs to know about it and the caller
+    // (utils/clubEventQuota.js) — one query, like the plain SELECT before.
+    const club = await loadClubForQuota(db, id, userId);
+    if (!club) return res.status(404).json({ error: 'Club nicht gefunden' });
 
     const membership = await db.query(
       'SELECT role FROM group_members WHERE group_id = $1 AND user_id = $2',
@@ -1919,10 +1917,36 @@ export const createClubEvent = async (req, res) => {
     // the founder (owner) OR a co-manager (role='admin') may add events — regular
     // members still just see them. Reuses the role already fetched above.
     const canManageEvents =
-      Number(club.rows[0].owner_id) === Number(userId) || membership.rows[0]?.role === 'admin';
-    if (club.rows[0].events_owner_only && !canManageEvents) {
+      Number(club.owner_id) === Number(userId) || membership.rows[0]?.role === 'admin';
+    if (club.events_owner_only && !canManageEvents) {
       return res.status(403).json({ error: 'Nur Gründer oder Manager dürfen Events erstellen' });
     }
+
+    // ── The free tier of official clubs (Tina 17.11.2026, decided by Tobi) ──
+    // 2 free events per club, 1 at a time; ticket events only as a JAMIE
+    // partner. Paying partners, the JAMIE team (app admins) and communities
+    // are never limited — the rules and the counting are in
+    // utils/clubEventQuota.js. Every refusal is a 403 with code
+    // PARTNER_REQUIRED for the new surface (it shows Tina's partner message)
+    // AND a German `error` sentence, which is all an old bundle shows.
+    const quota = await quotaOf(db, club);
+
+    // Who may set a ticket link: in a limited official club nobody — that is
+    // what the partnership is for, JAMIE Pro does not buy it; a club that is
+    // not limited needs no Pro (the partner pays); everywhere else (a
+    // community, and every club while the free tier is off) Pro as before.
+    if (ticketUrl) {
+      const rule = ticketRule(quota);
+      if (rule === 'partner') return res.status(403).json(partnerRequired('ticket', club.name));
+      if (rule === 'pro' && !(await isUserPro(userId))) {
+        return res.status(403).json({ error: 'Kostenpflichtige Events sind ein Pro-Feature.', code: 'PRO_REQUIRED' });
+      }
+    }
+
+    // First look without a lock: a club at its limit is refused BEFORE the
+    // moderation and geocoding calls. The count that binds runs again under
+    // the lock, together with the INSERT.
+    if (quota.block) return res.status(403).json(partnerRequired(quota.block, club.name));
 
     const { safe, reason } = await checkTextSafety([name, description].filter(Boolean).join('\n'));
     if (!safe) return res.status(422).json({ error: reason });
@@ -1931,23 +1955,23 @@ export const createClubEvent = async (req, res) => {
     // Ort is optional in the event form — an empty field inherits the CLUB's
     // location (text AND coords). The inherited text must be stored too, not
     // just geocoded: otherwise the event renders without any address line.
-    const eventLocation = (location && location.trim()) || club.rows[0].location || null;
+    const eventLocation = (location && location.trim()) || club.location || null;
     // Inherited (or identical) location → inherit the club's pin too: no
     // Nominatim call, no drift between club pin and event pin.
     const inheritsClubPin =
       eventLocation != null &&
-      eventLocation === club.rows[0].location &&
-      club.rows[0].lat != null;
+      eventLocation === club.location &&
+      club.lat != null;
     let coords = null;
     if (inheritsClubPin) {
-      coords = { lat: club.rows[0].lat, lng: club.rows[0].lng };
+      coords = { lat: club.lat, lng: club.lng };
     } else {
       // A custom location resolves NEAR THE CLUB first, then through the market
       // gate — the old unrestricted lookup sent "6. Bezirk" to Tehran's
       // District 6, and an out-of-market pin hides the event from every
       // logged-in Gruppen feed (same-country box) while anonymous requests
       // still see it (Tina, 05.11.2026).
-      const geo = await resolveClubEventLocation(eventLocation, club.rows[0].lat, club.rows[0].lng);
+      const geo = await resolveClubEventLocation(eventLocation, club.lat, club.lng);
       if (!geo.ok) {
         return res.status(400).json({ error: 'Dieser Ort liegt außerhalb der verfügbaren Regionen (Österreich, Deutschland, Schweiz, Italien, Frankreich, Spanien).' });
       }
@@ -1963,33 +1987,60 @@ export const createClubEvent = async (req, res) => {
     // Tina 30.09.2026: in a PUBLIC club the creator may make a single event
     // private (join by request, host approves — see usesJoinRequest in
     // groupController). A private club's events are always private.
-    const eventIsPrivate = !!club.rows[0].is_private || is_private === true;
+    const eventIsPrivate = !!club.is_private || is_private === true;
 
-    // Event row + owner membership in ONE transaction (audit risk #10) —
+    // Event row + owner membership in ONE statement (audit risk #10) —
     // shared core in services/entityLifecycle.js.
-    const event = await createEntityWithOwner(
-      `INSERT INTO groups
+    const insertSql = `INSERT INTO groups
          (name, description, type, category, date, location, max_members, owner_id,
           parent_club_id, is_private, lat, lng, is_recurring_weekly, ticket_url)
        VALUES ($1, $2, 'event', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-       RETURNING *`,
-      [
-        name.trim(),
-        description || null,
-        club.rows[0].category || null,
-        dateTime,
-        eventLocation,
-        createMax,
-        userId,
-        parseInt(id, 10),
-        eventIsPrivate,
-        coords?.lat ?? null,
-        coords?.lng ?? null,
-        !!is_recurring_weekly,
-        ticketUrl,
-      ],
-      userId
-    );
+       RETURNING *`;
+    const insertParams = [
+      name.trim(),
+      description || null,
+      club.category || null,
+      dateTime,
+      eventLocation,
+      createMax,
+      userId,
+      parseInt(id, 10),
+      eventIsPrivate,
+      coords?.lat ?? null,
+      coords?.lng ?? null,
+      !!is_recurring_weekly,
+      ticketUrl,
+    ];
+
+    let event;
+    if (!quota.limited) {
+      // Not limited (a community, a paying partner, the JAMIE team, the free
+      // tier off): exactly the write from before — the pool, one statement.
+      event = await createEntityWithOwner(insertSql, insertParams, userId);
+    } else {
+      // Limited: count again and write in ONE transaction, under a lock on the
+      // club's row — so two requests at once (a double tap, a script) count
+      // one after the other instead of both passing before either has written
+      // (the shape of dealController.writeUnderClubDealLimit). FOR UPDATE
+      // holds back other writers of that one row only; no reader waits.
+      const client = await db.pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('SELECT 1 FROM groups WHERE id = $1 FOR UPDATE', [club.id]);
+        const again = await quotaOf(client, club);
+        if (again.block) {
+          await client.query('ROLLBACK');
+          return res.status(403).json(partnerRequired(again.block, club.name));
+        }
+        event = await createEntityWithOwner(insertSql, insertParams, userId, client);
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw err; // → the 500 below, nothing written
+      } finally {
+        client.release();
+      }
+    }
 
     // Welcome line in the new event's chat, like every new group and club
     // (since 2026-10-26, Tina). Fire-and-forget, no live broadcast — only the
@@ -2010,7 +2061,7 @@ export const createClubEvent = async (req, res) => {
     // club otherwise fired 300 round trips behind a single event creation).
     db.query('SELECT user_id FROM group_members WHERE group_id = $1 AND user_id <> $2', [id, userId])
       .then(({ rows }) => {
-        const clubName = club.rows[0].name || 'Club';
+        const clubName = club.name || 'Club';
         sendPushToUsers(
           rows.map(r => r.user_id),
           pushTexts('clubEvent', { clubName, eventName: name.trim() }),
@@ -2154,17 +2205,15 @@ export const updateClubEvent = async (req, res) => {
     if (bad) return res.status(400).json({ error: bad });
   }
 
-  // Ticket link (Pro-only, same rules as createClubEvent). An explicit empty
-  // string clears it — that's "back to a free event" and needs no Pro check.
+  // Ticket link: the FORMAT here, WHO may set one once the club is loaded
+  // (below — same rule as createClubEvent). An explicit empty string clears
+  // it — that's "back to a free event" and needs no check at all.
   let ticketUrl = null;
   if (ticket_url !== undefined) {
     const isClearing = typeof ticket_url === 'string' && !ticket_url.trim();
     ticketUrl = isClearing ? '' : normalizeTicketUrl(ticket_url);
     if (!isClearing && !ticketUrl) {
       return res.status(400).json({ error: 'Ungültiger Ticket-Link (nur http/https)' });
-    }
-    if (ticketUrl && !(await isUserPro(userId))) {
-      return res.status(403).json({ error: 'Kostenpflichtige Events sind ein Pro-Feature.', code: 'PRO_REQUIRED' });
     }
   }
 
@@ -2181,6 +2230,22 @@ export const updateClubEvent = async (req, res) => {
     const canManage = await userManagesClub(id, club.rows[0]?.owner_id, userId);
     if (!canManage && !isEventOwner) {
       return res.status(403).json({ error: 'Keine Berechtigung' });
+    }
+
+    // Setting a ticket link follows createClubEvent's rule (17.11.2026): in a
+    // limited official club only as a JAMIE partner (403 PARTNER_REQUIRED,
+    // with Pro too), in a club that is not limited without Pro, everywhere
+    // else JAMIE Pro as before. Only when a link is being SET — every other
+    // edit of the event stays free of this. Switching „wöchentlich
+    // wiederholen“ on or off is deliberately not checked (Tobi 17.11.2026:
+    // series run on).
+    if (ticketUrl) {
+      const quotaClub = await loadClubForQuota(db, id, userId);
+      const rule = ticketRule(quotaClub ? await quotaOf(db, quotaClub) : null);
+      if (rule === 'partner') return res.status(403).json(partnerRequired('ticket', quotaClub.name));
+      if (rule === 'pro' && !(await isUserPro(userId))) {
+        return res.status(403).json({ error: 'Kostenpflichtige Events sind ein Pro-Feature.', code: 'PRO_REQUIRED' });
+      }
     }
 
     // Teilnehmerlimit nachträglich ändern (Tina 10.10.2026): 2–500 like the
