@@ -210,57 +210,6 @@
   padding: 0 20px 20px;
 }
 
-/* ── Pro banner ── */
-.pro-banner {
-  margin: 16px 0;
-  padding: 24px 20px;
-  border-radius: 20px;
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.12), rgba(255, 140, 0, 0.06));
-  border: 1px solid rgba(255, 215, 0, 0.25);
-  text-align: center;
-}
-
-.pro-banner-icon {
-  font-size: 32px;
-  margin-bottom: 10px;
-}
-
-.pro-banner-title {
-  color: #FFD700;
-  font-weight: 800;
-  font-size: 17px;
-  margin-bottom: 8px;
-}
-
-.pro-banner-text {
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 13px;
-  line-height: 1.6;
-  margin-bottom: 16px;
-}
-
-.pro-banner-btn {
-  padding: 13px 28px;
-  border-radius: 14px;
-  border: none;
-  background: linear-gradient(135deg, #FFD700, #FFAA00);
-  color: #1a1100;
-  font-weight: 800;
-  font-size: 14px;
-  font-family: inherit;
-  cursor: pointer;
-  min-height: 48px;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-  box-shadow: 0 6px 20px rgba(255, 215, 0, 0.3);
-  transition: opacity 0.15s, transform 0.15s;
-}
-
-.pro-banner-btn:active {
-  transform: scale(0.97);
-  opacity: 0.9;
-}
-
 /* chat-time link variant */
 .chat-time--link {
   color: var(--accent-coral);

@@ -375,3 +375,15 @@ describe('swipe indicators stay on screen (chat.css)', () => {
     expect(cssPx(rule, 'top')).toBeLessThanOrEqual(90);
   });
 });
+
+// „Allgemein die gelben Balken weg!“ (Tina 17.11.2026, audit P3-01 part 4):
+// the gold Pro banner of the chat list had no markup left, only its CSS.
+describe('chat.css carries no dead gold Pro banner', () => {
+  it('no Pro-banner rule and none of its gold', () => {
+    // Class name in two halves, so a search for it over the sources stays empty.
+    expect(chatCss).not.toContain('.pro-' + 'banner');
+    expect(chatCss).not.toMatch(/#FFD700/i);
+    expect(chatCss).not.toMatch(/#FFAA00/i);
+    expect(chatCss).not.toMatch(/255,\s*215,\s*0/);
+  });
+});
