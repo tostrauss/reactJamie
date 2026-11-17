@@ -110,8 +110,8 @@ describe('runLivePhotoPrompts (push WHILE the event runs)', () => {
     expect(opts).toEqual({ urgency: 'high', ttl: 3600 });
     expect(opts).toBe(LIVE_PUSH_OPTS);
     // 7 % 3 = 1 → Tina's second line; 9 % 3 = 0 → her first
-    expect(builder('de').title).toBe("Na, wie läuft's bei Bowling? 📸");
-    expect(send.mock.calls.find((c) => c[0].includes(3))[1]('de').title).toBe("Wie gefällt's dir bei Quiz?");
+    expect(builder('de').title).toBe('Na, wie läuft’s bei Bowling? 📸');
+    expect(send.mock.calls.find((c) => c[0].includes(3))[1]('de').title).toBe('Wie ist’s bei Quiz?');
   });
 
   it('a failed recipient lookup re-arms exactly its own stamp and sends nothing', async () => {
