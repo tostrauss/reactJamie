@@ -6797,4 +6797,64 @@ suite('write endpoints against real Postgres', () => {
     });
   });
 
+  // ── „Sichtbar bis“ saved before 16.11.2026 (review 16.11.) ──────────────
+  // Until 1746d37 a bare date was stored as midnight UTC: the deal went dark
+  // at 01:00 (02:00 in summer) on its last day. A one-shot at boot moves
+  // those to 23:59:59 in Vienna, like every date saved since. Last in the
+  // suite on purpose: it rewrites every midnight value in deals.
+  describe('one-shot: legacy deal end dates move to the end of their Vienna day (2026-11-16)', () => {
+    const MARKER = '2026-11-16_deals_visible_until_vienna_eod';
+    const ids = {};
+    const mkDeal = async (name, until) => (await db.query(
+      `INSERT INTO deals (name, deal_label, visible_until) VALUES ($1, '2 für 1', $2::timestamp) RETURNING id`,
+      [name, until])).rows[0].id;
+    const endOf = async (id) => (await db.query(
+      `SELECT to_char(visible_until, 'YYYY-MM-DD HH24:MI:SS') AS v FROM deals WHERE id = $1`, [id])).rows[0]?.v;
+    const ends = async () => Object.fromEntries(
+      await Promise.all(Object.entries(ids).map(async ([k, id]) => [k, await endOf(id)])));
+    const marked = async () => (await db.query('SELECT 1 FROM one_shot_migrations WHERE name = $1', [MARKER])).rowCount;
+
+    it('at boot, once: winter and summer days, the clock-change days; new-style ends, a time of day and no end stay; a second run changes nothing', async () => {
+      // it ran at the boot of this suite — on a fresh schema, with nothing to move
+      expect(await marked()).toBe(1);
+      ids.winter = await mkDeal('Smoke Alt Winter', '2026-12-17 00:00:00');         // CET
+      ids.summer = await mkDeal('Smoke Alt Sommer', '2027-07-10 00:00:00');         // CEST
+      ids.springForward = await mkDeal('Smoke Alt 28.03.', '2027-03-28 00:00:00');  // its end is in CEST
+      ids.fallBack = await mkDeal('Smoke Alt 25.10.', '2026-10-25 00:00:00');       // its end is in CET
+      ids.newWinter = await mkDeal('Smoke Neu Winter', '2026-12-17 22:59:59');
+      ids.newSummer = await mkDeal('Smoke Neu Sommer', '2027-07-10 21:59:59');
+      ids.timed = await mkDeal('Smoke Uhrzeit', '2027-01-05 12:30:00');
+      ids.open = await mkDeal('Smoke ohne Ende', null);
+
+      // the first boot after the deploy: no marker yet
+      await db.query('DELETE FROM one_shot_migrations WHERE name = $1', [MARKER]);
+      const { runStartupMigrations, moveLegacyDealEndsToViennaDayEnd } = await import('../../src/config/migrations.js');
+      await runStartupMigrations();
+      const after = await ends();
+      expect(after).toEqual({
+        winter: '2026-12-17 22:59:59',
+        summer: '2027-07-10 21:59:59',
+        springForward: '2027-03-28 21:59:59',
+        fallBack: '2026-10-25 22:59:59',
+        newWinter: '2026-12-17 22:59:59',
+        newSummer: '2027-07-10 21:59:59',
+        timed: '2027-01-05 12:30:00',
+        open: null,
+      });
+      expect(await marked()).toBe(1);
+      // exactly what dealController stores today for the same bare day (visibleUntilFrom)
+      for (const [key, day] of [['winter', '2026-12-17'], ['summer', '2027-07-10']]) {
+        const made = await call(C.createDeal, { userId: A, body: { name: `Smoke Heute ${day}`, deal_label: '2 für 1', visible_until: day } });
+        expect(made.statusCode, JSON.stringify(made.body)).toBe(201);
+        expect(await endOf(made.body.id)).toBe(after[key]);
+      }
+
+      // a second boot: marked, so it does not run; and the UPDATE on its own finds nothing left
+      await runStartupMigrations();
+      expect(await ends()).toEqual(after);
+      expect(await moveLegacyDealEndsToViennaDayEnd()).toBe(0);
+      expect(await ends()).toEqual(after);
+    });
+  });
+
 });

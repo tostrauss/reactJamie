@@ -45,6 +45,28 @@ const CRITICAL_SCHEMA_PROBES = [
   ['group_members receipt watermarks', 'SELECT last_delivered_at, receipt_read_at FROM group_members LIMIT 1'],
 ];
 
+// „Sichtbar bis 17.12.“ means all of the 17th in Vienna: since 16.11.2026 a
+// bare date is stored as 23:59:59 there, as UTC wall clock like every
+// timestamp here (dealController visibleUntilFrom). Before, it was stored as
+// midnight UTC, so every dated deal saved until the deploy goes dark at 01:00
+// (02:00 in summer) on its last day — until someone saves it again. This
+// moves those midnights to the end of their day in Vienna: the day after,
+// 00:00 there, minus a second, which also holds on the clock-change days.
+// Values saved since are 22:59:59 or 21:59:59 UTC, never midnight, so they
+// stay as they are and a second run changes nothing. Data only. Run once at
+// boot (the one-shot near the end of runStartupMigrations); its own function
+// so the smoke test can run it against real Postgres. `q` is the pool or a
+// client in a transaction. → the number of deals moved.
+const moveLegacyDealEndsToViennaDayEnd = async (q = db) => {
+  const { rowCount } = await q.query(
+    `UPDATE deals
+        SET visible_until = ((((visible_until::date + 1)::timestamp AT TIME ZONE 'Europe/Vienna')
+                              - INTERVAL '1 second') AT TIME ZONE 'UTC')
+      WHERE visible_until IS NOT NULL AND visible_until::time = '00:00:00'`
+  );
+  return rowCount;
+};
+
 const runStartupMigrations = async () => {
   // Wait up to 90s for DB to be reachable before running migrations.
   // Railway Postgres can take 60-75s to accept connections on a cold start.
@@ -2069,6 +2091,35 @@ const runStartupMigrations = async () => {
     }
   });
 
+  // One-shot 2026-11-16: the „Sichtbar bis“ dates saved before the deploy
+  // move to the end of their Vienna day (moveLegacyDealEndsToViennaDayEnd).
+  // After deals.visible_until (the deals block above). Claim and UPDATE in one
+  // transaction: a failed UPDATE releases the marker, the next boot tries
+  // again; a second replica waits on the claim and then skips.
+  await migrate('deals.visible_until to the end of the Vienna day (2026-11-16)', async () => {
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      const claimed = await client.query(
+        `INSERT INTO one_shot_migrations (name) VALUES ('2026-11-16_deals_visible_until_vienna_eod')
+         ON CONFLICT (name) DO NOTHING RETURNING name`
+      );
+      if (claimed.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return;
+      }
+      const moved = await moveLegacyDealEndsToViennaDayEnd(client);
+      await client.query('COMMIT');
+      console.log(`   [deals] moved ${moved} „Sichtbar bis“ date(s) to the end of their Vienna day`);
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // those deals keep ending at 01:00 (02:00 in summer) until the next boot
+    } finally {
+      client.release();
+    }
+  });
+
   // ── Post-migration schema assertion ────────────────────────────────────
   // The server accepts traffic BEFORE migrations finish (listen → migrate),
   // so health stays green during the boot window; only a PROVEN-broken
@@ -2108,4 +2159,4 @@ const getMigrationHealth = () => ({
   schemaAssertionError: _schemaAssertionError,
 });
 
-export { runStartupMigrations, getMigrationHealth };
+export { runStartupMigrations, getMigrationHealth, moveLegacyDealEndsToViennaDayEnd };
