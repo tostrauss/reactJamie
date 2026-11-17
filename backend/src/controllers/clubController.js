@@ -21,6 +21,7 @@ import {
 } from './dealController.js';
 import { loadClubForQuota, quotaOf, ticketRule, partnerRequired } from '../utils/clubEventQuota.js';
 import { enableAutoMessages, setAutoMessages } from '../utils/clubAutoMessages.js';
+import { attachJoinRequestState } from '../utils/clubEventJoinState.js';
 
 const CLUBS_TTL = 30_000; // 30 s
 const DISCOVER_EVENTS_KEY = 'discover_events';
@@ -1742,7 +1743,7 @@ export const getClubEvents = async (req, res) => {
     const { past } = req.query;
 
     const club = await db.query(
-      'SELECT id, owner_id FROM groups WHERE id = $1 AND type = $2',
+      'SELECT id, owner_id, is_private FROM groups WHERE id = $1 AND type = $2',
       [id, CLUB_TYPE]
     );
     if (club.rows.length === 0) return res.status(404).json({ error: 'Club nicht gefunden' });
@@ -1802,6 +1803,21 @@ export const getClubEvents = async (req, res) => {
       for (const event of result.rows) {
         event.deal = deals.get(event.id) || null;
       }
+    }
+
+    // Join state per event (audit ziel-d-privat-events, contract V-14): does it
+    // take requests, has the caller asked, are they out of attempts. The list's
+    // button reads it („Beitritt anfragen“ / „Anfrage ausstehend…“). Extra
+    // information only — it never turns the list into a 500: without the
+    // fields the button reads „Beitreten“ exactly as before.
+    try {
+      await attachJoinRequestState(db, {
+        userId: req.userId,
+        clubIsPrivate: club.rows[0].is_private,
+        events: result.rows
+      });
+    } catch (err) {
+      console.error('getClubEvents join state failed:', err.message);
     }
 
     res.json(result.rows);

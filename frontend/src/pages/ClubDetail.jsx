@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
 import AvatarGateModal from '../components/AvatarGateModal';
 import EventDealRow from '../components/EventDealRow';
+import ClubEventJoinButton from '../components/ClubEventJoinButton';
 import DealForm from '../components/DealForm';
 import { PartnerInviteSheet } from '../components/PartnerInviteSheet';
 import { nextOccurrence } from '../utils/recurrence';
@@ -298,30 +299,9 @@ export const ClubDetail = () => {
     }
   };
 
-  const handleJoinEvent = async (eventId) => {
-    if (!user) { navigate('/login'); return; }
-    setJoiningEventId(eventId);
-    try {
-      // Events are stored as groups under the hood — use groups join endpoint
-      const { groups } = await import('../utils/api');
-      const res = await groups.join(eventId);
-      window.dispatchEvent(new Event('jamie:push-prompt-after-join')); // contextual push ask (NotificationPrompt)
-      if (res.data?.status === 'pending') {
-        toast.success(t('clubDetail.events.requestSent'));
-      } else {
-        toast.success(t('clubDetail.events.joinedToast'));
-        setEvents(prev => prev.map(e => e.id === eventId
-          ? { ...e, is_member: true, members_count: (e.members_count || 0) + 1 }
-          : e));
-      }
-    } catch (err) {
-      if (err.response?.data?.requiresAvatar) { setShowAvatarGate(true); return; }
-      toast.error(err.response?.data?.error || t('clubDetail.events.joinError'));
-    } finally {
-      setJoiningEventId(null);
-    }
-  };
-
+  // Joining an event from the list lives in ClubEventJoinButton (V-14): it
+  // knows „Beitritt anfragen“ / „Anfrage ausstehend…“ and reports its changes
+  // back through onChange.
   const handleLeaveEvent = async (eventId) => {
     if (!window.confirm(t('clubDetail.events.confirmLeave'))) return;
     setJoiningEventId(eventId);
@@ -986,13 +966,13 @@ export const ClubDetail = () => {
                             {t('clubDetail.events.joined')}
                           </button>
                         ) : (
-                          <button
-                            className="cd-event-join-btn"
-                            disabled={joiningEventId === ev.id}
-                            onClick={() => handleJoinEvent(ev.id)}
-                          >
-                            {joiningEventId === ev.id ? '…' : t('clubDetail.events.join')}
-                          </button>
+                          <ClubEventJoinButton
+                            ev={ev}
+                            user={user}
+                            onChange={(patch) => setEvents((prev) => prev.map((e) => (e.id === ev.id ? { ...e, ...patch } : e)))}
+                            onNeedAvatar={() => setShowAvatarGate(true)}
+                            onNeedLogin={() => navigate('/login')}
+                          />
                         )}
                       </div>
                     </div>
