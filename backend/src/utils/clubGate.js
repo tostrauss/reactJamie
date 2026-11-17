@@ -63,12 +63,21 @@ export const parentClubGateSql = (row, opts) => `(
  * set as well — so never `IS NOT NULL`, never a COALESCE. A club that is no
  * longer live makes nobody a partner. A boolean, never NULL, for every row
  * type. One definition for every surface (feed, event page, …).
+ *
+ * Since 17.11.2026 (Tina's new document, decided by Tobi) only PAYING
+ * partners: the club carries the mark an app admin sets on it („Zahlender
+ * Partner“, groups.is_paid_partner — admin → „Clubs umklassifizieren“). An
+ * official club that does not pay gets no ☆, no yellow, no ✓ anywhere. The
+ * column is read directly: it went live one deploy ahead of this reader
+ * (migrations.js), so no request meets this without it. Always the PARENT
+ * club's mark — an event row's own is always FALSE.
  */
 export const partnerSql = (row) => `(${row}.type = 'event' AND EXISTS (
           SELECT 1 FROM groups pc
            WHERE pc.id = ${row}.parent_club_id
              AND ${clubAliveSql('pc')}
              AND pc.club_type = 'official'
+             AND pc.is_paid_partner = TRUE
              AND (pc.owner_id = ${row}.owner_id OR EXISTS (
                    SELECT 1 FROM group_members mgr
                     WHERE mgr.group_id = pc.id AND mgr.user_id = ${row}.owner_id AND mgr.role = 'admin'))

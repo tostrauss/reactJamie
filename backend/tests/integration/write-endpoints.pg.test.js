@@ -5994,6 +5994,8 @@ suite('write endpoints against real Postgres', () => {
       commHost = await mkU('smoke-partner-comm@x.com', 'Cem');
       viewer = await mkU('smoke-partner-viewer@x.com', 'Vito');
       const official = await mkClub('Smoke Café Partner', host, 'official');
+      // ☆ Partner is for paying partners only since 17.11.2026 (partnerSql): this one pays.
+      await db.query('UPDATE groups SET is_paid_partner = TRUE WHERE id = $1', [official]);
       const community = await mkClub('Smoke Community Partner', commHost, 'community');
       await db.query(
         `INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner'),($1,$3,'admin'),($1,$4,'member')`,
@@ -6023,22 +6025,93 @@ suite('write endpoints against real Postgres', () => {
 
     it('a club that is no longer live makes nobody a partner', async () => {
       const gone = await mkClub('Smoke Partner zu', host, 'official');
+      await db.query('UPDATE groups SET is_paid_partner = TRUE WHERE id = $1', [gone]); // a paying partner
       const ev = await mkEvent('Letzter Abend', gone, host);
       expect((await call(C.getGroupById, { userId: viewer, params: { id: String(ev) } })).body.is_partner).toBe(true);
       await db.query('UPDATE groups SET deleted_at = NOW(), is_active = FALSE WHERE id = $1', [gone]);
       expect((await call(C.getGroupById, { userId: viewer, params: { id: String(ev) } })).body.is_partner).toBe(false);
     });
 
-    it('classifying a club shows in the feed at once — classify busts the 30 s cache', async () => {
+    // Since 17.11.2026 the club's TYPE alone makes nobody a partner: the mark
+    // „Zahlender Partner“ does, on an official club. Each step must show in the
+    // feed at once — classify busts the 30 s cache.
+    it('classifying a club shows in the feed at once — official alone is no partner, the paying mark is', async () => {
       const later = await mkClub('Smoke Bald Partner', host, 'community');
       const ev = await mkEvent('Bald Partner-Event', later, host);
+      const paid = async () => (await db.query('SELECT is_paid_partner FROM groups WHERE id = $1', [later])).rows[0].is_paid_partner;
+      const classify = (body) => call(C.classifyClub, { userId: A, params: { id: String(later) }, body });
       // Raw INSERTs bust nothing (the real create paths do) — start from a fresh read.
       (await import('../../src/utils/cache.js')).invalidatePrefix('groups:');
       expect((await feed())[ev]).toBe(false); // …which is cached now
-      ok(await call(C.classifyClub, { userId: A, params: { id: String(later) }, body: { club_type: 'official' } }));
-      expect((await feed())[ev]).toBe(true);
-      ok(await call(C.classifyClub, { userId: A, params: { id: String(later) }, body: { club_type: 'community' } }));
+
+      // an official club that does not pay: still no partner
+      ok(await classify({ club_type: 'official' }));
       expect((await feed())[ev]).toBe(false);
+      // the mark: a partner at once
+      const marked = await classify({ is_paid_partner: true });
+      ok(marked);
+      expect(marked.body.club).toMatchObject({ id: later, club_type: 'official', is_paid_partner: true });
+      expect((await feed())[ev]).toBe(true);
+      // a community again: no partner — the mark stays where it is…
+      ok(await classify({ club_type: 'community' }));
+      expect((await feed())[ev]).toBe(false);
+      expect(await paid()).toBe(true);
+      // …and is back with the type
+      ok(await classify({ club_type: 'official' }));
+      expect((await feed())[ev]).toBe(true);
+      // taken off again
+      const unmarked = await classify({ is_paid_partner: false });
+      ok(unmarked);
+      expect(unmarked.body.club.is_paid_partner).toBe(false);
+      expect((await feed())[ev]).toBe(false);
+    });
+
+    it('an official club that does not pay: a partner nowhere', async () => {
+      const free = await mkClub('Smoke Café Gratis', host, 'official');
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner')`, [free, host]);
+      const ev = await mkEvent('Gratis-Abend', free, host);
+      (await import('../../src/utils/cache.js')).invalidatePrefix('groups:');
+      expect((await feed())[ev]).toBe(false);
+      for (const userId of [0, viewer]) {
+        const res = await call(C.getGroupById, { userId, params: { id: String(ev) } });
+        ok(res);
+        expect(res.body.is_partner, `as user ${userId}`).toBe(false);
+      }
+    });
+
+    it('the mark is for official clubs only — a community is refused, both in one request goes', async () => {
+      const comm = await mkClub('Smoke Community Zahlt Nicht', commHost, 'community');
+      const paid = async () => (await db.query('SELECT is_paid_partner, club_type FROM groups WHERE id = $1', [comm])).rows[0];
+      const classify = (body, id = comm) => call(C.classifyClub, { userId: A, params: { id: String(id) }, body });
+
+      const refused = await classify({ is_paid_partner: true });
+      expect(refused.statusCode).toBe(400);
+      expect(refused.body.code).toBe('PAID_PARTNER_OFFICIAL_ONLY');
+      expect(await paid()).toEqual({ is_paid_partner: false, club_type: 'community' });
+      // `false` always goes, also here
+      ok(await classify({ is_paid_partner: false }));
+      // not a boolean: refused before any write
+      expect((await classify({ is_paid_partner: 'true' })).statusCode).toBe(400);
+      expect(await paid()).toEqual({ is_paid_partner: false, club_type: 'community' });
+      // type and mark together
+      const both = await classify({ club_type: 'official', is_paid_partner: true });
+      ok(both);
+      expect(both.body.club).toMatchObject({ club_type: 'official', is_paid_partner: true });
+      expect(await paid()).toEqual({ is_paid_partner: true, club_type: 'official' });
+      // an event or a group is no club: 404, never marked
+      const notAClub = await classify({ is_paid_partner: true }, byHost);
+      expect(notAClub.statusCode).toBe(404);
+      expect((await db.query('SELECT is_paid_partner FROM groups WHERE id = $1', [byHost])).rows[0].is_paid_partner).toBe(false);
+      // a club that does not exist
+      expect((await classify({ is_paid_partner: true }, 2147483000)).statusCode).toBe(404);
+    });
+
+    it('the admin list carries the mark', async () => {
+      const res = await call(C.getClubsForAdmin, { userId: A, query: { search: 'Smoke Café' } });
+      ok(res);
+      const marks = Object.fromEntries(res.body.map((c) => [c.name, c.is_paid_partner]));
+      expect(marks['Smoke Café Partner']).toBe(true);
+      expect(marks['Smoke Café Gratis']).toBe(false);
     });
   });
 
