@@ -1117,7 +1117,7 @@
       "title": "Clubes y comunidades",
       "sort": "Ordenar",
       "done": "Listo",
-      "sortHint": "Toca uno y muévelo con las flechas.",
+      "sortHint": "Arrastra para mover, o toca uno y usa las flechas.",
       "pickAria": "Seleccionar «{{name}}» para moverlo",
       "moveAria": "Mover «{{name}}»",
       "moveEarlier": "Mover un puesto antes",

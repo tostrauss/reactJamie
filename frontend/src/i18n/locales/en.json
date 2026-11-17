@@ -1117,7 +1117,7 @@
       "title": "Clubs & Communities",
       "sort": "Sort",
       "done": "Done",
-      "sortHint": "Tap one, then move it with the arrows.",
+      "sortHint": "Drag to move – or tap one and use the arrows.",
       "pickAria": "Select “{{name}}” to move it",
       "moveAria": "Move “{{name}}”",
       "moveEarlier": "Move one place earlier",

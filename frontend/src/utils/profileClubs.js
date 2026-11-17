@@ -49,3 +49,25 @@ export const withClubOrder = (rows, ids) => {
   const position = new Map(ids.map((id, i) => [id, i + 1]));
   return (Array.isArray(rows) ? rows : []).map((c) => ({ ...c, profile_position: position.get(c.id) ?? null }));
 };
+
+/**
+ * Dragging a bubble in „Sortieren“ (Tina 17.11.2026, hooks/useBubbleDrag):
+ * which place the finger is over. `slots` are the centres { x, y } of the
+ * sortable bubbles' places in their order (own bubbles are no slots); the
+ * answer is the index of the nearest one, so a finger in a gap or outside the
+ * grid still has a place — the closest. -1 without slots or a usable point.
+ * On a tie the earlier place wins.
+ */
+export const dropIndexAt = (slots, x, y) => {
+  if (!Array.isArray(slots) || !Number.isFinite(x) || !Number.isFinite(y)) return -1;
+  let best = -1;
+  let bestDistance = Infinity;
+  slots.forEach((slot, i) => {
+    const distance = (slot.x - x) ** 2 + (slot.y - y) ** 2;
+    if (distance < bestDistance) {
+      best = i;
+      bestDistance = distance;
+    }
+  });
+  return best;
+};

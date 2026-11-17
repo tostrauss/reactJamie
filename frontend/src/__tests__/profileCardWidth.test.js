@@ -163,3 +163,27 @@ describe('the date tile of „Demnächst dabei“', () => {
     expect(month['letter-spacing']).toBeUndefined();
   });
 });
+
+// Dragging the bubbles in „Sortieren“ (hooks/useBubbleDrag) stands on three
+// declarations jsdom cannot show.
+describe('what the bubble drag needs from the CSS', () => {
+  it('the rail is the bubbles\' offsetParent — their places are measured against it', () => {
+    expect(block(profileCss, '.profile-clubs-rail').position).toBe('relative');
+  });
+
+  it('a movable bubble takes the finger itself: no page scroll, no callout, no selection', () => {
+    const m = profileCss.match(/\n\.profile-clubs-rail\.is-sorting \.profile-club:not\(\.is-own\) \.profile-club-open\s*\{([^}]*)\}/);
+    expect(m).not.toBeNull();
+    expect(m[1]).toMatch(/touch-action:\s*none/);
+    expect(m[1]).toMatch(/-webkit-touch-callout:\s*none/);
+    expect(m[1]).toMatch(/user-select:\s*none/);
+  });
+
+  it('the dragged bubble stops wiggling (the animation would overrule the transform that follows the finger)', () => {
+    const dragging = block(profileCss, '.profile-club.is-dragging');
+    expect(dragging.animation).toBe('none');
+    // …and that rule comes after the wiggle's, which has the same weight.
+    expect(profileCss.indexOf('\n.profile-club.is-dragging {'))
+      .toBeGreaterThan(profileCss.indexOf('\n.profile-club.is-wiggling,'));
+  });
+});

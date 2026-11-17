@@ -2175,6 +2175,7 @@
    10px gap. The grid uses the SAME 64px tracks and 10px gap as the row, so
    tapping „Sortieren" moves no bubble of the first row. */
 .profile-clubs-rail {
+  position: relative;
   display: flex;
   gap: 10px;
   margin: 0;
@@ -2352,6 +2353,38 @@
 @keyframes profile-wiggle {
   0%, 100% { transform: rotate(calc(var(--wiggle-deg, 1.5deg) * -1)); }
   50%      { transform: rotate(var(--wiggle-deg, 1.5deg)); }
+}
+
+/* Dragging in „Sortieren" (hooks/useBubbleDrag): the joined bubbles take the
+   finger themselves — no page scroll, no callout, no text selection starting
+   on them. The rail is position: relative above, so a bubble's offsetLeft/Top
+   count from the rail. The dragged bubble stops wiggling (the animation's
+   transform would win over the inline one that follows the finger), lifts
+   above the others and casts a shadow. */
+.profile-clubs-rail.is-sorting .profile-club:not(.is-own) .profile-club-open {
+  touch-action: none;
+  cursor: grab;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.profile-club.is-dragging {
+  animation: none;
+  z-index: 3;
+}
+
+.profile-clubs-rail.is-sorting .profile-club.is-dragging .profile-club-open { cursor: grabbing; }
+
+.profile-club.is-dragging .profile-club-bubble {
+  box-shadow: 0 0 0 2px var(--text-white), 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+
+/* The picture must never become the drag's target (image drag, long-press
+   menu). */
+.profile-club-bubble img {
+  pointer-events: none;
+  -webkit-user-drag: none;
 }
 
 /* The bubble picked for moving holds still and steps forward, ringed white. */

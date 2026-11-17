@@ -1117,7 +1117,7 @@
       "title": "Clubs et communautés",
       "sort": "Trier",
       "done": "Terminé",
-      "sortHint": "Touche-en un, puis déplace-le avec les flèches.",
+      "sortHint": "Fais glisser pour déplacer – ou touche-en un et utilise les flèches.",
       "pickAria": "Sélectionner « {{name}} » pour le déplacer",
       "moveAria": "Déplacer « {{name}} »",
       "moveEarlier": "Avancer d'une place",

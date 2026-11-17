@@ -1117,7 +1117,7 @@
       "title": "Club e community",
       "sort": "Ordina",
       "done": "Fatto",
-      "sortHint": "Toccane uno, poi spostalo con le frecce.",
+      "sortHint": "Trascina per spostare – oppure toccane uno e usa le frecce.",
       "pickAria": "Seleziona «{{name}}» per spostarlo",
       "moveAria": "Sposta «{{name}}»",
       "moveEarlier": "Sposta di un posto prima",
