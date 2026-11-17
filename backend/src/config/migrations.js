@@ -2167,6 +2167,81 @@ const runStartupMigrations = async () => {
   // ── separator: leave in place ──
   //
   // >>> BAU2-MIGRATIONEN (Profil, Community & Nach dem Event)
+  // After the event and the community nudge (Tina 17.11.2026) — three side
+  // tables, nothing on a hot path: every reader catches 42P01 and simply
+  // switches its feature off (the new GETs answer 200 with nothing in them).
+  // CASCADE on every FK: a group's or an account's hard delete never trips
+  // over them (the reviewed_by lesson). One transaction under a short
+  // lock_timeout like event_deals — the FKs lock groups/users on first
+  // creation only; on every later boot IF NOT EXISTS skips the statement.
+  await migrate('post_event_tables (2026-11-17)', async () => {
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      // „Aus Fremden können Freundschaften werden!“ closed (X or „Fertig“) —
+      // per person and event (controllers/connectController.js).
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS event_connect_dismissals (
+          group_id   INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+          user_id    INTEGER NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (group_id, user_id)
+        )`);
+      // „Wie war’s bei X?“ — stars NULL = closed with the X (never asked again).
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS event_ratings (
+          group_id   INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+          user_id    INTEGER NOT NULL REFERENCES users(id)  ON DELETE CASCADE,
+          stars      SMALLINT CHECK (stars BETWEEN 1 AND 5),
+          feedback   TEXT CHECK (feedback IS NULL OR char_length(feedback) <= 1000),
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (group_id, user_id)
+        )`);
+      await client.query(
+        'CREATE INDEX IF NOT EXISTS idx_event_ratings_created ON event_ratings (created_at DESC) WHERE stars IS NOT NULL'
+      );
+      // A community without a meetup about a week after it was founded: due
+      // once (the job's claim), closed once (the card's X).
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS community_event_nudges (
+          club_id      INTEGER PRIMARY KEY REFERENCES groups(id) ON DELETE CASCADE,
+          due_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          dismissed_at TIMESTAMPTZ
+        )`);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // connect list, ratings and the community nudge stay off until the next boot
+    } finally {
+      client.release();
+    }
+  });
+
+  // The Connect push the day after an event (jobs/connectNudges.js).
+  // TIMESTAMP (naive) like the other *_sent_for markers: a COPY of groups.date
+  // as of the send, so a moved event gets the push again for its new date.
+  // Probed first, then ALTERed under a short lock_timeout: groups is read by
+  // every feed (reasoning of groups.club_type). Only that one job reads it.
+  await migrate('groups.connect_nudge_sent_for (2026-11-17)', async () => {
+    const { rows } = await db.query(
+      `SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'groups' AND column_name = 'connect_nudge_sent_for'`
+    );
+    if (rows.length) return;
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS connect_nudge_sent_for TIMESTAMP`);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // no Connect push until the next boot
+    } finally {
+      client.release();
+    }
+  });
   // <<< BAU2-MIGRATIONEN
 
   // ── Post-migration schema assertion ────────────────────────────────────

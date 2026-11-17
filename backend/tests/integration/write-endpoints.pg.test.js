@@ -6846,6 +6846,78 @@ suite('write endpoints against real Postgres', () => {
   // ── separator: leave in place ──
   //
   // >>> BAU2-SMOKE (Profil, Community & Nach dem Event)
+  describe('Bau 2: nach dem Event, Community, Club-Events (17.11.2026)', () => {
+    // Own people and own modules — the C block above stays as it is.
+    let U = {};   // user ids by short name
+    let migrations;
+
+    const mkUser = async (key, name) => {
+      const r = await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ($1, $2, '1995-03-03', 'female', $3, TRUE, 'email') RETURNING id`,
+        [`smoke-bau2-${key}@x.com`, name, avatar]
+      );
+      U[key] = r.rows[0].id;
+      return U[key];
+    };
+
+    beforeAll(async () => {
+      migrations = await import('../../src/config/migrations.js');
+      await mkUser('owner', 'Bau2 Olga');
+      await mkUser('guest', 'Bau2 Gabi');
+    }, 60000);
+
+    // ── B2-01: the three side tables and the Connect marker ───────────────
+    it('migrations: three tables and groups.connect_nudge_sent_for exist; a second boot changes nothing', async () => {
+      const shape = async () => (await db.query(
+        `SELECT table_name, column_name, data_type, is_nullable
+           FROM information_schema.columns
+          WHERE table_schema = current_schema()
+            AND (table_name IN ('event_connect_dismissals', 'event_ratings', 'community_event_nudges')
+                 OR (table_name = 'groups' AND column_name = 'connect_nudge_sent_for'))
+          ORDER BY table_name, ordinal_position`)).rows;
+
+      const before = await shape();
+      const cols = (table) => before.filter((c) => c.table_name === table).map((c) => c.column_name);
+      expect(cols('event_connect_dismissals')).toEqual(['group_id', 'user_id', 'created_at']);
+      expect(cols('event_ratings')).toEqual(['group_id', 'user_id', 'stars', 'feedback', 'created_at']);
+      expect(cols('community_event_nudges')).toEqual(['club_id', 'due_at', 'dismissed_at']);
+      // A naive TIMESTAMP like the other *_sent_for markers: a copy of groups.date.
+      expect(before.find((c) => c.table_name === 'groups')).toMatchObject({
+        column_name: 'connect_nudge_sent_for', data_type: 'timestamp without time zone', is_nullable: 'YES',
+      });
+
+      // The next boot: nothing changes and neither step fails.
+      await migrations.runStartupMigrations();
+      expect(await shape()).toEqual(before);
+      const failed = migrations.getMigrationHealth().stepFailures.map((f) => f.label);
+      expect(failed.filter((l) => /post_event_tables|connect_nudge_sent_for/.test(l))).toEqual([]);
+
+      // The CHECKs of event_ratings: 1–5 stars or none (closed with the X),
+      // feedback of at most 1000 characters.
+      const ev = (await db.query(
+        `INSERT INTO groups (name, type, date, owner_id, category, location, max_members)
+         VALUES ('Bau2 Migration', 'group', TIMESTAMP '2026-03-02 00:00:00', $1, 'Sport', 'Wien', 10) RETURNING id`,
+        [U.owner])).rows[0].id;
+      const rate = (user, stars, feedback = null) => db.query(
+        'INSERT INTO event_ratings (group_id, user_id, stars, feedback) VALUES ($1, $2, $3, $4)',
+        [ev, user, stars, feedback]);
+      await expect(rate(U.owner, 6)).rejects.toMatchObject({ code: '23514' });
+      await expect(rate(U.owner, 0)).rejects.toMatchObject({ code: '23514' });
+      await expect(rate(U.owner, 5, 'x'.repeat(1001))).rejects.toMatchObject({ code: '23514' });
+      await rate(U.owner, null);                    // closed with the X
+      await rate(U.guest, 5, 'x'.repeat(1000));     // the longest feedback
+      await expect(rate(U.guest, 4)).rejects.toMatchObject({ code: '23505' });   // one row per person and event
+
+      // CASCADE on both ends: deleting the event takes its rows along.
+      await db.query('INSERT INTO event_connect_dismissals (group_id, user_id) VALUES ($1, $2)', [ev, U.guest]);
+      await db.query('DELETE FROM groups WHERE id = $1', [ev]);
+      const left = await db.query(
+        `SELECT (SELECT COUNT(*) FROM event_ratings WHERE group_id = $1)::int AS ratings,
+                (SELECT COUNT(*) FROM event_connect_dismissals WHERE group_id = $1)::int AS dismissals`, [ev]);
+      expect(left.rows[0]).toEqual({ ratings: 0, dismissals: 0 });
+    }, 60000);
+  });
   // <<< BAU2-SMOKE
 
   // ── groups.is_paid_partner (partner model, Tina/Tobi 17.11.2026) ────────
