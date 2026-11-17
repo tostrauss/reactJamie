@@ -6890,7 +6890,7 @@ suite('write endpoints against real Postgres', () => {
   describe('Bau 2: nach dem Event, Community, Club-Events (17.11.2026)', () => {
     // Own people and own modules — the C block above stays as it is.
     let U = {};   // user ids by short name
-    let migrations;
+    let migrations, connect, connectJob;
 
     const mkUser = async (key, name) => {
       const r = await db.query(
@@ -6902,10 +6902,42 @@ suite('write endpoints against real Postgres', () => {
       return U[key];
     };
 
+    // Vienna days relative to today, as SQL — the same expression the
+    // endpoints compare with, so these cases hold at any time of day.
+    const VIENNA_TODAY = `date_trunc('day', NOW() AT TIME ZONE 'Europe/Vienna')`;
+    const daysAgoAt19 = (days) => `${VIENNA_TODAY} - INTERVAL '${Number(days)} days' + INTERVAL '19 hours'`;
+
+    // An event (`when` is a trusted SQL expression of this file) whose people
+    // all joined long before it — only they took part.
+    const mkEvent = async (name, when, owner, others, { type = 'group', parent = null } = {}) => {
+      const id = (await db.query(
+        `INSERT INTO groups (name, type, date, owner_id, category, location, max_members, parent_club_id)
+         VALUES ($1, $2, ${when}, $3, 'Sport', 'Wien', 30, $4) RETURNING id`,
+        [name, type, owner, parent])).rows[0].id;
+      await db.query(
+        `INSERT INTO group_members (group_id, user_id, role, joined_at)
+         SELECT $1, u, CASE WHEN u = $2 THEN 'owner' ELSE 'member' END, NOW() - INTERVAL '40 days'
+           FROM unnest($3::int[]) AS u`, [id, owner, [owner, ...others]]);
+      return id;
+    };
+    const befriend = (a, b, status = 'accepted') => db.query(
+      'INSERT INTO friendships (requester_id, addressee_id, status) VALUES ($1, $2, $3)', [a, b, status]);
+    const unfriend = (a, b) => db.query(
+      `DELETE FROM friendships WHERE (requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1)`,
+      [a, b]);
+
     beforeAll(async () => {
       migrations = await import('../../src/config/migrations.js');
+      connect = await import('../../src/controllers/connectController.js');
+      connectJob = await import('../../src/jobs/connectNudges.js');
       await mkUser('owner', 'Bau2 Olga');
       await mkUser('guest', 'Bau2 Gabi');
+      // After the event: O2 creates, M1–M3 take part, L joins too late.
+      await mkUser('o2', 'Bau2 Otto');
+      await mkUser('m1', 'Bau2 Mia');
+      await mkUser('m2', 'Bau2 Max');
+      await mkUser('m3', 'Bau2 Moe');
+      await mkUser('late', 'Bau2 Lou');
     }, 60000);
 
     // ── B2-01: the three side tables and the Connect marker ───────────────
@@ -6958,6 +6990,210 @@ suite('write endpoints against real Postgres', () => {
                 (SELECT COUNT(*) FROM event_connect_dismissals WHERE group_id = $1)::int AS dismissals`, [ev]);
       expect(left.rows[0]).toEqual({ ratings: 0, dismissals: 0 });
     }, 60000);
+
+    // ── B2-03: „Aus Fremden können Freundschaften werden!“ (Connect) ───────
+    // Everybody but the creator gets the list of the others who took part,
+    // from the day after the event; the push goes out once, D+1 from 10:00.
+    describe('Connect: the friends list after an event', () => {
+      let meetup;
+      const pending = async (uid) => {
+        const res = await call(connect.getPendingConnect, { userId: uid });
+        ok(res);
+        return res.body;
+      };
+      const listOf = async (uid, gid) => (await pending(uid)).find((e) => e.group_id === gid)?.members;
+      const brief = (members) => members.map((m) => [m.id, m.friend_status, m.is_owner]);
+
+      it('a participant gets the event with everybody else on it — the creator first, each with their state', async () => {
+        meetup = await mkEvent('Bau2 Connect', daysAgoAt19(2), U.o2, [U.m1, U.m2, U.m3]);
+        await befriend(U.m1, U.m2);                 // friends
+        await befriend(U.m1, U.m3, 'pending');      // M1 asked M3
+        const mine = (await pending(U.m1)).find((e) => e.group_id === meetup);
+        expect(mine).toMatchObject({ group_id: meetup, group_name: 'Bau2 Connect', image_url: null });
+        expect(mine.event_date).toBeTruthy();
+        expect(brief(mine.members)).toEqual([
+          [U.o2, 'none', true],
+          [U.m2, 'accepted', false],
+          [U.m3, 'pending_out', false],
+        ]);
+        expect(mine.members[0]).toMatchObject({ name: 'Bau2 Otto', avatar_url: avatar, friendship_id: null });
+        expect(typeof mine.members[0].age).toBe('number');
+        expect(mine.members[1].friendship_id).toEqual(expect.any(Number));
+        // The other side of the open request can accept it right in the list.
+        const m3 = await listOf(U.m3, meetup);
+        const fromM1 = m3.find((m) => m.id === U.m1);
+        expect(fromM1.friend_status).toBe('pending_in');
+        expect(fromM1.friendship_id).toBe(mine.members[2].friendship_id);
+      });
+
+      it('the creator never gets it — they are asked „Wer war dabei?“ instead', async () => {
+        expect((await pending(U.o2)).map((e) => e.group_id)).not.toContain(meetup);
+        const asked = await call(C.getPendingReviews, { userId: U.o2 });
+        expect(asked.body.map((r) => r.group_id)).toContain(meetup);
+      });
+
+      it('somebody who joined after the event is neither asked nor listed', async () => {
+        await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, [meetup, U.late]); // joined NOW
+        expect((await pending(U.late)).map((e) => e.group_id)).not.toContain(meetup);
+        expect((await listOf(U.m1, meetup)).map((m) => m.id)).not.toContain(U.late);
+      });
+
+      it('a block hides both from each other\'s list; a frozen account is on nobody\'s', async () => {
+        await befriend(U.m2, U.m3, 'blocked');
+        try {
+          expect((await listOf(U.m2, meetup)).map((m) => m.id)).toEqual([U.o2, U.m1]);
+          expect((await listOf(U.m3, meetup)).map((m) => m.id)).toEqual([U.o2, U.m1]);
+        } finally {
+          await unfriend(U.m2, U.m3);
+        }
+        await db.query('UPDATE users SET is_active = FALSE WHERE id = $1', [U.m3]);
+        try {
+          expect((await listOf(U.m2, meetup)).map((m) => m.id)).toEqual([U.o2, U.m1]);
+        } finally {
+          await db.query('UPDATE users SET is_active = TRUE WHERE id = $1', [U.m3]);
+        }
+        expect((await listOf(U.m2, meetup)).map((m) => m.id)).toEqual([U.o2, U.m1, U.m3]);
+      });
+
+      it('not before the day after the event, not after the window; never a weekly series, a cancelled, deleted or not-held one', async () => {
+        const today = await mkEvent('Bau2 Heute', `${VIENNA_TODAY} + INTERVAL '12 hours'`, U.o2, [U.m1]);
+        const yesterday = await mkEvent('Bau2 Gestern', daysAgoAt19(1), U.o2, [U.m1]);
+        const lastDay = await mkEvent('Bau2 Tag 14', daysAgoAt19(14), U.o2, [U.m1]);
+        const tooOld = await mkEvent('Bau2 Tag 15', daysAgoAt19(15), U.o2, [U.m1]);
+        const weekly = await mkEvent('Bau2 Serie', daysAgoAt19(2), U.o2, [U.m1]);
+        const cancelled = await mkEvent('Bau2 Abgesagt', daysAgoAt19(2), U.o2, [U.m1]);
+        const deleted = await mkEvent('Bau2 Gelöscht', daysAgoAt19(2), U.o2, [U.m1]);
+        const notHeld = await mkEvent('Bau2 Ausgefallen', daysAgoAt19(2), U.o2, [U.m1]);
+        await db.query('UPDATE groups SET is_recurring_weekly = TRUE WHERE id = $1', [weekly]);
+        await db.query('UPDATE groups SET is_active = FALSE WHERE id = $1', [cancelled]);
+        await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [deleted]);
+        await db.query('UPDATE groups SET did_not_take_place = TRUE WHERE id = $1', [notHeld]);
+        const ids = (await pending(U.m1)).map((e) => e.group_id);
+        expect(ids).toEqual(expect.arrayContaining([yesterday, lastDay]));
+        for (const gone of [today, tooOld, weekly, cancelled, deleted, notHeld]) expect(ids).not.toContain(gone);
+        // Tidy up: only the first meetup stays open for M1 below (at most five are answered).
+        await db.query('DELETE FROM groups WHERE id = ANY($1::int[])',
+          [[today, yesterday, lastDay, tooOld, weekly, cancelled, deleted, notHeld]]);
+      });
+
+      it('a club event counts too — as long as its club is alive', async () => {
+        const mkClub = async (name) => (await db.query(
+          `INSERT INTO groups (name, type, owner_id, category, location, max_members, approval_status, is_active)
+           VALUES ($1, 'club', $2, 'Sport', 'Wien', 500, 'approved', TRUE) RETURNING id`, [name, U.o2])).rows[0].id;
+        const alive = await mkClub('Bau2 Club lebt');
+        const gone = await mkClub('Bau2 Club weg');
+        const clubEvent = await mkEvent('Bau2 Clubabend', daysAgoAt19(3), U.o2, [U.m3], { type: 'event', parent: alive });
+        const orphan = await mkEvent('Bau2 Waise', daysAgoAt19(3), U.o2, [U.m3], { type: 'event', parent: gone });
+        await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [gone]);
+        const ids = (await pending(U.m3)).map((e) => e.group_id);
+        expect(ids).toContain(clubEvent);
+        expect(ids).not.toContain(orphan);
+        expect(brief(await listOf(U.m3, clubEvent))).toEqual([[U.o2, 'none', true]]);
+        await db.query('DELETE FROM groups WHERE id = ANY($1::int[])', [[clubEvent, orphan]]);
+      });
+
+      it('an event where nobody is left to ask is not listed', async () => {
+        // M2 on the first meetup: O2 (none) and M3 (none) are still askable.
+        expect((await pending(U.m2)).map((e) => e.group_id)).toContain(meetup);
+        const allFriends = await mkEvent('Bau2 Alle befreundet', daysAgoAt19(2), U.o2, [U.m1, U.m2]);
+        await befriend(U.o2, U.m1);
+        try {
+          // M1: friends with O2 and with M2 → nothing to do; M2 can still ask O2.
+          expect((await pending(U.m1)).map((e) => e.group_id)).not.toContain(allFriends);
+          expect((await pending(U.m2)).map((e) => e.group_id)).toContain(allFriends);
+        } finally {
+          await unfriend(U.o2, U.m1);
+          await db.query('DELETE FROM groups WHERE id = $1', [allFriends]);
+        }
+      });
+
+      it('closing the list (X / „Fertig“) removes the event for that person only; only a participant can', async () => {
+        const stranger = await call(connect.dismissConnect, { userId: U.guest, body: { group_id: meetup } });
+        expect(stranger.statusCode).toBe(403);
+        expect((await call(connect.dismissConnect, { userId: U.m1, body: { group_id: 'x' } })).statusCode).toBe(400);
+        ok(await call(connect.dismissConnect, { userId: U.m1, body: { group_id: meetup } }));
+        ok(await call(connect.dismissConnect, { userId: U.m1, body: { group_id: meetup } }));   // idempotent
+        expect((await pending(U.m1)).map((e) => e.group_id)).not.toContain(meetup);
+        expect((await pending(U.m2)).map((e) => e.group_id)).toContain(meetup);
+        const rows = await db.query('SELECT user_id FROM event_connect_dismissals WHERE group_id = $1', [meetup]);
+        expect(rows.rows).toEqual([{ user_id: U.m1 }]);
+      });
+
+      it('the emergency switch POST_EVENT_CONNECT=false: no list, nothing claimed', async () => {
+        process.env.POST_EVENT_CONNECT = 'false';
+        try {
+          expect(await pending(U.m2)).toEqual([]);
+          const send = vi.fn(async () => {});
+          expect(await connectJob.runConnectNudges({ now: new Date('2027-02-10T09:15:00Z'), send }))
+            .toEqual({ events: 0, pushes: 0 });
+          expect(send).not.toHaveBeenCalled();
+        } finally {
+          delete process.env.POST_EVENT_CONNECT;
+        }
+        expect((await pending(U.m2)).map((e) => e.group_id)).toContain(meetup);
+      });
+
+      // Fixed dates, an injected clock and a spy instead of the real sender:
+      // never coupled to the real NOW(). Other describes' events may be
+      // claimed by the same tick — only our own ids are counted, by URL.
+      it('the push: once per event, the day after from 10:00 Vienna, to everybody but the creator who still has somebody to ask', async () => {
+        const at19 = `TIMESTAMP '2027-02-09 19:00:00'`;
+        const four = await mkEvent('Bau2 Push Vier', at19, U.o2, [U.m1, U.m2, U.m3]);
+        const solo = await mkEvent('Bau2 Push Solo', at19, U.o2, []);
+        const nine = [];
+        for (let i = 1; i <= 9; i++) nine.push(await mkUser(`n${i}`, `Bau2 Neun ${i}`));
+        const big = await mkEvent('Bau2 Push Zehn', at19, U.o2, nine);          // the creator + 9
+        // M3 closed the list of the first one; M2 muted its chat.
+        await db.query('INSERT INTO event_connect_dismissals (group_id, user_id) VALUES ($1, $2)', [four, U.m3]);
+        await db.query('UPDATE group_members SET notifications_muted = TRUE WHERE group_id = $1 AND user_id = $2', [four, U.m2]);
+
+        const send = vi.fn(async () => {});
+        const tick = (iso) => connectJob.runConnectNudges({ now: new Date(iso), send });
+        const sentFor = (gid) => send.mock.calls.filter((c) => c[3] === `/group/${gid}?connect=1`);
+        const marker = async (gid) => (await db.query(
+          `SELECT to_char(connect_nudge_sent_for, 'YYYY-MM-DD HH24:MI:SS') AS m FROM groups WHERE id = $1`, [gid])).rows[0].m;
+
+        // On the event day, and the next morning at 09:30 Vienna (08:30Z): too early.
+        await tick('2027-02-09T21:00:00Z');
+        await tick('2027-02-10T08:30:00Z');
+        expect([await marker(four), await marker(big), await marker(solo)]).toEqual([null, null, null]);
+        expect(send).not.toHaveBeenCalled();
+
+        // 10:15 Vienna: both are claimed, the solo meetup is not.
+        const out = await tick('2027-02-10T09:15:00Z');
+        expect(out.events).toBeGreaterThanOrEqual(2);
+        expect([await marker(four), await marker(big), await marker(solo)])
+          .toEqual(['2027-02-09 19:00:00', '2027-02-09 19:00:00', null]);
+        // The four: only M1 — M2 muted the chat, M3 closed the list, O2 created it.
+        expect(sentFor(four)).toHaveLength(1);
+        expect(sentFor(four)[0][0]).toEqual([U.m1]);
+        expect(sentFor(four)[0][1]('de')).toEqual({
+          title: 'Aus Fremden können Freundschaften werden!',
+          body: 'Mach den ersten Schritt und schicke eine Freundschaftsanfrage !',
+        });
+        // Ten people: also claimed („bei egal wie vielen Leuten“), to the nine.
+        expect(sentFor(big)).toHaveLength(1);
+        expect([...sentFor(big)[0][0]].sort((a, b) => a - b)).toEqual([...nine].sort((a, b) => a - b));
+        expect(sentFor(solo)).toHaveLength(0);
+
+        // The next tick: nothing again.
+        send.mockClear();
+        await tick('2027-02-10T09:30:00Z');
+        expect(sentFor(four)).toHaveLength(0);
+        expect(sentFor(big)).toHaveLength(0);
+
+        // Moving the event re-arms it for the new date.
+        await db.query(`UPDATE groups SET date = TIMESTAMP '2027-02-11 19:00:00' WHERE id = $1`, [four]);
+        await tick('2027-02-12T10:00:00Z');
+        expect(await marker(four)).toBe('2027-02-11 19:00:00');
+        expect(sentFor(four)).toHaveLength(1);
+
+        // After 23:00 Vienna nothing goes out, even inside the day-after window.
+        const lateEvent = await mkEvent('Bau2 Push Spät', `TIMESTAMP '2027-03-02 19:00:00'`, U.o2, [U.m1]);
+        await tick('2027-03-03T22:30:00Z');          // 23:30 Vienna
+        expect(await marker(lateEvent)).toBeNull();
+      });
+    });
   });
   // <<< BAU2-SMOKE
 

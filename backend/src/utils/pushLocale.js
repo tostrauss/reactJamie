@@ -459,6 +459,17 @@ const PUSH_TEXTS = {
     fr: (p) => ({ title: p.groupName, body: 'Oups ! Ta communauté n’a toujours pas de photo de couverture, ajoute-en une pour rester visible !' }),
     es: (p) => ({ title: p.groupName, body: '¡Uy! Tu comunidad aún no tiene foto de portada, sube una ahora para seguir siendo visible.' }),
   },
+  // „Connect“ after an event (Tina 17.11.2026) — to everybody but the creator,
+  // the day after (jobs/connectNudges.js). Her sentence, split into title and
+  // body, character for character including the space before the „!“. No
+  // event name.
+  connectNudge: {
+    de: () => ({ title: 'Aus Fremden können Freundschaften werden!', body: 'Mach den ersten Schritt und schicke eine Freundschaftsanfrage !' }),
+    en: () => ({ title: 'Strangers can become friends!', body: 'Take the first step and send a friend request!' }),
+    it: () => ({ title: 'Da sconosciuti si può diventare amici!', body: 'Fai il primo passo e invia una richiesta di amicizia!' }),
+    fr: () => ({ title: 'Des inconnus peuvent devenir des amis !', body: 'Fais le premier pas et envoie une demande d’amitié !' }),
+    es: () => ({ title: '¡De desconocidos pueden nacer amistades!', body: '¡Da el primer paso y envía una solicitud de amistad!' }),
+  },
   // Admin → Nutzer → "Test-Push senden" (support tool, 06.10.2026). Says what it
   // is, so a tester who receives it knows push reaches this device.
   // To the USER: an admin removed a profile picture that shows no real person

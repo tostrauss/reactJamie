@@ -425,3 +425,22 @@ describe('poll pushes', () => {
     expect(pushTexts('groupMessage', { groupName: 'X', line: 'A: hi' })('de').body).toBe('A: hi');
   });
 });
+
+// ── Bau 2 (Tina-Update 17.11.2026) ───────────────────────────────────────
+// The pushes after an event and for a community without a meetup.
+describe('Bau 2 pushes (Tina 17.11.2026)', () => {
+  it('connectNudge: Tina\'s sentence, split into title and body — character for character in German', () => {
+    const b = pushTexts('connectNudge');
+    // The space before the „!“ is hers (REGELN: zeichengenau).
+    expect(b('de')).toEqual({
+      title: 'Aus Fremden können Freundschaften werden!',
+      body: 'Mach den ersten Schritt und schicke eine Freundschaftsanfrage !',
+    });
+    expect(b('en')).toEqual({ title: 'Strangers can become friends!', body: 'Take the first step and send a friend request!' });
+    expect(b('it')).toEqual({ title: 'Da sconosciuti si può diventare amici!', body: 'Fai il primo passo e invia una richiesta di amicizia!' });
+    expect(b('fr')).toEqual({ title: 'Des inconnus peuvent devenir des amis !', body: 'Fais le premier pas et envoie une demande d’amitié !' });
+    expect(b('es')).toEqual({ title: '¡De desconocidos pueden nacer amistades!', body: '¡Da el primer paso y envía una solicitud de amistad!' });
+    // No event name in it, and an unknown language falls back to German.
+    expect(b('pt')).toEqual(b('de'));
+  });
+});
