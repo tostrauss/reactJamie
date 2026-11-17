@@ -1583,7 +1583,11 @@ export const joinGroup = async (req, res) => {
     // above: a member who cleared that gate joins directly (below).
     if (viaRequest) {
       if (attempt?.status === 'pending') {
-        return res.status(400).json({ error: 'Beitrittsanfrage bereits ausstehend' });
+        // `code` like joinClub's: the app shows „Anfrage ausstehend…“ in its
+        // own language instead of this German sentence (audit
+        // ziel-d-privat-events: a second tap in the club's event list). Old
+        // bundles keep showing `error`.
+        return res.status(400).json({ error: 'Beitrittsanfrage bereits ausstehend', code: 'JOIN_REQUEST_PENDING' });
       }
 
       // The budget lives in the WHERE of the DO UPDATE as well as in the check

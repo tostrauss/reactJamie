@@ -6892,7 +6892,7 @@ suite('write endpoints against real Postgres', () => {
   describe('Bau 2: nach dem Event, Community, Club-Events (17.11.2026)', () => {
     // Own people and own modules — the C block above stays as it is.
     let U = {};   // user ids by short name
-    let migrations, connect, connectJob, ratings, communityJob, communityCtl;
+    let migrations, connect, connectJob, ratings, communityJob, communityCtl, joinState;
 
     const mkUser = async (key, name) => {
       const r = await db.query(
@@ -6935,6 +6935,7 @@ suite('write endpoints against real Postgres', () => {
       ratings = await import('../../src/controllers/eventRatingController.js');
       communityJob = await import('../../src/jobs/communityNudges.js');
       communityCtl = await import('../../src/controllers/communityNudgeController.js');
+      joinState = await import('../../src/utils/clubEventJoinState.js');
       await mkUser('owner', 'Bau2 Olga');
       await mkUser('guest', 'Bau2 Gabi');
       // After the event: O2 creates, M1–M3 take part, L joins too late.
@@ -7476,6 +7477,87 @@ suite('write endpoints against real Postgres', () => {
           delete process.env.COMMUNITY_NUDGES;
         }
         expect((await cardsOf(U.c1)).map((c) => c.id)).toEqual([K.young]);
+      });
+    });
+
+    // ── B2-07: the join button of a club's event list (ziel-d-privat-events) ──
+    // A private event in a PUBLIC club takes requests. The list used to keep
+    // saying „Beitreten“ after the request went out, and the second tap ran
+    // into a 400 without a code. Contract V-14: joinGroup's 400 carries the
+    // code, and attachJoinRequestState tells the list what the button should
+    // say. (getClubEvents itself is wired by the coordinator after the merge —
+    // its case goes at the end of this describe.)
+    describe('club event list: joining a private event goes by request (V-14)', () => {
+      const mkClub = async (name, isPrivate) => (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, approval_status, is_active, is_private)
+         VALUES ($1, 'club', $2, 'Sport', 'Wien', 500, 'approved', TRUE, $3) RETURNING id`, [name, U.o2, isPrivate])).rows[0].id;
+      // What getClubEvents hands over: the club's events as plain rows.
+      const eventsOf = async (clubId) => (await db.query(
+        'SELECT id, name, is_private FROM groups WHERE parent_club_id = $1 ORDER BY id', [clubId])).rows;
+      const stateFor = async (uid, clubId, clubIsPrivate) => Object.fromEntries(
+        (await joinState.attachJoinRequestState(db, { userId: uid, clubIsPrivate, events: await eventsOf(clubId) }))
+          .map((e) => [e.id, [e.joins_by_request, e.join_request_status, e.join_request_blocked]]));
+      const join = (uid, eventId) => call(C.joinGroup, { userId: uid, params: { id: String(eventId) } });
+      let pub, priv, secret, open, inner;
+
+      it('a request goes out once; the list then knows „pending“ and the second tap is 400 JOIN_REQUEST_PENDING', async () => {
+        await mkUser('j1', 'Bau2 Jana');
+        pub = await mkClub('Bau2 Offener Club', false);
+        secret = await mkEvent('Bau2 Privates Event', `TIMESTAMP '2027-09-01 19:00:00'`, U.o2, [], { type: 'event', parent: pub });
+        open = await mkEvent('Bau2 Offenes Event', `TIMESTAMP '2027-09-02 19:00:00'`, U.o2, [], { type: 'event', parent: pub });
+        await db.query('UPDATE groups SET is_private = TRUE WHERE id = $1', [secret]);
+
+        // Before asking: the private event goes by request, the open one does not.
+        expect(await stateFor(U.j1, pub, false)).toEqual({ [secret]: [true, null, false], [open]: [false, null, false] });
+
+        const first = await join(U.j1, secret);
+        ok(first);
+        expect(first.body).toMatchObject({ status: 'pending' });
+        expect(await stateFor(U.j1, pub, false)).toEqual({ [secret]: [true, 'pending', false], [open]: [false, null, false] });
+        // Somebody else's view is their own.
+        expect((await stateFor(U.m1, pub, false))[secret]).toEqual([true, null, false]);
+
+        const second = await join(U.j1, secret);
+        expect(second.statusCode).toBe(400);
+        // `error` stays for old bundles, `code` is what the new button reads.
+        expect(second.body).toEqual({ error: 'Beitrittsanfrage bereits ausstehend', code: 'JOIN_REQUEST_PENDING' });
+        expect((await db.query(
+          'SELECT status FROM group_join_requests WHERE group_id = $1 AND user_id = $2', [secret, U.j1])).rows)
+          .toEqual([{ status: 'pending' }]);
+      });
+
+      it('after two rejections the list says „blocked“ — and the join answers 403 JOIN_REQUEST_BLOCKED', async () => {
+        await db.query(
+          `UPDATE group_join_requests SET status = 'rejected', rejected_count = 2 WHERE group_id = $1 AND user_id = $2`,
+          [secret, U.j1]);
+        expect((await stateFor(U.j1, pub, false))[secret]).toEqual([true, 'rejected', true]);
+        const res = await join(U.j1, secret);
+        expect(res.statusCode).toBe(403);
+        expect(res.body).toMatchObject({ code: 'JOIN_REQUEST_BLOCKED' });
+        // One rejection is not a block.
+        await db.query(
+          `UPDATE group_join_requests SET rejected_count = 1 WHERE group_id = $1 AND user_id = $2`, [secret, U.j1]);
+        expect((await stateFor(U.j1, pub, false))[secret]).toEqual([true, 'rejected', false]);
+      });
+
+      it('an event of a PRIVATE club never goes by request: its members join directly', async () => {
+        priv = await mkClub('Bau2 Privater Club', true);
+        await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'owner'), ($1, $3, 'member')`,
+          [priv, U.o2, U.j1]);
+        inner = await mkEvent('Bau2 Clubintern', `TIMESTAMP '2027-09-03 19:00:00'`, U.o2, [], { type: 'event', parent: priv });
+        await db.query('UPDATE groups SET is_private = TRUE WHERE id = $1', [inner]);   // inherited from the club
+        expect(await stateFor(U.j1, priv, true)).toEqual({ [inner]: [false, null, false] });
+        const res = await join(U.j1, inner);
+        ok(res);
+        expect(res.body.status).not.toBe('pending');
+        expect((await db.query('SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2', [inner, U.j1])).rowCount).toBe(1);
+      });
+
+      it('no caller (a guest): nothing is read, the events come back as they were', async () => {
+        const events = await eventsOf(pub);
+        const out = await joinState.attachJoinRequestState(db, { userId: undefined, clubIsPrivate: false, events });
+        expect(out).toBe(events);
+        expect(out.every((e) => !('joins_by_request' in e))).toBe(true);
       });
     });
   });
