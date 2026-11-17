@@ -6,6 +6,7 @@ import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
 import AvatarGateModal from '../components/AvatarGateModal';
+import EventDealRow from '../components/EventDealRow';
 import { nextOccurrence } from '../utils/recurrence';
 import { formatEventDate, eventDateLocale } from '../utils/eventDate';
 import { shareLink } from '../utils/share';
@@ -500,46 +501,12 @@ export const ClubDetail = () => {
             <p className="cd-description">{club.description}</p>
           )}
 
-          {/* Primary action */}
-          <div className="cd-actions">
-            {isMember ? (
-              <>
-                <button className="cd-btn cd-btn-primary" onClick={() => navigate(`/chat/${id}`)}>
-                  💬 {t('clubDetail.actions.openChat')}
-                </button>
-                {/* Owner can't leave their own club (backend rejects it) — they
-                    have Löschen in the owner actions instead. */}
-                {!isOwner && (
-                  <button className="cd-btn cd-btn-ghost" onClick={handleJoinToggle}>
-                    {t('clubDetail.actions.leave')}
-                  </button>
-                )}
-              </>
-            ) : joinBlocked ? (
-              <button className="cd-btn cd-btn-disabled" disabled>
-                {t('clubDetail.actions.rejected')}
-              </button>
-            ) : joinRequestStatus === 'pending' ? (
-              <button className="cd-btn cd-btn-disabled" disabled>
-                {t('clubDetail.actions.pending')}
-              </button>
-            ) : (
-              <button className="cd-btn cd-btn-primary" onClick={handleJoinToggle}>
-                {club.is_private ? t('clubDetail.actions.requestJoin') : t('clubDetail.actions.join')}
-              </button>
-            )}
-            {/* Share — moved down from the top bar; available to everyone. */}
-            <button className="cd-btn cd-btn-ghost" onClick={handleShare}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: '-3px' }}>
-                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-                <polyline points="16 6 12 2 8 6"/>
-                <line x1="12" y1="2" x2="12" y2="15"/>
-              </svg>
-              {t('clubDetail.share')}
-            </button>
-          </div>
-
-          {/* ── Events section (primary content) ───────────────── */}
+          {/* ── Events section (primary content) ─────────────────
+              ABOVE „Zum Chat“ and „Club teilen“ since 17.11.2026 (Tina, on her
+              screenshots of this page: „Hier sollte ‚Events‘ der ganze
+              Abschnitt über ‚zum Chat‘ und ‚Club teilen‘ sein“) — for every
+              viewer, so a non-member sees the locked events box above „Club
+              beitreten“. The actions follow right after the section. */}
           <section className="cd-events">
             <div className="cd-events-header">
               <h3 className="cd-events-title">
@@ -733,8 +700,16 @@ export const ClubDetail = () => {
                   const rawDate = nextOccurrence(ev) || new Date(ev.date);
                   const dateParts = isNaN(rawDate) ? null : formatEventDate(rawDate.toISOString(), dateLocale);
                   const evIsOwner = user && Number(ev.owner_id) === Number(user.id);
+                  // The event's deal sits UNDER its card (Tina 16.11.2026: „Er
+                  // wird auch nochmal bei den Clubs unter dem Event
+                  // angezeigt“) — the same row as on the event page, a sibling
+                  // of the card and not inside its click target: a tap opens
+                  // the deal, not the event. An interim layout until Tina's
+                  // design for this page is in. The server embeds ev.deal
+                  // (getClubEvents); a new event brings it in its answer.
                   return (
-                    <div key={ev.id} className="cd-event-card" onClick={() => navigate(`/group/${ev.id}`)}>
+                    <div key={ev.id} className="cd-event-item">
+                    <div className="cd-event-card" onClick={() => navigate(`/group/${ev.id}`)}>
                       {dateParts ? (
                         <div className="cd-event-date-badge">
                           <span className="cd-event-date-day">{dateParts.day}</span>
@@ -804,11 +779,52 @@ export const ClubDetail = () => {
                         )}
                       </div>
                     </div>
+                    <EventDealRow deal={ev.deal} />
+                    </div>
                   );
                 })}
               </div>
             )}
           </section>
+
+          {/* Primary action — below the events since 17.11.2026 (see above). */}
+          <div className="cd-actions">
+            {isMember ? (
+              <>
+                <button className="cd-btn cd-btn-primary" onClick={() => navigate(`/chat/${id}`)}>
+                  💬 {t('clubDetail.actions.openChat')}
+                </button>
+                {/* Owner can't leave their own club (backend rejects it) — they
+                    have Löschen in the owner actions instead. */}
+                {!isOwner && (
+                  <button className="cd-btn cd-btn-ghost" onClick={handleJoinToggle}>
+                    {t('clubDetail.actions.leave')}
+                  </button>
+                )}
+              </>
+            ) : joinBlocked ? (
+              <button className="cd-btn cd-btn-disabled" disabled>
+                {t('clubDetail.actions.rejected')}
+              </button>
+            ) : joinRequestStatus === 'pending' ? (
+              <button className="cd-btn cd-btn-disabled" disabled>
+                {t('clubDetail.actions.pending')}
+              </button>
+            ) : (
+              <button className="cd-btn cd-btn-primary" onClick={handleJoinToggle}>
+                {club.is_private ? t('clubDetail.actions.requestJoin') : t('clubDetail.actions.join')}
+              </button>
+            )}
+            {/* Share — moved down from the top bar; available to everyone. */}
+            <button className="cd-btn cd-btn-ghost" onClick={handleShare}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 8, verticalAlign: '-3px' }}>
+                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                <polyline points="16 6 12 2 8 6"/>
+                <line x1="12" y1="2" x2="12" y2="15"/>
+              </svg>
+              {t('clubDetail.share')}
+            </button>
+          </div>
 
           {/* Owner actions. „Club boosten“ — the gold button that stood here
               for every owner — is gone for good (Tina 17.11.2026: „Club

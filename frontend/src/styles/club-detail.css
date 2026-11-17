@@ -568,9 +568,12 @@
   font-weight: 800;
 }
 
-/* ── Events section (primary content) ─────────────────── */
+/* ── Events section (primary content) ───────────────────
+   Directly under the description since 17.11.2026 (Tina: above „Zum Chat“
+   and „Club teilen“): the distance to both neighbours is .cd-body's gap, so
+   no margin of its own. */
 .cd-events {
-  margin-top: 8px;
+  margin-top: 0;
   padding: 18px 16px;
   background: linear-gradient(180deg, rgba(253, 118, 102, 0.06), rgba(253, 118, 102, 0.02));
   border: 1px solid rgba(253, 118, 102, 0.2);
@@ -820,6 +823,21 @@
   flex-direction: column;
   gap: 10px;
 }
+/* One event: its card and, under it, its deal (Tina 16.11.2026: „Er wird
+   auch nochmal bei den Clubs unter dem Event angezeigt“). The row is the
+   event page's own (event-deal-row.css); here it loses its bottom margin and
+   is set in by 12px, which ties it to the card above. min-width: 0 so a long
+   deal name ends in „…“ instead of widening the page. */
+.cd-event-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.cd-event-item > .event-deal-row {
+  margin: 0 0 0 12px;
+  width: calc(100% - 12px);
+}
 .cd-event-card {
   display: flex;
   align-items: center;
@@ -869,14 +887,30 @@
   flex: 1;
   min-width: 0;
 }
+/* Up to TWO lines since 17.11.2026: next to the date, the calendar button and
+   a button whose label may itself take two lines („Anfrage ausstehend…“,
+   see .cd-event-actions below) one line left a name of a few letters — „W…“.
+   Clamped, so a long name still ends in „…“. A word too long for the line
+   („Wöchentlicher“) is hyphenated — only words of 10 letters and more, so a
+   short name is never split — and, where the browser cannot, breaks rather
+   than pushing the card wider. */
 .cd-event-name {
   margin: 0 0 3px;
   font-size: 14px;
   font-weight: 700;
+  line-height: 1.25;
   color: var(--text-light);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  -webkit-hyphenate-limit-before: 4;
+  -webkit-hyphenate-limit-after: 4;
+  hyphenate-limit-chars: 10 4 4;
 }
 .cd-event-time {
   margin: 0 0 2px;
@@ -890,12 +924,23 @@
   margin: 0;
   font-size: 11px;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+/* Calendar button and the event's button side by side while they fit in
+   140px („Beitreten“, „Dabei ✓“, „Löschen“). A longer label („Anfrage
+   ausstehend…“, two lines at 104px) drops under the calendar button instead:
+   the column is then 104px wide, not 154, and the event's name keeps its
+   room. */
 .cd-event-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 6px;
   flex-shrink: 0;
+  max-width: 140px;
 }
 .cd-event-cal-btn {
   /* 44px min hit area (Apple HIG); the visible circle stays compact via the
@@ -927,6 +972,17 @@
 .cd-event-join-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+/* In the event card the button may carry a longer label than „Beitreten“ —
+   „Beitritt anfragen“, „Anfrage ausstehend…“, „Anfrage abgelehnt“ and their
+   translations: it wraps to two lines at 104px instead of squeezing the
+   event's name out of the card. Scoped to the card; .cd-event-join-btn itself
+   stays as it is. */
+.cd-event-actions .cd-event-join-btn {
+  max-width: 104px;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
 }
 .cd-event-join-btn--joined {
   background: transparent;
