@@ -15,12 +15,12 @@ import '../styles/club-card.css';
  *
  * The same card as CommunityCard — category bubble, title, member count, the
  * cover across the full width — plus two things:
- *   ✓  beside the name, ONLY for a paying partner — the same rule as the ☆
- *      on the profile bubble (utils/paidPartner.js): a live, approved,
- *      official club with the admin's is_paid_partner flag. An official club
- *      that does not pay has no tick; neither has a community that kept the
- *      flag, an own club still in review, or a row from a server that does
- *      not send the field.
+ *   ✓  beside the name, ONLY for a paying partner (utils/paidPartner.js):
+ *      a live, approved, official club — the standing the ☆ on the profile
+ *      bubble marks — that also carries the admin's is_paid_partner flag. An
+ *      official club that does not pay has the ☆ there but no tick here;
+ *      neither has a community that kept the flag, an own club still in
+ *      review, or a row from a server that does not send the field.
  *   „Events entdecken“ under the picture.
  *
  * The bubble shows the club's own category line („Bar-Hopping · Rooftop“,

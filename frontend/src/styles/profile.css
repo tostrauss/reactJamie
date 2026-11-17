@@ -2267,8 +2267,9 @@
 /* An own club still in review: there, but not live yet. */
 .profile-club.is-pending .profile-club-bubble { opacity: 0.5; }
 
-/* ☆ — a PAYING partner (Tobi 17.11.2026): bottom right, over the ring. A
-   light disc with a dark star, as in the mock (p. 3) — about a third of the
+/* ☆ — an official club, a Partner — every live one, paying or not (Tina
+   17.11.2026; the ✓ in the Clubs list is for the paying ones): bottom right,
+   over the ring. A light disc with a dark star, as in the mock (p. 3) — about a third of the
    bubble (22px box, 18px of yellow inside the 2px rim in the card colour).
    A small disc at the full 100 % yellow is the mock's one exception here —
    larger yellow areas stay forbidden (lines and text only, 55 % for lines). */

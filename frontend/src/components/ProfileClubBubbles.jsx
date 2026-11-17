@@ -6,7 +6,7 @@ import { clubs as clubsApi, users as usersApi } from '../utils/api';
 import { thumbUrl } from '../utils/images';
 import { movePhoto as moveItem } from '../utils/photoOrder';
 import { profileClubRows, withClubOrder } from '../utils/profileClubs';
-import { isPaidPartnerClub } from '../utils/paidPartner';
+import { isPartnerClub } from '../utils/paidPartner';
 import useBubbleDrag from '../hooks/useBubbleDrag';
 import StarIcon from './StarIcon';
 
@@ -16,8 +16,9 @@ const sameIds = (a, b) => a.length === b.length && a.every((id, i) => id === b[i
 // PR2/PR3), in place of the „Meine Gruppen & Clubs“ hub. Own clubs first, with
 // the yellow ring and a small coral counter of open requests (its tap is the
 // way into the Anfragen deck the hub's chip used to be); then the joined ones.
-// ☆ marks a PAYING partner (Tobi 17.11.2026: yellow, ☆ and ✓ only for paying
-// partners) — the same star as on its events; any other club has none.
+// ☆ marks every official club — a Partner, the same star as on its events
+// (Tina's clarification 17.11.2026: „Stern hat jeder Club“; only the ✓ in
+// the Clubs list is kept for the paying ones). A community has none.
 // Which clubs and in which order: utils/profileClubs.js.
 //
 // „Sortieren“ (from two sortable bubbles on): the row becomes a grid and the
@@ -158,12 +159,11 @@ export default function ProfileClubBubbles({ sorting = false, onSortingChange })
   const renderBubble = (club, index) => {
     const isOwn = !!club.is_own;
     const movable = sorting && !isOwn;
-    // The star means a paying partner — the one rule the ✓ in the Clubs list
-    // uses too (utils/paidPartner.js, partnerSql's): a live, approved official
-    // club with the admin's is_paid_partner flag. A club still in review is
-    // no partner yet, an official club that does not pay has no star. An old
-    // server without the flag: no star.
-    const isPartner = isPaidPartnerClub(club);
+    // The star means an official club that is live — paying or not (Tina
+    // 17.11.2026; utils/paidPartner.js, where the ✓ of the Clubs list builds
+    // on the same rule plus the is_paid_partner flag). A club still in review
+    // is no partner yet, a community never is.
+    const isPartner = isPartnerClub(club);
     const inReview = club.approval_status === 'pending';
     const requests = isOwn && !sorting ? (club.pending_request_count || 0) : 0;
     const isPicked = movable && picked === club.id;

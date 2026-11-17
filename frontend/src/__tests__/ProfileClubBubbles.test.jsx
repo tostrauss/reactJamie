@@ -4,7 +4,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 
 // „Clubs & Communities“ in the own profile (Tina 16.11.2026, PR2/PR3): round
-// bubbles, own ones first with the yellow ring, ☆ on paying partners, and
+// bubbles, own ones first with the yellow ring, ☆ on official clubs, and
 // „Sortieren“ — joined bubbles wiggle, tap + arrows move them, leaving the
 // mode saves the order. Real German i18n.
 const api = vi.hoisted(() => ({
@@ -94,32 +94,36 @@ describe('ProfileClubBubbles — the row', () => {
     expect(item('Alter Club').querySelector('.profile-club-bubble').textContent).toBe('A');
   });
 
-  // Tobi 17.11.2026: „Gelb, ☆ Partner und der ✓-Haken nur für ZAHLENDE
-  // Partner … Nicht zahlende Clubs: kein Gelb, kein ☆, kein ✓.“ The rule is
-  // partnerSql's: live, approved, official AND is_paid_partner.
-  it('☆ only on a paying partner — not on an official club that does not pay, not on one in review, not on a closed one', async () => {
+  // Tina's clarification, 17.11.2026 (Tobi decided): „Stern hat jeder Club
+  // mit Pastellgelb umrandet … aber wenn man auf die ganzen Clubs geht,
+  // diesen verified-Haken haben nur Paid Clubs.“ So the ☆ is for every live
+  // official club, paying or not (utils/paidPartner.js isPartnerClub); only
+  // the ✓ of the Clubs list asks for is_paid_partner.
+  it('☆ on every live official club, paying or not — not on a community, not on a club in review', async () => {
     await renderBubbles([
-      ...CLUBS,
-      club(10, 'Kein Zahler', { club_type: 'official' }),                                  // approved, no flag
-      club(11, 'Altes Feld', { club_type: 'official', is_paid_partner: undefined }),       // an old server
-      club(12, 'Zahlende Community', { is_paid_partner: true }),                           // flag without official
+      ...CLUBS,                                                                            // Café Soleá: official, pays
+      club(10, 'Kein Zahler', { club_type: 'official' }),                                  // official, approved, no flag
+      club(11, 'Altes Feld', { club_type: 'official', is_paid_partner: undefined }),       // a server without the field
+      club(12, 'Zahlende Community', { is_paid_partner: true }),                           // the flag without official
       club(8, 'Mein Café', { is_own: true, club_type: 'official', is_paid_partner: true, approval_status: 'pending' }),
     ]);
-    const stars = [...document.querySelectorAll('.profile-club-star')];
-    expect(stars).toHaveLength(1);
-    expect(stars[0].closest('.profile-club')).toBe(item('Café Soleá'));
-    expect(screen.getByRole('button', { name: /^Café Soleá/ }).textContent).toContain('JAMIE-Partner');
-    for (const name of ['Kein Zahler', 'Altes Feld', 'Zahlende Community', 'Mein Café']) {
+    const starred = [...document.querySelectorAll('.profile-club-star')]
+      .map((s) => s.closest('.profile-club').querySelector('.profile-club-name').textContent);
+    expect(starred.sort()).toEqual(['Altes Feld', 'Café Soleá', 'Kein Zahler']);
+    for (const name of ['Café Soleá', 'Kein Zahler', 'Altes Feld']) {
+      expect(item(name).textContent).toContain('JAMIE-Partner');
+    }
+    for (const name of ['Zahlende Community', 'Mein Café', 'Südtiroler in Wien']) {
       expect(item(name).querySelector('.profile-club-star')).toBeNull();
       expect(item(name).textContent).not.toContain('JAMIE-Partner');
     }
-    // In review: there, dimmed, and says so — paying or not.
+    // In review: there, dimmed, and says so — no partner yet.
     expect(item('Mein Café').classList.contains('is-pending')).toBe(true);
     expect(item('Mein Café').textContent).toContain('Wird noch geprüft');
   });
 
-  it('an own paying partner club carries both: the yellow ring and the ☆', async () => {
-    await renderBubbles([...CLUBS, club(9, 'Mein Partnerclub', { is_own: true, club_type: 'official', is_paid_partner: true })]);
+  it('an own official club carries both: the yellow ring and the ☆ — paying or not', async () => {
+    await renderBubbles([...CLUBS, club(9, 'Mein Partnerclub', { is_own: true, club_type: 'official' })]);
     expect(item('Mein Partnerclub').classList.contains('is-own')).toBe(true);
     expect(item('Mein Partnerclub').querySelector('.profile-club-star')).toBeTruthy();
   });
