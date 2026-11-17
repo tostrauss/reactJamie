@@ -8,10 +8,15 @@ import { MemoryRouter, Routes, Route, useLocation, useNavigate } from 'react-rou
 // brought up nothing. Real German i18n; the api is mocked.
 const api = vi.hoisted(() => ({
   reviews: { getPending: vi.fn(), submit: vi.fn(), dismiss: vi.fn(), notHeld: vi.fn() },
-  postEventApi: { getConnectPending: vi.fn(), getRatingsPending: vi.fn() },
+  postEventApi: { getConnectPending: vi.fn(), getRatingsPending: vi.fn(), dismissConnect: vi.fn() },
   communityNudgeApi: { getMine: vi.fn() },
+  friends: { sendRequest: vi.fn(), respondRequest: vi.fn() },
+  users: {},
 }));
 vi.mock('../utils/api', () => api);
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }));
+vi.mock('../context/ToastContext', () => ({ useToast: () => toast }));
+vi.mock('../utils/platform', () => ({ proUpsellAllowed: () => false }));
 
 const { default: PostEventPrompts, nextPrompt, PROMPT_ORDER, CHECK_EVERY_MS } =
   await import('../components/PostEventPrompts');
@@ -22,6 +27,13 @@ const review = (id, name) => ({
   members: [{ id: 21, name: 'Mia', avatar_url: null, age: 27 }],
 });
 const ok = (data) => Promise.resolve({ data });
+// An event of the friends list (GET /reviews/connect/pending).
+const connectEvent = (id, name) => ({
+  group_id: id, group_name: name, event_date: '2026-11-15T19:00:00.000Z', image_url: null,
+  members: [{ id: 5, name: 'Otto', avatar_url: null, age: 30, is_owner: true, friend_status: 'none', friendship_id: null }],
+});
+// Which dialog is up, and about which event.
+const connectEventName = () => document.querySelector('.pe-connect .pe-head-name')?.textContent ?? null;
 
 const Where = () => {
   const loc = useLocation();
@@ -58,6 +70,7 @@ beforeEach(() => {
   api.postEventApi.getConnectPending.mockImplementation(() => ok([]));
   api.postEventApi.getRatingsPending.mockImplementation(() => ok([]));
   api.communityNudgeApi.getMine.mockImplementation(() => ok([]));
+  api.postEventApi.dismissConnect.mockImplementation(() => ok({ success: true }));
 });
 afterEach(() => { vi.useRealTimers(); });
 
@@ -229,6 +242,74 @@ describe('PostEventPrompts — what is shown', () => {
     await act(async () => {});
     expect(api.reviews.getPending).toHaveBeenCalledTimes(2);
     expect(reviewTitle()).toBeNull();
+  });
+});
+
+// B2-09: everybody but the creator gets the friends list.
+describe('PostEventPrompts — the friends list („Connect“)', () => {
+  it('comes up for a participant; closing it tells App the dialog is gone', async () => {
+    api.postEventApi.getConnectPending.mockImplementation(() => ok([connectEvent(41, 'Spieleabend')]));
+    await renderAt();
+    expect(screen.getByRole('dialog', { name: 'Aus Fremden können Freundschaften werden!' })).toBeTruthy();
+    expect(connectEventName()).toBe('Spieleabend');
+    expect(onActiveChange).toHaveBeenLastCalledWith(true);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Fertig' })); });
+    expect(api.postEventApi.dismissConnect).toHaveBeenCalledWith(41);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(onActiveChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it('one dialog at a time: „Wer war dabei?“ first, the friends list once that is done', async () => {
+    api.reviews.getPending.mockImplementation(() => ok([review(12, 'Eigenes Treffen')]));
+    api.postEventApi.getConnectPending.mockImplementation(() => ok([connectEvent(41, 'Spieleabend')]));
+    api.reviews.dismiss.mockResolvedValue({ data: { success: true } });
+    await renderAt();
+    expect(reviewTitle()).toBe('Eigenes Treffen');
+    expect(connectEventName()).toBeNull();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Überspringen' })); });
+    expect(connectEventName()).toBe('Spieleabend');
+  });
+
+  it('on every screen, not just the home screen', async () => {
+    api.postEventApi.getConnectPending.mockImplementation(() => ok([connectEvent(41, 'Spieleabend')]));
+    await renderAt('/profile');
+    expect(connectEventName()).toBe('Spieleabend');
+  });
+
+  // The Connect push opens /group/<id>?connect=1 — that event's list first.
+  it('?connect=1 on an event page puts that event\'s list first', async () => {
+    api.postEventApi.getConnectPending.mockImplementation(() => ok([connectEvent(41, 'Spieleabend'), connectEvent(42, 'Lauftreff')]));
+    await renderAt('/group/42?connect=1');
+    expect(where()).toBe('/group/42');
+    expect(connectEventName()).toBe('Lauftreff');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Fertig' })); });
+    expect(connectEventName()).toBe('Spieleabend');
+  });
+
+  it('…also when the list was already loaded and the push is tapped in the running app', async () => {
+    api.postEventApi.getConnectPending.mockImplementation(() => ok([connectEvent(41, 'Spieleabend'), connectEvent(42, 'Lauftreff')]));
+    function Push() {
+      const navigate = useNavigate();
+      return <button onClick={() => navigate('/group/42?connect=1')}>push</button>;
+    }
+    render(
+      <MemoryRouter initialEntries={['/chats']}>
+        <Routes><Route path="*" element={<><Where /><Push /></>} /></Routes>
+        <PostEventPrompts user={USER} onActiveChange={onActiveChange} />
+      </MemoryRouter>,
+    );
+    await act(async () => {});
+    expect(connectEventName()).toBe('Spieleabend');          // the server's order
+    await act(async () => { fireEvent.click(screen.getByText('push')); });
+    await act(async () => {});
+    expect(where()).toBe('/group/42');
+    expect(connectEventName()).toBe('Lauftreff');            // the one the push was about
+    // Both are still there, each closed once.
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Fertig' })); });
+    expect(connectEventName()).toBe('Spieleabend');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Fertig' })); });
+    expect(connectEventName()).toBeNull();
+    expect(api.postEventApi.dismissConnect.mock.calls.map((c) => c[0])).toEqual([42, 41]);
   });
 });
 

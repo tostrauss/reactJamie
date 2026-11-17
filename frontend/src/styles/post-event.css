@@ -1,0 +1,224 @@
+/* ========================================
+   After an event (Tina 17.11.2026)
+   The friends list „Aus Fremden können Freundschaften werden!“ (ConnectSheet),
+   „Wie war’s bei X?“ (EventRatingModal) and the card „Hey, [Community] hat
+   Potenzial! ✨“ (CommunityNudgeCard). Loaded by those components themselves —
+   they come up on every screen, so no page stylesheet can be relied on.
+   Layer: 9000, like the „Wer war dabei?“ dialog; the „Tageslimit erreicht“
+   sheet (10000) opens above it.
+   ======================================== */
+
+/* ── Shared: the dimmed layer and the bottom sheet ─────────────────────── */
+.pe-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+}
+.pe-sheet {
+  width: 100%;
+  max-width: 500px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  /* A max-height-capped flex column needs min-height: 0 on its scroll box,
+     else the children refuse to shrink and the last one is clipped instead of
+     scrolled (the recurring „sheet won't scroll“ bug class). */
+  min-height: 0;
+  max-height: calc(100vh - 12px);
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 12px);
+  /* Bottom = nav clearance (60px strip + --nav-safe-bottom), not the bare
+     home-indicator inset: .bottom-nav owns the bottom edge while this sheet is
+     fixed to the viewport bottom (the nav invariant). */
+  padding: 22px 20px calc(60px + var(--nav-safe-bottom) + 16px);
+  background: linear-gradient(175deg, #2E2455 0%, #1A1433 60%);
+  border: 1px solid rgba(253, 118, 102, 0.22);
+  border-bottom: none;
+  border-radius: 28px 28px 0 0;
+  color: var(--text-white);
+  outline: none;
+}
+
+/* The X — a 32px circle with a 44px hit area. */
+.pe-close {
+  position: relative;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-white);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.pe-close::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+.pe-close:focus-visible {
+  outline: 2px solid var(--accent-coral);
+  outline-offset: 2px;
+}
+
+/* The full-width coral button at the foot. */
+.pe-primary {
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 16px;
+  background: var(--accent-coral);
+  color: #fff;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.pe-primary:active { transform: scale(0.99); }
+.pe-primary:disabled { opacity: 0.6; cursor: default; transform: none; }
+
+/* ── The friends list (ConnectSheet, Tina's Bild 8) ────────────────────── */
+.pe-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.pe-head-text { min-width: 0; }
+.pe-head-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--text-white);
+  overflow-wrap: anywhere;
+}
+.pe-head-date {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+.pe-title {
+  flex-shrink: 0;
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--text-white);
+  text-wrap: balance;
+}
+.pe-text {
+  flex-shrink: 0;
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.65);
+}
+.pe-people {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.pe-person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.pe-person:last-child { border-bottom: none; }
+.pe-person-av {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.9);
+}
+.pe-person-av img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pe-person-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-white);
+}
+
+/* The friendship button — the shape of Explore's .ef-friends-btn (that
+   stylesheet is only loaded on Explore). It may wrap onto two lines: „Envoyer
+   une demande d'amitié“ does not fit beside a name on one. */
+.pe-friend-btn {
+  flex-shrink: 0;
+  max-width: 52%;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  white-space: normal;
+}
+.pe-friend-btn svg { flex-shrink: 0; }
+.pe-friend-btn--primary {
+  background: var(--accent-coral);
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.pe-friend-btn--primary:active { transform: scale(0.95); }
+.pe-friend-btn--primary:disabled { opacity: 0.6; cursor: default; transform: none; }
+.pe-friend-btn--done {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-light);
+}
+/* „✓ Befreundet“ as in Tina's Bild 8: an outlined coral pill, coral text. */
+.pe-friend-btn--friends {
+  background: transparent;
+  border: 1.5px solid var(--accent-coral);
+  color: var(--accent-coral);
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pe-primary:active,
+  .pe-friend-btn--primary:active { transform: none; }
+}

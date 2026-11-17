@@ -106,7 +106,9 @@ export function useFriendActions({ onAccepted } = {}) {
     ? <DailyLimitModal variant="friend" onClose={() => setLimitOpen(false)} />
     : null;
 
-  return { statusButton, limitModal };
+  // request / accept / busyId for a caller that draws its own buttons (the
+  // friends list after an event, ConnectSheet) — same flow, same daily limit.
+  return { statusButton, limitModal, request, accept, busyId };
 }
 
 /** Avatar, name (+ age), one sub-line, and whatever sits on the right. */

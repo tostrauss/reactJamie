@@ -1662,6 +1662,13 @@
     "done": "Listo",
     "next": "Continuar"
   },
+  "connect": {
+    "title": "¡De desconocidos pueden nacer amistades!",
+    "text": "¡Da el primer paso y envía una solicitud de amistad!",
+    "sendRequest": "Enviar solicitud de amistad",
+    "close": "Cerrar",
+    "listAria": "Quién estuvo en «{{name}}»"
+  },
   "attendance": {
     "pillFmt": "{{n}}+ asistencias",
     "tierAriaFmt": "Insignia: asistencia confirmada en al menos {{n}} eventos",

@@ -1662,6 +1662,13 @@
     "done": "Fertig",
     "next": "Weiter"
   },
+  "connect": {
+    "title": "Aus Fremden können Freundschaften werden!",
+    "text": "Mach den ersten Schritt und schicke eine Freundschaftsanfrage !",
+    "sendRequest": "Freundschaftsanfrage senden",
+    "close": "Schließen",
+    "listAria": "Wer bei „{{name}}“ dabei war"
+  },
   "attendance": {
     "pillFmt": "{{n}}+ mal dabei",
     "tierAriaFmt": "Abzeichen: mindestens {{n}}-mal bestätigt dabei",
