@@ -13,7 +13,8 @@ import { coverCardUrl } from '../utils/images';
  * deliberately has NO join or plus affordance — tapping it opens the community,
  * where joining is a decision with context.
  */
-const CoverImage = memo(({ src, alt, fallbackChar }) => {
+// Exported for ClubCard — the official clubs wear the same card (Tina 17.11.2026).
+export const CoverImage = memo(({ src, alt, fallbackChar }) => {
   const [broken, setBroken] = useState(false);
   const [loaded, setLoaded] = useState(false);
   if (!src || broken) {

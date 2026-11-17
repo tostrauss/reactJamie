@@ -742,11 +742,8 @@
       "subtitle": "¡Descubre eventos organizados y clubes cerca de ti!"
     },
     "clubRow": {
-      "upcomingEvents_one": "{{count}} evento próximo",
-      "upcomingEvents_other": "{{count}} eventos próximos",
       "members_one": "{{count}} miembro",
       "members_other": "{{count}} miembros",
-      "official": "Club oficial",
       "privateHint": "Unirse por solicitud"
     },
     "search": {
