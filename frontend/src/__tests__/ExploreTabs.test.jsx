@@ -8,6 +8,8 @@ import { AuthContext } from '../context/AuthContext';
 // Friends tab — since 07.11.2026 (Tina) the FRIENDS themselves, an orange ⊕
 // opening „Friends hinzufügen" with suggestions „Von deinen letzten Events",
 // and the people search with the friendship button in the row. Real German i18n.
+// The sections of the „Neue Friends Seite“ (17.11.2026) have their own file,
+// FriendsHub.test.jsx; here they load empty.
 const toast = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn(), info: vi.fn() }));
 vi.mock('../context/ToastContext', () => ({ useToast: () => toast }));
 vi.mock('../hooks/useOnPullRefresh', () => ({ default: () => {} }));
@@ -22,7 +24,10 @@ vi.mock('../utils/api', () => ({
     deletePhoto: vi.fn(),
   },
   users: { search: vi.fn() },
-  friends: { getAll: vi.fn(), getSuggestions: vi.fn(), sendRequest: vi.fn(), respondRequest: vi.fn() },
+  friends: {
+    getAll: vi.fn(), getSuggestions: vi.fn(), sendRequest: vi.fn(), respondRequest: vi.fn(),
+    getPending: vi.fn(), getGoing: vi.fn(), getPeople: vi.fn(),
+  },
   upload: { image: vi.fn() },
 }));
 const { groups, users, friends } = await import('../utils/api');
@@ -44,6 +49,9 @@ const renderAt = async (path, { user = { id: 9 }, hall = [card()], friendList = 
   vi.mocked(groups.getHallOfFame).mockResolvedValue({ data: hall });
   vi.mocked(friends.getAll).mockResolvedValue({ data: friendList });
   vi.mocked(friends.getSuggestions).mockResolvedValue({ data: suggestions });
+  vi.mocked(friends.getPending).mockResolvedValue({ data: [] });
+  vi.mocked(friends.getGoing).mockResolvedValue({ data: [] });
+  vi.mocked(friends.getPeople).mockResolvedValue({ data: { people: [], has_shared: true } });
   render(
     <AuthContext.Provider value={{ user }}>
       <MemoryRouter initialEntries={[path]}>
@@ -111,6 +119,11 @@ describe('Explore — Friends tab (Tina 07.11.2026)', () => {
   const friendRow = (o = {}) => ({ friendship_id: 1, friend_id: 21, name: 'Niklas', age: 26, location: 'Wien', avatar_url: null, ...o });
   const sugg = (o = {}) => ({ id: 31, name: 'Sophie', age: 24, event_name: 'Spieleabend', friend_status: 'none', ...o });
 
+  const openSheet = async () => {
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Friends hinzufügen' })); });
+    return screen.getByRole('dialog', { name: 'Friends hinzufügen' });
+  };
+
   it('shows the FRIENDS (not event memories) under the heading with the orange ⊕', async () => {
     await renderAt('/explore?tab=friends', { friendList: [friendRow(), friendRow({ friend_id: 22, name: 'Laura', location: 'Graz' })] });
     expect(screen.getByRole('heading', { name: 'Friends' })).toBeTruthy();
@@ -123,24 +136,30 @@ describe('Explore — Friends tab (Tina 07.11.2026)', () => {
     expect(screen.getByText('PROFILE')).toBeTruthy();
   });
 
-  it('without friends: the empty state with suggestions from recent events and „Weitere Personen entdecken"', async () => {
+  // Since 17.11.2026 the list „Von deinen letzten Events“ lives in the ⊕ sheet
+  // only — on the page „Leute, die du kennen könntest“ took its place.
+  it('without friends: the empty state — the suggestions from recent events are in the ⊕ sheet', async () => {
     await renderAt('/explore?tab=friends', { suggestions: [sugg(), sugg({ id: 32, name: 'Laura', event_name: 'Coffee Meetup', friend_status: 'pending_out' })] });
     expect(screen.getByText('Hier fehlen noch deine Friends!')).toBeTruthy();
     expect(screen.getByText('Ihr wart schon gemeinsam unterwegs. Zeit, euch zu vernetzen!')).toBeTruthy();
-    expect(screen.getByText('Von deinen letzten Events')).toBeTruthy();
-    const row = (name) => screen.getByText(name).closest('.ef-friends-row');
+    expect(screen.queryByText('Von deinen letzten Events')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Weitere Personen entdecken/ })).toBeNull();
+    // …and nobody pays for them before the sheet opens.
+    expect(friends.getSuggestions).not.toHaveBeenCalled();
+
+    const sheet = await openSheet();
+    expect(friends.getSuggestions).toHaveBeenCalledTimes(1);
+    expect(within(sheet).getByText('Von deinen letzten Events')).toBeTruthy();
+    const row = (name) => within(sheet).getByText(name).closest('.ef-friends-row');
     expect(within(row('Sophie')).getByText('Spieleabend')).toBeTruthy();
     expect(within(row('Sophie')).getByRole('button', { name: '+ Anfragen' })).toBeTruthy();
     expect(within(row('Laura')).getByText('Angefragt')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /Weitere Personen entdecken/ }));
-    expect(screen.getByRole('dialog', { name: 'Friends hinzufügen' })).toBeTruthy();
   });
 
   it('the ⊕ sheet: hint, suggestions, and asking a suggestion is optimistic', async () => {
     vi.mocked(friends.sendRequest).mockResolvedValueOnce({ data: { message: 'Friend request sent' } });
     await renderAt('/explore?tab=friends', { friendList: [friendRow()], suggestions: [sugg()] });
-    fireEvent.click(screen.getByRole('button', { name: 'Friends hinzufügen' }));
-    const sheet = screen.getByRole('dialog', { name: 'Friends hinzufügen' });
+    const sheet = await openSheet();
     expect(within(sheet).getByText('Personen suchen und Freundschaftsanfragen senden.')).toBeTruthy();
     await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: '+ Anfragen' })); });
     expect(friends.sendRequest).toHaveBeenCalledWith(31);
@@ -153,10 +172,11 @@ describe('Explore — Friends tab (Tina 07.11.2026)', () => {
     vi.mocked(friends.sendRequest).mockRejectedValueOnce({ response: { status: 403, data: {
       code: 'DAILY_FRIEND_LIMIT', limit: 5, error: 'Du hast heute schon 5 Freundschaftsanfragen geschickt.' } } });
     await renderAt('/explore?tab=friends', { suggestions: [sugg()] });
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: '+ Anfragen' })); });
+    const sheet = await openSheet();
+    await act(async () => { fireEvent.click(within(sheet).getByRole('button', { name: '+ Anfragen' })); });
     expect(screen.getByRole('dialog', { name: 'Tageslimit erreicht' })).toBeTruthy();
     expect(screen.getByText(/Du hast heute schon 5 Leute angefragt/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: '+ Anfragen' })).toBeTruthy();
+    expect(within(sheet).getByRole('button', { name: '+ Anfragen' })).toBeTruthy();
     expect(toast.error).not.toHaveBeenCalled();
   });
 

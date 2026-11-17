@@ -769,6 +769,15 @@ export const friends = {
   getSuggestions: () =>
     axiosInstance.get('/friends/suggestions'),
 
+  // The new Friends page (Tina, 17.11.2026). „Wo gehen deine Freunde hin?“:
+  // coming meetups friends are in, each with my_status member/requested/none.
+  getGoing: () =>
+    axiosInstance.get('/friends/going'),
+
+  // „Leute, die du kennen könntest“ → { people, has_shared }.
+  getPeople: () =>
+    axiosInstance.get('/friends/people'),
+
   // Send friend request
   sendRequest: (userId) =>
     axiosInstance.post('/friends/request', { userId }),

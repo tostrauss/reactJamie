@@ -259,6 +259,9 @@ export const Explore = () => {
   const tab = searchParams.get('tab') === TABS.friends ? TABS.friends : TABS.memories;
   const setTab = (next) => setSearchParams(prev => {
     const sp = new URLSearchParams(prev);
+    // „Alle ansehen“ of the Friends tab (?view=all) is that tab's own view —
+    // a tap on a tab always starts at the tab's first page.
+    sp.delete('view');
     if (next === TABS.memories) sp.delete('tab');
     else sp.set('tab', next);
     return sp;

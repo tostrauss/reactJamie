@@ -523,7 +523,20 @@
       "btnAccept": "Accepter",
       "requestError": "Impossible d'envoyer la demande.",
       "accepted": "Vous êtes maintenant amis 🎉",
-      "acceptError": "Impossible d'accepter la demande."
+      "acceptError": "Impossible d'accepter la demande.",
+      "requestsBar_one": "👋 {{count}} nouvelle demande d’amitié",
+      "requestsBar_other": "👋 {{count}} nouvelles demandes d’amitié",
+      "goingTitle": "Où vont tes amis ? 🎉",
+      "goingOthers_one": "+ {{count}} ami",
+      "goingOthers_other": "+ {{count}} amis",
+      "goingJoin": "Je viens aussi",
+      "goingJoined": "Tu y participes",
+      "yourFriends": "Tes amis",
+      "seeAll": "Tout voir",
+      "peopleTitle": "Des personnes que tu connais peut-être",
+      "peopleWith": "Était avec toi à {{name}}",
+      "peopleRequest": "Envoyer la demande",
+      "peopleEmpty": "Participe à ta première rencontre ou à ton premier événement pour recevoir des suggestions"
     },
     "dealsInfo": {
       "explainer": "Montre l'offre sur place et appuie sur « Utiliser maintenant » devant le personnel. Attention : souvent utilisable une seule fois.",

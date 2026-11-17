@@ -523,7 +523,20 @@
       "btnAccept": "Accetta",
       "requestError": "Impossibile inviare la richiesta.",
       "accepted": "Ora siete amici 🎉",
-      "acceptError": "Impossibile accettare la richiesta."
+      "acceptError": "Impossibile accettare la richiesta.",
+      "requestsBar_one": "👋 {{count}} nuova richiesta di amicizia",
+      "requestsBar_other": "👋 {{count}} nuove richieste di amicizia",
+      "goingTitle": "Dove vanno i tuoi amici? 🎉",
+      "goingOthers_one": "+ {{count}} amico",
+      "goingOthers_other": "+ {{count}} amici",
+      "goingJoin": "Vengo anch’io",
+      "goingJoined": "Partecipi",
+      "yourFriends": "I tuoi amici",
+      "seeAll": "Vedi tutti",
+      "peopleTitle": "Persone che potresti conoscere",
+      "peopleWith": "Era con te a {{name}}",
+      "peopleRequest": "Invia richiesta",
+      "peopleEmpty": "Partecipa al tuo primo incontro o evento per ricevere suggerimenti"
     },
     "dealsInfo": {
       "explainer": "Mostra il deal sul posto e tocca “Riscatta ora” davanti al personale. Attenzione: spesso riscattabile una sola volta.",
