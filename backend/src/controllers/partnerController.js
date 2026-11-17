@@ -20,6 +20,7 @@ import db from '../config/database.js';
 import {
   FREE_CLUB_EVENTS, loadClubForQuota, quotaOf, eventFreeRank, withinFreeEvents,
 } from '../utils/clubEventQuota.js';
+import { autoMessagesOn } from '../utils/clubAutoMessages.js';
 import { sendPushToAdmins } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 import {
@@ -339,6 +340,9 @@ export const getEventExtras = async (req, res) => {
       else if (linked.is_active) out.deal = ownDeal(linked);
     }
     out.deal_shown = (await getDealsForEvents([eventId])).get(eventId) || null;
+    // The switch „Automatisierte Nachrichten“ — off when its table is not
+    // there yet (autoMessagesOn never throws).
+    out.auto_messages = await autoMessagesOn(eventId);
     if (out.is_official && club.is_live) {
       const quota = await quotaOf(db, club);
       out.deal_allowed = !quota.limited || withinFreeEvents(await eventFreeRank(db, clubId, eventId));

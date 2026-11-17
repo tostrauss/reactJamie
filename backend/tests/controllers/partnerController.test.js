@@ -407,6 +407,7 @@ describe('the deal of one event: /api/clubs/:id/events/:eventId/…', () => {
       linkWritable: true,      // false: JAMIE's deal is there at the write
       removed: 1,
       otherLink: false,        // a deal that is not the club's hangs there
+      auto: null,              // the switch „Automatisierte Nachrichten“: true | false | null (no row)
       fail: null,              // { on: /regex/, err }
       ...over,
     };
@@ -422,6 +423,7 @@ describe('the deal of one event: /api/clubs/:id/events/:eventId/…', () => {
       if (text.includes('AS started')) return { rows: [w.counted] };
       if (text.includes('AS counted')) return { rows: w.eventExists && w.rank ? [w.rank] : [] };
       if (text.includes('AS verified')) return { rows: w.shown ? [{ group_id: 9, ...w.shown }] : [] };
+      if (text.includes('FROM club_event_auto_messages')) return { rows: w.auto === null ? [] : [{ enabled: w.auto }] };
       if (text.includes('d.booking_url') && text.includes('WHERE ed.group_id = $1')) return { rows: w.linked ? [w.linked] : [] };
       if (text.startsWith('INSERT INTO deals')) return { rows: [{ ...DEAL, id: 43 }] };
       if (text.startsWith('UPDATE deals SET')) return { rows: [{ ...DEAL, deal_label: 'neu' }] };
@@ -479,6 +481,30 @@ describe('the deal of one event: /api/clubs/:id/events/:eventId/…', () => {
       world({ rank: { counted: true, before: 5 } });
       process.env.CLUB_FREE_TIER = 'false';
       expect((await at(getEventExtras)).body.deal_allowed).toBe(true);
+    });
+
+    // „Automatisierte Nachrichten“ (Tina 17.11.2026): the edit page shows the
+    // switch as it is stored.
+    it('auto_messages mirrors the switch of the event: on, off, never set', async () => {
+      world({ auto: true });
+      expect((await at(getEventExtras)).body.auto_messages).toBe(true);
+      world({ auto: false });
+      expect((await at(getEventExtras)).body.auto_messages).toBe(false);
+      world();
+      expect((await at(getEventExtras)).body.auto_messages).toBe(false);
+    });
+
+    it('the table of the switch is not there yet: off — and everything else of the answer as always', async () => {
+      world({
+        linked: DEAL,
+        fail: { on: /FROM club_event_auto_messages/, err: Object.assign(new Error('relation does not exist'), { code: '42P01' }) },
+      });
+      const res = await at(getEventExtras);
+      expect(res.statusCode).toBe(200);
+      expect(res.body.auto_messages).toBe(false);
+      expect(res.body.unavailable).toBeUndefined();
+      expect(res.body.deal.id).toBe(42);
+      expect(res.body.deal_allowed).toBe(true);
     });
 
     it('a community, or a club that is not live: no deals', async () => {

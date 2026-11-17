@@ -7764,6 +7764,192 @@ suite('write endpoints against real Postgres', () => {
       expect(await linkOf(theirEvent)).toBeNull();
     });
   });
+
+  // „Automatisierte Nachrichten“ of a club event (Tina's document of
+  // 17.11.2026): the bar under „Deal anlegen“. The switch is one row per
+  // event in club_event_auto_messages; jobs/clubEventMessages.js sends.
+  describe('Automatisierte Nachrichten (Tina 17.11.2026)', () => {
+    let pc, owner, co, member;
+    const mkU = async (tag, name) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+       VALUES ($1,$2,'1990-02-02','male',$3, TRUE, 'email') RETURNING id`, [`smoke-automsg-${tag}@x.com`, name, avatar])).rows[0].id;
+    // A paying partner unless said otherwise: the free tier (1 event at a
+    // time) is not what these cases are about.
+    const mkClub = async (name, { type = 'official', paid = true } = {}) => {
+      const id = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, is_private, approval_status,
+                             club_type, is_paid_partner, lat, lng, events_owner_only)
+         VALUES ($1,'club',$2,'Bar','Kaiserstraße 60, 1070 Wien',500,FALSE,'approved',$3,$4,48.2,16.34,FALSE) RETURNING id`,
+        [name, owner, type, paid])).rows[0].id;
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner'), ($1,$3,'admin'), ($1,$4,'member')`,
+        [id, owner, co, member]);
+      return id;
+    };
+    const day = async (n) => (await db.query(
+      `SELECT to_char((NOW() AT TIME ZONE 'Europe/Vienna')::date + $1::int, 'YYYY-MM-DD') AS d`, [n])).rows[0].d;
+    const create = async (club, body = {}, userId = owner) => call(C.createClubEvent, {
+      userId, params: { id: String(club) }, body: { name: 'Auto Abend', date: await day(5), time: '19:00', ...body } });
+    const edit = (club, eventId, body, userId = owner) => call(C.updateClubEvent, {
+      userId, params: { id: String(club), eventId: String(eventId) }, body });
+    const rowOf = async (eventId) => (await db.query(
+      `SELECT enabled, enabled_by, welcome_sent_at, eve_sent_for, soon_sent_for, thanks_sent_for
+         FROM club_event_auto_messages WHERE group_id = $1`, [eventId])).rows[0] ?? null;
+    const extrasOf = async (club, eventId, userId = owner) => {
+      const res = await call(pc.getEventExtras, { userId, params: { id: String(club), eventId: String(eventId) } });
+      ok(res);
+      return res.body;
+    };
+
+    beforeAll(async () => {
+      pc = await import('../../src/controllers/partnerController.js');
+      owner = await mkU('owner', 'Olivia');
+      co = await mkU('co', 'Conrad');
+      member = await mkU('member', 'Mara');
+    });
+
+    it('the switch arrives with the event: one row, on, set by who created it — and the answer says so', async () => {
+      // a club in the free tier: the switch is written in the same transaction as the counted event
+      const club = await mkClub('Café Auto Gratis', { paid: false });
+      const res = await create(club, { auto_messages: true });
+      expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+      expect(res.body).toMatchObject({ name: 'Auto Abend', type: 'event', parent_club_id: club, auto_messages: true, deal: null });
+      expect(await rowOf(res.body.id)).toEqual({
+        enabled: true, enabled_by: owner, welcome_sent_at: null, eve_sent_for: null, soon_sent_for: null, thanks_sent_for: null,
+      });
+      expect((await extrasOf(club, res.body.id)).auto_messages).toBe(true);
+    });
+
+    it('a co-manager may switch it on; with a deal both ride along in one write', async () => {
+      const club = await mkClub('Café Auto Partner');
+      const res = await create(club, {
+        auto_messages: true,
+        deal: { name: 'Café Auto', deal_label: '1 Punsch gratis', visible_until: await day(30) },
+      }, co);
+      expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+      expect(res.body.auto_messages).toBe(true);
+      expect(res.body.deal).toMatchObject({ deal_label: '1 Punsch gratis' });
+      expect(await rowOf(res.body.id)).toMatchObject({ enabled: true, enabled_by: co });
+    });
+
+    it('not sent, not exactly true, a plain member, a community: the event is created as always — without a row', async () => {
+      const club = await mkClub('Café Auto Ohne');
+      const plain = await create(club);
+      expect(plain.statusCode).toBe(201);
+      expect(plain.body.auto_messages).toBe(false);
+      expect(await rowOf(plain.body.id)).toBeNull();
+
+      const wrong = await create(club, { auto_messages: 'true' });
+      expect(wrong.statusCode).toBe(201);
+      expect(wrong.body.auto_messages).toBe(false);
+      expect(await rowOf(wrong.body.id)).toBeNull();
+
+      const byMember = await create(club, { auto_messages: true }, member);
+      expect(byMember.statusCode, JSON.stringify(byMember.body)).toBe(201);
+      expect(byMember.body.auto_messages).toBe(false);
+      expect(await rowOf(byMember.body.id)).toBeNull();
+
+      const community = await mkClub('Auto Community', { type: 'community', paid: false });
+      const inCommunity = await create(community, { auto_messages: true });
+      expect(inCommunity.statusCode).toBe(201);
+      expect(inCommunity.body.auto_messages).toBe(false);
+      expect(await rowOf(inCommunity.body.id)).toBeNull();
+    });
+
+    // The server takes requests before its migrations are through. The table
+    // of the switch missing must cost the switch only — never the event, and
+    // never the deal that came with it (one transaction, one savepoint).
+    it('boot window, the table is not there yet: the event and its deal are created, the switch reads off', async () => {
+      const club = await mkClub('Café Auto Boot');
+      await db.query('ALTER TABLE club_event_auto_messages RENAME TO club_event_auto_messages_away');
+      let res;
+      let extras;
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        res = await create(club, {
+          name: 'Boot Abend', auto_messages: true,
+          deal: { name: 'Café Boot', deal_label: 'Welcome Shot', visible_until: await day(30) },
+        });
+        extras = res.statusCode === 201 ? await extrasOf(club, res.body.id) : null;
+        // …and saving the switch on the edit page does not break the edit
+        if (res.statusCode === 201) {
+          const saved = await edit(club, res.body.id, { name: 'Boot Abend neu', auto_messages: true });
+          expect(saved.statusCode, JSON.stringify(saved.body)).toBe(200);
+          expect(saved.body).toMatchObject({ name: 'Boot Abend neu', auto_messages: false });
+        }
+      } finally {
+        warn.mockRestore();
+        await db.query('ALTER TABLE club_event_auto_messages_away RENAME TO club_event_auto_messages');
+      }
+      expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+      expect(res.body.auto_messages).toBe(false);
+      expect(res.body.deal).toMatchObject({ deal_label: 'Welcome Shot' });
+      expect(extras).toMatchObject({ auto_messages: false, deal: { deal_label: 'Welcome Shot' } });
+      const stored = await db.query(
+        `SELECT g.name, (SELECT COUNT(*)::int FROM event_deals ed WHERE ed.group_id = g.id) AS deals,
+                (SELECT COUNT(*)::int FROM group_members gm WHERE gm.group_id = g.id) AS members
+           FROM groups g WHERE g.id = $1`, [res.body.id]);
+      expect(stored.rows[0]).toEqual({ name: 'Boot Abend neu', deals: 1, members: 1 });
+      expect(await rowOf(res.body.id)).toBeNull();
+    });
+
+    it('the edit page switches it off and on again; what already went out stays marked', async () => {
+      const club = await mkClub('Café Auto Edit');
+      const ev = (await create(club, { auto_messages: true })).body.id;
+      await db.query(`UPDATE club_event_auto_messages SET welcome_sent_at = NOW() WHERE group_id = $1`, [ev]);
+
+      const off = await edit(club, ev, { auto_messages: false }, co);
+      expect(off.statusCode, JSON.stringify(off.body)).toBe(200);
+      expect(off.body).toMatchObject({ id: ev, name: 'Auto Abend', auto_messages: false });
+      expect(await rowOf(ev)).toMatchObject({ enabled: false, enabled_by: co });
+      expect((await extrasOf(club, ev)).auto_messages).toBe(false);
+
+      const on = await edit(club, ev, { auto_messages: true });
+      expect(on.body.auto_messages).toBe(true);
+      const row = await rowOf(ev);
+      expect(row).toMatchObject({ enabled: true, enabled_by: owner });
+      expect(row.welcome_sent_at).not.toBeNull();
+
+      // an ordinary edit does not touch the switch and answers the plain row
+      const plain = await edit(club, ev, { description: 'Mit Punsch' });
+      expect(plain.statusCode).toBe(200);
+      expect('auto_messages' in plain.body).toBe(false);
+      expect(await rowOf(ev)).toMatchObject({ enabled: true });
+    });
+
+    it('switched on later for an event that never had it: the row is created; switching off one without a row creates none', async () => {
+      const club = await mkClub('Café Auto Später');
+      const ev = (await create(club)).body.id;
+      const off = await edit(club, ev, { auto_messages: false });
+      expect(off.body.auto_messages).toBe(false);
+      expect(await rowOf(ev)).toBeNull();
+      const on = await edit(club, ev, { auto_messages: true });
+      expect(on.body.auto_messages).toBe(true);
+      expect(await rowOf(ev)).toMatchObject({ enabled: true, enabled_by: owner, welcome_sent_at: null });
+    });
+
+    it('only true or false; a member editing their own event and a community leave it alone', async () => {
+      const club = await mkClub('Café Auto Regeln');
+      const ev = (await create(club, { auto_messages: true })).body.id;
+      const bad = await edit(club, ev, { auto_messages: 'false' });
+      expect(bad.statusCode).toBe(400);
+      expect(await rowOf(ev)).toMatchObject({ enabled: true });
+
+      // the member's own event: they may edit it, the switch is not theirs
+      const own = (await create(club, {}, member)).body.id;
+      const byMember = await edit(club, own, { name: 'Mein Abend', auto_messages: true }, member);
+      expect(byMember.statusCode, JSON.stringify(byMember.body)).toBe(200);
+      expect(byMember.body.name).toBe('Mein Abend');
+      expect('auto_messages' in byMember.body).toBe(false);
+      expect(await rowOf(own)).toBeNull();
+
+      const community = await mkClub('Auto Community Edit', { type: 'community', paid: false });
+      const cev = (await create(community)).body.id;
+      const inCommunity = await edit(community, cev, { auto_messages: true });
+      expect(inCommunity.statusCode).toBe(200);
+      expect(inCommunity.body.auto_messages).toBe(false);
+      expect(await rowOf(cev)).toBeNull();
+    });
+  });
   // <<< BAU1-SMOKE
   //
   // ── separator: leave in place ──

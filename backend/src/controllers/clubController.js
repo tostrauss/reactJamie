@@ -20,6 +20,7 @@ import {
   getDealsForEvents, parseClubDealBody, writeEventClubDeal, CLUB_DEAL_REFUSALS, CLUB_DEALS_UNAVAILABLE,
 } from './dealController.js';
 import { loadClubForQuota, quotaOf, ticketRule, partnerRequired } from '../utils/clubEventQuota.js';
+import { enableAutoMessages, setAutoMessages } from '../utils/clubAutoMessages.js';
 
 const CLUBS_TTL = 30_000; // 30 s
 const DISCOVER_EVENTS_KEY = 'discover_events';
@@ -1877,7 +1878,7 @@ export const getDiscoverEvents = async (req, res) => {
 // ==========================================
 export const createClubEvent = async (req, res) => {
   const { id } = req.params;
-  const { name, description, date, time, location, max_members, is_recurring_weekly, ticket_url, is_private, deal } = req.body;
+  const { name, description, date, time, location, max_members, is_recurring_weekly, ticket_url, is_private, deal, auto_messages } = req.body;
   const userId = req.userId;
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
@@ -1973,6 +1974,16 @@ export const createClubEvent = async (req, res) => {
       if (!club.is_live) return res.status(403).json(CLUB_DEAL_REFUSALS.notLive);
     }
 
+    // „Automatisierte Nachrichten“ (Tina 17.11.2026): the bar under „Deal
+    // anlegen“. Only `true` counts, only in an official club, only from the
+    // people who run it — anything else is ignored, never an error: an old
+    // bundle does not send the field, and the event of a plain member is
+    // created as always. What it switches on: utils/clubAutoMessages.js.
+    const wantsAuto = auto_messages === true
+      && club.club_type === 'official'
+      && (canManageEvents || !!club.caller_is_admin);
+    let autoMessages = false;
+
     const { safe, reason } = await checkTextSafety([name, description].filter(Boolean).join('\n'));
     if (!safe) return res.status(422).json({ error: reason });
 
@@ -2047,10 +2058,10 @@ export const createClubEvent = async (req, res) => {
     ];
 
     let event;
-    if (!quota.limited && !dealFields) {
+    if (!quota.limited && !dealFields && !wantsAuto) {
       // Not limited (a community, a paying partner, the JAMIE team, the free
-      // tier off) and no deal with it: exactly the write from before — the
-      // pool, one statement.
+      // tier off), no deal and no automated messages with it: exactly the
+      // write from before — the pool, one statement.
       event = await createEntityWithOwner(insertSql, insertParams, userId);
     } else {
       // ONE transaction for what belongs together.
@@ -2060,6 +2071,8 @@ export const createClubEvent = async (req, res) => {
       // dealController.writeUnderClubDealLimit). FOR UPDATE holds back other
       // writers of that one row only; no reader waits.
       // A deal: written and hung on with its event, or not at all.
+      // Automated messages: the switch, behind a savepoint — if its table is
+      // not there yet (boot window) the event is created without it.
       const client = await db.pool.connect();
       try {
         await client.query('BEGIN');
@@ -2075,6 +2088,7 @@ export const createClubEvent = async (req, res) => {
         if (dealFields) {
           await writeEventClubDeal(client, { clubId: club.id, eventId: event.id, userId, fields: dealFields });
         }
+        if (wantsAuto) autoMessages = await enableAutoMessages(client, event.id, userId);
         await client.query('COMMIT');
       } catch (err) {
         await client.query('ROLLBACK').catch(() => {});
@@ -2117,8 +2131,9 @@ export const createClubEvent = async (req, res) => {
     // to it: `deal` — what the event shows right now, in the shape of the
     // event page's deal row, or null (no deal sent, or one that is not
     // visible). Read after the commit; getDealsForEvents never throws.
+    // `auto_messages`: whether the switch „Automatisierte Nachrichten“ is on.
     const shownDeal = dealFields ? (await getDealsForEvents([event.id])).get(event.id) || null : null;
-    res.status(201).json({ ...event, deal: shownDeal });
+    res.status(201).json({ ...event, deal: shownDeal, auto_messages: autoMessages });
   } catch (err) {
     // The deal tables are not there yet (boot window): only a request that
     // brought a deal can meet that, and nothing was written for it.
@@ -2221,13 +2236,19 @@ export const deleteClubEvent = async (req, res) => {
 // the discover feed, and the map all reflect the edit immediately.
 export const updateClubEvent = async (req, res) => {
   const { id, eventId } = req.params;
-  const { name, description, date, time, location, max_members, is_recurring_weekly, image_url, ticket_url, is_private, target_age_min, target_age_max } = req.body;
+  const { name, description, date, time, location, max_members, is_recurring_weekly, image_url, ticket_url, is_private, target_age_min, target_age_max, auto_messages } = req.body;
   const userId = req.userId;
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   if (name !== undefined && !String(name).trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
   if (is_private !== undefined && typeof is_private !== 'boolean') {
     return res.status(400).json({ error: 'is_private muss true oder false sein' });
+  }
+  // „Automatisierte Nachrichten“ on the edit page of the event (Tina
+  // 17.11.2026): a real switch, so only true or false. Old bundles never
+  // send it.
+  if (auto_messages !== undefined && typeof auto_messages !== 'boolean') {
+    return res.status(400).json({ error: 'auto_messages muss true oder false sein' });
   }
   // „Für welches Alter?" on club events (Tina 05.11.2026): the edit form has
   // shown the fields all along, but this endpoint ignored them. Same rules as
@@ -2401,6 +2422,15 @@ export const updateClubEvent = async (req, res) => {
     invalidatePrefix('map:'); // location/coords may have moved the pin
     invalidatePrefix('groups:'); // …and its card in the Gruppen feed
 
+    // The switch „Automatisierte Nachrichten“, after the edit itself is
+    // saved: only from the people who run the club (its owner, a co-manager)
+    // — a member editing an event of their own leaves it as it is — and only
+    // under an official club (checked in the write). Never fails the edit.
+    let autoMessages;
+    if (auto_messages !== undefined && canManage) {
+      autoMessages = await setAutoMessages({ clubId: id, eventId, userId, enabled: auto_messages });
+    }
+
     // ── Batch 2 (2026-09-07): notify attendees on a when/where move, promote the
     // waitlist on a cap raise. Mirrors updateGroup; fire-and-forget.
     const before = event.rows[0];
@@ -2435,7 +2465,9 @@ export const updateClubEvent = async (req, res) => {
         .catch(err => console.error('waitlist promote failed:', err.message));
     }
 
-    res.json(result.rows[0]);
+    // The event row as always; `auto_messages` next to it only when the
+    // switch was part of this save.
+    res.json(autoMessages === undefined ? result.rows[0] : { ...result.rows[0], auto_messages: autoMessages });
   } catch (err) {
     console.error('Error updating club event:', err);
     res.status(500).json({ error: 'Veranstaltung konnte nicht aktualisiert werden' });
