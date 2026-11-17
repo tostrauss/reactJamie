@@ -8,7 +8,10 @@ import { MemoryRouter, Routes, Route, useLocation, useNavigate } from 'react-rou
 // brought up nothing. Real German i18n; the api is mocked.
 const api = vi.hoisted(() => ({
   reviews: { getPending: vi.fn(), submit: vi.fn(), dismiss: vi.fn(), notHeld: vi.fn() },
-  postEventApi: { getConnectPending: vi.fn(), getRatingsPending: vi.fn(), dismissConnect: vi.fn() },
+  postEventApi: {
+    getConnectPending: vi.fn(), getRatingsPending: vi.fn(), dismissConnect: vi.fn(),
+    submitRating: vi.fn(), dismissRating: vi.fn(),
+  },
   communityNudgeApi: { getMine: vi.fn() },
   friends: { sendRequest: vi.fn(), respondRequest: vi.fn() },
   users: {},
@@ -34,6 +37,9 @@ const connectEvent = (id, name) => ({
 });
 // Which dialog is up, and about which event.
 const connectEventName = () => document.querySelector('.pe-connect .pe-head-name')?.textContent ?? null;
+// An event of „Wie war’s bei X?“ (GET /reviews/ratings/pending).
+const ratingEvent = (id, name) => ({ group_id: id, group_name: name, event_date: '2026-11-15T19:00:00.000Z', image_url: null });
+const ratingTitle = () => document.querySelector('.pe-rating-title')?.textContent ?? null;
 
 const Where = () => {
   const loc = useLocation();
@@ -71,6 +77,8 @@ beforeEach(() => {
   api.postEventApi.getRatingsPending.mockImplementation(() => ok([]));
   api.communityNudgeApi.getMine.mockImplementation(() => ok([]));
   api.postEventApi.dismissConnect.mockImplementation(() => ok({ success: true }));
+  api.postEventApi.dismissRating.mockImplementation(() => ok({ success: true }));
+  api.postEventApi.submitRating.mockImplementation(() => ok({ success: true }));
 });
 afterEach(() => { vi.useRealTimers(); });
 
@@ -310,6 +318,45 @@ describe('PostEventPrompts — the friends list („Connect“)', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Fertig' })); });
     expect(connectEventName()).toBeNull();
     expect(api.postEventApi.dismissConnect.mock.calls.map((c) => c[0])).toEqual([42, 41]);
+  });
+});
+
+// B2-10: every participant is asked for stars a day after the event.
+describe('PostEventPrompts — „Wie war’s bei X?“', () => {
+  it('comes up; the X closes it and tells App the dialog is gone', async () => {
+    api.postEventApi.getRatingsPending.mockImplementation(() => ok([ratingEvent(41, 'Punsch & Rave 2')]));
+    await renderAt('/profile');
+    expect(ratingTitle()).toBe('Wie war’s bei Punsch & Rave 2?');
+    expect(onActiveChange).toHaveBeenLastCalledWith(true);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Schließen' })); });
+    expect(api.postEventApi.dismissRating).toHaveBeenCalledWith(41);
+    expect(ratingTitle()).toBeNull();
+    expect(onActiveChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it('one dialog at a time: the creator\'s question, then the friends list, then the stars', async () => {
+    api.reviews.getPending.mockImplementation(() => ok([review(12, 'Eigenes Treffen')]));
+    api.postEventApi.getConnectPending.mockImplementation(() => ok([connectEvent(41, 'Spieleabend')]));
+    api.postEventApi.getRatingsPending.mockImplementation(() => ok([ratingEvent(41, 'Spieleabend'), ratingEvent(12, 'Eigenes Treffen')]));
+    api.reviews.dismiss.mockResolvedValue({ data: { success: true } });
+    await renderAt();
+    // 1. „Wer war dabei?“ — nothing else beside it.
+    expect(reviewTitle()).toBe('Eigenes Treffen');
+    expect(connectEventName()).toBeNull();
+    expect(ratingTitle()).toBeNull();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Überspringen' })); });
+    // 2. The friends list.
+    expect(connectEventName()).toBe('Spieleabend');
+    expect(ratingTitle()).toBeNull();
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Fertig' })); });
+    // 3. The stars, one event after the other.
+    expect(connectEventName()).toBeNull();
+    expect(ratingTitle()).toBe('Wie war’s bei Spieleabend?');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Schließen' })); });
+    expect(ratingTitle()).toBe('Wie war’s bei Eigenes Treffen?');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Schließen' })); });
+    expect(ratingTitle()).toBeNull();
+    expect(onActiveChange).toHaveBeenLastCalledWith(false);
   });
 });
 

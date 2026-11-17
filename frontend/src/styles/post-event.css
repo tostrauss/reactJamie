@@ -218,7 +218,185 @@
   font-weight: 600;
 }
 
+/* ── „Wie war’s bei X?“ (EventRatingModal, Tina's Bild 16) ─────────────── */
+/* A centred card, about 22px from the screen's sides at 390px. Colours taken
+   from her mock: the card runs from #261C43 (top) to #332950 (bottom). */
+.pe-rating-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Centred in the space ABOVE the bottom nav, as in her mock — the nav's
+     own height (60px strip + --nav-safe-bottom) is kept clear. */
+  padding: calc(env(safe-area-inset-top, 0px) + 12px) 22px calc(60px + var(--nav-safe-bottom) + 12px);
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.pe-rating-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  box-sizing: border-box;
+  /* A small screen with the keyboard up: the card scrolls instead of
+     running off both ends. */
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 28px 22px 24px;
+  text-align: center;
+  background: linear-gradient(180deg, #261C43 0%, #332950 100%);
+  border: 1px solid var(--border-default);
+  border-radius: 28px;
+  color: var(--text-white);
+  outline: none;
+}
+.pe-rating-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.10);
+  color: #fff;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.pe-rating-close::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+.pe-rating-close:focus-visible {
+  outline: 2px solid var(--accent-coral);
+  outline-offset: 2px;
+}
+.pe-rating-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  background: rgba(253, 118, 102, 0.10);
+  border: 1px solid rgba(253, 118, 102, 0.22);
+  color: var(--accent-coral);
+}
+.pe-rating-title {
+  margin: 0;
+  font-family: 'Archivo', -apple-system, sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--accent-coral);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+.pe-rating-subtitle {
+  margin: 10px 0 22px;
+  font-size: 15px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.75);
+}
+.pe-rating-stars {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+/* 44px hit area around a 36px star. Grey until one is chosen; then every
+   star up to the chosen one is in full colour. */
+.pe-rating-star {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 12px;
+  background: none;
+  font-size: 36px;
+  line-height: 1;
+  cursor: pointer;
+  filter: grayscale(1);
+  opacity: 0.35;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.pe-rating-star.is-on {
+  filter: none;
+  opacity: 1;
+}
+.pe-rating-star:active { transform: scale(0.9); }
+.pe-rating-star:focus-visible {
+  outline: 2px solid var(--accent-coral);
+  outline-offset: 1px;
+}
+.pe-rating-feedback {
+  display: block;
+  width: 100%;
+  min-height: 72px;
+  box-sizing: border-box;
+  margin: 22px 0 0;
+  padding: 14px 16px;
+  resize: none;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 16px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.4;
+}
+.pe-rating-feedback::placeholder { color: rgba(255, 255, 255, 0.5); }
+.pe-rating-feedback:focus {
+  outline: none;
+  border-color: rgba(253, 118, 102, 0.55);
+}
+/* Coral with DARK text, as in her mock. */
+.pe-rating-submit {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 16px;
+  background: var(--accent-coral);
+  color: var(--bg-primary);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.pe-rating-submit:active { transform: scale(0.99); }
+.pe-rating-submit:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+.pe-rating-error {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: #f87171;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pe-primary:active,
-  .pe-friend-btn--primary:active { transform: none; }
+  .pe-friend-btn--primary:active,
+  .pe-rating-star:active,
+  .pe-rating-submit:active { transform: none; }
+  .pe-rating-star { transition: none; }
 }

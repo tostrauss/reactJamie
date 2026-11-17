@@ -1669,6 +1669,22 @@
     "close": "Fermer",
     "listAria": "Qui était à « {{name}} »"
   },
+  "eventRating": {
+    "title": "Comment c’était, {{name}} ?",
+    "subtitle": "On espère que tu as passé un bon moment !",
+    "feedbackPlaceholder": "Ton avis (facultatif) …",
+    "submit": "Envoyer mon avis",
+    "close": "Fermer",
+    "starsAria": "Note",
+    "starAria_one": "{{count}} étoile",
+    "starAria_other": "{{count}} étoiles",
+    "admin": {
+      "title": "Avis sur les événements",
+      "empty": "Pas encore d’avis.",
+      "countFmt_one": "{{count}} avis",
+      "countFmt_other": "{{count}} avis"
+    }
+  },
   "attendance": {
     "pillFmt": "{{n}}+ présences",
     "tierAriaFmt": "Badge : présence confirmée à au moins {{n}} événements",

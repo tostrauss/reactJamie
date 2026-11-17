@@ -1669,6 +1669,22 @@
     "close": "Cerrar",
     "listAria": "Quién estuvo en «{{name}}»"
   },
+  "eventRating": {
+    "title": "¿Qué tal {{name}}?",
+    "subtitle": "¡Esperamos que lo hayas pasado bien!",
+    "feedbackPlaceholder": "Tu opinión (opcional) …",
+    "submit": "Enviar opinión",
+    "close": "Cerrar",
+    "starsAria": "Valoración",
+    "starAria_one": "{{count}} estrella",
+    "starAria_other": "{{count}} estrellas",
+    "admin": {
+      "title": "Valoraciones de eventos",
+      "empty": "Aún no hay valoraciones.",
+      "countFmt_one": "{{count}} valoración",
+      "countFmt_other": "{{count}} valoraciones"
+    }
+  },
   "attendance": {
     "pillFmt": "{{n}}+ asistencias",
     "tierAriaFmt": "Insignia: asistencia confirmada en al menos {{n}} eventos",

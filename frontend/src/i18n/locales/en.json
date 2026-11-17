@@ -1669,6 +1669,22 @@
     "close": "Close",
     "listAria": "Who was at “{{name}}”"
   },
+  "eventRating": {
+    "title": "How was {{name}}?",
+    "subtitle": "We hope you had a great time!",
+    "feedbackPlaceholder": "Feedback (optional) …",
+    "submit": "Send feedback",
+    "close": "Close",
+    "starsAria": "Rating",
+    "starAria_one": "{{count}} star",
+    "starAria_other": "{{count}} stars",
+    "admin": {
+      "title": "Event ratings",
+      "empty": "No ratings yet.",
+      "countFmt_one": "{{count}} rating",
+      "countFmt_other": "{{count}} ratings"
+    }
+  },
   "attendance": {
     "pillFmt": "{{n}}+ attended",
     "tierAriaFmt": "Badge: confirmed at {{n}}+ events",

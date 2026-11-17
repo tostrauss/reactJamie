@@ -1669,6 +1669,22 @@
     "close": "Schließen",
     "listAria": "Wer bei „{{name}}“ dabei war"
   },
+  "eventRating": {
+    "title": "Wie war’s bei {{name}}?",
+    "subtitle": "Wir hoffen, du hattest eine gute Zeit!",
+    "feedbackPlaceholder": "Feedback (optional) …",
+    "submit": "Feedback senden",
+    "close": "Schließen",
+    "starsAria": "Bewertung",
+    "starAria_one": "{{count}} Stern",
+    "starAria_other": "{{count}} Sterne",
+    "admin": {
+      "title": "Event-Bewertungen",
+      "empty": "Noch keine Bewertungen.",
+      "countFmt_one": "{{count}} Bewertung",
+      "countFmt_other": "{{count}} Bewertungen"
+    }
+  },
   "attendance": {
     "pillFmt": "{{n}}+ mal dabei",
     "tierAriaFmt": "Abzeichen: mindestens {{n}}-mal bestätigt dabei",
