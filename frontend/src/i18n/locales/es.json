@@ -2607,7 +2607,7 @@
       "saveError": "No se pudo guardar",
       "empty": "No se encontraron clubes.",
       "paidPartner": "Partner de pago",
-      "paidPartnerHint": "Marco amarillo, ☆ Partner y ✓ – sin límite de eventos ni deals"
+      "paidPartnerHint": "✓ en el club y en sus deals – sin límite de eventos ni deals"
     },
     "featuredClubs": {
       "title": "Clubes en el onboarding",

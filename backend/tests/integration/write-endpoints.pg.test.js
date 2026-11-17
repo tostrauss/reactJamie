@@ -6040,7 +6040,8 @@ suite('write endpoints against real Postgres', () => {
       commHost = await mkU('smoke-partner-comm@x.com', 'Cem');
       viewer = await mkU('smoke-partner-viewer@x.com', 'Vito');
       const official = await mkClub('Smoke Café Partner', host, 'official');
-      // ☆ Partner is for paying partners only since 17.11.2026 (partnerSql): this one pays.
+      // This one pays (the ✓, no free tier). ☆ Partner does not ask for that:
+      // every official club's own events carry it (Tina's clarification of 17.11.2026, 10:26).
       await db.query('UPDATE groups SET is_paid_partner = TRUE WHERE id = $1', [official]);
       const community = await mkClub('Smoke Community Partner', commHost, 'community');
       await db.query(
@@ -6078,10 +6079,11 @@ suite('write endpoints against real Postgres', () => {
       expect((await call(C.getGroupById, { userId: viewer, params: { id: String(ev) } })).body.is_partner).toBe(false);
     });
 
-    // Since 17.11.2026 the club's TYPE alone makes nobody a partner: the mark
-    // „Zahlender Partner“ does, on an official club. Each step must show in the
-    // feed at once — classify busts the 30 s cache.
-    it('classifying a club shows in the feed at once — official alone is no partner, the paying mark is', async () => {
+    // The club's TYPE makes its own events ☆ Partner; the mark „Zahlender
+    // Partner“ changes nothing about that (Tina's clarification of 17.11.2026, 10:26: „Stern hat jeder
+    // Club … diesen verified-Haken haben nur Paid Clubs“). Each step must show
+    // in the feed at once — classify busts the 30 s cache.
+    it('classifying a club shows in the feed at once — official makes the partner, the paying mark does not matter', async () => {
       const later = await mkClub('Smoke Bald Partner', host, 'community');
       const ev = await mkEvent('Bald Partner-Event', later, host);
       const paid = async () => (await db.query('SELECT is_paid_partner FROM groups WHERE id = $1', [later])).rows[0].is_paid_partner;
@@ -6090,10 +6092,10 @@ suite('write endpoints against real Postgres', () => {
       (await import('../../src/utils/cache.js')).invalidatePrefix('groups:');
       expect((await feed())[ev]).toBe(false); // …which is cached now
 
-      // an official club that does not pay: still no partner
+      // an official club, not paying: a partner at once
       ok(await classify({ club_type: 'official' }));
-      expect((await feed())[ev]).toBe(false);
-      // the mark: a partner at once
+      expect((await feed())[ev]).toBe(true);
+      // the mark: stored, and still a partner
       const marked = await classify({ is_paid_partner: true });
       ok(marked);
       expect(marked.body.club).toMatchObject({ id: later, club_type: 'official', is_paid_partner: true });
@@ -6102,27 +6104,35 @@ suite('write endpoints against real Postgres', () => {
       ok(await classify({ club_type: 'community' }));
       expect((await feed())[ev]).toBe(false);
       expect(await paid()).toBe(true);
-      // …and is back with the type
+      // …official again: a partner again
       ok(await classify({ club_type: 'official' }));
       expect((await feed())[ev]).toBe(true);
-      // taken off again
+      // the mark taken off: still a partner — it never depended on it
       const unmarked = await classify({ is_paid_partner: false });
       ok(unmarked);
       expect(unmarked.body.club.is_paid_partner).toBe(false);
-      expect((await feed())[ev]).toBe(false);
+      expect((await feed())[ev]).toBe(true);
     });
 
-    it('an official club that does not pay: a partner nowhere', async () => {
+    // Tina's clarification of 17.11.2026, 10:26: „Stern hat jeder Club mit Pastellgelb umrandet … diesen
+    // verified-Haken haben nur Paid Clubs.“ (That morning this case read „a
+    // partner nowhere“.)
+    it('an official club that does not pay: its own events are ☆ Partner all the same — only the ✓ is for paying clubs', async () => {
       const free = await mkClub('Smoke Café Gratis', host, 'official');
-      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner')`, [free, host]);
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner'),($1,$3,'member')`, [free, host, member]);
       const ev = await mkEvent('Gratis-Abend', free, host);
+      const byGuest = await mkEvent('Gratis-Abend eines Mitglieds', free, member);
       (await import('../../src/utils/cache.js')).invalidatePrefix('groups:');
-      expect((await feed())[ev]).toBe(false);
+      const marks = await feed();
+      expect(marks[ev]).toBe(true);
+      expect(marks[byGuest]).toBe(false);          // still only what the club's team put up
       for (const userId of [0, viewer]) {
         const res = await call(C.getGroupById, { userId, params: { id: String(ev) } });
         ok(res);
-        expect(res.body.is_partner, `as user ${userId}`).toBe(false);
+        expect(res.body.is_partner, `as user ${userId}`).toBe(true);
       }
+      // the mark itself is untouched: that is what the ✓ reads
+      expect((await db.query('SELECT is_paid_partner FROM groups WHERE id = $1', [free])).rows[0].is_paid_partner).toBe(false);
     });
 
     it('the mark is for official clubs only — a community is refused, both in one request goes', async () => {
