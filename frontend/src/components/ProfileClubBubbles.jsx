@@ -146,6 +146,9 @@ export default function ProfileClubBubbles({ sorting = false, onSortingChange })
           type="button"
           id={`${uid}-club-${club.id}`}
           className="profile-club-open"
+          // The name under the bubble is clamped to two lines — the full one
+          // on hover.
+          title={club.name}
           onClick={() => onTap(club)}
           onKeyDown={movable ? (e) => onArrowKey(e, index, club.id) : undefined}
           aria-pressed={movable ? isPicked : undefined}

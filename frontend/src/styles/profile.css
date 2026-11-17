@@ -2268,16 +2268,23 @@
   color: var(--partner-text);
 }
 
+/* The name: up to two lines, small and quieter than the title, as in the mock
+   (p. 3: „JAMIE / Official", „Südtiroler / in Wien") — one line with „…" cut
+   „JAMIE Offi…". A long single word may break anywhere. */
 .profile-club-name {
-  display: block;
-  max-width: 100%;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.3;
-  text-align: center;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  width: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: rgba(255, 255, 255, 0.78);
+  text-align: center;
 }
 
 /* Open requests of an own club or event — the hub's „N Anfragen" chip as a

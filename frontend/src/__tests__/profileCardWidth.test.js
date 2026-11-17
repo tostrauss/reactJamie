@@ -67,4 +67,16 @@ describe('club bubbles: the mock\'s sizes, and no jump into „Sortieren“', ()
     expect(grid['column-gap']).toBe('10px');
     expect(grid['justify-content']).toBe('start');
   });
+
+  // „JAMIE / Official“, „Südtiroler / in Wien“ in the mock — one line with
+  // an ellipsis showed „JAMIE Offi…“.
+  it('the name under a bubble: up to two lines, 11px, never nowrap', () => {
+    const name = block(profileCss, '.profile-club-name');
+    expect(name['-webkit-line-clamp']).toBe('2');
+    expect(name['line-clamp']).toBe('2');
+    expect(name['white-space']).toBe('normal');
+    expect(name['text-overflow']).toBeUndefined();
+    expect(name['font-size']).toBe('11px');
+    expect(name['font-weight']).toBe('500');
+  });
 });
