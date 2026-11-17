@@ -626,7 +626,6 @@
       "pending": "Richiesta inviata ✓",
       "leave": "Lascia il club",
       "openChat": "Vai alla chat",
-      "boost": "Boost al club",
       "delete": "Elimina club",
       "report": "Segnala club",
       "rejected": "Richiesta rifiutata"
@@ -1690,8 +1689,6 @@
     "features": {
       "boostGroups": "Boost ai gruppi",
       "boostGroupsDesc": "Più visibilità per i tuoi eventi e gruppi.",
-      "boostClubs": "Boost ai club",
-      "boostClubsDesc": "Più membri per la tua community",
       "seeMembers": "Guarda in anticipo chi c'è nel gruppo",
       "seeMembersDesc": "Guarda in anticipo tutti i partecipanti di un gruppo e vedi se fa per te.",
       "topPlacement": "Posizione in alto",
@@ -1726,7 +1723,7 @@
     "later": "Forse più tardi",
     "startError": "Errore durante l'avvio dell'abbonamento",
     "successTitle": "Benvenuto in Pro!",
-    "successBody": "Da ora puoi aggiungere amici, inviare messaggi diretti e fare Boost ai tuoi gruppi e club.",
+    "successBody": "Da ora puoi aggiungere amici, inviare messaggi diretti e fare Boost ai tuoi gruppi.",
     "paymentTitle": "Dati di pagamento",
     "paymentSub": "Crittografia SSL · Disdici quando vuoi",
     "subscriptionLabel": "Abbonamento",

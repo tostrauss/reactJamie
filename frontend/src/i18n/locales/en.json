@@ -626,7 +626,6 @@
       "pending": "Request sent ✓",
       "leave": "Leave club",
       "openChat": "Open chat",
-      "boost": "Boost club",
       "delete": "Delete club",
       "report": "Report club",
       "rejected": "Request declined"
@@ -1690,8 +1689,6 @@
     "features": {
       "boostGroups": "Boost groups",
       "boostGroupsDesc": "More visibility for your events and groups.",
-      "boostClubs": "Boost clubs",
-      "boostClubsDesc": "More members for your community",
       "seeMembers": "See who's in the group up front",
       "seeMembersDesc": "Check out all participants of a group in advance and see if it's a fit.",
       "topPlacement": "Top placement",
@@ -1726,7 +1723,7 @@
     "later": "Maybe later",
     "startError": "Could not start subscription",
     "successTitle": "Welcome to Pro!",
-    "successBody": "You can now add friends, send direct messages and boost your groups & clubs.",
+    "successBody": "You can now add friends, send direct messages and boost your groups.",
     "paymentTitle": "Payment details",
     "paymentSub": "SSL-encrypted · Cancel any time",
     "subscriptionLabel": "Subscription",

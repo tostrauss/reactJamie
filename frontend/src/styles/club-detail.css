@@ -532,7 +532,10 @@
   flex-shrink: 0;
 }
 
-/* ── Pro gate row (groups roster only): API returned a truncated list ── */
+/* ── Pro gate row (groups roster only): API returned a truncated list ──
+   Coral like every other call to action since 17.11.2026 (Tina: „Allgemein
+   die gelben Balken weg!“) — it was a gold bar with a gold „Pro
+   freischalten“. What it does and says is unchanged. */
 .cd-members-gated {
   display: flex;
   align-items: center;
@@ -541,8 +544,8 @@
   margin-top: 10px;
   padding: 14px 16px;
   min-height: 52px;
-  background: linear-gradient(135deg, rgba(255, 215, 0, 0.08), rgba(255, 165, 0, 0.03));
-  border: 1px solid rgba(255, 215, 0, 0.22);
+  background: rgba(253, 118, 102, 0.08);
+  border: 1px solid rgba(253, 118, 102, 0.25);
   border-radius: var(--radius-lg);
   color: var(--text-light);
   font-size: 13px;
@@ -561,7 +564,7 @@
 }
 .cd-members-gated-cta {
   flex-shrink: 0;
-  color: #FFD700;
+  color: var(--accent-coral);
   font-weight: 800;
 }
 
@@ -944,18 +947,6 @@
   margin-top: 12px;
   padding-top: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-}
-.cd-boost-btn {
-  padding: 14px;
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, #FFD700, #FFAA00);
-  color: #1a1100;
-  font-size: 15px;
-  font-weight: 800;
-  border: none;
-  cursor: pointer;
-  min-height: 48px;
-  box-shadow: 0 6px 18px rgba(255, 215, 0, 0.3);
 }
 
 /* ── Report link ──────────────────────────────────────── */

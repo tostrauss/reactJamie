@@ -626,7 +626,6 @@
       "pending": "Demande envoyée ✓",
       "leave": "Quitter le club",
       "openChat": "Ouvrir le chat",
-      "boost": "Booster le club",
       "delete": "Supprimer le club",
       "report": "Signaler le club",
       "rejected": "Demande refusée"
@@ -1690,8 +1689,6 @@
     "features": {
       "boostGroups": "Booster des groupes",
       "boostGroupsDesc": "Plus de visibilité pour tes événements et groupes.",
-      "boostClubs": "Booster des clubs",
-      "boostClubsDesc": "Plus de membres pour ta communauté",
       "seeMembers": "Vois à l'avance qui est dans le groupe",
       "seeMembersDesc": "Regarde tous les participants d'un groupe à l'avance et vois si ça te correspond.",
       "topPlacement": "Placement en tête",
@@ -1726,7 +1723,7 @@
     "later": "Peut-être plus tard",
     "startError": "Erreur au démarrage de l'abonnement",
     "successTitle": "Bienvenue dans JAMIE Pro !",
-    "successBody": "Tu peux dès maintenant ajouter des amis, envoyer des messages directs et booster tes groupes & clubs.",
+    "successBody": "Tu peux dès maintenant ajouter des amis, envoyer des messages directs et booster tes groupes.",
     "paymentTitle": "Données de paiement",
     "paymentSub": "Chiffré SSL · Résiliable à tout moment",
     "subscriptionLabel": "Abonnement",

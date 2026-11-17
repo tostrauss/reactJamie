@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useContext, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { clubs } from '../utils/api';
@@ -17,9 +17,7 @@ import { proUpsellAllowed } from '../utils/platform';
 import { usePaymentsConfig } from '../utils/paymentsConfig';
 import '../styles/club-detail.css';
 
-const BoostModal = lazy(() => import('../components/BoostModal').then(m => ({ default: m.BoostModal })));
-
-const today = () => new Date().toISOString().split('T')[0];
+const today =() => new Date().toISOString().split('T')[0];
 const nowTime = () => {
   const d = new Date();
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -48,7 +46,6 @@ export const ClubDetail = () => {
   const [joinBlocked, setJoinBlocked] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
-  const [showBoostModal, setShowBoostModal] = useState(false);
   const [showAvatarGate, setShowAvatarGate] = useState(false);
   // Pro gate: non-member non-Pro viewers get only the first 3 members + this
   // flag from the API — clicking the roster opens the ProModal instead.
@@ -813,20 +810,13 @@ export const ClubDetail = () => {
             )}
           </section>
 
-          {/* Owner actions */}
+          {/* Owner actions. „Club boosten“ — the gold button that stood here
+              for every owner — is gone for good (Tina 17.11.2026: „Club
+              boosten ganz weggeben. Allgemein die gelben Balken weg!“, her
+              screenshot of this very button). Boosting a club is no part of
+              the app any more; the boost on a group's page stays. */}
           {isOwner && (
             <div className="cd-owner-actions">
-              {/* Boost for every owner, like on GroupDetail (Tobi 26.10.2026,
-                  Tina's "Pro raus aus Clubs"): the Pro info card that stood
-                  here for non-Pro owners since 30.09. is gone; the button
-                  opens the BoostModal, which tells a non-Pro owner in context
-                  that boosts are part of Pro. iOS without a purchase path
-                  still shows a non-Pro owner nothing (Apple 3.1.1). */}
-              {(isPro || proUpsellAllowed()) && (
-                <button className="cd-boost-btn" onClick={() => setShowBoostModal(true)}>
-                  🚀 {t('clubDetail.actions.boost')}
-                </button>
-              )}
               <button className="cd-btn cd-btn-danger" onClick={handleDelete}>
                 {t('clubDetail.actions.delete')}
               </button>
@@ -847,16 +837,6 @@ export const ClubDetail = () => {
           name={club.name}
           onClose={() => setShowReportModal(false)}
         />
-      )}
-      {showBoostModal && (
-        <Suspense fallback={null}>
-          <BoostModal
-            targetType="club"
-            targetId={parseInt(id, 10)}
-            targetName={club.name}
-            onClose={() => setShowBoostModal(false)}
-          />
-        </Suspense>
       )}
       <AvatarGateModal isOpen={showAvatarGate} onClose={() => setShowAvatarGate(false)} />
     </div>

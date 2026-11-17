@@ -180,8 +180,10 @@ const PRIMARY_FEATURES = [
   { svg:'eye',    titleKey:'seeMembers',     descKey:'seeMembersDesc' },
   { svg:'bolt',   titleKey:'boostGroups',    descKey:'boostGroupsDesc' },
 ];
+// „Clubs boosten“ stood here until 17.11.2026: the club page's boost button
+// is gone (Tina: „Club boosten ganz weggeben“), so the paywall must not
+// promise it any more — a subscription benefit that does not exist.
 const EXTRA_FEATURES = [
-  { svg:'trophy', titleKey:'boostClubs',   descKey:'boostClubsDesc' },
   { svg:'top',    titleKey:'topPlacement', descKey:'topPlacementDesc' },
 ];
 
@@ -205,12 +207,6 @@ function FeatureIcon({ name }) {
     case 'bolt': return (
       <svg {...common}>
         <path d="M13 2 4.5 13.5h6L11 22l8.5-11.5h-6L13 2Z" />
-      </svg>);
-    case 'trophy': return (
-      <svg {...common}>
-        <path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" />
-        <path d="M7 5H4.5a2.5 2.5 0 0 0 2.6 3.4M17 5h2.5a2.5 2.5 0 0 1-2.6 3.4" />
-        <path d="M12 14v3M8.5 20h7M10 17h4" />
       </svg>);
     case 'top': return (
       <svg {...common}>
