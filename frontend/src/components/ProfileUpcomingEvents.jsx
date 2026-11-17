@@ -28,8 +28,8 @@ const TYPE_LABEL = {
 // server's call (GET /groups/user/upcoming): until the end of its Vienna day,
 // weekly series on their next date, cancelled ones gone.
 //
-// A row: the date tile (UTC — the stored Vienna wall-clock, utils/eventDate),
-// „Heute“ beside the title in coral, „☆ Partner · 8/20“ / „Club · 8/20“ (an
+// A row: the date tile „20.“ / „Nov“ (UTC — the stored Vienna wall-clock,
+// utils/eventDate), „Heute“ beside the title in coral, „☆ Partner · 8/20“ / „Club · 8/20“ (an
 // official club's event that is no partner event) / „Community · 8/20“ /
 // „Gruppe · 8/20“ under it. Own entries are framed in the partner yellow and
 // carry the coral counter of open requests the old hub's chip used to show.
@@ -94,8 +94,11 @@ export default function ProfileUpcomingEvents({ editing = false, onEditingChange
           aria-disabled={locked || undefined}
         >
           <span className={`profile-upcoming-tile${date ? '' : ' is-empty'}`}>
-            <span className="profile-upcoming-day">{date ? date.day : '?'}</span>
-            {date && <span className="profile-upcoming-month">{date.month}</span>}
+            {/* „20.“ over „Nov“ as in Tina's mock (p. 3): the day with the
+                language's own ordinal dot (de only), the short month without
+                the dot some locales add („Nov.“, fr „nov.“) — CSS capitalises. */}
+            <span className="profile-upcoming-day">{date ? t('profile.upcoming.tileDay', { day: date.day }) : '?'}</span>
+            {date && <span className="profile-upcoming-month">{date.month.replace(/\.$/, '')}</span>}
           </span>
           <span className="profile-upcoming-text">
             <span className="profile-upcoming-head">

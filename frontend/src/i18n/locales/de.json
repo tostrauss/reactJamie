@@ -1144,7 +1144,8 @@
       "chatAria": "Zum Chat von „{{name}}“",
       "editAria": "„{{name}}“ bearbeiten",
       "locked": "Dieses Event kann nur bearbeiten, wer es erstellt hat",
-      "showAll": "Alle anzeigen ({{count}})"
+      "showAll": "Alle anzeigen ({{count}})",
+      "tileDay": "{{day}}."
     },
     "memories": {
       "edit": "Bearbeiten",

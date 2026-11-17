@@ -1144,7 +1144,8 @@
       "chatAria": "Ouvrir le chat de « {{name}} »",
       "editAria": "Modifier « {{name}} »",
       "locked": "Seule la personne qui a créé cet événement peut le modifier",
-      "showAll": "Tout afficher ({{count}})"
+      "showAll": "Tout afficher ({{count}})",
+      "tileDay": "{{day}}"
     },
     "memories": {
       "edit": "Modifier",

@@ -2456,34 +2456,36 @@
   touch-action: manipulation;
 }
 
-/* The date tile — day over month, like the club page's event list, without
-   its gradient (brand rule: no gradients). */
+/* The date tile as in the mock p. 3 (Tina 16.11.2026): a small lilac square
+   with two equal white lines, „20." over „Nov" — it was a larger grey-blue
+   tile with a heavy day and a grey „NOV". The lilac is the mock's own. */
 .profile-upcoming-tile {
   display: flex;
   flex-shrink: 0;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 50px;
-  border-radius: 12px;
-  background: var(--bg-input);
+  width: 36px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  background: #3C3572;
   color: var(--text-white);
 }
 
 .profile-upcoming-day {
-  font-size: 18px;
-  font-weight: 900;
-  line-height: 1;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.15;
 }
 
+/* Same type as the day. The locale's short month comes lower-case in
+   fr/es/it („nov"). */
 .profile-upcoming-month {
-  margin-top: 3px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  margin-top: 1px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.15;
+  text-transform: capitalize;
 }
 
 .profile-upcoming-tile.is-empty .profile-upcoming-day { color: var(--text-muted); }
@@ -2538,12 +2540,12 @@
   overflow: hidden;
 }
 
-/* The counter on the date tile's top right corner: the tile ends 8 + 46 =
-   54px in, the 20px counter overlaps its edge by 14. */
+/* The counter on the date tile's top right corner: the tile ends 8 + 36 =
+   44px in, the 20px counter overlaps its edge by 14. */
 .profile-upcoming-requests {
   top: 2px;
   right: auto;
-  left: 40px;
+  left: 30px;
 }
 
 .profile-upcoming-chat {

@@ -136,3 +136,25 @@ describe('the divider above „Demnächst dabei“ is inset', () => {
     expect(section.position).toBe('relative');
   });
 });
+
+// „Demnächst dabei“: the date tile of the mock (p. 3) — a small lilac square,
+// „20.“ over „Nov“ in two equal white lines (audit PU-12 + PU-13).
+describe('the date tile of „Demnächst dabei“', () => {
+  it('36 × 38px', () => {
+    const tile = block(profileCss, '.profile-upcoming-tile');
+    expect(tile.width).toBe('36px');
+    expect(tile.height).toBe('38px');
+    expect(tile.color).toBe('var(--text-white)');
+  });
+
+  it('the month is no longer upper-case and grey — capitalised, the tile\'s white', () => {
+    const month = block(profileCss, '.profile-upcoming-month');
+    const day = block(profileCss, '.profile-upcoming-day');
+    // two equal lines
+    expect(month['font-size']).toBe(day['font-size']);
+    expect(month['font-weight']).toBe(day['font-weight']);
+    expect(month['text-transform']).toBe('capitalize');
+    expect(month.color).toBeUndefined();
+    expect(month['letter-spacing']).toBeUndefined();
+  });
+});

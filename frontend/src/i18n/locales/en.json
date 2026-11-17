@@ -1144,7 +1144,8 @@
       "chatAria": "Open the chat of “{{name}}”",
       "editAria": "Edit “{{name}}”",
       "locked": "Only the person who created this event can edit it",
-      "showAll": "See all ({{count}})"
+      "showAll": "See all ({{count}})",
+      "tileDay": "{{day}}"
     },
     "memories": {
       "edit": "Edit",

@@ -102,10 +102,12 @@ describe('ProfileUpcomingEvents — the list', () => {
     await renderUpcoming();
     fireEvent.click(screen.getByRole('button', { name: 'Alle anzeigen (5)' }));
     const tile = (name) => item(name).querySelector('.profile-upcoming-tile');
-    expect(tile('Spieleabend').querySelector('.profile-upcoming-day').textContent).toBe('16');
-    expect(tile('Spieleabend').querySelector('.profile-upcoming-month').textContent).toMatch(/^Nov/);
-    expect(tile('Wiener Stammtisch').querySelector('.profile-upcoming-day').textContent).toBe('22');
-    expect(tile('Yoga im Park').querySelector('.profile-upcoming-day').textContent).toBe('23');
+    // „16.“ over „Nov“ as in Tina's mock (p. 3): the German ordinal dot on
+    // the day, the month without the dot de-AT adds („Nov.“).
+    expect(tile('Spieleabend').querySelector('.profile-upcoming-day').textContent).toBe('16.');
+    expect(tile('Spieleabend').querySelector('.profile-upcoming-month').textContent).toBe('Nov');
+    expect(tile('Wiener Stammtisch').querySelector('.profile-upcoming-day').textContent).toBe('22.');
+    expect(tile('Yoga im Park').querySelector('.profile-upcoming-day').textContent).toBe('23.');
     expect(tile('Altes Treffen').textContent).toBe('?');
     expect(tile('Altes Treffen').classList.contains('is-empty')).toBe(true);
   });
@@ -124,7 +126,7 @@ describe('ProfileUpcomingEvents — the list', () => {
       type: 'event', date: '2026-11-17T19:00:00.000Z', next_at: '2026-11-17T19:00:00.000Z', kind: 'community',
     })]);
     expect(within(item('Kinoabend')).getByText('Heute')).toBeTruthy();
-    expect(item('Kinoabend').querySelector('.profile-upcoming-day').textContent).toBe('17');
+    expect(item('Kinoabend').querySelector('.profile-upcoming-day').textContent).toBe('17.');
   });
 
   it('subline per type: ☆ Partner, Community, Gruppe · x/y — the screen reader hears the participants phrase', async () => {
