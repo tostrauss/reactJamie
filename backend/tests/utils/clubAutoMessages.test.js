@@ -19,7 +19,7 @@ vi.mock('../../src/config/database.js', () => ({
 }));
 
 const {
-  enableAutoMessages, setAutoMessages, autoMessagesOn, clubAutoMessagesEnabled,
+  enableAutoMessages, setAutoMessages, autoMessagesOn, clubAutoMessagesEnabled, CLUB_AUTO_TEXTS,
 } = await import('../../src/utils/clubAutoMessages.js');
 
 const missingTable = () => Object.assign(new Error('relation "club_event_auto_messages" does not exist'), { code: '42P01' });
@@ -158,5 +158,58 @@ describe('the kill switch CLUB_AUTO_MESSAGES', () => {
     expect(clubAutoMessagesEnabled()).toBe(true);
     process.env.CLUB_AUTO_MESSAGES = 'false';
     expect(clubAutoMessagesEnabled()).toBe(false);
+  });
+});
+
+// Tina's four messages (document of 17.11.2026, lines 81–85), character for
+// character. The emojis by code point: a look-alike (☺ for 😊) would pass
+// the eye and not this.
+describe('CLUB_AUTO_TEXTS', () => {
+  const points = (s) => [...s].map((c) => c.codePointAt(0));
+
+  it('welcome — 2 days after the event was created', () => {
+    const text = CLUB_AUTO_TEXTS.welcome('Café Soleá');
+    expect(text).toBe('Hey, freut mich, dass ihr dabei seid! 😊 Wir sind Café Soleá und freuen uns schon riesig auf euch. Fragen? Schreibt einfach hier rein!');
+    expect(points(text)).toContain(0x1F60A);
+  });
+
+  it('eve — the day before, with address and deal', () => {
+    const text = CLUB_AUTO_TEXTS.eve({ address: 'Kaiserstraße 60, 1070 Wien', deal: '1 Punsch gratis' });
+    expect(text).toBe('Morgen ist es so weit! 🎉 Wir sehen uns in der Kaiserstraße 60, 1070 Wien. Vergesst nicht euren Deal: 1 Punsch gratis.');
+    expect(points(text)).toContain(0x1F389);
+  });
+
+  it('eve — without a deal only the deal sentence is left out; without a location the address sentence too', () => {
+    expect(CLUB_AUTO_TEXTS.eve({ address: 'Kaiserstraße 60, 1070 Wien', deal: null }))
+      .toBe('Morgen ist es so weit! 🎉 Wir sehen uns in der Kaiserstraße 60, 1070 Wien.');
+    expect(CLUB_AUTO_TEXTS.eve({ address: '', deal: '1 Punsch gratis' }))
+      .toBe('Morgen ist es so weit! 🎉 Vergesst nicht euren Deal: 1 Punsch gratis.');
+    expect(CLUB_AUTO_TEXTS.eve({ address: null, deal: undefined })).toBe('Morgen ist es so weit! 🎉');
+    expect(CLUB_AUTO_TEXTS.eve({ address: '   ', deal: ' . ' })).toBe('Morgen ist es so weit! 🎉');
+    expect(CLUB_AUTO_TEXTS.eve()).toBe('Morgen ist es so weit! 🎉');
+  });
+
+  it('a label or an address that ends in a full stop does not end the sentence with „..“', () => {
+    const text = CLUB_AUTO_TEXTS.eve({ address: 'Praterstern 1. ', deal: '2 für 1 auf alle Drinks.' });
+    expect(text).toBe('Morgen ist es so weit! 🎉 Wir sehen uns in der Praterstern 1. Vergesst nicht euren Deal: 2 für 1 auf alle Drinks.');
+    expect(text).not.toContain('..');
+    // a full stop INSIDE stays
+    expect(CLUB_AUTO_TEXTS.eve({ address: 'Kaiserstr. 60', deal: null })).toBe('Morgen ist es so weit! 🎉 Wir sehen uns in der Kaiserstr. 60.');
+  });
+
+  it('soon — 2 hours before; thanks — the day after', () => {
+    expect(CLUB_AUTO_TEXTS.soon()).toBe('Wir sind bereit für euch! Bis gleich 👋');
+    expect(points(CLUB_AUTO_TEXTS.soon())).toContain(0x1F44B);
+    expect(CLUB_AUTO_TEXTS.thanks()).toBe('Danke, dass ihr da wart! 💛 Hat es euch gefallen?');
+    expect(points(CLUB_AUTO_TEXTS.thanks())).toContain(0x1F49B);
+  });
+
+  it('plain spaces only, no price, nothing that reads like a template left over', () => {
+    const all = [
+      CLUB_AUTO_TEXTS.welcome('X'), CLUB_AUTO_TEXTS.eve({ address: 'A', deal: 'D' }),
+      CLUB_AUTO_TEXTS.soon(), CLUB_AUTO_TEXTS.thanks(),
+    ].join('|');
+    expect(all).not.toMatch(/[\u00A0\u202F\u2009]/);
+    expect(all).not.toMatch(/[\[\]{}€]|undefined|null/);
   });
 });

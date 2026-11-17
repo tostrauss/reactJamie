@@ -23,6 +23,34 @@ export const clubAutoMessagesEnabled = () => process.env.CLUB_AUTO_MESSAGES !== 
 
 const isMissingRelation = (err) => err?.code === '42P01' || err?.code === '42703';
 
+// ── The four messages ────────────────────────────────────────────────────
+// Tina's wording, character for character (document of 17.11.2026, lines
+// 81–85). German server constants like SYSTEM_TEXTS: a chat message is stored
+// as ONE string that every reader sees as it is.
+//   [Betrieb] = the club's name
+//   [Adresse] = the event's location
+//   [Deal]    = the label of the deal the event shows
+// „Einen Tag davor“ (decided 17.11.2026, F-3): without a deal only the deal
+// sentence is left out, without a location the address sentence too.
+// What is filled in loses a trailing full stop (and spaces), so a label
+// „1 Punsch gratis.“ does not end the sentence with „..“.
+const tidy = (v) => String(v ?? '').trim().replace(/[.\s]+$/, '');
+
+export const CLUB_AUTO_TEXTS = Object.freeze({
+  // 2 days after the event was created
+  welcome: (betrieb) => `Hey, freut mich, dass ihr dabei seid! 😊 Wir sind ${tidy(betrieb)} und freuen uns schon riesig auf euch. Fragen? Schreibt einfach hier rein!`,
+  // the day before
+  eve: ({ address, deal } = {}) => [
+    'Morgen ist es so weit! 🎉',
+    tidy(address) ? `Wir sehen uns in der ${tidy(address)}.` : null,
+    tidy(deal) ? `Vergesst nicht euren Deal: ${tidy(deal)}.` : null,
+  ].filter(Boolean).join(' '),
+  // 2 hours before
+  soon: () => 'Wir sind bereit für euch! Bis gleich 👋',
+  // the day after
+  thanks: () => 'Danke, dass ihr da wart! 💛 Hat es euch gefallen?',
+});
+
 /**
  * Switch it on for a NEW event, inside createClubEvent's transaction.
  * Behind a savepoint: if the table is not there yet, only this insert is

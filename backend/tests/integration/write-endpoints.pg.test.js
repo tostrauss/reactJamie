@@ -7949,6 +7949,269 @@ suite('write endpoints against real Postgres', () => {
       expect(inCommunity.body.auto_messages).toBe(false);
       expect(await rowOf(cev)).toBeNull();
     });
+
+    // ── The job (jobs/clubEventMessages.js) against real Postgres with an
+    // INJECTED clock. Fixtures live in September/October 2027 (CEST, +02:00),
+    // so nothing here depends on the real NOW(). The claims are global, so
+    // every assert reads the chat of ITS event.
+    describe('der Versand', () => {
+      let job;
+      const WELCOME = (club) => `Hey, freut mich, dass ihr dabei seid! 😊 Wir sind ${club} und freuen uns schon riesig auf euch. Fragen? Schreibt einfach hier rein!`;
+      const SOON = 'Wir sind bereit für euch! Bis gleich 👋';
+      const THANKS = 'Danke, dass ihr da wart! 💛 Hat es euch gefallen?';
+      const run = (now, opts = {}) => job.runClubEventMessages({ now, ...opts });
+      // An event with the switch on, set at `setAt`; one guest in it unless said otherwise.
+      const mkEvent = async (club, { date, time = '19:00', setAt = '2027-09-01T10:00:00+02:00', guest = true, by = owner, ...body } = {}) => {
+        const res = await create(club, { name: 'Job Abend', date, time, auto_messages: true, ...body }, by);
+        expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+        expect(res.body.auto_messages).toBe(true);
+        await db.query(`UPDATE club_event_auto_messages SET created_at = $2::timestamptz WHERE group_id = $1`, [res.body.id, setAt]);
+        if (guest) await joinEv(res.body.id, member);
+        return res.body.id;
+      };
+      const joinEv = (eventId, userId) => db.query(
+        `INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, [eventId, userId]);
+      const chat = async (eventId) => (await db.query(
+        `SELECT user_id, content, message_type FROM messages
+          WHERE group_id = $1 AND message_type <> 'system' ORDER BY id`, [eventId])).rows;
+      const said = async (eventId) => (await chat(eventId)).map((m) => m.content);
+
+      beforeAll(async () => { job = await import('../../src/jobs/clubEventMessages.js'); });
+
+      it('welcome: 48 hours after the switch was set — an ordinary text message of the creator, once, live to the open chat', async () => {
+        const club = await mkClub('Café Job Welcome');
+        const ev = await mkEvent(club, { date: '2027-09-20', setAt: '2027-09-10T10:00:00+02:00' });
+        await run('2027-09-12T09:55:00+02:00');                         // 47 h 55 min
+        expect(await chat(ev)).toEqual([]);
+
+        emitted.length = 0;
+        const out = await run('2027-09-12T10:00:00+02:00', { io: fakeIo });
+        expect(out.welcome).toBeGreaterThanOrEqual(1);
+        expect(await chat(ev)).toEqual([{ user_id: owner, content: WELCOME('Café Job Welcome'), message_type: 'text' }]);
+        expect((await rowOf(ev)).welcome_sent_at).not.toBeNull();
+        // what went over the socket is the stored row, with the sender's name
+        const live = emitted.find((e) => e.ev === 'receive_message' && Number(e.payload.group_id) === ev);
+        expect(live.payload).toMatchObject({ user_id: owner, user_name: 'Olivia', content: WELCOME('Café Job Welcome'), message_type: 'text', reply_to: null });
+        expect(live.payload.id).toEqual(expect.any(Number));
+        expect(emitted.find((e) => e.ev === 'group_message_notification' && Number(e.payload.group_id) === ev).payload)
+          .toMatchObject({ group_type: 'event', user_name: 'Olivia', message_type: 'text' });
+
+        await run('2027-09-12T10:15:00+02:00');
+        await run('2027-09-13T10:00:00+02:00');
+        expect(await said(ev)).toHaveLength(1);
+        // the chat reads it like any message a person typed
+        const page = await call(C.getMessages, { userId: member, params: { groupId: String(ev) }, query: {} });
+        ok(page);
+        const shown = (page.body.messages || page.body).find((m) => m.content === WELCOME('Café Job Welcome'));
+        expect(shown).toMatchObject({ user_id: owner, user_name: 'Olivia', message_type: 'text' });
+      });
+
+      it('never at night: due at 23:30 it waits for 09:00', async () => {
+        const club = await mkClub('Café Job Nacht');
+        const ev = await mkEvent(club, { date: '2027-09-20', setAt: '2027-09-10T23:30:00+02:00' });
+        await run('2027-09-12T23:30:00+02:00');
+        await run('2027-09-13T08:45:00+02:00');
+        expect(await chat(ev)).toEqual([]);
+        await run('2027-09-13T09:00:00+02:00');
+        expect(await said(ev)).toEqual([WELCOME('Café Job Nacht')]);
+      });
+
+      it('the day before, at the event\'s own hour: with the address and the deal — without a deal only that sentence is missing', async () => {
+        const club = await mkClub('Café Job Vortag');
+        const withDeal = await mkEvent(club, {
+          date: '2027-09-22', setAt: '2027-09-21T08:00:00+02:00',      // the welcome is not due these days
+          deal: { name: 'Café Job', deal_label: '1 Punsch gratis.', visible_until: await day(30) },
+        });
+        const without = await mkEvent(club, { date: '2027-09-22', setAt: '2027-09-21T08:00:00+02:00', location: 'Praterstern 1, 1020 Wien' });
+        await run('2027-09-20T19:00:00+02:00');                         // two days before
+        await run('2027-09-21T18:55:00+02:00');                         // the day before, five minutes early
+        expect(await chat(withDeal)).toEqual([]);
+        await run('2027-09-21T19:00:00+02:00');
+        expect(await chat(withDeal)).toEqual([{
+          user_id: owner, message_type: 'text',
+          content: 'Morgen ist es so weit! 🎉 Wir sehen uns in der Kaiserstraße 60, 1070 Wien. Vergesst nicht euren Deal: 1 Punsch gratis.',
+        }]);
+        expect(await said(without)).toEqual(['Morgen ist es so weit! 🎉 Wir sehen uns in der Praterstern 1, 1020 Wien.']);
+        await run('2027-09-21T19:15:00+02:00');
+        expect(await said(withDeal)).toHaveLength(1);
+        expect((await rowOf(withDeal)).eve_sent_for).not.toBeNull();
+      });
+
+      it('two hours before, and the day after — a late tick that day still counts, 23:30 does not', async () => {
+        const club = await mkClub('Café Job Tag');
+        const ev = await mkEvent(club, { date: '2027-09-25', setAt: '2027-09-24T08:00:00+02:00' });
+        await db.query(`UPDATE club_event_auto_messages SET eve_sent_for = '2027-09-25 19:00' WHERE group_id = $1`, [ev]);
+        await run('2027-09-25T16:55:00+02:00');                         // 2 h 05 min before
+        expect(await chat(ev)).toEqual([]);
+        await run('2027-09-25T17:10:00+02:00');                         // 1 h 50 min before
+        expect(await chat(ev)).toEqual([{ user_id: owner, content: SOON, message_type: 'text' }]);
+        await run('2027-09-25T17:25:00+02:00');
+        await run('2027-09-25T19:10:00+02:00');                         // it has started
+        expect(await said(ev)).toEqual([SOON]);
+
+        await run('2027-09-26T18:55:00+02:00');                         // the day after, before its hour
+        expect(await said(ev)).toEqual([SOON]);
+        await run('2027-09-26T21:40:00+02:00');
+        expect(await said(ev)).toEqual([SOON, THANKS]);
+        await run('2027-09-26T21:55:00+02:00');
+        await run('2027-09-27T19:00:00+02:00');
+        expect(await said(ev)).toEqual([SOON, THANKS]);
+
+        // a second event whose day after only sees a tick at 23:30: nothing, ever
+        const late = await mkEvent(club, { date: '2027-09-25', setAt: '2027-09-24T08:00:00+02:00' });
+        await run('2027-09-26T23:30:00+02:00');
+        await run('2027-09-27T09:00:00+02:00');
+        expect(await said(late)).toEqual([]);
+      });
+
+      it('a date-only event: the day before and the day after from 09:00, never „Bis gleich“', async () => {
+        const club = await mkClub('Café Job Ganztag');
+        const ev = await mkEvent(club, { date: '2027-09-29', time: null, setAt: '2027-09-28T08:00:00+02:00', location: 'Donauinsel' });
+        await run('2027-09-28T08:45:00+02:00');
+        expect(await said(ev)).toEqual([]);
+        await run('2027-09-28T09:00:00+02:00');
+        expect(await said(ev)).toEqual(['Morgen ist es so weit! 🎉 Wir sehen uns in der Donauinsel.']);
+        await run('2027-09-28T22:10:00+02:00');                         // „2 h before midnight“ is no start
+        await run('2027-09-29T09:00:00+02:00');
+        await run('2027-09-30T09:00:00+02:00');
+        expect(await said(ev)).toEqual(['Morgen ist es so weit! 🎉 Wir sehen uns in der Donauinsel.', THANKS]);
+      });
+
+      it('moving the event re-arms the day before, the two hours and the day after — the welcome stays sent', async () => {
+        const club = await mkClub('Café Job Verschoben');
+        const ev = await mkEvent(club, { date: '2027-10-05', setAt: '2027-09-20T10:00:00+02:00' });
+        await run('2027-09-22T10:00:00+02:00');                         // welcome
+        await run('2027-10-04T19:00:00+02:00');                         // the day before
+        await run('2027-10-05T17:30:00+02:00');                         // two hours before
+        const first = await said(ev);
+        expect(first).toEqual([WELCOME('Café Job Verschoben'), 'Morgen ist es so weit! 🎉 Wir sehen uns in der Kaiserstraße 60, 1070 Wien.', SOON]);
+
+        ok(await edit(club, ev, { date: '2027-10-12', time: '20:00' }));
+        await run('2027-10-05T18:00:00+02:00');                         // the old slots mean nothing now
+        await run('2027-10-06T19:00:00+02:00');
+        expect(await said(ev)).toEqual(first);
+        await run('2027-10-11T20:00:00+02:00');
+        await run('2027-10-12T18:10:00+02:00');
+        await run('2027-10-13T20:00:00+02:00');
+        expect((await said(ev)).slice(3)).toEqual(['Morgen ist es so weit! 🎉 Wir sehen uns in der Kaiserstraße 60, 1070 Wien.', SOON, THANKS]);
+      });
+
+      it('switched off: nothing — switched on again: what is due from then on', async () => {
+        const club = await mkClub('Café Job Aus');
+        const ev = await mkEvent(club, { date: '2027-10-16', setAt: '2027-10-15T08:00:00+02:00' });
+        ok(await edit(club, ev, { auto_messages: false }));
+        await run('2027-10-15T19:00:00+02:00');
+        await run('2027-10-16T17:30:00+02:00');
+        expect(await chat(ev)).toEqual([]);
+        expect(await rowOf(ev)).toMatchObject({ enabled: false, eve_sent_for: null, soon_sent_for: null });
+        ok(await edit(club, ev, { auto_messages: true }));
+        await run('2027-10-16T17:40:00+02:00');
+        expect(await said(ev)).toEqual([SOON]);
+      });
+
+      it('nobody but the creator is in: not claimed — after the first join, the next tick sends', async () => {
+        const club = await mkClub('Café Job Allein');
+        const ev = await mkEvent(club, { date: '2027-10-19', setAt: '2027-10-18T08:00:00+02:00', guest: false });
+        await run('2027-10-18T19:00:00+02:00');
+        expect(await chat(ev)).toEqual([]);
+        expect((await rowOf(ev)).eve_sent_for).toBeNull();               // not used up
+        await joinEv(ev, member);
+        await run('2027-10-18T19:15:00+02:00');
+        expect(await said(ev)).toEqual(['Morgen ist es so weit! 🎉 Wir sehen uns in der Kaiserstraße 60, 1070 Wien.']);
+      });
+
+      it('a weekly series: the welcome only — also when its first meeting is already over', async () => {
+        const club = await mkClub('Café Job Serie');
+        const ev = await mkEvent(club, { date: '2027-10-21', is_recurring_weekly: true, setAt: '2027-10-20T10:00:00+02:00' });
+        await run('2027-10-20T19:00:00+02:00');                         // „the day before“
+        await run('2027-10-21T17:30:00+02:00');                         // „two hours before“
+        expect(await chat(ev)).toEqual([]);
+        await run('2027-10-22T10:00:00+02:00');                         // 48 h — the first meeting was yesterday
+        expect(await said(ev)).toEqual([WELCOME('Café Job Serie')]);
+        await run('2027-10-22T19:00:00+02:00');                         // „the day after“
+        await run('2027-10-27T19:00:00+02:00');
+        expect(await said(ev)).toEqual([WELCOME('Café Job Serie')]);
+      });
+
+      it('a one-off event that is over gets no late welcome, and none after „Morgen ist es so weit!“', async () => {
+        const club = await mkClub('Café Job Knapp');
+        // set 30 hours before the start: the 48 hours end after the event
+        const over = await mkEvent(club, { date: '2027-10-24', setAt: '2027-10-23T13:00:00+02:00' });
+        // set so that the 48 hours end on the day before, an hour after the event's hour
+        const backwards = await mkEvent(club, { date: '2027-10-26', setAt: '2027-10-23T20:00:00+02:00' });
+        await run('2027-10-25T13:00:00+02:00');
+        expect((await said(over)).filter((t) => t.startsWith('Hey'))).toEqual([]);
+        await run('2027-10-25T19:00:00+02:00');                         // backwards: the day before
+        await run('2027-10-25T20:00:00+02:00');                         // backwards: 48 h are up
+        expect(await said(backwards)).toEqual(['Morgen ist es so weit! 🎉 Wir sehen uns in der Kaiserstraße 60, 1070 Wien.']);
+      });
+
+      it('who writes: the creator — if they left the event, the club\'s owner; if neither is in, nobody (and it is not made up later)', async () => {
+        const club = await mkClub('Café Job Absender');
+        const byCo = await mkEvent(club, { date: '2027-11-02', setAt: '2027-11-01T08:00:00+01:00', by: co });
+        await run('2027-11-01T19:00:00+01:00');
+        expect((await chat(byCo))[0]).toMatchObject({ user_id: co, message_type: 'text' });
+
+        // the co-manager leaves their event; the club owner is in its chat
+        await db.query(`DELETE FROM group_members WHERE group_id = $1 AND user_id = $2`, [byCo, co]);
+        await joinEv(byCo, owner);
+        await run('2027-11-02T17:30:00+01:00');
+        expect((await chat(byCo))[1]).toMatchObject({ user_id: owner, content: SOON });
+
+        // neither of them in the chat
+        await db.query(`DELETE FROM group_members WHERE group_id = $1 AND user_id = $2`, [byCo, owner]);
+        await joinEv(byCo, (await mkU(`extra-${Date.now()}`, 'Extra')));
+        await run('2027-11-03T19:00:00+01:00');
+        expect(await chat(byCo)).toHaveLength(2);
+        expect((await rowOf(byCo)).thanks_sent_for).not.toBeNull();
+        await joinEv(byCo, owner);
+        await run('2027-11-03T19:15:00+01:00');
+        expect(await chat(byCo)).toHaveLength(2);
+      });
+
+      it('not for an event marked „Hat nicht stattgefunden“, not under a club that is no longer a live official one', async () => {
+        const club = await mkClub('Café Job Gate');
+        const notHeld = await mkEvent(club, { date: '2027-11-06', setAt: '2027-11-05T08:00:00+01:00' });
+        await db.query(`UPDATE groups SET did_not_take_place = TRUE WHERE id = $1`, [notHeld]);
+        await run('2027-11-07T19:00:00+01:00');
+        expect(await chat(notHeld)).toEqual([]);
+
+        const demoted = await mkClub('Café Job Herabgestuft');
+        const ev = await mkEvent(demoted, { date: '2027-11-09', setAt: '2027-11-08T08:00:00+01:00' });
+        await db.query(`UPDATE groups SET club_type = 'community' WHERE id = $1`, [demoted]);
+        await run('2027-11-08T19:00:00+01:00');
+        expect(await chat(ev)).toEqual([]);
+        await db.query(`UPDATE groups SET club_type = 'official', approval_status = 'pending' WHERE id = $1`, [demoted]);
+        await run('2027-11-08T19:15:00+01:00');
+        expect(await chat(ev)).toEqual([]);
+        expect((await rowOf(ev)).eve_sent_for).toBeNull();
+        await db.query(`UPDATE groups SET approval_status = 'approved' WHERE id = $1`, [demoted]);
+        await run('2027-11-08T19:30:00+01:00');
+        expect(await said(ev)).toHaveLength(1);
+      });
+
+      it('kill switch CLUB_AUTO_MESSAGES=false: nothing is sent and nothing is used up', async () => {
+        const club = await mkClub('Café Job Schalter');
+        const ev = await mkEvent(club, { date: '2027-11-12', setAt: '2027-11-11T08:00:00+01:00' });
+        process.env.CLUB_AUTO_MESSAGES = 'false';
+        try {
+          expect(await run('2027-11-11T19:00:00+01:00')).toEqual({ welcome: 0, eve: 0, soon: 0, thanks: 0 });
+        } finally {
+          delete process.env.CLUB_AUTO_MESSAGES;
+        }
+        expect(await chat(ev)).toEqual([]);
+        expect((await rowOf(ev)).eve_sent_for).toBeNull();
+        await run('2027-11-11T19:15:00+01:00');
+        expect(await said(ev)).toHaveLength(1);
+      });
+
+      it('two ticks at the same moment (two replicas): one message', async () => {
+        const club = await mkClub('Café Job Doppelt');
+        const ev = await mkEvent(club, { date: '2027-11-15', setAt: '2027-11-14T08:00:00+01:00' });
+        await Promise.all([run('2027-11-14T19:00:00+01:00'), run('2027-11-14T19:00:00+01:00'), run('2027-11-14T19:00:00+01:00')]);
+        expect(await said(ev)).toHaveLength(1);
+      });
+    });
   });
   // <<< BAU1-SMOKE
   //

@@ -163,6 +163,7 @@ import { runDbBackup, isBackupConfigured, missingBackupEnv, getBackupConfig } fr
 import { runMediaBackupSync } from './jobs/mediaBackupSync.js';
 import { runEventReminders } from './jobs/eventReminders.js';
 import { runEngagementNudges } from './jobs/engagementNudges.js';
+import { runClubEventMessages } from './jobs/clubEventMessages.js';
 import { runAnalyticsPurge } from './jobs/analyticsPurge.js';
 import { PERMISSIONS_POLICY } from './config/securityHeaders.js';
 import { stripeWebhook as boostStripeWebhook } from './controllers/boostController.js';
@@ -738,6 +739,17 @@ cron.schedule('*/15 * * * *', async () => {
 // :00/:15/:30/:45 so the two claims don't hit the pool in the same second.
 cron.schedule('5,20,35,50 * * * *', () => {
   runEventReminders().catch(err => console.error('[cron] event reminders failed:', err.message));
+});
+
+// Automatisierte Nachrichten der Clubs (Tina 17.11.2026) — jobs/clubEventMessages.js.
+// :10/:25/:40/:55, versetzt zu Nudges (:00…) und Reminders (:05…). `io` lets
+// the messages appear live in an open chat.
+cron.schedule('10,25,40,55 * * * *', async () => {
+  try {
+    await runClubEventMessages({ io });
+  } catch (err) {
+    console.error('[cron] club event messages failed:', err.message);
+  }
 });
 
 // Friend request expiration: auto-reject pending requests older than 30 days, runs at 04:00
