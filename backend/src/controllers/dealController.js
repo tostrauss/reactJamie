@@ -6,7 +6,7 @@ import { clubAliveSql } from '../utils/clubGate.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { checkImageField } from '../utils/safeUrl.js';
 import { viennaToday } from '../utils/polls.js';
-import { isUserPro } from './subscriptionController.js';
+import { quotaOf, eventFreeRank, withinFreeEvents, partnerRequired } from '../utils/clubEventQuota.js';
 
 // Try to extract the city from a free-form address. Most DACH addresses end in
 // "PLZ City" (e.g. "Hauptstraße 1, 1010 Wien"). We take the last comma-separated
@@ -133,6 +133,15 @@ const queryWithClubGate = async (build, params) => {
 // Pro gate removed 2026-06-09: Robert wants cooperations to mix into Explore
 // + Home feeds for all users. Visibility is now controlled by visible_until
 // (admin-set expiry) instead of subscription status.
+//
+// JAMIE's own deals only since 17.11.2026 (Tina: „ABER! Der Deal wird in den
+// Gruppen nicht angezeigt. Das können nur wir als Admins einstellen!“): a
+// club's deal (deals.club_id) shows at its event — the event page, the club's
+// event list — and on its own page /deal/:id, never in this list, which the
+// Gruppen feed and the Clubs segment mix in. An admin brings a deal into the
+// feed by putting it up as a JAMIE deal, as before. Before the deals.club_id
+// migration (boot window, 42703) no club deal can exist, so the same read
+// without the condition is exact.
 export const getDeals = async (req, res) => {
   try {
     const result = await queryWithClubGate((clubLive) =>
@@ -146,7 +155,7 @@ export const getDeals = async (req, res) => {
          AND (max_redemptions IS NULL
               OR (SELECT COUNT(*) FROM deal_redemptions dr
                    WHERE dr.deal_id = d.id AND dr.period_key = (${PERIOD_KEY_SQL})) < max_redemptions)
-         AND ${clubLive}
+         AND ${clubLive === 'TRUE' ? 'TRUE' : 'd.club_id IS NULL'}
        ORDER BY created_at DESC`
     );
     res.json(result.rows);
@@ -414,29 +423,41 @@ const DEAL_VISIBLE_SQL = `d.is_active = TRUE
 /**
  * The visible deal of each event, in ONE query for a whole list (the event
  * page asks for one id, the club's event list for all of its events).
- * → Map(group_id → { id, name, deal_label, photo, verified }). Every deal
- * shown counts as checked („Geprüfter Partner“): a JAMIE deal is put up by an
- * admin, a club's own deal (P4 v2) only shows while JAMIE has its club
- * classified as an official club (CLUB_DEAL_LIVE_SQL). Never throws: a missing
- * table (boot window, 42P01) is simply „no deal“, anything else is logged and
- * the page still loads without one.
+ * → Map(group_id → { id, name, deal_label, photo, verified }).
+ *
+ * `verified` is the ✓ („Geprüfter Partner“), and since 17.11.2026 (Tina: „Den
+ * Haken bekommen nur Partner, die bezahlen“) it is for JAMIE's own deals —
+ * an admin put those up — and for the deals of PAYING partners
+ * (groups.is_paid_partner of the deal's club). The deal of an official club
+ * that does not pay shows exactly the same, without the ✓. The server
+ * decides; the app only draws. Before the deals.club_id migration (boot
+ * window, 42703) there are only JAMIE's deals: the fallback read has no club
+ * join and every deal is verified.
+ *
+ * A club's own deal only shows while JAMIE has its club classified as a live
+ * official club (CLUB_DEAL_LIVE_SQL). Never throws: a missing table (boot
+ * window, 42P01) is simply „no deal“, anything else is logged and the page
+ * still loads without one.
  */
 export async function getDealsForEvents(groupIds) {
   const deals = new Map();
   const ids = [...new Set((groupIds || []).map(Number).filter(Boolean))];
   if (!ids.length) return deals;
   try {
-    const { rows } = await queryWithClubGate((clubLive) =>
-      `SELECT ed.group_id, d.id, d.name, d.deal_label, d.photos->>0 AS photo
+    const { rows } = await queryWithClubGate((clubLive) => {
+      const fallback = clubLive === 'TRUE';
+      return `SELECT ed.group_id, d.id, d.name, d.deal_label, d.photos->>0 AS photo,
+              ${fallback ? 'TRUE' : '(d.club_id IS NULL OR dc.is_paid_partner = TRUE)'} AS verified
          FROM event_deals ed
-         JOIN deals d ON d.id = ed.deal_id
+         JOIN deals d ON d.id = ed.deal_id${fallback ? '' : '\n         LEFT JOIN groups dc ON dc.id = d.club_id'}
         WHERE ed.group_id = ANY($1::int[])
           AND ${DEAL_VISIBLE_SQL}
-          AND ${clubLive}`,
-      [ids]
-    );
+          AND ${clubLive}`;
+    }, [ids]);
     for (const r of rows) {
-      deals.set(r.group_id, { id: r.id, name: r.name, deal_label: r.deal_label, photo: r.photo || null, verified: true });
+      deals.set(r.group_id, {
+        id: r.id, name: r.name, deal_label: r.deal_label, photo: r.photo || null, verified: r.verified === true,
+      });
     }
   } catch (err) {
     if (err?.code !== '42P01') console.error('[deals] event deal lookup failed:', err.message);
@@ -689,10 +710,11 @@ export const getDealsForAdmin = async (_req, res) => {
 //
 // P4 v2 (Tobi 16.11.2026): a club's owner and co-managers do the same for
 // their OWN club's events with their OWN club's deals, behind the club-deal
-// gate below (hanging one on needs Pro or an app admin, taking it off does
-// not). What JAMIE hung on such an event — a deal that is not the club's —
-// stays: only an admin moves it (409 DEAL_SET_BY_JAMIE). Admins may still do
-// everything, which is why the route has no requireAdmin any more.
+// gate below (hanging one on goes for the club's first free events or for a
+// paying partner — the 17.11.2026 model, no Pro any more; taking it off is
+// always free). What JAMIE hung on such an event — a deal that is not the
+// club's — stays: only an admin moves it (409 DEAL_SET_BY_JAMIE). Admins may
+// still do everything, which is why the route has no requireAdmin any more.
 const toPositiveInt = (v) => {
   let n = null;
   if (typeof v === 'number') n = v;
@@ -700,7 +722,7 @@ const toPositiveInt = (v) => {
   return Number.isInteger(n) && n > 0 && n <= 2147483647 ? n : null;
 };
 
-const DEAL_SET_BY_JAMIE = {
+export const DEAL_SET_BY_JAMIE = {
   error: 'An diesem Event hängt ein Deal von JAMIE. Den kann nur das JAMIE-Team ändern.',
   code: 'DEAL_SET_BY_JAMIE',
 };
@@ -736,7 +758,11 @@ export const setEventDeal = async (req, res) => {
       // A club's own manager: only an event of that club…
       clubId = event.rows[0].type === 'event' ? event.rows[0].parent_club_id : null;
       if (!clubId) return res.status(403).json({ error: 'Keine Berechtigung', code: 'NOT_CLUB_MANAGER' });
-      const access = await clubDealAccess(clubId, req.userId, { needPro: dealId !== null });
+      // Hanging one on: the event's place among the club's free events
+      // decides, or the partnership ('event'). Taking it off is always free.
+      const access = await clubDealAccess(clubId, req.userId, {
+        need: dealId !== null ? 'event' : 'read', eventId: groupId,
+      });
       if (!access.club) return res.status(access.status).json(access.body);
       // …only one of the club's own live deals…
       if (dealId !== null) {
@@ -809,43 +835,50 @@ export const setEventDeal = async (req, res) => {
 // ==========================================
 // CLUB DEALS   /api/deals/club/:clubId[/:dealId]   (P4 v2, Tina/Tobi 16.11.2026)
 // ==========================================
-// Tina: „Deals: Paid!! Wenn man als Club einen Deal anlegen will selbst, kann
-// man das nur mit Pro Abo.“ The owner and the co-managers (group_members.role
-// = 'admin', the userManagesClub rule) of a live OFFICIAL club keep the
-// club's own deals (deals.club_id, created_by). They show exactly like a
-// JAMIE deal (feed, deal page, at events — CLUB_DEAL_LIVE_SQL); only the city
-// push stays with JAMIE's deals: a club deal never sends one.
+// The owner and the co-managers (group_members.role = 'admin', the
+// userManagesClub rule) of a live OFFICIAL club keep the club's own deals
+// (deals.club_id, created_by). A club deal looks exactly like a JAMIE deal
+// where it shows — at its event and on its own page (CLUB_DEAL_LIVE_SQL) —
+// but it never enters the feed (getDeals) and never sends the city push;
+// both stay with JAMIE's deals.
 //
-// The paid part is putting something up: creating, editing, hanging a deal
-// on an event need JAMIE Pro (isUserPro) or an app admin — unlike the ticket
-// link (isUserPro only): the JAMIE team runs official clubs without a
-// subscription of its own. Reading the list, deleting and taking a deal off
-// an event stay free, so a club can always take down what it published, also
-// after its subscription ended. A community never gets deals: no venue
-// behind it, and it goes live without review.
+// WHO MAY PUT ONE UP — the model of 17.11.2026 (Tina's new document, decided
+// by Tobi; it replaces „nur mit Pro Abo“ of 16.11., and JAMIE Pro plays no
+// part here any more):
+//   - ONE deal per event, put up with the event („Deal anlegen“ in the event
+//     form) or on its edit page — free for a club's first FREE_CLUB_EVENTS
+//     events, after that only as a paying JAMIE partner („Deals anlegen, für
+//     die ersten 2 Events. Danach wäre das Event sowieso nur mit Paid, dann
+//     gehen die Deals auch wieder“). The event's place among the club's
+//     counted events decides (utils/clubEventQuota.js eventFreeRank).
+//   - The deal library below (/api/deals/club/…, what app bundles from
+//     before 17.11. still call): putting up and editing only as a paying
+//     partner. An app admin and CLUB_FREE_TIER=false are free of both.
+// Refused: 403 PARTNER_REQUIRED, reason 'deal', with a German sentence.
+// Reading the list, deleting and taking a deal off an event stay free, so a
+// club can always take down what it published. A community never gets deals:
+// no venue behind it, and it goes live without review.
 //
 // visible_until is required and at most CLUB_DEAL_MAX_DAYS ahead, so a deal
-// does not outlive the subscription it was put up with; renewing it is an
-// edit, and an edit needs Pro again. Texts go through checkTextSafety, photos
-// through the image allowlist (checkImageField) — JAMIE's own deals do not,
-// their admins are trusted. Nothing to clear afterwards: like the admin
-// endpoints, nothing that shows a deal is cached.
+// does not run on unattended; renewing it is an edit. Texts go through
+// checkTextSafety, photos through the image allowlist (checkImageField) —
+// JAMIE's own deals do not, their admins are trusted. Nothing to clear
+// afterwards: like the admin endpoints, nothing that shows a deal is cached.
 export const CLUB_DEAL_MAX_DAYS = 180;
 
-const CLUB_DEALS_UNAVAILABLE = {
+export const CLUB_DEALS_UNAVAILABLE = {
   error: 'Deals sind gleich wieder verfügbar. Bitte versuche es in einer Minute erneut.',
   code: 'CLUB_DEALS_UNAVAILABLE',
 };
 
-// At most CLUB_DEAL_MAX_LIVE of a club's deals are live at a time (review
-// 16.11.2026): getDeals has no place or club filter and puts the newest
-// first, so one club with Pro and a script could fill the deals of every
-// city — each one a moderation and a geocoding call besides. Live = active
-// and not past visible_until, which is more than the feed shows: a one-time
-// deal at its redemption cap drops out of the feed (getDeals) but keeps its
-// slot — the club's list shows it dimmed, „Limit erreicht“ — until it is
-// deleted or runs out. A club makes room by deleting one or letting it run
-// out; an edit counts only when it brings an expired deal back.
+// At most CLUB_DEAL_MAX_LIVE of a club's deals are live at a time in the
+// LIBRARY (review 16.11.2026: one club and a script could put up any number
+// — each one a moderation and a geocoding call). Live = active and not past
+// visible_until: a one-time deal at its redemption cap keeps its slot — the
+// club's list shows it dimmed, „Limit erreicht“ — until it is deleted or
+// runs out. A club makes room by deleting one or letting it run out; an edit
+// counts only when it brings an expired deal back. The deal put up WITH an
+// event (writeEventClubDeal) is not held to it: there it is one per event.
 export const CLUB_DEAL_MAX_LIVE = 3;
 
 const CLUB_DEAL_LIMIT = {
@@ -894,12 +927,22 @@ async function writeUnderClubDealLimit(clubId, dealId, write) {
 
 // Who may do what with a club's deals → { club } or { status, body }. In
 // this order, so nobody learns more than they may: an unknown club 404, a
-// non-manager 403 (with Pro, too), a community 403 OFFICIAL_CLUB_REQUIRED, a
-// club that is not live (in review, rejected, closed) 403 CLUB_NOT_LIVE, and
-// only then, where `needPro`, the paid part: 403 PRO_REQUIRED.
-async function clubDealAccess(clubId, userId, { needPro }) {
+// non-manager 403 (a paying partner's, too), a community 403
+// OFFICIAL_CLUB_REQUIRED, a club that is not live (in review, rejected,
+// closed) 403 CLUB_NOT_LIVE, and only then the part that costs:
+//   need 'read'     list, delete, take off an event — always free
+//   need 'library'  put up or edit a deal in the library — a club that is
+//                   not limited (a paying partner, an app admin calling, the
+//                   free tier switched off)
+//   need 'event'    put a deal on the event `eventId` — a club that is not
+//                   limited, or one of the club's first free events; an id
+//                   that is no live event of this club is a 404
+// Refused: 403 PARTNER_REQUIRED / 'deal'. `adminToo` lets an app admin who
+// does not manage the club pass the manager check (the endpoints under
+// /api/clubs/:id/events/:eventId/…; the library never did).
+export async function clubDealAccess(clubId, userId, { need = 'read', eventId = null, adminToo = false } = {}) {
   const { rows } = await db.query(
-    `SELECT c.id, c.club_type, c.location, c.lat, c.lng,
+    `SELECT c.id, c.name, c.club_type, c.is_paid_partner, c.location, c.lat, c.lng,
             (${clubAliveSql('c')}) AS is_live,
             (c.owner_id = $2 OR EXISTS (
                SELECT 1 FROM group_members gm
@@ -911,18 +954,32 @@ async function clubDealAccess(clubId, userId, { needPro }) {
   );
   const club = rows[0];
   if (!club) return { status: 404, body: { error: 'Club nicht gefunden' } };
-  if (!club.is_manager) return { status: 403, body: { error: 'Keine Berechtigung', code: 'NOT_CLUB_MANAGER' } };
-  if (club.club_type !== 'official') {
-    return { status: 403, body: { error: 'Deals gibt es nur für offizielle Clubs, nicht für Communities.', code: 'OFFICIAL_CLUB_REQUIRED' } };
+  if (!club.is_manager && !(adminToo && club.caller_is_admin)) {
+    return { status: 403, body: { error: 'Keine Berechtigung', code: 'NOT_CLUB_MANAGER' } };
   }
-  if (!club.is_live) {
-    return { status: 403, body: { error: 'Dein Club ist gerade nicht freigegeben.', code: 'CLUB_NOT_LIVE' } };
+  if (club.club_type !== 'official') return { status: 403, body: CLUB_DEAL_REFUSALS.community };
+  if (!club.is_live) return { status: 403, body: CLUB_DEAL_REFUSALS.notLive };
+  if (need === 'read') return { club };
+
+  let rank = null;
+  if (need === 'event') {
+    rank = await eventFreeRank(db, club.id, eventId);
+    if (!rank) return { status: 404, body: { error: 'Veranstaltung nicht gefunden' } };
   }
-  if (needPro && !club.caller_is_admin && !(await isUserPro(userId))) {
-    return { status: 403, body: { error: 'Deals für deinen Club sind ein Pro-Feature.', code: 'PRO_REQUIRED' } };
-  }
-  return { club };
+  // Not limited: a paying partner, an app admin calling, the free tier off or
+  // not begun (quotaOf — the same reading the event paths use).
+  const quota = await quotaOf(db, club);
+  if (!quota.limited) return { club };
+  if (need === 'event' && withinFreeEvents(rank)) return { club };
+  return { status: 403, body: partnerRequired('deal', club.name) };
 }
+
+// The two refusals a deal gets for the kind of club it is — also what
+// createClubEvent answers when an event arrives with a deal.
+export const CLUB_DEAL_REFUSALS = Object.freeze({
+  community: { error: 'Deals gibt es nur für offizielle Clubs, nicht für Communities.', code: 'OFFICIAL_CLUB_REQUIRED' },
+  notLive: { error: 'Dein Club ist gerade nicht freigegeben.', code: 'CLUB_NOT_LIVE' },
+});
 
 // The last moment a club deal may run: the end, in Vienna, of the Vienna
 // calendar day CLUB_DEAL_MAX_DAYS after today there — the last day DealForm
@@ -958,7 +1015,7 @@ function parseClubDealUntil(value) {
 // { fields } or { status, error }. JAMIE keeps category, is_active and lat/lng
 // to itself: a club deal's pin comes from its address — an empty address is
 // the club's own, pin included.
-async function clubDealFields(body, club, { partial }) {
+export async function parseClubDealBody(body, club, { partial }) {
   const b = body || {};
   const has = (k) => !partial || b[k] !== undefined;
   const invalid = validateDealInputs({
@@ -1037,6 +1094,58 @@ async function clubDealFields(body, club, { partial }) {
   return { fields };
 }
 
+/**
+ * The deal that belongs to ONE event of a club (17.11.2026: „Deal anlegen“ in
+ * the event form, and on the event's edit page): writes the deal and hangs it
+ * on the event, with `q` — a client inside the caller's transaction, so the
+ * deal never exists without its event (createClubEvent) nor the link without
+ * the deal.
+ *
+ * `fields` come from parseClubDealBody. Without `dealId` a new deal of the
+ * club is put up (club_id, created_by); with it, the club's own deal is
+ * edited in place — also one from the old library that hangs on several
+ * events. One deal per event: the link replaces the club's own deal there,
+ * never one JAMIE hung on the event — then nothing is linked and this throws
+ * with code 'DEAL_SET_BY_JAMIE' (the caller rolls back and answers 409). A
+ * `dealId` that is not this club's throws 'DEAL_NOT_FOUND'.
+ * → the deal row.
+ */
+export async function writeEventClubDeal(q, { clubId, eventId, userId, fields, dealId = null }) {
+  const keys = Object.keys(fields || {}); // fixed allowlist of parseClubDealBody — not user input
+  let deal;
+  if (dealId) {
+    const res = keys.length
+      ? await q.query(
+        `UPDATE deals SET ${keys.map((k, i) => `${k}=$${i + 1}`).join(', ')}, updated_at=CURRENT_TIMESTAMP
+          WHERE id=$${keys.length + 1} AND club_id=$${keys.length + 2} RETURNING *`,
+        [...keys.map((k) => fields[k]), dealId, clubId])
+      : await q.query('SELECT * FROM deals WHERE id = $1 AND club_id = $2', [dealId, clubId]);
+    deal = res.rows[0];
+    if (!deal) throw Object.assign(new Error('deal not found'), { code: 'DEAL_NOT_FOUND' });
+  } else {
+    const row = { ...fields, club_id: clubId, created_by: userId };
+    const cols = Object.keys(row);
+    const res = await q.query(
+      `INSERT INTO deals (${cols.join(', ')})
+       VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
+      cols.map((k) => row[k]));
+    deal = res.rows[0];
+    // Deliberately no notifyNearbyUsersAboutDeal: the city push is JAMIE's.
+  }
+  // The club's deal replaces only its own on the event — or none (the write
+  // of setEventDeal's manager branch).
+  const on = await q.query(
+    `INSERT INTO event_deals (group_id, deal_id, attached_by) VALUES ($1, $2, $3)
+     ON CONFLICT (group_id) DO UPDATE
+       SET deal_id = EXCLUDED.deal_id, attached_by = EXCLUDED.attached_by, created_at = NOW()
+       WHERE EXISTS (SELECT 1 FROM deals d WHERE d.id = event_deals.deal_id AND d.club_id = $4)
+     RETURNING group_id`,
+    [eventId, deal.id, userId, clubId]
+  );
+  if (!on.rowCount) throw Object.assign(new Error('a deal JAMIE set hangs on this event'), { code: 'DEAL_SET_BY_JAMIE' });
+  return deal;
+}
+
 // The ids of a club-deal route → { clubId, dealId } or null.
 const clubDealIds = (params, { withDeal }) => {
   const clubId = toPositiveInt(params.clubId);
@@ -1045,13 +1154,13 @@ const clubDealIds = (params, { withDeal }) => {
 };
 
 // GET /api/deals/club/:clubId — the club's live deals (deleted ones drop
-// out), with redemption counts and the events each hangs on. No Pro needed.
+// out), with redemption counts and the events each hangs on. Always free.
 export const getClubDeals = async (req, res) => {
   if (!req.userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   const ids = clubDealIds(req.params, { withDeal: false });
   if (!ids) return res.status(400).json({ error: 'Ungültige Club-ID' });
   try {
-    const access = await clubDealAccess(ids.clubId, req.userId, { needPro: false });
+    const access = await clubDealAccess(ids.clubId, req.userId, { need: 'read' });
     if (!access.club) return res.status(access.status).json(access.body);
     const { rows } = await db.query(
       `SELECT d.id, d.name, d.deal_label, d.description, d.address, d.photos, d.booking_url,
@@ -1074,20 +1183,22 @@ export const getClubDeals = async (req, res) => {
   }
 };
 
-// POST /api/deals/club/:clubId — a new deal of the club. Pro (or app admin).
+// POST /api/deals/club/:clubId — a new deal in the club's library: a paying
+// partner (or an app admin). What bundles from before 17.11.2026 call; the
+// new surface puts a deal up with its event (writeEventClubDeal).
 export const createClubDeal = async (req, res) => {
   if (!req.userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   const ids = clubDealIds(req.params, { withDeal: false });
   if (!ids) return res.status(400).json({ error: 'Ungültige Club-ID' });
   try {
-    const access = await clubDealAccess(ids.clubId, req.userId, { needPro: true });
+    const access = await clubDealAccess(ids.clubId, req.userId, { need: 'library' });
     if (!access.club) return res.status(access.status).json(access.body);
     // At the limit already: refused before the moderation and geocoding
     // calls. The binding count runs again under the lock, with the INSERT.
     if ((await liveClubDeals(db, ids.clubId)).others >= CLUB_DEAL_MAX_LIVE) {
       return res.status(409).json(CLUB_DEAL_LIMIT);
     }
-    const parsed = await clubDealFields(req.body, access.club, { partial: false });
+    const parsed = await parseClubDealBody(req.body, access.club, { partial: false });
     if (parsed.error) return res.status(parsed.status).json({ error: parsed.error });
     const row = { ...parsed.fields, club_id: ids.clubId, created_by: req.userId };
     const cols = Object.keys(row); // fixed allowlist above — not user input
@@ -1108,19 +1219,20 @@ export const createClubDeal = async (req, res) => {
 };
 
 // PUT /api/deals/club/:clubId/:dealId — partial edit, like updateDeal: only
-// what was sent changes. Pro (or app admin) — renewing visible_until is an edit.
+// what was sent changes. A paying partner (or an app admin) — renewing
+// visible_until is an edit.
 export const updateClubDeal = async (req, res) => {
   if (!req.userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   const ids = clubDealIds(req.params, { withDeal: true });
   if (!ids) return res.status(400).json({ error: 'Ungültige ID' });
   try {
-    const access = await clubDealAccess(ids.clubId, req.userId, { needPro: true });
+    const access = await clubDealAccess(ids.clubId, req.userId, { need: 'library' });
     if (!access.club) return res.status(access.status).json(access.body);
     const own = await db.query(
       'SELECT 1 FROM deals WHERE id = $1 AND club_id = $2 AND is_active = TRUE', [ids.dealId, ids.clubId]
     );
     if (!own.rows.length) return res.status(404).json({ error: 'Deal not found' });
-    const parsed = await clubDealFields(req.body, access.club, { partial: true });
+    const parsed = await parseClubDealBody(req.body, access.club, { partial: true });
     if (parsed.error) return res.status(parsed.status).json({ error: parsed.error });
     const keys = Object.keys(parsed.fields); // fixed allowlist above — not user input
     if (!keys.length) return res.status(400).json({ error: 'Keine Änderungen übergeben' });
@@ -1146,13 +1258,13 @@ export const updateClubDeal = async (req, res) => {
 };
 
 // DELETE /api/deals/club/:clubId/:dealId — soft, like deleteDeal: the deal
-// goes dark everywhere, its redemptions stay in the stats. No Pro needed.
+// goes dark everywhere, its redemptions stay in the stats. Always free.
 export const deleteClubDeal = async (req, res) => {
   if (!req.userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   const ids = clubDealIds(req.params, { withDeal: true });
   if (!ids) return res.status(400).json({ error: 'Ungültige ID' });
   try {
-    const access = await clubDealAccess(ids.clubId, req.userId, { needPro: false });
+    const access = await clubDealAccess(ids.clubId, req.userId, { need: 'read' });
     if (!access.club) return res.status(access.status).json(access.body);
     const result = await db.query(
       `UPDATE deals SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP

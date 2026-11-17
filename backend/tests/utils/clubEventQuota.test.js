@@ -4,7 +4,9 @@ import {
   clubFreeTierEnabled, countedEventSql, unitsSql, upcomingEventSql,
   quotaBlock, PARTNER_TEXTS, partnerRequired,
   loadClubForQuota, countClubEvents, quotaOf, clubQuota, ticketRule,
+  eventFreeRank, withinFreeEvents,
 } from '../../src/utils/clubEventQuota.js';
+import { clubAliveSql } from '../../src/utils/clubGate.js';
 
 // The free tier of clubs (Tina's document of 17.11.2026, decided by Tobi).
 // The decision and the SQL shape are pinned here; the real-Postgres smoke
@@ -91,6 +93,41 @@ describe('the SQL', () => {
       'c.category', 'c.events_owner_only', 'c.approval_status', 'c.is_active']) {
       expect(sql).toContain(col);
     }
+    // whether the club is live, by the one predicate every surface uses
+    expect(sql).toContain(`(${clubAliveSql('c')}) AS is_live`);
+  });
+});
+
+// Tina: „Deals anlegen, für die ersten 2 Events.“ — the event's place among
+// the club's counted events decides whether a deal goes with it.
+describe('eventFreeRank / withinFreeEvents', () => {
+  it('asks for one live event of this club: whether it counts, and how many counted ones came before it', async () => {
+    const q = { query: vi.fn(async () => ({ rows: [{ counted: true, before: 1 }] })) };
+    expect(await eventFreeRank(q, 7, 90)).toEqual({ counted: true, before: 1 });
+    const [sql, params] = q.query.mock.calls[0];
+    expect(params).toEqual([90, 7]);
+    expect(sql).toContain("e.id = $1 AND e.parent_club_id = $2 AND e.type = 'event' AND e.deleted_at IS NULL");
+    expect(sql).toContain(countedEventSql('e'));
+    expect(sql).toContain(countedEventSql('o'));
+    expect(sql).toContain('o.parent_club_id = e.parent_club_id');
+    expect(sql).toContain('(o.created_at, o.id) < (e.created_at, e.id)');
+  });
+
+  it('no such event in this club: null', async () => {
+    const q = { query: vi.fn(async () => ({ rows: [] })) };
+    expect(await eventFreeRank(q, 7, 90)).toBeNull();
+  });
+
+  it.each([
+    [{ counted: true, before: 0 }, true],      // the club's first event
+    [{ counted: true, before: 1 }, true],      // the second
+    [{ counted: true, before: 2 }, false],     // the third
+    [{ counted: true, before: 7 }, false],
+    [{ counted: false, before: 0 }, false],    // from before the deploy: none of the free ones
+    [null, false],
+    [undefined, false],
+  ])('%j → a deal goes with it: %j', (rank, want) => {
+    expect(withinFreeEvents(rank)).toBe(want);
   });
 });
 

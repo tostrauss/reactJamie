@@ -42,6 +42,7 @@
  * No database import: every function takes `q`, the pool or a client inside
  * a transaction — createClubEvent counts again under a lock on the club row.
  */
+import { clubAliveSql } from './clubGate.js';
 
 // Tina: „Ein Club kann 2 Events machen“.
 export const FREE_CLUB_EVENTS = 2;
@@ -132,6 +133,7 @@ export async function loadClubForQuota(q, clubId, userId) {
     `SELECT c.id, c.name, c.owner_id, c.club_type, c.is_paid_partner, c.is_private,
             c.location, c.lat, c.lng, c.category, c.events_owner_only,
             c.approval_status, c.is_active,
+            (${clubAliveSql('c')}) AS is_live,
             COALESCE((SELECT u.is_admin FROM users u WHERE u.id = $2), FALSE) AS caller_is_admin
        FROM groups c
       WHERE c.id = $1 AND c.type = 'club'`,
@@ -160,6 +162,33 @@ export async function countClubEvents(q, clubId, now = new Date()) {
   );
   return rows[0];
 }
+
+/**
+ * Where a club's event stands among the club's free events — for deals
+ * (Tina: „Deals anlegen, für die ersten 2 Events. Danach wäre das Event
+ * sowieso nur mit Paid, dann gehen die Deals auch wieder“).
+ * → null when `eventId` is no live event of this club, else
+ *   { counted, before }: whether the event counts at all (countedEventSql — an
+ *   event from before the deploy does not), and how many counted events of
+ *   the club were created before it, by (created_at, id).
+ * A deal goes with the event while `counted && before < FREE_CLUB_EVENTS`.
+ */
+export async function eventFreeRank(q, clubId, eventId) {
+  const { rows } = await q.query(
+    `SELECT COALESCE((${countedEventSql('e')}), FALSE) AS counted,
+            (SELECT COUNT(*)::int FROM groups o
+              WHERE o.parent_club_id = e.parent_club_id
+                AND ${countedEventSql('o')}
+                AND (o.created_at, o.id) < (e.created_at, e.id)) AS before
+       FROM groups e
+      WHERE e.id = $1 AND e.parent_club_id = $2 AND e.type = 'event' AND e.deleted_at IS NULL`,
+    [eventId, clubId]
+  );
+  return rows[0] || null;
+}
+
+/** Whether a deal goes with this event in a LIMITED club (eventFreeRank). */
+export const withinFreeEvents = (rank) => !!rank && rank.counted === true && rank.before < FREE_CLUB_EVENTS;
 
 const NOT_LIMITED = Object.freeze({ active: false, limited: false, used: 0, upcoming: 0, block: null });
 

@@ -6576,12 +6576,18 @@ suite('write endpoints against real Postgres', () => {
 
   // ── Clubs put up their own deals (P4 v2, Tina/Tobi 16.11.2026) ──────────
   // The owner or a co-manager of a live OFFICIAL club puts up the club's own
-  // deals — with JAMIE Pro or as an app admin (else 403 PRO_REQUIRED); a club
-  // deal never sends the city push and shows exactly like a JAMIE deal (feed,
-  // deal page, at events) while its club is live and official. The same
-  // people hang their own deals on their own events; JAMIE's choice stays.
-  // Account deletion: created_by goes NULL, a club passed on keeps its deals,
-  // a solo club takes them along (the reviewed_by lesson).
+  // deals; a club deal never sends the city push and shows exactly like a
+  // JAMIE deal at its event and on its own page while its club is live and
+  // official. The same people hang their own deals on their own events;
+  // JAMIE's choice stays. Account deletion: created_by goes NULL, a club
+  // passed on keeps its deals, a solo club takes them along (the reviewed_by
+  // lesson).
+  //
+  // The model of 17.11.2026 (Tina's new document, decided by Tobi) replaced
+  // the Pro gate: the library is a paying partner's (or an app admin's), a
+  // deal goes on one of the club's first two free events without it — else
+  // 403 PARTNER_REQUIRED / 'deal'. JAMIE Pro buys none of it. A club deal
+  // never enters the feed, and its ✓ is for paying partners only.
   describe('club deals (P4 v2, 16.11.2026)', () => {
     let owner, proMgr, adminMgr, member, early, other, solo;
     let club, community, otherClub, soloClub, event, event2, otherEvent, meetup, soloEvent;
@@ -6636,6 +6642,14 @@ suite('write endpoints against real Postgres', () => {
       return res.body.deal;
     };
     const clubDealCount = async (c) => (await db.query('SELECT COUNT(*)::int AS n FROM deals WHERE club_id = $1', [c])).rows[0].n;
+    // „Zahlender Partner“ on or off, the way an admin sets it.
+    const pay = async (c, on = true) => ok(await call(C.classifyClub, {
+      userId: A, params: { id: String(c) }, body: { is_paid_partner: on } }));
+    const partnerOnly = (res) => {
+      expect(res.statusCode, JSON.stringify(res.body)).toBe(403);
+      expect(res.body).toMatchObject({ code: 'PARTNER_REQUIRED', reason: 'deal' });
+      expect(res.body.error).toBe('Deals gibt es für die ersten 2 Events eures Clubs – danach als JAMIE Partner.');
+    };
 
     it('seed: an official club with an owner, managers (Pro / app admin), members; a community; two more clubs', async () => {
       owner = await mkU('smoke-cd-owner@x.com', 'Olli');
@@ -6657,17 +6671,19 @@ suite('write endpoints against real Postgres', () => {
       soloEvent = await mkEvent('Smoke Solo Abend', soloClub, solo);
     });
 
-    it('a manager without Pro: 403 PRO_REQUIRED, nothing written — the list stays readable', async () => {
+    it('the library without the partnership: 403 PARTNER_REQUIRED, nothing written — Pro does not buy it, the list stays readable', async () => {
       const res = await create(owner, club, body());
-      expect(res.statusCode).toBe(403);
-      expect(res.body.code).toBe('PRO_REQUIRED');
+      partnerOnly(res);
+      expect(res.body.club_name).toBe('Smoke Bar Neun');
+      partnerOnly(await create(proMgr, club, body()));          // a co-manager WITH JAMIE Pro
       expect(await clubDealCount(club)).toBe(0);
       const l = await list(owner, club);
       ok(l);
       expect(l.body).toEqual([]);
     });
 
-    it('a Pro co-manager puts one up: club_id + created_by, the club\'s address and pin — and no city push', async () => {
+    it('a paying partner\'s co-manager puts one up: club_id + created_by, the club\'s address and pin — and no city push', async () => {
+      await pay(club);
       const spy = vi.spyOn(db, 'query');
       const lookedForRecipients = () => spy.mock.calls.some(([sql]) => String(sql).includes('JOIN push_subscriptions'));
       try {
@@ -6697,10 +6713,13 @@ suite('write endpoints against real Postgres', () => {
            FROM deals WHERE id = $1`, [D.main, until(30)])).rows[0].ok).toBe(true);
     });
 
-    it('an app admin who manages the club needs no Pro; a non-manager 403 even with Pro; a community 403', async () => {
+    it('an app admin who manages the club needs no partnership; a non-manager 403 in a paying club too; a community 403', async () => {
+      await pay(club, false);
       const adm = await create(adminMgr, club, body({ name: 'Smoke Admin-Deal' }));
       expect(adm.statusCode, JSON.stringify(adm.body)).toBe(201);
       D.byAdmin = adm.body.id;
+      partnerOnly(await create(owner, club, body()));           // …the owner next to them still does
+      await pay(club);
       const outsider = await create(member, club, body());
       expect(outsider.statusCode).toBe(403);
       expect(outsider.body.code).toBe('NOT_CLUB_MANAGER');
@@ -6722,11 +6741,19 @@ suite('write endpoints against real Postgres', () => {
       expect(await clubDealCount(club)).toBe(2);
     });
 
-    it('it shows like a JAMIE deal — feed, deal page, at the club\'s event — while its club is live and official', async () => {
-      expect(await feedIds()).toContain(D.main);
+    it('it shows like a JAMIE deal at the club\'s event and on its own page — never in the feed — while its club is live and official; the ✓ only for a paying partner', async () => {
+      // Tina 17.11.2026: „Der Deal wird in den Gruppen nicht angezeigt.“
+      expect(await feedIds()).not.toContain(D.main);
+      expect(await feedIds()).not.toContain(D.byAdmin);
       ok(await page(D.main));
       ok(await attach(proMgr, event, D.main));
-      expect(await shownAt(event)).toEqual({ id: D.main, name: 'Smoke Bar Neun', deal_label: '2 für 1', photo, verified: true });
+      const shown = { id: D.main, name: 'Smoke Bar Neun', deal_label: '2 für 1', photo };
+      expect(await shownAt(event)).toEqual({ ...shown, verified: true });
+      // the same deal of a club that does not pay: the same row, without the ✓
+      await pay(club, false);
+      expect(await shownAt(event)).toEqual({ ...shown, verified: false });
+      ok(await page(D.main));
+      await pay(club);
       // reclassified as a community: dark everywhere
       await db.query(`UPDATE groups SET club_type = 'community' WHERE id = $1`, [club]);
       expect(await feedIds()).not.toContain(D.main);
@@ -6736,20 +6763,25 @@ suite('write endpoints against real Postgres', () => {
       expect((await call(C.redeemDeal, { userId: member, params: { id: String(D.main) } })).statusCode).toBe(404);
       // closed: the same
       await db.query(`UPDATE groups SET club_type = 'official', is_active = FALSE WHERE id = $1`, [club]);
-      expect(await feedIds()).not.toContain(D.main);
+      expect((await page(D.main)).statusCode).toBe(404);
+      expect(await shownAt(event)).toBeNull();
       await db.query(`UPDATE groups SET is_active = TRUE WHERE id = $1`, [club]);
-      expect(await feedIds()).toContain(D.main);
-      expect((await shownAt(event)).id).toBe(D.main);
-      // JAMIE's own deal never minded any of it
+      ok(await page(D.main));
+      expect(await shownAt(event)).toEqual({ ...shown, verified: true });
+      // JAMIE's own deal never minded any of it — and it is what the feed shows
       expect(await feedIds()).toContain(D.jamie);
     });
 
-    it('editing needs Pro, deleting does not; the list has counts and events; the admin list names the club', async () => {
-      expect((await edit(owner, club, D.main, { deal_label: '3 für 2' })).body.code).toBe('PRO_REQUIRED');
+    it('editing needs the partnership, deleting does not; the list has counts and events; the admin list names the club', async () => {
+      await pay(club, false);
+      partnerOnly(await edit(proMgr, club, D.main, { deal_label: '3 für 2' }));     // Pro or not
+      expect((await db.query('SELECT deal_label FROM deals WHERE id = $1', [D.main])).rows[0].deal_label).toBe('2 für 1');
+      await pay(club);
       const e = await edit(proMgr, club, D.main, { deal_label: '3 für 2', visible_until: until(90) });
       ok(e);
       expect(e.body.deal_label).toBe('3 für 2');
       expect((await edit(proMgr, club, D.main, { visible_until: null })).statusCode).toBe(400);
+      await pay(otherClub);
       const foreign = await create(other, otherClub, body({ name: 'Smoke Café Zwei Deal' }));
       expect(foreign.statusCode).toBe(201);
       D.foreign = foreign.body.id;
@@ -6772,13 +6804,25 @@ suite('write endpoints against real Postgres', () => {
       expect((await remove(owner, club, D.byAdmin)).statusCode).toBe(404);
     });
 
-    it('at events: only the club\'s own events and live deals; Pro to hang on, none to take off; JAMIE\'s choice stays', async () => {
+    it('at events: only the club\'s own events and live deals; free on the club\'s first two events, after that the partnership; none to take off; JAMIE\'s choice stays', async () => {
       expect((await attach(proMgr, event2, D.foreign)).body.code).toBe('NOT_OWN_DEAL');
       expect((await attach(proMgr, event2, D.jamie)).body.code).toBe('NOT_OWN_DEAL');
       expect((await attach(proMgr, otherEvent, D.main)).body.code).toBe('NOT_CLUB_MANAGER');
       expect((await attach(proMgr, meetup, D.main)).body.code).toBe('NOT_CLUB_MANAGER');
       expect((await attach(proMgr, event2, D.byAdmin)).statusCode).toBe(404);     // deleted
-      expect((await attach(owner, event2, D.main)).body.code).toBe('PRO_REQUIRED');
+      // Tina 17.11.2026: „Deals anlegen, für die ersten 2 Events. Danach wäre
+      // das Event sowieso nur mit Paid, dann gehen die Deals auch wieder.“
+      const event3 = await mkEvent('Smoke Neun Drittes', club, owner);
+      await pay(club, false);
+      ok(await attach(owner, event2, D.main));                 // the club's second event: free, no Pro
+      expect((await shownAt(event2)).id).toBe(D.main);
+      partnerOnly(await attach(owner, event3, D.main));        // the third: only as a partner…
+      partnerOnly(await attach(proMgr, event3, D.main));       // …Pro does not buy it
+      expect(await shownAt(event3)).toBeNull();
+      ok(await attach(owner, event2, null));                   // taking off: always free
+      await pay(club);
+      ok(await attach(owner, event3, D.main));                 // a paying partner: any event
+      ok(await attach(owner, event3, null));
       ok(await attach(owner, event, null));
       expect(await shownAt(event)).toBeNull();
       // what JAMIE hung on the club's event stays where it is
@@ -6860,11 +6904,12 @@ suite('write endpoints against real Postgres', () => {
       ok(await remove(proMgr, club, D.second));
     });
 
-    // Review 16.11.2026: the feed has no place filter — at most 3 of a club's
-    // deals show at a time. The count runs under a lock on the club's row, so
-    // a script's parallel requests cannot all pass it before any has written.
+    // Review 16.11.2026: at most 3 of a club's library deals are live at a
+    // time. The count runs under a lock on the club's row, so a script's
+    // parallel requests cannot all pass it before any has written.
     it('at most 3 live deals per club — also against five at once; one run out makes room, an edit cannot bring it back past the limit', async () => {
       const bar = await mkClub('Smoke Limit Bar', other, 'official');
+      await pay(bar);
       const made = await Promise.all([1, 2, 3, 4, 5].map((n) => create(other, bar, body({ name: `Smoke Limit ${n}` }))));
       expect(made.map((r) => r.statusCode).sort()).toEqual([201, 201, 201, 409, 409]);
       expect(made.find((r) => r.statusCode === 409).body.code).toBe('CLUB_DEAL_LIMIT');
@@ -6880,7 +6925,8 @@ suite('write endpoints against real Postgres', () => {
       ok(await edit(other, bar, ids[0], { visible_until: until(10) }));
     });
 
-    it('account deletion: created_by goes NULL, a club passed on keeps its deals (new owner needs Pro), a solo club takes them along', async () => {
+    it('account deletion: created_by goes NULL, a club passed on keeps its deals and its partnership, a solo club takes them along', async () => {
+      await pay(soloClub);
       const soloDeal = await create(solo, soloClub, body({ name: 'Smoke Solo Deal' }));
       expect(soloDeal.statusCode).toBe(201);
       D.solo = soloDeal.body.id;
@@ -6890,12 +6936,16 @@ suite('write endpoints against real Postgres', () => {
       ok(await call(C.deleteAccount, { userId: proMgr, body: {} }));
       expect((await db.query('SELECT club_id, created_by, is_active FROM deals WHERE id = $1', [D.main])).rows[0])
         .toEqual({ club_id: club, created_by: null, is_active: true });
-      expect(await feedIds()).toContain(D.main);
+      ok(await page(D.main));
       // 2) the owner: the club passes to its earliest member, the deals with it
       ok(await call(C.deleteAccount, { userId: owner, body: {} }));
       expect((await db.query('SELECT owner_id FROM groups WHERE id = $1', [club])).rows[0].owner_id).toBe(early);
       expect((await list(early, club)).body.map((d) => d.id)).toContain(D.main);
-      expect((await edit(early, club, D.main, { deal_label: 'neu' })).body.code).toBe('PRO_REQUIRED');
+      // the partnership is the club's, not a person's: the new owner (no Pro) edits on…
+      ok(await edit(early, club, D.main, { deal_label: 'neu' }));
+      // …and without it only takes down
+      await pay(club, false);
+      partnerOnly(await edit(early, club, D.main, { deal_label: 'noch neuer' }));
       ok(await remove(early, club, D.main));
       // 3) the solo owner: the club is deleted and takes its deal, the redemption and the event link along
       ok(await call(C.deleteAccount, { userId: solo, body: {} }));
