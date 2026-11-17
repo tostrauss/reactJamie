@@ -802,9 +802,11 @@
 }
 
 /* ── „Deal anlegen“: the deal's fields under its bar (Tina 17.11.2026) ──
-   DealForm embedded, look 'event': a panel in the bars' own style (same
-   fill, border and radius as .cd-event-recurring), its inputs one step
-   darker so they stand out on it. Everything may shrink (min-width: 0): the
+   DealForm embedded, look 'event': a framed group with the bars' radius.
+   NOT filled like the bars: the fields in it are the event form's own
+   (global.css gives every input here --bg-input), and on a --bg-input panel
+   they had no visible box at all. On the form's own ground they look exactly
+   like „Name des Events“ above. Everything may shrink (min-width: 0): the
    panel sits in a 390px page inside two paddings. */
 .cd-event-deal-panel {
   display: flex;
@@ -812,8 +814,8 @@
   gap: 10px;
   min-width: 0;
   padding: 12px 14px;
-  background: var(--bg-input);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-sm);
 }
 .cd-event-deal-panel > div,
@@ -829,9 +831,6 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
-}
-.cd-event-deal-panel .cd-event-input {
-  background: var(--bg-card);
 }
 .cd-event-deal-panel .cd-event-recurring-hint {
   margin: 0;

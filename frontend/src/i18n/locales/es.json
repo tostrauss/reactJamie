@@ -698,7 +698,12 @@
       "errorProRequired": "Los eventos de pago son una función de JAMIE Pro.",
       "confirmLeave": "¿Seguro que quieres salir del evento? Tu plaza quedará libre.",
       "privateLabel": "Evento privado",
-      "privateHint": "Solo con solicitud: tú decides quién participa"
+      "privateHint": "Solo con solicitud: tú decides quién participa",
+      "dealLabel": "Añadir un deal",
+      "dealHint": "Ofrece a los participantes una ventaja, p. ej. un descuento o una bebida gratis",
+      "dealPanelTitle": "Deal para el evento",
+      "autoMessagesLabel": "Mensajes automáticos",
+      "autoMessagesHint": "Los recordatorios y la información del evento llegan al grupo automáticamente en vuestro nombre"
     },
     "confirmLeave": "¿Seguro que quieres salir del club? Solo puedes unirte a este club dos veces en total."
   },

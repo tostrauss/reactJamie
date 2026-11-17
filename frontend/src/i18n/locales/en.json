@@ -698,7 +698,12 @@
       "errorProRequired": "Paid events are a JAMIE Pro feature.",
       "confirmLeave": "Really leave this event? Your spot is freed up.",
       "privateLabel": "Private event",
-      "privateHint": "Join by request only – you approve who comes"
+      "privateHint": "Join by request only – you approve who comes",
+      "dealLabel": "Add a deal",
+      "dealHint": "Offer participants a perk, e.g. a discount or a free drink",
+      "dealPanelTitle": "Deal for the event",
+      "autoMessagesLabel": "Automated messages",
+      "autoMessagesHint": "Reminders and info about the event go to the group automatically in your name"
     },
     "confirmLeave": "Really leave this club? You can only join this club twice in total."
   },

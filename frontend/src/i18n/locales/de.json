@@ -698,7 +698,12 @@
       "errorProRequired": "Kostenpflichtige Events sind ein JAMIE Pro Feature.",
       "confirmLeave": "Event wirklich verlassen? Dein Platz wird frei.",
       "privateLabel": "Privates Event",
-      "privateHint": "Beitritt nur auf Anfrage – du bestätigst, wer dabei ist"
+      "privateHint": "Beitritt nur auf Anfrage – du bestätigst, wer dabei ist",
+      "dealLabel": "Deal anlegen",
+      "dealHint": "Biete Teilnehmer:innen einen Vorteil, z. B. Rabatt oder Gratisgetränk",
+      "dealPanelTitle": "Deal zum Event",
+      "autoMessagesLabel": "Automatisierte Nachrichten",
+      "autoMessagesHint": "Erinnerungen und Infos zum Event gehen automatisch in euren Namen an die Gruppe"
     },
     "confirmLeave": "Club wirklich verlassen? Du kannst diesem Club insgesamt nur zweimal beitreten."
   },

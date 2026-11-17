@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { clubs } from '../utils/api';
+import { clubs, partnerApi } from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { ReportModal } from '../components/ReportModal';
 import AvatarGateModal from '../components/AvatarGateModal';
 import EventDealRow from '../components/EventDealRow';
+import DealForm from '../components/DealForm';
+import { PartnerInviteSheet } from '../components/PartnerInviteSheet';
 import { nextOccurrence } from '../utils/recurrence';
 import { formatEventDate, eventDateLocale } from '../utils/eventDate';
 import { shareLink } from '../utils/share';
@@ -18,11 +20,18 @@ import { proUpsellAllowed } from '../utils/platform';
 import { usePaymentsConfig } from '../utils/paymentsConfig';
 import '../styles/club-detail.css';
 
-const today =() => new Date().toISOString().split('T')[0];
+const today = () => new Date().toISOString().split('T')[0];
 const nowTime = () => {
   const d = new Date();
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
+// The event form as it opens. with_deal / auto_messages: the two bars of an
+// official club's form (Tina 17.11.2026), both unticked.
+const emptyEventForm = () => ({
+  name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20,
+  is_recurring_weekly: false, is_paid: false, ticket_url: '', is_private: false,
+  with_deal: false, auto_messages: false,
+});
 
 // formatEventDate (UTC, the stored wall-clock) lives in utils/eventDate.js.
 
@@ -56,8 +65,16 @@ export const ClubDetail = () => {
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsLocked, setEventsLocked] = useState(false);
   const [showCreateEvent, setShowCreateEvent] = useState(false);
-  const [eventForm, setEventForm] = useState({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20, is_recurring_weekly: false, is_paid: false, ticket_url: '', is_private: false });
+  const [eventForm, setEventForm] = useState(emptyEventForm);
   const [eventSubmitting, setEventSubmitting] = useState(false);
+  // The free tier of official clubs (Tina 17.11.2026): where this club stands
+  // — GET /clubs/:id/event-quota — or null (a community, not yet loaded, an
+  // older server): then nothing is checked here and the server decides.
+  const [quota, setQuota] = useState(null);
+  // Tina's partner letter, open with the reason it came up for.
+  const [partnerSheet, setPartnerSheet] = useState(null);
+  // What the embedded deal form holds: { payload, missing, uploading }.
+  const [dealState, setDealState] = useState(null);
   const [joiningEventId, setJoiningEventId] = useState(null);
   const eventLocationRef = useRef(null);
   const eventAutocompleteRef = useRef(null);
@@ -128,6 +145,7 @@ export const ClubDetail = () => {
         const memberData = membersRes.data;
         setMembers(Array.isArray(memberData) ? memberData : (memberData?.members || []));
         setMembersGated(Array.isArray(memberData) ? false : !!memberData?.gated);
+        refreshQuota(entity);
 
         setEventsLoading(true);
         setEventsLocked(false);
@@ -147,6 +165,24 @@ export const ClubDetail = () => {
     })();
     return () => controller.abort();
   }, [id]);
+
+  // Where the club stands in the free tier. Only an official club has one,
+  // and only its members can put up events; everyone else: nothing to ask.
+  // Asked after loading, after joining or leaving, and after every event that
+  // is created or deleted. Any failure (an older server answers 404, a test
+  // mocks the api without it) reads as „unknown“ — the server decides then.
+  const refreshQuota = async (entity = club) => {
+    if (!user || !entity || entity.club_type !== 'official' || !entity.is_member) {
+      setQuota(null);
+      return;
+    }
+    try {
+      const res = await partnerApi.getEventQuota(id);
+      setQuota(res?.data && typeof res.data === 'object' ? res.data : null);
+    } catch {
+      setQuota(null);
+    }
+  };
 
   const handleFavoriteToggle = async () => {
     const wasFav = isFavorited;
@@ -195,6 +231,8 @@ export const ClubDetail = () => {
         setMembers(prev => prev.filter(m => m.id !== user.id));
         const r = await clubs.getById(id);
         setClub(r.data);
+        setShowCreateEvent(false);
+        refreshQuota(r.data);
         await loadEvents();
       } else {
         const res = await clubs.join(id);
@@ -206,6 +244,7 @@ export const ClubDetail = () => {
           setIsJoined(true);
           const r = await clubs.getById(id);
           setClub(r.data);
+          refreshQuota(r.data);
           // Now a member → re-fetch the roster. Membership lifts the Pro gate
           // (members see everyone since 2026-10-22); `gated` still comes from
           // the server as-is — it is the only truth.
@@ -284,6 +323,55 @@ export const ClubDetail = () => {
     }
   };
 
+  // ── The free tier of official clubs (Tina 17.11.2026) ─────────────────
+  // Who runs this club (owner or co-manager) gets Tina's partner letter where
+  // the free tier says no; a plain member who may create events gets one
+  // sentence — the partnership is not theirs to ask for.
+  const isOfficialClub = club?.club_type === 'official';
+  const managesClub = !!user && !!club && (Number(club.owner_id) === Number(user.id) || !!club.is_manager);
+  const partnerStop = (reason) => {
+    if (managesClub) setPartnerSheet({ reason });
+    else toast.error(t('partner.memberBlocked'));
+  };
+  // The bars „Deal anlegen“ and „Automatisierte Nachrichten“ of the event
+  // form: an official club that is approved, for the people who run it.
+  const showsPartnerBars = isOfficialClub && club?.approval_status === 'approved' && managesClub;
+
+  // „+“ and „Erstes Event erstellen“. A club at its limit (a second event
+  // while the first is still ahead; the third event) never sees a form that
+  // the server would refuse: the letter comes instead.
+  const openCreateEvent = () => {
+    if (showCreateEvent) { setShowCreateEvent(false); return; }
+    if (quota?.block) { partnerStop(quota.block); return; }
+    setShowCreateEvent(true);
+  };
+
+  // „Kostenfreies Event“ unticked. In a limited official club a ticket event
+  // is a partner's (Tina: „würde immer sofort eine Nachricht zu JAMIE Partner
+  // kommen“): the letter opens and the tick stays — the event stays free.
+  const togglePaid = (free) => {
+    if (free) { setEventForm(f => ({ ...f, is_paid: false, ticket_url: '' })); return; }
+    if (isOfficialClub && quota?.limited) { partnerStop('ticket'); return; }
+    setEventForm(f => ({ ...f, is_paid: true }));
+  };
+
+  // Paid events are a Pro feature where the partnership does not cover them
+  // (a community; a club while the free tier is off).
+  const askForPaidEventsPro = () => {
+    if (!proUpsellAllowed()) {
+      // Apple 3.1.1: no purchase entry point in the iOS app while iOS sales
+      // are off, so the modal never opens there — without this the button
+      // would silently do nothing.
+      toast.error(t('clubDetail.events.errorProRequired'));
+    } else {
+      // detail.feature makes the modal lead with the "Kostenpflichtige
+      // Events" bubble instead of the generic pitch.
+      window.dispatchEvent(new CustomEvent('jamie:open-pro-modal', {
+        detail: { feature: 'paidEvents' },
+      }));
+    }
+  };
+
   const handleCreateEvent = async (e) => {
     e.preventDefault();
     if (!eventForm.name.trim()) { toast.error(t('clubDetail.events.errorNameRequired')); return; }
@@ -293,24 +381,24 @@ export const ClubDetail = () => {
     // Checked BEFORE the ticket-link check: nagging a non-Pro user about a link
     // they can't use yet is the wrong message — show them the offer instead.
     // The server re-checks (createClubEvent), this is only the UX path.
-    if (eventForm.is_paid && !isPro) {
-      if (!proUpsellAllowed()) {
-        // Apple 3.1.1: no purchase entry point in the iOS app while iOS sales
-        // are off, so the modal never opens there — without this the button
-        // would silently do nothing.
-        toast.error(t('clubDetail.events.errorProRequired'));
-      } else {
-        // detail.feature makes the modal lead with the "Kostenpflichtige
-        // Events" bubble instead of the generic pitch.
-        window.dispatchEvent(new CustomEvent('jamie:open-pro-modal', {
-          detail: { feature: 'paidEvents' },
-        }));
-      }
+    // Not in an official club that is not limited — a paying partner, the
+    // JAMIE team: there the partnership covers the ticket link, no Pro needed.
+    // (Should the server still ask for Pro, the catch below opens the modal.)
+    const partnerCoversTickets = isOfficialClub && !!quota && quota.limited === false;
+    if (eventForm.is_paid && !isPro && !partnerCoversTickets) {
+      askForPaidEventsPro();
       return;
     }
     // A paid event without a ticket link would leave attendees no way to buy.
     if (eventForm.is_paid && !eventForm.ticket_url.trim()) {
       toast.error(t('clubDetail.events.errorTicketRequired'));
+      return;
+    }
+    // „Deal anlegen“ ticked: the deal's own required fields (name, offer,
+    // „Sichtbar bis“) — said in the deal form's words, nothing is sent.
+    const sendsDeal = showsPartnerBars && eventForm.with_deal;
+    if (sendsDeal && (!dealState || dealState.missing.length)) {
+      toast.error(t('groupEdit.deals.toast.requiredFields'));
       return;
     }
     // Recurring events legitimately start "now/in the past" — they roll forward
@@ -332,15 +420,37 @@ export const ClubDetail = () => {
         ticket_url: eventForm.is_paid ? eventForm.ticket_url.trim() : undefined,
         // Only meaningful in a public club; a private club's events are private anyway.
         is_private: club?.is_private ? undefined : eventForm.is_private,
+        // The two bars of an official club's form — sent only where they
+        // show; everyone else's request stays exactly as it was.
+        deal: sendsDeal ? dealState.payload : undefined,
+        auto_messages: showsPartnerBars ? eventForm.auto_messages : undefined,
       });
+      // The answer carries the event's deal (res.data.deal): the list shows
+      // it under the new card at once.
       const newEvent = res.data;
       newEvent.is_member = true;
       setEvents(prev => [newEvent, ...prev].sort((a, b) => new Date(a.date) - new Date(b.date)));
       setShowCreateEvent(false);
-      setEventForm({ name: '', description: '', date: today(), time: nowTime(), location: '', max_members: 20, is_recurring_weekly: false, is_paid: false, ticket_url: '', is_private: false });
+      setEventForm(emptyEventForm());
+      setDealState(null);
       toast.success(t('clubDetail.events.createdToast'));
+      refreshQuota();
     } catch (err) {
-      toast.error(err.response?.data?.error || t('clubDetail.events.createError'));
+      const data = err.response?.data;
+      if (data?.code === 'PARTNER_REQUIRED') {
+        // The free tier said no after all (the quota changed since it was
+        // read, or it could not be read): the letter for whoever runs the
+        // club, one sentence for a member. A ticket event stays a free one in
+        // the form; for the event limit the form closes — it cannot be sent.
+        refreshQuota();
+        if (data.reason === 'ticket') setEventForm(f => ({ ...f, is_paid: false, ticket_url: '' }));
+        else if (data.reason !== 'deal') setShowCreateEvent(false);
+        partnerStop(data.reason);
+      } else if (data?.code === 'PRO_REQUIRED') {
+        askForPaidEventsPro();
+      } else {
+        toast.error(data?.error || t('clubDetail.events.createError'));
+      }
     } finally {
       setEventSubmitting(false);
     }
@@ -352,6 +462,7 @@ export const ClubDetail = () => {
       await clubs.deleteEvent(id, eventId);
       setEvents(prev => prev.filter(e => e.id !== eventId));
       toast.success(t('clubDetail.events.deletedToast'));
+      refreshQuota();
     } catch (err) {
       toast.error(err.response?.data?.error || t('clubDetail.events.deleteError'));
     }
@@ -516,7 +627,7 @@ export const ClubDetail = () => {
               {canCreateEvent && (
                 <button
                   className="cd-events-add"
-                  onClick={() => setShowCreateEvent(v => !v)}
+                  onClick={openCreateEvent}
                   aria-label={t('clubDetail.events.createAria')}
                 >
                   {showCreateEvent ? '✕' : '+'}
@@ -614,14 +725,15 @@ export const ClubDetail = () => {
                     can untick and fill the link in, and only "Event erstellen"
                     opens the Pro modal. Letting people see and complete the
                     feature first sells it far better than a checkbox that
-                    refuses to move (and it kills the dead-control feel). */}
+                    refuses to move (and it kills the dead-control feel).
+                    Since 17.11.2026 an official club in the free tier gets
+                    Tina's partner letter instead (togglePaid) — there the
+                    tick stays and no ticket field opens. */}
                 <label className={`cd-event-recurring cd-event-paid${eventForm.is_paid ? ' is-paid' : ''}`}>
                   <input
                     type="checkbox"
                     checked={!eventForm.is_paid}
-                    onChange={e => setEventForm(f => e.target.checked
-                      ? { ...f, is_paid: false, ticket_url: '' }
-                      : { ...f, is_paid: true })}
+                    onChange={e => togglePaid(e.target.checked)}
                   />
                   <span className="cd-event-recurring-text">
                     <span className="cd-event-recurring-title">
@@ -662,7 +774,67 @@ export const ClubDetail = () => {
                     <span className="cd-event-ticket-hint">{t('clubDetail.events.ticketLinkHint')}</span>
                   </div>
                 )}
-                <button type="submit" className="cd-event-submit-btn" disabled={eventSubmitting}>
+
+                {/* „Deal anlegen“ (Tina 17.11.2026): „Unter ‚Kostenfreies
+                    Event‘ noch einen Balken in dem Stil … Normal kein Haken
+                    dort voreingestellt. Wenn man den Haken setzt, dann öffnet
+                    sich nochmal ein Feld, wo man die Deal Infos reingibt inkl.
+                    wann der Deal angezeigt werden soll, eh wie wir es hatten.“
+                    One deal per event; it shows at the event, never in the
+                    Gruppen feed. „Sichtbar bis“ starts out as the event's date. */}
+                {showsPartnerBars && (
+                  <label className="cd-event-recurring">
+                    <input
+                      type="checkbox"
+                      checked={eventForm.with_deal}
+                      onChange={e => {
+                        setEventForm(f => ({ ...f, with_deal: e.target.checked }));
+                        if (!e.target.checked) setDealState(null);
+                      }}
+                    />
+                    <span className="cd-event-recurring-text">
+                      <span className="cd-event-recurring-title">{t('clubDetail.events.dealLabel')}</span>
+                      <span className="cd-event-recurring-hint">{t('clubDetail.events.dealHint')}</span>
+                    </span>
+                  </label>
+                )}
+                {showsPartnerBars && eventForm.with_deal && (
+                  <DealForm
+                    variant="club"
+                    look="event"
+                    embedded
+                    title={t('clubDetail.events.dealPanelTitle')}
+                    defaults={{ name: club.name || '', visible_until: eventForm.date }}
+                    onChange={setDealState}
+                  />
+                )}
+
+                {/* „Automatisierte Nachrichten“ (Tina 17.11.2026): „Unter ‚Deal
+                    anlegen‘ kommt noch ein Balken … die sind nicht angehakt.“
+                    Ticked, the event's chat gets the four messages in the
+                    club's name (welcome, the day before, two hours before,
+                    the day after). */}
+                {showsPartnerBars && (
+                  <label className="cd-event-recurring">
+                    <input
+                      type="checkbox"
+                      checked={eventForm.auto_messages}
+                      onChange={e => setEventForm(f => ({ ...f, auto_messages: e.target.checked }))}
+                    />
+                    <span className="cd-event-recurring-text">
+                      <span className="cd-event-recurring-title">{t('clubDetail.events.autoMessagesLabel')}</span>
+                      <span className="cd-event-recurring-hint">{t('clubDetail.events.autoMessagesHint')}</span>
+                    </span>
+                  </label>
+                )}
+
+                {/* While the deal's photo is still uploading the event waits:
+                    it would be saved without the photo otherwise. */}
+                <button
+                  type="submit"
+                  className="cd-event-submit-btn"
+                  disabled={eventSubmitting || (showsPartnerBars && eventForm.with_deal && !!dealState?.uploading)}
+                >
                   {eventSubmitting ? t('clubDetail.events.creating') : t('clubDetail.events.create')}
                 </button>
               </form>
@@ -683,7 +855,7 @@ export const ClubDetail = () => {
                 <div className="cd-events-empty-icon">📅</div>
                 <p>{t('clubDetail.events.empty')}</p>
                 {canCreateEvent && !showCreateEvent && (
-                  <button className="cd-events-empty-cta" onClick={() => setShowCreateEvent(true)}>
+                  <button className="cd-events-empty-cta" onClick={openCreateEvent}>
                     {t('clubDetail.events.firstEventCta')}
                   </button>
                 )}
@@ -855,6 +1027,15 @@ export const ClubDetail = () => {
         />
       )}
       <AvatarGateModal isOpen={showAvatarGate} onClose={() => setShowAvatarGate(false)} />
+      {/* Tina's partner letter with „Ja, meldet euch!“ → „JAMIE Anfrage“. */}
+      {partnerSheet && (
+        <PartnerInviteSheet
+          reason={partnerSheet.reason}
+          clubId={id}
+          clubName={club.name || ''}
+          onClose={() => setPartnerSheet(null)}
+        />
+      )}
     </div>
   );
 };
