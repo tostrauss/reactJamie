@@ -1734,7 +1734,7 @@
       "unlimitedJoinsDesc": "Crea y únete a tantos grupos como quieras.",
       "unlimitedFriendRequests": "Solicitudes de amistad ilimitadas",
       "unlimitedFriendRequestsDesc": "Envía tantas solicitudes como quieras.",
-      "joinsLimitReached": "Has alcanzado tu límite semanal gratuito – con Pro sigues al momento"
+      "joinsLimitReached": "Has alcanzado tu límite diario gratuito – con Pro sigues al momento"
     },
     "title": "JAMIE Pro",
     "heroTitle1": "MORE PEOPLE.",
@@ -2891,12 +2891,12 @@
     "CLUB_FULL": "Este club está completo.",
     "JOIN_CAP_REACHED": "Ya te has unido a este club dos veces y no puedes volver a unirte.",
     "DAILY_JOIN_LIMIT": "Hoy ya te has unido a {{limit}} grupos. Mañana podrás unirte de nuevo a un grupo.",
-    "DAILY_CREATE_LIMIT": "Hoy ya has creado un encuentro. A partir de mañana podrás crear uno nuevo."
+    "DAILY_CREATE_LIMIT": "Hoy ya has creado {{limit}} encuentros. A partir de mañana podrás crear nuevos."
   },
   "dailyLimit": {
     "title": "Límite diario alcanzado",
     "bodyJoin": "Así JAMIE se mantiene activo, personal y relevante. Mira bien los grupos y únete a las actividades que de verdad encajan contigo.",
-    "bodyCreate": "Hoy ya has creado un encuentro. Así JAMIE se mantiene activo, personal y relevante: dale toda tu atención a tu encuentro.",
+    "bodyCreate": "Hoy ya has creado dos encuentros. Así JAMIE se mantiene activo, personal y relevante: dales toda tu atención a tus encuentros.",
     "bodyFriend": "Hoy ya has enviado 5 solicitudes de amistad. Así las solicitudes siguen siendo personales: mañana podrás volver a escribir a gente nueva.",
     "proHeading": "¿Más? Entonces Pro.",
     "b1T": "Únete a grupos sin límite",

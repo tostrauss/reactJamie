@@ -2,8 +2,9 @@ import { useTranslation } from 'react-i18next';
 import { proUpsellAllowed } from '../utils/platform';
 
 // "Tageslimit erreicht" — Tina's sheet (28.10.2026). Shown FIRST when the
-// daily free limit blocks a join (3 groups/events per Vienna day) or a create
-// (1 group per day): the info must come before any upsell, so nobody reads
+// daily free limit blocks a join (2 groups/events per Vienna day) or a create
+// (2 groups per day; 3 and 1 until 17.11.2026): the info must come before any
+// upsell, so nobody reads
 // the refusal as "I can never join groups again". The Pro section only
 // renders where buying is possible (proUpsellAllowed — Apple 3.1.1 keeps it
 // off native iOS without IAP); the sheet itself works everywhere and always

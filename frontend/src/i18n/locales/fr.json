@@ -1734,7 +1734,7 @@
       "unlimitedJoinsDesc": "Crée et rejoins autant de groupes que tu veux.",
       "unlimitedFriendRequests": "Demandes d’amitié illimitées",
       "unlimitedFriendRequestsDesc": "Envoie autant de demandes que tu veux.",
-      "joinsLimitReached": "Tu as atteint ta limite gratuite de la semaine – avec Pro, tu continues tout de suite"
+      "joinsLimitReached": "Tu as atteint ta limite gratuite du jour – avec Pro, tu continues tout de suite"
     },
     "title": "JAMIE Pro",
     "heroTitle1": "MORE PEOPLE.",
@@ -2891,12 +2891,12 @@
     "CLUB_FULL": "Ce club est complet.",
     "JOIN_CAP_REACHED": "Tu as déjà rejoint ce club deux fois et tu ne peux plus le rejoindre.",
     "DAILY_JOIN_LIMIT": "Tu as déjà rejoint {{limit}} groupes aujourd’hui. Demain, tu pourras rejoindre un nouveau groupe.",
-    "DAILY_CREATE_LIMIT": "Tu as déjà créé une rencontre aujourd’hui. À partir de demain, tu pourras en créer une nouvelle."
+    "DAILY_CREATE_LIMIT": "Tu as déjà créé {{limit}} rencontres aujourd’hui. À partir de demain, tu pourras en créer de nouvelles."
   },
   "dailyLimit": {
     "title": "Limite quotidienne atteinte",
     "bodyJoin": "C’est ainsi que JAMIE reste actif, personnel et pertinent. Regarde bien les groupes et participe aux activités qui te correspondent vraiment.",
-    "bodyCreate": "Tu as déjà créé une rencontre aujourd’hui. C’est ainsi que JAMIE reste actif, personnel et pertinent – consacre toute ton attention à ta rencontre.",
+    "bodyCreate": "Tu as déjà créé deux rencontres aujourd’hui. C’est ainsi que JAMIE reste actif, personnel et pertinent – consacre toute ton attention à tes rencontres.",
     "bodyFriend": "Tu as déjà envoyé 5 demandes d’amitié aujourd’hui. Ainsi les demandes restent personnelles – demain tu pourras de nouveau en envoyer.",
     "proHeading": "Envie de plus ? Alors Pro.",
     "b1T": "Rejoins des groupes sans limite",

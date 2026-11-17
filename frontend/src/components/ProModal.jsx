@@ -226,9 +226,9 @@ const CONTEXT_FEATURE = {
   boosts: { icon:'🚀', titleKey:'boostGroups', descKey:'boostGroupsDesc' },
   paidEvents: { icon:'🎟️', titleKey:'paidEvents', descKey:'paidEventsDesc' },
   reviewRequests: { icon:'🗂️', titleKey:'reviewRequests', descKey:'reviewRequestsDesc' },
-  // DailyLimitModal CTA after a 403 DAILY_JOIN_LIMIT (free: 3 per Vienna day).
+  // DailyLimitModal CTA after a 403 DAILY_JOIN_LIMIT (free: 2 per Vienna day).
   joins: { icon:'♾️', titleKey:'unlimitedJoins', descKey:'joinsLimitReached' },
-  // DailyLimitModal CTA after a 403 DAILY_CREATE_LIMIT (free: 1 create per day).
+  // DailyLimitModal CTA after a 403 DAILY_CREATE_LIMIT (free: 2 creates per day).
   creates: { icon:'✨', titleKey:'unlimitedJoins', descKey:'unlimitedJoinsDesc' },
   // DailyLimitModal CTA after a 403 DAILY_FRIEND_LIMIT (free: 5 requests per day).
   friends: { icon:'🤝', titleKey:'unlimitedFriendRequests', descKey:'unlimitedFriendRequestsDesc' },

@@ -223,10 +223,12 @@ describe('ProModal — the web browser sells nothing since 26.10.2026', () => {
     expect(subscription.create).not.toHaveBeenCalled();
   });
 
-  it('the weekly join limit ends cleanly: its own call-out, then "Bald verfügbar"', async () => {
+  it('the daily join limit ends cleanly: its own call-out, then "Bald verfügbar"', async () => {
     await renderModal({ feature: 'joins' });
     expect(screen.getByText('Tritt so vielen Gruppen bei, wie du willst!')).toBeTruthy();
-    expect(screen.getByText(/Dein kostenloses Wochenlimit ist erreicht/)).toBeTruthy();
+    // A DAILY limit since 28.10.2026 — the row said „Wochenlimit“ until 17.11.
+    expect(screen.getByText('Dein kostenloses Tageslimit ist erreicht – mit Pro geht’s sofort weiter')).toBeTruthy();
+    expect(screen.queryByText(/Wochenlimit/)).toBeNull();
     expect(screen.getByText('Pro ist in Kürze verfügbar')).toBeTruthy();
     // a missing contextCta key used to print the raw key under the title
     expect(screen.queryByText(/pro\.contextCta/)).toBeNull();

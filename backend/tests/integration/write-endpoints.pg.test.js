@@ -1836,6 +1836,12 @@ suite('write endpoints against real Postgres', () => {
       expect(d.body.joins_by_request).toBe(true);
       expect(d.body.parent_club_private).toBe(false);
 
+      // The shared outsider already joined something in an earlier case, and
+      // this one needs two slots of its own (the request, then the public
+      // sibling). The daily free limit is two since 17.11.2026 and not this
+      // case's subject — what was joined before counts as yesterday's.
+      await db.query(`UPDATE group_join_log SET created_at = created_at - INTERVAL '1 day' WHERE user_id = $1`, [outsider]);
+
       const j = await call(C.joinGroup, { userId: outsider, params: { id: String(privEv) }, body: {} });
       ok(j);
       expect(j.body.status).toBe('pending');
@@ -4505,9 +4511,10 @@ suite('write endpoints against real Postgres', () => {
 
 
   // Tina + Tobi 28.10.2026 (supersedes the weekly rule from 12.10.): free
-  // accounts join at most 3 groups OR CLUB EVENTS per VIENNA calendar day —
-  // clubs/communities never count — and create at most 1 plain group per day
-  // (utils/dailyLimits.js). Real Postgres because the rules live in the count
+  // accounts join at most 2 groups OR CLUB EVENTS per VIENNA calendar day —
+  // clubs/communities never count — and create at most 2 plain groups per day
+  // (utils/dailyLimits.js; the numbers are Tobi's of 17.11.2026, 3 and 1
+  // before). Real Postgres because the rules live in the count
   // queries (Vienna day window, distinct groups, rejected requests excluded,
   // soft-deleted creations still counted) and in the join path's ordering.
   describe('daily free-account limits (28.10.2026)', () => {
@@ -4525,21 +4532,21 @@ suite('write endpoints against real Postgres', () => {
       name, description: 'desc', type: 'group', category: 'Sport',
       date: futureDay(), time: '18:00', location: 'Wien', max_members: 10 } });
 
-    it('3 joins (a club event counts), then DAILY_JOIN_LIMIT; a rejoin and a club cost nothing; Vienna DAY window', async () => {
+    it('2 joins (a club event counts), then DAILY_JOIN_LIMIT; a rejoin and a club cost nothing; Vienna DAY window', async () => {
       const U = await mkUser('smoke-daily-u@x.com');
       const club = await mkGroup('Dl Club', { type: 'club' });
       const ev = await mkGroup('Dl Event', { type: 'event', parent: club });
-      const [g1, g2, g3] = [await mkGroup('Dl 1'), await mkGroup('Dl 2'), await mkGroup('Dl 3')];
+      const [g1, g2, g3, g4] = [await mkGroup('Dl 1'), await mkGroup('Dl 2'), await mkGroup('Dl 3'), await mkGroup('Dl 4')];
       ok(await join(U, g1));
-      ok(await join(U, g2));
-      ok(await join(U, ev));                                   // slot 3 — club events count now (Tina 28.10.)
-      const blocked = await join(U, g3);
+      ok(await join(U, ev));                                   // slot 2 — club events count (Tina 28.10.)
+      const blocked = await join(U, g2);
       expect(blocked.statusCode).toBe(403);
       expect(blocked.body.code).toBe('DAILY_JOIN_LIMIT');
-      expect(blocked.body.limit).toBe(3);
+      expect(blocked.body.limit).toBe(2);
       expect(blocked.body.resets_at).toBeTruthy();
+      expect(blocked.body.error).toBe('Du bist heute schon 2 Gruppen beigetreten. Ab morgen kannst du wieder einer neuen Gruppe beitreten.');
       expect(blocked.body.error).not.toMatch(/Pro/);          // old iOS bundles show it verbatim (3.1.1)
-      expect((await db.query('SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2', [g3, U])).rows).toHaveLength(0);
+      expect((await db.query('SELECT 1 FROM group_members WHERE group_id=$1 AND user_id=$2', [g2, U])).rows).toHaveLength(0);
 
       // Left and joining the same group again: already counted, no second slot.
       await db.query('DELETE FROM group_members WHERE group_id=$1 AND user_id=$2', [g1, U]);
@@ -4548,18 +4555,20 @@ suite('write endpoints against real Postgres', () => {
       // Clubs (and communities) stay free even at the limit.
       ok(await join(U, club));
 
-      // A Vienna DAY window, not a rolling week: age the log one day → free again.
+      // A Vienna DAY window, not a rolling week: age the log one day → free
+      // again, for exactly two more.
       await db.query(`UPDATE group_join_log SET created_at = created_at - INTERVAL '1 day' WHERE user_id = $1`, [U]);
+      ok(await join(U, g2));
       ok(await join(U, g3));
+      expect((await join(U, g4)).body.code).toBe('DAILY_JOIN_LIMIT');
     });
 
     it('a rejected request gives the slot back', async () => {
       const V = await mkUser('smoke-daily-v@x.com');
-      const [a, b, c] = [await mkGroup('Dl V1'), await mkGroup('Dl V2'), await mkGroup('Dl V3')];
+      const [a, c] = [await mkGroup('Dl V1'), await mkGroup('Dl V3')];
       const priv = await mkGroup('Dl V private', { isPrivate: true });
       ok(await join(V, a));
-      ok(await join(V, b));
-      const sent = await join(V, priv);                        // the request is slot 3
+      const sent = await join(V, priv);                        // the request is slot 2
       ok(sent);
       expect(sent.body.status).toBe('pending');
       expect((await join(V, c)).body.code).toBe('DAILY_JOIN_LIMIT');
@@ -4586,23 +4595,26 @@ suite('write endpoints against real Postgres', () => {
       }
     });
 
-    it('free accounts create 1 group per Vienna day; soft-delete keeps the slot used', async () => {
+    it('free accounts create 2 groups per Vienna day; soft-delete keeps the slot used', async () => {
       const Cu = await mkUser('smoke-daily-create@x.com');
       const first = await create(Cu, 'Dl Create 1');
       expect(first.statusCode, JSON.stringify(first.body)).toBe(201);
       const second = await create(Cu, 'Dl Create 2');
-      expect(second.statusCode).toBe(403);
-      expect(second.body.code).toBe('DAILY_CREATE_LIMIT');
-      expect(second.body.limit).toBe(1);
-      expect(second.body.error).not.toMatch(/Pro/);           // old iOS bundles show it verbatim (3.1.1)
+      expect(second.statusCode, JSON.stringify(second.body)).toBe(201);
+      const third = await create(Cu, 'Dl Create 3');
+      expect(third.statusCode).toBe(403);
+      expect(third.body.code).toBe('DAILY_CREATE_LIMIT');
+      expect(third.body.limit).toBe(2);
+      expect(third.body.error).toBe('Du hast heute schon 2 Treffen erstellt. Ab morgen kannst du neue erstellen.');
+      expect(third.body.error).not.toMatch(/Pro/);            // old iOS bundles show it verbatim (3.1.1)
 
       // create → delete → create must not refill the budget.
       await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [first.body.id]);
-      expect((await create(Cu, 'Dl Create 3')).body.code).toBe('DAILY_CREATE_LIMIT');
+      expect((await create(Cu, 'Dl Create 4')).body.code).toBe('DAILY_CREATE_LIMIT');
 
-      // Yesterday's creation does not count against today (Vienna day window).
+      // Yesterday's creations do not count against today (Vienna day window).
       await db.query(`UPDATE groups SET created_at = created_at - INTERVAL '1 day' WHERE owner_id = $1 AND type = 'group'`, [Cu]);
-      const again = await create(Cu, 'Dl Create 4');
+      const again = await create(Cu, 'Dl Create 5');
       expect(again.statusCode, JSON.stringify(again.body)).toBe(201);
     });
 
@@ -4611,15 +4623,13 @@ suite('write endpoints against real Postgres', () => {
       await db.query(
         `INSERT INTO subscriptions (user_id, status, current_period_end) VALUES ($1, 'active', NOW() + INTERVAL '30 days')`, [P]);
       const Adm = await mkUser('smoke-daily-create-admin@x.com', true);
-      expect((await create(P, 'Dl P1')).statusCode).toBe(201);
-      expect((await create(P, 'Dl P2')).statusCode).toBe(201);
-      expect((await create(Adm, 'Dl A1')).statusCode).toBe(201);
-      expect((await create(Adm, 'Dl A2')).statusCode).toBe(201);
+      // Three each: one more than a free account gets.
+      for (const n of [1, 2, 3]) expect((await create(P, `Dl P${n}`)).statusCode).toBe(201);
+      for (const n of [1, 2, 3]) expect((await create(Adm, `Dl A${n}`)).statusCode).toBe(201);
       const W = await mkUser('smoke-daily-create-off@x.com');
       process.env.FREE_DAILY_GROUP_CREATES = '0';
       try {
-        expect((await create(W, 'Dl W1')).statusCode).toBe(201);
-        expect((await create(W, 'Dl W2')).statusCode).toBe(201);
+        for (const n of [1, 2, 3]) expect((await create(W, `Dl W${n}`)).statusCode).toBe(201);
       } finally {
         delete process.env.FREE_DAILY_GROUP_CREATES;
       }

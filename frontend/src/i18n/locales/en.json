@@ -1734,7 +1734,7 @@
       "unlimitedJoinsDesc": "Create and join as many groups as you like.",
       "unlimitedFriendRequests": "Unlimited friend requests",
       "unlimitedFriendRequestsDesc": "Send as many requests as you like.",
-      "joinsLimitReached": "You’ve reached your free weekly limit – with Pro you can keep going right away"
+      "joinsLimitReached": "You’ve reached your free daily limit – with Pro you can keep going right away"
     },
     "title": "JAMIE Pro",
     "heroTitle1": "MORE PEOPLE.",
@@ -2891,12 +2891,12 @@
     "CLUB_FULL": "This club is full.",
     "JOIN_CAP_REACHED": "You’ve already joined this club twice and can’t join it again.",
     "DAILY_JOIN_LIMIT": "You’ve already joined {{limit}} groups today. Tomorrow you can join a new group again.",
-    "DAILY_CREATE_LIMIT": "You’ve already created a meet-up today. From tomorrow you can create a new one."
+    "DAILY_CREATE_LIMIT": "You’ve already created {{limit}} meet-ups today. From tomorrow you can create new ones."
   },
   "dailyLimit": {
     "title": "Daily limit reached",
     "bodyJoin": "This keeps JAMIE active, personal and relevant. Take a close look at groups and join the activities that really fit you.",
-    "bodyCreate": "You’ve already created a meet-up today. This keeps JAMIE active, personal and relevant – give your meet-up your full attention.",
+    "bodyCreate": "You’ve already created two meet-ups today. This keeps JAMIE active, personal and relevant – give your meet-ups your full attention.",
     "bodyFriend": "You’ve already sent 5 friend requests today. This keeps requests personal – tomorrow you can ask new people again.",
     "proHeading": "Want more? Go Pro.",
     "b1T": "Join unlimited groups",

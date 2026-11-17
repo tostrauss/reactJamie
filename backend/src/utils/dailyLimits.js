@@ -3,12 +3,13 @@
 // ==========================================
 // Supersedes the weekly join limit from 12.10.2026 ("3 per rolling week").
 // Tina: "Ich würde eher welche pro Tag machen … damit Leute täglich
-// reingehen." Decided in the 28.10. chat:
-//   • JOIN:   3 per Vienna calendar day (FREE_DAILY_GROUP_JOINS, 0 = off).
+// reingehen." Decided in the 28.10. chat; the two numbers are Tobi's of
+// 17.11.2026 (2 joins and 2 creates — 3 and 1 before that):
+//   • JOIN:   2 per Vienna calendar day (FREE_DAILY_GROUP_JOINS, 0 = off).
 //             Plain groups AND club events count ("bei den Events ist
 //             dasselbe wie bei den Gruppen"); clubs/communities never do
 //             ("Clubs kann man allgemein immer beitreten").
-//   • CREATE: 1 plain group per Vienna calendar day (FREE_DAILY_GROUP_CREATES,
+//   • CREATE: 2 plain groups per Vienna calendar day (FREE_DAILY_GROUP_CREATES,
 //             0 = off). Club events and communities are NOT covered here —
 //             communities have their own 3/day brake in clubController.
 //   • A join REQUEST counts when it is sent; a REJECTED request gives the
@@ -29,8 +30,8 @@
 // traffic before startup migrations finish, and a join must never 500 — or
 // be refused — because a counter table is not there yet.
 
-export const DEFAULT_DAILY_GROUP_JOINS = 3;
-export const DEFAULT_DAILY_GROUP_CREATES = 1;
+export const DEFAULT_DAILY_GROUP_JOINS = 2;
+export const DEFAULT_DAILY_GROUP_CREATES = 2;
 
 /** The daily join allowance; FREE_DAILY_GROUP_JOINS=0 switches the limit off. */
 export function freeDailyGroupJoins(env = process.env) {

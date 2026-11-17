@@ -412,7 +412,7 @@ export const GroupDetail = () => {
       // miss a stale `user` (avatar removed on another device) — the backend
       // 403s with requiresAvatar, route that into the same prompt.
       if (error.response?.data?.requiresAvatar) { setShowAvatarGate(true); return; }
-      // Daily limit for free accounts (3 groups/events per Vienna day,
+      // Daily limit for free accounts (2 groups/events per Vienna day,
       // utils/dailyLimits.js on the server). Tina 28.10.2026: the "Tageslimit
       // erreicht" sheet comes FIRST — info before any upsell, so nobody reads
       // the refusal as "I can never join groups again". The sheet itself shows

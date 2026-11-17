@@ -1734,7 +1734,7 @@
       "unlimitedJoinsDesc": "So viele Gruppen erstellen und beitreten, wie du willst.",
       "unlimitedFriendRequests": "Unbegrenzt Freunde anfragen",
       "unlimitedFriendRequestsDesc": "So viele Leute anfragen, wie du willst.",
-      "joinsLimitReached": "Dein kostenloses Wochenlimit ist erreicht – mit Pro geht’s sofort weiter"
+      "joinsLimitReached": "Dein kostenloses Tageslimit ist erreicht – mit Pro geht’s sofort weiter"
     },
     "title": "JAMIE Pro",
     "heroTitle1": "MORE PEOPLE.",
@@ -2891,12 +2891,12 @@
     "CLUB_FULL": "Dieser Club ist voll.",
     "JOIN_CAP_REACHED": "Du bist diesem Club bereits zweimal beigetreten und kannst ihm nicht erneut beitreten.",
     "DAILY_JOIN_LIMIT": "Du bist heute schon {{limit}} Gruppen beigetreten. Morgen kannst du wieder einer neuen Gruppe beitreten.",
-    "DAILY_CREATE_LIMIT": "Du hast heute schon ein Treffen erstellt. Ab morgen kannst du ein neues erstellen."
+    "DAILY_CREATE_LIMIT": "Du hast heute schon {{limit}} Treffen erstellt. Ab morgen kannst du neue erstellen."
   },
   "dailyLimit": {
     "title": "Tageslimit erreicht",
     "bodyJoin": "So bleibt JAMIE aktiv, persönlich und relevant. Sieh dir Gruppen genau an und nimm an den Aktivitäten teil, die wirklich zu dir passen.",
-    "bodyCreate": "Du hast heute schon ein Treffen erstellt. So bleibt JAMIE aktiv, persönlich und relevant – gib deinem Treffen die volle Aufmerksamkeit.",
+    "bodyCreate": "Du hast heute schon zwei Treffen erstellt. So bleibt JAMIE aktiv, persönlich und relevant – gib deinen Treffen die volle Aufmerksamkeit.",
     "bodyFriend": "Du hast heute schon 5 Leute angefragt. So bleiben Anfragen persönlich – morgen kannst du wieder neue Leute anfragen.",
     "proHeading": "Mehr? Dann gerne Pro.",
     "b1T": "Unbegrenzt Gruppen beitreten",

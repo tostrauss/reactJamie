@@ -238,7 +238,7 @@ export const CreateGroup = () => {
       // „Erste Nachricht schreiben" (Tina's notification concept, 03.11.2026).
       navigate(`/group/${response.data.id}`, { replace: true, state: { justCreated: true } });
     } catch (err) {
-      // Daily free-create limit (1/day, Tina + Tobi 28.10.2026): the info
+      // Daily free-create limit (2/day, Tina + Tobi 28.10.2026): the info
       // sheet comes first — no raw error toast for an intended refusal.
       if (err.response?.data?.code === 'DAILY_CREATE_LIMIT') {
         setShowDailyLimit(true);

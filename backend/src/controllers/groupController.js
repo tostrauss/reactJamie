@@ -372,11 +372,11 @@ export const createGroup = async (req, res) => {
       return res.status(429).json({ error: 'Du kannst maximal 10 Gruppen pro Tag erstellen.' });
     }
 
-    // Free accounts: 1 plain group per Vienna day (Tina + Tobi 28.10.2026,
-    // utils/dailyLimits.js — "die Nachricht kommt dann, wenn man am selben Tag
-    // eine 2. erstellen will"). Pro and app admins skip this and keep only the
-    // 10/24h spam cap above. Soft-deleted rows count (create → delete → create
-    // must not refill the budget).
+    // Free accounts: 2 plain groups per Vienna day (utils/dailyLimits.js;
+    // Tina + Tobi 28.10.2026 started with one, Tobi 17.11.2026: two — the
+    // refusal comes with the third on the same day). Pro and app admins skip
+    // this and keep only the 10/24h spam cap above. Soft-deleted rows count
+    // (create → delete → create must not refill the budget).
     const createLimit = freeDailyGroupCreates();
     if (createLimit > 0 && !(await limitExempt(db, userId, isUserPro))) {
       const day = await dailyCreateState(db, userId);
@@ -1561,8 +1561,9 @@ export const joinGroup = async (req, res) => {
     }
 
     // Daily limit for free accounts (Tina + Tobi 28.10.2026, utils/dailyLimits.js —
-    // supersedes the weekly rule from 12.10.): groups AND club events, 3 per
-    // Vienna calendar day, clubs/communities never count, Pro/admins unlimited.
+    // supersedes the weekly rule from 12.10.): groups AND club events, 2 per
+    // Vienna calendar day (3 until 17.11.2026), clubs/communities never
+    // count, Pro/admins unlimited.
     // After the capacity check on purpose — a full group answers "voll" (and
     // offers the waitlist) instead of upselling a seat that does not exist. A
     // group today's log already holds (left and joining again, a re-sent

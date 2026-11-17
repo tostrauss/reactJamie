@@ -33,7 +33,9 @@ describe('DailyLimitModal', () => {
     const seen = vi.fn();
     window.addEventListener('jamie:open-pro-modal', seen, { once: true });
     render(<DailyLimitModal variant="create" onClose={() => {}} />);
-    expect(screen.getByText(/Du hast heute schon ein Treffen erstellt/)).toBeTruthy();
+    // Two a day since 17.11.2026 (Tobi) — the sentence names the number, and
+    // its second half follows it into the plural.
+    expect(screen.getByText('Du hast heute schon zwei Treffen erstellt. So bleibt JAMIE aktiv, persönlich und relevant – gib deinen Treffen die volle Aufmerksamkeit.')).toBeTruthy();
     fireEvent.click(screen.getByText('JAMIE Pro entdecken'));
     expect(seen.mock.calls[0][0].detail).toEqual({ feature: 'creates' });
   });
