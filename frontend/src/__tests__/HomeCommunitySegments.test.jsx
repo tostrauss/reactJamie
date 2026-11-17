@@ -62,8 +62,9 @@ const community = (id, name, extra = {}) => ({
   id, name, type: 'club', club_type: 'community', members_count: 12,
   category: 'Laufen', categories: ['Laufen'], image_url: null, is_private: false, ...extra,
 });
+// As GET /clubs sends them (SELECT g.*): approval_status and is_active come along.
 const official = (id, name, extra = {}) => ({
-  id, name, type: 'club', club_type: 'official', members_count: 400,
+  id, name, type: 'club', club_type: 'official', approval_status: 'approved', is_active: true, members_count: 400,
   category: 'Bar', category_label: 'Bar · Nightlife', image_url: null, ...extra,
 });
 const deal = (id) => ({

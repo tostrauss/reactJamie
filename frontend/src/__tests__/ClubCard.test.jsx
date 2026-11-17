@@ -9,7 +9,7 @@ import path from 'node:path';
 const { ClubCard } = await import('../components/ClubCard');
 
 const club = (over = {}) => ({
-  id: 2, name: 'Café Krieau', type: 'club', club_type: 'official', approval_status: 'approved',
+  id: 2, name: 'Café Krieau', type: 'club', club_type: 'official', approval_status: 'approved', is_active: true,
   members_count: 37, category: 'Bar', categories: ['Bar', 'Clubbing'], category_label: 'Bar-Hopping · Rooftop',
   image_url: 'https://app.jamie-app.com/media/uploads/krieau.webp', is_private: false, is_paid_partner: false, ...over,
 });
@@ -89,6 +89,30 @@ describe('ClubCard — the ✓ is for paying partners only', () => {
       renderCard({ is_paid_partner: value });
       expect(tick()).toBeNull();
     }
+  });
+
+  // The same rule as the ☆ on the profile bubble (utils/paidPartner.js) — the
+  // flag alone is not enough. It stays in the database when an admin turns a
+  // paying club into a community, and an owner sees their own club in the
+  // list while it is still in review (withOwnPendingClubs).
+  it('a community that kept the flag: no tick', () => {
+    renderCard({ club_type: null, is_paid_partner: true });
+    expect(tick()).toBeNull();
+  });
+
+  it('an own club still in review, with the flag: no tick', () => {
+    renderCard({ approval_status: 'pending', is_paid_partner: true });
+    expect(tick()).toBeNull();
+  });
+
+  it('a closed club with the flag: no tick', () => {
+    renderCard({ is_active: false, is_paid_partner: true });
+    expect(tick()).toBeNull();
+  });
+
+  it('a row without approval_status (not the list this card is fed from): no tick', () => {
+    renderCard({ approval_status: undefined, is_paid_partner: true });
+    expect(tick()).toBeNull();
   });
 });
 

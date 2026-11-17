@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { coverCardUrl } from '../utils/images';
+import { isPaidPartnerClub } from '../utils/paidPartner';
 import { CoverImage } from './CommunityCard';
 import VerifiedBadge from './VerifiedBadge';
 import '../styles/club-card.css';
@@ -14,9 +15,12 @@ import '../styles/club-card.css';
  *
  * The same card as CommunityCard — category bubble, title, member count, the
  * cover across the full width — plus two things:
- *   ✓  beside the name, ONLY for a paying partner (club.is_paid_partner ===
- *      true, the admin's flag). An official club that does not pay has no
- *      tick; a server that does not send the field means none either.
+ *   ✓  beside the name, ONLY for a paying partner — the same rule as the ☆
+ *      on the profile bubble (utils/paidPartner.js): a live, approved,
+ *      official club with the admin's is_paid_partner flag. An official club
+ *      that does not pay has no tick; neither has a community that kept the
+ *      flag, an own club still in review, or a row from a server that does
+ *      not send the field.
  *   „Events entdecken“ under the picture.
  *
  * The bubble shows the club's own category line („Bar-Hopping · Rooftop“,
@@ -56,7 +60,7 @@ export const ClubCard = memo(({ club, emojiFor, onOpen }) => {
             {/* Hyphens → U+2011 so a name like "Bar-Hopping" does not wrap
                 (same treatment as CommunityCard). */}
             <h3 className="card-title community-card-title">{name.replace(/-/g, '‑')}</h3>
-            {club.is_paid_partner === true && (
+            {isPaidPartnerClub(club) && (
               <VerifiedBadge className="club-card-verified" size={18} title={t('profile.clubs.partnerAria')} />
             )}
           </div>
