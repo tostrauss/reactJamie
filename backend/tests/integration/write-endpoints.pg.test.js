@@ -6820,6 +6820,50 @@ suite('write endpoints against real Postgres', () => {
     });
   });
 
+  // ── groups.is_paid_partner (partner model, Tina/Tobi 17.11.2026) ────────
+  // The column ships one deploy ahead of its readers. The path that matters
+  // runs in production exactly once: a database that has the groups table but
+  // not the column. A fresh smoke schema already has it (schema.sql), so that
+  // path is taken for real here — drop the column, boot again.
+  describe('groups.is_paid_partner: the boot migration adds the column to an existing groups table (2026-11-17)', () => {
+    const column = async () => (await db.query(
+      `SELECT data_type, is_nullable, column_default FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'groups' AND column_name = 'is_paid_partner'`)).rows[0];
+    const SHAPE = { data_type: 'boolean', is_nullable: 'NO', column_default: 'false' };
+    const paidOf = async (id) => (await db.query('SELECT is_paid_partner FROM groups WHERE id = $1', [id])).rows[0]?.is_paid_partner;
+
+    it('a fresh database has it from schema.sql: BOOLEAN NOT NULL DEFAULT FALSE', async () => {
+      expect(await column()).toEqual(SHAPE);
+    });
+
+    it('a database from before the deploy: the boot adds it, every existing row reads false, a set flag survives the next boot', async () => {
+      const club = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, club_type)
+         VALUES ('Smoke Zahlender Partner', 'club', $1, 'Sonstiges', 'Wien', 500, 'official') RETURNING id`, [A])).rows[0].id;
+      await db.query('ALTER TABLE groups DROP COLUMN is_paid_partner');
+      expect(await column()).toBeUndefined();
+
+      const { runStartupMigrations, getMigrationHealth } = await import('../../src/config/migrations.js');
+      const failed = () => getMigrationHealth().stepFailures.filter((f) => f.label.includes('is_paid_partner'));
+      await runStartupMigrations();
+      expect(failed()).toEqual([]);
+      expect(await column()).toEqual(SHAPE);
+      const all = (await db.query(
+        'SELECT COUNT(*)::int AS n, COUNT(*) FILTER (WHERE is_paid_partner)::int AS paid FROM groups')).rows[0];
+      expect(all.n).toBeGreaterThan(0);
+      expect(all.paid).toBe(0);
+      expect(await paidOf(club)).toBe(false);
+
+      // only an admin write ever sets it — and the probe leaves a set flag alone
+      await db.query('UPDATE groups SET is_paid_partner = TRUE WHERE id = $1', [club]);
+      await runStartupMigrations();
+      expect(failed()).toEqual([]);
+      expect(await column()).toEqual(SHAPE);
+      expect(await paidOf(club)).toBe(true);
+      await db.query('DELETE FROM groups WHERE id = $1', [club]);
+    });
+  });
+
   // ── „Sichtbar bis“ saved before 16.11.2026 (review 16.11.) ──────────────
   // Until 1746d37 a bare date was stored as midnight UTC: the deal went dark
   // at 01:00 (02:00 in summer) on its last day. A one-shot at boot moves

@@ -2120,6 +2120,42 @@ const runStartupMigrations = async () => {
     }
   });
 
+  // ── Partner model (Tina 17.11.2026; Tobi: ☆ Partner, the yellow frame and
+  // the ✓ are for PAYING partners only) ───────────────────────────────────
+  // Deliberately shipped one deploy AHEAD of its readers. partnerSql (feed
+  // decoration, event page, profile, requests deck) and the Clubs list will
+  // read this column on hot paths, and the server takes traffic before its
+  // migrations finish — with the column already live, no request can ever
+  // meet the new code without it. This step has no reader and changes nothing
+  // a user can see.
+  //
+  // BOOLEAN NOT NULL DEFAULT FALSE, unlike the nullable club_type: FALSE is a
+  // true statement for every row (groups and events included), and a constant
+  // default is metadata-only since PostgreSQL 11 — no table rewrite. Only an
+  // app admin sets it, and only on an official club.
+  //
+  // Probed first, then ALTERed under a short lock_timeout: groups is read by
+  // every feed (reasoning of groups.club_type).
+  await migrate('groups.is_paid_partner (2026-11)', async () => {
+    const { rows } = await db.query(
+      `SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema() AND table_name = 'groups' AND column_name = 'is_paid_partner'`
+    );
+    if (rows.length) return;
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`ALTER TABLE groups ADD COLUMN IF NOT EXISTS is_paid_partner BOOLEAN NOT NULL DEFAULT FALSE`);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // nothing reads it yet; the next boot tries again
+    } finally {
+      client.release();
+    }
+  });
+
   // ── Post-migration schema assertion ────────────────────────────────────
   // The server accepts traffic BEFORE migrations finish (listen → migrate),
   // so health stays green during the boot window; only a PROVEN-broken
