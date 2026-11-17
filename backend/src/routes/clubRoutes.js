@@ -32,7 +32,9 @@ import {
   getGroupMemberAvatars
 } from '../controllers/groupController.js';
 import { getFeaturedClubs } from '../controllers/featuredClubController.js';
-import { getEventQuota, requestPartner } from '../controllers/partnerController.js';
+import {
+  getEventQuota, requestPartner, getEventExtras, saveEventDeal, removeEventDeal,
+} from '../controllers/partnerController.js';
 import { authenticate, optionalAuth, requireCompleteProfile } from '../middleware/auth.js';
 import { generalLimiter, partnerLeadLimiter } from '../middleware/rateLimiter.js';
 
@@ -105,6 +107,11 @@ router.get('/:id/event-quota', authenticate, getEventQuota);
 // „Ja, meldet euch!“ → the form „JAMIE Anfrage“. authenticate BEFORE the
 // limiter: it keys on req.userId (5 requests per hour and person).
 router.post('/:id/partner-request', authenticate, partnerLeadLimiter, requestPartner);
+// The ONE deal of an event, on its edit page (Tina 17.11.2026): what is
+// there, put one up or edit it, take it off.
+router.get('/:id/events/:eventId/extras', authenticate, getEventExtras);
+router.put('/:id/events/:eventId/deal', authenticate, saveEventDeal);
+router.delete('/:id/events/:eventId/deal', authenticate, removeEventDeal);
 
 // ==========================================
 // CO-MANAGER ROUTES (owner only) — shared management for paid managed clubs

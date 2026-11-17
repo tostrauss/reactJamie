@@ -36,6 +36,7 @@ vi.mock('../../src/controllers/featuredClubController.js', () => stubs([
 // The partner model (Tina 17.11.2026): its club routes sit next to the events'.
 vi.mock('../../src/controllers/partnerController.js', () => stubs([
   'getEventQuota', 'requestPartner', 'getPartnerLeadsAdmin',
+  'getEventExtras', 'saveEventDeal', 'removeEventDeal',
 ]));
 vi.mock('../../src/controllers/adminController.js', () => stubs([
   'getStats', 'getRecentUsers', 'getScreenTime', 'exportUsers', 'exportScreens', 'exportSuggestions',
@@ -81,6 +82,17 @@ describe('club routes', () => {
   // „Ja, meldet euch!“ → „JAMIE Anfrage“.
   it('POST /api/clubs/:id/partner-request reaches the request handler', async () => {
     expect(await handlerOf(request(app).post('/api/clubs/7/partner-request').send({}))).toBe('requestPartner');
+  });
+
+  // The ONE deal of an event sits one segment below the event: editing or
+  // deleting the EVENT must never be answered by the deal handlers, nor the
+  // other way round.
+  it('the event\'s deal routes reach their own handlers, next to the event\'s own', async () => {
+    expect(await handlerOf(request(app).get('/api/clubs/7/events/9/extras'))).toBe('getEventExtras');
+    expect(await handlerOf(request(app).put('/api/clubs/7/events/9/deal').send({}))).toBe('saveEventDeal');
+    expect(await handlerOf(request(app).delete('/api/clubs/7/events/9/deal'))).toBe('removeEventDeal');
+    expect(await handlerOf(request(app).put('/api/clubs/7/events/9').send({}))).toBe('updateClubEvent');
+    expect(await handlerOf(request(app).delete('/api/clubs/7/events/9'))).toBe('deleteClubEvent');
   });
 });
 

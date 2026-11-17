@@ -6,20 +6,43 @@
 //                                       (requestPartner)
 //   GET  /api/admin/partner-leads       the admin's list „Partner-Anfragen“
 //                                       (getPartnerLeadsAdmin)
+//   GET    /api/clubs/:id/events/:eventId/extras   what the event's edit page
+//                                       shows of its deal (getEventExtras)
+//   PUT    /api/clubs/:id/events/:eventId/deal     the event's ONE deal
+//                                       (saveEventDeal)
+//   DELETE /api/clubs/:id/events/:eventId/deal     take it off (removeEventDeal)
 //
 // The rules live in utils/clubEventQuota.js; createClubEvent enforces them.
 // The quota only tells the app in advance, so it can show Tina's partner
-// message instead of a form that will be refused.
+// message instead of a form that will be refused. The deal rules and writes
+// live in dealController.js (clubDealAccess, writeEventClubDeal).
 import db from '../config/database.js';
-import { FREE_CLUB_EVENTS, loadClubForQuota, quotaOf } from '../utils/clubEventQuota.js';
+import {
+  FREE_CLUB_EVENTS, loadClubForQuota, quotaOf, eventFreeRank, withinFreeEvents,
+} from '../utils/clubEventQuota.js';
 import { sendPushToAdmins } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
+import {
+  getDealsForEvents, clubDealAccess, parseClubDealBody, writeEventClubDeal,
+  DEAL_SET_BY_JAMIE, CLUB_DEALS_UNAVAILABLE,
+} from './dealController.js';
 
 // A route id → a positive integer, or null (never a cast error from Postgres).
 const toId = (v) => {
   const n = typeof v === 'number' ? v : (typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : NaN);
   return Number.isInteger(n) && n > 0 && n <= 2147483647 ? n : null;
 };
+
+// Whether the caller runs the club (a row of loadClubForQuota): its owner, a
+// co-manager (group_members.role = 'admin') — or an app admin.
+async function runsClub(club, userId) {
+  if (Number(club.owner_id) === Number(userId) || club.caller_is_admin) return true;
+  const { rows } = await db.query(
+    `SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2 AND role = 'admin'`, [club.id, userId]);
+  return rows.length > 0;
+}
+
+const NOT_CLUB_MANAGER = { error: 'Keine Berechtigung', code: 'NOT_CLUB_MANAGER' };
 
 // What a quota reads as when nothing is limited — and the answer when the
 // lookup itself fails.
@@ -154,13 +177,7 @@ export const requestPartner = async (req, res) => {
   try {
     const club = await loadClubForQuota(db, clubId, req.userId);
     if (!club) return res.status(404).json({ error: 'Club nicht gefunden' });
-    let allowed = Number(club.owner_id) === Number(req.userId) || !!club.caller_is_admin;
-    if (!allowed) {
-      const mgr = await db.query(
-        `SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2 AND role = 'admin'`, [clubId, req.userId]);
-      allowed = mgr.rows.length > 0;
-    }
-    if (!allowed) return res.status(403).json({ error: 'Keine Berechtigung', code: 'NOT_CLUB_MANAGER' });
+    if (!(await runsClub(club, req.userId))) return res.status(403).json(NOT_CLUB_MANAGER);
 
     const { lead, invalid } = parsePartnerLead(req.body);
     if (invalid) return res.status(400).json(invalid);
@@ -240,5 +257,192 @@ export const getPartnerLeadsAdmin = async (_req, res) => {
   } catch (err) {
     if (err?.code !== '42P01') console.error('getPartnerLeadsAdmin error:', err.message);
     res.json([]);
+  }
+};
+
+// ==========================================
+// THE DEAL OF ONE EVENT   /api/clubs/:id/events/:eventId/…
+// ==========================================
+// Tina 17.11.2026: „Man kann nur einen Deal pro Event anlegen“ — put up in
+// the event form („Deal anlegen“, createClubEvent) or here, on the event's
+// edit page. For the people who run the club: its owner, a co-manager, an
+// app admin. Who may put one up is dealController.clubDealAccess, need
+// 'event': a club that is not limited, or one of the club's first two free
+// events. Taking it off is always free. A deal JAMIE hung on the event is
+// JAMIE's to move (409 DEAL_SET_BY_JAMIE).
+
+// The deal that hangs on the event, whatever its state.
+const LINKED_DEAL_SQL = `SELECT d.id, d.club_id, d.is_active, d.name, d.deal_label, d.description, d.address,
+              d.booking_url, d.photos, d.visible_until, d.max_redemptions, d.redeem_interval, d.redeem_days
+         FROM event_deals ed
+         JOIN deals d ON d.id = ed.deal_id
+        WHERE ed.group_id = $1`;
+
+// A live event of this club.
+const eventOfClub = async (clubId, eventId) => (await db.query(
+  `SELECT 1 FROM groups WHERE id = $1 AND parent_club_id = $2 AND type = 'event' AND deleted_at IS NULL`,
+  [eventId, clubId])).rows.length > 0;
+
+// The club's own deal as its form edits it.
+const ownDeal = (d) => ({
+  id: d.id,
+  name: d.name,
+  deal_label: d.deal_label,
+  description: d.description ?? null,
+  address: d.address ?? null,
+  booking_url: d.booking_url ?? null,
+  photos: Array.isArray(d.photos) ? d.photos : [],
+  visible_until: d.visible_until ?? null,
+  max_redemptions: d.max_redemptions ?? null,
+  redeem_interval: d.redeem_interval || 'once',
+  redeem_days: d.redeem_days ?? null,
+});
+
+const isMissingRelation = (err) => err?.code === '42P01' || err?.code === '42703';
+
+// GET …/extras → { is_official, club_name, auto_messages, deal, deal_shown,
+//                  jamie_deal, deal_allowed }
+//   deal         the club's OWN deal on this event, with every field its form
+//                edits — also one that is not visible right now (run out,
+//                sold out); null when there is none
+//   deal_shown   what the event page shows right now (the deal row's shape,
+//                with `verified`), or null
+//   jamie_deal   { name } when a deal that is not the club's hangs there
+//   deal_allowed whether saveEventDeal would let a deal be put up or edited
+// Never a 5xx (a GET): a missing table or any other error reads as „nothing
+// here, not available“ — unavailable:true, and the editor shows only its hint.
+export const getEventExtras = async (req, res) => {
+  const clubId = toId(req.params.id);
+  const eventId = toId(req.params.eventId);
+  if (!clubId || !eventId) return res.status(404).json({ error: 'Veranstaltung nicht gefunden' });
+  if (!req.userId) return res.status(401).json({ error: 'Nicht autorisiert' });
+  let club = null;
+  const blank = () => ({
+    is_official: club?.club_type === 'official',
+    club_name: club?.name || '',
+    auto_messages: false,
+    deal: null,
+    deal_shown: null,
+    jamie_deal: null,
+    deal_allowed: false,
+  });
+  try {
+    club = await loadClubForQuota(db, clubId, req.userId);
+    if (!club) return res.status(404).json({ error: 'Club nicht gefunden' });
+    if (!(await runsClub(club, req.userId))) return res.status(403).json(NOT_CLUB_MANAGER);
+    if (!(await eventOfClub(clubId, eventId))) return res.status(404).json({ error: 'Veranstaltung nicht gefunden' });
+
+    const out = blank();
+    const linked = (await db.query(LINKED_DEAL_SQL, [eventId])).rows[0];
+    if (linked) {
+      if (Number(linked.club_id) !== clubId) out.jamie_deal = { name: linked.name };
+      else if (linked.is_active) out.deal = ownDeal(linked);
+    }
+    out.deal_shown = (await getDealsForEvents([eventId])).get(eventId) || null;
+    if (out.is_official && club.is_live) {
+      const quota = await quotaOf(db, club);
+      out.deal_allowed = !quota.limited || withinFreeEvents(await eventFreeRank(db, clubId, eventId));
+    }
+    res.json(out);
+  } catch (err) {
+    if (!isMissingRelation(err)) console.error('getEventExtras error:', err.message);
+    res.json({ ...blank(), unavailable: true });
+  }
+};
+
+// PUT …/deal   body: the deal's fields (DealForm) → { deal, deal_shown }
+// The club's own deal already on the event is edited in place (only what was
+// sent changes) — also one from the old library that hangs on other events
+// too. Otherwise a new deal is put up and hung on. Written in ONE
+// transaction: no deal without its link.
+export const saveEventDeal = async (req, res) => {
+  const clubId = toId(req.params.id);
+  const eventId = toId(req.params.eventId);
+  if (!clubId || !eventId) return res.status(404).json({ error: 'Veranstaltung nicht gefunden' });
+  if (!req.userId) return res.status(401).json({ error: 'Nicht autorisiert' });
+  let client = null;
+  try {
+    const access = await clubDealAccess(clubId, req.userId, { need: 'event', eventId, adminToo: true });
+    if (!access.club) return res.status(access.status).json(access.body);
+
+    const linked = (await db.query(LINKED_DEAL_SQL, [eventId])).rows[0];
+    if (linked && Number(linked.club_id) !== clubId) return res.status(409).json(DEAL_SET_BY_JAMIE);
+    // A deal the club deleted from its library still hangs there, dark: the
+    // new one replaces it.
+    const editing = !!linked && linked.is_active === true;
+
+    const parsed = await parseClubDealBody(req.body, access.club, { partial: editing });
+    if (parsed.error) return res.status(parsed.status).json({ error: parsed.error });
+    if (editing && !Object.keys(parsed.fields).length) {
+      return res.status(400).json({ error: 'Keine Änderungen übergeben' });
+    }
+
+    client = await db.pool.connect();
+    await client.query('BEGIN');
+    const deal = await writeEventClubDeal(client, {
+      clubId, eventId, userId: req.userId, fields: parsed.fields, dealId: editing ? linked.id : null,
+    });
+    await client.query('COMMIT');
+    console.log(`[deals] club ${clubId}: user ${req.userId} ${editing ? 'edited' : 'put up'} deal ${deal.id} on event ${eventId}`);
+    const shown = (await getDealsForEvents([eventId])).get(eventId) || null;
+    res.json({ deal: ownDeal(deal), deal_shown: shown });
+  } catch (err) {
+    if (client) await client.query('ROLLBACK').catch(() => {});
+    // JAMIE hung a deal on the event between the look above and the write.
+    if (err?.code === 'DEAL_SET_BY_JAMIE') return res.status(409).json(DEAL_SET_BY_JAMIE);
+    if (err?.code === 'DEAL_NOT_FOUND') return res.status(404).json({ error: 'Deal not found' });
+    if (isMissingRelation(err)) return res.status(503).json(CLUB_DEALS_UNAVAILABLE);
+    // The event or the club was hard-deleted between the check and the write.
+    if (err?.code === '23503') return res.status(404).json({ error: 'Veranstaltung nicht gefunden' });
+    console.error('saveEventDeal error:', err);
+    res.status(500).json({ error: 'Der Deal konnte nicht gespeichert werden.' });
+  } finally {
+    client?.release();
+  }
+};
+
+// DELETE …/deal → { ok: true }
+// Takes the club's own deal off the event and, when it hangs on no other
+// event, retires it (soft, like deleteClubDeal: its redemptions stay in the
+// stats). No payment check and no live-club check: a club can always take
+// down what it published. Nothing there: a no-op that succeeds. JAMIE's: 409.
+// One statement — the link and the deal go together; `o.group_id <> $1`
+// because both parts see the table as it was before the delete.
+export const removeEventDeal = async (req, res) => {
+  const clubId = toId(req.params.id);
+  const eventId = toId(req.params.eventId);
+  if (!clubId || !eventId) return res.status(404).json({ error: 'Veranstaltung nicht gefunden' });
+  if (!req.userId) return res.status(401).json({ error: 'Nicht autorisiert' });
+  try {
+    const club = await loadClubForQuota(db, clubId, req.userId);
+    if (!club) return res.status(404).json({ error: 'Club nicht gefunden' });
+    if (!(await runsClub(club, req.userId))) return res.status(403).json(NOT_CLUB_MANAGER);
+    if (!(await eventOfClub(clubId, eventId))) return res.status(404).json({ error: 'Veranstaltung nicht gefunden' });
+
+    const { rows } = await db.query(
+      `WITH off AS (
+         DELETE FROM event_deals ed USING deals d
+          WHERE ed.group_id = $1 AND d.id = ed.deal_id AND d.club_id = $2
+         RETURNING ed.deal_id
+       ), retired AS (
+         UPDATE deals SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+          WHERE id IN (SELECT deal_id FROM off)
+            AND NOT EXISTS (SELECT 1 FROM event_deals o WHERE o.deal_id = deals.id AND o.group_id <> $1)
+         RETURNING id
+       )
+       SELECT (SELECT COUNT(*)::int FROM off) AS removed, (SELECT COUNT(*)::int FROM retired) AS retired`,
+      [eventId, clubId]
+    );
+    if (!rows[0].removed) {
+      const other = await db.query('SELECT 1 FROM event_deals WHERE group_id = $1', [eventId]);
+      if (other.rows.length) return res.status(409).json(DEAL_SET_BY_JAMIE);
+    } else {
+      console.log(`[deals] club ${clubId}: user ${req.userId} took the deal off event ${eventId}`);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    if (isMissingRelation(err)) return res.status(503).json(CLUB_DEALS_UNAVAILABLE);
+    console.error('removeEventDeal error:', err);
+    res.status(500).json({ error: 'Der Deal konnte nicht entfernt werden.' });
   }
 };

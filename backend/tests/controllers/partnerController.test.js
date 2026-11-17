@@ -7,15 +7,31 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 process.env.JWT_SECRET = 'test-secret-key';
 process.env.NODE_ENV = 'test';
 
-vi.mock('../../src/config/database.js', () => ({ default: { query: vi.fn() } }));
-vi.mock('../../src/controllers/pushController.js', () => ({ sendPushToAdmins: vi.fn(async () => {}) }));
+// One query mock for the pool and for a client checked out of it (the deal
+// endpoints write in a transaction).
+vi.mock('../../src/config/database.js', () => {
+  const query = vi.fn();
+  return { default: { query, pool: { connect: async () => ({ query, release: () => {} }) } } };
+});
+vi.mock('../../src/controllers/pushController.js', () => ({
+  sendPushToAdmins: vi.fn(async () => {}), sendPushToUsers: vi.fn(async () => {}),
+}));
 vi.mock('../../src/utils/email.js', () => ({ sendPartnerLeadEmail: vi.fn(async () => {}) }));
+// What the deal fields go through (dealController.parseClubDealBody): the
+// real checks run in the smoke suite.
+vi.mock('../../src/utils/geocode.js', () => ({ resolveCreateLocation: vi.fn(async () => ({ ok: true, coords: { lat: 48.2, lng: 16.37 } })) }));
+vi.mock('../../src/config/moderation.js', () => ({
+  checkTextSafety: vi.fn(async (text) => (text.includes('Hurensohn')
+    ? { safe: false, reason: 'Dein Text enthält unangemessene Inhalte.' } : { safe: true, reason: null })),
+}));
+vi.mock('../../src/utils/safeUrl.js', () => ({ checkImageField: () => null }));
 
 const db = (await import('../../src/config/database.js')).default;
 const { sendPushToAdmins } = await import('../../src/controllers/pushController.js');
 const { sendPartnerLeadEmail } = await import('../../src/utils/email.js');
 const {
   getEventQuota, requestPartner, getPartnerLeadsAdmin, parsePartnerLead,
+  getEventExtras, saveEventDeal, removeEventDeal,
 } = await import('../../src/controllers/partnerController.js');
 
 const run = async (fn, req) => {
@@ -363,5 +379,300 @@ describe('GET /api/admin/partner-leads', () => {
     const res = await run(getPartnerLeadsAdmin, {});
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual([]);
+  });
+});
+
+// „Man kann nur einen Deal pro Event anlegen“ (Tina 17.11.2026): the event's
+// one deal on its edit page. Queries are dispatched on their text; `w` is the
+// world each test sets up. The real SQL runs in the smoke suite.
+describe('the deal of one event: /api/clubs/:id/events/:eventId/…', () => {
+  const day = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  const DEAL = {
+    id: 42, club_id: 7, is_active: true, name: 'Café Soleá', deal_label: '1 Punsch gratis', description: null,
+    address: 'Wien', booking_url: null, photos: [], visible_until: '2026-12-31T22:59:59.000Z',
+    max_redemptions: 100, redeem_interval: 'once', redeem_days: null,
+  };
+  const FIELDS = { name: 'Café Soleá', deal_label: '1 Punsch gratis', visible_until: day(30) };
+  let w;
+  let sql;   // every query text, in order
+  const world = (over = {}) => {
+    w = {
+      club: { ...CLUB, is_live: true, location: 'Wien', lat: 48.2, lng: 16.37 },   // loadClubForQuota + the gate row
+      manager: true,           // the gate's is_manager / a co-manager row
+      eventExists: true,       // a live event of this club
+      linked: null,            // the deal on the event now (LINKED_DEAL_SQL)
+      shown: null,             // what the event page shows (getDealsForEvents)
+      counted: { started: true, used: 1, upcoming: 1 },
+      rank: { counted: true, before: 0 },
+      linkWritable: true,      // false: JAMIE's deal is there at the write
+      removed: 1,
+      otherLink: false,        // a deal that is not the club's hangs there
+      fail: null,              // { on: /regex/, err }
+      ...over,
+    };
+    sql = [];
+    vi.mocked(db.query).mockImplementation(async (text) => {
+      sql.push(text);
+      if (w.fail && w.fail.on.test(text)) throw w.fail.err;
+      if (/^(BEGIN|COMMIT|ROLLBACK)$/.test(text)) return { rows: [] };
+      if (text.includes('AS is_manager')) return { rows: w.club ? [{ ...w.club, is_manager: w.manager }] : [] };
+      if (text.includes('c.events_owner_only')) return { rows: w.club ? [w.club] : [] };
+      if (text.includes("role = 'admin'") && text.startsWith('SELECT 1 FROM group_members')) return { rows: w.manager ? [{}] : [] };
+      if (text.startsWith('SELECT 1 FROM groups WHERE id = $1 AND parent_club_id = $2')) return { rows: w.eventExists ? [{}] : [] };
+      if (text.includes('AS started')) return { rows: [w.counted] };
+      if (text.includes('AS counted')) return { rows: w.eventExists && w.rank ? [w.rank] : [] };
+      if (text.includes('AS verified')) return { rows: w.shown ? [{ group_id: 9, ...w.shown }] : [] };
+      if (text.includes('d.booking_url') && text.includes('WHERE ed.group_id = $1')) return { rows: w.linked ? [w.linked] : [] };
+      if (text.startsWith('INSERT INTO deals')) return { rows: [{ ...DEAL, id: 43 }] };
+      if (text.startsWith('UPDATE deals SET')) return { rows: [{ ...DEAL, deal_label: 'neu' }] };
+      if (text.includes('INSERT INTO event_deals')) return w.linkWritable ? { rows: [{ group_id: 9 }], rowCount: 1 } : { rows: [], rowCount: 0 };
+      if (text.includes('WITH off AS')) return { rows: [{ removed: w.removed, retired: w.removed }] };
+      if (text.startsWith('SELECT 1 FROM event_deals WHERE group_id = $1')) return { rows: w.otherLink ? [{}] : [] };
+      throw new Error(`unexpected query: ${text.slice(0, 90)}`);
+    });
+  };
+  const at = (fn, over = {}) => run(fn, { params: { id: '7', eventId: '9' }, ...over });
+  const wrote = () => sql.some((t) => /^(INSERT INTO deals|UPDATE deals SET)/.test(t) || t.includes('INSERT INTO event_deals'));
+  const ownerOnly = { owner_id: 99 };   // the caller (3) does not own the club
+
+  let log;
+  beforeEach(() => { log = vi.spyOn(console, 'log').mockImplementation(() => {}); });
+  afterEach(() => { log.mockRestore(); delete process.env.CLUB_FREE_TIER; });
+
+  describe('GET …/extras', () => {
+    it('the club\'s own deal with every field its form edits, what the page shows, and that it may be edited', async () => {
+      world({ linked: DEAL, shown: { id: 42, name: 'Café Soleá', deal_label: '1 Punsch gratis', photo: null, verified: false } });
+      const res = await at(getEventExtras);
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toEqual({
+        is_official: true, club_name: 'Café Soleá', auto_messages: false,
+        deal: {
+          id: 42, name: 'Café Soleá', deal_label: '1 Punsch gratis', description: null, address: 'Wien', booking_url: null,
+          photos: [], visible_until: '2026-12-31T22:59:59.000Z', max_redemptions: 100, redeem_interval: 'once', redeem_days: null,
+        },
+        deal_shown: { id: 42, name: 'Café Soleá', deal_label: '1 Punsch gratis', photo: null, verified: false },
+        jamie_deal: null, deal_allowed: true,
+      });
+    });
+
+    it('nothing on the event: both null — and a deal may be put up on one of the first two events', async () => {
+      world({ rank: { counted: true, before: 1 } });
+      expect((await at(getEventExtras)).body).toMatchObject({ deal: null, deal_shown: null, jamie_deal: null, deal_allowed: true });
+    });
+
+    it('a deal that is not the club\'s is named, not handed out; a deleted own one reads as none', async () => {
+      world({ linked: { ...DEAL, club_id: null, name: 'JAMIE Punsch' } });
+      expect((await at(getEventExtras)).body).toMatchObject({ deal: null, jamie_deal: { name: 'JAMIE Punsch' } });
+      world({ linked: { ...DEAL, club_id: 8, name: 'Fremder Club' } });
+      expect((await at(getEventExtras)).body).toMatchObject({ deal: null, jamie_deal: { name: 'Fremder Club' } });
+      world({ linked: { ...DEAL, is_active: false } });
+      expect((await at(getEventExtras)).body).toMatchObject({ deal: null, jamie_deal: null });
+    });
+
+    it('deal_allowed: not from the third event on, not for an event from before the deploy — a paying partner always', async () => {
+      world({ rank: { counted: true, before: 2 } });
+      expect((await at(getEventExtras)).body.deal_allowed).toBe(false);
+      world({ rank: { counted: false, before: 0 } });
+      expect((await at(getEventExtras)).body.deal_allowed).toBe(false);
+      world({ rank: { counted: true, before: 5 }, club: { ...CLUB, is_live: true, is_paid_partner: true } });
+      expect((await at(getEventExtras)).body.deal_allowed).toBe(true);
+      world({ rank: { counted: true, before: 5 } });
+      process.env.CLUB_FREE_TIER = 'false';
+      expect((await at(getEventExtras)).body.deal_allowed).toBe(true);
+    });
+
+    it('a community, or a club that is not live: no deals', async () => {
+      world({ club: { ...CLUB, club_type: 'community', is_live: true } });
+      expect((await at(getEventExtras)).body).toMatchObject({ is_official: false, deal_allowed: false });
+      world({ club: { ...CLUB, is_live: false } });
+      expect((await at(getEventExtras)).body).toMatchObject({ is_official: true, deal_allowed: false });
+    });
+
+    it('only for the people who run the club: a plain member 403, an app admin gets it', async () => {
+      world({ club: { ...CLUB, ...ownerOnly, is_live: true }, manager: false });
+      const res = await at(getEventExtras);
+      expect(res.statusCode).toBe(403);
+      expect(res.body.code).toBe('NOT_CLUB_MANAGER');
+      world({ club: { ...CLUB, ...ownerOnly, is_live: true, caller_is_admin: true }, manager: false });
+      expect((await at(getEventExtras)).statusCode).toBe(200);
+      world({ club: { ...CLUB, ...ownerOnly, is_live: true }, manager: true });   // a co-manager
+      expect((await at(getEventExtras)).statusCode).toBe(200);
+    });
+
+    it('an event of another club, a club that does not exist, ids that are no numbers: 404', async () => {
+      world({ eventExists: false });
+      expect((await at(getEventExtras)).statusCode).toBe(404);
+      world({ club: null });
+      expect((await at(getEventExtras)).statusCode).toBe(404);
+      world();
+      expect((await at(getEventExtras, { params: { id: '7', eventId: 'x' } })).statusCode).toBe(404);
+      expect((await at(getEventExtras, { params: { id: 'x', eventId: '9' } })).statusCode).toBe(404);
+      expect(sql).toHaveLength(0);
+      expect((await at(getEventExtras, { userId: undefined })).statusCode).toBe(401);
+    });
+
+    it.each(['42P01', '42703', '57P01'])('never a 5xx: error %s reads as nothing there, not available', async (code) => {
+      world({ fail: { on: /d\.booking_url/, err: Object.assign(new Error('missing'), { code }) } });
+      const res = await at(getEventExtras);
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toEqual({
+        is_official: true, club_name: 'Café Soleá', auto_messages: false,
+        deal: null, deal_shown: null, jamie_deal: null, deal_allowed: false, unavailable: true,
+      });
+    });
+  });
+
+  describe('PUT …/deal', () => {
+    it('nothing there yet: a new deal of the club is put up and hung on, in one transaction', async () => {
+      world({ shown: { id: 43, name: 'Café Soleá', deal_label: '1 Punsch gratis', photo: null, verified: false } });
+      const res = await at(saveEventDeal, { body: FIELDS });
+      expect(res.statusCode).toBe(200);
+      expect(res.body.deal).toMatchObject({ id: 43, name: 'Café Soleá', deal_label: '1 Punsch gratis' });
+      expect(res.body.deal_shown).toEqual({ id: 43, name: 'Café Soleá', deal_label: '1 Punsch gratis', photo: null, verified: false });
+      const order = sql.filter((t) => /^(BEGIN|COMMIT|ROLLBACK)$/.test(t) || /^(INSERT INTO deals|UPDATE deals SET)/.test(t)
+        || t.includes('INSERT INTO event_deals')).map((t) => t.split(/[\s(]/).slice(0, 3).join(' ').trim());
+      expect(order).toEqual(['BEGIN', 'INSERT INTO deals', 'INSERT INTO event_deals', 'COMMIT']);
+      const insert = vi.mocked(db.query).mock.calls.find(([t]) => t.startsWith('INSERT INTO deals'));
+      const cols = insert[0].match(/INSERT INTO deals \(([^)]+)\)/)[1].split(', ');
+      const row = Object.fromEntries(cols.map((c, i) => [c, insert[1][i]]));
+      expect(row).toMatchObject({ name: 'Café Soleá', deal_label: '1 Punsch gratis', club_id: 7, created_by: 3 });
+      const link = vi.mocked(db.query).mock.calls.find(([t]) => t.includes('INSERT INTO event_deals'));
+      expect(link[1]).toEqual([9, 43, 3, 7]);
+      expect(link[0]).toMatch(/WHERE EXISTS \(SELECT 1 FROM deals d WHERE d\.id = event_deals\.deal_id AND d\.club_id = \$4\)/);
+    });
+
+    it('the club\'s own deal is there: edited in place, only what was sent', async () => {
+      world({ linked: DEAL });
+      const res = await at(saveEventDeal, { body: { deal_label: ' neu ' } });
+      expect(res.statusCode).toBe(200);
+      expect(res.body.deal.deal_label).toBe('neu');
+      const update = vi.mocked(db.query).mock.calls.find(([t]) => t.startsWith('UPDATE deals SET'));
+      expect(update[0]).toMatch(/^UPDATE deals SET deal_label=\$1, updated_at=CURRENT_TIMESTAMP\s+WHERE id=\$2 AND club_id=\$3/);
+      expect(update[1]).toEqual(['neu', 42, 7]);
+      expect(sql.some((t) => t.startsWith('INSERT INTO deals'))).toBe(false);
+      // an edit with nothing in it
+      world({ linked: DEAL });
+      expect((await at(saveEventDeal, { body: {} })).statusCode).toBe(400);
+      expect(wrote()).toBe(false);
+    });
+
+    it('a deal the club deleted still hangs there, dark: a new one replaces it', async () => {
+      world({ linked: { ...DEAL, is_active: false } });
+      expect((await at(saveEventDeal, { body: FIELDS })).statusCode).toBe(200);
+      expect(sql.some((t) => t.startsWith('INSERT INTO deals'))).toBe(true);
+    });
+
+    it('JAMIE\'s deal stays: 409 before anything is written — also when it lands between the look and the write', async () => {
+      world({ linked: { ...DEAL, club_id: null } });
+      const res = await at(saveEventDeal, { body: FIELDS });
+      expect(res.statusCode).toBe(409);
+      expect(res.body.code).toBe('DEAL_SET_BY_JAMIE');
+      expect(wrote()).toBe(false);
+
+      world({ linkWritable: false });
+      const raced = await at(saveEventDeal, { body: FIELDS });
+      expect(raced.statusCode).toBe(409);
+      expect(raced.body.code).toBe('DEAL_SET_BY_JAMIE');
+      expect(sql).toContain('ROLLBACK');     // the deal written a moment before goes with it
+      expect(sql).not.toContain('COMMIT');
+    });
+
+    it('from the club\'s third event on: 403 PARTNER_REQUIRED / deal, nothing written — a paying partner goes through', async () => {
+      world({ rank: { counted: true, before: 2 } });
+      const res = await at(saveEventDeal, { body: FIELDS });
+      expect(res.statusCode).toBe(403);
+      expect(res.body).toMatchObject({ code: 'PARTNER_REQUIRED', reason: 'deal', club_name: 'Café Soleá' });
+      expect(wrote()).toBe(false);
+      world({ rank: { counted: true, before: 2 }, club: { ...CLUB, is_live: true, is_paid_partner: true } });
+      expect((await at(saveEventDeal, { body: FIELDS })).statusCode).toBe(200);
+    });
+
+    it('in this order: no club 404, not running it 403, a community, not live, no such event 404', async () => {
+      world({ club: null });
+      expect((await at(saveEventDeal, { body: FIELDS })).statusCode).toBe(404);
+      world({ manager: false });
+      expect((await at(saveEventDeal, { body: FIELDS })).body.code).toBe('NOT_CLUB_MANAGER');
+      world({ manager: false, club: { ...CLUB, is_live: true, caller_is_admin: true } });   // an app admin may
+      expect((await at(saveEventDeal, { body: FIELDS })).statusCode).toBe(200);
+      world({ club: { ...CLUB, club_type: 'community', is_live: true } });
+      expect((await at(saveEventDeal, { body: FIELDS })).body.code).toBe('OFFICIAL_CLUB_REQUIRED');
+      world({ club: { ...CLUB, is_live: false } });
+      expect((await at(saveEventDeal, { body: FIELDS })).body.code).toBe('CLUB_NOT_LIVE');
+      world({ eventExists: false });
+      const noEvent = await at(saveEventDeal, { body: FIELDS });
+      expect(noEvent.statusCode).toBe(404);
+      expect(noEvent.body.error).toBe('Veranstaltung nicht gefunden');
+      expect(wrote()).toBe(false);
+    });
+
+    it('the fields are checked like every club deal: required, end date, moderation — nothing written', async () => {
+      world();
+      expect((await at(saveEventDeal, { body: { ...FIELDS, deal_label: '' } })).statusCode).toBe(400);
+      expect((await at(saveEventDeal, { body: { ...FIELDS, visible_until: undefined } })).statusCode).toBe(400);
+      expect((await at(saveEventDeal, { body: { ...FIELDS, visible_until: day(400) } })).statusCode).toBe(400);
+      expect((await at(saveEventDeal, { body: { ...FIELDS, description: 'du Hurensohn' } })).statusCode).toBe(422);
+      expect(wrote()).toBe(false);
+      expect(sql).not.toContain('BEGIN');
+    });
+
+    it.each(['42P01', '42703'])('the deal tables are not there yet (%s): 503 CLUB_DEALS_UNAVAILABLE', async (code) => {
+      world({ fail: { on: /d\.booking_url/, err: Object.assign(new Error('missing'), { code }) } });
+      const res = await at(saveEventDeal, { body: FIELDS });
+      expect(res.statusCode).toBe(503);
+      expect(res.body.code).toBe('CLUB_DEALS_UNAVAILABLE');
+    });
+
+    it('bad ids 404, nobody logged in 401 — before any query', async () => {
+      world();
+      expect((await at(saveEventDeal, { params: { id: '7', eventId: '0' }, body: FIELDS })).statusCode).toBe(404);
+      expect((await at(saveEventDeal, { userId: undefined, body: FIELDS })).statusCode).toBe(401);
+      expect(sql).toHaveLength(0);
+    });
+  });
+
+  describe('DELETE …/deal', () => {
+    it('takes the club\'s own deal off and retires it when it hangs nowhere else — one statement, no payment check', async () => {
+      world({ rank: { counted: true, before: 9 } });
+      const res = await at(removeEventDeal);
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toEqual({ ok: true });
+      const call = vi.mocked(db.query).mock.calls.find(([t]) => t.includes('WITH off AS'));
+      expect(call[1]).toEqual([9, 7]);
+      expect(call[0]).toContain('d.club_id = $2');                       // only the club's own
+      expect(call[0]).toContain('o.deal_id = deals.id AND o.group_id <> $1');   // …still on another event: it stays
+      expect(sql.some((t) => t.includes('AS started') || t.includes('AS counted'))).toBe(false);
+    });
+
+    it('nothing on the event: a no-op that succeeds; JAMIE\'s deal: 409', async () => {
+      world({ removed: 0 });
+      expect((await at(removeEventDeal)).body).toEqual({ ok: true });
+      world({ removed: 0, otherLink: true });
+      const res = await at(removeEventDeal);
+      expect(res.statusCode).toBe(409);
+      expect(res.body.code).toBe('DEAL_SET_BY_JAMIE');
+    });
+
+    it('a community or a club that is not live can still take its deal down', async () => {
+      world({ club: { ...CLUB, club_type: 'community', is_live: false } });
+      expect((await at(removeEventDeal)).statusCode).toBe(200);
+    });
+
+    it('not running the club 403, another club\'s event 404, no club 404, no session 401', async () => {
+      world({ club: { ...CLUB, ...ownerOnly, is_live: true }, manager: false });
+      expect((await at(removeEventDeal)).body.code).toBe('NOT_CLUB_MANAGER');
+      world({ eventExists: false });
+      expect((await at(removeEventDeal)).statusCode).toBe(404);
+      world({ club: null });
+      expect((await at(removeEventDeal)).statusCode).toBe(404);
+      expect(sql.some((t) => t.includes('WITH off AS'))).toBe(false);
+      expect((await at(removeEventDeal, { userId: undefined })).statusCode).toBe(401);
+    });
+
+    it.each(['42P01', '42703'])('the deal tables are not there yet (%s): 503', async (code) => {
+      world({ fail: { on: /WITH off AS/, err: Object.assign(new Error('missing'), { code }) } });
+      const res = await at(removeEventDeal);
+      expect(res.statusCode).toBe(503);
+      expect(res.body.code).toBe('CLUB_DEALS_UNAVAILABLE');
+    });
   });
 });

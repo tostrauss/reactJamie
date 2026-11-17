@@ -16,7 +16,9 @@ import { checkImageField } from '../utils/safeUrl.js';
 import { createEntityWithOwner, notifyCancellationFanout } from '../services/entityLifecycle.js';
 import { attachAttendanceTiers } from '../utils/attendanceTiers.js';
 import { CLUB_CARD_SELECT } from '../utils/clubCards.js';
-import { getDealsForEvents } from './dealController.js';
+import {
+  getDealsForEvents, parseClubDealBody, writeEventClubDeal, CLUB_DEAL_REFUSALS, CLUB_DEALS_UNAVAILABLE,
+} from './dealController.js';
 import { loadClubForQuota, quotaOf, ticketRule, partnerRequired } from '../utils/clubEventQuota.js';
 
 const CLUBS_TTL = 30_000; // 30 s
@@ -1875,12 +1877,22 @@ export const getDiscoverEvents = async (req, res) => {
 // ==========================================
 export const createClubEvent = async (req, res) => {
   const { id } = req.params;
-  const { name, description, date, time, location, max_members, is_recurring_weekly, ticket_url, is_private } = req.body;
+  const { name, description, date, time, location, max_members, is_recurring_weekly, ticket_url, is_private, deal } = req.body;
   const userId = req.userId;
 
   if (!userId) return res.status(401).json({ error: 'Nicht autorisiert' });
   if (!name || !name.trim()) return res.status(400).json({ error: 'Name ist erforderlich' });
   if (!date) return res.status(400).json({ error: 'Datum ist erforderlich' });
+
+  // „Deal anlegen“ in the event form (Tina 17.11.2026): the event may arrive
+  // with ONE deal — an object with the deal fields. Old bundles never send
+  // it. Its columns once checked (below); outside the try so the catch can
+  // tell a deal-table error from an event error.
+  const wantsDeal = deal !== undefined && deal !== null;
+  if (wantsDeal && (typeof deal !== 'object' || Array.isArray(deal))) {
+    return res.status(400).json({ error: 'Ungültiger Deal' });
+  }
+  let dealFields = null;
 
   // The ticket link's FORMAT is checked here; WHO may set one is decided once
   // the club is loaded (below): since 17.11.2026 that depends on the club —
@@ -1948,6 +1960,19 @@ export const createClubEvent = async (req, res) => {
     // the lock, together with the INSERT.
     if (quota.block) return res.status(403).json(partnerRequired(quota.block, club.name));
 
+    // A deal with the event: only the people who run the club (owner,
+    // co-manager, an app admin), only a live official club — the refusals of
+    // the club-deal gate (dealController.clubDealAccess), in its order. No
+    // payment check here: an event a limited club may still create is one of
+    // its first two, and those carry a deal for free.
+    if (wantsDeal) {
+      if (!canManageEvents && !club.caller_is_admin) {
+        return res.status(403).json({ error: 'Keine Berechtigung', code: 'NOT_CLUB_MANAGER' });
+      }
+      if (club.club_type !== 'official') return res.status(403).json(CLUB_DEAL_REFUSALS.community);
+      if (!club.is_live) return res.status(403).json(CLUB_DEAL_REFUSALS.notLive);
+    }
+
     const { safe, reason } = await checkTextSafety([name, description].filter(Boolean).join('\n'));
     if (!safe) return res.status(422).json({ error: reason });
 
@@ -1989,6 +2014,15 @@ export const createClubEvent = async (req, res) => {
     // groupController). A private club's events are always private.
     const eventIsPrivate = !!club.is_private || is_private === true;
 
+    // The deal's fields, checked like every club deal (required fields, end
+    // date, moderation 422, photo allowlist, region gate 400) — BEFORE
+    // anything is written: a deal that does not pass means no event either.
+    if (wantsDeal) {
+      const parsed = await parseClubDealBody(deal, club, { partial: false });
+      if (parsed.error) return res.status(parsed.status).json({ error: parsed.error });
+      dealFields = parsed.fields;
+    }
+
     // Event row + owner membership in ONE statement (audit risk #10) —
     // shared core in services/entityLifecycle.js.
     const insertSql = `INSERT INTO groups
@@ -2013,26 +2047,34 @@ export const createClubEvent = async (req, res) => {
     ];
 
     let event;
-    if (!quota.limited) {
+    if (!quota.limited && !dealFields) {
       // Not limited (a community, a paying partner, the JAMIE team, the free
-      // tier off): exactly the write from before — the pool, one statement.
+      // tier off) and no deal with it: exactly the write from before — the
+      // pool, one statement.
       event = await createEntityWithOwner(insertSql, insertParams, userId);
     } else {
-      // Limited: count again and write in ONE transaction, under a lock on the
-      // club's row — so two requests at once (a double tap, a script) count
-      // one after the other instead of both passing before either has written
-      // (the shape of dealController.writeUnderClubDealLimit). FOR UPDATE
-      // holds back other writers of that one row only; no reader waits.
+      // ONE transaction for what belongs together.
+      // Limited: count again under a lock on the club's row — so two requests
+      // at once (a double tap, a script) count one after the other instead of
+      // both passing before either has written (the shape of
+      // dealController.writeUnderClubDealLimit). FOR UPDATE holds back other
+      // writers of that one row only; no reader waits.
+      // A deal: written and hung on with its event, or not at all.
       const client = await db.pool.connect();
       try {
         await client.query('BEGIN');
-        await client.query('SELECT 1 FROM groups WHERE id = $1 FOR UPDATE', [club.id]);
-        const again = await quotaOf(client, club);
-        if (again.block) {
-          await client.query('ROLLBACK');
-          return res.status(403).json(partnerRequired(again.block, club.name));
+        if (quota.limited) {
+          await client.query('SELECT 1 FROM groups WHERE id = $1 FOR UPDATE', [club.id]);
+          const again = await quotaOf(client, club);
+          if (again.block) {
+            await client.query('ROLLBACK');
+            return res.status(403).json(partnerRequired(again.block, club.name));
+          }
         }
         event = await createEntityWithOwner(insertSql, insertParams, userId, client);
+        if (dealFields) {
+          await writeEventClubDeal(client, { clubId: club.id, eventId: event.id, userId, fields: dealFields });
+        }
         await client.query('COMMIT');
       } catch (err) {
         await client.query('ROLLBACK').catch(() => {});
@@ -2071,8 +2113,18 @@ export const createClubEvent = async (req, res) => {
       })
       .catch(() => {});
 
-    res.status(201).json(event);
+    // The answer is the event row, as always (old bundles read it). New next
+    // to it: `deal` — what the event shows right now, in the shape of the
+    // event page's deal row, or null (no deal sent, or one that is not
+    // visible). Read after the commit; getDealsForEvents never throws.
+    const shownDeal = dealFields ? (await getDealsForEvents([event.id])).get(event.id) || null : null;
+    res.status(201).json({ ...event, deal: shownDeal });
   } catch (err) {
+    // The deal tables are not there yet (boot window): only a request that
+    // brought a deal can meet that, and nothing was written for it.
+    if (dealFields && (err?.code === '42P01' || err?.code === '42703')) {
+      return res.status(503).json(CLUB_DEALS_UNAVAILABLE);
+    }
     console.error('Error creating club event:', err);
     res.status(500).json({ error: 'Veranstaltung konnte nicht erstellt werden' });
   }

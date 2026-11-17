@@ -7478,6 +7478,292 @@ suite('write endpoints against real Postgres', () => {
       expect(hers).toMatchObject({ name: 'Marta', phone: '0660 7654321', user: null });
     });
   });
+
+  // ── Deals in the model of 17.11.2026 (Tina's new document, Tobi) ────────
+  // ONE deal per event, put up with the event („Deal anlegen“ in the event
+  // form) or on its edit page; free on a club's first two events, after that
+  // only as a paying partner; never in the feed; the ✓ only for a paying
+  // partner. No JAMIE Pro anywhere.
+  describe('Deals im neuen Modell (Tina 17.11.2026)', () => {
+    let pc, owner, member, outsider;
+    const photo = 'https://app.jamie-app.com/media/uploads/event-deal.webp';
+    const until = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+    const DEAL = { name: 'Café Modell', deal_label: '1 Punsch gratis', visible_until: until(30), photos: [photo] };
+    const mkU = async (tag, name) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+       VALUES ($1,$2,'1990-02-02','male',$3, TRUE, 'email') RETURNING id`, [`smoke-newdeal-${tag}@x.com`, name, avatar])).rows[0].id;
+    const mkClub = async (name, { type = 'official', paid = false, more = [] } = {}) => {
+      const id = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, is_private, approval_status,
+                             club_type, is_paid_partner, lat, lng, events_owner_only)
+         VALUES ($1,'club',$2,'Bar','Gumpendorfer Straße 1, 1060 Wien',500,FALSE,'approved',$3,$4,48.19,16.35,FALSE) RETURNING id`,
+        [name, owner, type, paid])).rows[0].id;
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'owner')`, [id, owner]);
+      for (const u of more) await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1,$2,'member')`, [id, u]);
+      return id;
+    };
+    const day = async (n) => (await db.query(
+      `SELECT to_char((NOW() AT TIME ZONE 'Europe/Vienna')::date + $1::int, 'YYYY-MM-DD') AS d`, [n])).rows[0].d;
+    const create = async (club, body = {}, userId = owner) => call(C.createClubEvent, {
+      userId, params: { id: String(club) }, body: { name: 'Modell Abend', date: await day(3), time: '19:00', ...body } });
+    const pass = async (eventId) => db.query(
+      `UPDATE groups SET date = ($2::date + TIME '19:00') WHERE id = $1`, [eventId, await day(-2)]);
+    const eventCount = async (club) => (await db.query(
+      'SELECT COUNT(*)::int AS n FROM groups WHERE parent_club_id = $1', [club])).rows[0].n;
+    const dealsOf = async (club) => (await db.query(
+      'SELECT id, club_id, created_by, name, deal_label, address, lat, is_active FROM deals WHERE club_id = $1 ORDER BY id', [club])).rows;
+    const linkOf = async (eventId) => (await db.query(
+      'SELECT deal_id, attached_by FROM event_deals WHERE group_id = $1', [eventId])).rows[0] ?? null;
+    const shownAt = async (eventId, userId = outsider) => {
+      const res = await call(C.getGroupById, { userId, params: { id: String(eventId) } });
+      ok(res);
+      return res.body.deal;
+    };
+    const feedIds = async () => {
+      const res = await call(C.getDeals, { userId: outsider });
+      ok(res);
+      return res.body.map((d) => d.id);
+    };
+    const at = (fn, club, eventId, body, userId = owner) => call(fn, {
+      userId, params: { id: String(club), eventId: String(eventId) }, body });
+    const pay = async (club, on = true) => ok(await call(C.classifyClub, {
+      userId: A, params: { id: String(club) }, body: { is_paid_partner: on } }));
+
+    beforeAll(async () => {
+      pc = await import('../../src/controllers/partnerController.js');
+      owner = await mkU('owner', 'Otto');
+      member = await mkU('member', 'Mirko');
+      outsider = await mkU('guest', 'Gregor');
+    });
+
+    it('an event arrives with its deal: both written together — at the event without the ✓, never in the feed', async () => {
+      const club = await mkClub('Café Modell');
+      const res = await create(club, { name: 'Punsch Night', deal: DEAL });
+      expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+      // the answer is still the event row; the deal rides next to it
+      expect(res.body).toMatchObject({ name: 'Punsch Night', type: 'event', parent_club_id: club });
+      const shown = { id: expect.any(Number), name: 'Café Modell', deal_label: '1 Punsch gratis', photo, verified: false };
+      expect(res.body.deal).toEqual(shown);
+
+      const [deal] = await dealsOf(club);
+      expect(deal).toMatchObject({
+        club_id: club, created_by: owner, name: 'Café Modell', deal_label: '1 Punsch gratis',
+        address: 'Gumpendorfer Straße 1, 1060 Wien', lat: 48.19, is_active: true,   // no address typed: the club's, pin included
+      });
+      expect(await linkOf(res.body.id)).toEqual({ deal_id: deal.id, attached_by: owner });
+      expect(await shownAt(res.body.id)).toEqual({ ...shown, id: deal.id });
+      // …the club's event list carries it too, and its own page opens
+      const list = await call(C.getClubEvents, { userId: owner, params: { id: String(club) } });
+      ok(list);
+      expect(list.body.find((e) => e.id === res.body.id).deal).toEqual({ ...shown, id: deal.id });
+      ok(await call(C.getDeal, { userId: outsider, params: { id: String(deal.id) } }));
+      // Tina: „ABER! Der Deal wird in den Gruppen nicht angezeigt.“
+      expect(await feedIds()).not.toContain(deal.id);
+    });
+
+    it('a paying partner\'s deal carries the ✓ — JAMIE\'s own deal is what the feed shows', async () => {
+      const club = await mkClub('Café Modell Partner', { paid: true });
+      const res = await create(club, { deal: { ...DEAL, name: 'Café Modell Partner' } });
+      expect(res.statusCode, JSON.stringify(res.body)).toBe(201);
+      expect(res.body.deal.verified).toBe(true);
+      expect((await shownAt(res.body.id)).verified).toBe(true);
+      const [deal] = await dealsOf(club);
+      expect(await feedIds()).not.toContain(deal.id);       // a partner's deal neither
+      const jamie = await call(C.createDeal, { userId: A, body: {
+        name: 'Modell JAMIE Deal', deal_label: 'Gratis Shot', address: 'Wien', visible_until: '2099-12-31' } });
+      expect(jamie.statusCode).toBe(201);
+      expect(await feedIds()).toContain(jamie.body.id);
+      // …and at an event JAMIE's deal is always verified
+      ok(await call(C.setEventDeal, { userId: A, params: { groupId: String(res.body.id) }, body: { deal_id: jamie.body.id } }));
+      expect(await shownAt(res.body.id)).toMatchObject({ id: jamie.body.id, verified: true });
+    });
+
+    it('an event without a deal answers deal: null and writes none', async () => {
+      const club = await mkClub('Café Modell Ohne');
+      const res = await create(club);
+      expect(res.statusCode).toBe(201);
+      expect(res.body.deal).toBeNull();
+      expect(await dealsOf(club)).toEqual([]);
+      expect(await linkOf(res.body.id)).toBeNull();
+    });
+
+    it('a deal that does not pass means no event either', async () => {
+      const club = await mkClub('Café Modell Fehler');
+      for (const [bad, status] of [
+        [{ ...DEAL, deal_label: undefined }, 400],                 // the headline is required
+        [{ ...DEAL, visible_until: undefined }, 400],              // „Sichtbar bis“ is required
+        [{ ...DEAL, visible_until: until(400) }, 400],             // at most 180 days
+        [{ ...DEAL, photos: ['https://evil.example/x.jpg'] }, 400],
+        [{ ...DEAL, deal_label: 'Hurensohn' }, 422],               // moderated like every club deal
+        ['2 für 1', 400],                                          // not an object
+        [[DEAL], 400],
+      ]) {
+        const res = await create(club, { deal: bad });
+        expect(res.statusCode, JSON.stringify(bad)).toBe(status);
+      }
+      expect(await eventCount(club)).toBe(0);
+      expect(await dealsOf(club)).toEqual([]);
+      // the free tier did not count any of them
+      expect((await call(pc.getEventQuota, { userId: owner, params: { id: String(club) } })).body).toMatchObject({ used: 0, block: null });
+    });
+
+    it('only the people who run the club, only an official club that is live', async () => {
+      const club = await mkClub('Café Modell Rechte', { more: [member] });
+      const byMember = await create(club, { deal: DEAL }, member);
+      expect(byMember.statusCode).toBe(403);
+      expect(byMember.body.code).toBe('NOT_CLUB_MANAGER');
+      expect((await create(club, {}, member)).statusCode).toBe(201);          // without a deal a member's event is fine
+      const community = await mkClub('Modell Laufrunde', { type: 'community' });
+      const comm = await create(community, { deal: DEAL });
+      expect(comm.statusCode).toBe(403);
+      expect(comm.body.code).toBe('OFFICIAL_CLUB_REQUIRED');
+      const pending = await mkClub('Café Modell Prüfung');
+      await db.query(`UPDATE groups SET approval_status = 'pending' WHERE id = $1`, [pending]);
+      const notLive = await create(pending, { deal: DEAL });
+      expect(notLive.statusCode).toBe(403);
+      expect(notLive.body.code).toBe('CLUB_NOT_LIVE');
+      expect(await eventCount(community)).toBe(0);
+      expect(await eventCount(pending)).toBe(0);
+      expect(await eventCount(club)).toBe(1);
+    });
+
+    it('on the edit page: what is there (extras), put one up, edit it in place, take it off', async () => {
+      const club = await mkClub('Café Modell Bearbeiten', { more: [member] });
+      const ev = (await create(club)).body.id;
+      const none = await at(pc.getEventExtras, club, ev);
+      ok(none);
+      expect(none.body).toEqual({
+        is_official: true, club_name: 'Café Modell Bearbeiten', auto_messages: false,
+        deal: null, deal_shown: null, jamie_deal: null, deal_allowed: true,
+      });
+
+      const put = await at(pc.saveEventDeal, club, ev, { ...DEAL, description: 'Sag „JAMIE“ an der Bar.' });
+      expect(put.statusCode, JSON.stringify(put.body)).toBe(200);
+      const dealId = put.body.deal.id;
+      expect(put.body.deal).toMatchObject({
+        name: 'Café Modell', deal_label: '1 Punsch gratis', description: 'Sag „JAMIE“ an der Bar.', photos: [photo],
+        address: 'Gumpendorfer Straße 1, 1060 Wien', redeem_interval: 'once', max_redemptions: 100,
+      });
+      expect(put.body.deal_shown).toEqual({ id: dealId, name: 'Café Modell', deal_label: '1 Punsch gratis', photo, verified: false });
+      expect(await linkOf(ev)).toEqual({ deal_id: dealId, attached_by: owner });
+
+      // a second PUT edits that one deal — one deal per event, never a second row
+      const edit = await at(pc.saveEventDeal, club, ev, { deal_label: '2 Punsch gratis' });
+      expect(edit.statusCode, JSON.stringify(edit.body)).toBe(200);
+      expect(edit.body.deal).toMatchObject({ id: dealId, deal_label: '2 Punsch gratis', description: 'Sag „JAMIE“ an der Bar.' });
+      expect(await dealsOf(club)).toHaveLength(1);
+      const extras = await at(pc.getEventExtras, club, ev);
+      expect(extras.body.deal).toMatchObject({ id: dealId, deal_label: '2 Punsch gratis' });
+      expect(extras.body.deal_shown.deal_label).toBe('2 Punsch gratis');
+      expect(new Date(extras.body.deal.visible_until).getTime()).toBeGreaterThan(Date.now());
+
+      // a plain member and an outsider get none of it
+      for (const u of [member, outsider]) {
+        expect((await at(pc.getEventExtras, club, ev, {}, u)).statusCode).toBe(403);
+        expect((await at(pc.saveEventDeal, club, ev, { deal_label: 'x' }, u)).body.code).toBe('NOT_CLUB_MANAGER');
+        expect((await at(pc.removeEventDeal, club, ev, {}, u)).body.code).toBe('NOT_CLUB_MANAGER');
+      }
+      expect((await dealsOf(club))[0].deal_label).toBe('2 Punsch gratis');
+
+      // taking it off: gone from the event, and retired — it hangs nowhere else
+      const off = await at(pc.removeEventDeal, club, ev);
+      ok(off);
+      expect(off.body).toEqual({ ok: true });
+      expect(await linkOf(ev)).toBeNull();
+      expect(await shownAt(ev)).toBeNull();
+      expect((await dealsOf(club))[0].is_active).toBe(false);
+      expect((await at(pc.removeEventDeal, club, ev)).body).toEqual({ ok: true });   // nothing there: a no-op
+      expect((await at(pc.getEventExtras, club, ev)).body).toMatchObject({ deal: null, deal_shown: null });
+    });
+
+    it('a deal that hangs on two events stays live when it is taken off one of them', async () => {
+      const club = await mkClub('Café Modell Zwei Events', { paid: true });
+      const first = (await create(club, { deal: DEAL })).body.id;
+      const second = (await create(club)).body.id;
+      const [deal] = await dealsOf(club);
+      // the old way: the same deal hung on a second event
+      ok(await call(C.setEventDeal, { userId: owner, params: { groupId: String(second) }, body: { deal_id: deal.id } }));
+      ok(await at(pc.removeEventDeal, club, first));
+      expect(await linkOf(first)).toBeNull();
+      expect((await linkOf(second)).deal_id).toBe(deal.id);
+      expect((await dealsOf(club))[0].is_active).toBe(true);
+      ok(await at(pc.removeEventDeal, club, second));
+      expect((await dealsOf(club))[0].is_active).toBe(false);
+    });
+
+    it('free on the club\'s first two events — the third only as a paying partner, and a deal there outlives the partnership', async () => {
+      const club = await mkClub('Café Modell Drei');
+      const e1 = (await create(club, { name: 'Erstes' })).body.id;
+      await pass(e1);
+      const e2 = (await create(club, { name: 'Zweites' })).body.id;
+      await pass(e2);
+      await pay(club);
+      const e3res = await create(club, { name: 'Drittes', deal: { ...DEAL, deal_label: 'Partner-Deal' } });
+      expect(e3res.statusCode, JSON.stringify(e3res.body)).toBe(201);
+      const e3 = e3res.body.id;
+      await pay(club, false);                                   // the partnership ends
+
+      ok(await at(pc.saveEventDeal, club, e1, DEAL));           // the first two stay free
+      ok(await at(pc.saveEventDeal, club, e2, DEAL));
+      expect((await at(pc.getEventExtras, club, e2)).body.deal_allowed).toBe(true);
+
+      const third = await at(pc.saveEventDeal, club, e3, { deal_label: 'neu' });
+      expect(third.statusCode).toBe(403);
+      expect(third.body).toMatchObject({ code: 'PARTNER_REQUIRED', reason: 'deal', club_name: 'Café Modell Drei' });
+      expect(third.body.error).toBe('Deals gibt es für die ersten 2 Events eures Clubs – danach als JAMIE Partner.');
+      const extras = await at(pc.getEventExtras, club, e3);
+      expect(extras.body.deal_allowed).toBe(false);
+      expect(extras.body.deal.deal_label).toBe('Partner-Deal');  // still there, shown as before, without the ✓
+      expect(await shownAt(e3)).toMatchObject({ deal_label: 'Partner-Deal', verified: false });
+      ok(await at(pc.removeEventDeal, club, e3));               // …and it can always be taken down
+      await pay(club);
+      ok(await at(pc.saveEventDeal, club, e3, DEAL));           // a partner again: any event
+    });
+
+    it('an event from before the deploy is none of the free ones', async () => {
+      const club = await mkClub('Café Modell Bestand');
+      const old = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, date, parent_club_id, created_at)
+         VALUES ('Bestand Abend','event',$1,'Bar','Wien',20, $2::date + TIME '19:00', $3,
+                 (SELECT applied_at FROM one_shot_migrations WHERE name = '2026-11-17_club_free_tier_start') - INTERVAL '1 day')
+         RETURNING id`, [owner, await day(5), club])).rows[0].id;
+      expect((await at(pc.saveEventDeal, club, old, DEAL)).body).toMatchObject({ code: 'PARTNER_REQUIRED', reason: 'deal' });
+      expect((await at(pc.getEventExtras, club, old)).body.deal_allowed).toBe(false);
+      await pay(club);
+      ok(await at(pc.saveEventDeal, club, old, DEAL));
+    });
+
+    it('what JAMIE hung on the event stays: named in the extras, neither replaced nor taken off (409)', async () => {
+      const club = await mkClub('Café Modell JAMIE');
+      const ev = (await create(club)).body.id;
+      const jamie = await call(C.createDeal, { userId: A, body: {
+        name: 'JAMIE am Event', deal_label: 'Welcome Shot', address: 'Wien', visible_until: '2099-12-31' } });
+      ok(await call(C.setEventDeal, { userId: A, params: { groupId: String(ev) }, body: { deal_id: jamie.body.id } }));
+      const extras = await at(pc.getEventExtras, club, ev);
+      expect(extras.body).toMatchObject({ deal: null, jamie_deal: { name: 'JAMIE am Event' } });
+      expect(extras.body.deal_shown).toMatchObject({ id: jamie.body.id, verified: true });
+      const put = await at(pc.saveEventDeal, club, ev, DEAL);
+      expect(put.statusCode).toBe(409);
+      expect(put.body.code).toBe('DEAL_SET_BY_JAMIE');
+      expect((await at(pc.removeEventDeal, club, ev)).statusCode).toBe(409);
+      expect(await dealsOf(club)).toEqual([]);                   // nothing of the club's was written
+      expect((await linkOf(ev)).deal_id).toBe(jamie.body.id);
+      // …and an event that arrives with a deal has none of JAMIE's on it yet: fine
+    });
+
+    it('another club\'s event, ids that do not exist: 404 — nothing written', async () => {
+      const mine = await mkClub('Café Modell Meins');
+      const theirs = await mkClub('Café Modell Deren');
+      const theirEvent = (await create(theirs)).body.id;
+      for (const fn of [pc.getEventExtras, pc.saveEventDeal, pc.removeEventDeal]) {
+        expect((await at(fn, mine, theirEvent, DEAL)).statusCode).toBe(404);
+        expect((await at(fn, mine, 2147483000, DEAL)).statusCode).toBe(404);
+        expect((await at(fn, 2147483000, theirEvent, DEAL)).statusCode).toBe(404);
+      }
+      expect(await dealsOf(mine)).toEqual([]);
+      expect(await linkOf(theirEvent)).toBeNull();
+    });
+  });
   // <<< BAU1-SMOKE
   //
   // ── separator: leave in place ──
