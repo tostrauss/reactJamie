@@ -265,6 +265,21 @@ describe('GroupDetail — „Hat nicht stattgefunden" for the owner of a big pas
     expect(screen.queryByRole('button', { name: NOT_HELD })).not.toBeInTheDocument();
   });
 
+  // Review 16.11.2026: „Wer war dabei?“ counts who took part on the day, also
+  // whoever left afterwards — the server sends its owner that count
+  // (review_participants). On members_count, 9 at the event of whom 2 left
+  // made 7: no pill, and no popup either.
+  it('9 at the event, 2 of them left afterwards (members_count 7): the pill, on the server\'s count', async () => {
+    await renderPage(meetup({ members_count: 7, review_participants: 9 }));
+    expect(await screen.findByRole('button', { name: NOT_HELD })).toBeInTheDocument();
+  });
+
+  it('8 by the server\'s count — „Wer war dabei?“ covers it — no pill, whatever members_count says', async () => {
+    await renderPage(meetup({ members_count: 9, review_participants: 8 }));
+    await settled();
+    expect(screen.queryByRole('button', { name: NOT_HELD })).not.toBeInTheDocument();
+  });
+
   it('never next to a review the server still offers (its modal has the same button)', async () => {
     reviews.getForGroup.mockResolvedValueOnce({ data: { group_id: 42, group_name: 'Laufen', members: [{ id: 5, name: 'Mia' }] } });
     await renderPage(meetup());

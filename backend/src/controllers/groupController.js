@@ -23,7 +23,7 @@ import {
   MAX_JOIN_ATTEMPTS, joinAttemptsExhausted, joinBlockedBody, loadJoinAttempt,
 } from '../utils/joinAttempts.js';
 import { stampDelivered } from '../utils/readReceipts.js';
-import { attachAttendanceTiers } from '../utils/attendanceTiers.js';
+import { attachAttendanceTiers, participantsAtEventSql } from '../utils/attendanceTiers.js';
 import {
   recordHallOfFameEntry,
   insertHofLikeNotifications,
@@ -1095,6 +1095,16 @@ export const getGroupById = async (req, res) => {
           [id, req.userId]
         );
         group.has_reviewed = reviewed.rows.length > 0;
+        // How many took part, counted exactly as „Wer war dabei?“ decides
+        // whether it is asked (participantsAtEventSql, ≤ REVIEW_MAX_PARTICIPANTS):
+        // also whoever left after the day began. The pill decided on
+        // members_count — 9 at the event, 2 left afterwards made 7: no pill,
+        // and the popup's 9 meant no popup either (review 16.11.2026).
+        const counted = await db.query(
+          `SELECT ${participantsAtEventSql('g')}::int AS n FROM groups g WHERE g.id = $1`,
+          [id]
+        );
+        group.review_participants = counted.rows[0]?.n ?? null;
       }
     }
 

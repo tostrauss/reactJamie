@@ -632,9 +632,14 @@ export const GroupDetail = () => {
   // owner's answer is on record), nor before that check has settled. Not
   // once the owner has answered (has_reviewed): submitReview refuses a second
   // answer, this one included, with 409.
+  // Counted as the server counts for „Wer war dabei?“ (review_participants,
+  // for the owner only): also whoever left after the day began. On
+  // members_count alone, 9 at the event of whom 2 left afterwards made 7 —
+  // no pill, and no popup either (review 16.11.2026). members_count still
+  // where a server does not send it.
   const offerNotHeld = ownPastMeetup && !group.did_not_take_place && !group.has_reviewed
     && reviewCheck.groupId === group.id && !reviewCheck.offered
-    && (group.members_count || 0) > REVIEW_MAX_PARTICIPANTS;
+    && (group.review_participants ?? group.members_count ?? 0) > REVIEW_MAX_PARTICIPANTS;
 
   return (
     <div className="gd-page">

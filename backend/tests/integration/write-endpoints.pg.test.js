@@ -5852,6 +5852,29 @@ suite('write endpoints against real Postgres', () => {
       expect((await call(C.submitReview, { userId: O, body: { group_id: gid, not_held: true } })).statusCode).toBe(409);
     });
 
+    // Review 16.11.2026: the pill went by members_count — 9 at the event, 2
+    // of them left afterwards, made 7: no pill; the popup counted 9: no popup
+    // either. The page now gets the popup's own count, for its owner only.
+    it('the event page tells its owner (only) the popup\'s head count — also whoever left after the day', async () => {
+      const gid = await mkMeetup(P, 'Gegangen-Treffen');   // the owner + 8 = 9
+      ok(await call(C.leaveGroup, { userId: P[7], params: { id: String(gid) } }));
+      ok(await call(C.leaveGroup, { userId: P[6], params: { id: String(gid) } }));
+      const page = async (uid) => {
+        const res = await call(C.getGroupById, { userId: uid, params: { id: String(gid) } });
+        ok(res);
+        return res.body;
+      };
+      const own = await page(O);
+      expect(own.members_count).toBe(7);
+      expect(own.review_participants).toBe(9);
+      expect(await pendingIds(O)).not.toContain(gid);           // the popup's 9: not asked
+      expect((await page(P[0])).review_participants).toBeUndefined();
+      // a kick leaves no history: 6 members + the two who left = 8 — asked, and the page says 8
+      ok(await call(C.kickMember, { userId: O, params: { id: String(gid), userId: String(P[5]) } }));
+      expect((await page(O)).review_participants).toBe(8);
+      expect(await pendingIds(O)).toContain(gid);
+    });
+
     it('a late joiner does not count: 8 in time plus one afterwards is still asked', async () => {
       const gid = await mkMeetup(P.slice(0, 7));
       await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, [gid, P[7]]); // joined NOW
