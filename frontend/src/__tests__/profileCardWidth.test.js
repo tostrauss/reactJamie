@@ -79,4 +79,14 @@ describe('club bubbles: the mock\'s sizes, and no jump into „Sortieren“', ()
     expect(name['font-size']).toBe('11px');
     expect(name['font-weight']).toBe('500');
   });
+
+  // Mock p. 3: a light yellow disc with a dark star — it was a dark disc with
+  // a thin yellow rim, the opposite.
+  it('the ☆ disc: partner yellow with a star and rim in the card colour', () => {
+    const star = block(profileCss, '.profile-club-star');
+    expect(star.background).toBe('var(--accent-partner)');
+    expect(star.color).toBe('var(--bg-card)');
+    expect(star.border).toBe('2px solid var(--bg-card)');
+    expect(star.width).toBe('22px');
+  });
 });

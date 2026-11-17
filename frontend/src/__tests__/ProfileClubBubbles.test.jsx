@@ -4,7 +4,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 
 // „Clubs & Communities“ in the own profile (Tina 16.11.2026, PR2/PR3): round
-// bubbles, own ones first with the yellow ring, ☆ on official clubs, and
+// bubbles, own ones first with the yellow ring, ☆ on paying partners, and
 // „Sortieren“ — joined bubbles wiggle, tap + arrows move them, leaving the
 // mode saves the order. Real German i18n.
 const api = vi.hoisted(() => ({
@@ -27,7 +27,7 @@ const club = (id, name, over = {}) => ({
 const CLUBS = [
   club(5, 'Brettspiel-Treff', { joined_at: '2026-11-10T10:00:00.000Z' }),
   club(1, 'Mein Lauftreff', { is_own: true, role: 'owner', pending_request_count: 3, joined_at: '2026-11-05T10:00:00.000Z' }),
-  club(2, 'Café Soleá', { club_type: 'official', profile_position: 2, joined_at: '2026-10-01T10:00:00.000Z' }),
+  club(2, 'Café Soleá', { club_type: 'official', is_paid_partner: true, profile_position: 2, joined_at: '2026-10-01T10:00:00.000Z' }),
   club(3, 'Südtiroler in Wien', { profile_position: 1, joined_at: '2026-09-01T10:00:00.000Z', image_url: '/media/uploads/sued.jpg' }),
   club(4, 'Alter Club', { joined_at: '2026-08-01T10:00:00.000Z' }),
   club(6, 'Abgelehnt', { approval_status: 'rejected', is_active: false }),
@@ -94,14 +94,34 @@ describe('ProfileClubBubbles — the row', () => {
     expect(item('Alter Club').querySelector('.profile-club-bubble').textContent).toBe('A');
   });
 
-  it('☆ only on a live official club — a club still in review is not a partner yet, and is dimmed', async () => {
-    await renderBubbles([...CLUBS, club(8, 'Mein Café', { is_own: true, club_type: 'official', approval_status: 'pending' })]);
+  // Tobi 17.11.2026: „Gelb, ☆ Partner und der ✓-Haken nur für ZAHLENDE
+  // Partner … Nicht zahlende Clubs: kein Gelb, kein ☆, kein ✓.“ The rule is
+  // partnerSql's: live, approved, official AND is_paid_partner.
+  it('☆ only on a paying partner — not on an official club that does not pay, not on one in review, not on a closed one', async () => {
+    await renderBubbles([
+      ...CLUBS,
+      club(10, 'Kein Zahler', { club_type: 'official' }),                                  // approved, no flag
+      club(11, 'Altes Feld', { club_type: 'official', is_paid_partner: undefined }),       // an old server
+      club(12, 'Zahlende Community', { is_paid_partner: true }),                           // flag without official
+      club(8, 'Mein Café', { is_own: true, club_type: 'official', is_paid_partner: true, approval_status: 'pending' }),
+    ]);
     const stars = [...document.querySelectorAll('.profile-club-star')];
     expect(stars).toHaveLength(1);
     expect(stars[0].closest('.profile-club')).toBe(item('Café Soleá'));
     expect(screen.getByRole('button', { name: /^Café Soleá/ }).textContent).toContain('JAMIE-Partner');
+    for (const name of ['Kein Zahler', 'Altes Feld', 'Zahlende Community', 'Mein Café']) {
+      expect(item(name).querySelector('.profile-club-star')).toBeNull();
+      expect(item(name).textContent).not.toContain('JAMIE-Partner');
+    }
+    // In review: there, dimmed, and says so — paying or not.
     expect(item('Mein Café').classList.contains('is-pending')).toBe(true);
     expect(item('Mein Café').textContent).toContain('Wird noch geprüft');
+  });
+
+  it('an own paying partner club carries both: the yellow ring and the ☆', async () => {
+    await renderBubbles([...CLUBS, club(9, 'Mein Partnerclub', { is_own: true, club_type: 'official', is_paid_partner: true })]);
+    expect(item('Mein Partnerclub').classList.contains('is-own')).toBe(true);
+    expect(item('Mein Partnerclub').querySelector('.profile-club-star')).toBeTruthy();
   });
 
   it('a tap opens the club page', async () => {

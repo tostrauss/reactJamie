@@ -14,7 +14,8 @@ const sameIds = (a, b) => a.length === b.length && a.every((id, i) => id === b[i
 // PR2/PR3), in place of the „Meine Gruppen & Clubs“ hub. Own clubs first, with
 // the yellow ring and a small coral counter of open requests (its tap is the
 // way into the Anfragen deck the hub's chip used to be); then the joined ones.
-// ☆ marks an official club — a Partner, the same star as on its events.
+// ☆ marks a PAYING partner (Tobi 17.11.2026: yellow, ☆ and ✓ only for paying
+// partners) — the same star as on its events; any other club has none.
 // Which clubs and in which order: utils/profileClubs.js.
 //
 // „Sortieren“ (from two sortable bubbles on): the row becomes a grid and the
@@ -132,9 +133,13 @@ export default function ProfileClubBubbles({ sorting = false, onSortingChange })
   const renderBubble = (club, index) => {
     const isOwn = !!club.is_own;
     const movable = sorting && !isOwn;
-    // The star means a live official club (partnerSql's rule): a club still in
-    // review is not a partner yet.
-    const isPartner = club.club_type === 'official' && club.approval_status === 'approved';
+    // The star means a paying partner — partnerSql's rule (backend
+    // utils/clubGate.js): a live, approved official club with the admin's
+    // is_paid_partner flag. A club still in review is no partner yet, an
+    // official club that does not pay has no star. An old server without the
+    // flag: no star.
+    const isPartner = club.club_type === 'official' && club.approval_status === 'approved'
+      && club.is_active !== false && club.is_paid_partner === true;
     const inReview = club.approval_status === 'pending';
     const requests = isOwn && !sorting ? (club.pending_request_count || 0) : 0;
     const isPicked = movable && picked === club.id;
@@ -162,7 +167,7 @@ export default function ProfileClubBubbles({ sorting = false, onSortingChange })
             </span>
             {isPartner && (
               <span className="profile-club-star">
-                <StarIcon size={11} strokeWidth="2.4" strokeLinejoin="round" />
+                <StarIcon size={10} strokeWidth="2.6" strokeLinejoin="round" />
               </span>
             )}
           </span>

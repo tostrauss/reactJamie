@@ -2252,7 +2252,11 @@
 /* An own club still in review: there, but not live yet. */
 .profile-club.is-pending .profile-club-bubble { opacity: 0.5; }
 
-/* ☆ — an official club, a Partner: bottom right, over the ring. */
+/* ☆ — a PAYING partner (Tobi 17.11.2026): bottom right, over the ring. A
+   light disc with a dark star, as in the mock (p. 3) — about a third of the
+   bubble (22px box, 18px of yellow inside the 2px rim in the card colour).
+   A small disc at the full 100 % yellow is the mock's one exception here —
+   larger yellow areas stay forbidden (lines and text only, 55 % for lines). */
 .profile-club-star {
   position: absolute;
   right: -3px;
@@ -2262,10 +2266,10 @@
   justify-content: center;
   width: 22px;
   height: 22px;
-  border: 1px solid var(--partner-line);
+  border: 2px solid var(--bg-card);
   border-radius: 50%;
-  background: var(--bg-card);
-  color: var(--partner-text);
+  background: var(--accent-partner);
+  color: var(--bg-card);
 }
 
 /* The name: up to two lines, small and quieter than the title, as in the mock
