@@ -165,6 +165,7 @@ import { runEventReminders } from './jobs/eventReminders.js';
 import { runEngagementNudges } from './jobs/engagementNudges.js';
 import { runClubEventMessages } from './jobs/clubEventMessages.js';
 import { runAnalyticsPurge } from './jobs/analyticsPurge.js';
+import { runPartnerLeadsPurge } from './jobs/partnerLeadsPurge.js';
 import { PERMISSIONS_POLICY } from './config/securityHeaders.js';
 import { stripeWebhook as boostStripeWebhook } from './controllers/boostController.js';
 import { appleServerNotification } from './controllers/iapController.js';
@@ -699,6 +700,18 @@ cron.schedule('0 3 * * *', async () => {
     await runAnalyticsPurge();
   } catch (err) {
     console.error('[cron] analytics purge failed:', err.message);
+  }
+});
+
+// Partner requests („JAMIE Anfrage“) are deleted 12 months after they came in
+// (Tobi 18.11.2026) — jobs/partnerLeadsPurge.js, daily at 03:10, after the
+// analytics purge. PARTNER_LEADS_RETENTION_MONTHS sets the months, 0 = off.
+// The job never throws; the catch is for the day it does.
+cron.schedule('10 3 * * *', async () => {
+  try {
+    await runPartnerLeadsPurge();
+  } catch (err) {
+    console.error('[cron] partner leads purge failed:', err.message);
   }
 });
 
