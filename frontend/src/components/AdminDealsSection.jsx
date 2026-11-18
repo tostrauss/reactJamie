@@ -201,6 +201,28 @@ export const AdminDealsSection = () => {
     }
   };
 
+  // „Im Gruppen-Feed zeigen“ (D-1, Tina 17.11.2026: „Das können nur wir als
+  // Admins einstellen!“): a CLUB's deal stays out of the Gruppen feed unless
+  // an admin switches it on here, per event — it then shows there on the
+  // event's day. Only on club deals: JAMIE's own are in the feed anyway. The
+  // server holds the switch for this event AND this deal (in_feed), so it is
+  // off again by itself once the club swaps or removes the deal.
+  const [feedKey, setFeedKey] = useState(null); // `${dealId}:${eventId}` being saved
+  const toggleFeed = async (deal, ev) => {
+    if (feedKey) return;
+    const show = !ev.in_feed;
+    setFeedKey(`${deal.id}:${ev.id}`);
+    try {
+      await dealsApi.setEventDealFeed(ev.id, show);
+      toast.success(t(show ? 'admin.deals.events.toast.feedOn' : 'admin.deals.events.toast.feedOff', { name: ev.name }));
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.error || t('admin.deals.events.toast.feedError'));
+    } finally {
+      setFeedKey(null);
+    }
+  };
+
   const remove = async (deal) => {
     if (!window.confirm(t('admin.deals.confirmDelete', { name: deal.name }))) return;
     try {
@@ -402,16 +424,36 @@ export const AdminDealsSection = () => {
                   {events.map(ev => {
                     const day = eventDay(ev.date);
                     const busy = detachingKey === `${deal.id}:${ev.id}`;
+                    const feedBusy = feedKey === `${deal.id}:${ev.id}`;
                     return (
-                      <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      <div key={ev.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, minWidth: 0 }}>
                         <a
                           href={`/group/${ev.id}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          style={{ flex: 1, minWidth: 0, color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          // A club deal's row has two buttons: on a phone they
+                          // go under the name together instead of squeezing it.
+                          style={{ flex: deal.club ? '1 1 220px' : 1, minWidth: 0, color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                         >
                           📍 {ev.name}{day ? ` · ${day}` : ''} <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>#{ev.id}</span>
                         </a>
+                        {/* Club deals only (D-1). A server before 18.11.2026
+                            sends no in_feed: the switch reads „off“. */}
+                        {deal.club && (
+                          <button
+                            type="button"
+                            onClick={() => toggleFeed(deal, ev)}
+                            disabled={feedBusy}
+                            aria-pressed={!!ev.in_feed}
+                            title={t('admin.deals.events.feedHint')}
+                            style={{
+                              ...btnGhost, padding: '6px 10px', fontSize: 12, flexShrink: 0,
+                              ...(ev.in_feed ? { background: 'rgba(253,118,102,0.18)', color: '#FD7666', border: '1px solid rgba(253,118,102,0.4)', fontWeight: 700 } : null),
+                            }}
+                          >
+                            {feedBusy ? '…' : t(ev.in_feed ? 'admin.deals.events.feedBtnOn' : 'admin.deals.events.feedBtn')}
+                          </button>
+                        )}
                         <button type="button" onClick={() => detach(deal, ev)} disabled={busy} style={{ ...btnGhost, padding: '6px 10px', fontSize: 12, flexShrink: 0 }}>
                           {busy ? '…' : t('admin.deals.events.detachBtn')}
                         </button>

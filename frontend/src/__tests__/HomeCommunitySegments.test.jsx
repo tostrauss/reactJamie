@@ -291,3 +291,26 @@ describe('Entdecken — deals', () => {
     expect(container.querySelector('.deal-row')).toBeNull();
   });
 });
+
+// D-1 (Tina 17.11.2026): a club's deal an admin released into the Gruppen
+// feed for its event's day carries feed_event_id. It belongs to that feed —
+// the row above the Clubs list is for the deals that stand on their own.
+describe('Entdecken — a club deal released into the Gruppen feed', () => {
+  it('stays out of the Clubs segment; JAMIE\'s own deal is still there', async () => {
+    vi.mocked(clubs.getAll).mockResolvedValue({ data: [official(2, 'Laufclub Wien')] });
+    vi.mocked(deals.getAll).mockResolvedValue({ data: [{ ...deal(7), feed_event_id: 50 }, deal(9)] });
+    const { findByText, container } = renderHome('?tab=clubs&seg=clubs');
+    await findByText('Laufclub Wien');
+    await waitFor(() => expect(container.querySelectorAll('.deal-row')).toHaveLength(1));
+    fireEvent.click(container.querySelector('.deal-row'));
+    expect(navigate).toHaveBeenCalledWith('/deal/9');
+  });
+
+  it('only released club deals: no deal rows at all above the Clubs list', async () => {
+    vi.mocked(clubs.getAll).mockResolvedValue({ data: [official(2, 'Laufclub Wien')] });
+    vi.mocked(deals.getAll).mockResolvedValue({ data: [{ ...deal(7), feed_event_id: 50 }] });
+    const { findByText, container } = renderHome('?tab=clubs&seg=clubs');
+    await findByText('Laufclub Wien');
+    expect(container.querySelector('.deal-rows')).toBeNull();
+  });
+});

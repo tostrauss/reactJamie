@@ -1124,6 +1124,10 @@ export const deals = {
   // off (P4 v1, 16.11.2026). One deal per event: a second one replaces it.
   // → { group_id, deal_id, deal }; deal null = attached, not visible now.
   setEventDeal: (groupId, dealId) => axiosInstance.put(`/deals/event/${groupId}`, { deal_id: dealId }),
+  // Admin — „Im Gruppen-Feed zeigen“ (D-1, 18.11.2026): the CLUB deal on this
+  // event shows in the Gruppen feed on the event's day; show=false takes it
+  // back. → { group_id, deal_id, in_feed }.
+  setEventDealFeed: (groupId, show) => axiosInstance.put(`/deals/event/${groupId}/feed`, { show }),
   // A club's own deals (P4 v2, 16.11.2026) — its owner and co-managers.
   // Listing and deleting are free; creating and editing need JAMIE Pro (or
   // an app admin), else 403 { code: 'PRO_REQUIRED' }. setEventDeal above

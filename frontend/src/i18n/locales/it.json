@@ -2491,13 +2491,19 @@
         "attachSubmit": "Collega",
         "detachBtn": "Scollega",
         "hiddenNote": "Al momento non visibile all'evento (scaduta, inattiva o limite raggiunto)",
+        "feedBtn": "Mostra nel feed dei gruppi",
+        "feedBtnOn": "Nel feed dei gruppi ✓",
+        "feedHint": "Mostra la collaborazione del club nel feed dei gruppi il giorno dell'evento.",
         "toast": {
           "attached": "La collaborazione ora è collegata all'evento #{{id}}",
           "attachedHidden": "Collegata all'evento #{{id}} – ma al momento lì non è visibile (scaduta, inattiva o limite raggiunto)",
           "detached": "Collaborazione scollegata da «{{name}}»",
           "invalidId": "Inserisci un ID evento o il link all'evento",
           "attachError": "Collegamento non riuscito",
-          "detachError": "Scollegamento non riuscito"
+          "detachError": "Scollegamento non riuscito",
+          "feedOn": "«{{name}}»: la collaborazione appare nel feed dei gruppi il giorno dell'evento",
+          "feedOff": "«{{name}}»: la collaborazione non è più nel feed dei gruppi",
+          "feedError": "Impossibile modificare l'interruttore del feed"
         }
       }
     },

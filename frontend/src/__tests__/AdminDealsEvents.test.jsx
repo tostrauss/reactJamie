@@ -142,3 +142,51 @@ describe('AdminDealsSection — deals at events', () => {
     expect(screen.queryAllByLabelText('Event-ID oder Link zum Event')).toHaveLength(0);
   });
 });
+
+// D-1 (Tina 17.11.2026: „Das können nur wir als Admins einstellen!“): a CLUB's
+// deal shows in the Gruppen feed on its event's day once an admin switches
+// „Im Gruppen-Feed zeigen“ on — PUT /api/deals/event/:groupId/feed.
+describe('AdminDealsSection — „Im Gruppen-Feed zeigen“', () => {
+  const CLUB = { id: 70, name: 'Bar Neun Club' };
+  beforeEach(() => {
+    deals.setEventDealFeed = vi.fn().mockResolvedValue({ data: { group_id: 527, deal_id: 5, in_feed: true } });
+  });
+
+  it('only on a club\'s deal — JAMIE\'s own deals are in the feed anyway', async () => {
+    await renderSection([deal({ events: [PUNSCH] })]);
+    expect(screen.queryByRole('button', { name: /Gruppen-Feed/ })).not.toBeInTheDocument();
+  });
+
+  it('off (also for a server that sends no in_feed): switching on calls the endpoint, says so and reloads', async () => {
+    await renderSection([deal({ club: CLUB, events: [PUNSCH] })]);
+    const btn = screen.getByRole('button', { name: 'Im Gruppen-Feed zeigen' });
+    expect(btn).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(btn);
+    await waitFor(() => expect(deals.setEventDealFeed).toHaveBeenCalledWith(527, true));
+    expect(toast.success).toHaveBeenCalledWith('„Punsch Night“: Der Deal erscheint am Tag des Events im Gruppen-Feed');
+    await waitFor(() => expect(deals.getAllForAdmin).toHaveBeenCalledTimes(2));
+    expect(deals.setEventDeal).not.toHaveBeenCalled();
+  });
+
+  it('on: the button says so and a tap takes it back', async () => {
+    await renderSection([deal({ club: CLUB, events: [{ ...PUNSCH, in_feed: true }, { id: 600, name: 'Quiz', date: null, in_feed: false }] })]);
+    const on = screen.getByRole('button', { name: 'Im Gruppen-Feed ✓' });
+    expect(on).toHaveAttribute('aria-pressed', 'true');
+    // each event its own switch
+    expect(screen.getByRole('button', { name: 'Im Gruppen-Feed zeigen' })).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(on);
+    await waitFor(() => expect(deals.setEventDealFeed).toHaveBeenCalledWith(527, false));
+    expect(toast.success).toHaveBeenCalledWith('„Punsch Night“: Der Deal ist nicht mehr im Gruppen-Feed');
+  });
+
+  it('the server\'s reason when it refuses, else the fallback text', async () => {
+    deals.setEventDealFeed.mockRejectedValueOnce({ response: { status: 503, data: { error: 'Der Feed-Schalter ist gleich wieder verfügbar.' } } });
+    await renderSection([deal({ club: CLUB, events: [PUNSCH] })]);
+    fireEvent.click(screen.getByRole('button', { name: 'Im Gruppen-Feed zeigen' }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Der Feed-Schalter ist gleich wieder verfügbar.'));
+    deals.setEventDealFeed.mockRejectedValueOnce(new Error('network'));
+    fireEvent.click(screen.getByRole('button', { name: 'Im Gruppen-Feed zeigen' }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Feed-Schalter konnte nicht geändert werden'));
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+});

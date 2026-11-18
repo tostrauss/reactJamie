@@ -2491,13 +2491,19 @@
         "attachSubmit": "Anhängen",
         "detachBtn": "Lösen",
         "hiddenNote": "Am Event gerade nicht sichtbar (abgelaufen, inaktiv oder Limit erreicht)",
+        "feedBtn": "Im Gruppen-Feed zeigen",
+        "feedBtnOn": "Im Gruppen-Feed ✓",
+        "feedHint": "Zeigt den Club-Deal am Tag des Events im Gruppen-Feed.",
         "toast": {
           "attached": "Deal hängt jetzt am Event #{{id}}",
           "attachedHidden": "Am Event #{{id}} angehängt – dort aber gerade nicht sichtbar (abgelaufen, inaktiv oder Limit erreicht)",
           "detached": "Deal von „{{name}}“ gelöst",
           "invalidId": "Bitte eine Event-ID oder den Link zum Event eingeben",
           "attachError": "Anhängen fehlgeschlagen",
-          "detachError": "Lösen fehlgeschlagen"
+          "detachError": "Lösen fehlgeschlagen",
+          "feedOn": "„{{name}}“: Der Deal erscheint am Tag des Events im Gruppen-Feed",
+          "feedOff": "„{{name}}“: Der Deal ist nicht mehr im Gruppen-Feed",
+          "feedError": "Feed-Schalter konnte nicht geändert werden"
         }
       }
     },

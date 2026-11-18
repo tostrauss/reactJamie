@@ -966,9 +966,12 @@ export const Home = () => {
 
                 {/* Deals sit ABOVE the list: a deal has no club relation in the
                     database, so there is no club for it to sit under. */}
-                {dealList.length > 0 && (
+                {/* A club's deal an admin released into the Gruppen feed for
+                    its event's day (feed_event_id, D-1) belongs to that feed
+                    only — not up here. */}
+                {dealList.some(deal => deal.feed_event_id == null) && (
                   <div className="deal-rows">
-                    {dealList.map(deal => (
+                    {dealList.filter(deal => deal.feed_event_id == null).map(deal => (
                       <DealCard key={`deal-club-${deal.id}`} deal={deal} variant="clubList" />
                     ))}
                   </div>
