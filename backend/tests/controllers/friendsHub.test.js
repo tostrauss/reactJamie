@@ -156,6 +156,8 @@ describe('GET /friends/going — „Wo gehen deine Freunde hin?“', () => {
     expect(sql).toContain(NEXT_AT_SQL);
     expect(sql).toMatch(/go\.next_at IS NOT NULL/);
     expect(sql).toMatch(/go\.next_at::date >= \(NOW\(\) AT TIME ZONE 'Europe\/Vienna'\)::date/);
+    // …and past one-offs are cut before anything else is computed for them.
+    expect(sql).toMatch(/g\.date IS NOT NULL\s+AND \(g\.is_recurring_weekly = TRUE OR g\.date::date >= \(NOW\(\) AT TIME ZONE 'Europe\/Vienna'\)::date\)/);
     // A full meetup only for somebody who is in it or has asked.
     expect(sql).toMatch(/m\.is_member OR m\.has_requested\s+OR g\.max_members IS NULL OR g\.members_count < g\.max_members/);
     expect(sql).toMatch(/jr\.status = 'pending'/);

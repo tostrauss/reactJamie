@@ -106,6 +106,11 @@ export const getFriendsGoing = async (req, res) => {
            JOIN group_members gm ON gm.user_id = fu.id
            JOIN groups g ON g.id = gm.group_id
           WHERE ${gate}
+            -- Cheap first cut, the same test as on next_at below: a one-off
+            -- of the past is out before its next date and its club are
+            -- looked at (friends' memberships are mostly past meetups).
+            AND g.date IS NOT NULL
+            AND (g.is_recurring_weekly = TRUE OR g.date::date >= ${VIENNA_NOW}::date)
        ),
        cards AS (
          SELECT go.id, go.next_at,
