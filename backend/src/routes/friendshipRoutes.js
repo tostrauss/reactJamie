@@ -12,6 +12,7 @@ import {
   unblockUser,
   getBlockedUsers
 } from '../controllers/friendshipController.js';
+import { getFriendsGoing, getPeopleYouMayKnow } from '../controllers/friendsHubController.js';
 import { authenticate } from '../middleware/auth.js';
 import { friendRequestLimiter } from '../middleware/rateLimiter.js';
 
@@ -32,6 +33,11 @@ router.get('/', authenticate, getFriends);
 // „Von deinen letzten Events" — registered before '/status/:userId' and
 // '/:friendId' style routes so the literal path is never read as an id.
 router.get('/suggestions', authenticate, getFriendSuggestions);
+// The new Friends page (Tina, 17.11.2026): „Wo gehen deine Freunde hin?“ and
+// „Leute, die du kennen könntest“. Literal paths, registered before the id
+// routes like '/suggestions'. Both answer 200 even when their query fails.
+router.get('/going', authenticate, getFriendsGoing);
+router.get('/people', authenticate, getPeopleYouMayKnow);
 
 // Check & manage friendship
 router.get('/status/:userId', authenticate, checkFriendship);

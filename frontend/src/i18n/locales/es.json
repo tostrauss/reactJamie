@@ -523,7 +523,20 @@
       "btnAccept": "Aceptar",
       "requestError": "No se pudo enviar la solicitud.",
       "accepted": "¡Ya sois amigos! 🎉",
-      "acceptError": "No se pudo aceptar la solicitud."
+      "acceptError": "No se pudo aceptar la solicitud.",
+      "requestsBar_one": "👋 {{count}} nueva solicitud de amistad",
+      "requestsBar_other": "👋 {{count}} nuevas solicitudes de amistad",
+      "goingTitle": "¿Adónde van tus amigos? 🎉",
+      "goingOthers_one": "+ {{count}} amigo",
+      "goingOthers_other": "+ {{count}} amigos",
+      "goingJoin": "Me apunto",
+      "goingJoined": "Estás dentro",
+      "yourFriends": "Tus amigos",
+      "seeAll": "Ver todos",
+      "peopleTitle": "Personas que quizá conozcas",
+      "peopleWith": "Estuvo contigo en {{name}}",
+      "peopleRequest": "Enviar solicitud",
+      "peopleEmpty": "Participa en tu primer encuentro o evento para recibir sugerencias"
     },
     "dealsInfo": {
       "explainer": "Muestra la oferta en el local y toca «Canjear ahora» delante del personal. Atención: a menudo solo se puede canjear una vez.",

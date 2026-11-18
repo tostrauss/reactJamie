@@ -523,7 +523,20 @@
       "btnAccept": "Accept",
       "requestError": "Couldn't send the request.",
       "accepted": "You're friends now 🎉",
-      "acceptError": "Couldn't accept the request."
+      "acceptError": "Couldn't accept the request.",
+      "requestsBar_one": "👋 {{count}} new friend request",
+      "requestsBar_other": "👋 {{count}} new friend requests",
+      "goingTitle": "Where are your friends going? 🎉",
+      "goingOthers_one": "+ {{count}} friend",
+      "goingOthers_other": "+ {{count}} friends",
+      "goingJoin": "Come along",
+      "goingJoined": "You’re in",
+      "yourFriends": "Your friends",
+      "seeAll": "See all",
+      "peopleTitle": "People you may know",
+      "peopleWith": "Was with you at {{name}}",
+      "peopleRequest": "Send request",
+      "peopleEmpty": "Join your first meet-up or event to get suggestions"
     },
     "dealsInfo": {
       "explainer": "Show the deal on site and tap “Redeem now” in front of the staff. Note: often redeemable only once.",

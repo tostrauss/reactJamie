@@ -523,7 +523,20 @@
       "btnAccept": "Annehmen",
       "requestError": "Anfrage konnte nicht gesendet werden.",
       "accepted": "Ihr seid jetzt befreundet 🎉",
-      "acceptError": "Anfrage konnte nicht angenommen werden."
+      "acceptError": "Anfrage konnte nicht angenommen werden.",
+      "requestsBar_one": "👋 {{count}} neue Freundschaftsanfrage",
+      "requestsBar_other": "👋 {{count}} neue Freundschaftsanfragen",
+      "goingTitle": "Wo gehen deine Freunde hin? 🎉",
+      "goingOthers_one": "+ {{count}} Freund",
+      "goingOthers_other": "+ {{count}} Freunde",
+      "goingJoin": "Mitkommen",
+      "goingJoined": "Du bist dabei",
+      "yourFriends": "Deine Freunde",
+      "seeAll": "Alle ansehen",
+      "peopleTitle": "Leute, die du kennen könntest",
+      "peopleWith": "War mit dir bei {{name}}",
+      "peopleRequest": "Anfrage senden",
+      "peopleEmpty": "Nimm bei deinem ersten Treffen oder Event teil, um Vorschläge zu erhalten"
     },
     "dealsInfo": {
       "explainer": "Zeig den Deal vor Ort und tippe vor dem Personal auf „Jetzt einlösen“. Achtung: Oft nur 1× einlösbar.",
