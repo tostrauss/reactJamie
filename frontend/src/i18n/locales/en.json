@@ -1743,6 +1743,8 @@
       "paidEventsDesc": "Sell tickets via your own link",
       "reviewRequests": "Request tools",
       "reviewRequestsDesc": "Accept all, sort & filter",
+      "skipRequests": "Skip requests",
+      "skipRequestsDesc": "Look at the next request first and decide later.",
       "unlimitedJoins": "Unlimited groups",
       "unlimitedJoinsDesc": "Create and join as many groups as you like.",
       "unlimitedFriendRequests": "Unlimited friend requests",
@@ -1809,6 +1811,7 @@
     "contextCta": {
       "paidEvents": "Create your paid event now!",
       "reviewRequests": "Manage your join requests like a pro!",
+      "skipRequests": "Skip requests and decide at your own pace!",
       "boosts": "Boost your group to the top now!",
       "joins": "Join as many groups as you like!",
       "creates": "Create as many meet-ups as you like!",

@@ -7573,6 +7573,53 @@ suite('write endpoints against real Postgres', () => {
     });
   });
 
+  // ── P-3: partner requests are deleted after 12 months (Tobi 18.11.2026) ──
+  // jobs/partnerLeadsPurge.js against real Postgres. The ages are set
+  // relative to the database's own NOW(), the same clock the job reads.
+  describe('Partner-Anfragen: Löschung nach 12 Monaten (P-3, 18.11.2026)', () => {
+    let job;
+    const ids = [];
+    const mk = async (name, age) => {
+      const { rows } = await db.query(
+        `INSERT INTO partner_leads (source, name, contact, email, privacy_accepted_at, created_at)
+         VALUES ('third', $1, 'mail', 'p3@anfrage.at', NOW() - $2::interval, NOW() - $2::interval) RETURNING id`,
+        [name, age]);
+      ids.push(rows[0].id);
+      return rows[0].id;
+    };
+    const left = async () => (await db.query(
+      'SELECT name FROM partner_leads WHERE id = ANY($1::int[]) ORDER BY name', [ids])).rows.map((r) => r.name);
+
+    beforeAll(async () => { job = await import('../../src/jobs/partnerLeadsPurge.js'); });
+    afterEach(async () => {
+      delete process.env.PARTNER_LEADS_RETENTION_MONTHS;
+      await db.query('DELETE FROM partner_leads WHERE id = ANY($1::int[])', [ids]);
+      ids.length = 0;
+    });
+
+    it('13 months old → gone, 11 months → stays; a second run finds nothing', async () => {
+      await mk('P3 alt', '13 months');
+      await mk('P3 jung', '11 months');
+      await mk('P3 heute', '0 seconds');
+      const first = await job.runPartnerLeadsPurge();
+      expect(first).toMatchObject({ status: 'ok', months: 12 });
+      expect(first.deleted).toBeGreaterThanOrEqual(1);
+      expect(await left()).toEqual(['P3 heute', 'P3 jung']);
+      expect(await job.runPartnerLeadsPurge()).toEqual({ status: 'ok', deleted: 0, months: 12 });
+    });
+
+    it('PARTNER_LEADS_RETENTION_MONTHS=0: nothing is deleted; another value moves the line', async () => {
+      await mk('P3 alt', '13 months');
+      await mk('P3 jung', '11 months');
+      process.env.PARTNER_LEADS_RETENTION_MONTHS = '0';
+      expect(await job.runPartnerLeadsPurge()).toEqual({ status: 'off', deleted: 0, months: 0 });
+      expect(await left()).toEqual(['P3 alt', 'P3 jung']);
+      process.env.PARTNER_LEADS_RETENTION_MONTHS = '6';
+      expect(await job.runPartnerLeadsPurge()).toMatchObject({ status: 'ok', months: 6 });
+      expect(await left()).toEqual([]);
+    });
+  });
+
   // ── Deals in the model of 17.11.2026 (Tina's new document, Tobi) ────────
   // ONE deal per event, put up with the event („Deal anlegen“ in the event
   // form) or on its edit page; free on a club's first two events, after that

@@ -80,6 +80,7 @@ const renderHub = async ({
           <Route path="/group/:id" element={<><p>GROUP PAGE</p><Harness /></>} />
           <Route path="/user/:id" element={<><p>PROFILE</p><Harness /></>} />
           <Route path="/chats" element={<><p>CHATS</p><Harness /></>} />
+          <Route path="/chat/:id" element={<><p>CHAT</p><Harness /></>} />
         </Routes>
       </MemoryRouter>
     </AuthContext.Provider>,
@@ -200,7 +201,15 @@ describe('Friends page — „Wo gehen deine Freunde hin? 🎉“', () => {
     window.addEventListener('jamie:push-prompt-after-join', pushAsk);
     await renderHub({ going: [goingCard(), goingCard({ id: 6, name: 'Punsch & Rave 2' })] });
     await click(within(cardOf('Spieleabend im Café')).getByRole('button', { name: 'Mitkommen' }));
+
+    // „Sag kurz Hallo“ — the sheet of the meetup's own page (Tobi 18.11.2026).
+    // The push ask waits until it closes, so the two never stack.
+    const hello = screen.getByRole('dialog', { name: 'Du bist bei Spieleabend im Café dabei!' });
+    expect(within(hello).getByText('Sag kurz Hallo 👋')).toBeTruthy();
+    expect(pushAsk).not.toHaveBeenCalled();
+    await click(within(hello).getByRole('button', { name: 'Später' }));
     window.removeEventListener('jamie:push-prompt-after-join', pushAsk);
+    expect(screen.queryByRole('dialog', { name: 'Du bist bei Spieleabend im Café dabei!' })).toBeNull();
 
     expect(groups.join).toHaveBeenCalledTimes(1);
     expect(groups.join).toHaveBeenCalledWith(5);
@@ -213,12 +222,29 @@ describe('Friends page — „Wo gehen deine Freunde hin? 🎉“', () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
-  it('„Mitkommen“ on a meetup by request: the request goes out — „Angefragt“', async () => {
-    vi.mocked(groups.join).mockResolvedValueOnce({ data: { message: 'Join request sent', status: 'pending' } });
+  it('„Hallo sagen“ in that sheet opens the chat of the meetup', async () => {
+    vi.mocked(groups.join).mockResolvedValueOnce({ data: { message: 'Joined group successfully', status: 'joined' } });
+    const pushAsk = vi.fn();
+    window.addEventListener('jamie:push-prompt-after-join', pushAsk);
     await renderHub({ going: [goingCard()] });
     await click(screen.getByRole('button', { name: 'Mitkommen' }));
+    await click(screen.getByRole('button', { name: 'Hallo sagen' }));
+    window.removeEventListener('jamie:push-prompt-after-join', pushAsk);
+    expect(where()).toBe('/chat/5');
+    expect(pushAsk).toHaveBeenCalledTimes(1);
+  });
+
+  it('„Mitkommen“ on a meetup by request: the request goes out — „Angefragt“, and no „Sag kurz Hallo“', async () => {
+    vi.mocked(groups.join).mockResolvedValueOnce({ data: { message: 'Join request sent', status: 'pending' } });
+    const pushAsk = vi.fn();
+    window.addEventListener('jamie:push-prompt-after-join', pushAsk);
+    await renderHub({ going: [goingCard()] });
+    await click(screen.getByRole('button', { name: 'Mitkommen' }));
+    window.removeEventListener('jamie:push-prompt-after-join', pushAsk);
     expect(within(cardOf('Spieleabend im Café')).getByText('Angefragt')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Mitkommen' })).toBeNull();
+    expect(screen.queryByText('Sag kurz Hallo 👋')).toBeNull();
+    expect(pushAsk).toHaveBeenCalledTimes(1);
   });
 
   it('already in it, or already asked: the card says so right away — nothing to tap', async () => {
@@ -236,6 +262,7 @@ describe('Friends page — „Wo gehen deine Freunde hin? 🎉“', () => {
     const sheet = screen.getByRole('dialog', { name: 'Tageslimit erreicht' });
     expect(within(sheet).getByText(/So bleibt JAMIE aktiv, persönlich und relevant\. Sieh dir Gruppen genau an/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Mitkommen' })).toBeTruthy();
+    expect(screen.queryByText('Sag kurz Hallo 👋')).toBeNull();
     expect(toast.error).not.toHaveBeenCalled();
     // (the ✕ and the link under the sheet carry the same name)
     await click(within(sheet).getAllByRole('button', { name: 'Morgen wieder dabei' })[0]);
@@ -256,6 +283,7 @@ describe('Friends page — „Wo gehen deine Freunde hin? 🎉“', () => {
     expect(groups.join).toHaveBeenCalledWith(5);
     expect(document.querySelector('.avatar-gate-sheet')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Mitkommen' })).toBeTruthy();
+    expect(screen.queryByText('Sag kurz Hallo 👋')).toBeNull();
     expect(toast.error).not.toHaveBeenCalled();
   });
 

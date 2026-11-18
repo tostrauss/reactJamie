@@ -1743,6 +1743,8 @@
       "paidEventsDesc": "Vendi biglietti tramite il tuo link",
       "reviewRequests": "Strumenti richieste",
       "reviewRequestsDesc": "Accetta tutte, ordina e filtra",
+      "skipRequests": "Salta le richieste",
+      "skipRequestsDesc": "Guarda prima la prossima richiesta e decidi dopo.",
       "unlimitedJoins": "Gruppi illimitati",
       "unlimitedJoinsDesc": "Crea e unisciti a tutti i gruppi che vuoi.",
       "unlimitedFriendRequests": "Richieste di amicizia illimitate",
@@ -1809,6 +1811,7 @@
     "contextCta": {
       "paidEvents": "Crea subito il tuo evento a pagamento!",
       "reviewRequests": "Gestisci le tue richieste come un professionista!",
+      "skipRequests": "Salta le richieste e decidi con i tuoi tempi!",
       "boosts": "Boosta il tuo gruppo in cima adesso!",
       "joins": "Unisciti a tutti i gruppi che vuoi!",
       "creates": "Crea tutti gli incontri che vuoi!",

@@ -10,6 +10,7 @@ import { eventDateLocale } from '../utils/eventDate';
 import { viennaTodayUTC } from '../utils/recurrence';
 import { firstName, goingWhen } from '../utils/friendsHub';
 import AvatarGateModal from './AvatarGateModal';
+import { ChatNudgeSheet } from './ChatNudgeSheet';
 import DailyLimitModal from './DailyLimitModal';
 
 // „Wo gehen deine Freunde hin? 🎉“ (Tina, 17.11.2026 — the new Friends page):
@@ -18,7 +19,9 @@ import DailyLimitModal from './DailyLimitModal';
 //
 // „Mitkommen“ is the join of the meetup itself — the same endpoint, so the
 // same daily limit, the same avatar rule, the same request flow:
-//   open meetup          → in, the button reads „Du bist dabei“
+//   open meetup          → in, the button reads „Du bist dabei“, and the
+//                          „Sag kurz Hallo“ sheet of the meetup's own page
+//                          opens (Tobi 18.11.2026); closing it stays here
 //   meetup by request    → the request goes out, „Angefragt“
 //   already in / asked   → the card comes with that state (my_status)
 //   daily limit reached  → the „Tageslimit erreicht“ sheet, never the Pro
@@ -64,6 +67,8 @@ export function FriendsGoing({ cards, setCards }) {
   const [busyId, setBusyId] = useState(null);
   const [avatarGate, setAvatarGate] = useState(false);
   const [limitOpen, setLimitOpen] = useState(false);
+  // The card just joined, while its „Sag kurz Hallo“ sheet is open.
+  const [hello, setHello] = useState(null);
 
   if (!Array.isArray(cards) || cards.length === 0) return null;
 
@@ -81,8 +86,14 @@ export function FriendsGoing({ cards, setCards }) {
     setBusyId(card.id);
     try {
       const res = await groups.join(card.id);
-      window.dispatchEvent(new Event('jamie:push-prompt-after-join')); // contextual push ask (NotificationPrompt)
-      setStatus(card.id, res?.data?.status === 'pending' ? 'requested' : 'member');
+      // As on the meetup's own page (GroupDetail): a direct join first shows
+      // „Sag kurz Hallo“, and the contextual push ask (NotificationPrompt)
+      // waits until that sheet closes, so the two never stack. A request
+      // („Angefragt“) gets no sheet, there is no chat to write in yet.
+      const pending = res?.data?.status === 'pending';
+      setStatus(card.id, pending ? 'requested' : 'member');
+      if (pending) window.dispatchEvent(new Event('jamie:push-prompt-after-join'));
+      else setHello({ id: card.id, name: card.name });
     } catch (err) {
       const data = err?.response?.data;
       if (data?.requiresAvatar) setAvatarGate(true);
@@ -94,6 +105,11 @@ export function FriendsGoing({ cards, setCards }) {
     } finally {
       setBusyId(null);
     }
+  };
+
+  const closeHello = () => {
+    window.dispatchEvent(new Event('jamie:push-prompt-after-join'));
+    setHello(null);
   };
 
   return (
@@ -146,6 +162,14 @@ export function FriendsGoing({ cards, setCards }) {
       </ul>
       <AvatarGateModal isOpen={avatarGate} onClose={() => setAvatarGate(false)} />
       {limitOpen && <DailyLimitModal variant="join" onClose={() => setLimitOpen(false)} />}
+      {hello && (
+        <ChatNudgeSheet
+          variant="joined"
+          groupName={hello.name}
+          onChat={() => { const { id } = hello; closeHello(); navigate(`/chat/${id}`); }}
+          onClose={closeHello}
+        />
+      )}
     </section>
   );
 }
