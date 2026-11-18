@@ -15,7 +15,7 @@
 // Without SMOKE_DATABASE_URL the whole suite is skipped, so plain
 // `vitest run` / CI without a database stays green.
 // ─────────────────────────────────────────────────────────────────────────────
-import { describe, it, beforeAll, beforeEach, afterAll, expect, vi } from 'vitest';
+import { describe, it, beforeAll, beforeEach, afterEach, afterAll, expect, vi } from 'vitest';
 import { distanceKmSql, distanceKm } from '../../src/utils/geoRadius.js';
 import { MOTIVATION_KEYS } from '../../src/utils/motivations.js';
 import fs from 'fs';
@@ -6598,7 +6598,8 @@ suite('write endpoints against real Postgres', () => {
       const res = await call(C.getDealsForAdmin, {});
       ok(res);
       const row = res.body.find((d) => d.id === DL.once);
-      expect(row.events).toEqual([{ id: event, name: 'Smoke Punsch Night', date: expect.any(Date) }]);
+      // in_feed (D-1, 18.11.2026): no admin released it into the Gruppen feed
+      expect(row.events).toEqual([{ id: event, name: 'Smoke Punsch Night', date: expect.any(Date), in_feed: false }]);
       expect(res.body.find((d) => d.id === DL.weekly).events).toEqual([]);
     });
 
@@ -9599,6 +9600,271 @@ suite('write endpoints against real Postgres', () => {
       expect(await ends()).toEqual(after);
       expect(await moveLegacyDealEndsToViennaDayEnd()).toBe(0);
       expect(await ends()).toEqual(after);
+    });
+  });
+
+  // ── D-1: a club's deal in the Gruppen feed (Tina 17.11.2026) ─────────────
+  // „Der Deal wird auch als Gruppe angezeigt (am Tag des Events)“ — „ABER! Der
+  // Deal wird in den Gruppen nicht angezeigt. Das können nur wir als Admins
+  // einstellen!“ An app admin releases ONE pair of event and deal
+  // (feed_event_deals); GET /deals then carries it in front of JAMIE's deals,
+  // on the event's Vienna day, for whoever the Gruppen feed would show the
+  // event to. Days come from the database's Vienna date, never from a clock
+  // time of this run.
+  describe('D-1: a club deal in the Gruppen feed, switched on by an admin (2026-11-18)', () => {
+    let dl, owner, viewer, jamieDeal;
+    const mkU = async (tag, { born = '1990-02-02', country = 'AT', admin = false } = {}) => (await db.query(
+      `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider, country, is_admin)
+       VALUES ($1,$2,$3,'male',$4, TRUE, 'email', $5, $6) RETURNING id`,
+      [`smoke-dealfeed-${tag}@x.com`, `Feed ${tag}`, born, avatar, country, admin])).rows[0].id;
+    // A live, public, official club with an event and the club's own deal on it.
+    // `day` is relative to today in Vienna (null = an event without a date).
+    const mk = async (tag, { day = 0, time = '19:00', club: clubOver = {}, event: eventOver = {}, deal: dealOver = {} } = {}) => {
+      const c = { is_private: false, approval_status: 'approved', club_type: 'official', ...clubOver };
+      const club = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, is_private, approval_status, club_type, lat, lng)
+         VALUES ($1,'club',$2,'Bar','Wien',500,$3,$4,$5,48.19,16.35) RETURNING id`,
+        [`Feed-Club ${tag}`, owner, c.is_private, c.approval_status, c.club_type])).rows[0].id;
+      const e = { lat: 48.19, lng: 16.35, weekly: false, age_min: null, age_max: null, ...eventOver };
+      const event = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, parent_club_id, lat, lng,
+                             is_recurring_weekly, target_age_min, target_age_max, date)
+         VALUES ($1,'event',$2,'Bar','Wien',50,$3,$4,$5,$6,$7,$8,
+                 CASE WHEN $9::int IS NULL THEN NULL
+                      ELSE ((NOW() AT TIME ZONE 'Europe/Vienna')::date + $9::int) + $10::time END)
+         RETURNING id`,
+        [`Feed-Event ${tag}`, owner, club, e.lat, e.lng, e.weekly, e.age_min, e.age_max, day, time])).rows[0].id;
+      const d = { visible_until: null, max_redemptions: null, is_active: true, ...dealOver };
+      const deal = (await db.query(
+        `INSERT INTO deals (name, deal_label, address, club_id, created_by, is_active, visible_until, max_redemptions)
+         VALUES ($1,'1 Punsch gratis','Wien',$2,$3,$4,$5,$6) RETURNING id`,
+        [`Feed-Deal ${tag}`, club, owner, d.is_active, d.visible_until, d.max_redemptions])).rows[0].id;
+      await db.query('INSERT INTO event_deals (group_id, deal_id, attached_by) VALUES ($1,$2,$3)', [event, deal, owner]);
+      return { club, event, deal };
+    };
+    const release = (eventId, show = true, userId = A) => call(dl.setEventDealFeed, {
+      userId, params: { groupId: String(eventId) }, body: { show } });
+    const feed = async (userId = viewer) => {
+      const res = await call(C.getDeals, { userId });
+      expect(res.statusCode, JSON.stringify(res.body)).toBe(200);
+      return res.body;
+    };
+    const feedIds = async (userId) => (await feed(userId)).map((d) => d.id);
+    // The released club deals lead the list.
+    const leading = async (userId) => (await feed(userId)).filter((d) => d.feed_event_id != null).map((d) => d.id);
+
+    beforeAll(async () => {
+      dl = await import('../../src/controllers/dealController.js');
+      owner = await mkU('owner');
+      viewer = await mkU('viewer');
+      const jamie = await call(C.createDeal, { userId: A, body: {
+        name: 'Feed JAMIE Deal', deal_label: 'Gratis Shot', visible_until: '2099-12-31' } });
+      expect(jamie.statusCode, JSON.stringify(jamie.body)).toBe(201);
+      jamieDeal = jamie.body.id;
+    });
+    afterEach(async () => {
+      delete process.env.CLUB_DEAL_FEED_ENABLED;
+      await db.query('DELETE FROM feed_event_deals').catch(() => {});
+    });
+
+    it('off by default; only an admin switches it on; then the deal leads the feed as a deal row plus feed_event_id — and off again', async () => {
+      const { event, deal } = await mk('basis');
+      expect(await feedIds()).not.toContain(deal);
+
+      const denied = await release(event, true, owner);        // the club's own owner may not
+      expect(denied.statusCode).toBe(403);
+      expect(await feedIds()).not.toContain(deal);
+
+      const on = await release(event);
+      expect(on.statusCode, JSON.stringify(on.body)).toBe(200);
+      expect(on.body).toEqual({ group_id: event, deal_id: deal, in_feed: true });
+      const list = await feed();
+      expect(list[0]).toMatchObject({ id: deal, name: 'Feed-Deal basis', deal_label: '1 Punsch gratis', feed_event_id: event });
+      // the same fields as JAMIE's row, which is still there and untouched
+      const jamie = list.find((d) => d.id === jamieDeal);
+      expect(jamie).toBeTruthy();
+      expect(jamie).not.toHaveProperty('feed_event_id');
+      expect(Object.keys(list[0]).sort()).toEqual([...Object.keys(jamie), 'feed_event_id'].sort());
+      // a tap opens the deal as always
+      ok(await call(C.getDeal, { userId: viewer, params: { id: String(deal) } }));
+      // the admin list marks the event
+      const adminList = await call(C.getDealsForAdmin, { userId: A });
+      expect(adminList.body.find((d) => d.id === deal).events).toMatchObject([{ id: event, in_feed: true }]);
+      // a second release is the same row
+      ok(await release(event));
+      expect((await db.query('SELECT COUNT(*)::int AS n FROM feed_event_deals WHERE group_id = $1', [event])).rows[0].n).toBe(1);
+
+      const off = await release(event, false);
+      expect(off.body).toEqual({ group_id: event, deal_id: null, in_feed: false });
+      expect(await feedIds()).not.toContain(deal);
+      ok(await release(event, false));                          // taking back twice is fine
+    });
+
+    it('only on the event\'s Vienna day — a weekly series on each of its days, an event without a date never', async () => {
+      const cases = {
+        today: await mk('heute'),
+        early: await mk('heute-frueh', { time: '00:05' }),       // already started: still its day
+        tomorrow: await mk('morgen', { day: 1 }),
+        yesterday: await mk('gestern', { day: -1 }),
+        weekly: await mk('serie', { day: -14, event: { weekly: true } }),
+        weeklyOff: await mk('serie-anderer-tag', { day: -13, event: { weekly: true } }),
+        pastOnce: await mk('vor-einer-woche', { day: -7 }),      // not a series
+        undated: await mk('ohne-datum', { day: null }),
+      };
+      for (const c of Object.values(cases)) ok(await release(c.event));
+      const shown = await leading();
+      expect(shown[0]).toBe(cases.early.deal);                    // the earliest start first
+      expect([...shown].sort()).toEqual([cases.early.deal, cases.today.deal, cases.weekly.deal].sort());
+    });
+
+    it('the Gruppen feed\'s rule for the event: club gate, age range, country box', async () => {
+      const hidden = {
+        privateClub: await mk('privat', { club: { is_private: true } }),
+        pending: await mk('in-pruefung', { club: { approval_status: 'pending' } }),
+        community: await mk('community', { club: { club_type: null } }),
+        tooOld: await mk('ab-50', { event: { age_min: 50 } }),
+        tooYoung: await mk('bis-25', { event: { age_max: 25 } }),
+        berlin: await mk('berlin', { event: { lat: 52.52, lng: 13.40 } }),
+      };
+      const closed = await mk('geschlossen');
+      const deleted = await mk('geloescht');
+      const cancelled = await mk('abgesagt');
+      const fits = await mk('passt', { event: { age_min: 30, age_max: 40 } });
+      for (const c of [...Object.values(hidden), closed, deleted, cancelled, fits]) ok(await release(c.event));
+      await db.query('UPDATE groups SET is_active = FALSE WHERE id = $1', [closed.club]);
+      await db.query('UPDATE groups SET deleted_at = NOW() WHERE id = $1', [deleted.event]);
+      await db.query('UPDATE groups SET is_active = FALSE WHERE id = $1', [cancelled.event]);
+
+      expect(await leading()).toEqual([fits.deal]);
+      // someone in Germany gets the Berlin event's deal and not the Viennese one
+      const german = await mkU('de', { country: 'DE' });
+      expect(await leading(german)).toEqual([hidden.berlin.deal]);
+      // no date of birth is not possible here; a 22-year-old sees „bis 25“
+      const young = await mkU('jung', { born: '2004-01-01' });
+      expect(await leading(young)).toEqual([hidden.tooYoung.deal]);
+    });
+
+    it('the release is for ONE deal: swapped or taken off the event, it is out — and a new release names the new deal', async () => {
+      const { club, event, deal } = await mk('tausch');
+      ok(await release(event));
+      expect(await leading()).toEqual([deal]);
+      const other = (await db.query(
+        `INSERT INTO deals (name, deal_label, club_id, created_by, visible_until, max_redemptions)
+         VALUES ('Feed-Deal tausch 2','2 für 1',$1,$2,NULL,NULL) RETURNING id`, [club, owner])).rows[0].id;
+      ok(await call(C.setEventDeal, { userId: A, params: { groupId: String(event) }, body: { deal_id: other } }));
+      expect(await leading()).toEqual([]);
+      const adminList = await call(C.getDealsForAdmin, { userId: A });
+      expect(adminList.body.find((d) => d.id === other).events).toMatchObject([{ id: event, in_feed: false }]);
+      const again = await release(event);
+      expect(again.body).toEqual({ group_id: event, deal_id: other, in_feed: true });
+      expect(await leading()).toEqual([other]);
+      ok(await call(C.setEventDeal, { userId: A, params: { groupId: String(event) }, body: { deal_id: null } }));
+      expect(await leading()).toEqual([]);
+      // nothing on the event: 404; JAMIE's own deal: 400 (it is in the feed anyway)
+      const none = await release(event);
+      expect(none.statusCode).toBe(404);
+      expect(none.body.code).toBe('NO_EVENT_DEAL');
+      ok(await call(C.setEventDeal, { userId: A, params: { groupId: String(event) }, body: { deal_id: jamieDeal } }));
+      const jamie = await release(event);
+      expect(jamie.statusCode).toBe(400);
+      expect(jamie.body.code).toBe('NOT_A_CLUB_DEAL');
+      expect((await feedIds()).filter((id) => id === jamieDeal)).toHaveLength(1);
+      expect((await release(999999999)).statusCode).toBe(404);
+    });
+
+    it('an expired, inactive or used-up deal does not lead the feed, switch or not', async () => {
+      const expired = await mk('abgelaufen', { deal: { visible_until: '2020-01-01' } });
+      const inactive = await mk('inaktiv', { deal: { is_active: false } });
+      const soldOut = await mk('limit', { deal: { max_redemptions: 1 } });
+      for (const c of [expired, inactive, soldOut]) ok(await release(c.event));
+      expect(await leading()).toEqual([soldOut.deal]);
+      const redeemed = await call(C.redeemDeal, { userId: viewer, params: { id: String(soldOut.deal) } });
+      expect(redeemed.statusCode, JSON.stringify(redeemed.body)).toBe(201);
+      expect(await leading()).toEqual([]);
+    });
+
+    it(`at most ${3} lead the feed, the earliest start first, one deal once — JAMIE's deals follow`, async () => {
+      expect(dl.CLUB_DEALS_IN_FEED_MAX).toBe(3);
+      const at21 = await mk('21', { time: '21:00' });
+      const at18 = await mk('18', { time: '18:00' });
+      const at20 = await mk('20', { time: '20:00' });
+      const at19 = await mk('19', { time: '19:00' });
+      // the 18:00 deal also hangs on a second event of today
+      const twin = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, parent_club_id, lat, lng, date)
+         VALUES ('Feed-Event 18b','event',$1,'Bar','Wien',50,$2,48.19,16.35,
+                 (NOW() AT TIME ZONE 'Europe/Vienna')::date + TIME '18:30') RETURNING id`, [owner, at18.club])).rows[0].id;
+      await db.query('INSERT INTO event_deals (group_id, deal_id, attached_by) VALUES ($1,$2,$3)', [twin, at18.deal, owner]);
+      for (const id of [at21.event, at18.event, at20.event, at19.event, twin]) ok(await release(id));
+      const list = await feed();
+      expect(list.slice(0, 3).map((d) => [d.id, d.feed_event_id])).toEqual([
+        [at18.deal, at18.event], [at19.deal, at19.event], [at20.deal, at20.event]]);
+      expect(list.slice(3).every((d) => d.feed_event_id == null)).toBe(true);
+      expect(list.map((d) => d.id)).toContain(jamieDeal);
+      expect(list.map((d) => d.id)).not.toContain(at21.deal);
+    });
+
+    it('emergency switch CLUB_DEAL_FEED_ENABLED=false: the feed is as before, the release stays stored', async () => {
+      const { event, deal } = await mk('notaus');
+      ok(await release(event));
+      const before = await feed();
+      expect(before[0].id).toBe(deal);
+      process.env.CLUB_DEAL_FEED_ENABLED = 'false';
+      expect(await feed()).toEqual(before.slice(1));
+      delete process.env.CLUB_DEAL_FEED_ENABLED;
+      expect((await feed())[0].id).toBe(deal);
+    });
+
+    it('the admin who switched it on deletes their account: the release stays (enabled_by SET NULL); event or deal gone, it goes with them', async () => {
+      const admin = await mkU('admin', { admin: true });
+      const a = await mk('admin-weg');
+      const b = await mk('event-weg');
+      const c = await mk('deal-weg');
+      for (const x of [a, b, c]) ok(await release(x.event, true, admin));
+      const row = async (eventId) => (await db.query(
+        'SELECT deal_id, enabled_by FROM feed_event_deals WHERE group_id = $1', [eventId])).rows[0] ?? null;
+      expect(await row(a.event)).toEqual({ deal_id: a.deal, enabled_by: admin });
+
+      ok(await call(C.deleteAccount, { userId: admin, body: {} }));
+      await db.query('DELETE FROM users WHERE id = $1', [admin]);   // and the hard delete, whatever the endpoint keeps
+      expect(await row(a.event)).toEqual({ deal_id: a.deal, enabled_by: null });
+      expect(await leading()).toContain(a.deal);
+
+      await db.query('DELETE FROM groups WHERE id = $1', [b.event]);
+      await db.query('DELETE FROM deals WHERE id = $1', [c.deal]);
+      expect(await row(b.event)).toBeNull();
+      expect(await row(c.event)).toBeNull();
+      expect(await leading()).toEqual([a.deal]);
+    });
+
+    it('a database from before the deploy: without the table GET /deals is 200 with JAMIE\'s deals, the switch 503 — the boot brings it back', async () => {
+      const { event, deal } = await mk('boot');
+      ok(await release(event));
+      const exists = async () => (await db.query(`SELECT to_regclass('feed_event_deals') AS t`)).rows[0].t !== null;
+      await db.query('DROP TABLE feed_event_deals');
+      expect(await exists()).toBe(false);
+
+      const list = await feed();                                   // 200, checked in feed()
+      expect(list.map((d) => d.id)).toContain(jamieDeal);
+      expect(list.map((d) => d.id)).not.toContain(deal);
+      const adminList = await call(C.getDealsForAdmin, { userId: A });
+      expect(adminList.statusCode).toBe(200);
+      expect(adminList.body.find((d) => d.id === deal).events).toMatchObject([{ id: event, in_feed: false }]);
+      for (const show of [true, false]) {
+        const res = await release(event, show);
+        expect(res.statusCode).toBe(503);
+        expect(res.body.code).toBe('EVENT_DEAL_FEED_UNAVAILABLE');
+      }
+
+      const { runStartupMigrations, getMigrationHealth } = await import('../../src/config/migrations.js');
+      await runStartupMigrations();
+      expect(getMigrationHealth().stepFailures.filter((f) => f.label.includes('feed_event_deals'))).toEqual([]);
+      expect(await exists()).toBe(true);
+      expect(await leading()).toEqual([]);                         // default off again
+      ok(await release(event));
+      expect(await leading()).toEqual([deal]);
+      await runStartupMigrations();                                // a second boot leaves the release alone
+      expect(await leading()).toEqual([deal]);
     });
   });
 

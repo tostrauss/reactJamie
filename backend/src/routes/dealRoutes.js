@@ -2,7 +2,7 @@ import express from 'express';
 import {
   getDeals, getDeal, createDeal, updateDeal, deleteDeal,
   getRedemptionStatus, redeemDeal,
-  getDealsForAdmin, getDealRedemptions, startNewRound, setEventDeal,
+  getDealsForAdmin, getDealRedemptions, startNewRound, setEventDeal, setEventDealFeed,
   getClubDeals, createClubDeal, updateClubDeal, deleteClubDeal,
 } from '../controllers/dealController.js';
 import { authenticate, requireAdmin } from '../middleware/auth.js';
@@ -18,6 +18,9 @@ router.post('/admin/:id/new-round',  authenticate, requireAdmin, startNewRound);
 // since P4 v2 a club's managers for their own events and deals. The handler
 // decides who may, so no requireAdmin here.
 router.put('/event/:groupId',       authenticate, setEventDeal);
+// „Im Gruppen-Feed zeigen“ for the club deal on an event (D-1, 18.11.2026) —
+// app admins only.
+router.put('/event/:groupId/feed',  authenticate, requireAdmin, setEventDealFeed);
 // A club's own deals (P4 v2, 16.11.2026) — its owner and co-managers; the
 // handlers check the club and, to put something up, JAMIE Pro.
 router.get('/club/:clubId',            authenticate, getClubDeals);
