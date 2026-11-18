@@ -25,7 +25,7 @@ vi.mock('../../src/middleware/auth.js', () => ({
 }));
 vi.mock('../../src/controllers/dealController.js', () => stubs([
   'getDeals', 'getDeal', 'createDeal', 'updateDeal', 'deleteDeal', 'getRedemptionStatus', 'redeemDeal',
-  'getDealsForAdmin', 'getDealRedemptions', 'startNewRound', 'setEventDeal',
+  'getDealsForAdmin', 'getDealRedemptions', 'startNewRound', 'setEventDeal', 'setEventDealFeed',
   'getClubDeals', 'createClubDeal', 'updateClubDeal', 'deleteClubDeal',
 ]));
 
@@ -38,6 +38,13 @@ describe('deal routes — a deal at an event', () => {
   it('reaches setEventDeal without requireAdmin — admins and club managers alike (P4 v2)', async () => {
     const res = await request(app).put('/api/deals/event/5').send({ deal_id: 3 }).expect(200);
     expect(res.body.handler).toBe('setEventDeal');
+  });
+
+  // D-1 (Tina 17.11.2026: „Das können nur wir als Admins einstellen!“)
+  it('„Im Gruppen-Feed zeigen“ is admin-only and reaches its own handler, not setEventDeal', async () => {
+    await request(app).put('/api/deals/event/5/feed').send({ show: true }).expect(403);
+    const res = await request(app).put('/api/deals/event/5/feed').set('x-admin', '1').send({ show: true }).expect(200);
+    expect(res.body.handler).toBe('setEventDealFeed');
   });
 
   it('a club\'s own deals: four routes, no requireAdmin, each to its handler (P4 v2)', async () => {

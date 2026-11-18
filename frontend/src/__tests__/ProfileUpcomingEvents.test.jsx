@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useState } from 'react';
-import { render, screen, fireEvent, act, within } from '@testing-library/react';
+import { render, screen, fireEvent, act, within, cleanup } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 
 // „Demnächst dabei“ in the own profile (Tina 16.11.2026, PR4/PR5): the next
@@ -118,6 +118,25 @@ describe('ProfileUpcomingEvents — the list', () => {
     expect(item('Spieleabend').classList.contains('is-today')).toBe(true);
     expect(within(item('Laufrunde')).queryByText('Heute')).toBeNull();
     expect(item('Laufrunde').classList.contains('is-today')).toBe(false);
+  });
+
+  // F-6: fr „Aujourd'hui“ beside „Ouvrir le chat“ left the name five letters
+  // at 390 px. Only a long word marks the row (profile.css then puts it under
+  // the name in a narrow row) — the German line stays as it is.
+  it('a long word for „Heute" marks the row (fr), the German row is not marked', async () => {
+    await renderUpcoming();
+    expect(item('Spieleabend').classList.contains('is-today-long')).toBe(false);
+    cleanup();
+    const { switchLanguage } = await import('../i18n');
+    await switchLanguage('fr');
+    try {
+      await renderUpcoming();
+      expect(within(item('Spieleabend')).getByText("Aujourd'hui")).toBeTruthy();
+      expect(item('Spieleabend').classList.contains('is-today-long')).toBe(true);
+      expect(item('Laufrunde').classList.contains('is-today-long')).toBe(false);
+    } finally {
+      await switchLanguage('de');
+    }
   });
 
   it('the Vienna day decides „Heute" — 00:30 in Vienna is the new day while UTC is still on the old one', async () => {

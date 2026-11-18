@@ -2491,13 +2491,19 @@
         "attachSubmit": "Lier",
         "detachBtn": "Délier",
         "hiddenNote": "Pas visible sur l'événement pour le moment (expiré, inactif ou limite atteinte)",
+        "feedBtn": "Afficher dans le fil des groupes",
+        "feedBtnOn": "Dans le fil des groupes ✓",
+        "feedHint": "Affiche le partenariat du club dans le fil des groupes le jour de l'événement.",
         "toast": {
           "attached": "Le partenariat est maintenant lié à l'événement #{{id}}",
           "attachedHidden": "Lié à l'événement #{{id}} – mais pas visible là-bas pour le moment (expiré, inactif ou limite atteinte)",
           "detached": "Partenariat délié de « {{name}} »",
           "invalidId": "Saisis un ID d'événement ou le lien de l'événement",
           "attachError": "Échec de la liaison",
-          "detachError": "Échec de la suppression du lien"
+          "detachError": "Échec de la suppression du lien",
+          "feedOn": "« {{name}} » : le partenariat apparaît dans le fil des groupes le jour de l'événement",
+          "feedOff": "« {{name}} » : le partenariat n'est plus dans le fil des groupes",
+          "feedError": "Impossible de modifier l'affichage dans le fil"
         }
       }
     },

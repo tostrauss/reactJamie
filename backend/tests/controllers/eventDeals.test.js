@@ -43,6 +43,10 @@ vi.mock('../../src/config/database.js', () => ({
         return { rows: scenario.attachedRows };
       }
       if (text.includes('JOIN groups c ON c.id = d.club_id')) return { rows: scenario.clubRows };
+      if (text.startsWith('SELECT group_id, deal_id FROM feed_event_deals')) {
+        if (scenario.feedFail) throw scenario.feedFail;
+        return { rows: scenario.feedRows };
+      }
       if (text.includes('FROM deals d\n       LEFT JOIN')) return { rows: scenario.adminRows };
       throw new Error(`unexpected SQL in test: ${text.slice(0, 80)}`);
     }),
@@ -74,6 +78,7 @@ beforeEach(() => {
   Object.assign(scenario, {
     eventRow: { type: 'event' }, isAdmin: true, dealExists: true, embedRows: [], embedFail: null,
     adminRows: [], attachedRows: [], attachedFail: null, clubRows: [], writeFail: null,
+    feedRows: [], feedFail: null, // the admin list's releases into the Gruppen feed (D-1)
   });
   queries.length = 0;
   logSpy?.mockRestore();
@@ -219,10 +224,39 @@ describe('GET /api/deals/admin/list (getDealsForAdmin)', () => {
     await getDealsForAdmin({}, res);
     expect(res.body).toEqual([
       { id: 3, name: 'Café Soleá', club: null, events: [
-        { id: 5, name: 'Punsch Night', date: '2026-12-01T19:00:00.000Z' }, { id: 8, name: 'Quiz', date: null }] },
+        { id: 5, name: 'Punsch Night', date: '2026-12-01T19:00:00.000Z', in_feed: false },
+        { id: 8, name: 'Quiz', date: null, in_feed: false }] },
       { id: 4, name: 'Bar', club: null, events: [] },
     ]);
     expect(queries.find((q) => q.text.includes('JOIN groups g')).text).toContain('g.deleted_at IS NULL');
+  });
+
+  // D-1: „Im Gruppen-Feed zeigen“ is a release of ONE pair event + deal.
+  it('in_feed marks the event whose release names THIS deal — a release left from a swapped deal does not', async () => {
+    scenario.adminRows = [{ id: 3 }, { id: 4 }];
+    scenario.attachedRows = [
+      { deal_id: 3, id: 5, name: 'Punsch Night', date: null },
+      { deal_id: 3, id: 8, name: 'Quiz', date: null },
+      { deal_id: 4, id: 9, name: 'Tanzabend', date: null },
+    ];
+    scenario.feedRows = [{ group_id: 5, deal_id: 3 }, { group_id: 9, deal_id: 77 }];
+    const res = makeRes();
+    await getDealsForAdmin({}, res);
+    expect(res.body[0].events.map((e) => [e.id, e.in_feed])).toEqual([[5, true], [8, false]]);
+    expect(res.body[1].events.map((e) => [e.id, e.in_feed])).toEqual([[9, false]]);
+  });
+
+  it('without the releases table (boot window) the list loads, nothing is marked', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    scenario.adminRows = [{ id: 3 }];
+    scenario.attachedRows = [{ deal_id: 3, id: 5, name: 'Punsch Night', date: null }];
+    scenario.feedFail = Object.assign(new Error('relation "feed_event_deals" does not exist'), { code: '42P01' });
+    const res = makeRes();
+    await getDealsForAdmin({}, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body[0].events).toEqual([{ id: 5, name: 'Punsch Night', date: null, in_feed: false }]);
+    expect(err).not.toHaveBeenCalled();
+    err.mockRestore();
   });
 
   it('a club\'s own deal names its club (P4 v2), JAMIE\'s own none', async () => {

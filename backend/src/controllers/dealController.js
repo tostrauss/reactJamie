@@ -2,7 +2,7 @@ import db from '../config/database.js';
 import { sendPushToUsers } from './pushController.js';
 import { pushTexts } from '../utils/pushLocale.js';
 import { resolveCreateLocation } from '../utils/geocode.js';
-import { clubAliveSql } from '../utils/clubGate.js';
+import { clubAliveSql, parentClubGateSql } from '../utils/clubGate.js';
 import { checkTextSafety } from '../config/moderation.js';
 import { checkImageField } from '../utils/safeUrl.js';
 import { viennaToday } from '../utils/polls.js';
@@ -139,9 +139,13 @@ const queryWithClubGate = async (build, params) => {
 // club's deal (deals.club_id) shows at its event — the event page, the club's
 // event list — and on its own page /deal/:id, never in this list, which the
 // Gruppen feed and the Clubs segment mix in. An admin brings a deal into the
-// feed by putting it up as a JAMIE deal, as before. Before the deals.club_id
+// feed by putting it up as a JAMIE deal, as before — or, since 18.11.2026,
+// by the switch „Im Gruppen-Feed zeigen“ on the club's deal at its event
+// (clubDealsForFeed below): those rows come first. Before the deals.club_id
 // migration (boot window, 42703) no club deal can exist, so the same read
 // without the condition is exact.
+// Not cached on the server; the app's service worker reads /api network-first
+// (its cache is an offline copy only, cleared on login and logout).
 export const getDeals = async (req, res) => {
   try {
     const result = await queryWithClubGate((clubLive) =>
@@ -158,12 +162,108 @@ export const getDeals = async (req, res) => {
          AND ${clubLive === 'TRUE' ? 'TRUE' : 'd.club_id IS NULL'}
        ORDER BY created_at DESC`
     );
-    res.json(result.rows);
+    const clubDeals = await clubDealsForFeed(req.userId);
+    res.json(clubDeals.length ? [...clubDeals, ...result.rows] : result.rows);
   } catch (err) {
     console.error('getDeals error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+// ── A club's deal in the Gruppen feed (Tina 17.11.2026, D-1) ──────────────
+// „Der Deal wird auch als Gruppe angezeigt (am Tag des Events)“ — but „Das
+// können nur wir als Admins einstellen!“. An app admin switches it on for ONE
+// pair of event and deal (feed_event_deals, setEventDealFeed below); default
+// off = no row. The feed joins event_deals on the event AND the deal, so the
+// release is gone by itself once the club takes the deal off or swaps it.
+//
+// What comes back goes in front of JAMIE's deals in GET /deals, in the same
+// shape plus `feed_event_id` (the event; the new app leaves such a row out
+// of the Clubs segment, an older bundle shows it like any deal):
+//   - only on the event's Vienna day — a weekly series on each of its days,
+//     all day (not NEXT_AT_SQL: that jumps to next week once today's start
+//     has passed); an event without a date never;
+//   - the deal by the feed's own rule (active, not past „Sichtbar bis“, not
+//     at its limit) and its club still a live official one;
+//   - the event by the Gruppen feed's rule for THIS caller: active, not
+//     deleted, its parent club live and public, the caller's age range and
+//     country box (an event without coordinates passes, like in the feed);
+//   - at most CLUB_DEALS_IN_FEED_MAX, the earliest start first, each deal
+//     once — they never crowd out JAMIE's deals.
+// Never throws and never fails the feed: a missing table or column (boot
+// window), or any other error, is simply „none“. CLUB_DEAL_FEED_ENABLED=false
+// switches it off without a deploy (the switches stay stored).
+export const CLUB_DEALS_IN_FEED_MAX = 3;
+
+const clubDealFeedEnabled = () => process.env.CLUB_DEAL_FEED_ENABLED !== 'false';
+
+const VIENNA_TODAY_SQL = `(NOW() AT TIME ZONE 'Europe/Vienna')::date`;
+
+export async function clubDealsForFeed(userId) {
+  if (!clubDealFeedEnabled() || !userId) return [];
+  try {
+    const { rows } = await db.query(
+      `/* deals:club-feed */
+       SELECT d.id, d.name, d.category, d.deal_label, d.description, d.address, d.lat, d.lng,
+              d.photos, d.booking_url, d.visible_until, d.created_at,
+              g.id AS feed_event_id,
+              g.lat AS event_lat, g.lng AS event_lng, g.target_age_min, g.target_age_max,
+              (SELECT EXTRACT(YEAR FROM AGE(u.date_of_birth))::int FROM users u WHERE u.id = $1) AS my_age,
+              (SELECT u.country FROM users u WHERE u.id = $1) AS my_country
+         FROM feed_event_deals f
+         JOIN event_deals ed ON ed.group_id = f.group_id AND ed.deal_id = f.deal_id
+         JOIN deals d ON d.id = ed.deal_id
+         JOIN groups g ON g.id = f.group_id
+        WHERE d.club_id IS NOT NULL
+          AND d.is_active = TRUE
+          AND (d.visible_until IS NULL OR d.visible_until > NOW())
+          AND (d.max_redemptions IS NULL
+               OR (SELECT COUNT(*) FROM deal_redemptions dr
+                    WHERE dr.deal_id = d.id AND dr.period_key = (${PERIOD_KEY_SQL})) < d.max_redemptions)
+          AND ${CLUB_DEAL_LIVE_SQL}
+          AND g.type IN ('group', 'event')
+          AND g.is_active = TRUE
+          AND g.deleted_at IS NULL
+          AND ${parentClubGateSql('g', { requirePublic: true })}
+          AND g.date IS NOT NULL
+          AND (g.date::date = ${VIENNA_TODAY_SQL}
+               OR (g.is_recurring_weekly = TRUE
+                   AND g.date::date < ${VIENNA_TODAY_SQL}
+                   AND (${VIENNA_TODAY_SQL} - g.date::date) % 7 = 0))
+        ORDER BY g.date::time, g.id`,
+      [userId]
+    );
+    if (!rows.length) return [];
+    // The feed's country boxes. Loaded here, not at the top: groupController
+    // imports this module (getDealsForEvents), and it is long since loaded
+    // when a feed is asked for.
+    const { COUNTRY_BOUNDS } = await import('./groupController.js');
+    const out = [];
+    const seen = new Set();
+    for (const row of rows) {
+      const { event_lat, event_lng, target_age_min, target_age_max, my_age, my_country, ...deal } = row;
+      // No date of birth: everything passes (the feed's friendly default).
+      if (my_age !== null && my_age !== undefined) {
+        if (target_age_min !== null && target_age_min > my_age) continue;
+        if (target_age_max !== null && target_age_max < my_age) continue;
+      }
+      const boxes = (my_country && COUNTRY_BOUNDS[my_country]) || null;
+      if (boxes && event_lat !== null && event_lng !== null) {
+        const lat = Number(event_lat);
+        const lng = Number(event_lng);
+        if (!boxes.some((b) => lat >= b.latMin && lat <= b.latMax && lng >= b.lngMin && lng <= b.lngMax)) continue;
+      }
+      if (seen.has(deal.id)) continue;
+      seen.add(deal.id);
+      out.push(deal);
+      if (out.length >= CLUB_DEALS_IN_FEED_MAX) break;
+    }
+    return out;
+  } catch (err) {
+    if (err?.code !== '42P01' && err?.code !== '42703') console.error('[deals] club deals for the feed failed:', err.message);
+    return [];
+  }
+}
 
 // ==========================================
 // SINGLE DEAL  (visible to everyone)
@@ -509,6 +609,19 @@ async function clubsByDeal() {
   return byDeal;
 }
 
+// The pairs event:deal an admin released into the Gruppen feed (D-1), for the
+// admin list. A missing table (boot window) reads as none. → Set('group:deal').
+async function feedReleases() {
+  const pairs = new Set();
+  try {
+    const { rows } = await db.query('SELECT group_id, deal_id FROM feed_event_deals');
+    for (const r of rows) pairs.add(`${r.group_id}:${r.deal_id}`);
+  } catch (err) {
+    if (err?.code !== '42P01') console.error('[deals] feed releases lookup failed:', err.message);
+  }
+  return pairs;
+}
+
 export const getRedemptionStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -688,8 +801,13 @@ export const getDealsForAdmin = async (_req, res) => {
        ) r ON r.deal_id = d.id
        ORDER BY d.created_at DESC`
     );
-    const [events, clubs] = await Promise.all([attachedEventsByDeal(), clubsByDeal()]);
-    res.json(result.rows.map((d) => ({ ...d, events: events.get(d.id) || [], club: clubs.get(d.id) || null })));
+    const [events, clubs, inFeed] = await Promise.all([attachedEventsByDeal(), clubsByDeal(), feedReleases()]);
+    res.json(result.rows.map((d) => ({
+      ...d,
+      // in_feed: „Im Gruppen-Feed zeigen“ is on for this event and this deal (D-1).
+      events: (events.get(d.id) || []).map((ev) => ({ ...ev, in_feed: inFeed.has(`${ev.id}:${d.id}`) })),
+      club: clubs.get(d.id) || null,
+    })));
   } catch (err) {
     console.error('getDealsForAdmin error:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -828,6 +946,72 @@ export const setEventDeal = async (req, res) => {
     // The event or the deal was hard-deleted between the check and the write.
     if (err?.code === '23503') return res.status(404).json({ error: 'Event oder Deal nicht gefunden' });
     console.error('setEventDeal error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ==========================================
+// A CLUB'S DEAL INTO THE GRUPPEN FEED   PUT /api/deals/event/:groupId/feed   body: { show }
+// ==========================================
+// D-1 (Tina 17.11.2026: „Das können nur wir als Admins einstellen!“). App
+// admins only — the route's requireAdmin and the check here. show=true
+// releases the club deal that hangs on the event right now into the Gruppen
+// feed for the event's day (clubDealsForFeed); show=false takes the release
+// back and always succeeds. The release holds the deal's id: once the club
+// swaps or removes its deal the row matches nothing any more, and the next
+// release replaces it. Nothing is cached, so the switch works at once.
+// → { group_id, deal_id, in_feed }.
+export const EVENT_DEAL_FEED_UNAVAILABLE = {
+  error: 'Der Feed-Schalter ist gleich wieder verfügbar. Bitte versuche es in einer Minute erneut.',
+  code: 'EVENT_DEAL_FEED_UNAVAILABLE',
+};
+
+export const setEventDealFeed = async (req, res) => {
+  if (!req.userId) return res.status(401).json({ error: 'Nicht autorisiert' });
+  const groupId = toPositiveInt(req.params.groupId);
+  if (!groupId) return res.status(400).json({ error: 'Ungültige Event-ID' });
+  const show = req.body?.show;
+  if (typeof show !== 'boolean') return res.status(400).json({ error: 'show muss true oder false sein' });
+  try {
+    const caller = await db.query('SELECT is_admin FROM users WHERE id = $1', [req.userId]);
+    if (!caller.rows[0]?.is_admin) return res.status(403).json({ error: 'Admin access required' });
+    if (!show) {
+      await db.query('DELETE FROM feed_event_deals WHERE group_id = $1', [groupId]);
+      console.log(`[admin] user ${req.userId} took the deal of group ${groupId} out of the feed`);
+      return res.json({ group_id: groupId, deal_id: null, in_feed: false });
+    }
+    // Read and write in one statement: the deal on the event right now.
+    const on = await db.query(
+      `INSERT INTO feed_event_deals (group_id, deal_id, enabled_by)
+       SELECT ed.group_id, ed.deal_id, $2
+         FROM event_deals ed
+         JOIN deals d ON d.id = ed.deal_id AND d.club_id IS NOT NULL
+         JOIN groups g ON g.id = ed.group_id AND g.deleted_at IS NULL
+        WHERE ed.group_id = $1
+       ON CONFLICT (group_id) DO UPDATE
+         SET deal_id = EXCLUDED.deal_id, enabled_by = EXCLUDED.enabled_by, created_at = NOW()
+       RETURNING deal_id`,
+      [groupId, req.userId]
+    );
+    if (!on.rowCount) {
+      const link = await db.query(
+        `SELECT d.club_id FROM event_deals ed
+           JOIN deals d ON d.id = ed.deal_id
+           JOIN groups g ON g.id = ed.group_id AND g.deleted_at IS NULL
+          WHERE ed.group_id = $1`,
+        [groupId]
+      );
+      if (!link.rows.length) return res.status(404).json({ error: 'An diesem Event hängt kein Deal.', code: 'NO_EVENT_DEAL' });
+      return res.status(400).json({ error: 'JAMIE-Deals stehen ohnehin im Feed.', code: 'NOT_A_CLUB_DEAL' });
+    }
+    console.log(`[admin] user ${req.userId} released deal ${on.rows[0].deal_id} of group ${groupId} into the feed`);
+    res.json({ group_id: groupId, deal_id: on.rows[0].deal_id, in_feed: true });
+  } catch (err) {
+    // Boot window: feed_event_deals / event_deals (42P01) or deals.club_id (42703).
+    if (err?.code === '42P01' || err?.code === '42703') return res.status(503).json(EVENT_DEAL_FEED_UNAVAILABLE);
+    // The event or the deal was hard-deleted between the read and the write.
+    if (err?.code === '23503') return res.status(404).json({ error: 'Event oder Deal nicht gefunden' });
+    console.error('setEventDealFeed error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

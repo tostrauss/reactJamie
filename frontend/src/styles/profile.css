@@ -2563,6 +2563,23 @@
   font-weight: 700;
 }
 
+/* A long word for „Heute" (fr „Aujourd'hui", class is-today-long from the
+   component) beside a long „Zum Chat" („Ouvrir le chat") left the name about
+   five letters at 390 px. Where the text column is that narrow the word goes
+   on its own line under the name, which then has the full width. Rows with a
+   short word („Heute") never carry the class and are not touched; a browser
+   without container queries keeps the old line. */
+.profile-upcoming-row.is-today-long .profile-upcoming-text { container-type: inline-size; }
+
+@container (max-width: 200px) {
+  .profile-upcoming-row.is-today-long .profile-upcoming-head {
+    flex-wrap: wrap;
+    row-gap: 3px;
+  }
+
+  .profile-upcoming-row.is-today-long .profile-upcoming-name { flex: 0 0 100%; }
+}
+
 .profile-upcoming-sub {
   display: flex;
   align-items: center;

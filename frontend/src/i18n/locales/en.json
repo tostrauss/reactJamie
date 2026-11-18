@@ -2491,13 +2491,19 @@
         "attachSubmit": "Attach",
         "detachBtn": "Detach",
         "hiddenNote": "Not visible on the event right now (expired, inactive or limit reached)",
+        "feedBtn": "Show in the groups feed",
+        "feedBtnOn": "In the groups feed ✓",
+        "feedHint": "Shows the club's cooperation in the groups feed on the day of the event.",
         "toast": {
           "attached": "The cooperation now hangs on event #{{id}}",
           "attachedHidden": "Attached to event #{{id}} – but not visible there right now (expired, inactive or limit reached)",
           "detached": "Cooperation detached from “{{name}}”",
           "invalidId": "Please enter an event ID or the link to the event",
           "attachError": "Attaching failed",
-          "detachError": "Detaching failed"
+          "detachError": "Detaching failed",
+          "feedOn": "“{{name}}”: the cooperation shows in the groups feed on the day of the event",
+          "feedOff": "“{{name}}”: the cooperation is no longer in the groups feed",
+          "feedError": "Could not change the feed switch"
         }
       }
     },

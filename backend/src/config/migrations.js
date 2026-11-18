@@ -2322,6 +2322,36 @@ const runStartupMigrations = async () => {
     }
   });
 
+  // D-1 — a club's deal in the Gruppen feed (Tina 17.11.2026: „Das können
+  // nur wir als Admins einstellen!“): an app admin releases ONE pair of
+  // event and deal (PK group_id, like event_deals — one deal per event). A
+  // side table, so event_deals and its writers stay as they are: the feed
+  // joins both on event AND deal, a swapped or removed deal is out by itself.
+  // After event_deals and deals (FK targets). CASCADE on event and deal;
+  // enabled_by SET NULL for account deletion (the reviewed_by lesson). The
+  // readers take a missing table (42P01) as „no release“. Same tx +
+  // lock_timeout shape as event_deals — the FKs lock on first creation only.
+  await migrate('feed_event_deals (2026-11-18)', async () => {
+    const client = await db.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SET LOCAL lock_timeout = '5s'`);
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS feed_event_deals (
+          group_id   INTEGER     PRIMARY KEY REFERENCES groups(id) ON DELETE CASCADE,
+          deal_id    INTEGER     NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+          enabled_by INTEGER     REFERENCES users(id) ON DELETE SET NULL,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+        )`);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err; // no club deal in the feed and the switch answers 503 until the next boot
+    } finally {
+      client.release();
+    }
+  });
+
   // ── Post-migration schema assertion ────────────────────────────────────
   // The server accepts traffic BEFORE migrations finish (listen → migrate),
   // so health stays green during the boot window; only a PROVEN-broken
