@@ -234,6 +234,23 @@ describe('ProModal — the web browser sells nothing since 26.10.2026', () => {
     expect(screen.queryByText(/pro\.contextCta/)).toBeNull();
   });
 
+  // „Überspringen“ in the requests deck (Tobi 18.11.2026): its own call-out
+  // and first row, and the general list does not carry the row.
+  it('opened from „Überspringen“: its own call-out, and „Anfragen überspringen“ is the first row', async () => {
+    await renderModal({ feature: 'skipRequests' });
+    expect(screen.getByText('Überspringe Anfragen und entscheide in deinem Tempo!')).toBeTruthy();
+    const title = screen.getByText('Anfragen überspringen');
+    expect(screen.getByText('Sieh dir zuerst die nächste Anfrage an und entscheide später.')).toBeTruthy();
+    const general = screen.getByText('Unbegrenzt Gruppen');
+    expect(title.compareDocumentPosition(general) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText(/pro\.contextCta|pro\.features/)).toBeNull();
+  });
+
+  it('the general sheet does not list „Anfragen überspringen“', async () => {
+    await renderModal({});
+    expect(screen.queryByText('Anfragen überspringen')).toBeNull();
+  });
+
   // A club's own deals are no Pro feature any more (Tina 17.11.2026: a deal
   // belongs to an event, the partnership pays for more). The context that
   // advertised them is gone — an old caller asking for it gets the plain

@@ -213,6 +213,11 @@ function FeatureIcon({ name }) {
         <path d="M12 19V6M6.5 11 12 5.5 17.5 11" />
         <path d="M5 21h14" />
       </svg>);
+    // The double arrow of the deck's „Überspringen“ button (ChatList).
+    case 'skip': return (
+      <svg {...common}>
+        <path d="M5 17l5-5-5-5M13 17l5-5-5-5" />
+      </svg>);
     default: return null;
   }
 }
@@ -232,6 +237,10 @@ const CONTEXT_FEATURE = {
   creates: { icon:'✨', titleKey:'unlimitedJoins', descKey:'unlimitedJoinsDesc' },
   // DailyLimitModal CTA after a 403 DAILY_FRIEND_LIMIT (free: 5 requests per day).
   friends: { icon:'🤝', titleKey:'unlimitedFriendRequests', descKey:'unlimitedFriendRequestsDesc' },
+  // „Überspringen“ in the requests deck (ChatList), Pro only since 17.11.2026.
+  // Call-out and first row say why the sheet opened (Tobi 18.11.2026); the
+  // row is no part of the general list.
+  skipRequests: { svg:'skip', titleKey:'skipRequests', descKey:'skipRequestsDesc' },
 };
 
 // ── Confetti piece ───────────────────────────────────────────────────────

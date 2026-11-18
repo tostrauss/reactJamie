@@ -1743,6 +1743,8 @@
       "paidEventsDesc": "Vende entradas con tu propio enlace",
       "reviewRequests": "Herramientas de solicitudes",
       "reviewRequestsDesc": "Acepta todas, ordena y filtra",
+      "skipRequests": "Saltar solicitudes",
+      "skipRequestsDesc": "Mira primero la siguiente solicitud y decide después.",
       "unlimitedJoins": "Grupos ilimitados",
       "unlimitedJoinsDesc": "Crea y únete a tantos grupos como quieras.",
       "unlimitedFriendRequests": "Solicitudes de amistad ilimitadas",
@@ -1809,6 +1811,7 @@
     "contextCta": {
       "paidEvents": "¡Crea ahora tu evento de pago!",
       "reviewRequests": "¡Gestiona tus solicitudes como un profesional!",
+      "skipRequests": "¡Salta solicitudes y decide a tu ritmo!",
       "boosts": "¡Impulsa tu grupo a lo más alto ahora!",
       "joins": "¡Únete a todos los grupos que quieras!",
       "creates": "¡Crea tantos encuentros como quieras!",

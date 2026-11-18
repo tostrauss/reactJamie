@@ -422,11 +422,11 @@ export const ChatList = () => {
   // (which is why the Pro rule lives here and nowhere on the server).
   const deckSkip = () => {
     if (processing || !current || deck.length < 2) return;
-    // A free account: the card stays in front and the Pro offer opens, the
-    // same way the roster's Pro lock for non-members opens it (plain event,
-    // App.jsx owns the sheet and its platform rules).
+    // A free account: the card stays in front and the Pro offer opens with
+    // its own first row („Anfragen überspringen“, Tobi 18.11.2026), so the
+    // sheet says why it came. App.jsx owns the sheet and its platform rules.
     if (!canSkip) {
-      window.dispatchEvent(new Event('jamie:open-pro-modal'));
+      window.dispatchEvent(new CustomEvent('jamie:open-pro-modal', { detail: { feature: 'skipRequests' } }));
       return;
     }
     const k = reqKey(current);

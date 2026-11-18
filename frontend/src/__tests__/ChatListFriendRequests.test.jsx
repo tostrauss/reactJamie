@@ -256,9 +256,9 @@ describe('ChatList — Überspringen im Anfragen-Deck', () => {
     expect(screen.getByText('Max, 30')).toBeTruthy();
     fireEvent.click(skipButton());
     expect(offer.seen).toHaveBeenCalledTimes(1);
-    // Opened like the roster's Pro lock for non-members: the plain event,
-    // no context of its own.
-    expect(offer.seen.mock.calls[0][0].detail ?? null).toBeNull();
+    // With its own context, so the sheet's first row says why it opened
+    // („Anfragen überspringen“, Tobi 18.11.2026).
+    expect(offer.seen.mock.calls[0][0].detail).toEqual({ feature: 'skipRequests' });
     expect(screen.getByText('Max, 30')).toBeTruthy();
     expect(screen.queryByText('Mia, 30')).toBeNull();
     // Tapping again offers again — and still moves nothing.

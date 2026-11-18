@@ -1743,6 +1743,8 @@
       "paidEventsDesc": "Verkaufe Tickets über deinen eigenen Link",
       "reviewRequests": "Anfragen-Tools",
       "reviewRequestsDesc": "Alle annehmen, sortieren & filtern",
+      "skipRequests": "Anfragen überspringen",
+      "skipRequestsDesc": "Sieh dir zuerst die nächste Anfrage an und entscheide später.",
       "unlimitedJoins": "Unbegrenzt Gruppen",
       "unlimitedJoinsDesc": "So viele Gruppen erstellen und beitreten, wie du willst.",
       "unlimitedFriendRequests": "Unbegrenzt Freunde anfragen",
@@ -1809,6 +1811,7 @@
     "contextCta": {
       "paidEvents": "Erstelle jetzt dein kostenpflichtiges Event!",
       "reviewRequests": "Verwalte deine Beitrittsanfragen wie ein Profi!",
+      "skipRequests": "Überspringe Anfragen und entscheide in deinem Tempo!",
       "boosts": "Booste deine Gruppe jetzt ganz nach oben!",
       "joins": "Tritt so vielen Gruppen bei, wie du willst!",
       "creates": "Erstelle so viele Treffen, wie du willst!",
