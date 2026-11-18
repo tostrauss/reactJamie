@@ -10,6 +10,9 @@ import PartnerBadge from './PartnerBadge';
 // Rows in view before „Alle anzeigen (N)“ — the server sends at most 30.
 const FIRST_ROWS = 3;
 
+// A word for „Heute“ longer than this goes under the name in a narrow row.
+const LONG_TODAY = 8;
+
 // The subline's type is the server's (kind); a server without it gets the
 // same rule here (groupController upcomingKind): the partner flag, else an
 // event of an official club is a Club's, any other club event a Community's.
@@ -66,6 +69,7 @@ export default function ProfileUpcomingEvents({ editing = false, onEditingChange
   const shown = showAll || editing ? rows : rows.slice(0, FIRST_ROWS);
   const locale = eventDateLocale(i18n.resolvedLanguage || i18n.language);
   const today = viennaTodayUTC();
+  const todayLabel = t('groups.card.dateHeute');
 
   const onOpen = (row) => {
     if (!editing) navigate(`/group/${row.id}`);
@@ -84,7 +88,11 @@ export default function ProfileUpcomingEvents({ editing = false, onEditingChange
     const current = row.members_count || 0;
     // is-partner: the whole subline in the partner yellow, „☆ Partner · 8/20“
     // (mock p. 3) — not only the badge.
-    const cls = ['profile-upcoming-row', row.is_own && 'is-own', kind === 'partner' && 'is-partner', isToday && 'is-today', editable && 'is-wiggling', locked && 'is-locked']
+    // is-today-long: a long word for „Heute“ (fr „Aujourd'hui“) beside a long
+    // „Zum Chat“ („Ouvrir le chat“) left the name about five letters at
+    // 390 px. Such a row puts the word under the name where the text column
+    // is narrow (profile.css); „Heute“, „Today“, „Oggi“, „Hoy“ never get it.
+    const cls = ['profile-upcoming-row', row.is_own && 'is-own', kind === 'partner' && 'is-partner', isToday && 'is-today', isToday && todayLabel.length > LONG_TODAY && 'is-today-long', editable && 'is-wiggling', locked && 'is-locked']
       .filter(Boolean).join(' ');
     return (
       <li key={row.id} className={cls}>
@@ -105,7 +113,7 @@ export default function ProfileUpcomingEvents({ editing = false, onEditingChange
           <span className="profile-upcoming-text">
             <span className="profile-upcoming-head">
               <span className="profile-upcoming-name">{row.name}</span>
-              {isToday && <span className="profile-upcoming-today">{t('groups.card.dateHeute')}</span>}
+              {isToday && <span className="profile-upcoming-today">{todayLabel}</span>}
             </span>
             <span className="profile-upcoming-sub">
               {kind === 'partner' ? (
