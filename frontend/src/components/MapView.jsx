@@ -72,6 +72,10 @@ const DARK_MAP_STYLES = [
 
 const MAP_OPTIONS = {
   styles: DARK_MAP_STYLES,
+  // The canvas colour BEFORE the tiles arrive. Without it Google paints its
+  // default light grey — on 4G the dark app flashed a bright map with the pins
+  // already on it (test round 18.11.2026). Same colour as the styled geometry.
+  backgroundColor: '#1a1a2e',
   disableDefaultUI: true,
   gestureHandling: 'greedy',
   clickableIcons: false,

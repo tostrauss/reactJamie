@@ -278,7 +278,7 @@ export const CreateClub = () => {
             <p className="form-hint">{t('createClub.official.reviewHint')}</p>
           )}
           <div className="form-section">
-            <label className="form-label">{t('createClub.step1.nameLabel')}</label>
+            <label className="form-label">{isOfficial ? t('createClub.step1.nameLabel') : t('createClub.community.nameLabel')}</label>
             <input
               type="text"
               name="title"
@@ -343,14 +343,14 @@ export const CreateClub = () => {
               name="description"
               value={formData.description}
               onChange={handleInputChange}
-              placeholder={t('createClub.step1.descPlaceholder')}
+              placeholder={isOfficial ? t('createClub.step1.descPlaceholder') : t('createClub.community.descPlaceholder')}
               className="input textarea"
               rows={4}
             />
           </div>
 
           <div className="form-section">
-            <label className="form-label">{t('createClub.step1.imageLabel')}</label>
+            <label className="form-label">{isOfficial ? t('createClub.step1.imageLabel') : t('createClub.community.imageLabel')}</label>
             <div className="image-upload-area">
               {imagePreview ? (
                 <div className="image-preview">
@@ -360,8 +360,16 @@ export const CreateClub = () => {
               ) : (
                 <label className="upload-placeholder">
                   <input type="file" accept="image/*" onChange={handleImageUpload} hidden disabled={uploading} />
-                  <span className="upload-icon">🏆</span>
-                  <span>{uploading ? t('createClub.step1.uploading') : t('createClub.step1.addImage')}</span>
+                  {/* Same box as in „Gruppe erstellen“: picture icon, label, format hint. */}
+                  <div className="upload-icon-wrapper">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <rect x="3" y="3" width="18" height="18" rx="3"/>
+                      <circle cx="8.5" cy="8.5" r="1.5"/>
+                      <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                  </div>
+                  <span className="upload-label-text">{uploading ? t('createClub.step1.uploading') : t('createClub.step1.addImage')}</span>
+                  {!uploading && <span className="upload-label-hint">{t('createGroup.step1.imageHint')}</span>}
                 </label>
               )}
             </div>

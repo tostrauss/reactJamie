@@ -455,7 +455,19 @@
   justify-content: center;
 }
 
-.upload-placeholder {
+/* `label.` and the .form-section variant on purpose: home.css has
+   `.form-section label { display: block; margin-bottom: 8px }`, which beat the
+   bare class — the box lost its column layout and icon, „Bild auswählen“ and
+   the hint ran together in one left-aligned line (test round 18.11.2026). */
+/* Same cause for the section labels: as a block the „0/15“ counter lost its
+   `margin-left: auto` and stuck to the label („TITEL *0/15“). */
+.create-page .form-section label.form-label {
+  display: flex;
+}
+
+label.upload-placeholder,
+.form-section label.upload-placeholder {
+  margin-bottom: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -960,3 +972,6 @@
   align-self: center;
   padding-bottom: 18px;
 }
+
+/* An empty icon slot must not indent its label (the title label has none). */
+.form-label-icon:empty { display: none; }

@@ -305,7 +305,12 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
+  /* Takes the row instead of a fixed 200px: on a 384px phone the preview was
+     cut („Linda hat die Gruppe verlas…“) with a third of the line still free
+     (test round 18.11.2026). min-width 0 lets it shrink for the unread badge. */
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: 8px;
 }
 
 .unread-badge {
@@ -1859,7 +1864,9 @@
 .composer-row {
   display: flex;
   align-items: flex-end;
-  gap: 12px;
+  /* 8px, not 12: three round buttons share the row with the field, and every
+     pixel of gap is taken from the text (test round 18.11.2026). */
+  gap: 8px;
 }
 
 .composer-input {
@@ -1881,7 +1888,15 @@
   overflow-y: auto;
 }
 
-.composer-input::placeholder { color: var(--text-muted); }
+/* One line, never wrapped: with camera, poll and mic next to it the field is
+   ~130px wide on a 384px phone and „Nachricht schreiben...“ broke into a second
+   line that was cut off (test round 18.11.2026). */
+.composer-input::placeholder {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .composer-input:disabled { opacity: 0.5; }
 
 .composer-send,

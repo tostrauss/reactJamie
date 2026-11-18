@@ -2018,7 +2018,10 @@
     "community": {
       "title": "Crear una comunidad",
       "submit": "Crear comunidad",
-      "liveToast": "¡Tu comunidad está activa! 🎉"
+      "liveToast": "¡Tu comunidad está activa! 🎉",
+      "nameLabel": "Nombre de la comunidad *",
+      "descPlaceholder": "¿De qué trata tu comunidad?",
+      "imageLabel": "Imagen de la comunidad"
     },
     "official": {
       "title": "Crear un club",

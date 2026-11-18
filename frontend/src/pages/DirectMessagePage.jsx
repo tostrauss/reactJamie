@@ -454,8 +454,15 @@ export const DirectMessagePage = () => {
   if (loading) {
     return (
       <div className="chat-page">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-          <div className="loading">{t('chat.dm.loading')}</div>
+        <div className="chat-page-header">
+          <button className="back-button" onClick={() => navigate('/chats?filter=freunde')} aria-label={t('common.back', { defaultValue: 'Zurück' })}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+          </button>
+        </div>
+        <div className="loading" role="status" aria-label={t('chat.dm.loading')} style={{ flex: 1 }}>
+          <div className="loading-spinner" />
         </div>
       </div>
     );

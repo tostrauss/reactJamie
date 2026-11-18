@@ -2018,7 +2018,10 @@
     "community": {
       "title": "Found a community",
       "submit": "Found community",
-      "liveToast": "Your community is live! 🎉"
+      "liveToast": "Your community is live! 🎉",
+      "nameLabel": "Community name *",
+      "descPlaceholder": "What's your community about?",
+      "imageLabel": "Community image"
     },
     "official": {
       "title": "Create a club",

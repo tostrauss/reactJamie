@@ -696,7 +696,23 @@ export const ChatPage = () => {
     }
   };
 
-  if (loading) return <div className="chat-page"><div className="loading">{t('chat.page.loading')}</div></div>;
+  // While the chat loads the header with its back button is already there —
+  // a bare „Laden...“ on an empty screen looked broken and left no way back
+  // (test round 18.11.2026).
+  if (loading) return (
+    <div className="chat-page">
+      <div className="chat-page-header">
+        <button className="back-button" onClick={goBackToList} aria-label={t('common.back', { defaultValue: 'Zurück' })}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+        </button>
+      </div>
+      <div className="loading" role="status" aria-label={t('chat.page.loading')} style={{ flex: 1 }}>
+        <div className="loading-spinner" />
+      </div>
+    </div>
+  );
   if (!group) return <div className="chat-page"><div className="loading">{t('chat.page.notFound')}</div></div>;
 
   return (

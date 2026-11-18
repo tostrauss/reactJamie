@@ -53,6 +53,25 @@ const translateInterest = (i) => INTEREST_DE[i] ?? i;
 // source. One switch, so a "no" later is a one-line change.
 const SHOW_MEMORY_PROMPT_BANNER = true;
 
+// Last known stats row, per account, in this browser only — a convenience so
+// the row is there on the first paint. Storage may be blocked or empty: every
+// access is guarded and the page works without it.
+const STATS_CACHE_KEY = 'jamie.profileStats';
+const readCachedProfileStats = (userId) => {
+  if (!userId) return null;
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(STATS_CACHE_KEY) || 'null');
+    return cached && cached.uid === userId && cached.stats?.available ? cached.stats : null;
+  } catch { return null; }
+};
+const writeCachedProfileStats = (userId, stats) => {
+  if (!userId) return;
+  try {
+    if (stats) sessionStorage.setItem(STATS_CACHE_KEY, JSON.stringify({ uid: userId, stats }));
+    else sessionStorage.removeItem(STATS_CACHE_KEY);
+  } catch { /* storage unavailable */ }
+};
+
 export const Profile = () => {
   const { user, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -87,7 +106,10 @@ export const Profile = () => {
   const badgeCardRef = useRef(null);
   // Stats row „Meet-ups | Friends | Memories" (Tina 22.10.2026). null =
   // unknown or unavailable → no row at all, never a row of frustrating zeros.
-  const [profileStats, setProfileStats] = useState(null);
+  // Starts from the numbers of the last visit (this browser, this account):
+  // the row used to appear a moment after the page and push the interests
+  // down (test round 18.11.2026). The fresh answer replaces them right away.
+  const [profileStats, setProfileStats] = useState(() => readCachedProfileStats(user?.id));
   // „Sortieren" of the club bubbles and „Events bearbeiten" of „Demnächst
   // dabei" — ONE mode for the card, so the two can never wiggle at once
   // (Tina/Tobi 16.11.2026): null | 'sort' | 'events'. A tab switch ends it,
@@ -197,9 +219,14 @@ export const Profile = () => {
   // restored so the Memories number never disagrees with the grid.
   const loadProfileStats = useCallback(() => {
     usersApi.getProfileStats()
-      .then(res => setProfileStats(res.data?.available ? res.data : null))
-      .catch(() => setProfileStats(null));
-  }, []);
+      .then(res => {
+        const next = res.data?.available ? res.data : null;
+        setProfileStats(next);
+        writeCachedProfileStats(user?.id, next);
+      })
+      // A failed read keeps what is on screen — the cached row must not blink away.
+      .catch(() => {});
+  }, [user?.id]);
   useEffect(() => { loadProfileStats(); }, [loadProfileStats]);
 
   // „Warst du dabei?": S2's prompts (21 days, an owner's moment counts as

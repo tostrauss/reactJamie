@@ -14,6 +14,9 @@ import {
 } from '../utils/memories';
 import '../styles/explore.css';
 
+// Last Memories feed, kept for the life of the page (see the component).
+let memoriesCache = null;
+
 // i18n-aware: takes the page's `t` so English users don't see German labels
 // on Hall of Fame card timestamps. Keys live under explore.timeAgo.* and use
 // _one / _other pluralization.
@@ -274,11 +277,16 @@ export const Explore = () => {
     if (toShare) navigate('/explore/share', { replace: true });
   }, [toShare, navigate]);
 
-  const [loading, setLoading]         = useState(true);
-  const [hallItems, setHallItems]     = useState([]);
+  // The feed of the last visit (same account, this app session) is shown at
+  // once and refreshed underneath. Before, every return to this tab started
+  // with an empty page and a spinner (test round 18.11.2026: three times in a
+  // minute). Memory only — a reload or another account starts clean.
+  const cachedFeed = memoriesCache && memoriesCache.uid === (user?.id ?? null) ? memoriesCache : null;
+  const [loading, setLoading]         = useState(!cachedFeed);
+  const [hallItems, setHallItems]     = useState(() => cachedFeed?.items || []);
   // Bumped by pull-to-refresh so the Friends tab refetches its lists.
   const [friendsReloadKey, setFriendsReloadKey] = useState(0);
-  const [likedIds, setLikedIds]       = useState(() => new Set());
+  const [likedIds, setLikedIds]       = useState(() => new Set(cachedFeed?.liked || []));
   const [uploadingId, setUploadingId] = useState(null);
   // Hall-of-Fame gallery: { item, photos: [{ id?, url, user_id?, user_name, can_delete }], index }
   const [gallery, setGallery] = useState(null);
@@ -302,12 +310,14 @@ export const Explore = () => {
     setHallItems(hallRes.data || []);
     // getMyLikes returns a bare array of group ids the caller has liked.
     setLikedIds(new Set(likesRes.data || []));
+    memoriesCache = { uid: user?.id ?? null, items: hallRes.data || [], liked: likesRes.data || [] };
   }, [user?.id]);
 
   useEffect(() => {
     if (toShare) return undefined;
     let cancelled = false;
-    setLoading(true);
+    // With a cached feed on screen the refresh is silent.
+    if (!(memoriesCache && memoriesCache.uid === (user?.id ?? null))) setLoading(true);
     loadData().catch(() => { /* silent */ }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [loadData, toShare]);

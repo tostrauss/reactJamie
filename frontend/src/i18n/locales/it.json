@@ -2018,7 +2018,10 @@
     "community": {
       "title": "Fonda una community",
       "submit": "Fonda la community",
-      "liveToast": "La tua community è online! 🎉"
+      "liveToast": "La tua community è online! 🎉",
+      "nameLabel": "Nome della community *",
+      "descPlaceholder": "Di cosa si occupa la tua community?",
+      "imageLabel": "Immagine della community"
     },
     "official": {
       "title": "Crea un club",

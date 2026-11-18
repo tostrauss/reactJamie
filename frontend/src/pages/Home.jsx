@@ -228,6 +228,12 @@ export const Home = () => {
         setGroupsHasMore((groupsRes.data || []).length >= GROUPS_PAGE);
         setDealList(dealsRes.data || []);
         setFavorites(new Set((favGroupsRes.data || []).map(g => g.id)));
+        // The same list the Community tab shows as „Meine Communities“ /
+        // „Meine Clubs“. Keeping it here means the rail is already there when
+        // the tab opens — before, the page drew „Finde deine Community!“ first
+        // and the rail then pushed everything down (test round 18.11.2026).
+        // Only a non-empty answer: the call above swallows its errors as [].
+        if ((joinedClubsRes.data || []).length > 0) setMyClubs(joinedClubsRes.data);
         setJoined(new Set([
           ...(joinedGroupsRes.data || []).map(g => g.id),
           ...(joinedClubsRes.data || []).map(c => c.id),
