@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { deletePartnerLeadsOfUser } from '../utils/partnerLeads.js';
 import { revokeUserSessions } from '../socket.js';
 import { sendPushToUser, listPushDevices, PUSH_TEST } from './pushController.js';
 import { attachAttendanceTiers } from '../utils/attendanceTiers.js';
@@ -976,6 +977,8 @@ export const deleteUser = async (req, res) => {
          WHERE gm.group_id = u.id AND gm.user_id = u.new_owner`,
         [targetId]
       );
+      // Partner requests go with the account (Tobi 18.11.2026), not only user_id -> NULL.
+      await deletePartnerLeadsOfUser(client, targetId);
       await client.query('DELETE FROM users WHERE id = $1', [targetId]);
       await client.query('COMMIT');
     } catch (txErr) {

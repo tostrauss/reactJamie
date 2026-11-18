@@ -7131,6 +7131,33 @@ suite('write endpoints against real Postgres', () => {
       await db.query('DELETE FROM partner_leads WHERE id = $1', [id]);
       await db.query('DELETE FROM groups WHERE id = $1', [ev]);
     });
+
+    it('deleting the account through the app takes the own partner requests along (Tobi 18.11.2026)', async () => {
+      const mk = async (email) => (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ($1, 'Lea Lead', '1990-01-01', 'female', $2, TRUE, 'email') RETURNING id`, [email, avatar])).rows[0].id;
+      const gone = await mk('smoke-lead-gone@x.com');
+      const stays = await mk('smoke-lead-stays@x.com');
+      const mine = (await lead({ user_id: gone, company: 'Café Weg', email: 'weg@x.com', phone: '+43 1 111' })).rows[0].id;
+      const other = (await lead({ user_id: stays, company: 'Café Bleibt', email: 'bleibt@x.com', phone: '+43 1 222' })).rows[0].id;
+
+      ok(await call(C.deleteAccount, { userId: gone, body: {} }));
+      expect((await db.query('SELECT 1 FROM users WHERE id = $1', [gone])).rowCount).toBe(0);
+      // name, e-mail and phone are gone with the account, not only the link
+      expect((await db.query('SELECT 1 FROM partner_leads WHERE id = $1', [mine])).rowCount).toBe(0);
+      // somebody else's request is untouched
+      expect((await db.query('SELECT user_id FROM partner_leads WHERE id = $1', [other])).rows).toEqual([{ user_id: stays }]);
+
+      // Boot window: without the table the account deletion still goes through.
+      await db.query('ALTER TABLE partner_leads RENAME TO partner_leads_away');
+      try {
+        ok(await call(C.deleteAccount, { userId: stays, body: {} }));
+        expect((await db.query('SELECT 1 FROM users WHERE id = $1', [stays])).rowCount).toBe(0);
+      } finally {
+        await db.query('ALTER TABLE partner_leads_away RENAME TO partner_leads');
+      }
+      await db.query('DELETE FROM partner_leads WHERE id = $1', [other]);
+    });
   });
 
   // ── The free tier of clubs (Tina 17.11.2026, decided by Tobi) ───────────

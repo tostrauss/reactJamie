@@ -1,4 +1,5 @@
 import db from '../config/database.js';
+import { deletePartnerLeadsOfUser } from '../utils/partnerLeads.js';
 import { isSafeImageUrl } from '../utils/safeUrl.js';
 // @node-rs/bcrypt, NOT bcryptjs: the pure-JS implementation hashed on the
 // main thread (~310ms CPU per op at cost 12) and capped the whole instance at
@@ -1052,6 +1053,8 @@ export const deleteAccount = async (req, res) => {
         [req.userId]
       );
       // Delete user — remaining (solo-owned) groups + all other rows cascade.
+      // Partner requests go with the account (Tobi 18.11.2026), not only user_id -> NULL.
+      await deletePartnerLeadsOfUser(client, req.userId);
       await client.query('DELETE FROM users WHERE id = $1', [req.userId]);
       await client.query('COMMIT');
     } catch (txErr) {
