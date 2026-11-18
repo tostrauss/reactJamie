@@ -1609,7 +1609,7 @@ export const joinGroup = async (req, res) => {
         return res.status(403).json(joinBlockedBody());
       }
       // A sent request costs a daily slot (a rejection gives it back).
-      if (countsTowardJoinLimit(g)) logGroupJoin(db, req.userId, Number(id), 'request');
+      if (countsTowardJoinLimit(g)) await logGroupJoin(db, req.userId, Number(id), 'request');
       // Notify owner about the new join request (fire-and-forget)
       if (g.owner_id && Number(g.owner_id) !== Number(req.userId)) {
         notifyJoinRequest(req.userId, g.owner_id, g.name || '', id).catch(() => {});
@@ -1673,7 +1673,7 @@ export const joinGroup = async (req, res) => {
     // Daily-limit log — after COMMIT, never inside the transaction: in the
     // boot window the table may not exist yet, and that must not roll back
     // the join itself.
-    if (didJoin && countsTowardJoinLimit(g)) logGroupJoin(db, req.userId, Number(id), 'join');
+    if (didJoin && countsTowardJoinLimit(g)) await logGroupJoin(db, req.userId, Number(id), 'join');
 
     // Notify group owner (fire-and-forget), gated on a real join.
     if (didJoin && g.owner_id && Number(g.owner_id) !== Number(req.userId)) {
