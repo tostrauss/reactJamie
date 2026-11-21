@@ -2,6 +2,7 @@ import db from '../config/database.js';
 import { parentClubGateSql } from '../utils/clubGate.js';
 import { getCached, setCached } from '../utils/cache.js';
 import { geocodeAllowedRegion } from '../utils/geocode.js';
+import { viennaDistrictOf, VIENNA_BBOX, VIENNA_DISTRICT_COUNT } from '../utils/viennaDistricts.js';
 
 /**
  * GET /api/map/geocode?q=...
@@ -147,6 +148,88 @@ export const getMapPins = async (req, res) => {
   } catch (err) {
     console.error('Error fetching map pins:', err);
     res.status(500).json({ error: 'Kartendaten konnten nicht geladen werden' });
+  }
+};
+
+const DISTRICTS_CACHE_KEY = 'map:districts';
+const DISTRICTS_TTL_MS = 10 * 60_000;
+
+/**
+ * GET /api/map/districts
+ * Public numbers for the website jamie-app.com (Tobi 21.11.2026): meetups per
+ * Vienna district, „Seit dem Start: 312 Treffen in 19 von 23 Bezirken“.
+ * Counts only — no name, place or coordinate leaves this endpoint, which is
+ * why private meetups may count towards sinceStart.
+ *
+ *   sinceStart  meetups that took place (dated before today) with at least two
+ *               people (members_count >= 2: the owner plus one), not cancelled
+ *               (is_active), not deleted, a club's events only while the club
+ *               is live.
+ *   today       exactly what the map shows under „Heute“ to a guest: public,
+ *               approved, dated today. The website links to that map, so a
+ *               „Heute: 12 Treffen“ headline must never disagree with it.
+ *
+ * byDistrict[i] is district i + 1. The website switches from „Seit dem Start“
+ * to „Heute“ once today.total reaches its own threshold.
+ *
+ * Cached for 10 minutes. Meant to be fetched SERVER-side (a WordPress
+ * transient, a static build), not by every visitor's browser: a TV spike on
+ * the website must not land on the app API. That is why there is no CORS
+ * opening for jamie-app.com; a local preview file (Origin "null") passes the
+ * existing allowlist.
+ */
+export const getDistrictStats = async (_req, res) => {
+  try {
+    let body = getCached(DISTRICTS_CACHE_KEY);
+    if (!body) {
+      const { minLat, maxLat, minLng, maxLng } = VIENNA_BBOX;
+      // Rounded to ~10 m and grouped, so a popular meeting point is one row
+      // however many meetups it had. The bounding box is only a pre-filter;
+      // viennaDistrictOf decides.
+      const select = `
+        SELECT ROUND(g.lat::numeric, 4)::float8 AS lat, ROUND(g.lng::numeric, 4)::float8 AS lng,
+               COUNT(*)::int AS n
+        FROM groups g
+        WHERE g.type <> 'club'
+          AND g.is_active = TRUE
+          AND g.deleted_at IS NULL
+          AND g.approval_status = 'approved'
+          AND g.lat BETWEEN $1 AND $2
+          AND g.lng BETWEEN $3 AND $4`;
+      const bbox = [minLat, maxLat, minLng, maxLng];
+      const [past, today] = await Promise.all([
+        db.query(`${select}
+          AND ${parentClubGateSql('g')}
+          AND g.date < CURRENT_DATE
+          AND g.members_count >= 2
+          GROUP BY 1, 2`, bbox),
+        // Same conditions as getMapPins with dateFilter=heute for a guest.
+        db.query(`${select}
+          AND g.is_private IS NOT TRUE
+          AND ${parentClubGateSql('g', { requirePublic: true })}
+          AND g.date >= CURRENT_DATE AND g.date < CURRENT_DATE + INTERVAL '1 day'
+          GROUP BY 1, 2`, bbox),
+      ]);
+      const tally = (rows) => {
+        const byDistrict = new Array(VIENNA_DISTRICT_COUNT).fill(0);
+        for (const r of rows) {
+          const d = viennaDistrictOf(r.lat, r.lng);
+          if (d) byDistrict[d - 1] += r.n;
+        }
+        return {
+          total: byDistrict.reduce((sum, n) => sum + n, 0),
+          districts: byDistrict.filter((n) => n > 0).length,
+          byDistrict,
+        };
+      };
+      body = { sinceStart: tally(past.rows), today: tally(today.rows) };
+      setCached(DISTRICTS_CACHE_KEY, body, DISTRICTS_TTL_MS);
+    }
+    res.set('Cache-Control', 'public, max-age=600');
+    res.json(body);
+  } catch (err) {
+    console.error('Error fetching district stats:', err);
+    res.status(500).json({ error: 'Zahlen konnten nicht geladen werden' });
   }
 };
 

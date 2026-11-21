@@ -86,6 +86,7 @@ const makeRes = () => {
   // register / login set the httpOnly session cookie.
   res.cookie = (name, value) => { res.cookies[name] = value; return res; };
   res.clearCookie = (name) => { delete res.cookies[name]; return res; };
+  res.set = () => res;
   return res;
 };
 const call = async (fn, { userId, params = {}, body = {}, query = {} }) => {
@@ -214,6 +215,7 @@ suite('write endpoints against real Postgres', () => {
       getGroups: g.getGroups, getClubs: c.getClubs, getClubById: c.getClubById,
       updateClub: c.updateClub, classifyClub: ad.classifyClub, getClubsForAdmin: ad.getClubsForAdmin,
       getDiscoverEvents: c.getDiscoverEvents, getMapPins: mp.getMapPins,
+      getDistrictStats: mp.getDistrictStats,                              // website numbers (21.11.2026)
       getGroupById: g.getGroupById,
       cancelGroup: g.cancelGroup, deleteGroup: g.deleteGroup,
       getUserClubs: c.getUserClubs, setMyClubOrder: c.setMyClubOrder,     // profile order (16.11.2026)
@@ -9942,4 +9944,94 @@ suite('write endpoints against real Postgres', () => {
     });
   });
 
+
+  // ── Website: meetups per Vienna district (Tobi 21.11.2026) ────────────────
+  // GET /api/map/districts feeds „Seit dem Start: N Treffen in M von 23
+  // Bezirken“ on jamie-app.com. Deltas, not absolute numbers: other cases in
+  // this suite leave meetups at 48.2/16.37 behind. Dates hang off the
+  // database's CURRENT_DATE, never the test machine's clock.
+  describe('website district numbers (21.11.2026)', () => {
+    const PAST = `CURRENT_DATE - INTERVAL '3 days' + INTERVAL '18 hours'`;
+    const TODAY = `CURRENT_DATE + INTERVAL '12 hours'`;
+    const TOMORROW = `CURRENT_DATE + INTERVAL '1 day 12 hours'`;
+    const STEPHANSDOM = [48.2085, 16.3731];   // 1. Innere Stadt
+    const PRATERSTERN = [48.2185, 16.3925];   // 2. Leopoldstadt
+    const SCHOENBRUNN = [48.1845, 16.3122];   // 13. Hietzing
+    const DONAUTURM = [48.2403, 16.4103];     // 22. Donaustadt
+    const LIESING = [48.1347, 16.2836];       // 23. Liesing
+    const PERCHTOLDSDORF = [48.1194, 16.2654]; // outside Vienna, inside the bounding box
+    let owner, guest;
+
+    const stats = async () => {
+      const { invalidatePrefix } = await import('../../src/utils/cache.js');
+      invalidatePrefix('map:');
+      const res = await call(C.getDistrictStats, {});
+      ok(res);
+      return res.body;
+    };
+    const mk = async ({ type = 'group', at, when, isPrivate = false, isActive = true, deleted = false, parent = null, members = 2 }) => {
+      const id = (await db.query(
+        `INSERT INTO groups (name, type, owner_id, category, location, max_members, date, lat, lng, is_private, is_active, deleted_at, parent_club_id)
+         VALUES ('Bezirk-Smoke', $1, $2, 'Sport', 'Wien', 10, ${when}, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [type, owner, at[0], at[1], isPrivate, isActive, deleted ? new Date() : null, parent])).rows[0].id;
+      await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'owner')`, [id, owner]);
+      if (members >= 2) await db.query(`INSERT INTO group_members (group_id, user_id, role) VALUES ($1, $2, 'member')`, [id, guest]);
+      return id;
+    };
+    const club = async (approval) => (await db.query(
+      `INSERT INTO groups (name, type, owner_id, category, location, max_members, is_private, approval_status, lat, lng)
+       VALUES ('Bezirk-Smoke Club', 'club', $1, 'Sport', 'Wien', 100, FALSE, $2, 48.2, 16.37) RETURNING id`,
+      [owner, approval])).rows[0].id;
+
+    it('counts what took place with two people, and today exactly as the guest map does', async () => {
+      const mkUser = async (email, name) => (await db.query(
+        `INSERT INTO users (email, name, date_of_birth, gender, avatar_url, onboarding_completed, auth_provider)
+         VALUES ($1, $2, '1993-05-05', 'female', $3, TRUE, 'email') RETURNING id`,
+        [email, name, avatar])).rows[0].id;
+      owner = await mkUser('smoke-bezirk-owner@x.com', 'Bettina');
+      guest = await mkUser('smoke-bezirk-guest@x.com', 'Gerda');
+
+      const before = await stats();
+      expect(before.sinceStart.byDistrict).toHaveLength(23);
+
+      // Counted since the start
+      await mk({ at: STEPHANSDOM, when: PAST });
+      await mk({ at: STEPHANSDOM, when: PAST });                     // same point: grouped, still 2
+      await mk({ at: SCHOENBRUNN, when: PAST, isPrivate: true });   // private counts, as a number only
+      const liveClub = await club('approved');
+      await mk({ type: 'event', at: DONAUTURM, when: PAST, parent: liveClub });
+      // Not counted
+      await mk({ at: PRATERSTERN, when: PAST, members: 1 });         // nobody came along
+      await mk({ at: PRATERSTERN, when: PAST, isActive: false });    // cancelled
+      await mk({ at: PRATERSTERN, when: PAST, deleted: true });      // deleted
+      await mk({ at: PERCHTOLDSDORF, when: PAST });                  // not Vienna
+      const pendingClub = await club('pending');
+      await mk({ type: 'event', at: PRATERSTERN, when: PAST, parent: pendingClub }); // club not live
+      // Today: planned counts (one person is enough), private does not
+      await mk({ at: DONAUTURM, when: TODAY, members: 1 });
+      await mk({ at: DONAUTURM, when: TODAY, isPrivate: true });
+      // Tomorrow: neither
+      await mk({ at: LIESING, when: TOMORROW });
+
+      const after = await stats();
+      const delta = (k) => after[k].byDistrict.map((n, i) => n - before[k].byDistrict[i]);
+      const since = new Array(23).fill(0); since[0] = 2; since[12] = 1; since[21] = 1;
+      const today = new Array(23).fill(0); today[21] = 1;
+      expect(delta('sinceStart')).toEqual(since);
+      expect(delta('today')).toEqual(today);
+      expect(after.sinceStart.total - before.sinceStart.total).toBe(4);
+      expect(after.today.total - before.today.total).toBe(1);
+      expect(after.sinceStart.districts).toBe(after.sinceStart.byDistrict.filter((n) => n > 0).length);
+    });
+
+    it('today matches the pins the guest map returns for „Heute“ inside Vienna', async () => {
+      const { invalidatePrefix } = await import('../../src/utils/cache.js');
+      const { viennaDistrictOf } = await import('../../src/utils/viennaDistricts.js');
+      invalidatePrefix('map:');
+      const pins = await call(C.getMapPins, { query: { dateFilter: 'heute' } });
+      ok(pins);
+      const inVienna = pins.body.filter((p) => viennaDistrictOf(p.lat, p.lng));
+      expect((await stats()).today.total).toBe(inVienna.length);
+    });
+  });
 });
