@@ -14,9 +14,10 @@ Das Xcode-Projekt (`frontend/ios`) gibt es bisher nur auf Tinas Mac. Sie öffnet
 Terminal und fügt diese Zeile ein:
 
 ```bash
-cd ~/reactJamie/frontend && zip -r ~/Desktop/jamie-ios.zip ios -x "ios/App/Pods/*" "ios/App/App/public/*" "*xcuserdata*" "ios/App/build/*" "ios/DerivedData/*"
+cd ~/reactJamie/frontend && rsync -a --exclude Pods --exclude public --exclude xcuserdata --exclude build --exclude DerivedData ios ~/Desktop/jamie-ios && cd ~/Desktop && zip -rq jamie-ios.zip jamie-ios && echo fertig
 ```
 
+(Bewusst ohne Sternchen: WhatsApp macht aus `*…*` Fettdruck und zerstört den Befehl.)
 Die Datei `jamie-ios.zip` vom Schreibtisch schickt sie an Tobi. Claude entpackt sie nach
 `frontend/ios`, prüft sie auf Geheimnisse und checkt sie ein; Tobi pusht.
 
