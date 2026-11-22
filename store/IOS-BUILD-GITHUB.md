@@ -18,7 +18,12 @@ cd ~/reactJamie/frontend && rsync -a --exclude Pods --exclude public --exclude x
 ```
 
 (Bewusst ohne Sternchen: WhatsApp macht aus `*…*` Fettdruck und zerstört den Befehl.)
-Die Datei `jamie-ios.zip` vom Schreibtisch schickt sie an Tobi. Claude entpackt sie nach
+Die Datei `jamie-ios.zip` vom Schreibtisch schickt sie an Tobi.
+
+**Ohne Terminal geht es auch:** Finder → Benutzerordner (⇧⌘H) → `reactJamie` →
+`frontend` → Rechtsklick auf `ios` → „„ios“ komprimieren“ → die `ios.zip` schicken. Die
+Datei ist größer (Pods und Web-App stecken mit drin); beim Einchecken bleiben die weg,
+ebenso `__MACOSX` und `.DS_Store`. Claude entpackt sie nach
 `frontend/ios`, prüft sie auf Geheimnisse und checkt sie ein; Tobi pusht.
 
 **Danach bei Tina einmal, vor ihrem nächsten `git pull`:**
