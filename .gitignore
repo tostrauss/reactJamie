@@ -38,3 +38,11 @@ cloudflare-auth.md
 
 # Dependencies - never commit (886 root node_modules files slipped in without this)
 node_modules/
+
+# Apple signing material - never commit, the repo is public (iOS build via GitHub,
+# see store/IOS-BUILD-GITHUB.md; the files live in ~/jamie-ios-signing)
+*.p12
+*.p8
+*.mobileprovision
+*.cer
+*.certSigningRequest

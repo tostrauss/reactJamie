@@ -4,7 +4,14 @@ dist/
 .DS_Store
 *.log
 
-# Capacitor iOS
+# Capacitor iOS (the Xcode project itself, frontend/ios, IS committed; see
+# store/IOS-BUILD-GITHUB.md). Pods live in ios/App/Pods, not ios/Pods.
 ios/Pods/
+ios/App/Pods/
+ios/App/build/
+ios/DerivedData/
 ios/.xcode.env.local
 ios/App/App/public/
+ios/App/App/capacitor.config.json
+ios/App/App/config.xml
+xcuserdata/

@@ -1,0 +1,265 @@
+# iOS-Build in der Cloud: ein Mac bei GitHub baut die App und lädt sie zu
+# App Store Connect hoch (danach TestFlight). Gedacht für Builds ohne eigenen Mac.
+# Start: GitHub → Actions → „iOS-Build“ → „Run workflow“ → Version + Build eintragen.
+# Einrichtung und Ablauf: store/IOS-BUILD-GITHUB.md
+#
+# Das Repo ist öffentlich: Läufe und Logs sieht jeder, Secrets nicht. Deshalb
+#   - nur von Hand startbar (workflow_dispatch = nur wer Schreibrechte am Repo hat),
+#   - keine Artefakte (kein .ipa / .xcarchive zum Herunterladen),
+#   - Zertifikat, Profil und API-Schlüssel nur in $RUNNER_TEMP, am Ende gelöscht.
+# Xcode 26, nicht 27: Ohne UIScene-Umbau startet ein Xcode-27-Build auf iOS 27
+# nicht (ios/4-preflight.sh, Schritt 0; store/IOS-UPDATE-TINA.md, Schritt 0).
+name: iOS-Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version, z. B. 1.4.6 (höher als die letzte im App Store)'
+        required: true
+        type: string
+      build:
+        description: 'Build-Nummer, z. B. 19 (höchste Nummer in TestFlight + 1)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-build
+  cancel-in-progress: false
+
+jobs:
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      TEAM_ID: RTJNBK94F8
+      BUNDLE_ID: com.jamie-app.app
+      VERSION: ${{ inputs.version }}
+      BUILD: ${{ inputs.build }}
+      FASTLANE_SKIP_UPDATE_CHECK: '1'
+      FASTLANE_HIDE_CHANGELOG: '1'
+      LANG: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
+    steps:
+      - name: Eingaben und Secrets prüfen
+        env:
+          IOS_DIST_P12_BASE64: ${{ secrets.IOS_DIST_P12_BASE64 }}
+          IOS_DIST_P12_PASSWORD: ${{ secrets.IOS_DIST_P12_PASSWORD }}
+          IOS_APPSTORE_PROFILE_BASE64: ${{ secrets.IOS_APPSTORE_PROFILE_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          ok=1
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || { echo "::error::Version muss aussehen wie 1.4.6, nicht '$VERSION'"; ok=0; }
+          [[ "$BUILD" =~ ^[0-9]+$ ]] || { echo "::error::Build muss eine ganze Zahl sein, nicht '$BUILD'"; ok=0; }
+          for s in IOS_DIST_P12_BASE64 IOS_DIST_P12_PASSWORD IOS_APPSTORE_PROFILE_BASE64 ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
+            [ -n "${!s}" ] || { echo "::error::Secret $s fehlt (Repo → Settings → Secrets and variables → Actions)"; ok=0; }
+          done
+          [ "$ok" = 1 ]
+
+      - uses: actions/checkout@v4
+
+      - name: Xcode-Projekt vorhanden?
+        run: |
+          if [ ! -f frontend/ios/App/App/Info.plist ]; then
+            echo "::error::frontend/ios fehlt im Repo. Erst Tinas Xcode-Projekt einchecken (store/IOS-BUILD-GITHUB.md, Schritt A)."
+            exit 1
+          fi
+
+      - name: Xcode 26 wählen
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE" ]; then
+            echo "::error::Kein Xcode 26 auf diesem Runner. Vorhanden:"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          sudo xcode-select -s "$XCODE/Contents/Developer"
+          xcodebuild -version
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Web-App bauen und ins iOS-Projekt übertragen
+        working-directory: frontend
+        run: |
+          if [ -f ios/App/Podfile ] && ! command -v pod >/dev/null; then brew install cocoapods; fi
+          npm ci
+          npm run build
+          npx cap sync ios
+
+      - name: Preflight (Datenschutz-Datei, URL-Schema, Berechtigungstexte, Push, AppDelegate)
+        run: bash ios/4-preflight.sh
+
+      - name: Version, Build und Push-Umgebung setzen
+        run: |
+          PB=/usr/libexec/PlistBuddy
+          PLIST=frontend/ios/App/App/Info.plist
+          $PB -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
+          $PB -c "Set :CFBundleVersion $BUILD" "$PLIST"
+          # Exportfrage zur Verschlüsselung: „Nein“ (nur HTTPS), wie im Runbook.
+          # Steht es in der Info.plist, wartet TestFlight nicht auf „Fehlende Konformität“.
+          $PB -c "Delete :ITSAppUsesNonExemptEncryption" "$PLIST" 2>/dev/null || true
+          $PB -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST"
+          # Das App-Store-Profil hat Produktions-Push. ios/App.entitlements sagt mit
+          # Absicht "development" (Gerätetests aus Xcode); Xcode tauscht das nur beim
+          # automatischen Signieren selbst, hier wird manuell signiert.
+          $PB -c "Set :aps-environment production" frontend/ios/App/App/App.entitlements
+          echo "Info.plist: $($PB -c 'Print :CFBundleShortVersionString' "$PLIST") ($($PB -c 'Print :CFBundleVersion' "$PLIST"))"
+
+      - name: Signieren vorbereiten (Zertifikat, Profil, API-Schlüssel)
+        env:
+          P12_BASE64: ${{ secrets.IOS_DIST_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.IOS_DIST_P12_PASSWORD }}
+          PROFILE_BASE64: ${{ secrets.IOS_APPSTORE_PROFILE_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          S="$RUNNER_TEMP/signing"
+          mkdir -p "$S"
+          printf '%s' "$P12_BASE64" | base64 --decode > "$S/dist.p12"
+          printf '%s' "$PROFILE_BASE64" | base64 --decode > "$S/appstore.mobileprovision"
+          printf '%s\n' "$ASC_KEY_P8" > "$S/AuthKey_$ASC_KEY_ID.p8"
+
+          KC="$S/build.keychain-db"
+          KC_PASS=$(uuidgen)
+          security create-keychain -p "$KC_PASS" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KC_PASS" "$KC"
+          security import "$S/dist.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KC"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KC_PASS" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$KC"
+
+          PB=/usr/libexec/PlistBuddy
+          security cms -D -i "$S/appstore.mobileprovision" > "$S/profile.plist"
+          UUID=$($PB -c 'Print :UUID' "$S/profile.plist")
+          NAME=$($PB -c 'Print :Name' "$S/profile.plist")
+          APPID=$($PB -c 'Print :Entitlements:application-identifier' "$S/profile.plist")
+          APS=$($PB -c 'Print :Entitlements:aps-environment' "$S/profile.plist" 2>/dev/null || echo fehlt)
+          echo "Profil: $NAME | $APPID | Push: $APS | gültig bis $($PB -c 'Print :ExpirationDate' "$S/profile.plist")"
+          [ "$APPID" = "$TEAM_ID.$BUNDLE_ID" ] || { echo "::error::Profil gehört zu $APPID, erwartet $TEAM_ID.$BUNDLE_ID"; exit 1; }
+          [ "$APS" = "production" ] || { echo "::error::Profil ohne Push (aps-environment: $APS). Profil neu erzeugen (store/IOS-BUILD-GITHUB.md, Schritt C)."; exit 1; }
+          for d in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            mkdir -p "$d"
+            cp "$S/appstore.mobileprovision" "$d/$UUID.mobileprovision"
+          done
+          {
+            echo "SIGNING_DIR=$S"
+            echo "KEYCHAIN=$KC"
+            echo "PROFILE_NAME=$NAME"
+            echo "PROFILE_UUID=$UUID"
+          } >> "$GITHUB_ENV"
+
+      - name: App-Target auf manuelles Signieren stellen
+        run: |
+          command -v fastlane >/dev/null || brew install fastlane
+          ARGS=(
+            path:"frontend/ios/App/App.xcodeproj"
+            use_automatic_signing:false
+            team_id:"$TEAM_ID"
+            targets:"App"
+            build_configurations:"Release"
+            code_sign_identity:"Apple Distribution"
+            profile_name:"$PROFILE_NAME"
+          )
+          # Einmal allgemein, einmal für iphoneos*: Steht im Projekt ein
+          # SDK-spezifischer Wert, gewinnt sonst der beim Archivieren.
+          fastlane run update_code_signing_settings "${ARGS[@]}"
+          fastlane run update_code_signing_settings "${ARGS[@]}" 'sdk:iphoneos*'
+          xcodebuild -project frontend/ios/App/App.xcodeproj -target App -configuration Release -showBuildSettings 2>/dev/null \
+            | grep -E '^\s*(CODE_SIGN_STYLE|CODE_SIGN_IDENTITY|DEVELOPMENT_TEAM|PROVISIONING_PROFILE_SPECIFIER|PRODUCT_BUNDLE_IDENTIFIER|TARGETED_DEVICE_FAMILY|IPHONEOS_DEPLOYMENT_TARGET) ='
+
+      - name: Archivieren
+        run: |
+          if [ -d frontend/ios/App/App.xcworkspace ]; then
+            SRC=(-workspace frontend/ios/App/App.xcworkspace)
+          else
+            SRC=(-project frontend/ios/App/App.xcodeproj)
+          fi
+          LOG="$RUNNER_TEMP/archive.log"
+          if ! xcodebuild "${SRC[@]}" -scheme App -configuration Release \
+                 -destination 'generic/platform=iOS' \
+                 -archivePath "$RUNNER_TEMP/App.xcarchive" archive > "$LOG" 2>&1; then
+            grep -E 'error:|ARCHIVE FAILED' "$LOG" | head -40 || true
+            echo "--- letzte 80 Zeilen ---"
+            tail -80 "$LOG"
+            exit 1
+          fi
+          tail -3 "$LOG"
+
+      - name: Archiv prüfen (Version, Bundle-ID, Push)
+        run: |
+          APP="$RUNNER_TEMP/App.xcarchive/Products/Applications/App.app"
+          PB=/usr/libexec/PlistBuddy
+          V=$($PB -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")
+          B=$($PB -c 'Print :CFBundleVersion' "$APP/Info.plist")
+          ID=$($PB -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+          echo "Archiv: $ID $V ($B)"
+          [ "$V" = "$VERSION" ] && [ "$B" = "$BUILD" ] || { echo "::error::Archiv hat $V ($B), erwartet $VERSION ($BUILD)"; exit 1; }
+          [ "$ID" = "$BUNDLE_ID" ] || { echo "::error::Bundle-ID $ID, erwartet $BUNDLE_ID"; exit 1; }
+          codesign -d --entitlements - --xml "$APP" > "$RUNNER_TEMP/ent.plist" 2>/dev/null
+          APS=$($PB -c 'Print :aps-environment' "$RUNNER_TEMP/ent.plist" 2>/dev/null || echo fehlt)
+          [ "$APS" = "production" ] || { echo "::error::Signierte App ohne Produktions-Push (aps-environment: $APS)"; exit 1; }
+          echo "Push: $APS"
+
+      - name: Zu App Store Connect hochladen
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict><key>$BUNDLE_ID</key><string>$PROFILE_NAME</string></dict>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          EOF
+          LOG="$RUNNER_TEMP/upload.log"
+          if ! xcodebuild -exportArchive \
+                 -archivePath "$RUNNER_TEMP/App.xcarchive" \
+                 -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+                 -exportPath "$RUNNER_TEMP/export" \
+                 -allowProvisioningUpdates \
+                 -authenticationKeyPath "$SIGNING_DIR/AuthKey_$ASC_KEY_ID.p8" \
+                 -authenticationKeyID "$ASC_KEY_ID" \
+                 -authenticationKeyIssuerID "$ASC_ISSUER_ID" > "$LOG" 2>&1; then
+            grep -E 'error|EXPORT FAILED|already|Redundant|version' "$LOG" | head -40 || true
+            echo "--- letzte 80 Zeilen ---"
+            tail -80 "$LOG"
+            exit 1
+          fi
+          tail -5 "$LOG"
+          {
+            echo "### iOS $VERSION ($BUILD) ist hochgeladen"
+            echo "Apple verarbeitet den Build 15–45 Minuten, dann steht er in App Store Connect → JAMIE → TestFlight."
+            echo "Danach testen und einreichen: store/IOS-BUILD-GITHUB.md, Schritt E."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Aufräumen
+        if: always()
+        run: |
+          if [ -n "${KEYCHAIN:-}" ]; then security delete-keychain "$KEYCHAIN" || true; fi
+          if [ -n "${PROFILE_UUID:-}" ]; then
+            rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision" \
+                  "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          fi
+          rm -rf "${SIGNING_DIR:-$RUNNER_TEMP/signing}"
