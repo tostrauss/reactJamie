@@ -2301,23 +2301,23 @@
     "cta": "Yes, get in touch!",
     "concurrent": {
       "title": "Hey {{name}}, you’re quick! 🙌",
-      "intro": "I’m Tina, one of the founders of JAMIE. We built JAMIE so that people in Vienna really get together again – ideally at places like yours!",
+      "intro": "We built JAMIE so that people in Vienna really get together again – ideally at places like yours!",
       "lead": "One event at a time is free. If you want more, become our partner:",
       "b1": "Up to 3 events at the same time",
       "b2": "Your own deals for your guests",
       "b3": "Official Partner Badge & more!",
-      "outro": "To be honest: the partnership costs something. In return, you shape JAMIE together with us. Would you be up for it? I’ll get in touch with you personally. 😊",
+      "outro": "To be honest: the partnership costs something. In return, you shape JAMIE together with us. Would you be up for it? We’ll get in touch with you personally. 😊",
       "notReady": "Not ready yet? Another event is free as soon as your first one is over."
     },
     "third": {
       "title": "Hey {{name}}, great that you’re planning another event! 🙌",
-      "intro": "I’m Tina, one of the founders of JAMIE. We built JAMIE so that people in Vienna really get together again, and we’re very happy that this has already happened twice at your place.",
+      "intro": "We built JAMIE so that people in Vienna really get together again, and we’re very happy that this has already happened twice at your place.",
       "lead": "From the third event on, it continues as a JAMIE Partner. That lets you:",
       "b1": "plan up to 3 events at the same time",
       "b2": "create your own deals for your guests",
       "b3": "get the official Partner Badge & more",
       "outro": "To be honest: the partnership costs something. Right now, though, we’re looking for 10 pilot partners who develop JAMIE further with us.",
-      "outro2": "Would you be up for it? I’ll get in touch with you personally. 😊"
+      "outro2": "Would you be up for it? We’ll get in touch with you personally. 😊"
     },
     "request": {
       "title": "JAMIE Request",

@@ -37,12 +37,12 @@ describe('the letter when a second event is created while the first is still ahe
     renderSheet({ reason: 'concurrent' });
     expect(screen.getByRole('dialog').getAttribute('aria-modal')).toBe('true');
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Hey Café Krie, ihr seid ja schnell! 🙌');
-    text('Ich bin Tina, eine der Gründer:innen von JAMIE. Wir haben JAMIE gebaut, damit Menschen in Wien wieder echt zusammenkommen und am liebsten an Orten wie eurem!');
+    text('Wir haben JAMIE gebaut, damit Menschen in Wien wieder echt zusammenkommen und am liebsten an Orten wie eurem!');
     text('Gratis geht 1 Event gleichzeitig. Wenn ihr mehr wollt, werdet unser Partner:');
     text('Bis zu 3 Events gleichzeitig');
     text('Eigene Deals für eure Gäste');
     text('Offizielles Partner Badge & mehr!');
-    text('Ehrlich gesagt: Die Partnerschaft kostet etwas. Dafür entwickelt ihr JAMIE mit uns weiter. Hättet ihr Lust? Ich melde mich persönlich bei euch. 😊');
+    text('Ehrlich gesagt: Die Partnerschaft kostet etwas. Dafür entwickelt ihr JAMIE mit uns weiter. Hättet ihr Lust? Wir melden uns persönlich bei euch. 😊');
     // her three emojis, in her order
     const dialog = screen.getByRole('dialog');
     expect(dialog.textContent.indexOf('📅')).toBeGreaterThan(-1);
@@ -75,13 +75,13 @@ describe('the letter at the third event', () => {
   it('Tina\'s words — no line below the button, only the X', () => {
     renderSheet({ reason: 'third' });
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('Hey Café Krie, schön, dass ihr wieder ein Event plant! 🙌');
-    text('Ich bin Tina, eine der Gründer:innen von JAMIE. Wir haben JAMIE gebaut, damit Menschen in Wien wieder echt zusammenkommen, und es freut uns sehr, dass das schon zweimal bei euch passiert ist.');
+    text('Wir haben JAMIE gebaut, damit Menschen in Wien wieder echt zusammenkommen, und es freut uns sehr, dass das schon zweimal bei euch passiert ist.');
     text('Ab dem dritten Event geht es als JAMIE Partner weiter. Damit könnt ihr:');
     text('bis zu 3 Events gleichzeitig planen');
     text('eigene Deals für eure Gäste anlegen');
     text('das offizielle Partner Badge bekommen & mehr');
     text('Ehrlich gesagt: Die Partnerschaft kostet etwas. Gerade suchen wir aber 10 Pilotpartner, die JAMIE mit uns weiterentwickeln.');
-    text('Hättet ihr Lust? Ich melde mich persönlich bei euch. 😊');
+    text('Hättet ihr Lust? Wir melden uns persönlich bei euch. 😊');
     expect(screen.getByRole('dialog').textContent).not.toMatch(/€|\b19\b|\b49\b/);
     expect(screen.queryByText(/Noch nicht bereit/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Schließen' }));

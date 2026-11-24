@@ -2301,23 +2301,23 @@
     "cta": "Sì, contattateci!",
     "concurrent": {
       "title": "Ciao {{name}}, siete velocissimi! 🙌",
-      "intro": "Sono Tina, tra i fondatori di JAMIE. Abbiamo creato JAMIE perché a Vienna le persone tornino a incontrarsi davvero, meglio ancora in posti come il vostro!",
+      "intro": "Abbiamo creato JAMIE perché a Vienna le persone tornino a incontrarsi davvero, meglio ancora in posti come il vostro!",
       "lead": "Gratis è possibile 1 evento alla volta. Se volete di più, diventate nostri partner:",
       "b1": "Fino a 3 eventi contemporaneamente",
       "b2": "Deal vostri per i vostri ospiti",
       "b3": "Partner Badge ufficiale e altro ancora!",
-      "outro": "Sinceramente: la partnership ha un costo. In cambio sviluppate JAMIE insieme a noi. Vi andrebbe? Vi contatto io personalmente. 😊",
+      "outro": "Sinceramente: la partnership ha un costo. In cambio sviluppate JAMIE insieme a noi. Vi andrebbe? Vi contattiamo noi personalmente. 😊",
       "notReady": "Non siete ancora pronti? Un altro evento è gratis non appena il primo è passato."
     },
     "third": {
       "title": "Ciao {{name}}, che bello che stiate organizzando un altro evento! 🙌",
-      "intro": "Sono Tina, tra i fondatori di JAMIE. Abbiamo creato JAMIE perché a Vienna le persone tornino a incontrarsi davvero, e siamo molto felici che da voi sia già successo due volte.",
+      "intro": "Abbiamo creato JAMIE perché a Vienna le persone tornino a incontrarsi davvero, e siamo molto felici che da voi sia già successo due volte.",
       "lead": "Dal terzo evento in poi si continua come JAMIE Partner. Così potete:",
       "b1": "organizzare fino a 3 eventi contemporaneamente",
       "b2": "creare deal vostri per i vostri ospiti",
       "b3": "ottenere il Partner Badge ufficiale e altro ancora",
       "outro": "Sinceramente: la partnership ha un costo. In questo momento però cerchiamo 10 partner pilota che sviluppino JAMIE insieme a noi.",
-      "outro2": "Vi andrebbe? Vi contatto io personalmente. 😊"
+      "outro2": "Vi andrebbe? Vi contattiamo noi personalmente. 😊"
     },
     "request": {
       "title": "Richiesta JAMIE",

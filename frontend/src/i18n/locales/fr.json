@@ -2301,23 +2301,23 @@
     "cta": "Oui, contactez-nous !",
     "concurrent": {
       "title": "Hey {{name}}, vous êtes rapides ! 🙌",
-      "intro": "Je suis Tina, cofondatrice de JAMIE. Nous avons créé JAMIE pour que les gens à Vienne se retrouvent à nouveau pour de vrai, de préférence dans des lieux comme le vôtre !",
+      "intro": "Nous avons créé JAMIE pour que les gens à Vienne se retrouvent à nouveau pour de vrai, de préférence dans des lieux comme le vôtre !",
       "lead": "Gratuitement, c’est 1 événement à la fois. Si vous en voulez plus, devenez notre partenaire :",
       "b1": "Jusqu’à 3 événements en même temps",
       "b2": "Vos propres deals pour vos clients",
       "b3": "Partner Badge officiel et plus encore !",
-      "outro": "Pour être honnête : le partenariat a un coût. En échange, vous développez JAMIE avec nous. Ça vous dirait ? Je vous contacte personnellement. 😊",
+      "outro": "Pour être honnête : le partenariat a un coût. En échange, vous développez JAMIE avec nous. Ça vous dirait ? Nous vous contactons personnellement. 😊",
       "notReady": "Pas encore prêts ? Un autre événement est gratuit dès que le premier est passé."
     },
     "third": {
       "title": "Hey {{name}}, super que vous prévoyiez un nouvel événement ! 🙌",
-      "intro": "Je suis Tina, cofondatrice de JAMIE. Nous avons créé JAMIE pour que les gens à Vienne se retrouvent à nouveau pour de vrai, et nous sommes ravis que ce soit déjà arrivé deux fois chez vous.",
+      "intro": "Nous avons créé JAMIE pour que les gens à Vienne se retrouvent à nouveau pour de vrai, et nous sommes ravis que ce soit déjà arrivé deux fois chez vous.",
       "lead": "À partir du troisième événement, ça continue en tant que JAMIE Partner. Vous pourrez ainsi :",
       "b1": "prévoir jusqu’à 3 événements en même temps",
       "b2": "créer vos propres deals pour vos clients",
       "b3": "obtenir le Partner Badge officiel et plus encore",
       "outro": "Pour être honnête : le partenariat a un coût. En ce moment, nous cherchons toutefois 10 partenaires pilotes pour développer JAMIE avec nous.",
-      "outro2": "Ça vous dirait ? Je vous contacte personnellement. 😊"
+      "outro2": "Ça vous dirait ? Nous vous contactons personnellement. 😊"
     },
     "request": {
       "title": "Demande JAMIE",
