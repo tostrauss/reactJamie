@@ -81,9 +81,12 @@ jobs:
           sudo xcode-select -s "$XCODE/Contents/Developer"
           xcodebuild -version
 
+      # Node 22, nicht 20 wie in ci.yml: Die Capacitor-CLI 8 bricht unter Node 20
+      # hart ab („[fatal] The Capacitor CLI requires NodeJS >=22.0.0“), und
+      # `npx cap sync ios` läuft nur hier.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
